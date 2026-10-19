@@ -1,3 +1,4 @@
+import { filterInrAgentPublicationChannels, pendingInrAgentPublicationChannels, unvalidatedInrAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelection";
 import { readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
 import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
@@ -730,12 +731,12 @@ async function executeCampaignAction(args: {
   }
 
   const now = new Date().toISOString();
-  await updateActionRow(actionId, userId, {
-    status: "executing",
-    validated_at: action.validatedAt || now,
-    refused_at: null,
-    last_error: null,
-  });
+  const claim = await supabaseAdmin.from("inr_agent_actions").update({
+    status: "executing", validated_at: action.validatedAt || now,
+    refused_at: null, last_error: null, updated_at: now,
+  }).eq("id", actionId).eq("user_id", userId).eq("status", action.status)
+    .eq("updated_at", action.updatedAt).select("id").maybeSingle();
+  if (claim.error || !claim.data) return NextResponse.json({ error: "La publication a changé. Actualisez puis vérifiez les canaux avant de valider." }, { status: 409 });
 
   const campaignIdempotencyKey = `inr_agent_action:${actionId}:campaign_now`;
   const campaignBody = {
@@ -980,12 +981,14 @@ async function executeAgentActionHandler(request: Request) {
   }
 
   let payload = action.payload || {};
+  if (pendingInrAgentPublicationChannels(payload).length || unvalidatedInrAgentPublicationChannels(payload).length) return NextResponse.json({ error: "Un canal sélectionné est vide ou attend sa validation.", code: "INR_AGENT_CHANNEL_REVIEW_REQUIRED" }, { status: 409 });
   const nestedPublishPayload = asRecord(payload.publishPayload) || {};
-  const selectedChannels = hasChannelOverride
+  const selectedChannels = filterInrAgentPublicationChannels(payload, hasChannelOverride
     ? requestedChannels
     : normalizeBoosterChannels(
         payload.selectedChannels || payload.channels || action.targetChannels,
-      );
+      ));
+  if (!selectedChannels.length) return NextResponse.json({ error: "Choisissez au moins un canal avant de valider." }, { status: 409 });
   if (payload.mediaFormatVariants) {
     try {
       payload = (await ensureInrAgentMediaFormats({ supabase, accountId: userId, actorAuthUserId: authUserId || userId,

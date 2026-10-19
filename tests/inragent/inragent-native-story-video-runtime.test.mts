@@ -6,7 +6,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import test from "node:test";
-import ffmpeg from "ffmpeg-static";
 import sharp from "sharp";
 import { runtimeModules } from "./runtime-module-loader.mts";
 
@@ -34,6 +33,8 @@ test("native Agent photos remain full frame for the entire Meta Story, with no i
     }) },
   });
   const { createInstagramImageMotionVideo } = load<typeof import("../../lib/instagramImageMotionVideo.ts")>("lib/instagramImageMotionVideo.ts");
+  const { resolveVideoNormalizationFfmpegPath } = load<typeof import("../../lib/mediaVideoNormalizer.ts")>("lib/mediaVideoNormalizer.ts");
+  const ffmpeg = await resolveVideoNormalizationFfmpegPath();
   const args = { accountId: "account", publicationId: "publication", imageStoragePaths: ["source.jpg"], placement: "story" as const, soundtrackPrompt: "Atelier", preserveComposition: true };
   const created = await createInstagramImageMotionVideo(args);
   assert.equal(stored.size, 2);

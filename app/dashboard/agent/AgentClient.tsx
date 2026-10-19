@@ -1,5 +1,9 @@
 "use client";
 
+import AgentPublicationChannelList from "./_components/AgentPublicationChannelList";
+import { apiChannelToUi } from "./_lib/agent.config";
+import { pendingInrAgentPublicationChannels, selectedInrAgentPublicationChannels, unvalidatedInrAgentPublicationChannels, preparedInrAgentPublicationChannels, withInrAgentPublicationChannelSelection } from "@/lib/inrAgentPublicationChannelSelection";
+
 import { CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES, normalizeThreadsPublicationPreferences, getEnabledThreadsPublicationModes, isThreadsPublicationModeEnabled, type ThreadsPublicationMode, type ThreadsPublicationPreferences } from "@/lib/threadsPublicationPreferences";
 import { readInrAgentThreadsPublicationSettings, applyInrAgentThreadsPublicationSettings } from "@/lib/inrAgentThreadsPublication";
 import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessProvider";
@@ -182,6 +186,7 @@ import {
   CalendarMetaIcon,
   DownloadActionIcon,
   ImageMetaIcon,
+  TextMetaIcon,
   NavigationChevronIcon,
   PencilActionIcon,
   RefuseActionIcon,
@@ -224,6 +229,7 @@ type PendingAgentTiktokValidation =
   | { kind: "run_now" }
   | { kind: "confirm_existing_plan" }
   | { kind: "update_session" }
+  | { kind: "channel_selection"; channels: ChannelKey[]; confirmPending?: boolean }
   | {
       kind: "schedule";
       selections: PublishScheduleSelection[];
@@ -316,7 +322,6 @@ import {
   preparedActionDirtySignature,
   scheduledAutomationKey,
   scheduledActionToPreparedAction,
-  removeScheduledEditPublishChannel,
   updateScheduledEditPublishText,
   updateScheduledEditPublishMedia,
   updateScheduledEditPublishPlacement,
@@ -754,9 +759,9 @@ export default function AgentClient() {
   const [publishSaveState, setPublishSaveState] = useState<"idle" | "saving">(
     "idle"
   );
-  const [publishChannelRemoveState, setPublishChannelRemoveState] = useState<
-    "idle" | "removing"
-  >("idle");
+  const [publishChannelSelectionSaving, setPublishChannelSelectionSaving] = useState(false);
+  const [publicationChannelPreparing, setPublicationChannelPreparing] = useState<ChannelKey | null>(null);
+  const publishChannelSelectionBusy = useRef(false);
   const [publishRegeneration, setPublishRegeneration] = useState<{
     kind: "content" | "media";
     channel: ChannelKey;
@@ -1046,7 +1051,7 @@ export default function AgentClient() {
   );
   const canReviewSelectedAction = isAgentActionAwaitingValidation(
     selectedPreparedAction
-  ) && publishPlacementSaveState !== "saving";
+  ) && publishPlacementSaveState !== "saving" && !publishChannelSelectionSaving;
   const publicationViewerActions = buildPublicationViewerItems(
     publicationCarouselActions,
     selectedKey === "publish" ? selectedPreparedAction : null,
@@ -1407,17 +1412,22 @@ export default function AgentClient() {
     () =>
       selectedPreparedAction
         ? orderChannels(
-            channelsForAction(selectedPreparedAction, selectedConfigChannels),
+            channelsForAction(isPublishView ? { ...selectedPreparedAction, targetChannels: preparedInrAgentPublicationChannels(selectedPreparedAction.payload, selectedPreparedAction.targetChannels) } : selectedPreparedAction, selectedConfigChannels),
             selectedAvailableChannels
           )
         : [],
-    [selectedAvailableChannels, selectedPreparedAction, selectedConfigChannels]
+    [selectedAvailableChannels, selectedPreparedAction, selectedConfigChannels, isPublishView]
   );
-  const preparedChannelsKey = preparedChannels.join("|");
+  const pendingPublicationChannels = useMemo(() => pendingInrAgentPublicationChannels(selectedPreparedAction?.payload).map(key => apiChannelToUi[key]).filter((key): key is ChannelKey => Boolean(key)), [selectedPreparedAction?.payload]);
+  const unvalidatedPublicationChannels = unvalidatedInrAgentPublicationChannels(selectedPreparedAction?.payload);
+  const selectedPublishChannels = useMemo(() => selectedInrAgentPublicationChannels(selectedPreparedAction?.payload, preparedChannels).map(key => apiChannelToUi[key]).filter((key): key is ChannelKey => Boolean(key)), [selectedPreparedAction?.payload, preparedChannels]);
+  const publicationPreviewChannels = useMemo(() => orderChannels([...new Set([...preparedChannels, ...pendingPublicationChannels])], selectedAvailableChannels), [preparedChannels, pendingPublicationChannels, selectedAvailableChannels]);
+  const canEditPublicationChannels = Boolean(selectedPreparedAction && !publishChannelSelectionSaving && ["prepared", "pending_validation", "pending", "draft", "validated", "scheduled"].includes(selectedPreparedAction.status));
+  const canConfirmAdditionalChannels = canEditPublicationChannels && unvalidatedPublicationChannels.length > 0 && !pendingPublicationChannels.length;
   const selectablePreviewChannels = isInstantPublicationPreview
     ? []
     : hasPreparedAction
-    ? preparedChannels
+    ? publicationPreviewChannels
     : selectedConfigChannels;
   const displayChannels = isPublishView
     ? loadState === "loading"
@@ -1448,16 +1458,17 @@ export default function AgentClient() {
   const activePreviewChannel = isInstantPublicationPreview
     ? null
     : selectedPreparedAction
-    ? preparedChannels.includes(
+    ? publicationPreviewChannels.includes(
         selectedChannelByAction[selectedPreparedAction.id] as ChannelKey
       )
       ? selectedChannelByAction[selectedPreparedAction.id]
-      : preparedChannels[0] ?? null
+      : publicationPreviewChannels[0] ?? null
     : placeholderPreviewChannels.includes(
         selectedAutomationChannel as ChannelKey
       )
     ? (selectedAutomationChannel as ChannelKey)
     : placeholderPreviewChannels[0] ?? null;
+  const activePublicationChannelEmpty = Boolean(isPublishView && activePreviewChannel && pendingPublicationChannels.includes(activePreviewChannel));
   const activePreviewChannelLabel = isInstantPublicationPreview
     ? "—"
     : activePreviewChannel
@@ -1488,17 +1499,17 @@ export default function AgentClient() {
       )
     : null;
   const selectedPublicationUsesTiktok = Boolean(
-    isPublishView && preparedChannels.includes("tiktok")
+    isPublishView && selectedPublishChannels.includes("tiktok")
   );
-  const tiktokPublishPreview = selectedPublicationUsesTiktok
+  const tiktokPublishPreview = preparedChannels.includes("tiktok")
     ? extractChannelPreview(selectedPreparedAction!, "tiktok")
     : null;
-  const tiktokPublishMediaPreview = selectedPublicationUsesTiktok
+  const tiktokPublishMediaPreview = preparedChannels.includes("tiktok")
     ? extractPublishMediaPreview(selectedPreparedAction, "tiktok")
     : null;
   const tiktokPublishMediaType: "video" | "images" =
     tiktokPublishMediaPreview?.kind === "video" ? "video" : "images";
-  const tiktokPublishMediaRecord = selectedPublicationUsesTiktok
+  const tiktokPublishMediaRecord = preparedChannels.includes("tiktok")
     ? getPublishMediaRecord(selectedPreparedAction, "tiktok")
     : null;
   const tiktokPublishVideoDurationSeconds =
@@ -1672,6 +1683,8 @@ export default function AgentClient() {
   const publishContentKind = isPublishView
     ? isInstantPublicationPreview
       ? "—"
+      : activePublicationChannelEmpty
+      ? i18nT("publication_channel_empty")
       : publishMediaOnly
       ? i18nT("publication_mode_media_only")
       : publishHasText
@@ -1683,6 +1696,10 @@ export default function AgentClient() {
   const publishValidationLabel =
     !isPublishView || !selectedPreparedAction
       ? "—"
+      : pendingPublicationChannels.length
+      ? i18nT("publication_channel_empty")
+      : unvalidatedPublicationChannels.length
+      ? i18nT("publication_channel_review_pending")
       : selectedPreparedAction.status === "failed"
       ? agentActionStatusLabel(selectedPreparedAction.status, runtimeT)
       : selectedPublicationIsAutomatic
@@ -1693,7 +1710,9 @@ export default function AgentClient() {
       ? i18nT("action_status_validated")
       : i18nT("publication_validation_pending");
   const publishStatusClass =
-    selectedPreparedAction?.status === "failed" ||
+    pendingPublicationChannels.length || unvalidatedPublicationChannels.length
+      ? styles.publishStatusWarning
+      : selectedPreparedAction?.status === "failed" ||
     selectedPublicationValidationState === "refused"
       ? styles.publishStatusBlocked
       : selectedPublicationIsAutomatic ||
@@ -1703,7 +1722,7 @@ export default function AgentClient() {
   const agentPublishScheduleItems = useMemo<PublishScheduleItem[]>(() => {
     if (!selectedPreparedAction || !isPublishView) return [];
     const seen = new Set<BoosterChannelKey>();
-    return preparedChannels
+    return selectedPublishChannels
       .map((channel) => {
         const boosterChannel = boosterChannelKeyFromAgentChannel(channel);
         if (seen.has(boosterChannel)) return null;
@@ -1827,7 +1846,7 @@ export default function AgentClient() {
     i18nT,
     instagramPublicationPreferences,
     isPublishView,
-    preparedChannels,
+    selectedPublishChannels,
     selectedPreparedAction,
   ]);
   const publishCtaLine = isPublishView
@@ -1981,7 +2000,7 @@ export default function AgentClient() {
     runtimeT
   );
   const statsStoredCountLabel = `${statsReports.length}/5`;
-  const showFooterDate = !isPublishView || isInstantPublicationPreview || Boolean(selectedPreparedAction?.scheduledFor);
+  const showFooterDate = !isPublishView || isInstantPublicationPreview || Boolean(selectedPreparedAction);
   const footerDateLabel =
     selected.key === "stats"
       ? statsNextRunLabel
@@ -1991,19 +2010,19 @@ export default function AgentClient() {
           selectedConfig,
           locale
         )
-      : "—";
+      : isPublishView ? i18nT("publication_not_scheduled") : "—";
 
   useEffect(() => {
-    if (!selectedPreparedAction || preparedChannels.length === 0) return;
+    if (!selectedPreparedAction || publicationPreviewChannels.length === 0) return;
 
     setSelectedChannelByAction((current) => {
       const currentChannel = current[selectedPreparedAction.id];
-      if (currentChannel && preparedChannels.includes(currentChannel)) {
+      if (currentChannel && publicationPreviewChannels.includes(currentChannel)) {
         return current;
       }
-      return { ...current, [selectedPreparedAction.id]: preparedChannels[0] };
+      return { ...current, [selectedPreparedAction.id]: publicationPreviewChannels[0] };
     });
-  }, [selectedPreparedAction, preparedChannels, preparedChannelsKey]);
+  }, [selectedPreparedAction, publicationPreviewChannels]);
 
   function selectPreviewChannel(channelKey: ChannelKey) {
     setPublishMediaActiveIndex(0);
@@ -3884,110 +3903,94 @@ export default function AgentClient() {
     }
   }
 
-  async function performRemovePublishChannel(channel: ChannelKey) {
-    if (!selectedPreparedAction || publishChannelRemoveState === "removing") {
+  async function savePublicationChannelSelection(nextChannels: ChannelKey[], tiktokPublicationSettings?: TiktokPublicationSettings | null, confirmPending = false) {
+    const action = selectedPreparedAction;
+    if (!action || !canEditPublicationChannels || publishChannelSelectionBusy.current) return;
+    if (nextChannels.includes("tiktok") && preparedChannels.includes("tiktok") && (!selectedPublishChannels.includes("tiktok") || confirmPending && unvalidatedPublicationChannels.includes("tiktok")) && (scheduledEditSession || ["validated", "scheduled"].includes(action.status)) && !tiktokPublicationSettings) {
+      openAgentTiktokSettings({ kind: "channel_selection", channels: nextChannels, confirmPending });
       return;
     }
-    if (preparedChannels.length <= 1) {
-      await updateActionStatus("refused");
-      return;
-    }
-
-    const actionId = selectedPreparedAction.id;
-    const channelLabel = agentChannelLabel(channel, runtimeT);
-    setPublishChannelRemoveState("removing");
-    setNotice(null);
-
+    const nextPayload = withInrAgentPublicationChannelSelection({ ...action.payload, ...(tiktokPublicationSettings ? { tiktokPublicationSettings } : {}) }, preparedChannels.map(boosterChannelKeyFromAgentChannel), nextChannels.map(boosterChannelKeyFromAgentChannel));
+    publishChannelSelectionBusy.current = true;
+    setPublishChannelSelectionSaving(true);
     try {
-      let updatedAction: AgentPreparedAction;
-      if (scheduledEditSession) {
-        updatedAction = removeScheduledEditPublishChannel(
-          scheduledEditSession.action,
-          channel
-        );
-        updateScheduledEditAction(() => updatedAction);
-      } else {
-        const response = await fetch("/api/agent/actions", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            actionId,
-            editType: "remove_publish_channel",
-            channel: boosterChannelKeyFromAgentChannel(channel),
-          }),
-        });
-        const payload = (await response.json().catch(() => null)) as {
-          action?: AgentPreparedAction;
-          error?: string;
-        } | null;
-        if (!response.ok || !payload?.action) {
-          throw new Error(
-            payload?.error || i18nT("remove_publication_channel_failed")
-          );
-        }
-        updatedAction = payload.action;
-        setActions((current) =>
-          current.map((action) =>
-            action.id === updatedAction.id ? updatedAction : action
-          )
-        );
-      }
-
-      const nextChannels = orderChannels(
-        channelsForAction(updatedAction, selectedConfigChannels),
-        selectedAvailableChannels
-      );
-      const nextChannel = nextChannels[0] || null;
-      setSelectedChannelByAction((current) => {
-        const next = { ...current };
-        if (nextChannel) next[updatedAction.id] = nextChannel;
-        else delete next[updatedAction.id];
-        return next;
+      const response = await fetch(scheduledEditSession ? `/api/agent/scheduled-actions/${scheduledEditSession.scheduledAction.id}` : "/api/agent/actions", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionId: scheduledEditSession ? undefined : action.id, editType: "publish_channel_selection", channels: nextChannels.map(boosterChannelKeyFromAgentChannel), expectedUpdatedAt: scheduledEditSession?.scheduledAction.updatedAt || action.updatedAt || null, confirmPending, ...(tiktokPublicationSettings ? { tiktokPublicationSettings } : {}) }),
       });
-      setPublishMediaActiveIndex(0);
-      showNotice(
-        i18nT("remove_publication_channel_success", {
-          channel: channelLabel,
-        })
-      );
+      const result = await response.json().catch(() => null) as { action?: AgentPreparedAction; scheduledActions?: AgentScheduledAction[]; error?: string } | null;
+      if (!response.ok || !result || (!result.action && !result.scheduledActions?.length)) throw new Error(result?.error || i18nT("publication_channel_selection_failed"));
+      const saved = result.action;
+      if (saved) setActions(current => current.map(item => item.id === saved.id ? saved : item));
+      if (scheduledEditSession) {
+        const scheduled = result.scheduledActions?.find(item => item.id === scheduledEditSession.scheduledAction.id);
+        if (scheduled) setScheduledEditSession(current => {
+          if (!current || current.scheduledAction.id !== scheduled.id) return current;
+          const updated = { ...current.action, payload: { ...nextPayload, publicationChannelSelection: saved?.payload.publicationChannelSelection || scheduled.payload.publicationChannelSelection }, updatedAt: scheduled.updatedAt };
+          return { ...current, scheduledAction: scheduled, action: updated, baselineSignature: current.dirty ? current.baselineSignature : preparedActionDirtySignature(updated) };
+        });
+      }
+      if (scheduledEditSession || saved?.status === "scheduled" || saved?.status === "validated") await refreshScheduledActions(true);
+      const emptyChannels = nextChannels.filter(key => !preparedChannels.includes(key));
+      if (emptyChannels.length) {
+        selectPreviewChannel(emptyChannels[0]);
+        showNotice(i18nT("publication_channel_empty"));
+      } else if (confirmPending) {
+        showNotice(i18nT("publication_additional_channels_validated"));
+      } else if (nextChannels.length < selectedPublishChannels.length) {
+        showNotice(i18nT(nextChannels.length ? "publication_channel_content_retained" : "publication_channel_selection_required"));
+      }
     } catch (error) {
-      showNotice(i18nT("remove_publication_channel_failed"));
+      showNotice(error instanceof Error ? error.message : i18nT("publication_channel_selection_failed"));
+      await refreshActions(true);
     } finally {
-      setPublishChannelRemoveState("idle");
+      publishChannelSelectionBusy.current = false;
+      setPublishChannelSelectionSaving(false);
     }
   }
 
-  function requestRemoveActivePublishChannel() {
-    if (!activePreviewChannel || !selectedPreparedAction) return;
-    const channel = activePreviewChannel;
-    const channelLabel = agentChannelLabel(channel, runtimeT);
-    if (preparedChannels.length <= 1) {
-      openAgentConfirmDialog({
-        title: i18nT("remove_publication_channel_confirm_title", {
-          channel: channelLabel,
-        }),
-        message: i18nT("remove_publication_last_channel", {
-          channel: channelLabel,
-        }),
-        confirmLabel: i18nT("refuser_62897154"),
-        cancelLabel: i18nT("annuler_49ba3292"),
-        tone: "danger",
-        onConfirm: () => performRemovePublishChannel(channel),
+  async function prepareAdditionalPublicationChannel(channel: ChannelKey) {
+    const action = selectedPreparedAction;
+    if (!action || !canEditPublicationChannels || publishChannelSelectionBusy.current || !agentConnectedChannels?.[channel]) return;
+    const sourceId = scheduledEditSession
+      ? firstSafeString(action.payload.sourceActionId, asRecord(action.payload.publishPayload)?.inrAgentActionId)
+      : action.id;
+    if (!sourceId) { showNotice(i18nT("publication_new_channel_unavailable")); return; }
+    publishChannelSelectionBusy.current = true;
+    setPublicationChannelPreparing(channel);
+    setPublishChannelSelectionSaving(true);
+    showNotice(i18nT("publication_channel_preparing"));
+    try {
+      const response = await fetch("/api/agent/actions/regenerate-channel", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionId: sourceId, channel: boosterChannelKeyFromAgentChannel(channel), kind: "content", scope: "channel", prepareMissingChannel: true }),
       });
-      return;
+      const result = await response.json().catch(() => null) as { action?: AgentPreparedAction; scheduledActions?: AgentScheduledAction[]; error?: string } | null;
+      if (!response.ok || !result?.action) throw new Error(result?.error || i18nT("publication_channel_selection_failed"));
+      const saved = result.action;
+      setActions(current => current.map(item => item.id === saved.id ? saved : item));
+      if (scheduledEditSession) {
+        const scheduled = result.scheduledActions?.find(item => item.id === scheduledEditSession.scheduledAction.id);
+        if (scheduled) setScheduledEditSession(current => {
+          if (!current || current.scheduledAction.id !== scheduled.id) return current;
+          const channelKey = boosterChannelKeyFromAgentChannel(channel);
+          const maps = Object.fromEntries(["postByChannel", "imagesByChannel", "videoByChannel", "mediaModeByChannel"].map(key => [key, {
+            ...(asRecord(current.action.payload[key]) || {}), ...(asRecord(saved.payload[key])?.[channelKey] !== undefined ? { [channelKey]: asRecord(saved.payload[key])![channelKey] } : {}),
+          }]));
+          const updated = { ...current.action, targetChannels: [...new Set([...current.action.targetChannels, channelKey])], updatedAt: scheduled.updatedAt,
+            payload: { ...current.action.payload, ...maps, publicationChannelSelection: saved.payload.publicationChannelSelection } };
+          return { ...current, scheduledAction: scheduled, action: updated, baselineSignature: current.dirty ? current.baselineSignature : preparedActionDirtySignature(updated) };
+        });
+      }
+      selectPreviewChannel(channel);
+      if (["scheduled", "validated"].includes(saved.status)) await refreshScheduledActions(true);
+      showNotice(i18nT("publication_new_channel_ready"));
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : i18nT("publication_channel_selection_failed"));
+    } finally {
+      publishChannelSelectionBusy.current = false;
+      setPublicationChannelPreparing(null);
+      setPublishChannelSelectionSaving(false);
     }
-    openAgentConfirmDialog({
-      title: i18nT("remove_publication_channel_confirm_title", {
-        channel: channelLabel,
-      }),
-      message: i18nT("remove_publication_channel_confirm_message", {
-        channel: channelLabel,
-      }),
-      confirmLabel: i18nT("remove_publication_channel_title"),
-      cancelLabel: i18nT("annuler_49ba3292"),
-      tone: "danger",
-      onConfirm: () => performRemovePublishChannel(channel),
-    });
   }
 
   function updateScheduledEditAction(
@@ -4947,7 +4950,7 @@ export default function AgentClient() {
     try {
       if (isPublication) {
         const seen = new Set<BoosterChannelKey>();
-        const selections = preparedChannels
+        const selections = selectedPublishChannels
           .map(boosterChannelKeyFromAgentChannel)
           .filter((channel) => {
             if (seen.has(channel)) return false;
@@ -5188,6 +5191,10 @@ export default function AgentClient() {
     setPendingTiktokValidation(null);
 
     if (pending.kind === "update_session") return;
+    if (pending.kind === "channel_selection") {
+      await savePublicationChannelSelection(pending.channels, settings, pending.confirmPending);
+      return;
+    }
 
     if (pending.kind === "run_now") {
       await updateActionStatus("validated", {
@@ -6327,16 +6334,141 @@ export default function AgentClient() {
                       !selectedPreparedAction ? styles.publishPreviewEmpty : ""
                     }`}
                   >
-                    <div className={styles.publishInfoGrid}>
+                    <nav className={styles.publicationNavigation} aria-label={i18nT("publication_navigation")}>
+                      <button type="button" onClick={() => movePublication(-1)} disabled={!canNavigatePublications} aria-label={i18nT("previous_publication")}><NavigationChevronIcon direction="left" /></button>
+                      <strong aria-live="polite">{i18nT("publication_counter", { current: Math.max(0, selectedPublicationIndex) + (publicationViewerActions.length ? 1 : 0), total: publicationViewerActions.length })}</strong>
+                      <button type="button" onClick={() => movePublication(1)} disabled={!canNavigatePublications} aria-label={i18nT("next_publication")}><NavigationChevronIcon direction="right" /></button>
+                    </nav>
+                    <div className={`${styles.publishInfoGrid} ${styles.publishInfoGridWithFormat}`}>
+                      <AgentPublicationChannelList key={selectedPreparedAction?.id || "empty"} channels={orderChannels([...new Set([...selected.availableChannels, ...preparedChannels])], selected.availableChannels).map(key => ({ key, label: agentChannelLabel(key, runtimeT), src: channelOptions[key].src, connected: Boolean(agentConnectedChannels?.[key]), prepared: preparedChannels.includes(key) }))} selectedChannels={selectedPublishChannels} disabled={!canEditPublicationChannels} saving={publishChannelSelectionSaving} preparingChannel={publicationChannelPreparing} onChange={channels => void savePublicationChannelSelection(channels)} />
                       <article
                         className={`${styles.campaignInfoCard} ${styles.publishInfoChannel}`}
                       >
                         <span className={styles.campaignInfoIcon} aria-hidden>
                           <AutomationIcon type="publish" />
                         </span>
-                        <span className={styles.publishChannelCardMain}>
-                          <small>{i18nT("canal_61f21e6f")}</small>
-                          <strong>{activePreviewChannelLabel}</strong>
+                        <div className={styles.publishChannelCardMain}>
+                          <small className={styles.publicationCardHeading}>{i18nT("publication_consulted_channel")}</small>
+                          <span className={styles.publicationChannelCarousel}>
+                            <button type="button" onClick={() => movePreviewChannel(-1)} disabled={publicationPreviewChannels.length < 2} aria-label={i18nT("afficher_le_canal_precedent_777ef8f0")}><NavigationChevronIcon direction="left" /></button>
+                            <span className={styles.publicationChannelCurrent} aria-live="polite" title={activePreviewChannel ? agentChannelLabel(activePreviewChannel, runtimeT) : ""}>
+                              {activePreviewChannel ? <img src={channelOptions[activePreviewChannel].src} alt={agentChannelLabel(activePreviewChannel, runtimeT)} width={36} height={36} /> : <span>—</span>}
+                            </span>
+                            <button type="button" onClick={() => movePreviewChannel(1)} disabled={publicationPreviewChannels.length < 2} aria-label={i18nT("afficher_le_canal_suivant_4802e0ec")}><NavigationChevronIcon direction="right" /></button>
+                          </span>
+                        </div>
+                      </article>
+
+                      <div className={styles.publishInfoActionShell}>
+                        <button
+                          type="button"
+                          className={`${styles.campaignInfoCard} ${styles.publishInfoFormat} ${styles.publishInfoCardWithAction}`}
+                          onClick={() => activePublicationChannelEmpty && activePreviewChannel ? void prepareAdditionalPublicationChannel(activePreviewChannel) : openPublishTextEditor()}
+                          disabled={
+                            !selectedPreparedAction ||
+                            publishMediaOnly ||
+                            (!canReviewSelectedAction && !(activePublicationChannelEmpty && canEditPublicationChannels)) ||
+                            actionMutationState === "saving"
+                          }
+                          title={
+                            activePublicationChannelEmpty ? i18nT("publication_generate_content") : selectedPreparedAction
+                              ? publishMediaOnly
+                                ? i18nT("publication_mode_media_only_help")
+                                : i18nT(
+                                    "modifier_le_titre_le_texte_le_325c7a96"
+                                  )
+                              : i18nT("no_publication_prepared")
+                          }
+                        >
+                          <span className={styles.campaignInfoIcon} aria-hidden>
+                            <TextMetaIcon />
+                          </span>
+                          <span>
+                            <small>{i18nT("contenu_f3cb82af")}</small>
+                            <strong>
+                              {publishMediaOnly
+                                ? i18nT("publication_mode_media_only")
+                                : publishContentKind}
+                            </strong>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.publishRegenerateButton}
+                          onClick={() =>
+                            activePublicationChannelEmpty && activePreviewChannel ? void prepareAdditionalPublicationChannel(activePreviewChannel) : requestPublishChannelRegeneration("content")
+                          }
+                          disabled={
+                            !selectedPreparedAction ||
+                            publishMediaOnly ||
+                            (!canReviewSelectedAction && !(activePublicationChannelEmpty && canEditPublicationChannels)) ||
+                            (Boolean(scheduledEditSession) && !activePublicationChannelEmpty) ||
+                            actionMutationState === "saving" ||
+                            Boolean(publishRegeneration)
+                          }
+                          aria-label={i18nT(activePublicationChannelEmpty ? "publication_generate_content" : "regenerate_content")}
+                          title={i18nT(activePublicationChannelEmpty ? "publication_generate_content" : "regenerate_content")}
+                          aria-busy={publishRegeneration?.kind === "content" || Boolean(publicationChannelPreparing)}
+                          data-busy={publishRegeneration?.kind === "content" || Boolean(publicationChannelPreparing)}
+                        >
+                          <span aria-hidden>↻</span>
+                        </button>
+                      </div>
+                      <div className={styles.publishInfoActionShell}>
+                        <button
+                          type="button"
+                          className={`${styles.campaignInfoCard} ${styles.publishInfoAttachment} ${styles.publishInfoCardWithAction}`}
+                          onClick={openPublishMediaEditor}
+                          disabled={
+                            activeThreadsGhost ||
+                            !selectedPreparedAction ||
+                            !canReviewSelectedAction ||
+                            actionMutationState === "saving"
+                          }
+                          title={
+                            activeThreadsGhost ? i18nT("threads_ghost_help") : selectedPreparedAction
+                              ? i18nT("manage_media")
+                              : i18nT("no_publication_prepared")
+                          }
+                        >
+                          <span className={styles.campaignInfoIcon} aria-hidden><ImageMetaIcon /></span>
+                          <span className={styles.publishMediaInfoText}>
+                            <small>{i18nT("media_d8a313d3")}</small>
+                            <strong>
+                              {isInstantPublicationPreview
+                                ? "—"
+                                : publishMediaPreview?.count
+                                  ? publishMediaPreview.typeLabel
+                                  : i18nT("aucun_b2ed82f1")}
+                            </strong>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.publishRegenerateButton}
+                          onClick={() =>
+                            requestPublishChannelRegeneration("media")
+                          }
+                          disabled={
+                            activeThreadsGhost ||
+                            !selectedPreparedAction ||
+                            !canReviewSelectedAction ||
+                            Boolean(scheduledEditSession) ||
+                            actionMutationState === "saving" ||
+                            Boolean(publishRegeneration)
+                          }
+                          aria-label={i18nT("regenerate_media")}
+                          title={i18nT("regenerate_media")}
+                          aria-busy={publishRegeneration?.kind === "media"}
+                          data-busy={publishRegeneration?.kind === "media"}
+                        >
+                          <span aria-hidden>↻</span>
+                        </button>
+                      </div>
+                      <article className={`${styles.campaignInfoCard} ${styles.publicationFormatCard}`}>
+                        <small className={styles.publicationCardHeading}>{i18nT("publication_options")}</small>
+                        <span className={styles.campaignInfoIcon} aria-hidden><AutomationSettingsIcon /></span>
+                        <div className={styles.publicationFormatControls}>
                           {activeMetaPublicationChannel ? (
                             <span className={styles.publishPlacementControls}>
                               <select
@@ -6426,7 +6558,6 @@ export default function AgentClient() {
                                   {i18nT("preview_label")} · {i18nT(showingSecondaryStory ? "publication_mode_classic" : "publication_mode_story")}
                                 </button>
                               ) : null}
-                              <small className={styles.publishFormatHelp}>{i18nT("media_native_formats_credits_help")}</small>
                             </span>
                           ) : activePreviewChannel === "tiktok" && publishMediaPreview?.kind === "image" && asRecord(selectedPreparedAction?.payload.mediaFormatVariants)?.kind === "image" && !scheduledEditSession ? (
                             <span className={styles.publishPlacementControls}>
@@ -6438,7 +6569,6 @@ export default function AgentClient() {
                                 <option value="shared">{i18nT("media_photo_shared_format")}</option>
                                 <option value="fullscreen">{i18nT("media_photo_fullscreen_format")}</option>
                               </select>
-                              <small className={styles.publishFormatHelp}>{i18nT("media_native_formats_credits_help")}</small>
                             </span>
                           ) : activePreviewChannel === "threads" && metaPilotEnabled ? (
                             <span className={styles.publishPlacementControls}>
@@ -6449,7 +6579,6 @@ export default function AgentClient() {
                                 {!threadsModeEnabled ? <option value="ghost" disabled>{i18nT("threads_ghost_disabled")}</option> : null}
                                 {getEnabledThreadsPublicationModes(threadsPublicationPreferences).map((mode) => <option key={mode} value={mode}>{i18nT(mode === "ghost" ? "threads_mode_ghost" : "publication_mode_classic")}</option>)}
                               </select>
-                              {activeThreadsGhost ? <small>{i18nT("threads_ghost_help")}</small> : null}
                             </span>
                           ) : activePreviewChannel === "pinterest" ? (
                             <select
@@ -6500,195 +6629,18 @@ export default function AgentClient() {
                             <small className={styles.publishPlacementError}>
                               {pinterestBoardsError}
                             </small>
-                          ) : null}
-                        </span>
+                          ) : <span aria-hidden>—</span>}
+
+                        </div>
                       </article>
-                      <div className={styles.publishInfoActionShell}>
-                        <button
-                          type="button"
-                          className={`${styles.campaignInfoCard} ${styles.publishInfoFormat} ${styles.publishInfoCardWithAction}`}
-                          onClick={openPublishTextEditor}
-                          disabled={
-                            !selectedPreparedAction ||
-                            publishMediaOnly ||
-                            !canReviewSelectedAction ||
-                            actionMutationState === "saving"
-                          }
-                          title={
-                            selectedPreparedAction
-                              ? publishMediaOnly
-                                ? i18nT("publication_mode_media_only_help")
-                                : i18nT(
-                                    "modifier_le_titre_le_texte_le_325c7a96"
-                                  )
-                              : i18nT("no_publication_prepared")
-                          }
-                        >
-                          <span className={styles.campaignInfoIcon} aria-hidden>
-                            <ImageMetaIcon />
-                          </span>
-                          <span>
-                            <small>{i18nT("contenu_f3cb82af")}</small>
-                            <strong>
-                              {publishMediaOnly
-                                ? i18nT("publication_mode_media_only")
-                                : publishContentKind}
-                            </strong>
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.publishRegenerateButton}
-                          onClick={() =>
-                            requestPublishChannelRegeneration("content")
-                          }
-                          disabled={
-                            !selectedPreparedAction ||
-                            publishMediaOnly ||
-                            !canReviewSelectedAction ||
-                            Boolean(scheduledEditSession) ||
-                            actionMutationState === "saving" ||
-                            Boolean(publishRegeneration)
-                          }
-                          aria-label={i18nT("regenerate_content")}
-                          title={i18nT("regenerate_content")}
-                          aria-busy={publishRegeneration?.kind === "content"}
-                          data-busy={publishRegeneration?.kind === "content"}
-                        >
-                          <span aria-hidden>↻</span>
-                        </button>
-                      </div>
-                      <div className={styles.publishInfoActionShell}>
-                        <button
-                          type="button"
-                          className={`${styles.campaignInfoCard} ${styles.publishInfoAttachment} ${styles.publishInfoCardWithAction}`}
-                          onClick={openPublishMediaEditor}
-                          disabled={
-                            activeThreadsGhost ||
-                            !selectedPreparedAction ||
-                            !canReviewSelectedAction ||
-                            actionMutationState === "saving"
-                          }
-                          title={
-                            activeThreadsGhost ? i18nT("threads_ghost_help") : selectedPreparedAction
-                              ? i18nT("manage_media")
-                              : i18nT("no_publication_prepared")
-                          }
-                        >
-                          {publishMediaPreview?.items.length ? (
-                            <span
-                              className={styles.publishMediaInfoThumbs}
-                              data-count={Math.min(publishMediaPreview.items.length, 3)}
-                              aria-hidden="true"
-                            >
-                              {publishMediaPreview.items
-                                .slice(0, 3)
-                                .map((media, index) => (
-                                  <span
-                                    key={`${media.url}-${index}`}
-                                    className={styles.publishMediaInfoThumb}
-                                  >
-                                    {media.kind === "video" ? (
-                                      <video
-                                        src={media.url}
-                                        poster={media.posterUrl || undefined}
-                                        muted
-                                        playsInline
-                                        preload="metadata"
-                                      />
-                                    ) : (
-                                      <img src={media.url} alt="" />
-                                    )}
-                                  </span>
-                                ))}
-                              {publishMediaPreview.items.length > 3 ? (
-                                <em>+{publishMediaPreview.items.length - 3}</em>
-                              ) : null}
-                            </span>
-                          ) : (
-                            <span
-                              className={styles.campaignInfoIcon}
-                              aria-hidden
-                            >
-                              <ImageMetaIcon />
-                            </span>
-                          )}
-                          <span className={styles.publishMediaInfoText}>
-                            <small>{i18nT("media_d8a313d3")}</small>
-                            <strong>
-                              {isInstantPublicationPreview
-                                ? "—"
-                                : publishMediaPreview?.count
-                                  ? publishMediaPreview.typeLabel
-                                  : i18nT("aucun_b2ed82f1")}
-                            </strong>
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.publishRegenerateButton}
-                          onClick={() =>
-                            requestPublishChannelRegeneration("media")
-                          }
-                          disabled={
-                            activeThreadsGhost ||
-                            !selectedPreparedAction ||
-                            !canReviewSelectedAction ||
-                            Boolean(scheduledEditSession) ||
-                            actionMutationState === "saving" ||
-                            Boolean(publishRegeneration)
-                          }
-                          aria-label={i18nT("regenerate_media")}
-                          title={i18nT("regenerate_media")}
-                          aria-busy={publishRegeneration?.kind === "media"}
-                          data-busy={publishRegeneration?.kind === "media"}
-                        >
-                          <span aria-hidden>↻</span>
-                        </button>
-                      </div>
-                      <article
-                        className={`${styles.campaignInfoCard} ${styles.publishInfoStatus}`}
-                        data-validation-state={
-                          selectedPublicationValidationState
-                        }
-                      >
-                        <span className={styles.campaignInfoIcon} aria-hidden>
-                          <ShieldLineIcon />
-                        </span>
-                        <span>
-                          <small className={styles.publishStatusHeading}>
-                            <span>{i18nT("statut_659499f3")}</span>
-                            {publicationViewerActions.length > 0 ? (
-                              <span
-                                className={styles.publishStatusCounter}
-                                aria-live="polite"
-                              >
-                                {Math.max(0, selectedPublicationIndex) + 1}/
-                                {publicationViewerActions.length}
-                              </span>
-                            ) : null}
-                          </small>
-                          <strong className={publishStatusClass}>
-                            {publishValidationLabel}
-                          </strong>
-                        </span>
-                      </article>
+
                     </div>
 
                     <div
                       className={styles.publishPostCarousel}
                       data-navigable={canNavigatePublications}
                     >
-                      <button
-                        type="button"
-                        className={styles.publishPostNavButton}
-                        onClick={() => movePublication(-1)}
-                        disabled={!canNavigatePublications}
-                        aria-label={i18nT("previous_publication")}
-                        title={i18nT("previous_publication")}
-                      >
-                        <NavigationChevronIcon direction="left" />
-                      </button>
+
                       <div
                         className={styles.publishPostStack}
                         onTouchStart={startPublicationSwipe}
@@ -6806,7 +6758,13 @@ export default function AgentClient() {
                               ) : null}
                             </section>
                           ) : null}
-                          {publishMediaOnly ? (
+                          {activePublicationChannelEmpty ? (
+                            <div className={styles.publicationEmptyChannel} role="alert">
+                              <span aria-hidden>⚠</span>
+                              <strong>{i18nT("publication_channel_empty")}</strong>
+                              <p>{i18nT("publication_channel_empty_help")}</p>
+                            </div>
+                          ) : publishMediaOnly ? (
                             <div className={styles.publishMediaOnlyNotice}>
                               <span aria-hidden>🎬</span>
                               <strong>
@@ -6923,16 +6881,7 @@ export default function AgentClient() {
                           </div>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        className={styles.publishPostNavButton}
-                        onClick={() => movePublication(1)}
-                        disabled={!canNavigatePublications}
-                        aria-label={i18nT("next_publication")}
-                        title={i18nT("next_publication")}
-                      >
-                        <NavigationChevronIcon direction="right" />
-                      </button>
+
                     </div>
                   </div>
                 ) : hasPreparedAction && selectedPreparedAction ? (
@@ -7107,11 +7056,11 @@ export default function AgentClient() {
                 className={`${styles.previewMeta} ${
                   selected.key === "stats" ? styles.previewMetaStats : ""
                 } ${isCampaignView ? styles.previewMetaCampaign : ""} ${
-                  isPublishView ? styles.previewMetaPublish : ""
+                  isPublishView ? `${styles.previewMetaPublish} ${styles.publishReviewFooter}` : ""
                 }`}
                 data-has-date={isPublishView ? String(showFooterDate) : undefined}
               >
-                <div className={`${styles.metaItem} ${styles.channelsItem}`}>
+                {!isPublishView && <div className={`${styles.metaItem} ${styles.channelsItem}`}>
                   {!isPublishView && (
                     <small>
                       {selected.key === "stats"
@@ -7281,45 +7230,7 @@ export default function AgentClient() {
                       </button>
                     )}
                   </div>
-                </div>
-                {isPublishView && publicationViewerActions.length > 0 ? (
-                  <div className={styles.publishMobilePager}>
-                    <button
-                      type="button"
-                      className={styles.publishMobilePagerButton}
-                      onClick={() => movePublication(-1)}
-                      disabled={!canNavigatePublications}
-                      aria-label={i18nT("previous_publication")}
-                      title={i18nT("previous_publication")}
-                    >
-                      <NavigationChevronIcon direction="left" />
-                    </button>
-                    <span
-                      className={styles.publishMobilePagerCounter}
-                      data-validation-state={selectedPublicationValidationState}
-                      aria-live="polite"
-                      aria-label={`${
-                        Math.max(0, selectedPublicationIndex) + 1
-                      } / ${
-                        publicationViewerActions.length
-                      } — ${publishValidationLabel}`}
-                      title={publishValidationLabel}
-                    >
-                      {Math.max(0, selectedPublicationIndex) + 1} /{" "}
-                      {publicationViewerActions.length}
-                    </span>
-                    <button
-                      type="button"
-                      className={styles.publishMobilePagerButton}
-                      onClick={() => movePublication(1)}
-                      disabled={!canNavigatePublications}
-                      aria-label={i18nT("next_publication")}
-                      title={i18nT("next_publication")}
-                    >
-                      <NavigationChevronIcon direction="right" />
-                    </button>
-                  </div>
-                ) : null}
+                </div>}
                 {showFooterDate ? <div
                   className={`${styles.metaItem} ${styles.dateItem}`}
                   title={i18nT(
@@ -7345,21 +7256,10 @@ export default function AgentClient() {
                     </span>
                   )}
                   <span>
+                    {isPublishView ? <small>{i18nT("scheduled_date")}</small> : null}
                     <strong>{footerDateLabel}</strong>
                   </span>
                 </div> : null}
-                {isPublishView && (selectedPreparedAction || isInstantPublicationPreview) ? (
-                  <div
-                    className={styles.publishMobileStatus}
-                    data-validation-state={selectedPublicationValidationState}
-                    aria-label={`${i18nT(
-                      "statut_659499f3"
-                    )} : ${publishValidationLabel}`}
-                  >
-                    <span>{i18nT("statut_659499f3")} :</span>
-                    <strong>{publishValidationLabel}</strong>
-                  </div>
-                ) : null}
                 {selected.key === "stats" ? (
                   <div className={styles.statsFooterNote}>
                     <small>{i18nT("validation_non_requise_72a87029")}</small>
@@ -7460,34 +7360,24 @@ export default function AgentClient() {
                         {i18nT("modifier_f260e757")}{" "}
                       </button>
                     )}
-                    {isPublishView && (
-                      <button
-                        type="button"
-                        className={styles.removePublishChannelButton}
-                        aria-label={i18nT("remove_publication_channel_title")}
-                        title={i18nT("remove_publication_channel_title")}
-                        data-tooltip={i18nT("remove_publication_channel_title")}
-                        aria-busy={publishChannelRemoveState === "removing"}
-                        disabled={
-                          !hasPreparedAction ||
-                          !canReviewSelectedAction ||
-                          actionMutationState === "saving" ||
-                          publishChannelRemoveState === "removing"
-                        }
-                        onClick={requestRemoveActivePublishChannel}
+
+                    {isPublishView ? (
+                      <div
+                        className={styles.publishFooterStatus}
+                        data-validation-state={selectedPublicationValidationState}
+                        aria-label={`${i18nT("statut_659499f3")} : ${publishValidationLabel}`}
+                        role="status"
                       >
-                        <span aria-hidden>
-                          {publishChannelRemoveState === "removing" ? (
-                            "…"
-                          ) : (
-                            <TrashActionIcon />
-                          )}
+                        <span className={styles.publishFooterStatusIcon} aria-hidden>
+                          <ShieldLineIcon />
                         </span>
-                        {publishChannelRemoveState === "removing"
-                          ? i18nT("removing_publication_channel")
-                          : i18nT("remove_publication_channel")}
-                      </button>
-                    )}
+                        <span className={styles.publishFooterStatusText}>
+                          <small>{i18nT("statut_659499f3")}</small>
+                          <strong className={publishStatusClass}>{publishValidationLabel}</strong>
+                        </span>
+
+                      </div>
+                    ) : null}
                     <div className={styles.previewActions}>
                       {actionMutationState === "saving" ||
                       validationScheduleState === "saving" ||
@@ -7521,9 +7411,13 @@ export default function AgentClient() {
                             type="button"
                             className={styles.validateButton}
                             disabled={
-                              !hasPreparedAction || !canReviewSelectedAction
+                              !hasPreparedAction || (!canReviewSelectedAction && !canConfirmAdditionalChannels) || (isPublishView && (!selectedPublishChannels.length || pendingPublicationChannels.length > 0))
                             }
                             onClick={() => {
+                              if (canConfirmAdditionalChannels) {
+                                void savePublicationChannelSelection(selectedPublishChannels, null, true);
+                                return;
+                              }
                               if (scheduledEditSession) {
                                 void saveScheduledEditAtExistingDate();
                                 return;
@@ -10089,7 +9983,7 @@ export default function AgentClient() {
       )}
 
       {studio}
-      {notice && <div className={styles.notice}>{notice}</div>}
+      {notice && <div className={styles.notice} role="status">{notice}</div>}
     </main>
   );
 }

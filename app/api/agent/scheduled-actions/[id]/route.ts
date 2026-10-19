@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { saveAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelectionServer";
 import { rowToInrAgentScheduledAction } from "@/lib/inrAgentScheduledActions";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -114,6 +115,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   }
 
   const record = asRecord(body);
+  if (record?.editType === "publish_channel_selection") {
+    if (standardMode) return premiumRequiredApiResponse();
+    return saveAgentPublicationChannels({ userId: activeUserId, scheduledActionId: id, channels: record.channels, expectedUpdatedAt: record.expectedUpdatedAt, tiktokPublicationSettings: record.tiktokPublicationSettings, confirmPending: record.confirmPending === true });
+  }
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   if (record?.status === "cancelled") updates.status = "cancelled";

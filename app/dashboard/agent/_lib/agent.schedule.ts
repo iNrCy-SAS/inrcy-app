@@ -1,3 +1,4 @@
+import { filterInrAgentPublicationChannels, preparedInrAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelection";
 import { readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
 import { INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT } from "@/lib/mediaRules";
 import { compactInrAgentScheduledPayload } from "@/lib/inrAgentScheduledPayload";
@@ -266,6 +267,7 @@ export function scheduledActionToPreparedAction(
   ) {
     const publishPayload = asRecord(payload.publishPayload) || payload;
     const channels = normalizeUiChannels(
+      preparedInrAgentPublicationChannels(payload, scheduledAction.channels),
       publishPayload.channels,
       payload.selectedChannels,
       payload.channels,
@@ -275,8 +277,12 @@ export function scheduledActionToPreparedAction(
       ? channels
       : normalizeUiChannels(scheduledAction.channels);
     const boosterChannels = finalChannels.map(boosterChannelKeyFromAgentChannel);
-    const postByChannel =
-      asRecord(publishPayload.postByChannel) || asRecord(payload.postByChannel) || {};
+    const retained = asRecord(payload.retainedPublicationPayload) || {};
+    const postByChannel = {
+      ...(asRecord(retained.postByChannel) || {}),
+      ...(asRecord(payload.postByChannel) || {}),
+      ...(asRecord(publishPayload.postByChannel) || {}),
+    };
     const canonicalPostByChannel = canonicalizeRecordForBoosterChannels(
       postByChannel,
       boosterChannels,
@@ -286,10 +292,14 @@ export function scheduledActionToPreparedAction(
       : Array.isArray(payload.images)
         ? payload.images.filter(Boolean)
         : [];
-    const imagesByChannel =
-      asRecord(publishPayload.imagesByChannel) ||
-      asRecord(payload.imagesByChannel) ||
-      {};
+    const imagesByChannel = {
+      ...(asRecord(retained.imagesByChannel) || {}),
+      ...(asRecord(payload.imagesByChannel) || {}),
+      ...(asRecord(publishPayload.imagesByChannel) || {}),
+    };
+    const retainedRecords = Object.fromEntries(["videoByChannel", "mediaModeByChannel", "imageSettingsByChannel", "videoSettingsByChannel", "videoFormatByChannel", "videoAdaptationModeByChannel"].map(key => [key, {
+      ...(asRecord(retained[key]) || {}), ...(asRecord(payload[key]) || {}), ...(asRecord(publishPayload[key]) || {}),
+    }]));
     const firstChannelImagesRaw = firstRecordValueForUiChannels(
       imagesByChannel,
       finalChannels,
@@ -324,8 +334,11 @@ export function scheduledActionToPreparedAction(
       })
       .find(Boolean);
     const actionPayload: Record<string, unknown> = {
+      ...retained,
       ...payload,
       ...publishPayload,
+      ...retainedRecords,
+      imagesByChannel,
       publishPayload: {
         ...publishPayload,
         channels: boosterChannels,
@@ -375,6 +388,7 @@ export function scheduledActionToPreparedAction(
       preparedAt: scheduledAction.createdAt || now,
       completedAt: null,
       createdAt: scheduledAction.createdAt || now,
+      updatedAt: scheduledAction.updatedAt || now,
     };
   }
 
@@ -1023,11 +1037,11 @@ export function scheduledEditUpdateFromAction(
     action.actionType === "publication"
   ) {
     const publishPayload = asRecord(payload.publishPayload) || {};
-    const channels = options.channels?.length
+    const channels = filterInrAgentPublicationChannels(payload, options.channels?.length
       ? options.channels
       : agentChannelsToBoosterChannels(
           payload.boosterChannels || payload.selectedChannels || payload.channels || action.targetChannels,
-        );
+        ));
     const uiChannels = channels
       .map((channel) => normalizeUiChannelKey(channel))
       .filter((channel): channel is ChannelKey => Boolean(channel));

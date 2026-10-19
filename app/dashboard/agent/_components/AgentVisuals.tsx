@@ -60,6 +60,10 @@ export function AutomationSettingsIcon() {
   );
 }
 
+export function TextMetaIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden><path d="M5 5h14M12 5v14M8 19h8" /><path d="M4 9V5m16 4V5" /></svg>;
+}
+
 export function ImageMetaIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden>

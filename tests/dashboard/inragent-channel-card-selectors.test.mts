@@ -16,9 +16,9 @@ const actionApi = read("app/api/agent/actions/route.ts");
 const executeApi = read("app/api/agent/actions/execute/route.ts");
 const scheduleApi = read("app/api/agent/actions/schedule/route.ts");
 
-test("the Channel card renders Meta and TikTok formats, pilot-gated Threads modes and the Pinterest board", () => {
+test("the separate Format card renders Meta and TikTok formats, pilot-gated Threads modes and the Pinterest board", () => {
   const cardStart = client.indexOf(
-    '<span className={styles.publishChannelCardMain}>',
+    '<div className={styles.publicationFormatControls}>',
   );
   assert.ok(cardStart >= 0);
   const cardEnd = client.indexOf("</article>", cardStart);

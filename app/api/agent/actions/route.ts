@@ -2,6 +2,8 @@ import { isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResp
 import { normalizeThreadsPublicationMode, normalizeThreadsPublicationPreferences, isThreadsPublicationModeEnabled } from "@/lib/threadsPublicationPreferences";
 import { applyInrAgentThreadsPublicationSettings, readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
 import { NextResponse } from "next/server";
+import { saveAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelectionServer";
+import { filterInrAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelection";
 import { ensureInrAgentMediaFormats } from "@/lib/inrAgentMediaFormatGeneration";
 import { readInrAgentMediaFormatVariants } from "@/lib/inrAgentMediaFormats";
 import {
@@ -924,9 +926,9 @@ async function savePublishActionAsBoosterDraft(args: {
   }
 
   const payload = action.payload || {};
-  const rawChannels = normalizePublishChannels(
+  const rawChannels = filterInrAgentPublicationChannels(payload, normalizePublishChannels(
     payload.selectedChannels || payload.channels || action.targetChannels,
-  );
+  ));
   const media = cleanPublishMedia(
     payload.media ||
       payload.mediaAsset ||
@@ -1412,6 +1414,10 @@ export async function PATCH(request: Request) {
     mediaIndex?: unknown;
     applyToAllChannels?: unknown;
     scheduledFor?: unknown;
+    channels?: unknown;
+    expectedUpdatedAt?: unknown;
+    tiktokPublicationSettings?: unknown;
+    confirmPending?: boolean;
   } | null;
   const actionId =
     typeof requestBody?.actionId === "string" ? requestBody.actionId : "";
@@ -1440,6 +1446,11 @@ export async function PATCH(request: Request) {
     if (!isStandardAgentActionDescriptor(descriptorRow)) {
       return premiumRequiredApiResponse();
     }
+  }
+
+  if (editType === "publish_channel_selection") {
+    if (!MEDIA_LIBRARY_ID_PATTERN.test(actionId)) return NextResponse.json({ error: "Action invalide" }, { status: 400 });
+    return saveAgentPublicationChannels({ userId: activeUserId, actionId, channels: requestBody?.channels, expectedUpdatedAt: requestBody?.expectedUpdatedAt, tiktokPublicationSettings: requestBody?.tiktokPublicationSettings, confirmPending: requestBody?.confirmPending === true });
   }
 
   if (editType === "save_campaign_draft" || editType === "save_publish_draft") {

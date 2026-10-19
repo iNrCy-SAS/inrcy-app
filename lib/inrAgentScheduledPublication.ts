@@ -1,3 +1,5 @@
+import { filterInrAgentPublicationChannels } from "./inrAgentPublicationChannelSelection.ts";
+
 export type ScheduledPublicationRowLike = {
   id: string;
   automation_key?: string | null;
@@ -190,7 +192,8 @@ export function buildScheduledPublicationRequest(
   const payloadChannels = cleanChannels(
     publishPayload.channels || publishPayload.selectedChannels,
   );
-  const channels = rowChannels.length ? rowChannels : payloadChannels;
+  const channels = filterInrAgentPublicationChannels(scheduledPayload, rowChannels.length ? rowChannels : payloadChannels);
+  if (!channels.length) return null;
   const idempotencyKey = getScheduledPublicationIdempotencyKey(
     row,
     publishPayload,

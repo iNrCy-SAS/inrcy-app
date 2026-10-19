@@ -1,3 +1,4 @@
+import { filterInrAgentPublicationChannels, pendingInrAgentPublicationChannels, unvalidatedInrAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelection";
 import { readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
 import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
@@ -920,7 +921,7 @@ async function buildScheduledPayload(
   if (payload.mediaFormatVariants && isManualEditorialPublicationAction(action)) {
     payload = (await ensureInrAgentMediaFormats({ supabase: supabaseAdmin, accountId,
       actorAuthUserId: actorAuthUserId || accountId, actionId: action.id, payload,
-      channels: normalizeBoosterChannels(payload.selectedChannels || payload.channels || action.targetChannels), fallbackAssets: action.imageAssets, allowGeneration: false })).payload;
+      channels: filterInrAgentPublicationChannels(payload, normalizeBoosterChannels(payload.selectedChannels || payload.channels || action.targetChannels)), fallbackAssets: action.imageAssets, allowGeneration: false })).payload;
   }
   const nestedPublishPayload = asRecord(payload.publishPayload) || {};
   const tiktokPublicationSettings = normalizeTiktokPublicationSettings(
@@ -1019,9 +1020,10 @@ async function buildScheduledPayload(
     const sourceMediaPipelineCutoverV1 =
       !hasNativeFormatGroups && (payload.mediaPipelineCutoverV1 === true ||
       nestedPublishPayload.mediaPipelineCutoverV1 === true);
-    const selectedChannels = normalizeBoosterChannels(
+    const selectedChannels = filterInrAgentPublicationChannels(payload, normalizeBoosterChannels(
       payload.selectedChannels || payload.channels || action.targetChannels,
-    );
+    ));
+    if (!selectedChannels.length) throw new Error("Choisissez au moins un canal avant de valider.");
     if (selectedChannels.includes("threads") && !(await isMetaChannelPilotEnabledForAccount(supabaseAdmin, accountId))) throw new Error("Threads est réservé aux comptes ADMIN.");
     const imagePayloads = await buildImagePayloadsFromAgentAction(
       payload,
@@ -1169,6 +1171,8 @@ async function buildScheduledPayload(
       payload: {
         kind: "manual_publish_schedule",
         sourceActionId: action.id,
+        publicationChannelSelection: payload.publicationChannelSelection,
+        retainedPublicationPayload: payload,
         publishPayload: projectInrAgentThreadsPublishPayload({
           channels: publishChannels,
           autoDisabledChannels,
@@ -1292,7 +1296,8 @@ async function scheduleAgentActionHandler(request: Request) {
     );
 
   let action = rowToInrAgentAction(actionRow as any);
-  if (normalizeBoosterChannels(action.payload?.selectedChannels || action.payload?.channels || action.targetChannels).includes("threads") && !(await (isCron ? isMetaChannelPilotEnabledForAccount(supabaseAdmin, activeUserId) : isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, activeUserId)))) return metaChannelPilotDeniedResponse();
+  if (action.automationKey === "publish" && (pendingInrAgentPublicationChannels(action.payload).length || unvalidatedInrAgentPublicationChannels(action.payload).length)) return NextResponse.json({ error: "Un canal sélectionné est vide ou attend sa validation.", code: "INR_AGENT_CHANNEL_REVIEW_REQUIRED" }, { status: 409 });
+  if (filterInrAgentPublicationChannels(action.payload, normalizeBoosterChannels(action.payload?.selectedChannels || action.payload?.channels || action.targetChannels)).includes("threads") && !(await (isCron ? isMetaChannelPilotEnabledForAccount(supabaseAdmin, activeUserId) : isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, activeUserId)))) return metaChannelPilotDeniedResponse();
   if (standardMode && !isStandardAgentActionDescriptor(action)) {
     return premiumRequiredApiResponse();
   }
@@ -1419,6 +1424,8 @@ async function scheduleAgentActionHandler(request: Request) {
   let automaticClaimed = false;
   let editorialValidationClaimed = false;
   let editorialValidationClaimedAt: string | null = null;
+  let publicationSelectionClaimedAt: string | null = null;
+  const originalPublicationStatus = action.status;
   const releaseAutomaticClaim = async () => {
     if (!automaticClaimed) return;
     const { data: currentAction } = await supabaseAdmin
@@ -1478,6 +1485,11 @@ async function scheduleAgentActionHandler(request: Request) {
   };
 
   const releaseScheduleClaims = async () => {
+    if (publicationSelectionClaimedAt) {
+      await supabaseAdmin.from("inr_agent_actions").update({ status: originalPublicationStatus, updated_at: new Date().toISOString() })
+        .eq("id", action.id).eq("user_id", activeUserId).eq("status", "executing").eq("updated_at", publicationSelectionClaimedAt);
+      publicationSelectionClaimedAt = null;
+    }
     await releaseAutomaticClaim();
     await releaseEditorialValidationClaim();
   };
@@ -1811,6 +1823,7 @@ async function scheduleAgentActionHandler(request: Request) {
         .eq("action_type", "publication")
         .eq("target_tool", "booster")
         .eq("status", "pending_validation")
+        .eq("updated_at", action.updatedAt)
         .eq("execution_policy", "manual_validation")
         .eq("validation_required", true)
         .gt("scheduled_for", claimNow)
@@ -1910,6 +1923,14 @@ async function scheduleAgentActionHandler(request: Request) {
       }
       action = rowToInrAgentAction(claimedRow as any);
       automaticClaimed = true;
+    }
+
+    if (!automaticExecution && !confirmingEditorialPlan && scheduledPayload.actionType === "publication") {
+      const claimAt = new Date().toISOString();
+      const claim = await supabaseAdmin.from("inr_agent_actions").update({ status: "executing", updated_at: claimAt })
+        .eq("id", action.id).eq("user_id", activeUserId).eq("status", action.status).eq("updated_at", action.updatedAt).select("id").maybeSingle();
+      if (claim.error || !claim.data) return NextResponse.json({ error: "La publication a changé. Actualisez puis vérifiez les canaux avant de valider." }, { status: 409 });
+      publicationSelectionClaimedAt = claimAt;
     }
 
     const scheduledInsert = automaticExecution
@@ -2019,6 +2040,7 @@ async function scheduleAgentActionHandler(request: Request) {
         .eq("execution_policy", "automatic_after_settings")
         .eq("validation_required", false);
     }
+    if (publicationSelectionClaimedAt) actionUpdate = actionUpdate.eq("status", "executing").eq("updated_at", publicationSelectionClaimedAt);
     if (editorialValidationClaimed && editorialValidationClaimedAt) {
       actionUpdate = actionUpdate
         .eq("status", "executing")
@@ -2069,6 +2091,7 @@ async function scheduleAgentActionHandler(request: Request) {
     }
 
     automaticClaimed = false;
+    publicationSelectionClaimedAt = null;
     editorialValidationClaimed = false;
     editorialValidationClaimedAt = null;
 

@@ -10243,7 +10243,7 @@ button.campaignInfoRecipients:hover {
   min-height: 0;
   width: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: clamp(14px, 1.6vw, 22px);
   animation: previewSlideIn 0.22s ease both;
 }
@@ -21364,4 +21364,181 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 .instantPublishLoading .robotWorkingBadge small {
   font-size: 12px;
+}
+
+/* Publication review: editing, schedule, status, then the validation decision. */
+.previewMeta.previewMetaPublish.publishReviewFooter {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 12px !important;
+  height: auto !important;
+  min-height: 82px !important;
+  padding: 12px !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  justify-self: stretch !important;
+}
+
+.previewMeta.previewMetaPublish.publishReviewFooter > button {
+  order: 1 !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+}
+
+.previewMeta.previewMetaPublish.publishReviewFooter .dateItem {
+  order: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex: 1 1 170px !important;
+  min-width: 150px !important;
+  margin: 0 !important;
+  padding: 4px 12px !important;
+  border: 0 !important;
+}
+
+.previewMeta.previewMetaPublish.publishReviewFooter .dateItem > span:last-child { display: grid; gap: 3px; }
+.previewMeta.previewMetaPublish.publishReviewFooter .dateItem small { color: #bacbe8; font-size: 11px; }
+
+.publishFooterStatus {
+  order: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 1 240px;
+  min-width: 180px;
+  padding: 8px 16px;
+  border: 1px solid rgba(250, 204, 90, 0.3);
+  border-radius: 16px;
+  background: linear-gradient(125deg, rgba(208, 132, 31, 0.13), rgba(105, 64, 183, 0.15));
+}
+
+.publishFooterStatus[data-validation-state="validated"] {
+  border-color: rgba(82, 221, 176, 0.38);
+  background: rgba(31, 143, 113, 0.14);
+}
+
+.publishFooterStatus[data-validation-state="refused"] {
+  border-color: rgba(248, 113, 113, 0.38);
+  background: rgba(174, 54, 89, 0.15);
+}
+
+.publishFooterStatusIcon { display: grid; place-items: center; color: #f3ce8d; }
+.publishFooterStatusIcon svg { width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.publishFooterStatusText { display: grid; gap: 2px; }
+.publishFooterStatusText small { color: #bacbe8; font-size: 11px; }
+.publishFooterStatusText strong { font-size: 16px; line-height: 1.2; }
+.publishFooterStatusCounter { margin-left: auto; color: #c3d2ed; font-size: 12px; white-space: nowrap; }
+
+/* Global navigation, followed by compact cards for the current publication. */
+.previewCardNoFrame:has(.publishReviewFooter) { gap: 6px !important; }
+.publishPreview { grid-template-rows: 50px auto minmax(0, 1fr) !important; gap: 12px !important; }
+.publishPreview > .publicationNavigation {
+ display: flex; align-items: center; justify-content: center; gap: 24px; min-height: 50px; width: 100%;
+ color: #edf4ff; border: 1px solid #4161a34d; border-radius: 17px;
+ background: linear-gradient(105deg, #0f4c8f47, #542b814d);
+}
+.publicationNavigation > strong { min-width: 160px; text-align: center; font-size: 14px; }
+.publicationNavigation > button { width: 36px; height: 36px; padding: 9px; display: grid; place-items: center; color: #e4f2ff; border: 1px solid #415b97; border-radius: 11px; background: linear-gradient(135deg,#174775,#243461); cursor: pointer; }
+.publicationNavigation button svg, .publicationChannelCarousel button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.publicationNavigation button:disabled, .publicationChannelCarousel button:disabled { opacity: .4; cursor: default; }
+.publishPreview > .publishInfoGrid { grid-template-columns: repeat(4,minmax(0,1fr)); grid-auto-rows: 76px; height: auto !important; min-height: 76px; gap: 12px; overflow: visible !important; position: relative; z-index: 3; }
+.publishPreview > .publishInfoGridWithFormat { grid-template-columns: repeat(5,minmax(0,1fr)); }
+.publishInfoGrid .campaignInfoCard { position: relative; height: 76px !important; min-height: 76px !important; padding: 28px 14px 8px !important; display: flex !important; align-items: center !important; gap: 10px; }
+.publishInfoGrid .campaignInfoCard .campaignInfoIcon { width: 34px; height: 34px; flex: 0 0 34px; }
+.publishInfoGrid .campaignInfoCard .campaignInfoIcon svg { width: 21px; height: 21px; }
+.publishInfoGrid .campaignInfoCard > span:not(.campaignInfoIcon):not(.publishMediaInfoThumbs) { flex: 1; min-width: 0; min-height: 34px; display: flex; flex-direction: column; justify-content: center; text-align: center; }
+.publishInfoGrid .campaignInfoCard strong { width: 100%; text-align: center; font-size: clamp(12px,.85vw,15px) !important; }
+.publishInfoGrid .campaignInfoCard > span > small:first-child,
+.publishInfoGrid .publishChannelCardMain > small:first-child,
+.publishInfoGrid .publicationCardHeading,
+.publicationChannelMenu > summary > span:nth-child(2) > small:first-child { position: absolute; top: 8px; left: 12px; right: 12px; margin: 0 !important; text-align: center; line-height: 13px !important; font-size: 11px !important; font-weight: 750 !important; color: #b8c9e4; }
+.publishInfoGrid .publishInfoCardWithAction { padding-right: 48px !important; }
+.publishInfoGrid .publishRegenerateButton { top: 46px; right: 10px; width: 30px; height: 30px; transform: translateY(-50%); font-size: 23px; }
+.publishInfoChannel .publishChannelCardMain { position: static; transform: none !important; flex: 1; display: block; min-width: 0; }
+.publicationChannelCarousel { display: flex; align-items: center; justify-content: center; gap: 8px; height: 34px; }
+.publicationChannelCarousel > button { display: grid; place-items: center; width: 26px; height: 27px; padding: 4px; border: 1px solid #526ba6; border-radius: 8px; background: #23365d; color: #edf5ff; cursor: pointer; }
+.publicationChannelCurrent { display: grid; place-items: center; width: 30px; height: 30px; }
+.publicationChannelCurrent img { width: 30px; height: 30px; object-fit: contain; border-radius: 50%; }
+.publicationFormatControls { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; }
+.publicationFormatControls .publishPlacementControls { width: 100%; margin: 0; flex-wrap: nowrap; justify-content: center; gap: 5px; }
+.publicationFormatControls .publishPlacementSelect { width: auto; min-width: 60px; max-width: 100%; height: 26px; margin: 0; padding-left: 7px; padding-right: 20px; flex: 1 1 100px; font-size: 10px; }
+.publicationFormatControls .publishStoryOption { height: 26px; min-width: 0; padding: 0 5px; gap: 4px; font-size: 10px; }
+.publicationFormatControls .publishStoryOption input { width: 11px; height: 11px; }
+.publicationFormatControls .publishPlacementControls > small { display: none; }
+.publicationFormatControls .publishPlacementError { position: absolute; top: calc(100% + 5px); background: #1b253e; padding: 6px; border-radius: 5px; }
+.publishInfoGrid .publicationChannelMenu { display: block !important; z-index: 5; padding: 0 !important; overflow: visible !important; }
+.publicationChannelMenu > summary { position: relative; height: 76px; min-height: 76px; display: flex; align-items: center; gap: 10px; padding: 28px 14px 8px; list-style: none; cursor: pointer; }
+.publicationChannelMenu > summary::-webkit-details-marker { display: none; }
+.publicationChannelMenu > summary > span:nth-child(2) { flex: 1; min-width: 0; text-align: center; }
+.publicationChannelChevron { margin-left: auto; font-size: 21px; }
+.publicationChannelOptions { position: absolute; top: calc(100% + 8px); left: 0; width: min(330px,80vw); border: 1px solid #526da7; border-radius: 15px; padding: 14px; color: #f0f5ff; background: #111f3d; box-shadow: 0 16px 45px #02091dcc; }
+.publicationChannelBulk { display: flex; gap: 8px; margin-bottom: 12px; }
+.publicationChannelBulk > button { flex: 1; padding: 8px; border: 1px solid #475e93; border-radius: 8px; color: inherit; background: #23345c; font-size: 11px; cursor: pointer; }
+.publicationChannelBulk > button:disabled { opacity: .5; cursor: default; }
+.publicationChannelOptions > fieldset { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; padding: 0; border: 0; margin: 0; }
+.publicationChannelOptions label { display: flex; align-items: center; gap: 8px; min-height: 36px; font-size: 12px; cursor: pointer; }
+.publicationChannelOptions label > span { min-width: 0; line-height: 1.3; }
+.publicationChannelOptions label[data-connected="false"] { color: #8b9ab7; }
+.publicationChannelOptions label[data-connected="false"] img { opacity: .45; filter: grayscale(1); }
+.publicationChannelOptions input { flex-shrink: 0; width: 16px; height: 16px; margin: 0; accent-color: #39baf2; }
+.publicationChannelOptions img { flex-shrink: 0; border-radius: 50%; object-fit: contain; }
+.publicationChannelLegend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.publicationEmptyChannel { align-self: center; display: grid; justify-items: center; align-content: center; gap: 12px; min-height: 220px; padding: 28px; text-align: center; color: #f4c66e; }
+.publicationEmptyChannel > span { font-size: 30px; }
+.publicationEmptyChannel > strong { font-size: 22px; }
+.publicationEmptyChannel > p { max-width: 420px; margin: 0; color: #c4d1e5; font-size: 15px; line-height: 1.5; }
+.publishPreview .publishPostCarousel { grid-template-columns: minmax(0,1fr) !important; }
+.publishPreview .publishPostCarousel > .publishPostStack, .publishPreview .publishPostCarousel > .publishPostCard { grid-column: 1 !important; }
+.publishPreview .publishPostStack { gap: 8px !important; }
+.publishPreview .publishCtaStandalone { min-height: 44px; padding-top: 8px !important; padding-bottom: 8px !important; }
+:is(.publicationNavigation button,.publicationChannelCarousel button,.publicationChannelMenu summary,.publicationChannelOptions button,.publicationChannelOptions input):focus-visible { outline: 2px solid #73d4ff; outline-offset: 3px; }
+@media (max-width: 760px) {
+ .publishPreview > .publishInfoGrid { display: grid !important; grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 8px !important; }
+ .publishPreview > .publicationNavigation { gap: 12px; }
+ .publicationNavigation > strong { min-width: 135px; }
+ .publishInfoGrid .campaignInfoCard { padding-left: 9px !important; padding-right: 9px !important; gap: 5px; }
+ .publishInfoGrid .publishInfoCardWithAction { padding-right: 38px !important; }
+ .publishInfoGrid .campaignInfoCard .campaignInfoIcon { width: 27px; height: 27px; flex-basis: 27px; }
+ .publicationChannelMenu > summary { padding-left: 9px; padding-right: 9px; gap: 5px; }
+ .publicationChannelCarousel { gap: 4px; }
+ .publicationChannelCarousel > button { width: 22px; height: 25px; }
+ .publicationChannelCurrent img { width: 27px; height: 27px; }
+ .publicationFormatControls .publishPlacementSelect, .publicationFormatControls .publishStoryOption { font-size: 9px; }
+ .publicationChannelOptions { width: min(330px,calc(100vw - 50px)); }
+}
+
+.previewMeta.previewMetaPublish.publishReviewFooter .previewActions {
+  order: 3 !important;
+  display: flex !important;
+  gap: 10px !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+.previewMeta.previewMetaPublish.publishReviewFooter .previewActions > button {
+  width: clamp(150px, 13vw, 220px) !important;
+  min-width: 140px !important;
+  height: 50px !important;
+}
+
+@media (min-width: 761px) {
+  .previewMeta.previewMetaPublish.publishReviewFooter .publishMobilePager { display: none !important; }
+}
+
+@media (max-width: 760px) {
+  .previewMeta.previewMetaPublish.publishReviewFooter { gap: 8px !important; }
+  .previewMeta.previewMetaPublish.publishReviewFooter .dateItem { flex: 1 1 180px !important; padding: 0 6px !important; }
+  .previewMeta.previewMetaPublish.publishReviewFooter .publishFooterStatus { flex: 1 1 100%; min-width: 0; }
+  .previewMeta.previewMetaPublish.publishReviewFooter .previewActions { width: 100% !important; flex: 1 1 100% !important; }
+  .previewMeta.previewMetaPublish.publishReviewFooter .previewActions > button { flex: 1 1 0 !important; min-width: 0 !important; }
+  .previewMeta.previewMetaPublish.publishReviewFooter .publishMobilePager { order: 1 !important; }
 }

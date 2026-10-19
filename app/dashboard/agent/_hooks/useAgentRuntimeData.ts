@@ -449,9 +449,19 @@ export function useAgentRuntimeData({
     }
 
     loadConnectedChannels();
+    let lastConnectionRefresh = Date.now();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== "visible" || Date.now() - lastConnectionRefresh < 10_000) return;
+      lastConnectionRefresh = Date.now();
+      void loadConnectedChannels();
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
 
     return () => {
       alive = false;
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, []);
 

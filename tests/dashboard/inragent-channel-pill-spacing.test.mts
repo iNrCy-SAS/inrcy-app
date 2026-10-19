@@ -13,7 +13,7 @@ test("le bandeau Publier garde des bulles et des logos uniformes à tous les zoo
   const railStart = styles.indexOf(railMarker);
   assert.notEqual(railStart, -1);
 
-  const railStyles = styles.slice(railStart);
+  const railStyles = styles.slice(railStart, styles.indexOf("/* Publication review:", railStart));
   assert.match(
     railStyles,
     /\.previewMetaPublish \.channelScroller button \{[\s\S]*?box-sizing: border-box !important;[\s\S]*?overflow: hidden !important;[\s\S]*?border-radius: 50% !important;[\s\S]*?transform: none !important;/,

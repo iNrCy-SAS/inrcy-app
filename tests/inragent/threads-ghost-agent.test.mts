@@ -4,6 +4,7 @@ import test from "node:test";
 import ts from "typescript";
 import { applyInrAgentThreadsPublicationSettings, readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "../../lib/inrAgentThreadsPublication.ts";
 import { buildScheduledPublicationRequest } from "../../lib/inrAgentScheduledPublication.ts";
+import { filterInrAgentPublicationChannels } from "../../lib/inrAgentPublicationChannelSelection.ts";
 import { parseThreadsPublicationSettings, normalizeThreadsPublicationPreferences, normalizeThreadsPublicationMode, isThreadsPublicationModeEnabled, getThreadsPublicationModeFailure } from "../../lib/threadsPublicationPreferences.ts";
 
 // Runtime harnesses substitute unrelated DB/Meta fields with minimal fixtures.
@@ -71,7 +72,7 @@ test("Agent Ghost preview never falls back to shared images while Instagram keep
 
 test("editing a scheduled action keeps an explicit Ghost choice and projects its media before dispatch", () => {
   const update = functionRuntime("app/dashboard/agent/_lib/agent.schedule.ts", "scheduledEditUpdateFromAction", {
-    asRecord, jsonClone: structuredClone,
+    asRecord, jsonClone: structuredClone, filterInrAgentPublicationChannels,
     normalizeUiChannelKey: (key: string) => key,
     canonicalizeRecordForBoosterChannels: (map: RecordLike) => map,
     filterRecordForScheduledChannels: (value: unknown) => asRecord(value),
