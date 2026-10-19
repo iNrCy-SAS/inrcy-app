@@ -77,8 +77,19 @@ export function getAiMediaFreeRequestedDialogue(prompt: string) {
   // A first-person presentation followed by a colon is an explicit script,
   // just like "dit". Keep it out of the planner's visual protected literals.
   // Requiring a human subject avoids treating a sign/title's presentation as speech.
-  const pattern = /(?:(?:\b(?:dit|dis|disent|dire|dira|déclare|déclarent|répond|répondent|prononce|prononcent|récite|récitent|says?|speak|speaks|reply|replies|dice|diga|dicono|sagt|zegt|diz)\b|\b(?:réplique|dialogue|dialog|phrase\s+(?:exacte|à\s+(?:dire|prononcer))))[^«“"\n]{0,90}|\b(?:je|tu|il|elle|on|nous|vous|ils|elles|personnage|présentateur|présentatrice|professionnel|professionnelle|homme|femme)\s+(?:pr[ée]sent(?:e|es|ent|ons|ez|era|eront)|expliqu(?:e|es|ent|ons|ez|era|eront))\b[^«“"\n]{0,90}:\s*)[«“"]([^»”"]+)[»”"]/giu;
-  return Array.from(prompt.matchAll(pattern), (match) => match[1]!.replace(/\s+/g, " ").trim());
+  const pattern = /(?:(?:\b(?:dit|dis|disent|dire|dira|déclare|déclarent|répond|répondent|prononce|prononcent|récite|récitent|says?|speak|speaks|reply|replies|dice|diga|dicono|sagt|zegt|diz)\b|\b(?:réplique|dialogue|dialog|phrase\s+(?:exacte|à\s+(?:dire|prononcer))))[^«“"\n]{0,90}|(?<presentation>\b(?:je|tu|il|elle|on|nous|vous|ils|elles|personnage|présentateur|présentatrice|professionnel|professionnelle|homme|femme)\s+(?:pr[ée]sent(?:e|es|ent|ons|ez|era|eront)|expliqu(?:e|es|ent|ons|ez|era|eront))\b[^«“"\n]{0,90}:\s*))[«“"](?<line>[^»”"]+)[»”"]/giu;
+  return Array.from(prompt.matchAll(pattern)).flatMap((match) => {
+    const presentation = match.groups?.presentation?.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    if (presentation) {
+      const visualLabel = /\b(?:texte|titre|inscription|message|mots?|slogan|legende)\s*(?:exact(?:e|s)?\s*)?[:=]\s*$/.test(presentation);
+      const visualSupport = /\b(?:pancarte|panneau|affiche|ecran|enseigne|etiquette|support|tshirt|t-shirt)\b/.test(presentation);
+      const displayAction = /\b(?:affichant|affiche|affichent|afficher|portant|porte|portent|inscrit|inscrite|ecrit|ecrite)\b/.test(presentation);
+      // Presenting a labelled sign or screen describes visible wording. Only
+      // this new presentation shortcut is filtered; explicit "dit" stays oral.
+      if (visualLabel && (visualSupport || displayAction)) return [];
+    }
+    return [match.groups!.line.replace(/\s+/g, " ").trim()];
+  });
 }
 
 /** Separate quoted speech from the visual brief without changing explicitly displayed wording. */

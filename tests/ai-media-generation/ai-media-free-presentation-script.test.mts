@@ -62,6 +62,30 @@ test("the user's presentation quotation is exact speech, never a protected visua
   assert.equal(prompts.splitAiMediaFreeQuotedSpeech(visible).visualPrompt, visible);
 });
 
+test("presenting a sign or screen preserves its explicitly displayed wording", () => {
+  for (const prompt of [
+    "Une femme présente une pancarte portant le texte : “Offre spéciale”.",
+    "Je présente le produit avec un écran affichant le titre : “Inertie”.",
+  ]) {
+    assert.deepEqual(prompts.getAiMediaFreeRequestedDialogue(prompt), []);
+    assert.deepEqual(prompts.splitAiMediaFreeQuotedSpeech(prompt), { visualPrompt: prompt, audioOnlyQuotes: [] });
+  }
+});
+
+test("adjacent spoken presentation and displayed text remain in their own channels", () => {
+  const speech = "Voici notre application.";
+  const visible = "Inertie";
+  const visual = `Je présente le produit avec un écran affichant le titre : “${visible}”.`;
+  const oral = `Je présente l'application : “${speech}”`;
+  for (const prompt of [`${oral} ${visual}`, `${visual} ${oral}`, `${visual} Puis je dis : “${speech}”`]) {
+    assert.deepEqual(prompts.getAiMediaFreeRequestedDialogue(prompt), [speech]);
+    const split = prompts.splitAiMediaFreeQuotedSpeech(prompt);
+    assert.deepEqual(split.audioOnlyQuotes, [speech]);
+    assert.ok(split.visualPrompt.includes(`“${visible}”`));
+    assert.ok(!split.visualPrompt.includes(speech));
+  }
+});
+
 for (const engine of ["wan27", "wan3", "heygen"] as const) {
   test(`${engine}: exact presentation script reaches the provider and QA once despite duplicated planner visual quotes`, async () => {
     const input = request(engine); const plannerCalls: AiGenerateJsonOptions[] = [];
