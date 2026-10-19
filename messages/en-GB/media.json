@@ -976,6 +976,7 @@
   "ai_generator_character_voice_record_denied": "Microphone access was denied. Allow it in your browser or import a voice sample.",
   "ai_generator_character_voice_record_error": "Could not record the voice sample. Check your microphone.",
   "ai_generator_character_voice_consent_label": "I have the rights and permission required to use these faces and voices.",
+  "ai_generator_character_voice_provider_consent_label": "For this generation, I authorise sending the supplied photos and voice recordings to {provider}, and I confirm that I have permission from everyone represented.",
   "ai_generator_model_description_wan27": "Character references and provided voices, with native audio.",
   "ai_generator_engine_info_video_use_wan27": "Create a video from reference photos, pairing each character with their voice sample. Describe dialogue and actions in the prompt.",
   "ai_generator_engine_info_video_limits_wan27": "At least one photo is required, with up to five references. Each scene lasts up to 10 seconds. Voice likeness, French dialogue and lip synchronisation must be checked.",

@@ -766,7 +766,9 @@ export default function MediaFreeGenerator({
                 ...(teamConsentRequired
                   ? [{
                       id: "team",
-                      label: t("ai_generator_team_video_provider_consent", { provider: videoModel.providerLabel }),
+                      label: t(characterVoiceSelection.hasProvidedVoice
+                        ? "ai_generator_character_voice_provider_consent_label"
+                        : "ai_generator_team_video_provider_consent", { provider: videoModel.providerLabel }),
                       checked: teamConsent,
                       onChange: setTeamConsent,
                     }]
@@ -1031,7 +1033,9 @@ export default function MediaFreeGenerator({
                 disabled={locked}
                 onChange={(event) => setTeamConsent(event.target.checked)}
               />
-              <span>{t("ai_generator_team_video_provider_consent", { provider: videoModel.providerLabel })}</span>
+              <span>{t(characterVoiceSelection.hasProvidedVoice
+                ? "ai_generator_character_voice_provider_consent_label"
+                : "ai_generator_team_video_provider_consent", { provider: videoModel.providerLabel })}</span>
             </label>
           ) : null}
           {kind === "video" ? (

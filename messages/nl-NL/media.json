@@ -976,6 +976,7 @@
   "ai_generator_character_voice_record_denied": "Microfoontoegang is geweigerd. Sta toegang toe in de browser of importeer een stemfragment.",
   "ai_generator_character_voice_record_error": "De stem kon niet worden opgenomen. Controleer uw microfoon.",
   "ai_generator_character_voice_consent_label": "Ik beschik over de vereiste rechten en toestemming om deze gezichten en stemmen te gebruiken.",
+  "ai_generator_character_voice_provider_consent_label": "Voor deze generatie geef ik toestemming om de aangeleverde foto’s en stemopnamen naar {provider} te sturen en bevestig ik dat ik toestemming heb van alle afgebeelde personen.",
   "ai_generator_model_description_wan27": "Personagereferenties en eigen stemmen met geïntegreerde audio.",
   "ai_generator_engine_info_video_use_wan27": "Maak een video op basis van referentiefoto’s en koppel elk personage aan een eigen stemfragment. Beschrijf dialogen en handelingen in de prompt.",
   "ai_generator_engine_info_video_limits_wan27": "Minstens één foto is vereist, met maximaal vijf referenties. Elke scène duurt maximaal 10 seconden. Controleer de stemgelijkenis, Franse dialogen en lipsynchronisatie.",

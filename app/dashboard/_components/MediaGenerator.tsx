@@ -1542,7 +1542,9 @@ export default function MediaGenerator({
             {t("ai_generator_team_video_consent_title")}
           </h3>
           <p id="ai-media-team-video-consent-description">
-            {t("ai_generator_team_video_provider_description", { provider: videoModel.providerLabel })}
+            {t(characterVoiceSelection.hasProvidedVoice
+              ? "ai_generator_character_voice_provider_consent_label"
+              : "ai_generator_team_video_provider_description", { provider: videoModel.providerLabel })}
           </p>
         </div>
         <label className={styles.teamVideoConsentCheck}>
@@ -1553,7 +1555,9 @@ export default function MediaGenerator({
             onChange={(event) => setTeamVideoVeoConsent(event.target.checked)}
           />
           <span>
-            {t("ai_generator_team_video_provider_consent", { provider: videoModel.providerLabel })}
+            {t(characterVoiceSelection.hasProvidedVoice
+              ? "ai_generator_character_voice_provider_consent_label"
+              : "ai_generator_team_video_provider_consent", { provider: videoModel.providerLabel })}
           </span>
         </label>
         {!teamVideoVeoConsent ? (

@@ -976,6 +976,7 @@
   "ai_generator_character_voice_record_denied": "麦克风访问被拒绝。请在浏览器中允许访问，或导入声音样本。",
   "ai_generator_character_voice_record_error": "无法录音，请检查麦克风。",
   "ai_generator_character_voice_consent_label": "我拥有使用这些面孔和声音所需的权利和授权。",
+  "ai_generator_character_voice_provider_consent_label": "对于本次生成，我授权将提供的照片和语音录音发送给 {provider}，并确认已获得所有出镜人员的许可。",
   "ai_generator_model_description_wan27": "角色参考图和提供的声音，支持原生音频。",
   "ai_generator_engine_info_video_use_wan27": "使用参考照片创建视频，并为每个角色关联各自的声音样本。在提示词中描述台词和动作。",
   "ai_generator_engine_info_video_limits_wan27": "至少需要一张照片，最多支持五个参考素材。每个场景最长 10 秒。请检查声音相似度、法语对白和口型同步效果。",

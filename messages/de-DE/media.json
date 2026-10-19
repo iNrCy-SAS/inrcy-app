@@ -976,6 +976,7 @@
   "ai_generator_character_voice_record_denied": "Der Mikrofonzugriff wurde verweigert. Erlauben Sie ihn im Browser oder importieren Sie eine Sprachaufnahme.",
   "ai_generator_character_voice_record_error": "Die Sprachaufnahme konnte nicht erstellt werden. Prüfen Sie Ihr Mikrofon.",
   "ai_generator_character_voice_consent_label": "Ich verfüge über die erforderlichen Rechte und Genehmigungen zur Verwendung dieser Gesichter und Stimmen.",
+  "ai_generator_character_voice_provider_consent_label": "Für diese Generierung gestatte ich die Übermittlung der bereitgestellten Fotos und Sprachaufnahmen an {provider} und bestätige, dass ich die Zustimmung aller dargestellten Personen habe.",
   "ai_generator_model_description_wan27": "Figurenreferenzen und eigene Stimmen mit nativem Audio.",
   "ai_generator_engine_info_video_use_wan27": "Erstellen Sie ein Video aus Referenzfotos und ordnen Sie jeder Figur ihre Sprachaufnahme zu. Beschreiben Sie Dialoge und Aktionen im Prompt.",
   "ai_generator_engine_info_video_limits_wan27": "Mindestens ein Foto ist erforderlich, höchstens fünf Referenzen. Jede Szene dauert bis zu 10 Sekunden. Stimmenähnlichkeit, französische Dialoge und Lippensynchronität müssen geprüft werden.",

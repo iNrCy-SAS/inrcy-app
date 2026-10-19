@@ -16,6 +16,7 @@ type Props = Record<string, unknown>;
 type Element = { type: unknown; props: Props; key?: string };
 type Slot = { value?: unknown; setter?: (value: unknown) => void; deps?: unknown[]; cleanup?: () => void };
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
+const frenchMessages = JSON.parse(read("messages/fr-FR/media.json")) as Record<string, string>;
 const elements = (tree: unknown): Element[] => Array.isArray(tree) ? tree.flatMap(elements) : tree && typeof tree === "object" && "props" in tree ? [tree as Element, ...elements((tree as Element).props.children)] : [];
 const find = (tree: unknown, predicate: (node: Element) => boolean) => { const node = elements(tree).find(predicate); assert.ok(node, "Expected real rendered control"); return node; };
 const text = (tree: unknown): string => Array.isArray(tree) ? tree.map(text).join("") : typeof tree === "string" || typeof tree === "number" ? String(tree) : tree && typeof tree === "object" && "props" in tree ? text((tree as Element).props.children) : "";
@@ -53,7 +54,10 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   const preference = { videoEngine: initialEngine, imageEngine: "openai" as models.AiMediaImageEngine, videoResolution: models.getAiMediaVideoModel(initialEngine).defaultResolution, update(patch: Props) { Object.assign(preference, patch); } };
   const modules = new Map<string, unknown>([
     ["react", react], ["react/jsx-runtime", { jsx, jsxs: jsx }],
-    ["next-intl", { useLocale: () => "fr-FR", useTranslations: () => (key: string, values?: { credits?: string }) => values?.credits ? `${key} ${values.credits}` : key }],
+    ["next-intl", { useLocale: () => "fr-FR", useTranslations: () => (key: string, values?: { credits?: string; provider?: string }) => {
+      if (key === "ai_generator_character_voice_provider_consent_label" || key === "ai_generator_team_video_provider_consent") return frenchMessages[key].replace("{provider}", values?.provider || "");
+      return values?.credits ? `${key} ${values.credits}` : key;
+    } }],
     ["@/app/dashboard/_hooks/useMediaGeneration", { __esModule: true, default: () => hook, MediaGenerationAccountChangedError: class extends Error {}, MediaGenerationCancelledError: class extends Error {} }],
     ["@/lib/multicompte/constants", { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" }],
     ["@/lib/aiMediaGenerationContracts", contracts], ["@/lib/aiMediaNarrationVoices", narration], ["@/lib/mediaRules", rules],
@@ -180,6 +184,12 @@ test("two required people keep two distinct supplied voices paired with their po
     assert.notEqual(h.uploadedSamples[0].name, h.uploadedSamples[1].name);
     assert.equal(h.quoteInputs.at(-1)!.videoEngine, engine); assert.equal(h.quoteInputs.at(-1)!.identityMode, "reference_team");
     assert.ok(h.uploadedSamples.reduce((seconds, voice) => seconds + voice.durationSeconds, 0) <= 15);
+    const providerConsent = elements(h.tree()).filter((node) => node.type === "label" && node.props.className === "consent")[1];
+    const expectedConsent = `Pour cette génération, j’autorise l’envoi des photos et des vocaux fournis à ${models.getAiMediaVideoModelForCharacterVoice(engine, true).providerLabel}, et je confirme avoir l’autorisation de toutes les personnes représentées.`;
+    assert.equal(text(providerConsent), expectedConsent);
+    assert.doesNotMatch(text(providerConsent), /image de groupe dérivée|dialogues synthétiques/);
+    const regenerationConsents = find(h.tree(), (node) => node.type === "preview").props.regenerationConsents as Array<{ id: string; label: string }>;
+    assert.equal(regenerationConsents.find((consent) => consent.id === "team")?.label, expectedConsent);
     h.consent(); await h.generate(); assert.equal(h.requests.length, 0, "identity consent cannot bypass the engine-specific team consent");
     h.consentTeam(); await h.generate(); assert.equal(h.requests.length, 1);
     const request = h.requests[0];

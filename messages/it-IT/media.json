@@ -976,6 +976,7 @@
   "ai_generator_character_voice_record_denied": "L’accesso al microfono è stato negato. Autorizzalo nel browser o importa un campione vocale.",
   "ai_generator_character_voice_record_error": "Impossibile registrare la voce. Controlla il microfono.",
   "ai_generator_character_voice_consent_label": "Dispongo dei diritti e delle autorizzazioni necessari per utilizzare questi volti e queste voci.",
+  "ai_generator_character_voice_provider_consent_label": "Per questa generazione, autorizzo l’invio delle foto e delle registrazioni vocali fornite a {provider} e confermo di avere l’autorizzazione di tutte le persone rappresentate.",
   "ai_generator_model_description_wan27": "Riferimenti dei personaggi e voci fornite, con audio nativo.",
   "ai_generator_engine_info_video_use_wan27": "Crea un video da foto di riferimento, associando a ogni personaggio il proprio campione vocale. Descrivi dialoghi e azioni nel prompt.",
   "ai_generator_engine_info_video_limits_wan27": "È necessaria almeno una foto, con un massimo di cinque riferimenti. Ogni scena dura fino a 10 secondi. Verifica la somiglianza delle voci, i dialoghi in francese e la sincronizzazione labiale.",
