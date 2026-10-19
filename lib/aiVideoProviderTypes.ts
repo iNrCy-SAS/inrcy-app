@@ -1,6 +1,7 @@
 import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import type { AiMediaVideoProviderContract } from "@/lib/aiMediaVideoProviderContract";
+import { hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine } from "./aiMediaCharacterVoices.ts";
 
 export type AiVideoProviderClip = {
   buffer: Buffer;
@@ -183,8 +184,10 @@ export function assertAiVideoReferenceTeamProviderEgress(
   // Wan R2V binds each original subject image to its own optional voice.
   // A composed team frame would destroy that association. Keep the existing
   // one-attempt provider consent, without pretending these were precomposed.
-  if (provider === "alibaba" && args.request.videoEngine === "wan27") {
-    if (args.identityTeamProviderEgressConsent !== "wan27") {
+  const referenceProvider = args.request.videoEngine === "heygen" ? "heygen" : "alibaba";
+  if ((provider === "alibaba" && args.request.videoEngine === "wan27") ||
+      (hasProvidedAiMediaCharacterVoice(args.request.inspirationImages) && isAiMediaCharacterVoiceEngine(args.request.videoEngine) && provider === referenceProvider)) {
+    if (args.identityTeamProviderEgressConsent !== args.request.videoEngine) {
       throw new Error("ai_video_reference_team_provider_consent_required");
     }
     if (!args.request.inspirationImages.length || args.request.inspirationImages.length > 5) {

@@ -1,3 +1,4 @@
+import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -227,7 +228,7 @@ function createHarness(engine: Engine, options: {
   }
 
   const commonStubs = new Map<string, unknown>([
-    ["server-only", {}],
+    ["server-only", {}], ["./aiMediaCharacterVoices.ts", characterVoices], ["@/lib/aiMediaCharacterVoices", characterVoices],
     ["@google/genai", {
       GoogleGenAI: class {
         constructor(clientOptions: RecordValue) { clients.push(clientOptions); }

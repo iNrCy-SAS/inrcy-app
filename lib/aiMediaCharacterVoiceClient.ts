@@ -2,6 +2,7 @@ import {
   AI_MEDIA_CHARACTER_VOICE_MAX_UPLOAD_BYTES,
   type AiMediaCharacterVoiceSample,
 } from "./aiMediaCharacterVoices.ts";
+export { isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration } from "./aiMediaCharacterVoices.ts";
 
 type CharacterVoiceReference = {
   role?: string;
@@ -16,7 +17,7 @@ export function isProvidedCharacterVoice(reference: CharacterVoiceReference) {
 export function getCharacterVoiceSelectionState(references: readonly CharacterVoiceReference[]) {
   const provided = references.filter(isProvidedCharacterVoice);
   return {
-    requiresWan27: provided.length > 0,
+    hasProvidedVoice: provided.length > 0,
     missingSample: provided.some((reference) => !reference.voiceSample),
   };
 }

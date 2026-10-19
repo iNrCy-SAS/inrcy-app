@@ -82,6 +82,49 @@ test("signed voice URLs retain original image indices and only validate provided
   }
 });
 
+test("Wan 3 measures the stored WAVs and rejects forged short metadata before signing any URL", async () => {
+  const mock = fakeStorage({ body: wav(8) });
+  const images = [1, 2].map((index) => ({ role: "character", voiceMode: "provided" as const,
+    voiceSample: sample(voicePath(ACCOUNT, NOW, String(index).padStart(12, "0"))) }));
+  assert.equal(images[0].voiceSample.durationSeconds, 2, "the client deliberately understates each real eight-second recording");
+  await assert.rejects(storage.getAiMediaCharacterVoiceSignedUrls({ accountId: ACCOUNT, now: NOW,
+    storage: mock.storage, images, videoEngine: "wan3" }), safeError("ai_media_character_voice_total_duration_invalid"));
+  assert.equal(mock.calls.filter((call) => call.operation === "download").length, 2);
+  assert.equal(mock.calls.filter((call) => call.operation === "createSignedUrl").length, 0);
+  const preflight = fakeStorage({ body: wav(8) });
+  await assert.rejects(storage.preflightAiMediaCharacterVoices({ accountId: ACCOUNT, now: NOW,
+    storage: preflight.storage, images, videoEngine: "wan3" }), safeError("ai_media_character_voice_total_duration_invalid"));
+  assert.equal(preflight.calls.filter((call) => call.operation === "createSignedUrl").length, 0);
+});
+
+test("Wan 3 accepts exactly fifteen real audio seconds while the other voice engines retain their own allowance", async () => {
+  const images = [1, 2, 3].map((index) => ({ role: "character", voiceMode: "provided" as const,
+    voiceSample: sample(voicePath(ACCOUNT, NOW, String(index).padStart(12, "0"))) }));
+  const wan = fakeStorage({ body: wav(5) });
+  const urls = await storage.getAiMediaCharacterVoiceSignedUrls({ accountId: ACCOUNT, now: NOW,
+    storage: wan.storage, images: [{ role: "product" }, ...images], videoEngine: "wan3" });
+  assert.equal(urls[0], null); assert.equal(urls.filter(Boolean).length, 3);
+  for (const videoEngine of ["wan27", "heygen"]) {
+    const mock = fakeStorage({ body: wav(10) });
+    assert.equal((await storage.getAiMediaCharacterVoiceSignedUrls({ accountId: ACCOUNT, now: NOW,
+      storage: mock.storage, images, videoEngine })).filter(Boolean).length, 3);
+  }
+});
+
+test("excess voice counts and unsupported engines fail before privileged Storage is accessed", async () => {
+  const image = { role: "character", voiceMode: "provided" as const, voiceSample: sample() };
+  for (const videoEngine of ["wan27", "wan3", "heygen"]) {
+    const mock = fakeStorage();
+    await assert.rejects(storage.getAiMediaCharacterVoiceSignedUrls({ accountId: ACCOUNT, now: NOW,
+      storage: mock.storage, images: Array.from({ length: 4 }, () => image), videoEngine }), safeError("ai_media_character_voice_count_invalid"));
+    assert.deepEqual(mock.calls, []);
+  }
+  const mock = fakeStorage();
+  await assert.rejects(storage.getAiMediaCharacterVoiceSignedUrls({ accountId: ACCOUNT, now: NOW,
+    storage: mock.storage, images: [image], videoEngine: "grok" }), safeError("ai_media_character_voice_engine_unsupported"));
+  assert.deepEqual(mock.calls, []);
+});
+
 test("upload, download, delete and signing failures hide Storage diagnostics and unsafe signed URLs", async () => {
   for (const operation of ["upload", "download", "remove", "createSignedUrl"] as const) for (const mode of ["fail", "throws"] as const) {
     const mock = fakeStorage({ [mode]: operation });

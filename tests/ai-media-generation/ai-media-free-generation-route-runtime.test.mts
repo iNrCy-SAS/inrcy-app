@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as crypto from "node:crypto";
 import * as creditPricing from "../../lib/aiMediaCreditsPricing.ts";
+import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import test from "node:test";
 import ts from "typescript";
 
@@ -22,6 +23,7 @@ new Function("module", "exports", "require", quoteOutput)(quoteRecord, quoteReco
   if (id === "server-only") return {};
   if (id === "node:crypto") return crypto;
   if (id === "./aiMediaCreditsPricing.ts") return creditPricing;
+  if (id === "./aiMediaCharacterVoices.ts") return characterVoices;
   throw new Error(`Unisolated quote dependency: ${id}`);
 });
 

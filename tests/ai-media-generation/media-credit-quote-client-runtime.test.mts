@@ -131,3 +131,18 @@ test("changing image format requires a fresh quote even when the credit price st
   assert.equal(h.status().ready, true); assert.equal(h.status().quote?.totalCredits, 5);
   assert.equal(h.status().quote?.quoteId, "account-a-1"); h.dispose();
 });
+
+test("changing HeyGen from AI to supplied voices invalidates its base-route authorization and requests the reference tariff", async () => {
+  const base: MediaCreditQuoteInput = { ...input("heygen"), videoResolution: "1080p", inspirationImagesCount: 2, teamVideoSpeechMode: "characters", hasProvidedCharacterVoice: false };
+  const h = harness(base); h.runTimers(); h.respond(0, "account-a"); await h.flush();
+  assert.equal(h.status().quote?.totalCredits, 95);
+  h.update({ ...base, hasProvidedCharacterVoice: true });
+  assert.equal(h.status().ready, false); assert.deepEqual(h.status().authorization, {});
+  assert.equal(h.status().estimate?.totalCredits, 159);
+  h.runTimers(); assert.equal(h.requests[1].input.hasProvidedCharacterVoice, true);
+  h.respond(1, "account-a"); await h.flush();
+  assert.equal(h.status().ready, true); assert.equal(h.status().quote?.totalCredits, 159);
+  assert.equal(h.status().authorization.creditTariffVersion, "inrstudio-media-credits-2026-10-v4");
+  h.update(base); assert.equal(h.status().ready, false); assert.deepEqual(h.status().authorization, {});
+  h.dispose();
+});

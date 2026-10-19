@@ -1,3 +1,4 @@
+import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -31,7 +32,7 @@ function compile(file: string, modules: Map<string, unknown>, quiet = false) {
 
 function realCapabilityGate() {
   return compile("lib/aiMediaImageProviderGateway.ts", new Map<string, unknown>([
-    ["server-only", {}], ["sharp", {}], ["ai", {}], ["@/lib/aiGatewayAccountGuard", {}],
+    ["server-only", {}], ["./aiMediaCharacterVoices.ts", characterVoices], ["@/lib/aiMediaCharacterVoices", characterVoices], ["sharp", {}], ["ai", {}], ["@/lib/aiGatewayAccountGuard", {}],
     ["./aiMediaModelCatalog.ts", catalog], ["./aiMediaCreditsPricing.ts", pricing],
     ["./aiMediaBuffer.ts", {}], ["./aiMediaSensitiveText.ts", sensitive],
   ])).assertAiMediaGatewayImageInputs;
@@ -65,7 +66,7 @@ function serverHarness(providerFailure: boolean | Error = false) {
   const overrides: Array<[string, unknown]> = [
     ["./inrAgentVideoFallback.ts", agentVideoFallback],
     ["./aiMediaGenerationPublicErrors.ts", publicErrors],
-    ["server-only", {}], ["sharp", {}],
+    ["server-only", {}], ["./aiMediaCharacterVoices.ts", characterVoices], ["@/lib/aiMediaCharacterVoices", characterVoices], ["sharp", {}],
     ["@/lib/aiGenerationProfile", { buildNormalizedAiGenerationProfile: () => profile }],
     ["@/lib/aiMediaBrandKit", { loadAiMediaBrandKit: async () => ({ colors: ["#112233", "#445566", "#778899"], hasOfficialPalette: true, logo, logoVersion: "test" }) }],
     ["@/lib/aiMediaFreeDnaContextServer", { loadAiMediaFreeDnaContext: async () => ({ coordonnees: { telephone: "01 23 45 67 89" }, liens: { site_web: "https://atelier.example/" }, informations_demandees: [] }) }],

@@ -1,3 +1,4 @@
+import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -44,7 +45,7 @@ function loadVeoPromptRuntime() {
   const nativeRequire = createRequire(import.meta.url);
   const noOp = () => undefined;
   const stubs = new Map<string, unknown>([
-    ["server-only", {}],
+    ["server-only", {}], ["./aiMediaCharacterVoices.ts", characterVoices], ["@/lib/aiMediaCharacterVoices", characterVoices],
     ["./aiMediaVideoContinuity.ts", {}],
     [
       "@google/genai",
@@ -167,7 +168,7 @@ function loadVideoProviderRouter() {
     },
   });
   const stubs = new Map<string, unknown>([
-    ["server-only", {}],
+    ["server-only", {}], ["./aiMediaCharacterVoices.ts", characterVoices], ["@/lib/aiMediaCharacterVoices", characterVoices],
     [
       "@/lib/aiVideoProviderGoogleOmni",
       { googleOmniVideoProvider: provider("google-gemini-omni", "omni-test") },

@@ -21,13 +21,13 @@
   "ai_generator_engine_info_video_use_wan-flash": "Per animare la foto di un prodotto, luogo o persona con un movimento semplice descritto in un brief conciso. L’animazione può essere accompagnata da suoni ambientali, voce fuori campo o parlato.",
   "ai_generator_engine_info_video_limits_wan-flash": "È obbligatoria una foto iniziale: non è disponibile la creazione dal solo testo. L’animazione può modificare i dettagli della foto e il parlato in francese non è garantito.",
   "ai_generator_engine_info_video_use_wan3": "Per una dimostrazione o una sequenza continua con più azioni, a partire da testo o foto. Puoi aggiungere suoni ambientali, una voce fuori campo o un personaggio che parla.",
-  "ai_generator_engine_info_video_limits_wan3": "Limita le azioni e adatta le parole al tempo disponibile per favorire la continuità. Verifica i dialoghi in francese, i testi esatti e l’identità delle persone.",
+  "ai_generator_engine_info_video_limits_wan3": "Limita le azioni e adatta le parole al tempo disponibile per favorire la continuità. Verifica i dialoghi in francese, i testi esatti e l’identità delle persone. I campioni vocali forniti sono limitati a 15 secondi complessivi.",
   "ai_generator_engine_info_video_use_grok-lite": "Per brevi clip di prodotti, idee per post o scene semplici da un brief o una foto. Scegli la voce fuori campo per commentare la scena oppure la modalità personaggio parlante per le parole nella scena.",
   "ai_generator_engine_info_video_limits_grok-lite": "Nella creazione libera, la voce fuori campo viene sintetizzata separatamente; il parlato del personaggio proviene dal motore video e il francese non è garantito. L’immagine iniziale può essere reinterpretata, soprattutto volti e testi.",
   "ai_generator_engine_info_video_use_grok": "Per mostrare un prodotto in uso, raccontare una breve storia o mettere in scena un servizio da testo o foto. La voce fuori campo commenta la scena; la modalità personaggio parlante richiede dialoghi nel video.",
   "ai_generator_engine_info_video_limits_grok": "Nella creazione libera, la voce fuori campo viene sintetizzata separatamente; i dialoghi del personaggio sono generati dal motore video. Verifica francese, sincronizzazione labiale e dettagli dei riferimenti: la fedeltà non è garantita.",
   "ai_generator_engine_info_video_use_heygen": "Per creare una scena con un personaggio parlante, movimenti o suoni ambientali da testo o un’immagine iniziale. Le impostazioni audio distinguono la voce fuori campo dalle parole pronunciate da un personaggio.",
-  "ai_generator_engine_info_video_limits_heygen": "Si tratta di HeyGen Video, non di Avatar IV né di un servizio di clonazione del volto o della voce. Il francese, la conservazione dell’identità e la sincronizzazione labiale esatta non sono garantiti.",
+  "ai_generator_engine_info_video_limits_heygen": "I campioni vocali possono guidare la voce del personaggio in HeyGen Video. Vanno verificati la fedeltà della voce, i dialoghi in francese, la conservazione dell’identità e la sincronizzazione labiale esatta.",
   "ai_generator_engine_info_image_use_openai": "Per manifesti, offerte o composizioni che combinano testo, oggetti da posizionare e indicazioni di impaginazione. Puoi anche creare o ritoccare foto di prodotti usando riferimenti.",
   "ai_generator_engine_info_image_limits_openai": "Rileggi testi, prezzi e caratteri piccoli, poi verifica disposizione e dettagli dei riferimenti. Istruzioni precise non garantiscono tipografia esatta né la conservazione perfetta di volti o oggetti.",
   "ai_generator_engine_info_image_use_gemini": "Per creare foto ambientate, illustrazioni o varianti visive da un brief e riferimenti. Il ritocco permette di richiedere cambiamenti di ambiente, stile o elementi dell’immagine.",
@@ -959,7 +959,7 @@
   "ai_generator_character_voice_file_error": "Scegli un file MP3 o WAV di massimo 3 MB.",
   "ai_generator_character_voice_duration_error": "Il campione vocale deve durare da 1 a 10 secondi.",
   "ai_generator_character_voice_sample_missing": "Carica un campione per ogni personaggio con voce fornita.",
-  "ai_generator_character_voice_engine_required": "Per usare una voce fornita è necessario Wan 2.7.",
+  "ai_generator_character_voice_engine_required": "Per usare una voce fornita, scegli Wan 2.7, Wan 3.0 o HeyGen.",
   "ai_generator_character_voice_speech_required": "Le voci fornite vengono utilizzate nella modalità audio Personaggi.",
   "ai_generator_character_voice_switch_characters": "Usa l’audio Personaggi",
   "ai_generator_character_voice_preview": "Ascolta il campione vocale di questo personaggio",
@@ -999,5 +999,6 @@
   "ai_generator_character_voice_saved": "Campione vocale salvato nella raccolta multimediale.",
   "ai_generator_character_voice_library_empty": "Nessun campione vocale nella raccolta multimediale.",
   "ai_generator_character_voice_library_loading": "Caricamento dei campioni vocali…",
-  "ai_generator_character_voice_library_duration_error": "Per Wan 2.7, scegli un campione vocale da 1 a 10 secondi e di massimo 3 MB."
+  "ai_generator_character_voice_library_duration_error": "Per Wan 2.7, scegli un campione vocale da 1 a 10 secondi e di massimo 3 MB.",
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accetta fino a 15 secondi complessivi di campioni vocali. Accorcia i campioni o scegli Wan 2.7 o HeyGen."
 }

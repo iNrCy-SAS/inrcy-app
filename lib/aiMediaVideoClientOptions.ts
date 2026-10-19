@@ -1,13 +1,16 @@
-import { AI_MEDIA_VIDEO_MODELS, getAiMediaVideoModel, type AiMediaVideoEngine, type AiMediaVideoResolution, type AiMediaVideoSceneMode } from "./aiMediaModelCatalog.ts";
+import { AI_MEDIA_VIDEO_MODELS, getAiMediaVideoModel, getAiMediaVideoModelForCharacterVoice, type AiMediaVideoEngine, type AiMediaVideoResolution, type AiMediaVideoSceneMode } from "./aiMediaModelCatalog.ts";
 import { canGenerateAiMediaVideoDuration } from "./aiMediaVideoTimeline.ts";
 
 /** Each visible choice is an actual model/resolution pair from the provider catalogue. */
-export function getMediaVideoEngineQualityChoices() {
-  return AI_MEDIA_VIDEO_MODELS.flatMap((model) => model.resolutions.map((resolution) => ({
+export function getMediaVideoEngineQualityChoices(hasProvidedVoice = false) {
+  return AI_MEDIA_VIDEO_MODELS.flatMap((base) => {
+    const model = getAiMediaVideoModelForCharacterVoice(base.id, hasProvidedVoice);
+    return model.resolutions.map((resolution) => ({
     value: `${model.id}:${resolution}`, engine: model.id, resolution,
     label: model.label, family: model.family,
     creditsPerSecond: model.creditsByResolution[resolution] ?? model.creditsPerSecond,
-  })));
+    }));
+  });
 }
 
 export function isMediaVideoBriefCompatible(engine: AiMediaVideoEngine, brief: string) {

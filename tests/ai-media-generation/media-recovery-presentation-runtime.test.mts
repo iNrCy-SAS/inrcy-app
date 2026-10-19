@@ -10,6 +10,7 @@ import * as voices from "../../lib/aiMediaNarrationVoices.ts";
 import * as rules from "../../lib/mediaRules.ts";
 import * as policy from "../../lib/inrStudioModalPolicy.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
+import * as characterVoiceRules from "../../lib/aiMediaCharacterVoices.ts";
 
 type Props = Record<string, unknown>;
 type Element = { type: unknown; props: Props };
@@ -86,6 +87,7 @@ test("reload selects the owning Video Activity before recovery, preserves its re
   freeModules.set("@/lib/aiMediaNarrationVoices", voices); freeModules.set("@/lib/mediaRules", rules);
   freeModules.set("@/lib/mediaGenerationReferenceClient", {});
   freeModules.set("@/lib/aiMediaCharacterVoiceClient", characterVoices);
+  freeModules.set("@/lib/aiMediaCharacterVoices", characterVoiceRules);
   freeModules.set("@/lib/aiMediaModelRecommendation", { recommendAiMediaModel: () => null });
   freeModules.set("../_hooks/useMediaEnginePreference", { __esModule: true, default: () => ({ imageEngine: "recraft", videoEngine: "omni", videoResolution: "720p", update() {} }) });
   freeModules.set("../_hooks/useMediaCreditQuote", { __esModule: true, default: () => ({ ready: true, insufficient: false, quote: { totalCredits: 4 }, authorization: {} }) });

@@ -5,7 +5,8 @@ import { inspectAiMediaCharacterVoiceWav } from "./aiMediaCharacterVoiceAudio.ts
 import {
   AI_MEDIA_CHARACTER_VOICE_STORAGE_ROOT, AI_MEDIA_CHARACTER_VOICE_RETENTION_MS,
   AI_MEDIA_CHARACTER_VOICE_MAX_NORMALIZED_BYTES,
-  isOwnedAiMediaCharacterVoicePath, parseAiMediaCharacterVoicePath,
+  AI_MEDIA_CHARACTER_VOICE_WAN3_MAX_TOTAL_SECONDS,
+  isAiMediaCharacterVoiceEngine, isOwnedAiMediaCharacterVoicePath, parseAiMediaCharacterVoicePath,
   type AiMediaCharacterVoiceReference, type AiMediaCharacterVoiceSample,
 } from "./aiMediaCharacterVoices.ts";
 
@@ -54,21 +55,41 @@ export async function readAiMediaCharacterVoice(args: {
   const result = await bucket.download(args.path).catch(() => null);
   if (!result || result.error || !result.data || result.data.size > 320_044) throw new Error("voice_reference_unavailable");
   const buffer = Buffer.from(await result.data.arrayBuffer());
-  inspectAiMediaCharacterVoiceWav(buffer);
+  const inspected = inspectAiMediaCharacterVoiceWav(buffer);
   args.signal?.throwIfAborted();
-  return { buffer, bucket };
+  return { buffer, bucket, durationSeconds: inspected.durationSeconds };
 }
 
 /** Sign only this account's validated voice objects, preserving image-index association. */
 export async function getAiMediaCharacterVoiceSignedUrls(args: {
-  accountId: string; images: readonly AiMediaCharacterVoiceReference[]; signal?: AbortSignal; storage?: Storage; now?: number;
+  accountId: string; images: readonly AiMediaCharacterVoiceReference[]; videoEngine?: string | null;
+  signal?: AbortSignal; storage?: Storage; now?: number;
 }): Promise<readonly (string | null)[]> {
-  const urls: (string | null)[] = [];
+  const provided = args.images.filter((image) => image.voiceMode === "provided");
+  if (provided.length > 3) throw new Error("ai_media_character_voice_count_invalid");
+  if (provided.length && args.videoEngine && !isAiMediaCharacterVoiceEngine(args.videoEngine)) {
+    throw new Error("ai_media_character_voice_engine_unsupported");
+  }
+  if (provided.some((image) => image.role !== "character" || !image.voiceSample)) throw new Error("voice_reference_missing");
+  const validated: ({ path: string; bucket: Awaited<ReturnType<typeof privateStorage>> } | null)[] = [];
+  let actualDurationSeconds = 0;
+  // Validate every stored WAV before issuing any URL. Browser duration metadata
+  // must never bypass Wan 3's shared 15-second audio-reference allowance.
   for (const image of args.images) {
-    if (image.voiceMode !== "provided") { urls.push(null); continue; }
-    if (image.role !== "character" || !image.voiceSample) throw new Error("voice_reference_missing");
-    const { bucket } = await readAiMediaCharacterVoice({ ...args, path: image.voiceSample.path });
-    const result = await bucket.createSignedUrl(image.voiceSample.path, SIGNED_URL_SECONDS).catch(() => null);
+    if (image.voiceMode !== "provided") { validated.push(null); continue; }
+    const sample = image.voiceSample!;
+    const { bucket, durationSeconds } = await readAiMediaCharacterVoice({ ...args, path: sample.path });
+    actualDurationSeconds += durationSeconds;
+    if (args.videoEngine === "wan3" && actualDurationSeconds > AI_MEDIA_CHARACTER_VOICE_WAN3_MAX_TOTAL_SECONDS) {
+      throw new Error("ai_media_character_voice_total_duration_invalid");
+    }
+    validated.push({ path: sample.path, bucket });
+  }
+  const urls: (string | null)[] = [];
+  for (const reference of validated) {
+    if (!reference) { urls.push(null); continue; }
+    args.signal?.throwIfAborted();
+    const result = await reference.bucket.createSignedUrl(reference.path, SIGNED_URL_SECONDS).catch(() => null);
     if (!result || result.error || !result.data?.signedUrl) throw new Error("voice_storage_unavailable");
     let url: URL;
     try { url = new URL(result.data.signedUrl); } catch { throw new Error("voice_storage_unavailable"); }

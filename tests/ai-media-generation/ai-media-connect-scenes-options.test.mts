@@ -260,6 +260,25 @@ test("character voice preflight blocks missing samples, other engines and voiceo
   const voiceSample = { path: "opaque-owned-path.wav", name: "vocal.wav", mimeType: "audio/wav" as const, durationSeconds: 2, sizeBytes: 64_044 };
   const complete = { ...request, inspirationImages: [{ ...reference, voiceSample }] };
   await assert.rejects(hook.generate({ ...complete, teamVideoSpeechMode: "voiceover" }), /mode Personnages/);
-  await assert.rejects(hook.generate({ ...complete, videoEngine: "omni" }), /Wan 2\.7 requis/);
+  await assert.rejects(hook.generate({ ...complete, videoEngine: "omni" }), /Wan 2\.7, Wan 3 ou HeyGen/);
   assert.equal(requests.length, 0);
+});
+
+test("each reviewed voice engine reaches request serialization while Wan 3 rejects aggregate audio overflow before network", async () => {
+  const { runtime, requests } = hookRuntime(); const hook = runtime.default();
+  const sample = { path: "opaque-owned-path.wav", name: "voice.wav", mimeType: "audio/wav" as const, durationSeconds: 5, sizeBytes: 160_044 };
+  const reference = { mimeType: "image/jpeg" as const, data: Buffer.alloc(96, 1).toString("base64"), name: "portrait.jpg", role: "character" as const, usage: "inspiration" as const, characterIndex: 1 as const, voiceMode: "provided" as const, voiceSample: sample };
+  for (const videoEngine of ["wan27", "wan3", "heygen"] as const) {
+    await assert.rejects(hook.generate(clientRequest({ videoEngine, inputMode: "essential", durationSeconds: 8, identityMode: "auto", identityConsent: true, teamVideoSpeechMode: "characters", inspirationImages: [reference] })), { message: "Fixture serialization validated" });
+    assert.equal(requests.at(-1)?.videoEngine, videoEngine);
+    assert.deepEqual((requests.at(-1)?.inspirationImages as Array<Record<string, unknown>>)[0].voiceSample, sample);
+    assert.equal(requests.at(-1)?.identityConsent, true);
+  }
+  const references = [1, 2, 3].map((index) => ({ ...reference, characterIndex: index as 1 | 2 | 3 }));
+  const allowed = clientRequest({ videoEngine: "wan3", durationSeconds: 8, teamVideoSpeechMode: "characters", inspirationImages: references });
+  await assert.rejects(hook.generate(allowed), { message: "Fixture serialization validated" });
+  const sent = requests.length;
+  const excessive = references.map((image, index) => index === 2 ? { ...image, voiceSample: { ...image.voiceSample, durationSeconds: 5.1 } } : image);
+  await assert.rejects(hook.generate({ ...allowed, inspirationImages: excessive }), /Wan 3.*15 secondes.*Raccourcissez/);
+  assert.equal(requests.length, sent);
 });

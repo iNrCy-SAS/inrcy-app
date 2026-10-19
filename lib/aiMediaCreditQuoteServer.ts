@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { quoteAiMediaCredits, type AiMediaCreditsQuoteInput } from "./aiMediaCreditsPricing.ts";
 import type { AiMediaGenerationRequest } from "./aiMediaGenerationContracts.ts";
+import { hasProvidedAiMediaCharacterVoice } from "./aiMediaCharacterVoices.ts";
 
 export function createAiMediaServerQuote(accountId: string, input: AiMediaCreditsQuoteInput) {
   const quote = quoteAiMediaCredits(input);
@@ -15,6 +16,7 @@ export function quoteAiMediaRequest(accountId: string, request: AiMediaGeneratio
   return createAiMediaServerQuote(accountId, {
     ...request,
     inspirationImagesCount: request.inspirationImages.length,
+    hasProvidedCharacterVoice: hasProvidedAiMediaCharacterVoice(request.inspirationImages),
   });
 }
 

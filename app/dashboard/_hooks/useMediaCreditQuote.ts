@@ -7,7 +7,7 @@ import type { MediaGenerationQuota, MediaGenerationRequest } from "./useMediaGen
 
 export type MediaCreditQuoteInput = Pick<MediaGenerationRequest,
   "kind" | "operation" | "creationMode" | "videoEngine" | "imageEngine" | "format" | "durationSeconds" | "sceneMode" | "videoResolution" | "withNarration" | "teamVideoSpeechMode" | "identityMode" | "inputMode"
-> & { inspirationImagesCount: number };
+> & { inspirationImagesCount: number; hasProvidedCharacterVoice?: boolean };
 export type ConfirmedMediaCreditQuote = {
   totalCredits: number;
   tariffVersion: string;

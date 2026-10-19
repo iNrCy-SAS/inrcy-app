@@ -43,6 +43,7 @@ import {
 import { resolveAiMediaDialogueSequence } from "@/lib/aiMediaDialogue";
 import { buildAiMediaOriginalityContract } from "@/lib/aiMediaPromptShared";
 import { buildAiMediaFreeVideoScenePrompt } from "@/lib/aiMediaFreeGenerationPrompt";
+import { hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine } from "./aiMediaCharacterVoices.ts";
 import {
   assertAiMediaVideoProviderBoundary,
   assertAiMediaVideoProviderContract,
@@ -604,7 +605,7 @@ export function buildGoogleVideoTeamSpeechDirection(
     requestedSpeech: [args.request.idea, args.request.aiInstruction].filter(Boolean).join("\n"),
   })[index];
   if (!firstLine) return "DIALOGUE: no speech in this shot; keep mouths closed. The requested line belongs to another shot; never repeat it. No narrator, lyrics or music.";
-  if (args.request.videoEngine === "wan27") {
+  if (args.request.videoEngine === "wan27" || (hasProvidedAiMediaCharacterVoice(args.request.inspirationImages) && isAiMediaCharacterVoiceEngine(args.request.videoEngine))) {
     return `DIALOGUE: the speaker identified in this shot lip-syncs once 0.2–${speechEnd}s: “${firstLine}” Then mouth closed/silent for the rest of the shot. Use each supplied reference voice only for its associated character; use a stable distinct AI voice when no sample is supplied. No repeat/old line/narrator/music/voice-face swap.`;
   }
   if (args.request.identityMode !== "reference_team") {

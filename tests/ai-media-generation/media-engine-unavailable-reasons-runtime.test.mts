@@ -10,6 +10,7 @@ import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as voices from "../../lib/aiMediaNarrationVoices.ts";
 import * as mediaRules from "../../lib/mediaRules.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
+import * as characterVoiceRules from "../../lib/aiMediaCharacterVoices.ts";
 
 type Element = { type: unknown; props: Record<string, unknown> };
 type ControlsProps = Parameters<typeof import("../../app/dashboard/_components/MediaEngineCreditControls.tsx").default>[0];
@@ -123,6 +124,7 @@ function freeEditor(options: { kind?: "image" | "video"; engine?: models.AiMedia
   modules.set("@/lib/aiMediaGenerationContracts", contracts); modules.set("@/lib/aiMediaNarrationVoices", voices); modules.set("@/lib/mediaRules", mediaRules);
   modules.set("@/lib/mediaGenerationReferenceClient", {});
   modules.set("@/lib/aiMediaCharacterVoiceClient", characterVoices);
+  modules.set("@/lib/aiMediaCharacterVoices", characterVoiceRules);
   for (const path of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaQuotaSummary", "./MediaPromptHelp", "./MediaCharacterVoiceInput"]) modules.set(path, { __esModule: true, default: path });
   modules.set("./MediaGenerationCreationWorkspace", { __esModule: true, default: "preview", MediaGenerationSettingsTabs: "settings-tabs" });
   modules.set("./MediaGenerationCreationWorkspace.module.css", styles); modules.set("./MediaFreeGenerator.module.css", styles);

@@ -6,16 +6,16 @@ import { AI_MEDIA_CHARACTER_VOICE_MAX_UPLOAD_BYTES, type AiMediaCharacterVoiceSa
 
 const sample: AiMediaCharacterVoiceSample = { path: "_studio-voice-references/date/account__sample.wav", name: "vocal.wav", mimeType: "audio/wav", durationSeconds: 2, sizeBytes: 64_044 };
 
-test("each character voice locks Wan only when provided, regardless of reference usage", () => {
-  assert.deepEqual(getCharacterVoiceSelectionState([{ role: "character" }, { role: "character", voiceMode: "ai" }]), { requiresWan27: false, missingSample: false });
+test("each character reports supplied voices regardless of reference usage", () => {
+  assert.deepEqual(getCharacterVoiceSelectionState([{ role: "character" }, { role: "character", voiceMode: "ai" }]), { hasProvidedVoice: false, missingSample: false });
   const provided = { role: "character", voiceMode: "provided" as const, voiceSample: sample };
   for (const usage of ["required", "inspiration"]) {
     const reference = { ...provided, usage };
-    assert.deepEqual(getCharacterVoiceSelectionState([reference]), { requiresWan27: true, missingSample: false });
+    assert.deepEqual(getCharacterVoiceSelectionState([reference]), { hasProvidedVoice: true, missingSample: false });
   }
-  assert.deepEqual(getCharacterVoiceSelectionState([{ ...provided, voiceSample: undefined }]), { requiresWan27: true, missingSample: true });
-  assert.deepEqual(getCharacterVoiceSelectionState([provided, { role: "character", voiceMode: "provided" }]), { requiresWan27: true, missingSample: true });
-  assert.deepEqual(getCharacterVoiceSelectionState([{ ...provided, role: "product" }]), { requiresWan27: false, missingSample: false });
+  assert.deepEqual(getCharacterVoiceSelectionState([{ ...provided, voiceSample: undefined }]), { hasProvidedVoice: true, missingSample: true });
+  assert.deepEqual(getCharacterVoiceSelectionState([provided, { role: "character", voiceMode: "provided" }]), { hasProvidedVoice: true, missingSample: true });
+  assert.deepEqual(getCharacterVoiceSelectionState([{ ...provided, role: "product" }]), { hasProvidedVoice: false, missingSample: false });
 });
 
 test("imports accept MP3/WAV within the byte limit and preview keeps an opaque escaped path", () => {

@@ -1,3 +1,4 @@
+import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -16,6 +17,7 @@ const commonJsModule = { exports: {} };
 const factory = vm.runInThisContext(`(function(exports,require,module){${javascript}\n})`);
 factory(commonJsModule.exports, (id: string) => {
   if (id === "server-only") return {};
+  if (id === "./aiMediaCharacterVoices.ts" || id === "@/lib/aiMediaCharacterVoices") return characterVoices;
   if (id === "@/lib/supabaseAdmin") return { supabaseAdmin: { get storage() { throw new Error("real_storage_forbidden_in_test"); } } };
   if (id === "./aiMediaVideoTimeline.ts") return timeline;
   if (id.startsWith("node:")) return nativeRequire(id);

@@ -1,3 +1,4 @@
+import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -56,7 +57,7 @@ function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "bad-asset
   }).outputText;
   const noOp = () => undefined;
   const stubs = new Map<string, unknown>([
-    ["server-only", {}],
+    ["server-only", {}], ["./aiMediaCharacterVoices.ts", characterVoices], ["@/lib/aiMediaCharacterVoices", characterVoices],
     ["ai", {
       createDownload: () => async () => { throw new Error("download unavailable"); },
       experimental_generateVideo: async (input: Record<string, unknown>) => {

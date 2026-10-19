@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import { getAiMediaVideoSegmentDurations } from "./aiMediaVideoTimeline.ts";
+import { hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine } from "./aiMediaCharacterVoices.ts";
 
 const BUCKET = "inrcy-pro-media";
 const SIGNED_URL_SECONDS = 30 * 60;
@@ -93,7 +94,8 @@ export async function preflightAiMediaVideoTemporaryImages(args: {
   storage?: StorageClient;
 }): Promise<void> {
   const engine = args.request.videoEngine;
-  if (engine !== "minimax-h3" && engine !== "wan-flash" && engine !== "wan27") return;
+  if (engine !== "minimax-h3" && engine !== "wan-flash" && engine !== "wan27" &&
+      !(hasProvidedAiMediaCharacterVoice(args.request.inspirationImages) && isAiMediaCharacterVoiceEngine(engine))) return;
   const segments = getAiMediaVideoSegmentDurations(args.request.durationSeconds ?? 8, engine, args.request.videoResolution, args.request.sceneMode);
   const needsHostedFrame = args.request.inspirationImages.length > 0 ||
     (segments.length > 1 && args.request.sceneMode !== "multi");

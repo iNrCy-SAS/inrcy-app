@@ -13,7 +13,7 @@ import {
 import { normalizeAiMediaVideoEngine, type AiMediaVideoEngine, type AiMediaImageEngine } from "@/lib/aiMediaModelCatalog";
 import { AI_MEDIA_GENERATION_STREAM_TYPE, readAiMediaGenerationResponse } from "@/lib/aiMediaGenerationTransport";
 import type { AiMediaCharacterVoiceSample } from "@/lib/aiMediaCharacterVoices";
-import { getCharacterVoiceSelectionState, isProvidedCharacterVoice } from "@/lib/aiMediaCharacterVoiceClient";
+import { getCharacterVoiceSelectionState, isProvidedCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration } from "@/lib/aiMediaCharacterVoiceClient";
 import {
   createAiMediaRecoveryStorage, clearAiMediaGenerationRecovery, clearAiMediaGenerationRecoveryForMedia, readAiMediaGenerationRecovery, writeAiMediaGenerationRecovery,
   type AiMediaGenerationRecoveryPointer,
@@ -939,8 +939,9 @@ export default function useMediaGeneration() {
       if (request.kind === "video") {
         const voiceSelection = getCharacterVoiceSelectionState(request.inspirationImages || []);
         if (voiceSelection.missingSample) throw new Error("Insérez un vocal pour chaque personnage en voix fournie.");
-        if (voiceSelection.requiresWan27 && request.teamVideoSpeechMode !== "characters") throw new Error("Les voix fournies sont utilisées en mode Personnages.");
-        if (voiceSelection.requiresWan27 && request.videoEngine !== "wan27") throw new Error("Wan 2.7 requis pour utiliser une voix fournie.");
+        if (voiceSelection.hasProvidedVoice && request.teamVideoSpeechMode !== "characters") throw new Error("Les voix fournies sont utilisées en mode Personnages.");
+        if (voiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(request.videoEngine)) throw new Error("Utilisez Wan 2.7, Wan 3 ou HeyGen pour une vidéo avec une voix fournie.");
+        if (voiceSelection.hasProvidedVoice && exceedsAiMediaCharacterVoiceEngineDuration(request.videoEngine, request.inspirationImages || [])) throw new Error("Wan 3 accepte au maximum 15 secondes de vocaux au total. Raccourcissez vos échantillons ou choisissez Wan 2.7 ou HeyGen.");
       }
       if (request.creationMode === "free") {
         const freePrompt = String(request.freePrompt || "").trim();

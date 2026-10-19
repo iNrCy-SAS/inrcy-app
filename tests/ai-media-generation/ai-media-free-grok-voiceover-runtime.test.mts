@@ -1,5 +1,6 @@
+import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -30,8 +31,10 @@ function request(engine: contracts.AiMediaVideoEngine, overrides: Row = {}) {
     withMusic: false, freePrompt: `Une céramiste façonne un vase. Voix off exacte : « ${script} »`, ...overrides });
 }
 
-function harness(failure?: "tts" | "audio-preflight" | "seed" | "video" | "composition", withOfficialIdentity = false, options: { qaAdvisories?: string[]; narrationLanguage?: string } = {}) {
+function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed" | "video" | "composition", withOfficialIdentity = false, options: { qaAdvisories?: string[]; narrationLanguage?: string } = {}) {
   const events: string[] = [], videoCalls: Row[] = [], ttsCalls: Row[] = [], narrationCalls: Row[] = [], soundtrackCalls: Row[] = [], composeCalls: Row[] = [], saved: Row[] = [], contractCalls: Row[] = [], seedCalls: Row[] = [], googleFallbackCalls: Row[] = [];
+  const voicePreflightCalls: Row[] = [], localFallbackCalls: Row[] = [];
+  const forbiddenLocalFallback = async (args: Row) => { localFallbackCalls.push(args); throw new Error("unexpected_local_fallback"); };
   const profile = { business: { companyName: "Atelier", professionLabel: "Céramiste", sectorLabel: "Artisanat", phone: "" }, preferences: { language: "fr" } };
   const plan = { companyName: "Atelier", headline: "", cta: "", subline: "Une céramiste façonne un vase.",
     scenes: [{ eyebrow: "", title: "", body: "", visualBrief: "Une céramiste façonne un vase.", spokenLine: "Bonjour, je façonne un vase.", layout: "editorial" }] };
@@ -47,7 +50,7 @@ function harness(failure?: "tts" | "audio-preflight" | "seed" | "video" | "compo
   const entries: Array<[string, unknown]> = [
     ["./inrAgentVideoFallback.ts", agentVideoFallback],
     ["./aiMediaGenerationPublicErrors.ts", publicErrors],
-    ["server-only", {}], ["sharp", () => ({ png() { return this; }, toBuffer: async () => Buffer.from("transparent-overlay") })],
+    ["server-only", {}], ["./aiMediaCharacterVoices.ts", characterVoices], ["@/lib/aiMediaCharacterVoices", characterVoices], ["sharp", () => ({ png() { return this; }, toBuffer: async () => Buffer.from("transparent-overlay") })],
     ["@/lib/aiGenerationProfile", { buildNormalizedAiGenerationProfile: () => profile }],
     ["@/lib/aiMediaBusinessDna", { buildAiMediaVideoDnaBrief: () => "" }],
     ["@/lib/aiMediaBrandKit", { loadAiMediaBrandKit: async () => ({ logo: withOfficialIdentity ? Buffer.from("official-test-logo") : null, colors: ["#123456", "#654321", "#abcdef"], hasOfficialPalette: withOfficialIdentity }) }],
@@ -75,8 +78,13 @@ function harness(failure?: "tts" | "audio-preflight" | "seed" | "video" | "compo
       events.push("seed"); seedCalls.push(args); if (failure === "seed") throw new Error("synthetic-seed-unavailable");
       return { buffer: Buffer.from("synthetic-seed-image"), model: "test-image", provider: "test", warnings: [], referenceImagesCount: 0 };
     }, generateAiMediaImageWithGoogle: async (args: Row) => { googleFallbackCalls.push(args); throw new Error("synthetic-seed-fallback-unavailable"); } }],
-    ["@/lib/aiMediaReferenceTeam", { prepareReferenceTeamCompositionForAnimation: async () => {
+    ["@/lib/aiMediaReferenceTeam", { createAiMediaFallbackVideo: forbiddenLocalFallback, createBrandMotionFrame: forbiddenLocalFallback,
+      createReferenceIdentityMontage: forbiddenLocalFallback, createReferenceTeamFallbackVideo: forbiddenLocalFallback,
+      createReferenceTeamMontage: forbiddenLocalFallback, prepareReferenceTeamCompositionForAnimation: async () => {
       events.push("seed-normalize"); return { data: "synthetic-normalized-seed", mimeType: "image/png" };
+    } }],
+    ["@/lib/aiMediaCharacterVoiceStorage", { preflightAiMediaCharacterVoices: async (args: Row) => {
+      voicePreflightCalls.push(args); if (failure === "voice-preflight") throw new Error("voice_reference_unavailable");
     } }],
     ["@/lib/aiMediaGeneratedVideo", { AiMediaNarrationTooLongError: class extends Error {}, prepareAiMediaNarrationAudioForVideo: async (args: { audio: Row }) => {
       events.push("audio-preflight"); if (failure === "audio-preflight") throw new Error("synthetic-audio-unusable");
@@ -120,8 +128,64 @@ function harness(failure?: "tts" | "audio-preflight" | "seed" | "video" | "compo
     if (name.startsWith("node:")) return nativeRequire(name);
     throw new Error(`unexpected_test_dependency:${name}`);
   }, { info() {}, warn() {}, error() {} });
-  return { events, videoCalls, ttsCalls, narrationCalls, soundtrackCalls, composeCalls, saved, contractCalls, seedCalls, googleFallbackCalls,
+  return { events, videoCalls, ttsCalls, narrationCalls, soundtrackCalls, composeCalls, saved, contractCalls, seedCalls, googleFallbackCalls, voicePreflightCalls, localFallbackCalls,
     generate: (original: contracts.AiMediaGenerationRequest, execution: Row = {}) => moduleRecord.exports.generateAndSaveAiMedia({ request: original, accountId: "test-account", authUserId: "test-actor", jobId: "test-job", supabase: {}, ...execution }) };
+}
+
+for (const engine of ["wan27", "wan3", "heygen"] as const) {
+  for (const characterCount of [1, 2]) test(`${engine}: real Free server preserves ${characterCount} original character references and their own supplied voices without precomposition or fallback`, async () => {
+    const now = Date.now();
+    const voiceSample = { path: `_studio-voice-references/${new Date(now).toISOString().slice(0, 10)}/test-account__${now}__${randomUUID()}.wav`,
+      name: "voice-of-first-character.wav", mimeType: "audio/wav", durationSeconds: 5, sizeBytes: 160_044 };
+    const secondVoiceSample = { ...voiceSample, path: voiceSample.path.replace(/[0-9a-f-]{36}\.wav$/, `${randomUUID()}.wav`),
+      name: "voice-of-second-character.wav" };
+    const original = request(engine, { durationSeconds: 8, videoResolution: engine === "heygen" ? "768p" : "720p",
+      inputMode: "essential", teamVideoSpeechMode: "characters", withNarration: false,
+      identityConsent: true, identityReferenceSetId: randomUUID(), teamVideoProviderConsent: engine,
+      freePrompt: characterCount === 2
+        ? "Le premier personnage dit : « Bonjour, je façonne un vase. » La seconde répond : « Et moi, je le décore. » Chacun parle avec sa propre voix."
+        : "Le premier personnage dit : « Bonjour, je façonne un vase. »",
+      inspirationImages: Array.from({ length: characterCount }, (_, index) => ({ mimeType: "image/png", data: (index ? "B" : "A").repeat(88),
+        role: "character", usage: "required", characterIndex: index + 1, voiceMode: "provided",
+        voiceSample: index ? secondVoiceSample : voiceSample,
+      })),
+    });
+    const before = structuredClone(original);
+    for (const failure of [undefined, "video"] as const) {
+      const env = harness(failure);
+      if (failure) await assert.rejects(env.generate(original), /selected_video_unavailable/);
+      else await env.generate(original);
+      assert.deepEqual(original, before, "the server never rewrites the professional's original image/voice input");
+      assert.equal(env.voicePreflightCalls.length, 1);
+      assert.equal(env.voicePreflightCalls[0].videoEngine, engine);
+      assert.equal(env.voicePreflightCalls[0].accountId, "test-account");
+      assert.deepEqual(env.voicePreflightCalls[0].images, original.inspirationImages);
+      assert.equal(env.videoCalls.length, 1, "a provider failure never tries another engine or regenerates the clip");
+      const sent = env.videoCalls[0].request as contracts.AiMediaGenerationRequest;
+      assert.equal(sent.videoEngine, engine); assert.equal(sent.teamVideoSpeechMode, "characters"); assert.equal(sent.withNarration, false);
+      assert.deepEqual(sent.inspirationImages, original.inspirationImages, "each original photo keeps its own unchanged voice sample");
+      assert.equal(env.videoCalls[0].identityTeamPrecomposed, undefined);
+      if (characterCount === 2) {
+        assert.equal(env.videoCalls[0].identityTeamMemberCount, 2);
+        assert.equal(env.videoCalls[0].identityTeamProviderEgressConsent, engine);
+        assert.deepEqual(sent.inspirationImages.map((image) => image.voiceMode), ["provided", "provided"]);
+        assert.deepEqual(sent.inspirationImages.map((image) => image.voiceSample?.durationSeconds), [5, 5]);
+        assert.notEqual(sent.inspirationImages[0].voiceSample?.path, sent.inspirationImages[1].voiceSample?.path);
+      }
+      assert.equal(env.seedCalls.length, 0); assert.equal(env.googleFallbackCalls.length, 0);
+      assert.equal(env.events.includes("seed-normalize"), false);
+      assert.equal(env.ttsCalls.length, 0); assert.equal(env.narrationCalls.length, 0); assert.equal(env.localFallbackCalls.length, 0);
+      assert.equal(env.saved.length, failure ? 0 : 1); assert.equal(env.composeCalls.length, failure ? 0 : 1);
+      if (!failure) {
+        assert.equal(env.composeCalls[0].nativeAudioMode, "dialogue"); assert.equal(env.composeCalls[0].narration, null);
+      }
+    }
+    const unavailable = harness("voice-preflight");
+    await assert.rejects(unavailable.generate(original), /voice_reference_unavailable/);
+    assert.equal(unavailable.voicePreflightCalls[0].videoEngine, engine);
+    assert.equal(unavailable.videoCalls.length, 0); assert.equal(unavailable.seedCalls.length, 0); assert.equal(unavailable.ttsCalls.length, 0);
+    assert.equal(unavailable.saved.length, 0); assert.equal(unavailable.localFallbackCalls.length, 0);
+  });
 }
 
 test("Veo fallback keeps resolution and the original failure instead of calling incompatible Omni", async () => {

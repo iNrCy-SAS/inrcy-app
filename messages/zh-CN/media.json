@@ -21,13 +21,13 @@
   "ai_generator_engine_info_video_use_wan-flash": "适合用简洁说明，让产品、地点或人物照片产生简单动作。动画可配合环境音、画外音或台词。",
   "ai_generator_engine_info_video_limits_wan-flash": "必须提供起始照片，不支持仅凭文字生成。动画可能改变照片细节，法语台词的准确性也无法保证。",
   "ai_generator_engine_info_video_use_wan3": "适合根据文字或照片生成演示或包含多个动作的连续场景。可以配合环境音、画外音或让角色说话。",
-  "ai_generator_engine_info_video_limits_wan3": "请减少动作数量，并让台词长度适应视频时长，以帮助保持连贯。请检查法语对话、准确文字以及人物身份特征。",
+  "ai_generator_engine_info_video_limits_wan3": "请减少动作数量，并让台词长度适应视频时长，以帮助保持连贯。请检查法语对话、准确文字以及人物身份特征。 提供的声音样本总时长不得超过 15 秒。",
   "ai_generator_engine_info_video_use_grok-lite": "适合根据创作说明或照片制作简短的产品视频、帖子创意或简单场景。选择画外音来解说场景，或选择角色说话模式，让人物在画面中说话。",
   "ai_generator_engine_info_video_limits_grok-lite": "在自由创作模式中，画外音单独合成；角色台词由视频模型生成，法语表现无法保证。起始图像可能被重新诠释，尤其是面部和文字。",
   "ai_generator_engine_info_video_use_grok": "适合根据文字或照片展示产品的使用场景、讲述短故事或呈现服务。画外音用于解说场景，角色说话模式则要求在视频中生成对话。",
   "ai_generator_engine_info_video_limits_grok": "在自由创作模式中，画外音单独合成，角色对话仍由视频模型生成。请检查法语、口型同步和参考图细节，无法保证完全一致。",
   "ai_generator_engine_info_video_use_heygen": "适合根据文字或起始图像生成角色说话、动作或环境音场景。音频设置区分画外音和角色在画面中说出的台词。",
-  "ai_generator_engine_info_video_limits_heygen": "这里提供的是 HeyGen Video，并非 Avatar IV，也不是人脸或声音克隆服务。无法保证法语表现、人物身份特征保留或精确口型同步。",
+  "ai_generator_engine_info_video_limits_heygen": "声音样本可用于引导 HeyGen Video 中角色的声音。仍需检查声音相似度、法语对话、身份特征保留和精确口型同步。",
   "ai_generator_engine_info_image_use_openai": "适合海报、促销内容，或结合文字、物体位置及版式要求的画面。也可以借助参考图创建或修改产品照片。",
   "ai_generator_engine_info_image_limits_openai": "请校对文字、价格和小字，并检查布局及参考图细节。精确指令不保证字体排版完全一致，也不保证面部或物体得到完美保留。",
   "ai_generator_engine_info_image_use_gemini": "适合根据创作说明和参考图创建情境照片、插画或视觉变体。编辑功能可用于要求更换背景、风格或图像元素。",
@@ -959,7 +959,7 @@
   "ai_generator_character_voice_file_error": "请选择不超过 3 MB 的 MP3 或 WAV 文件。",
   "ai_generator_character_voice_duration_error": "声音样本时长必须为 1 至 10 秒。",
   "ai_generator_character_voice_sample_missing": "请为每个使用提供声音的角色上传声音样本。",
-  "ai_generator_character_voice_engine_required": "使用提供的声音需要 Wan 2.7。",
+  "ai_generator_character_voice_engine_required": "使用提供的声音时，请选择 Wan 2.7、Wan 3.0 或 HeyGen。",
   "ai_generator_character_voice_speech_required": "提供的声音用于角色音频模式。",
   "ai_generator_character_voice_switch_characters": "使用角色音频",
   "ai_generator_character_voice_preview": "收听此角色的声音样本",
@@ -999,5 +999,6 @@
   "ai_generator_character_voice_saved": "声音样本已保存到媒体库。",
   "ai_generator_character_voice_library_empty": "媒体库中没有声音样本。",
   "ai_generator_character_voice_library_loading": "正在加载声音样本…",
-  "ai_generator_character_voice_library_duration_error": "使用 Wan 2.7 时，请选择时长 1 至 10 秒、大小不超过 3 MB 的声音样本。"
+  "ai_generator_character_voice_library_duration_error": "使用 Wan 2.7 时，请选择时长 1 至 10 秒、大小不超过 3 MB 的声音样本。",
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 接受的声音样本总时长最多为 15 秒。请缩短样本，或选择 Wan 2.7 或 HeyGen。"
 }

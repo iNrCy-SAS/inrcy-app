@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import * as crypto from "node:crypto";
 import ts from "typescript";
 import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
+import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import * as policy from "../../lib/aiMediaGenerationQuotaPolicy.ts";
 
 type Row=Record<string,unknown>;
@@ -16,7 +17,7 @@ function load<T>(path:string,modules:Record<string,unknown>):T {
   return runtime.exports;
 }
 const quotes=load<{createAiMediaServerQuote(accountId:string,input:pricing.AiMediaCreditsQuoteInput):pricing.AiMediaCreditsQuote & {quoteId:string}}>("lib/aiMediaCreditQuoteServer.ts",{
-  "server-only":{},"node:crypto":crypto,"./aiMediaCreditsPricing.ts":pricing,
+  "server-only":{},"node:crypto":crypto,"./aiMediaCreditsPricing.ts":pricing,"./aiMediaCharacterVoices.ts":characterVoices,
 });
 const presentation=load<{presentAiMediaQuotaCounter(counter:Row,unlimited:boolean):Row}>("lib/aiMediaQuotaPresentation.ts",{"@/lib/aiMediaGenerationQuotaPolicy":policy});
 function fixture(options:{authenticated?:boolean;creditsReady?:boolean;unlimited?:boolean;maxDuration?:number;accountId?:string}={}) {

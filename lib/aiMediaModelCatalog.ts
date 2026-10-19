@@ -244,6 +244,22 @@ export function getAiMediaVideoModel(engine: unknown): AiMediaVideoModel {
   return model;
 }
 
+const HEYGEN_CHARACTER_VOICE_MODEL: AiMediaVideoModel = Object.freeze({
+  ...getAiMediaVideoModel("heygen"),
+  // Reference-to-video has a distinct tariff. Use non-promotional bounds:
+  // the October launch rate is half these amounts and expires 2026-10-31.
+  creditsPerSecond: 10,
+  creditsByResolution: Object.freeze({ "768p": 10, "1080p": 18 }),
+  pricingUsdPerSecond: Object.freeze({ "768p": 0.1, "1080p": 0.18 }),
+  maxReferenceImages: 9,
+});
+
+/** Supplied voices select HeyGen's reference route without changing legacy I2V pricing. */
+export function getAiMediaVideoModelForCharacterVoice(engine: unknown, hasProvidedVoice = false): AiMediaVideoModel {
+  const model = getAiMediaVideoModel(engine);
+  return hasProvidedVoice && model.id === "heygen" ? HEYGEN_CHARACTER_VOICE_MODEL : model;
+}
+
 export function getAiMediaVideoResolution(engine: unknown, resolution?: unknown): AiMediaVideoResolution {
   const model = getAiMediaVideoModel(engine);
   const value = String(resolution ?? "").trim();

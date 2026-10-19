@@ -21,13 +21,13 @@
   "ai_generator_engine_info_video_use_wan-flash": "Voor het animeren van een foto van een product, locatie of persoon met een eenvoudige beweging in een korte briefing. De animatie kan omgevingsgeluid, een voice-over of gesproken tekst bevatten.",
   "ai_generator_engine_info_video_limits_wan-flash": "Een startfoto is verplicht: alleen tekst is niet voldoende. De animatie kan fotodetails veranderen en Franse spraak is niet gegarandeerd.",
   "ai_generator_engine_info_video_use_wan3": "Voor een demonstratie of doorlopende scène met meerdere handelingen, op basis van tekst of foto’s. U kunt omgevingsgeluid, een voice-over of een sprekend personage toevoegen.",
-  "ai_generator_engine_info_video_limits_wan3": "Beperk het aantal handelingen en stem de gesproken tekst af op de beschikbare tijd om de continuïteit te ondersteunen. Controleer Franse dialogen, exacte teksten en de identiteit van personen.",
+  "ai_generator_engine_info_video_limits_wan3": "Beperk het aantal handelingen en stem de gesproken tekst af op de beschikbare tijd om de continuïteit te ondersteunen. Controleer Franse dialogen, exacte teksten en de identiteit van personen. Aangeleverde stemfragmenten zijn beperkt tot in totaal 15 seconden.",
   "ai_generator_engine_info_video_use_grok-lite": "Voor korte productclips, ideeën voor berichten of eenvoudige scènes op basis van een briefing of foto. Kies een voice-over als commentaar, of een sprekend personage voor spraak in beeld.",
   "ai_generator_engine_info_video_limits_grok-lite": "Bij vrije creatie wordt de voice-over apart gegenereerd; de spraak van een personage komt uit het videomodel en correct Frans is niet gegarandeerd. De startafbeelding kan anders worden geïnterpreteerd, vooral gezichten en teksten.",
   "ai_generator_engine_info_video_use_grok": "Voor producten in gebruik, korte verhalen of het uitbeelden van een dienst op basis van tekst of foto’s. Een voice-over geeft commentaar; de modus voor een sprekend personage vraagt om dialogen in de video.",
   "ai_generator_engine_info_video_limits_grok": "Bij vrije creatie wordt de voice-over apart gegenereerd; dialogen van personages blijven afkomstig van het videomodel. Controleer hun Frans, lipsynchronisatie en referentiedetails: getrouwe weergave is niet gegarandeerd.",
   "ai_generator_engine_info_video_use_heygen": "Voor een scène met een sprekend personage, beweging of omgevingsgeluid, op basis van tekst of een startafbeelding. De audio-instellingen maken onderscheid tussen voice-over en spraak van een personage.",
-  "ai_generator_engine_info_video_limits_heygen": "Dit is HeyGen Video, geen Avatar IV of dienst voor het klonen van gezichten of stemmen. Correct Frans, behoud van identiteit en exacte lipsynchronisatie zijn niet gegarandeerd.",
+  "ai_generator_engine_info_video_limits_heygen": "Stemfragmenten kunnen de stem van een personage in HeyGen Video sturen. Stemgelijkenis, Franse dialogen, behoud van identiteit en exacte lipsynchronisatie moeten nog worden gecontroleerd.",
   "ai_generator_engine_info_image_use_openai": "Voor posters, aanbiedingen of composities met tekst, te plaatsen voorwerpen en aanwijzingen voor de lay-out. U kunt ook productfoto’s maken of bewerken met behulp van referenties.",
   "ai_generator_engine_info_image_limits_openai": "Lees teksten, prijzen en kleine letters na en controleer de indeling en referentiedetails. Precieze instructies garanderen geen exacte typografie of perfect behoud van gezichten of voorwerpen.",
   "ai_generator_engine_info_image_use_gemini": "Voor sfeerfoto’s, illustraties of visuele varianten op basis van een briefing en referenties. Met bewerking kunt u een andere achtergrond, stijl of andere beeldelementen aanvragen.",
@@ -959,7 +959,7 @@
   "ai_generator_character_voice_file_error": "Kies een MP3- of WAV-bestand van maximaal 3 MB.",
   "ai_generator_character_voice_duration_error": "Het stemfragment moet tussen 1 en 10 seconden duren.",
   "ai_generator_character_voice_sample_missing": "Upload een stemfragment voor elk personage met een eigen stem.",
-  "ai_generator_character_voice_engine_required": "Wan 2.7 is vereist om een eigen stem te gebruiken.",
+  "ai_generator_character_voice_engine_required": "Kies Wan 2.7, Wan 3.0 of HeyGen om een aangeleverde stem te gebruiken.",
   "ai_generator_character_voice_speech_required": "Eigen stemmen worden gebruikt in de audiomodus Personages.",
   "ai_generator_character_voice_switch_characters": "Personages-audio gebruiken",
   "ai_generator_character_voice_preview": "Luister naar het stemfragment van dit personage",
@@ -999,5 +999,6 @@
   "ai_generator_character_voice_saved": "Stemfragment opgeslagen in de mediatheek.",
   "ai_generator_character_voice_library_empty": "Geen stemfragmenten in de mediatheek.",
   "ai_generator_character_voice_library_loading": "Stemfragmenten laden…",
-  "ai_generator_character_voice_library_duration_error": "Kies voor Wan 2.7 een stemfragment van 1 tot 10 seconden en maximaal 3 MB."
+  "ai_generator_character_voice_library_duration_error": "Kies voor Wan 2.7 een stemfragment van 1 tot 10 seconden en maximaal 3 MB.",
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepteert in totaal maximaal 15 seconden aan stemfragmenten. Kort de fragmenten in of kies Wan 2.7 of HeyGen."
 }

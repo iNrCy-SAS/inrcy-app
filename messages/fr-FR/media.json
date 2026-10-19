@@ -868,13 +868,13 @@
   "ai_generator_engine_info_video_use_wan-flash": "Pour animer la photo d’un produit, d’un lieu ou d’une personne avec un mouvement simple décrit dans un brief concis. Une ambiance sonore, une voix off ou des paroles peuvent accompagner l’animation.",
   "ai_generator_engine_info_video_limits_wan-flash": "Une photo de départ est obligatoire : la création depuis un texte seul n’est pas proposée. L’animation peut modifier les détails de la photo et les paroles en français ne sont pas garanties.",
   "ai_generator_engine_info_video_use_wan3": "Pour une démonstration ou une séquence continue avec plusieurs actions, à partir d’un texte ou de photos. Vous pouvez y associer une ambiance sonore, une voix off ou un personnage qui parle.",
-  "ai_generator_engine_info_video_limits_wan3": "Limitez le nombre d’actions et adaptez les paroles au temps disponible pour faciliter la continuité. Les dialogues en français, les textes exacts et l’identité des personnes restent à vérifier.",
+  "ai_generator_engine_info_video_limits_wan3": "Limitez le nombre d’actions et adaptez les paroles au temps disponible pour faciliter la continuité. Les dialogues en français, les textes exacts et l’identité des personnes restent à vérifier. Les échantillons vocaux fournis sont limités à 15 secondes au total.",
   "ai_generator_engine_info_video_use_grok-lite": "Pour des clips courts de produit, des idées de publication ou des scènes simples depuis un brief ou une photo. Choisissez une voix off pour commenter la scène, ou le mode personnage parlant pour des paroles dans l’image.",
   "ai_generator_engine_info_video_limits_grok-lite": "En création libre, la voix off est synthétisée séparément ; les paroles d’un personnage proviennent du moteur vidéo et leur français n’est pas garanti. L’image de départ peut être réinterprétée, notamment les visages et les textes.",
   "ai_generator_engine_info_video_use_grok": "Pour montrer un produit en situation, raconter une courte histoire ou mettre en scène une prestation à partir d’un texte ou de photos. La voix off commente la scène ; le mode personnage parlant demande des dialogues dans la vidéo.",
   "ai_generator_engine_info_video_limits_grok": "En création libre, la voix off est synthétisée séparément ; les dialogues d’un personnage restent générés par le moteur vidéo. Vérifiez leur français, la synchronisation des lèvres et les détails des références : leur fidélité n’est pas garantie.",
   "ai_generator_engine_info_video_use_heygen": "Pour créer une scène avec un personnage parlant, des mouvements ou une ambiance sonore, depuis un texte ou une image de départ. Les réglages audio distinguent la voix off des paroles prononcées par un personnage.",
-  "ai_generator_engine_info_video_limits_heygen": "Il s’agit de HeyGen Video, pas d’Avatar IV ni d’un service de clonage de visage ou de voix. Le français, la conservation de l’identité et la synchronisation exacte des lèvres ne sont pas garantis.",
+  "ai_generator_engine_info_video_limits_heygen": "Les échantillons vocaux peuvent guider la voix du personnage dans HeyGen Video. La fidélité de la voix, les dialogues en français, la conservation de l’identité et la synchronisation exacte des lèvres restent à vérifier.",
   "ai_generator_engine_info_image_use_openai": "Pour des affiches, des offres ou des compositions qui combinent texte, objets à placer et consignes de mise en page. Vous pouvez aussi créer ou retoucher une photo de produit en vous appuyant sur des références.",
   "ai_generator_engine_info_image_limits_openai": "Relisez les textes, les prix et les petits caractères, puis vérifiez la disposition et les détails des références. Les consignes précises ne garantissent ni une typographie exacte ni la conservation parfaite des visages ou des objets.",
   "ai_generator_engine_info_image_use_gemini": "Pour créer une photo de mise en situation, une illustration ou des variantes visuelles depuis un brief et des références. La retouche permet de demander un changement de décor, de style ou d’éléments d’une image.",
@@ -959,7 +959,7 @@
   "ai_generator_character_voice_file_error": "Choisissez un fichier MP3 ou WAV de 3 Mo maximum.",
   "ai_generator_character_voice_duration_error": "Le vocal doit durer entre 1 et 10 secondes.",
   "ai_generator_character_voice_sample_missing": "Insérez un vocal pour chaque personnage en voix fournie.",
-  "ai_generator_character_voice_engine_required": "Wan 2.7 requis pour utiliser une voix fournie.",
+  "ai_generator_character_voice_engine_required": "Voix fournie : choisissez Wan 2.7, Wan 3.0 ou HeyGen.",
   "ai_generator_character_voice_speech_required": "Les voix fournies sont utilisées en mode Personnages.",
   "ai_generator_character_voice_switch_characters": "Utiliser le son Personnages",
   "ai_generator_character_voice_preview": "Écouter le vocal de ce personnage",
@@ -999,5 +999,6 @@
   "ai_generator_character_voice_saved": "Vocal enregistré dans la médiathèque.",
   "ai_generator_character_voice_library_empty": "Aucun vocal dans la médiathèque.",
   "ai_generator_character_voice_library_loading": "Chargement des vocaux…",
-  "ai_generator_character_voice_library_duration_error": "Pour Wan 2.7, choisissez un vocal de 1 à 10 secondes et de 3 Mo maximum."
+  "ai_generator_character_voice_library_duration_error": "Pour Wan 2.7, choisissez un vocal de 1 à 10 secondes et de 3 Mo maximum.",
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepte 15 secondes de vocaux au total. Raccourcissez les échantillons ou choisissez Wan 2.7 ou HeyGen."
 }

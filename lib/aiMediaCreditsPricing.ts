@@ -3,10 +3,9 @@ import {
   getAiMediaImageModel,
   isAiMediaImageModelCompatible,
   normalizeAiMediaImageFormat,
-  getAiMediaVideoModel,
+  getAiMediaVideoModelForCharacterVoice,
   getAiMediaVideoResolution,
   normalizeAiMediaImageEngine,
-  normalizeAiMediaVideoEngine,
   type AiMediaImageEngine,
   type AiMediaImageFormat,
   type AiMediaImageDimensions,
@@ -15,9 +14,10 @@ import {
   type AiMediaVideoSceneMode,
 } from "./aiMediaModelCatalog.ts";
 import { getAiMediaVideoSegmentDurations } from "./aiMediaVideoTimeline.ts";
+import { isAiMediaCharacterVoiceEngine } from "./aiMediaCharacterVoices.ts";
 
 /** Commercial credit units, independent of supplier USD and credit pack prices. */
-export const AI_MEDIA_CREDIT_TARIFF_VERSION = "inrstudio-media-credits-2026-10-v3" as const;
+export const AI_MEDIA_CREDIT_TARIFF_VERSION = "inrstudio-media-credits-2026-10-v4" as const;
 export type AiMediaCreditsQuoteInput = {
   kind: string;
   operation?: string;
@@ -28,6 +28,7 @@ export type AiMediaCreditsQuoteInput = {
   durationSeconds?: number | null;
   videoResolution?: unknown;
   inspirationImagesCount?: number;
+  hasProvidedCharacterVoice?: boolean;
   withNarration?: boolean;
   voiceMode?: string;
   teamVideoSpeechMode?: string;
@@ -48,11 +49,24 @@ export type AiMediaCreditsQuote = Readonly<{
   imageDimensions: AiMediaImageDimensions | null;
 }>;
 
+function transmittedVideoReferences(input: AiMediaCreditsQuoteInput, model: ReturnType<typeof getAiMediaVideoModelForCharacterVoice>, references: number, segmentCount: number) {
+  if (input.hasProvidedCharacterVoice || model.id === "wan27") {
+    // R2V repeats original image/voice associations for every clip. Only Wan 2.7
+    // also accepts a distinct continuation image when there is room for it.
+    return references * segmentCount + (model.id === "wan27" && segmentCount > 1 && input.sceneMode !== "multi" && references < model.maxReferenceImages ? segmentCount - 1 : 0);
+  }
+  return segmentCount === 1 ? references : input.sceneMode === "multi" ? references * segmentCount : references + segmentCount - 1;
+}
+
 export function quoteAiMediaCredits(input: AiMediaCreditsQuoteInput): AiMediaCreditsQuote {
   const inputReferences = input.inspirationImagesCount ?? 0;
   if (!Number.isSafeInteger(inputReferences) || inputReferences < 0 || inputReferences > 5) throw new Error("ai_media_credit_reference_count_invalid");
+  if (input.hasProvidedCharacterVoice !== undefined && typeof input.hasProvidedCharacterVoice !== "boolean") throw new Error("ai_media_credit_voice_option_invalid");
+  const hasProvidedVoice = input.hasProvidedCharacterVoice === true;
+  const videoModel = input.kind === "video" ? getAiMediaVideoModelForCharacterVoice(input.videoEngine ?? "omni", hasProvidedVoice) : null;
+  if (hasProvidedVoice && (input.kind !== "video" || !isAiMediaCharacterVoiceEngine(videoModel?.id))) throw new Error("ai_media_video_voice_engine_unsupported");
   // R2V retains each original portrait and its voice binding. Other engines use a composed first frame.
-  const composeFirstFrame = input.kind === "video" && normalizeAiMediaVideoEngine(input.videoEngine) !== "wan27" &&
+  const composeFirstFrame = input.kind === "video" && videoModel?.id !== "wan27" && !hasProvidedVoice &&
     (input.identityMode === "reference_team" || input.inputMode === "essential") && inputReferences > 0;
   const references = composeFirstFrame ? 1 : inputReferences;
   if (input.kind === "image") {
@@ -81,21 +95,18 @@ export function quoteAiMediaCredits(input: AiMediaCreditsQuoteInput): AiMediaCre
     };
   }
   if (input.kind !== "video") throw new Error("ai_media_credit_kind_invalid");
-  const model = getAiMediaVideoModel(input.videoEngine ?? "omni");
+  const model = videoModel!;
   const resolution = getAiMediaVideoResolution(model.id, input.videoResolution);
   const durationSeconds = input.durationSeconds ?? 8;
   let segments: readonly number[];
   try { segments = getAiMediaVideoSegmentDurations(durationSeconds, model.id, resolution, input.sceneMode as AiMediaVideoSceneMode); }
   catch { throw new Error("ai_media_video_duration_invalid"); }
-  if (!references && !model.supportsTextToVideo) throw new Error("ai_media_video_reference_required");
+  if (!references && (hasProvidedVoice || !model.supportsTextToVideo)) throw new Error("ai_media_video_reference_required");
   if (references && (!model.supportsImageToVideo || references > model.maxReferenceImages)) throw new Error("ai_media_video_references_unsupported");
   if (model.id === "veo" && references > 1 &&
     (input.sceneMode === "multi" ? segments.some((duration) => duration !== 8) : segments[0] !== 8)) throw new Error("ai_media_video_references_require_eight_seconds");
   const videoCredits = Math.ceil(durationSeconds * (model.creditsByResolution[resolution] ?? model.creditsPerSecond));
-  const transmittedReferences = model.id === "wan27"
-    ? references * segments.length + (segments.length > 1 && input.sceneMode !== "multi" && references < model.maxReferenceImages ? 1 : 0)
-    : segments.length === 1 ? references
-      : input.sceneMode === "multi" ? references * segments.length : references + 1;
+  const transmittedReferences = transmittedVideoReferences(input, model, references, segments.length);
   const referenceCredits = transmittedReferences * model.referenceInputCredits;
   // Libre always runs the creative director; this also covers optional logo preparation.
   // With uploaded references the first-frame package replaces, rather than adds to, that fee.
@@ -132,16 +143,13 @@ export function estimateAiMediaImageSupplierCostMicroUsd(input: { engine: unknow
 /** Conservative guard estimate only: never use this amount to debit Studio credits. */
 export function estimateAiMediaVideoSupplierCostMicroUsd(input: AiMediaCreditsQuoteInput): number {
   const quote = quoteAiMediaCredits({ ...input, kind: "video" });
-  const model = getAiMediaVideoModel(quote.engine);
+  const model = getAiMediaVideoModelForCharacterVoice(quote.engine, input.hasProvidedCharacterVoice);
   const rate = model.pricingUsdPerSecond[quote.resolution!];
   if (rate === undefined) throw new Error("ai_media_video_supplier_rate_missing");
   const rawReferences = input.inspirationImagesCount ?? 0;
-  const effectiveReferences = model.id !== "wan27" && (input.identityMode === "reference_team" || input.inputMode === "essential") && rawReferences > 0 ? 1 : rawReferences;
+  const effectiveReferences = model.id !== "wan27" && !input.hasProvidedCharacterVoice && (input.identityMode === "reference_team" || input.inputMode === "essential") && rawReferences > 0 ? 1 : rawReferences;
   const segments = getAiMediaVideoSegmentDurations(quote.durationSeconds!, model.id, quote.resolution, input.sceneMode as AiMediaVideoSceneMode);
-  const referenceCount = model.id === "wan27"
-    ? effectiveReferences * segments.length + (segments.length > 1 && input.sceneMode !== "multi" && effectiveReferences < model.maxReferenceImages ? 1 : 0)
-    : segments.length === 1 ? effectiveReferences
-      : input.sceneMode === "multi" ? effectiveReferences * segments.length : effectiveReferences + 1;
+  const referenceCount = transmittedVideoReferences(input, model, effectiveReferences, segments.length);
   return Math.ceil((quote.durationSeconds ?? 0) * rate * 1_000_000)
     + referenceCount * model.supplierReferenceCostMicroUsd;
 }

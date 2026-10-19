@@ -3,7 +3,7 @@ import {
   type AiMediaNarrationVoiceVariant,
 } from "./aiMediaNarrationVoices.ts";
 import { INR_MEDIA_IMAGE_MAX_BYTES } from "./mediaRules.ts";
-import { normalizeAiMediaCharacterVoiceSample, hasProvidedAiMediaCharacterVoice, type AiMediaCharacterVoiceSample } from "./aiMediaCharacterVoices.ts";
+import { normalizeAiMediaCharacterVoiceSample, hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration, type AiMediaCharacterVoiceSample } from "./aiMediaCharacterVoices.ts";
 import {
   getAiMediaVideoDurations, getAiMediaVideoNativeDurations, getAiMediaVideoResolution,
   normalizeAiMediaVideoEngine, normalizeAiMediaImageEngine, isAiMediaImageModelCompatible,
@@ -918,8 +918,11 @@ export function normalizeAiMediaGenerationRequest(
     creationMode === "free"
   );
   const providedCharacterVoice = hasProvidedAiMediaCharacterVoice(inspirationImages);
-  if (providedCharacterVoice && (kind !== "video" || operation === "modify" || videoEngine !== "wan27")) {
-    throw new AiMediaRequestValidationError("Wan 2.7 est requis pour utiliser une voix fournie dans une vidéo.");
+  if (providedCharacterVoice && (kind !== "video" || operation === "modify" || !isAiMediaCharacterVoiceEngine(videoEngine))) {
+    throw new AiMediaRequestValidationError("Utilisez Wan 2.7, Wan 3 ou HeyGen pour une vidéo avec une voix fournie.");
+  }
+  if (providedCharacterVoice && exceedsAiMediaCharacterVoiceEngineDuration(videoEngine, inspirationImages)) {
+    throw new AiMediaRequestValidationError("Wan 3 accepte au maximum 15 secondes de vocaux au total. Raccourcissez vos échantillons ou choisissez Wan 2.7 ou HeyGen.");
   }
   if (kind === "video" && videoEngine === "wan27" && !inspirationImages.length) {
     throw new AiMediaRequestValidationError("Ajoutez au moins une photo de référence pour utiliser Wan 2.7.");

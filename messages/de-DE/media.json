@@ -21,13 +21,13 @@
   "ai_generator_engine_info_video_use_wan-flash": "Für die Animation eines Produkt-, Orts- oder Personenfotos mit einer einfachen Bewegung aus einem knappen Briefing. Umgebungsgeräusche, ein Off-Kommentar oder Sprache können die Animation begleiten.",
   "ai_generator_engine_info_video_limits_wan-flash": "Ein Ausgangsfoto ist erforderlich; eine Erstellung nur aus Text ist nicht verfügbar. Die Animation kann Fotodetails verändern, und französische Sprache ist nicht garantiert.",
   "ai_generator_engine_info_video_use_wan3": "Für eine Demonstration oder eine durchgehende Sequenz mit mehreren Aktionen, aus Text oder Fotos. Dazu können Sie Umgebungsgeräusche, einen Off-Kommentar oder eine sprechende Figur wählen.",
-  "ai_generator_engine_info_video_limits_wan3": "Begrenzen Sie die Aktionen und passen Sie die Sprache an die verfügbare Zeit an, um die Kontinuität zu unterstützen. Prüfen Sie französische Dialoge, exakte Texte und die Identität der Personen.",
+  "ai_generator_engine_info_video_limits_wan3": "Begrenzen Sie die Aktionen und passen Sie die Sprache an die verfügbare Zeit an, um die Kontinuität zu unterstützen. Prüfen Sie französische Dialoge, exakte Texte und die Identität der Personen. Bereitgestellte Sprachaufnahmen sind auf insgesamt 15 Sekunden begrenzt.",
   "ai_generator_engine_info_video_use_grok-lite": "Für kurze Produktclips, Beitragsideen oder einfache Szenen aus einem Briefing oder Foto. Wählen Sie einen Off-Kommentar zur Erläuterung oder den Modus mit sprechender Figur für Sprache in der Szene.",
   "ai_generator_engine_info_video_limits_grok-lite": "Bei freier Erstellung wird der Off-Kommentar separat synthetisiert; die Sprache einer Figur stammt vom Videomodell und korrektes Französisch ist nicht garantiert. Das Ausgangsbild kann neu interpretiert werden, insbesondere Gesichter und Texte.",
   "ai_generator_engine_info_video_use_grok": "Für Produkte im Einsatz, kurze Geschichten oder die Inszenierung einer Dienstleistung aus Text oder Fotos. Der Off-Kommentar erläutert die Szene; der Modus mit sprechender Figur fordert Dialoge im Video an.",
   "ai_generator_engine_info_video_limits_grok": "Bei freier Erstellung wird der Off-Kommentar separat synthetisiert; Dialoge der Figuren erzeugt das Videomodell. Prüfen Sie Französisch, Lippensynchronität und Referenzdetails, da die Genauigkeit nicht garantiert ist.",
   "ai_generator_engine_info_video_use_heygen": "Für Szenen mit sprechenden Figuren, Bewegung oder Umgebungsgeräuschen aus Text oder einem Ausgangsbild. Die Audioeinstellungen unterscheiden Off-Kommentare von der Sprache einer Figur.",
-  "ai_generator_engine_info_video_limits_heygen": "Dies ist HeyGen Video, nicht Avatar IV und kein Dienst zum Klonen von Gesichtern oder Stimmen. Französische Sprache, die Bewahrung der Identität und exakte Lippensynchronität sind nicht garantiert.",
+  "ai_generator_engine_info_video_limits_heygen": "Sprachaufnahmen können die Stimme einer Figur in HeyGen Video vorgeben. Stimmähnlichkeit, französische Dialoge, die Bewahrung der Identität und exakte Lippensynchronität müssen weiterhin geprüft werden.",
   "ai_generator_engine_info_image_use_openai": "Für Plakate, Angebote oder Kompositionen mit Text, platzierten Objekten und Layoutvorgaben. Auch Produktfotos können anhand von Referenzen erstellt oder bearbeitet werden.",
   "ai_generator_engine_info_image_limits_openai": "Lesen Sie Texte, Preise und Kleingedrucktes gegen und prüfen Sie Anordnung und Referenzdetails. Präzise Vorgaben garantieren weder exakte Typografie noch die perfekte Bewahrung von Gesichtern oder Objekten.",
   "ai_generator_engine_info_image_use_gemini": "Für Fotos in einer passenden Umgebung, Illustrationen oder Bildvarianten aus Briefing und Referenzen. Bei der Bearbeitung können Sie Änderungen an Umgebung, Stil oder Bildelementen anfordern.",
@@ -959,7 +959,7 @@
   "ai_generator_character_voice_file_error": "Wählen Sie eine MP3- oder WAV-Datei mit höchstens 3 MB.",
   "ai_generator_character_voice_duration_error": "Die Sprachaufnahme muss zwischen 1 und 10 Sekunden lang sein.",
   "ai_generator_character_voice_sample_missing": "Laden Sie für jede Figur mit eigener Stimme eine Sprachaufnahme hoch.",
-  "ai_generator_character_voice_engine_required": "Für eine eigene Stimme ist Wan 2.7 erforderlich.",
+  "ai_generator_character_voice_engine_required": "Wählen Sie für eine eigene Sprachaufnahme Wan 2.7, Wan 3.0 oder HeyGen.",
   "ai_generator_character_voice_speech_required": "Eigene Stimmen werden im Audiomodus Figuren verwendet.",
   "ai_generator_character_voice_switch_characters": "Figuren-Audio verwenden",
   "ai_generator_character_voice_preview": "Sprachaufnahme dieser Figur anhören",
@@ -999,5 +999,6 @@
   "ai_generator_character_voice_saved": "Sprachaufnahme in der Mediathek gespeichert.",
   "ai_generator_character_voice_library_empty": "Keine Sprachaufnahmen in der Mediathek.",
   "ai_generator_character_voice_library_loading": "Sprachaufnahmen werden geladen…",
-  "ai_generator_character_voice_library_duration_error": "Wählen Sie für Wan 2.7 eine Sprachaufnahme mit 1 bis 10 Sekunden und höchstens 3 MB."
+  "ai_generator_character_voice_library_duration_error": "Wählen Sie für Wan 2.7 eine Sprachaufnahme mit 1 bis 10 Sekunden und höchstens 3 MB.",
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 erlaubt insgesamt höchstens 15 Sekunden an Sprachaufnahmen. Kürzen Sie die Aufnahmen oder wählen Sie Wan 2.7 oder HeyGen."
 }

@@ -21,12 +21,13 @@ const find = (tree: unknown, predicate: (node: Element) => boolean) => { const n
 const text = (tree: unknown): string => Array.isArray(tree) ? tree.map(text).join("") : typeof tree === "string" || typeof tree === "number" ? String(tree) : tree && typeof tree === "object" && "props" in tree ? text((tree as Element).props.children) : "";
 
 /** Execute the real Free editor, reusable voice input and engine controls; only external IO is mocked. */
-function harness(kind: "video" | "image" = "video") {
+function harness(kind: "video" | "image" = "video", initialEngine: models.AiMediaVideoEngine = "omni", sampleDurationSeconds = 2) {
   const parentSlots: Slot[] = []; const childSlots = new Map<string, Slot[]>();
   let slots = parentSlots; let cursor = 0; let dirty = false; let tree!: Element;
   const effects: Array<() => void> = []; const listeners = new Map<string, Set<() => void>>();
   const requests: MediaGenerationRequest[] = []; const quoteInputs: Props[] = []; const deleted: string[] = []; const uploads: FormData[] = [];
-  const sample: voiceRules.AiMediaCharacterVoiceSample = { path: `_studio-voice-references/2026-10-19/account-a__1792404000000__00000000-0000-4000-8000-000000000001.wav`, mimeType: "audio/wav", name: "ma-voix.wav", durationSeconds: 2, sizeBytes: 64_044 };
+  const uploadedSamples: voiceRules.AiMediaCharacterVoiceSample[] = [];
+  const sample: voiceRules.AiMediaCharacterVoiceSample = { path: `_studio-voice-references/2026-10-19/account-a__1792404000000__00000000-0000-4000-8000-000000000001.wav`, mimeType: "audio/wav", name: "ma-voix.wav", durationSeconds: sampleDurationSeconds, sizeBytes: sampleDurationSeconds * 32_000 + 44 };
   let uploadReply: (() => void) | undefined; let deferUpload = false;
   const react = {
     useId: () => "real-free-voice",
@@ -49,10 +50,10 @@ function harness(kind: "video" | "image" = "video") {
   const css = { __esModule: true, default: new Proxy({}, { get: (_target, key) => key }) };
   const quota = { accountId: "account-a", creditsReady: true, studioEnabled: true, unlimited: true, credits: { remaining: 1000 }, videoMaxDurationSeconds: 30 };
   const hook = { quota, quotaLoading: false, busy: false, progress: 0, error: "", result: null, canRecover: false, loadQuota() {}, generate: async (request: MediaGenerationRequest) => { requests.push(request); } };
-  const preference = { videoEngine: "omni" as models.AiMediaVideoEngine, imageEngine: "openai" as models.AiMediaImageEngine, videoResolution: "720p" as models.AiMediaVideoResolution, update(patch: Props) { Object.assign(preference, patch); } };
+  const preference = { videoEngine: initialEngine, imageEngine: "openai" as models.AiMediaImageEngine, videoResolution: models.getAiMediaVideoModel(initialEngine).defaultResolution, update(patch: Props) { Object.assign(preference, patch); } };
   const modules = new Map<string, unknown>([
     ["react", react], ["react/jsx-runtime", { jsx, jsxs: jsx }],
-    ["next-intl", { useLocale: () => "fr-FR", useTranslations: () => (key: string) => key }],
+    ["next-intl", { useLocale: () => "fr-FR", useTranslations: () => (key: string, values?: { credits?: string }) => values?.credits ? `${key} ${values.credits}` : key }],
     ["@/app/dashboard/_hooks/useMediaGeneration", { __esModule: true, default: () => hook, MediaGenerationAccountChangedError: class extends Error {}, MediaGenerationCancelledError: class extends Error {} }],
     ["@/lib/multicompte/constants", { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" }],
     ["@/lib/aiMediaGenerationContracts", contracts], ["@/lib/aiMediaNarrationVoices", narration], ["@/lib/mediaRules", rules],
@@ -70,7 +71,14 @@ function harness(kind: "video" | "image" = "video") {
   const fetch = async (_url: string, init: RequestInit) => {
     uploads.push(init.body as FormData);
     if (deferUpload) await new Promise<void>((resolve) => { uploadReply = resolve; });
-    return Response.json({ ok: true, sample });
+    const uploadNumber = uploads.length;
+    const uploadedSample = uploadNumber === 1 ? sample : {
+      ...sample,
+      path: sample.path.replace(/000000000001\.wav$/, `${String(uploadNumber).padStart(12, "0")}.wav`),
+      name: `voix-${uploadNumber}.wav`,
+    };
+    uploadedSamples.push(uploadedSample);
+    return Response.json({ ok: true, sample: uploadedSample });
   };
   function load(file: string) {
     const output = ts.transpileModule(read(file), { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
@@ -97,14 +105,17 @@ function harness(kind: "video" | "image" = "video") {
   const renderVoice = (index: number) => renderChild(String(cards()[index].props["data-reference-id"]), voice, voiceNode(index).props);
   const flush = async () => { for (let at = 0; at < 5; at++) { await new Promise((resolve) => setImmediate(resolve)); render(); } };
   render();
-  return { cards, tree: () => tree, requests, quoteInputs, deleted, uploads, sample, render, flush,
+  return { cards, tree: () => tree, requests, quoteInputs, deleted, uploads, uploadedSamples, sample, render, flush,
     renderVoice,
     renderEngines() { const node = find(tree, (item) => item.type === controls.default); return renderChild("engines", controls, node.props); },
+    renderEngineInfo() { const node = find(tree, (item) => item.type === controls.default); let child = renderChild("engines", controls, node.props); (find(child, (item) => item.type === "button" && item.props["aria-haspopup"] === "dialog").props.onClick as () => void)(); child = renderChild("engines", controls, node.props); const info = find(child, (item) => typeof item.type === "function" && item.type.name === "MediaEngineInfoModal"); return renderChild("engine-info", { default: info.type as (props: Props) => Element }, info.props); },
+    selectEngine(engine: models.AiMediaVideoEngine, resolution = models.getAiMediaVideoModel(engine).defaultResolution) { const node = find(tree, (item) => item.type === controls.default); const child = renderChild("engines", controls, node.props); const menu = find(child, (item) => item.type === "select" && String(item.props.id).endsWith("-engine")); (menu.props.onChange as (event: unknown) => void)({ target: { value: `${engine}:${resolution}` } }); render(); },
     async addPhoto(name = "personnage.png") { const input = find(tree, (node) => node.type === "input" && node.props.type === "file"); (input.props.onChange as (event: unknown) => void)({ currentTarget: { files: [new File(["synthetic-photo"], name, { type: "image/png" })], value: "" }, target: { files: [new File(["synthetic-photo"], name, { type: "image/png" })], value: "" } }); await flush(); },
     criteria(index: number, role: string, usage: string) { const menus = elements(cards()[index]).filter((node) => node.type === "select"); (menus[0].props.onChange as (event: unknown) => void)({ target: { value: role } }); render(); const refreshed = elements(cards()[index]).filter((node) => node.type === "select"); (refreshed[1].props.onChange as (event: unknown) => void)({ target: { value: usage } }); render(); },
     chooseVoice(index: number, mode: "ai" | "provided") { const child = renderVoice(index); (find(child, (node) => node.type === "select").props.onChange as (event: unknown) => void)({ target: { value: mode } }); render(); },
     async uploadVoice(index: number) { const child = renderVoice(index); const input = find(child, (node) => node.type === "input" && node.props.type === "file"); (input.props.onChange as (event: unknown) => void)({ currentTarget: { files: [new File(["wav-voice"], "vocal.wav", { type: "audio/wav" })], value: "" } }); await flush(); },
     consent() { const label = find(tree, (node) => node.type === "label" && node.props.className === "consent"); (find(label, (node) => node.type === "input").props.onChange as (event: unknown) => void)({ target: { checked: true } }); render(); },
+    consentTeam() { const label = elements(tree).filter((node) => node.type === "label" && node.props.className === "consent")[1]; assert.ok(label, "The real provider consent must be present for two required people"); (find(label, (node) => node.type === "input").props.onChange as (event: unknown) => void)({ target: { checked: true } }); render(); },
     setSound(value: string) { const input = find(tree, (node) => node.type === "input" && node.props.type === "radio" && node.props.value === value); (input.props.onChange as () => void)(); render(); },
     async generate() { const button = find(tree, (node) => node.props["data-media-primary-action"] !== undefined); if (button.props.disabled) return; (button.props.onClick as () => void)(); await flush(); },
     deferVoiceUpload() { deferUpload = true; }, finishVoiceUpload() { uploadReply?.(); },
@@ -124,14 +135,14 @@ test("the actual active Free editor shows the real voice selector on video Perso
   assert.equal(elements(image.cards()[0]).some((node) => typeof node.type === "function" && String(node.type).includes("MediaCharacterVoiceInput")), false); image.dispose();
 });
 
-test("the real Free voice import forces Wan in controls, quote and payload while preserving inspiration consent and numbered association", async () => {
+test("the real Free voice import enables only supported engines and aligns quote and payload with inspiration voices", async () => {
   const h = harness(); await h.addPhoto("premier.png"); await h.addPhoto("deuxieme.png");
   h.criteria(0, "character", "inspiration"); h.criteria(1, "character", "required"); h.chooseVoice(0, "provided");
   assert.equal(find(h.tree(), (node) => node.type === "input" && node.props.value === "characters").props.checked, true);
   const quote = h.quoteInputs.at(-1)!; assert.equal(quote.videoEngine, "wan27"); assert.equal(quote.withNarration, false); assert.equal(quote.teamVideoSpeechMode, "characters");
   const engines = h.renderEngines(); const engineMenu = find(engines, (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
   const options = elements(engineMenu).filter((node) => node.type === "option");
-  for (const option of options) assert.equal(option.props.disabled, !String(option.props.value).startsWith("wan27:"));
+  for (const option of options) assert.equal(option.props.disabled, !voiceRules.isAiMediaCharacterVoiceEngine(String(option.props.value).split(":")[0]));
   await h.generate(); assert.equal(h.requests.length, 0, "a selected supplied voice without a vocal cannot generate");
   await h.uploadVoice(0); assert.equal(h.uploads.length, 1); assert.equal(h.uploads[0].get("file") instanceof File, true);
   await h.generate(); assert.equal(h.requests.length, 0, "the real consent checkbox still gates generation");
@@ -141,6 +152,68 @@ test("the real Free voice import forces Wan in controls, quote and payload while
   assert.equal(request.inspirationImages![0].voiceMode, "provided"); assert.equal(request.inspirationImages![0].voiceSample?.path, h.sample.path);
   assert.doesNotMatch(JSON.stringify(request.inspirationImages![0].voiceSample), /base64|blob:|audio\/webm|data:audio/);
   assert.equal("id" in request.inspirationImages![0], false); h.dispose();
+});
+
+test("all three supported engines remain selected or can be selected through real controls with the corresponding quote and request", async () => {
+  for (const engine of voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES) {
+    const preserved = harness("video", engine); await preserved.addPhoto(); preserved.criteria(0, "character", "inspiration"); preserved.chooseVoice(0, "provided");
+    assert.equal(preserved.quoteInputs.at(-1)!.videoEngine, engine, "an already supported preferred engine must be preserved"); preserved.dispose();
+    const h = harness(); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
+    h.selectEngine(engine); assert.equal(h.quoteInputs.at(-1)!.videoEngine, engine); assert.equal(h.quoteInputs.at(-1)!.hasProvidedCharacterVoice, true);
+    assert.equal(h.quoteInputs.at(-1)!.videoResolution, models.getAiMediaVideoModelForCharacterVoice(engine, true).defaultResolution);
+    const menu = find(h.renderEngines(), (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
+    assert.equal(String(menu.props.value).split(":")[0], engine);
+    h.consent(); await h.generate(); assert.equal(h.requests.length, 1); assert.equal(h.requests[0].videoEngine, engine); assert.equal(h.requests[0].teamVideoSpeechMode, "characters");
+    assert.equal(h.requests[0].inspirationImages![0].voiceSample?.path, h.sample.path); h.dispose();
+  }
+});
+
+test("two required people keep two distinct supplied voices paired with their portraits and team consent on every supported engine", async () => {
+  for (const engine of voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES) {
+    const h = harness("video", engine);
+    await h.addPhoto("moi.png"); await h.addPhoto("mon-epouse.png");
+    for (let index = 0; index < 2; index++) {
+      h.criteria(index, "character", "required"); h.chooseVoice(index, "provided"); await h.uploadVoice(index);
+    }
+    assert.equal(h.uploadedSamples.length, 2);
+    assert.notEqual(h.uploadedSamples[0].path, h.uploadedSamples[1].path);
+    assert.notEqual(h.uploadedSamples[0].name, h.uploadedSamples[1].name);
+    assert.equal(h.quoteInputs.at(-1)!.videoEngine, engine); assert.equal(h.quoteInputs.at(-1)!.identityMode, "reference_team");
+    assert.ok(h.uploadedSamples.reduce((seconds, voice) => seconds + voice.durationSeconds, 0) <= 15);
+    h.consent(); await h.generate(); assert.equal(h.requests.length, 0, "identity consent cannot bypass the engine-specific team consent");
+    h.consentTeam(); await h.generate(); assert.equal(h.requests.length, 1);
+    const request = h.requests[0];
+    assert.equal(request.videoEngine, engine); assert.equal(request.identityMode, "reference_team"); assert.equal(request.identityConsent, true);
+    assert.equal(request.teamVideoProviderConsent, engine); assert.equal(request.teamVideoSpeechMode, "characters"); assert.equal(request.withNarration, false);
+    for (const [index, name] of ["moi.png", "mon-epouse.png"].entries()) {
+      const reference = request.inspirationImages![index];
+      assert.equal(reference.name, name); assert.equal(reference.role, "character"); assert.equal(reference.usage, "required"); assert.equal(reference.characterIndex, index + 1);
+      assert.equal(reference.voiceMode, "provided"); assert.equal(reference.voiceSample?.path, h.uploadedSamples[index].path); assert.equal(reference.voiceSample?.name, h.uploadedSamples[index].name);
+    }
+    h.dispose();
+  }
+});
+
+test("HeyGen shows voice-specific 768p and 1080p rates while AI voices retain the regular tariff", async () => {
+  const h = harness("video", "heygen"); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided");
+  let menu = find(h.renderEngines(), (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
+  const option = (quality: string) => find(menu, (node) => node.type === "option" && node.props.value === `heygen:${quality}`);
+  assert.match(text(option("768p")), /credit_rate_short 10/); assert.match(text(option("1080p")), /credit_rate_short 18/);
+  assert.match(text(h.renderEngineInfo()), /credit_rate_short 18/);
+  h.chooseVoice(0, "ai"); menu = find(h.renderEngines(), (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
+  assert.match(text(option("768p")), /credit_rate_short 4/); assert.match(text(option("1080p")), /credit_rate_short 10/);
+  assert.doesNotMatch(text(h.renderEngineInfo()), /credit_rate_short 18/); h.dispose();
+});
+
+test("Wan 3 blocks over fifteen seconds of samples without discarding them or changing the selected engine", async () => {
+  const h = harness("video", "wan3", 8); await h.addPhoto("premier.png"); await h.addPhoto("deuxieme.png");
+  for (let index = 0; index < 2; index++) { h.criteria(index, "character", "inspiration"); h.chooseVoice(index, "provided"); await h.uploadVoice(index); }
+  assert.equal(h.quoteInputs.at(-1)!.videoEngine, "wan3");
+  const menu = find(h.renderEngines(), (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
+  for (const quality of ["720p", "1080p"]) assert.equal(find(menu, (node) => node.type === "option" && node.props.value === `wan3:${quality}`).props.disabled, true);
+  assert.ok(text(h.tree()).includes("ai_generator_character_voice_wan3_duration_limit")); h.consent(); await h.generate(); assert.equal(h.requests.length, 0);
+  h.selectEngine("heygen"); h.consent(); await h.generate(); assert.equal(h.requests[0].videoEngine, "heygen");
+  assert.equal(h.requests[0].inspirationImages!.filter((image) => image.voiceSample).length, 2); h.dispose();
 });
 
 test("voice Inspiration alone requires permission but retains identity auto, and incompatible sound cannot silently discard it", async () => {
