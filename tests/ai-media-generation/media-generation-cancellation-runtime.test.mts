@@ -6,6 +6,7 @@ import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as models from "../../lib/aiMediaModelCatalog.ts";
 import * as transport from "../../lib/aiMediaGenerationTransport.ts";
 import * as recovery from "../../lib/aiMediaGenerationRecovery.ts";
+import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
 import type { MediaGenerationRequest, MediaGenerationResult } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
 
 type Hook = {
@@ -89,6 +90,7 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
     if (id === "@/lib/aiMediaModelCatalog") return models;
     if (id === "@/lib/aiMediaGenerationTransport") return transport;
     if (id === "@/lib/aiMediaGenerationRecovery") return recovery;
+    if (id === "@/lib/aiMediaCharacterVoiceClient") return characterVoices;
     throw new Error(`Unexpected hook dependency: ${id}`);
   }, browser, fetch);
   const render = () => {

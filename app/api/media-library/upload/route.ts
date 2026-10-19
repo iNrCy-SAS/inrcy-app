@@ -9,6 +9,8 @@ import { enqueueImageNormalization } from "@/lib/mediaImageNormalizationQueue";
 import { processImageNormalizationJobsForMedia } from "@/lib/mediaImageNormalizationWorker";
 import { createSignedUploadUrlWithRetry } from "@/lib/supabaseStorageUpload";
 import { INR_MEDIA_UPLOAD_BATCH_SIZE } from "@/lib/mediaRules";
+import { MEDIA_LIBRARY_AUDIO_MAX_BYTES, detectMediaLibraryAudioType, getMediaLibraryAudioContentType, getMediaLibraryAudioExtension, isOwnedMediaLibraryAudioPath } from "@/lib/mediaLibraryAudio";
+import { validateMediaLibraryAudioBuffer } from "@/lib/mediaLibraryAudioValidation";
 import {
   MEDIA_LIBRARY_IMAGE_SOURCE_MAX_BYTES,
   MEDIA_LIBRARY_VIDEO_SOURCE_MAX_BYTES,
@@ -107,12 +109,13 @@ function cleanMediaMetadata(raw: unknown) {
   }
 }
 
-function mediaTypeFromFile(name: string, mime: string): "image" | "video" | null {
-  return detectUniversalUploadMediaType({ name, mimeType: mime });
+function mediaTypeFromFile(name: string, mime: string): "image" | "video" | "audio" | null {
+  return detectMediaLibraryAudioType({ name, mimeType: mime }) || detectUniversalUploadMediaType({ name, mimeType: mime });
 }
 
 function extFromFile(name: string, mime: string) {
   const mediaType = mediaTypeFromFile(name, mime) || "image";
+  if (mediaType === "audio") return getMediaLibraryAudioExtension({ name, mimeType: mime }) || "wav";
   return getUniversalMediaSafeExtension({
     name,
     mimeType: mime,
@@ -151,6 +154,9 @@ function assertAllowedFile(name: string, mime: string, size: number) {
     throw new Error(
       `${name || "Vidéo"} : la Médiathèque accepte jusqu’à 300 Mo.`,
     );
+  }
+  if (type === "audio" && size > MEDIA_LIBRARY_AUDIO_MAX_BYTES) {
+    throw new Error(`${name || "Audio"} : la Médiathèque accepte les fichiers MP3 ou WAV de 3 Mo maximum.`);
   }
 }
 
@@ -201,6 +207,11 @@ async function handlePrepareUpload(
     const size = cleanNumber(file.size);
 
     assertAllowedFile(name, mime, size);
+    const audioContentType = getMediaLibraryAudioContentType({ name, mimeType: mime });
+    if (audioContentType) {
+      const bucket = await supabaseAdmin.storage.getBucket(BUCKET).catch(() => null);
+      if (!bucket || bucket.error || bucket.data?.public !== false) throw new Error("Le stockage audio est momentanément indisponible.");
+    }
     const storagePath = buildStoragePath(userId, name, mime, index);
     const signed = await createSignedUploadUrlWithRetry(() =>
       supabaseAdmin.storage.from(BUCKET).createSignedUploadUrl(storagePath),
@@ -218,14 +229,15 @@ async function handlePrepareUpload(
       storage_path: storagePath,
       token: signed.data.token,
       signed_url: signed.data.signedUrl,
-      content_type: getUniversalMediaContentType({
+      content_type: audioContentType || getUniversalMediaContentType({
         name,
         mimeType: mime,
-        mediaType: mediaTypeFromFile(name, mime) || "image",
+        mediaType: detectUniversalUploadMediaType({ name, mimeType: mime }) || "image",
       }),
       media_type: mediaTypeFromFile(name, mime),
       max_image_bytes: MAX_IMAGE_BYTES,
       max_video_bytes: MAX_VIDEO_BYTES,
+      max_audio_bytes: MEDIA_LIBRARY_AUDIO_MAX_BYTES,
     });
   }
 
@@ -236,6 +248,7 @@ async function handlePrepareUpload(
     max_files: MAX_FILES,
     max_image_bytes: MAX_IMAGE_BYTES,
     max_video_bytes: MAX_VIDEO_BYTES,
+    max_audio_bytes: MEDIA_LIBRARY_AUDIO_MAX_BYTES,
   });
 }
 
@@ -259,7 +272,7 @@ async function insertMediaRows(userId: string, body: Record<string, unknown>) {
     storage_path?: string;
     original_name: string;
     title?: string;
-    media_type?: "image" | "video";
+    media_type?: "image" | "video" | "audio";
     mime_type?: string;
     size_bytes?: number;
     width?: number | null;
@@ -278,16 +291,16 @@ async function insertMediaRows(userId: string, body: Record<string, unknown>) {
       180,
     );
     const storagePath = cleanText(upload.storage_path, "", 500);
-    const mimeType = cleanText(upload.mime_type, "", 80);
+    let mimeType = cleanText(upload.mime_type, "", 80);
     const sizeBytes = cleanNumber(upload.size_bytes);
     const width = cleanNullableDimension(upload.width);
     const height = cleanNullableDimension(upload.height);
-    const durationSeconds = cleanNullableDuration(upload.duration_seconds);
+    let durationSeconds = cleanNullableDuration(upload.duration_seconds);
     const uploadProtocol =
       cleanText(upload.upload_protocol, "signed", 20) === "tus"
         ? "tus"
         : "signed";
-    const mediaMetadata = cleanMediaMetadata(upload.media_metadata);
+    let mediaMetadata = cleanMediaMetadata(upload.media_metadata);
     let retainUnverifiedUpload = false;
 
     try {
@@ -298,6 +311,10 @@ async function insertMediaRows(userId: string, body: Record<string, unknown>) {
 
       const mediaType = mediaTypeFromFile(originalName, mimeType);
       if (!mediaType) throw new Error("Format non autorisé.");
+      if (mediaType === "audio" && !isOwnedMediaLibraryAudioPath(userId, storagePath)) {
+        retainUnverifiedUpload = true;
+        throw new Error("Chemin audio invalide pour votre médiathèque.");
+      }
       // An unavailable Storage read is not evidence that the uploaded object
       // is defective. Keep it intact so finalization can be retried.
       retainUnverifiedUpload = true;
@@ -306,10 +323,29 @@ async function insertMediaRows(userId: string, body: Record<string, unknown>) {
         bucket: BUCKET,
         storagePath,
         expectedSize: sizeBytes,
-      })) {
+      }).catch((error) => { if (mediaType === "audio") throw new Error("Le stockage audio est momentanément indisponible."); throw error; })) {
         throw new Error("Le transfert de ce fichier est incomplet. Ajoutez-le de nouveau pour reprendre l’envoi.");
       }
       retainUnverifiedUpload = false;
+      if (mediaType === "audio") {
+        retainUnverifiedUpload = true;
+        const bucket = await supabaseAdmin.storage.getBucket(BUCKET).catch(() => null);
+        if (!bucket || bucket.error || bucket.data?.public !== false) throw new Error("Le stockage audio est momentanément indisponible.");
+        const downloaded = await supabaseAdmin.storage.from(BUCKET).download(storagePath).catch(() => null);
+        if (!downloaded || downloaded.error || !downloaded.data) throw new Error("Le stockage audio est momentanément indisponible.");
+        retainUnverifiedUpload = false;
+        if (downloaded.data.size !== sizeBytes || downloaded.data.size > MEDIA_LIBRARY_AUDIO_MAX_BYTES) throw new Error("Ce fichier audio est incomplet ou trop volumineux.");
+        const authoritativeMime = getMediaLibraryAudioContentType({ name: originalName, mimeType });
+        if (!authoritativeMime) throw new Error("Choisissez un fichier audio MP3 ou WAV.");
+        const verifiedAudio = await validateMediaLibraryAudioBuffer({ buffer: Buffer.from(await downloaded.data.arrayBuffer()), mimeType: authoritativeMime }).catch((error: unknown) => {
+          throw new Error(error instanceof Error && error.message === "media_library_audio_duration_invalid"
+            ? "Le fichier audio doit durer au maximum 5 minutes."
+            : "Ce fichier audio n’est pas lisible. Choisissez un fichier MP3 ou WAV valide.");
+        });
+        mimeType = verifiedAudio.mimeType;
+        durationSeconds = verifiedAudio.durationSeconds;
+        mediaMetadata = { audio: { version: 1, validated: true, duration_seconds: durationSeconds } };
+      }
 
       const safeIndex = String(index + 1).padStart(3, "0");
       const title =
@@ -328,8 +364,8 @@ async function insertMediaRows(userId: string, body: Record<string, unknown>) {
           title,
           tags,
           source,
-          width,
-          height,
+          width: mediaType === "audio" ? null : width,
+          height: mediaType === "audio" ? null : height,
           duration_seconds: durationSeconds,
           is_active: true,
           original_file_name: originalName,
@@ -387,8 +423,8 @@ async function insertMediaRows(userId: string, body: Record<string, unknown>) {
         media_type: mediaType,
         mime_type: mimeType,
         size_bytes: sizeBytes,
-        width,
-        height,
+        width: mediaType === "audio" ? null : width,
+        height: mediaType === "audio" ? null : height,
         duration_seconds: durationSeconds,
         signed_url: contentUrl,
       });

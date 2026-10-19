@@ -75,7 +75,14 @@ export function buildWanFlashVideoPrompt(args: AiVideoProviderGenerationArgs, va
 }
 
 /** Build and validate everything before any request or economic reservation. */
-export function buildGatewayAiVideoRequest(args: AiVideoProviderGenerationArgs, index = 0, continuityFrame?: AiMediaVideoContinuityFrame, signedImageUrls?: readonly string[]) {
+export function buildGatewayAiVideoRequest(
+  args: AiVideoProviderGenerationArgs,
+  index = 0,
+  continuityFrame?: AiMediaVideoContinuityFrame,
+  signedImageUrls?: readonly string[],
+  signedVoiceUrls?: readonly (string | null)[],
+  signedContinuityUrl?: string,
+) {
   assertAiMediaVideoProviderBoundary(args);
   const model = getAiMediaVideoModel(args.request.videoEngine);
   if (model.transport !== "gateway") throw new Error("ai_video_gateway_engine_invalid");
@@ -85,7 +92,8 @@ export function buildGatewayAiVideoRequest(args: AiVideoProviderGenerationArgs, 
   catch { throw new Error("ai_media_video_duration_invalid"); }
   if (args.plan.scenes.length !== durations.length || index < 0 || index >= durations.length) throw new Error("ai_video_gateway_scene_count_invalid");
   const duration = durations[index];
-  const references = continuityFrame ? [continuityFrame] : args.request.inspirationImages;
+  const nativeSubjectReferences = model.id === "wan27";
+  const references = nativeSubjectReferences ? args.request.inspirationImages : continuityFrame ? [continuityFrame] : args.request.inspirationImages;
   if (!references.length && !model.supportsTextToVideo) throw new Error("ai_media_video_reference_required");
   if (references.length && (!model.supportsImageToVideo || references.length > model.maxReferenceImages)) throw new Error("ai_media_video_references_unsupported");
   if (model.id === "heygen" && !signedImageUrls && references.some((image) => Buffer.byteLength(image.data, "base64") > 5_000_000)) {
@@ -97,6 +105,13 @@ export function buildGatewayAiVideoRequest(args: AiVideoProviderGenerationArgs, 
   assertAiVideoReferenceTeamProviderEgress(args, model.provider);
   const completePrompt = buildGoogleVideoScenePrompt(args, index, duration, { continuationFrame: Boolean(continuityFrame) });
   let text = model.id === "wan-flash" ? buildWanFlashVideoPrompt(args, completePrompt, index, duration) : completePrompt;
+  if (nativeSubjectReferences) {
+    const characterMap = args.request.inspirationImages.flatMap((image, imageIndex) => image.role === "character"
+      ? [`Image ${imageIndex + 1} = character${imageIndex + 1}${image.characterIndex ? ` = Studio character ${image.characterIndex}` : ""}; ${image.voiceMode === "provided" ? "use only its attached referenceVoice" : "use a stable AI voice"}`]
+      : []);
+    if (characterMap.length) text += `\nCHARACTER REFERENCES: ${characterMap.join(". ")}. Never exchange faces or voice assignments.`;
+    if (text.length > 5_000) throw new AiMediaRequestValidationError("La consigne complète dépasse la limite de 5 000 caractères de Wan 2.7. Raccourcissez le brief avant de générer.");
+  }
   const requestedAspectRatio = model.provider === "google"
     ? (args.request.format === "story" || args.request.format === "portrait" ? "9:16" : "16:9")
     : args.request.format === "square" ? "1:1"
@@ -124,6 +139,27 @@ export function buildGatewayAiVideoRequest(args: AiVideoProviderGenerationArgs, 
     data: signedImageUrls ? signedImageUrls[imageIndex] : Buffer.from(image.data, "base64"), mediaType: image.mimeType,
   }));
   let providerOptions: NonNullable<Parameters<typeof generateVideo>[0]["providerOptions"]> | undefined;
+  if (nativeSubjectReferences) {
+    if (signedVoiceUrls && signedVoiceUrls.length !== references.length) throw new Error("ai_video_reference_voice_count_invalid");
+    const media: Array<{ type: "reference_image" | "first_frame"; url: string; referenceVoice?: string }> = references.map((image, imageIndex) => {
+      const originalImage = args.request.inspirationImages[imageIndex];
+      const voiceUrl = signedVoiceUrls?.[imageIndex];
+      if (originalImage.voiceMode === "provided" && (!originalImage.voiceSample || !voiceUrl)) throw new Error("ai_video_reference_voice_url_missing");
+      if (voiceUrl && (originalImage.role !== "character" || originalImage.voiceMode !== "provided")) throw new Error("ai_video_reference_voice_assignment_invalid");
+      return {
+        type: "reference_image",
+        url: signedImageUrls?.[imageIndex] || `data:${image.mimeType};base64,${image.data}`,
+        ...(voiceUrl ? { referenceVoice: voiceUrl } : {}),
+      };
+    });
+    if (continuityFrame) {
+      if (media.length >= model.maxReferenceImages) throw new Error("ai_media_video_references_unsupported");
+      if (!signedContinuityUrl) throw new Error("ai_video_continuity_url_missing");
+      // A distinct first frame preserves every original image/voice binding.
+      media.push({ type: "first_frame", url: signedContinuityUrl });
+    }
+    providerOptions = { alibaba: { media, ratio: aspectRatio, promptExtend: false } };
+  }
   if (model.provider === "spacexai") providerOptions = { xai: { resolution } };
   if (model.provider === "heygen") providerOptions = { heygen: {
     resolution,
@@ -133,19 +169,19 @@ export function buildGatewayAiVideoRequest(args: AiVideoProviderGenerationArgs, 
   } };
   return {
     model: model.modelId,
-    prompt: imageInputs.length === 1 ? { image: imageInputs[0].data, text } : text,
-    ...(imageInputs.length > 1 ? { inputReferences: imageInputs } : {}),
+    prompt: !nativeSubjectReferences && imageInputs.length === 1 ? { image: imageInputs[0].data, text } : text,
+    ...(!nativeSubjectReferences && imageInputs.length > 1 ? { inputReferences: imageInputs } : {}),
     duration,
     // xAI/HeyGen accept explicit tiers. HeyGen's actual frame dimensions differ
     // from a mathematical 16:9 canvas, so do not infer width/height for its API.
-    ...(providerOptions
-      ? { providerOptions }
-      : { resolution: model.provider === "google"
+    ...(providerOptions ? { providerOptions } : {}),
+    ...(!providerOptions || nativeSubjectReferences
+      ? { resolution: model.provider === "google" || nativeSubjectReferences
         ? (resolution === "1080p" ? "1920x1080" : "1280x720")
-        : `${width}x${height}` as `${number}x${number}` }),
+        : `${width}x${height}` as `${number}x${number}` } : {}),
     // HeyGen image-to-video follows its first frame; aspectRatio is ignored
     // with a provider warning, so do not send a contradictory shape.
-    ...(model.id !== "wan-flash" && !(model.id === "heygen" && imageInputs.length)
+    ...(model.id !== "wan-flash" && !nativeSubjectReferences && !(model.id === "heygen" && imageInputs.length)
       ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
     ...(model.id !== "minimax-h3" ? { generateAudio: model.nativeAudio } : {}),
     n: 1,
@@ -166,13 +202,18 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
       if (args.request.videoEngine !== engine) throw new Error("ai_video_gateway_engine_mismatch");
       const durations = getAiMediaVideoSegmentDurations(args.request.durationSeconds ?? 8, engine, args.request.videoResolution, args.request.sceneMode);
       const connectScenes = durations.length > 1 && args.request.sceneMode !== "multi";
+      const nativeSubjectReferences = model.id === "wan27";
+      const canAttachContinuityFrame = !nativeSubjectReferences || args.request.inspirationImages.length < model.maxReferenceImages;
+      const voicePlaceholders = nativeSubjectReferences ? args.request.inspirationImages.map((image, imageIndex) =>
+        image.voiceMode === "provided" ? `https://provider-input.invalid/voice-${imageIndex + 1}.wav` : null) : undefined;
       // Compile both scene contracts before spending, including a placeholder for the later frame.
       const preflight = durations.map((_, index) => buildGatewayAiVideoRequest(args, index,
-        connectScenes && index > 0 ? { data: "", mimeType: "image/jpeg" } : undefined));
+        connectScenes && canAttachContinuityFrame && index > 0 ? { data: "", mimeType: "image/jpeg" } : undefined,
+        undefined, voicePlaceholders, nativeSubjectReferences ? "https://provider-input.invalid/continuity.jpg" : undefined));
       if (!String(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN || "").trim()) throw new Error("ai_gateway_credentials_missing");
       const controller = new AbortController();
       // These exact upstream models accept hosted image sources only (public catalogue).
-      const temporaryImages = model.id === "minimax-h3" || model.id === "wan-flash"
+      const temporaryImages = model.id === "minimax-h3" || model.id === "wan-flash" || nativeSubjectReferences
         ? createAiMediaVideoTemporaryImageStore({ accountId: args.accountId, signal: controller.signal }) : null;
       const cancel = () => controller.abort(args.signal?.reason ?? new Error("ai_media_generation_cancelled"));
       args.signal?.addEventListener("abort", cancel, { once: true });
@@ -184,19 +225,25 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
       let estimatedCostMicroUsd = 0;
       try {
         if (connectScenes) await temporaryImages?.assertPrivateBucket();
+        const originalVoiceUrls = nativeSubjectReferences
+          ? await (await import("@/lib/aiMediaCharacterVoiceStorage")).getAiMediaCharacterVoiceSignedUrls({ accountId: args.accountId, images: args.request.inspirationImages, signal: controller.signal })
+          : undefined;
         const originalImageUrls = temporaryImages ? await temporaryImages.uploadImages(args.request.inspirationImages) : undefined;
         // SDK 6 uses one SSE request per native clip. No uncertain submission is retried.
         for (let index = 0; index < durations.length; index += 1) {
           controller.signal.throwIfAborted();
-          const continuityFrame = connectScenes && index > 0
+          const continuityFrame = connectScenes && canAttachContinuityFrame && index > 0
             ? await extractAiMediaVideoContinuityFrame({ ...clips[index - 1], signal: controller.signal }) : undefined;
-          const imageUrls = continuityFrame && temporaryImages ? await temporaryImages.uploadImages([continuityFrame]) : originalImageUrls;
-          const input = continuityFrame || imageUrls ? buildGatewayAiVideoRequest(args, index, continuityFrame, imageUrls) : preflight[index];
+          const continuityUrls = continuityFrame && temporaryImages ? await temporaryImages.uploadImages([continuityFrame]) : undefined;
+          const imageUrls = nativeSubjectReferences ? originalImageUrls : continuityUrls || originalImageUrls;
+          const input = continuityFrame || imageUrls ? buildGatewayAiVideoRequest(args, index, continuityFrame, imageUrls, originalVoiceUrls, continuityUrls?.[0]) : preflight[index];
           controller.signal.throwIfAborted();
           const resolution = getAiMediaVideoResolution(engine, args.request.videoResolution);
           const rate = model.pricingUsdPerSecond[resolution];
           if (rate === undefined) throw new Error("ai_media_video_supplier_rate_missing");
-          const referenceCount = continuityFrame ? 1 : args.request.inspirationImages.length;
+          const referenceCount = nativeSubjectReferences
+            ? args.request.inspirationImages.length + (continuityFrame ? 1 : 0)
+            : continuityFrame ? 1 : args.request.inspirationImages.length;
           const clipCost = Math.ceil(input.duration * rate * 1_000_000) + referenceCount * model.supplierReferenceCostMicroUsd;
           const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
             feature: "media.video", estimatedInputTokens: 0, reservedOutputTokens: 0, estimatedCostMicroUsd: clipCost,
@@ -229,6 +276,7 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
               clipWarnings.push(`video_provider_aspect_ratio_adapted:${args.request.format}:${input.aspectRatio}`);
             }
             if (continuityFrame) clipWarnings.push("video_last_frame_continuity");
+            if (nativeSubjectReferences && connectScenes && index > 0 && !canAttachContinuityFrame) clipWarnings.push("video_continuity_original_subject_references_preserved_at_capacity");
             warnings.push(...clipWarnings);
             clips.push({ buffer, mediaType: "video/mp4", durationSeconds: input.duration,
               requestId: args.request.requestId, model: model.modelId, warnings: clipWarnings });

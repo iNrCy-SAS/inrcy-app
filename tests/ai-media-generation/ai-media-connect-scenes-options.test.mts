@@ -6,6 +6,7 @@ import ts from "typescript";
 import * as mediaModels from "../../lib/aiMediaModelCatalog.ts";
 import * as mediaTransport from "../../lib/aiMediaGenerationTransport.ts";
 import * as mediaRecovery from "../../lib/aiMediaGenerationRecovery.ts";
+import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
 
 import type { MediaGenerationRequest } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
 import {
@@ -78,6 +79,7 @@ function hookRuntime() {
     if (specifier === "@/lib/aiMediaModelCatalog") return mediaModels;
     if (specifier === "@/lib/aiMediaGenerationTransport") return mediaTransport;
     if (specifier === "@/lib/aiMediaGenerationRecovery") return mediaRecovery;
+    if (specifier === "@/lib/aiMediaCharacterVoiceClient") return characterVoices;
     throw new Error(`Unexpected runtime dependency: ${specifier}`);
   };
   const fixtureFetch = async (url: string, options: RequestInit) => {
@@ -225,4 +227,39 @@ test("payload et empreinte utilisent la même applicabilité pour les options sa
     assert.equal(body.connectScenes, false);
     assert.equal(normalizeAiMediaGenerationRequest(body).connectScenes, false);
   }
+});
+
+test("character voice serialization preserves only the selected sample and its consent, including inspiration characters", async () => {
+  const { runtime, requests } = hookRuntime();
+  const hook = runtime.default();
+  const timestamp = Date.now();
+  const day = new Date(timestamp).toISOString().slice(0, 10);
+  const voiceSample = { path: `_studio-voice-references/${day}/account-a__${timestamp}__00000000-0000-4000-8000-000000000001.wav`, name: "voice.wav", mimeType: "audio/wav" as const, durationSeconds: 2, sizeBytes: 64_044 };
+  const reference = { mimeType: "image/jpeg" as const, data: Buffer.alloc(96, 1).toString("base64"), name: "portrait.jpg", role: "character" as const, usage: "inspiration" as const, characterIndex: 1 as const, voiceMode: "provided" as const, voiceSample };
+  const request = clientRequest({ videoEngine: "wan27", inputMode: "essential", durationSeconds: 8, identityMode: "auto", identityConsent: true, teamVideoSpeechMode: "characters", inspirationImages: [reference] });
+  const initialKey = runtime.fingerprintForTest(request, request.idea);
+  const replacement = { ...voiceSample, path: voiceSample.path.replace(/1\.wav$/, "2.wav") };
+  assert.notEqual(initialKey, runtime.fingerprintForTest({ ...request, inspirationImages: [{ ...reference, voiceSample: replacement }] }, request.idea), "a replacement vocal is a new idempotent request");
+  await assert.rejects(hook.generate(request), { message: "Fixture serialization validated" });
+  assert.equal(requests[0].videoEngine, "wan27");
+  assert.equal(requests[0].identityConsent, true);
+  assert.deepEqual((requests[0].inspirationImages as Array<Record<string, unknown>>)[0].voiceSample, voiceSample);
+  assert.doesNotMatch(JSON.stringify(requests[0]), /blob:|audio\/webm|data:audio/);
+  await assert.rejects(hook.generate({ ...request, inspirationImages: [{ ...reference, voiceMode: "ai" }] }), { message: "Fixture serialization validated" });
+  assert.equal((requests[1].inspirationImages as Array<Record<string, unknown>>)[0].voiceSample, undefined);
+  await assert.rejects(hook.generate({ ...request, kind: "image" }), { message: "Fixture serialization validated" });
+  assert.equal((requests[2].inspirationImages as Array<Record<string, unknown>>)[0].voiceSample, undefined);
+});
+
+test("character voice preflight blocks missing samples, other engines and voiceover before sending generation", async () => {
+  const { runtime, requests } = hookRuntime();
+  const hook = runtime.default();
+  const reference = { mimeType: "image/jpeg" as const, data: Buffer.alloc(96, 1).toString("base64"), name: "portrait.jpg", role: "character" as const, usage: "required" as const, voiceMode: "provided" as const };
+  const request = clientRequest({ videoEngine: "wan27", teamVideoSpeechMode: "characters", inspirationImages: [reference] });
+  await assert.rejects(hook.generate(request), /Insérez un vocal/);
+  const voiceSample = { path: "opaque-owned-path.wav", name: "vocal.wav", mimeType: "audio/wav" as const, durationSeconds: 2, sizeBytes: 64_044 };
+  const complete = { ...request, inspirationImages: [{ ...reference, voiceSample }] };
+  await assert.rejects(hook.generate({ ...complete, teamVideoSpeechMode: "voiceover" }), /mode Personnages/);
+  await assert.rejects(hook.generate({ ...complete, videoEngine: "omni" }), /Wan 2\.7 requis/);
+  assert.equal(requests.length, 0);
 });

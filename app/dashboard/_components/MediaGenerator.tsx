@@ -53,6 +53,9 @@ import {
 } from "@/lib/mediaGenerationReferenceClient";
 export { prepareMediaGenerationImageReference } from "@/lib/mediaGenerationReferenceClient";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
+import MediaCharacterVoiceInput from "./MediaCharacterVoiceInput";
+import { deleteCharacterVoiceSample, getCharacterVoiceSelectionState } from "@/lib/aiMediaCharacterVoiceClient";
+import type { AiMediaCharacterVoiceSample } from "@/lib/aiMediaCharacterVoices";
 import MediaGenerationCreationWorkspace, { MediaGenerationSettingsTabs } from "./MediaGenerationCreationWorkspace";
 import editorStyles from "./MediaGenerationCreationWorkspace.module.css";
 import MediaQuotaSummary from "./MediaQuotaSummary";
@@ -123,6 +126,7 @@ type StudioRequiredReferenceRole = Exclude<
 >;
 type StudioReferenceImage = MediaGenerationInspirationImage & {
   usage: "required" | "inspiration";
+  clientReferenceId?: string;
 };
 
 const IMAGE_STYLES: MediaGenerationImageStyle[] = [
@@ -199,7 +203,7 @@ function normalizeCharacterReferenceIndexes(images: StudioReferenceImage[]) {
   let characterIndex = 0;
   return images.map((image) => {
     if (image.role !== "character") {
-      const { characterIndex: _characterIndex, ...withoutCharacterIndex } =
+      const { characterIndex: _characterIndex, voiceMode: _voiceMode, voiceSample: _voiceSample, ...withoutCharacterIndex } =
         image;
       return withoutCharacterIndex;
     }
@@ -320,9 +324,6 @@ export default function MediaGenerator({
     reset,
   } = useMediaGeneration();
   const enginePreference = useMediaEnginePreference(quota?.accountId);
-  const videoModel = getAiMediaVideoModel(enginePreference.videoEngine);
-  const videoResolution = videoModel.resolutions.includes(enginePreference.videoResolution)
-    ? enginePreference.videoResolution : videoModel.defaultResolution;
   const {
     preferences: savedPreferences,
     loaded: preferencesLoaded,
@@ -382,6 +383,7 @@ export default function MediaGenerator({
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [inspirationBusy, setInspirationBusy] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
+  const [characterVoiceBusy, setCharacterVoiceBusy] = useState(false);
   const [creationScreen, setCreationScreen] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState("subject");
   const [activeAttempt, setActiveAttempt] = useState<{ kind: MediaGenerationKind; format: MediaGenerationFormat; durationSeconds: number } | null>(null);
@@ -404,7 +406,16 @@ export default function MediaGenerator({
   const acceptInFlightRef = useRef(false);
   const recoveryInFlightRef = useRef(false);
   const busy = generationBusy || discarding;
-  const operationLocked = busy || finishing || voiceBusy || inspirationBusy;
+  const operationLocked = busy || finishing || voiceBusy || inspirationBusy || characterVoiceBusy;
+  const characterVoiceSelection = getCharacterVoiceSelectionState(
+    kind === "video" && mediaSourceMode === "real" ? inspirationImages : []
+  );
+  // Keep the user's usual model preference so AI voices restore the other engines.
+  const selectedVideoEngine = characterVoiceSelection.requiresWan27 ? "wan27" : enginePreference.videoEngine;
+  const videoModel = getAiMediaVideoModel(selectedVideoEngine);
+  const videoResolution = videoModel.resolutions.includes(enginePreference.videoResolution)
+    ? enginePreference.videoResolution : videoModel.defaultResolution;
+  const characterVoiceSpeechConflict = characterVoiceSelection.requiresWan27 && teamVideoSpeechMode !== "characters";
 
   useEffect(() => {
     if (!mediaType) return;
@@ -624,7 +635,7 @@ export default function MediaGenerator({
 
   const videoDurationUnavailable =
     kind === "video" && (!durations.includes(durationSeconds) ||
-      !canGenerateAiMediaVideoDuration(enginePreference.videoEngine, durationSeconds, videoResolution, videoSceneMode));
+      !canGenerateAiMediaVideoDuration(selectedVideoEngine, durationSeconds, videoResolution, videoSceneMode));
   const characterReferences = inspirationImages.filter(
     (image) => image.role === "character" && image.usage !== "inspiration"
   );
@@ -685,11 +696,11 @@ export default function MediaGenerator({
     kind === "video" && effectiveIdentityMode === "reference_team";
   const effectiveWithNarration = kind === "video" && !animatedCharactersSpeak;
   const referenceCount = mediaSourceMode === "real" ? inspirationImages.length : 0;
-  const referenceCompatible = kind === "video" ? isMediaVideoReferenceCompatible(enginePreference.videoEngine, referenceCount) : isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "generate", inspirationImagesCount: referenceCount });
-  const briefCompatible = kind !== "video" || isMediaVideoBriefCompatible(enginePreference.videoEngine, modelBrief);
+  const referenceCompatible = kind === "video" ? isMediaVideoReferenceCompatible(selectedVideoEngine, referenceCount) : isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "generate", inspirationImagesCount: referenceCount });
+  const briefCompatible = kind !== "video" || isMediaVideoBriefCompatible(selectedVideoEngine, modelBrief);
   const creditQuote = useMediaCreditQuote({ kind, format, operation: "generate", creationMode: "guided",
     inputMode: "essential", identityMode: effectiveIdentityMode,
-    videoEngine: enginePreference.videoEngine, imageEngine: enginePreference.imageEngine,
+    videoEngine: selectedVideoEngine, imageEngine: enginePreference.imageEngine,
     videoResolution, durationSeconds: kind === "video" ? durationSeconds : undefined,
     sceneMode: kind === "video" ? videoSceneMode : undefined,
     inspirationImagesCount: referenceCount, withNarration: effectiveWithNarration,
@@ -705,7 +716,7 @@ export default function MediaGenerator({
     mediaSourceMode === "real" &&
     characterReferences.length !== effectiveCharacterCount;
   const identityConsentRequired =
-    strictIdentityReferenceMode && characterReferences.length > 0;
+    (strictIdentityReferenceMode && characterReferences.length > 0) || characterVoiceSelection.requiresWan27;
   const identityConsentMissing = identityConsentRequired && !identityConsent;
   const transformReferenceMissing = transformMode && !inspirationReference;
   const visibleTextModeConflict =
@@ -727,6 +738,8 @@ export default function MediaGenerator({
     !creditQuote.ready ||
     !referenceCompatible ||
     !briefCompatible ||
+    characterVoiceSelection.missingSample ||
+    characterVoiceSpeechConflict ||
     Boolean(referenceRoleLimitError) ||
     characterReferenceMissing ||
     identityConsentMissing ||
@@ -783,6 +796,7 @@ export default function MediaGenerator({
   };
 
   const selectRealCharacterCount = (count: StudioCharacterCount) => {
+    inspirationImages.filter((image) => image.role === "character" && (image.characterIndex || 0) > count).forEach((image) => { void deleteCharacterVoiceSample(image.voiceSample); });
     setRealCharacterCount(count);
     setInspirationImages((current) =>
       current.filter(
@@ -797,6 +811,7 @@ export default function MediaGenerator({
     role: MediaGenerationReferenceRole,
     characterIndex?: 1 | 2 | 3
   ) => {
+    inspirationImages.filter((image) => image.role === role && (role !== "character" || image.characterIndex === characterIndex)).forEach((image) => { void deleteCharacterVoiceSample(image.voiceSample); });
     setInspirationImages((current) =>
       current.filter(
         (image) =>
@@ -832,8 +847,10 @@ export default function MediaGenerator({
           ? await prepareVideoReferenceFrame(file)
           : await prepareMediaGenerationImageReference(file);
       const proposedRole = insertion === "append" ? "character" : role;
+      if (insertion === "replace") inspirationImages.filter((image) => image.role === role && (role !== "character" || image.characterIndex === characterIndex)).forEach((image) => { void deleteCharacterVoiceSample(image.voiceSample); });
       const next: StudioReferenceImage = {
         ...prepared,
+        clientReferenceId: createIdentityReferenceSetId(),
         role: proposedRole,
         ...(proposedRole === "character" ? { characterIndex } : {}),
         usage: insertion === "append"
@@ -963,6 +980,7 @@ export default function MediaGenerator({
   };
 
   const removeReferenceAt = (index: number) => {
+    void deleteCharacterVoiceSample(inspirationImages[index]?.voiceSample);
     setInspirationImages((current) =>
       normalizeCharacterReferenceIndexes(
         current.filter((_, currentIndex) => currentIndex !== index)
@@ -1001,6 +1019,7 @@ export default function MediaGenerator({
     index: number,
     role: StudioRequiredReferenceRole
   ) => {
+    if (role !== "character") void deleteCharacterVoiceSample(inspirationImages[index]?.voiceSample);
     setInspirationImages((current) => {
       const next = current.map((reference, currentIndex) => {
         if (currentIndex === index) return {
@@ -1011,6 +1030,24 @@ export default function MediaGenerator({
       });
       return normalizeCharacterReferenceIndexes(next);
     });
+    resetReferenceConsent();
+  };
+
+  const setCharacterVoiceMode = (index: number, mode: "ai" | "provided") => {
+    if (mode === "ai") void deleteCharacterVoiceSample(inspirationImages[index]?.voiceSample);
+    setInspirationImages((current) => current.map((reference, currentIndex) => currentIndex === index && reference.role === "character"
+      ? { ...reference, voiceMode: mode, voiceSample: mode === "provided" ? reference.voiceSample : undefined }
+      : reference));
+    if (mode === "provided") setTeamVideoSpeechMode("characters");
+    resetReferenceConsent();
+  };
+
+  const setCharacterVoiceSample = (index: number, sample: AiMediaCharacterVoiceSample | undefined) => {
+    const previous = inspirationImages[index]?.voiceSample;
+    if (previous?.path !== sample?.path) void deleteCharacterVoiceSample(previous);
+    setInspirationImages((current) => current.map((reference, currentIndex) => currentIndex === index && reference.role === "character"
+      ? { ...reference, voiceSample: sample }
+      : reference));
     resetReferenceConsent();
   };
 
@@ -1141,7 +1178,7 @@ export default function MediaGenerator({
       await generate({
         ...creditQuote.authorization,
         imageEngine: enginePreference.imageEngine,
-        videoEngine: enginePreference.videoEngine,
+        videoEngine: selectedVideoEngine,
         videoResolution,
         inputMode: "essential",
         source,
@@ -1195,7 +1232,7 @@ export default function MediaGenerator({
         teamVideoVeoConsent: teamCinematicConsentRequired
           ? videoModel.provider === "google" && veoConsentForAttempt
           : false,
-        teamVideoProviderConsent: teamCinematicConsentRequired && veoConsentForAttempt ? enginePreference.videoEngine : undefined,
+        teamVideoProviderConsent: teamCinematicConsentRequired && veoConsentForAttempt ? selectedVideoEngine : undefined,
         durationSeconds: kind === "video" ? durationSeconds : undefined,
         sceneMode: kind === "video" ? videoSceneMode : undefined,
         connectScenes:
@@ -1540,12 +1577,14 @@ export default function MediaGenerator({
   ) : null;
 
   const engineControls = (
-    <MediaEngineCreditControls kind={kind} format={format} videoEngine={enginePreference.videoEngine}
+    <MediaEngineCreditControls kind={kind} format={format} videoEngine={selectedVideoEngine}
               imageEngine={enginePreference.imageEngine} resolution={videoResolution}
               durationSeconds={durationSeconds} sceneMode={videoSceneMode} onDurationSceneChange={(seconds, mode) => { setDurationSeconds(seconds); setVideoSceneMode(mode); }} videoMaxDurationSeconds={videoMaxDurationSeconds}
               recommendation={modelRecommendation}
               brief={modelBrief}
               referenceCount={referenceCount} disabled={operationLocked}
+              requiredVideoEngine={characterVoiceSelection.requiresWan27 ? "wan27" : undefined}
+              requiredVideoEngineReason={characterVoiceSelection.requiresWan27 ? t("ai_generator_character_voice_engine_required") : undefined}
               onVideoEngineChange={(videoEngine, resolution) => { setTeamVideoVeoConsent(false); setTeamVideoConsentOpen(false); enginePreference.update({ videoEngine, videoResolution: resolution ?? getAiMediaVideoModel(videoEngine).defaultResolution }); }}
               onImageEngineChange={(imageEngine) => enginePreference.update({ imageEngine })}
               onResolutionChange={(resolution) => enginePreference.update({ videoResolution: resolution })} />
@@ -1601,7 +1640,9 @@ export default function MediaGenerator({
             ? [{
                 id: "identity",
                 label: t(
-                  effectiveIdentityMode === "reference_team"
+                  characterVoiceSelection.requiresWan27
+                    ? "ai_generator_character_voice_consent_label"
+                    : effectiveIdentityMode === "reference_team"
                     ? "ai_generator_reference_team_consent_label"
                     : "ai_generator_video_character_consent_label"
                 ),
@@ -2004,12 +2045,13 @@ export default function MediaGenerator({
                 <div
                   className={styles.referenceCollection}
                   aria-label="Références ajoutées"
+                  data-character-voices={kind === "video" ? "true" : undefined}
                 >
                   {inspirationImages.map((reference, index) => {
                     const required = reference.usage === "required";
                     return (
                       <div
-                        key={`${reference.name}-${index}`}
+                        key={reference.clientReferenceId || `${reference.name}-${index}`}
                         className={styles.referenceTile}
                         data-required={required ? "true" : "false"}
                         data-reference-role={reference.role || "inspiration"}
@@ -2062,9 +2104,15 @@ export default function MediaGenerator({
                             }
                           >
                             <option value="required">Obligatoire</option>
-                            <option value="inspiration">Idée</option>
+                            <option value="inspiration">Inspiration</option>
                           </select>
                         </div>
+                        {kind === "video" && reference.role === "character" ? <MediaCharacterVoiceInput
+                          mode={reference.voiceMode} sample={reference.voiceSample} disabled={operationLocked}
+                          onModeChange={(mode) => setCharacterVoiceMode(index, mode)}
+                          onSampleChange={(sample) => setCharacterVoiceSample(index, sample)}
+                          onBusyChange={setCharacterVoiceBusy}
+                        /> : null}
                       </div>
                     );
                   })}
@@ -2076,6 +2124,11 @@ export default function MediaGenerator({
                   {referenceRoleLimitError}
                 </p>
               ) : null}
+              {characterVoiceSelection.missingSample ? <p className={styles.referenceLimitError} role="status">{t("ai_generator_character_voice_sample_missing")}</p> : null}
+              {characterVoiceSpeechConflict ? <div className={styles.characterVoiceConflict} role="alert">
+                <p>{t("ai_generator_character_voice_speech_required")}</p>
+                <button type="button" disabled={operationLocked} onClick={() => setTeamVideoSpeechMode("characters")}>{t("ai_generator_character_voice_switch_characters")}</button>
+              </div> : null}
 
               {kind === "video" && characterReferences.length ? (
                 <div className={styles.identityContinuityNotice} role="note">
@@ -2650,7 +2703,9 @@ export default function MediaGenerator({
               </span>
               <span className={styles.footerConsentStatement}>
                 {t(
-                  effectiveIdentityMode === "reference_team"
+                  characterVoiceSelection.requiresWan27
+                    ? "ai_generator_character_voice_consent_label"
+                    : effectiveIdentityMode === "reference_team"
                     ? "ai_generator_reference_team_consent_label"
                     : "ai_generator_video_character_consent_label"
                 )}

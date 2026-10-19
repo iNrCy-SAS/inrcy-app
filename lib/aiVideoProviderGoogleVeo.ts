@@ -604,6 +604,9 @@ export function buildGoogleVideoTeamSpeechDirection(
     requestedSpeech: [args.request.idea, args.request.aiInstruction].filter(Boolean).join("\n"),
   })[index];
   if (!firstLine) return "DIALOGUE: no speech in this shot; keep mouths closed. The requested line belongs to another shot; never repeat it. No narrator, lyrics or music.";
+  if (args.request.videoEngine === "wan27") {
+    return `DIALOGUE: the speaker identified in this shot lip-syncs once 0.2–${speechEnd}s: “${firstLine}” Then mouth closed/silent for the rest of the shot. Use each supplied reference voice only for its associated character; use a stable distinct AI voice when no sample is supplied. No repeat/old line/narrator/music/voice-face swap.`;
+  }
   if (args.request.identityMode !== "reference_team") {
     return `DIALOGUE: recurring character lip-syncs once 0.2–${speechEnd}s: “${firstLine}” Then mouth closed/silent. Then silent/closed mouth for the rest of the shot. No repeat/old line/narrator/music/cloning/voice swap; stable adult synthetic voice.`;
   }

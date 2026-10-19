@@ -84,7 +84,7 @@ test("le consentement du fournisseur choisi est demandé à chaque génération 
   assert.match(generator, /teamCinematicConsentRequired[\s\S]*?setTeamVideoConsentOpen\(true\)/);
   assert.match(generator, /handleConfirmTeamVideoConsent[\s\S]*?performGeneration\(true\)/);
   assert.match(generator, /role="dialog"[\s\S]*?ai_generator_team_video_provider_consent[\s\S]*?provider: videoModel\.providerLabel/);
-  assert.match(generator, /teamVideoProviderConsent: teamCinematicConsentRequired && veoConsentForAttempt \? enginePreference\.videoEngine/);
+  assert.match(generator, /teamVideoProviderConsent: teamCinematicConsentRequired && veoConsentForAttempt \? selectedVideoEngine/);
   assert.match(generator, /videoModel\.provider === "google" && veoConsentForAttempt/);
   assert.match(generator, /setTeamVideoVeoConsent\(false\)/);
   assert.match(hook, /teamVideoMode\?: MediaGenerationTeamVideoMode/);

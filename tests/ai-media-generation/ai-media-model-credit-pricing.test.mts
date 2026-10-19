@@ -9,20 +9,61 @@ import {
   getAiMediaImageModel,
   isAiMediaImageModelCompatible,
   getAiMediaVideoDurations,
+  getAiMediaVideoNativeDurations,
   getAiMediaVideoModel,
   normalizeAiMediaVideoEngine,
 } from "../../lib/aiMediaModelCatalog.ts";
 import { quoteAiMediaCredits, estimateAiMediaVideoSupplierCostMicroUsd, estimateAiMediaImageSupplierCostMicroUsd } from "../../lib/aiMediaCreditsPricing.ts";
 import { getAiMediaVideoSegmentDurations, canGenerateAiMediaVideoDuration, getAiMediaVideoDurationSceneOptions } from "../../lib/aiMediaVideoTimeline.ts";
 
-test("Studio offers nine choices from five video families with distinct capabilities", () => {
-  assert.equal(AI_MEDIA_VIDEO_MODELS.length, 9);
+test("Studio offers ten choices from five video families with distinct capabilities", () => {
+  assert.equal(AI_MEDIA_VIDEO_MODELS.length, 10);
   assert.equal(new Set(AI_MEDIA_VIDEO_MODELS.map((model) => model.provider)).size, 5);
   assert.equal(getAiMediaVideoModel("veo-lite").maxReferenceImages, 1);
   assert.equal(getAiMediaVideoModel("minimax-h3").defaultResolution, "768p");
   assert.equal(getAiMediaVideoModel("wan-flash").supportsTextToVideo, false);
   assert.equal(normalizeAiMediaVideoEngine("google-gemini-omni"), "omni");
   assert.equal(normalizeAiMediaVideoEngine("spacexai/unreviewed-model"), null);
+});
+
+test("Wan 2.7 R2V exposes the verified reference-only model and leaves speech quality to verification", () => {
+  const model = getAiMediaVideoModel("wan27");
+  assert.equal(model.modelId, "alibaba/wan-v2.7-r2v");
+  assert.equal(model.transport, "gateway");
+  assert.equal(model.maxReferenceImages, 5);
+  assert.equal(model.supportsTextToVideo, false);
+  assert.equal(model.supportsImageToVideo, true);
+  assert.equal(model.nativeAudio, true);
+  assert.equal(model.frenchDialogue, "to-verify");
+  assert.deepEqual(model.resolutions, ["720p", "1080p"]);
+  assert.equal(normalizeAiMediaVideoEngine(" WAN27 "), "wan27");
+  assert.deepEqual(getAiMediaVideoNativeDurations("wan27"), [2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.deepEqual(getAiMediaVideoDurations("wan27"), Array.from({ length: 17 }, (_, index) => index + 4));
+  assert.deepEqual(getAiMediaVideoDurations("wan27", "1080p", "multi"), Array.from({ length: 13 }, (_, index) => index + 8));
+  assert.deepEqual(getAiMediaVideoSegmentDurations(10, "wan27"), [10]);
+  assert.deepEqual(getAiMediaVideoSegmentDurations(20, "wan27"), [10, 10]);
+  assert.equal(canGenerateAiMediaVideoDuration("wan27", 4, "720p", "multi"), false);
+  assert.equal(canGenerateAiMediaVideoDuration("wan27", 21), false);
+});
+
+test("Wan 2.7 quotes original references without first-frame image preparation at both resolutions", () => {
+  const input = { kind: "video", videoEngine: "wan27", durationSeconds: 8, inspirationImagesCount: 5, inputMode: "essential" };
+  const quote = quoteAiMediaCredits(input);
+  assert.equal(quote.totalCredits, 80);
+  assert.deepEqual(quote.breakdown.map((item) => [item.key, item.credits]), [["video", 80]]);
+  assert.equal(quoteAiMediaCredits({ ...input, videoResolution: "1080p" }).totalCredits, 120);
+  assert.equal(estimateAiMediaVideoSupplierCostMicroUsd(input), 800_000);
+  assert.equal(estimateAiMediaVideoSupplierCostMicroUsd({ ...input, videoResolution: "1080p" }), 1_200_000);
+  const free = quoteAiMediaCredits({ ...input, creationMode: "free", identityMode: "reference_team" });
+  assert.deepEqual(free.breakdown.map((item) => [item.key, item.credits]), [["video", 80], ["preparation", 7]]);
+  assert.equal(quoteAiMediaCredits({ ...input, videoEngine: " WAN27 ", creationMode: "free" }).totalCredits, 87);
+  for (const sceneMode of ["single", "multi"]) {
+    assert.equal(quoteAiMediaCredits({ ...input, durationSeconds: 20, sceneMode }).totalCredits, 200);
+    assert.equal(estimateAiMediaVideoSupplierCostMicroUsd({ ...input, durationSeconds: 20, sceneMode }), 2_000_000);
+  }
+  assert.throws(() => quoteAiMediaCredits({ ...input, inspirationImagesCount: 0 }), /reference_required/);
+  assert.throws(() => quoteAiMediaCredits({ ...input, inspirationImagesCount: 6 }), /reference_count_invalid/);
+  assert.throws(() => quoteAiMediaCredits({ ...input, videoResolution: "768p" }), /resolution_invalid/);
 });
 
 test("duration-first choices respect four seconds minimum, two clips maximum and Google resolution restrictions", () => {

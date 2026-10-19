@@ -32,6 +32,7 @@ import MediaOptimizerModal, {
   type MediaOptimizerItem,
 } from "@/app/dashboard/_components/MediaOptimizerModal";
 import { INR_MEDIA_UPLOAD_BATCH_SIZE } from "@/lib/mediaRules";
+import { MEDIA_LIBRARY_AUDIO_MAX_BYTES, detectMediaLibraryAudioType } from "@/lib/mediaLibraryAudio";
 import {
   MEDIA_LIBRARY_IMAGE_OUTPUT_MAX_BYTES,
   MEDIA_LIBRARY_IMAGE_SOURCE_MAX_BYTES,
@@ -42,14 +43,14 @@ import {
 import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
 import styles from "./mediaLibrary.module.css";
 
-type MediaTypeFilter = "all" | "image" | "video";
+type MediaTypeFilter = "all" | "image" | "video" | "audio";
 type ActiveFilter = "active" | "inactive" | "all";
 
 type MediaItem = {
   id: string;
   bucket_name: string | null;
   storage_path: string;
-  media_type: "image" | "video";
+  media_type: "image" | "video" | "audio";
   mime_type: string | null;
   size_bytes: number | null;
   title: string | null;
@@ -91,6 +92,7 @@ type MediaLibrarySnapshot = {
     total: number;
     images: number;
     videos: number;
+    audios?: number;
     total_bytes: number;
   };
 };
@@ -110,7 +112,7 @@ type UploadPrepareItem = {
   storage_path: string;
   token: string;
   content_type: string;
-  media_type: "image" | "video";
+  media_type: "image" | "video" | "audio";
 };
 
 type UploadFinalizeItem = {
@@ -170,12 +172,19 @@ function isVideoFile(file: File) {
   );
 }
 
-function validateUploadFiles(selectedFiles: File[]) {
+function isAudioFile(file: File) {
+  return detectMediaLibraryAudioType({ name: file.name, mimeType: file.type }) === "audio";
+}
+
+function validateUploadFiles(selectedFiles: File[], audioFileError: string) {
   for (const file of selectedFiles) {
-    if (!isImageFile(file) && !isVideoFile(file)) {
+    if (!isImageFile(file) && !isVideoFile(file) && !isAudioFile(file)) {
       throw new Error(
         `${formatUploadName(file)} : format non reconnu par le moteur média iNrCy.`,
       );
+    }
+    if (isAudioFile(file) && (!file.size || file.size > MEDIA_LIBRARY_AUDIO_MAX_BYTES)) {
+      throw new Error(`${formatUploadName(file)} : ${audioFileError}`);
     }
     if (isImageFile(file) && file.size > MAX_IMAGE_BYTES) {
       throw new Error(
@@ -241,6 +250,24 @@ function getVideoInfo(
 }
 
 async function getMediaInfo(file: File) {
+  if (isAudioFile(file)) {
+    const duration_seconds = await new Promise<number | null>((resolve) => {
+      const audio = document.createElement("audio");
+      const url = URL.createObjectURL(file);
+      const finish = (duration: number | null) => {
+        clearTimeout(timeout);
+        audio.onloadedmetadata = null; audio.onerror = null;
+        audio.removeAttribute("src"); audio.load();
+        URL.revokeObjectURL(url); resolve(duration);
+      };
+      const timeout = setTimeout(() => finish(null), 10_000);
+      audio.preload = "metadata";
+      audio.onloadedmetadata = () => finish(Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : null);
+      audio.onerror = () => finish(null);
+      audio.src = url;
+    });
+    return { width: null, height: null, duration_seconds };
+  }
   if (isImageFile(file)) {
     const dimensions = await getImageDimensions(file);
     return { ...dimensions, duration_seconds: null };
@@ -301,6 +328,7 @@ function mediaOptimizationLimit(item: Pick<MediaItem, "media_type">) {
 }
 
 function mediaNeedsOptimization(item: MediaItem) {
+  if (item.media_type === "audio") return false;
   return getMediaLibraryOptimizationRequirements({
     mediaType: item.media_type,
     sizeBytes: item.size_bytes,
@@ -328,6 +356,7 @@ export default function MediaLibraryClient() {
     total: 0,
     images: 0,
     videos: 0,
+    audios: 0,
     total_bytes: 0,
   }));
   const [loading, setLoading] = useState(() => !initialSnapshot);
@@ -361,8 +390,9 @@ export default function MediaLibraryClient() {
   const selectedStats = useMemo(() => {
     const images = selectedFiles.filter(isImageFile).length;
     const videos = selectedFiles.filter(isVideoFile).length;
+    const audios = selectedFiles.filter(isAudioFile).length;
     const bytes = selectedFiles.reduce((sum, file) => sum + file.size, 0);
-    return { images, videos, bytes };
+    return { images, videos, audios, bytes };
   }, [selectedFiles]);
 
   const selectedItems = useMemo(
@@ -386,6 +416,7 @@ export default function MediaLibraryClient() {
       const params = new URLSearchParams();
       params.set("limit", "180");
       params.set("type", typeFilter);
+      params.set("includeAudio", "true");
       params.set("active", activeFilter);
       if (search.trim()) params.set("q", search.trim());
 
@@ -410,6 +441,7 @@ export default function MediaLibraryClient() {
         total: nextItems.length,
         images: 0,
         videos: 0,
+        audios: 0,
         total_bytes: 0,
       };
       setStats(nextStats);
@@ -446,7 +478,7 @@ export default function MediaLibraryClient() {
     setSuccess(null);
 
     try {
-      validateUploadFiles(nextFiles);
+      validateUploadFiles(nextFiles, i18nT("library_audio_file_error"));
       const byKey = new Map<string, File>();
       for (const file of files) {
         byKey.set(getClientFileId(file, 0), file);
@@ -455,7 +487,7 @@ export default function MediaLibraryClient() {
         byKey.set(getClientFileId(file, 0), file);
       }
       const merged = Array.from(byKey.values());
-      validateUploadFiles(merged);
+      validateUploadFiles(merged, i18nT("library_audio_file_error"));
       setFiles(merged);
       setFileInputKey((value) => value + 1);
     } catch (e: any) {
@@ -491,7 +523,7 @@ export default function MediaLibraryClient() {
     setUploadProgress(null);
 
     if (selectedFiles.length === 0) {
-      setError(i18nT("ajoute_au_moins_une_image_ou_f47dc202"));
+      setError(i18nT("library_upload_empty"));
       return;
     }
 
@@ -500,7 +532,7 @@ export default function MediaLibraryClient() {
     setUploadPercent(0);
 
     try {
-      validateUploadFiles(uploadFiles);
+      validateUploadFiles(uploadFiles, i18nT("library_audio_file_error"));
       const supabase = createClient();
       const batches = chunkFiles(uploadFiles, UPLOAD_BATCH_SIZE);
       let uploaded = 0;
@@ -577,7 +609,7 @@ export default function MediaLibraryClient() {
             const contentType =
               prepared.content_type || file.type || "application/octet-stream";
 
-            if (isUniversalMediaUploadEnabled()) {
+            if (isUniversalMediaUploadEnabled() && prepared.media_type !== "audio") {
               const intent: UniversalMediaUploadIntent = {
                 ok: true,
                 target: "media_library_source",
@@ -763,7 +795,7 @@ export default function MediaLibraryClient() {
     if (!window.matchMedia("(max-width: 680px)").matches) return;
 
     const target = event.target as HTMLElement | null;
-    if (target?.closest("button, a, input, label, select, textarea")) return;
+    if (target?.closest("button, a, input, label, select, textarea, audio, video")) return;
 
     toggleItemSelection(item.id);
   }
@@ -918,7 +950,7 @@ export default function MediaLibraryClient() {
           </div>
           <div className={styles.heroContent}>
             <h1 className={styles.title}>
-              <span className={styles.titleFull}>{i18nT("vos_images_et_videos_inrcy_58912437")}</span>
+              <span className={styles.titleFull}>{i18nT("library_media_title")}</span>
               <span className={styles.titleMobile}>{i18nT("mediatheque_inrcy_a885e19e")}</span>
             </h1>
             <p className={styles.subtitle}>
@@ -981,6 +1013,11 @@ export default function MediaLibraryClient() {
             <small className={styles.metricSub}>{i18nT("mp4_webm_mov_116ade48")}</small>
           </article>
           <article className={styles.metricCard}>
+            <span className={styles.metricLabel}>{i18nT("library_audio")}</span>
+            <strong className={styles.metricValue}>{stats.audios ?? 0}</strong>
+            <small className={styles.metricSub}>{i18nT("library_audio_formats")}</small>
+          </article>
+          <article className={styles.metricCard}>
             <span className={styles.metricLabel}>{i18nT("poids_affiche_299b78be")}</span>
             <strong className={styles.metricValueSmall}>
               {displayBytes(stats.total_bytes)}
@@ -1027,7 +1064,7 @@ export default function MediaLibraryClient() {
                 hidden
                 aria-labelledby={`${fileInputId}-label`}
                 aria-describedby={`${fileInputId}-help`}
-                accept={`image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,image/heif,image/tiff,image/bmp,${MEDIA_LIBRARY_VIDEO_ACCEPT}`}
+                accept={`image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,image/heif,image/tiff,image/bmp,${MEDIA_LIBRARY_VIDEO_ACCEPT},audio/mpeg,audio/mp3,audio/wav,audio/x-wav,.mp3,.wav`}
                 multiple
                 disabled={uploading}
                 onChange={(event) =>
@@ -1051,8 +1088,8 @@ export default function MediaLibraryClient() {
               </button>
               <small id={`${fileInputId}-help`} className={styles.helper} aria-live="polite">
                 {selectedFiles.length
-                  ? i18nT("value_fichier_s_value_image_s_a7f02e95", { value0: selectedFiles.length, value1: selectedStats.images, value2: selectedStats.videos, value3: displayBytes(selectedStats.bytes) })
-                  : i18nT("medias_source_jusqu_a_300_mo_19c89ace", { value0: UPLOAD_BATCH_SIZE })}
+                  ? i18nT("library_selected_files", { count: selectedFiles.length, images: selectedStats.images, videos: selectedStats.videos, audios: selectedStats.audios, size: displayBytes(selectedStats.bytes) })
+                  : i18nT("library_audio_upload_help")}
               </small>
             </div>
 
@@ -1078,7 +1115,7 @@ export default function MediaLibraryClient() {
                         className={styles.selectedFileIcon}
                         aria-hidden="true"
                       >
-                        {isVideoFile(file) ? "🎬" : "🖼️"}
+                        {isAudioFile(file) ? "🎙" : isVideoFile(file) ? "🎬" : "🖼️"}
                       </span>
                       <span className={styles.selectedFileName}>
                         {file.name}
@@ -1173,6 +1210,7 @@ export default function MediaLibraryClient() {
                   <option value="all">{i18nT("tous_b97ae3b4")}</option>
                   <option value="image">{i18nT("images_09e871c9")}</option>
                   <option value="video">{i18nT("videos_ea129238")}</option>
+                  <option value="audio">{i18nT("library_audio")}</option>
                 </select>
               </label>
               <label>
@@ -1282,9 +1320,11 @@ export default function MediaLibraryClient() {
                           event.stopPropagation();
                           setPreviewItem(item);
                         }}
-                        aria-label={i18nT("agrandir_le_media_55f536e4")}
+                        aria-label={item.media_type === "audio" ? i18nT("library_audio_preview", { name: item.title || item.original_file_name || i18nT("media_sans_titre_e77f1871") }) : i18nT("agrandir_le_media_55f536e4")}
                       >
-                        {item.media_type === "video" ? (
+                        {item.media_type === "audio" ? (
+                          <span className={styles.mediaRowAudioThumb} aria-hidden="true">🎙</span>
+                        ) : item.media_type === "video" ? (
                           <video
                             src={item.signed_url || undefined}
                             className={styles.mediaRowThumb}
@@ -1307,6 +1347,7 @@ export default function MediaLibraryClient() {
                       <div className={styles.mediaRowMain}>
                         <strong>{item.title || i18nT("media_sans_titre_e77f1871")}</strong>
                         <span>{tagsToText(item.tags) || i18nT("aucun_tag_b6d9425d")}</span>
+                        {item.media_type === "audio" && item.signed_url ? <audio className={styles.mediaRowAudioPlayer} src={item.signed_url} controls preload="none" aria-label={i18nT("library_audio_preview", { name: item.title || item.original_file_name || i18nT("media_sans_titre_e77f1871") })} /> : null}
                         {item.imageRecovery ? (
                           <span className={styles.optimizationBadge} title={i18nT("image_recovery_notice")}>{i18nT("image_recovery_badge")}</span>
                         ) : item.media_type === "image" && item.processing_status === "failed_terminal" ? (
@@ -1331,7 +1372,7 @@ export default function MediaLibraryClient() {
                                 : i18nT("optimiser_19599bcc")}
                             </button>
                           </div>
-                        ) : item.source === "mediatheque_optimization" ? (
+                        ) : item.media_type !== "audio" && item.source === "mediatheque_optimization" ? (
                           <span className={styles.compatibleCopyBadge}>{i18nT("copie_optimisee_f10d59ec")}</span>
                         ) : null}
                       </div>
@@ -1374,13 +1415,13 @@ export default function MediaLibraryClient() {
                     </div>
 
                     <span className={styles.mediaRowPill} data-label="Type">
-                      {item.media_type === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")}
+                      {item.media_type === "audio" ? i18nT("library_audio") : item.media_type === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")}
                     </span>
                     <span className={styles.mediaRowMeta} data-label="Poids">
                       {displayBytes(item.size_bytes)}
                     </span>
                     <span className={styles.mediaRowMeta} data-label="Format">
-                      {item.media_type === "video"
+                      {item.media_type === "video" || item.media_type === "audio"
                         ? formatDuration(item.duration_seconds)
                         : item.width && item.height
                           ? `${item.width}×${item.height}`
@@ -1486,6 +1527,7 @@ export default function MediaLibraryClient() {
               <span>{i18nT("prive_e3125aac")}</span>
               <span>{i18nT("images_preparation_automatique_ff95b891")}</span>
               <span>{i18nT("videos_envoi_resumable_e7b7f368")}</span>
+              <span>{i18nT("library_audio_help_title")}</span>
               <span>{i18nT("priorite_inragent_91b09501")}</span>
             </div>
             <div className={styles.helperModalGrid}>
@@ -1500,6 +1542,10 @@ export default function MediaLibraryClient() {
               <div className={styles.helperInfoCard}>
                 <strong>{i18nT("videos_65b3bbeb")}</strong>
                 <span>{i18nT("formats_video_courants_envoi_direct_et_81881113")}</span>
+              </div>
+              <div className={styles.helperInfoCard}>
+                <strong>{i18nT("library_audio_help_title")}</strong>
+                <span>{i18nT("library_audio_help_description")}</span>
               </div>
               <div className={styles.helperInfoCard}>
                 <strong>{i18nT("inragent_9be84f49")}</strong>
@@ -1534,7 +1580,13 @@ export default function MediaLibraryClient() {
               ×
             </button>
             <div className={styles.previewMediaWrap}>
-              {previewItem.media_type === "video" ? (
+              {previewItem.media_type === "audio" ? (
+                <div className={styles.audioPreview}>
+                  <span aria-hidden="true">🎙</span>
+                  <audio src={previewItem.signed_url || undefined} controls preload="metadata" aria-label={i18nT("library_audio_preview", { name: previewItem.title || previewItem.original_file_name || i18nT("media_sans_titre_e77f1871") })} />
+                  <small>{i18nT("library_audio_duration")} : {formatDuration(previewItem.duration_seconds)}</small>
+                </div>
+              ) : previewItem.media_type === "video" ? (
                 <video
                   src={previewItem.signed_url || undefined}
                   controls

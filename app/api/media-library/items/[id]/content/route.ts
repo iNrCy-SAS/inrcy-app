@@ -9,6 +9,7 @@ import {
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getMediaImageRecoverySummary } from "@/lib/mediaImageRecoverySummary";
 import { getImageNormalizationSignature } from "@/lib/mediaImageNormalizationPolicy";
+import { isOwnedMediaLibraryAudioPath } from "@/lib/mediaLibraryAudio";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,10 @@ const MIME_EXTENSION_BY_TYPE: Record<string, string> = {
   "video/mp4": ".mp4",
   "video/webm": ".webm",
   "video/quicktime": ".mov",
+  "audio/mpeg": ".mp3",
+  "audio/mp3": ".mp3",
+  "audio/wav": ".wav",
+  "audio/x-wav": ".wav",
 };
 
 function sanitizeDownloadFileName(value: unknown) {
@@ -48,11 +53,11 @@ function buildDownloadFileName(row: {
   const storageName = sanitizeDownloadFileName(row.storage_path);
   const storageExtension = storageName.match(/\.[a-z0-9]{2,10}$/i)?.[0] || "";
   const mimeExtension = MIME_EXTENSION_BY_TYPE[String(row.mime_type || "").toLowerCase()] || "";
-  const extension = storageExtension || mimeExtension || (row.media_type === "video" ? ".mp4" : ".jpg");
+  const extension = storageExtension || mimeExtension || (row.media_type === "video" ? ".mp4" : row.media_type === "audio" ? ".wav" : ".jpg");
   const baseName =
     originalName ||
     sanitizeDownloadFileName(row.title) ||
-    (row.media_type === "video" ? "video-inrcy" : "image-inrcy");
+    (row.media_type === "video" ? "video-inrcy" : row.media_type === "audio" ? "audio-inrcy" : "image-inrcy");
 
   return /\.[a-z0-9]{2,10}$/i.test(baseName)
     ? baseName
@@ -85,6 +90,7 @@ export async function GET(
 
   let bucket = String(row.bucket_name || "inrcy-pro-media").trim();
   let storagePath = String(row.storage_path || "").trim();
+  if (row.media_type === "audio" && (bucket !== "inrcy-pro-media" || !isOwnedMediaLibraryAudioPath(activeUserId, storagePath))) return notFound();
   if (recoveredPreviewRequested) {
     if (row.media_type !== "image" || !getMediaImageRecoverySummary(row.media_metadata).requiresCanonical) return notFound();
     const variant = await supabaseAdmin.from("media_variants")

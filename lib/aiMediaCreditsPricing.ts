@@ -6,6 +6,7 @@ import {
   getAiMediaVideoModel,
   getAiMediaVideoResolution,
   normalizeAiMediaImageEngine,
+  normalizeAiMediaVideoEngine,
   type AiMediaImageEngine,
   type AiMediaImageFormat,
   type AiMediaImageDimensions,
@@ -50,8 +51,9 @@ export type AiMediaCreditsQuote = Readonly<{
 export function quoteAiMediaCredits(input: AiMediaCreditsQuoteInput): AiMediaCreditsQuote {
   const inputReferences = input.inspirationImagesCount ?? 0;
   if (!Number.isSafeInteger(inputReferences) || inputReferences < 0 || inputReferences > 5) throw new Error("ai_media_credit_reference_count_invalid");
-  // The server composes approved team portraits into one master image before egress.
-  const composeFirstFrame = input.kind === "video" && (input.identityMode === "reference_team" || input.inputMode === "essential") && inputReferences > 0;
+  // R2V retains each original portrait and its voice binding. Other engines use a composed first frame.
+  const composeFirstFrame = input.kind === "video" && normalizeAiMediaVideoEngine(input.videoEngine) !== "wan27" &&
+    (input.identityMode === "reference_team" || input.inputMode === "essential") && inputReferences > 0;
   const references = composeFirstFrame ? 1 : inputReferences;
   if (input.kind === "image") {
     const engine = normalizeAiMediaImageEngine(input.imageEngine ?? "openai");
@@ -90,8 +92,10 @@ export function quoteAiMediaCredits(input: AiMediaCreditsQuoteInput): AiMediaCre
   if (model.id === "veo" && references > 1 &&
     (input.sceneMode === "multi" ? segments.some((duration) => duration !== 8) : segments[0] !== 8)) throw new Error("ai_media_video_references_require_eight_seconds");
   const videoCredits = Math.ceil(durationSeconds * (model.creditsByResolution[resolution] ?? model.creditsPerSecond));
-  const transmittedReferences = segments.length === 1 ? references
-    : input.sceneMode === "multi" ? references * segments.length : references + 1;
+  const transmittedReferences = model.id === "wan27"
+    ? references * segments.length + (segments.length > 1 && input.sceneMode !== "multi" && references < model.maxReferenceImages ? 1 : 0)
+    : segments.length === 1 ? references
+      : input.sceneMode === "multi" ? references * segments.length : references + 1;
   const referenceCredits = transmittedReferences * model.referenceInputCredits;
   // Libre always runs the creative director; this also covers optional logo preparation.
   // With uploaded references the first-frame package replaces, rather than adds to, that fee.
@@ -132,10 +136,12 @@ export function estimateAiMediaVideoSupplierCostMicroUsd(input: AiMediaCreditsQu
   const rate = model.pricingUsdPerSecond[quote.resolution!];
   if (rate === undefined) throw new Error("ai_media_video_supplier_rate_missing");
   const rawReferences = input.inspirationImagesCount ?? 0;
-  const effectiveReferences = (input.identityMode === "reference_team" || input.inputMode === "essential") && rawReferences > 0 ? 1 : rawReferences;
+  const effectiveReferences = model.id !== "wan27" && (input.identityMode === "reference_team" || input.inputMode === "essential") && rawReferences > 0 ? 1 : rawReferences;
   const segments = getAiMediaVideoSegmentDurations(quote.durationSeconds!, model.id, quote.resolution, input.sceneMode as AiMediaVideoSceneMode);
-  const referenceCount = segments.length === 1 ? effectiveReferences
-    : input.sceneMode === "multi" ? effectiveReferences * segments.length : effectiveReferences + 1;
+  const referenceCount = model.id === "wan27"
+    ? effectiveReferences * segments.length + (segments.length > 1 && input.sceneMode !== "multi" && effectiveReferences < model.maxReferenceImages ? 1 : 0)
+    : segments.length === 1 ? effectiveReferences
+      : input.sceneMode === "multi" ? effectiveReferences * segments.length : effectiveReferences + 1;
   return Math.ceil((quote.durationSeconds ?? 0) * rate * 1_000_000)
     + referenceCount * model.supplierReferenceCostMicroUsd;
 }

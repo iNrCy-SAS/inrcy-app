@@ -196,7 +196,7 @@ export default function MediaLibraryPickerModal({
     setError("");
     try {
       const params = new URLSearchParams({
-        type: typeFilter,
+        type: typeFilter === "all" ? "visual" : typeFilter,
         active: "active",
         limit: "120",
       });
@@ -220,6 +220,7 @@ export default function MediaLibraryPickerModal({
       const nextItems = Array.isArray(json?.items) ? json.items : [];
       setItems(
         nextItems.filter((item: MediaLibraryPickerItem) => {
+          if (item.media_type !== "image" && item.media_type !== "video") return false;
           if (accept !== "all" && item.media_type !== accept) return false;
           return Boolean(item?.id && item?.storage_path);
         }),

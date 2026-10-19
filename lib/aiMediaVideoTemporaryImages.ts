@@ -93,7 +93,7 @@ export async function preflightAiMediaVideoTemporaryImages(args: {
   storage?: StorageClient;
 }): Promise<void> {
   const engine = args.request.videoEngine;
-  if (engine !== "minimax-h3" && engine !== "wan-flash") return;
+  if (engine !== "minimax-h3" && engine !== "wan-flash" && engine !== "wan27") return;
   const segments = getAiMediaVideoSegmentDurations(args.request.durationSeconds ?? 8, engine, args.request.videoResolution, args.request.sceneMode);
   const needsHostedFrame = args.request.inspirationImages.length > 0 ||
     (segments.length > 1 && args.request.sceneMode !== "multi");

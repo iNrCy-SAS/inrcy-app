@@ -16,7 +16,7 @@ export function getAiMediaVideoSegmentDurations(
     !getAiMediaVideoDurations(selected, resolution, mode).includes(durationSeconds)) {
     throw new Error("ai_media_video_duration_unsupported");
   }
-  const native = getAiMediaVideoNativeDurations(selected, resolution);
+  const native = getAiMediaVideoNativeDurations(selected, resolution).filter((duration) => duration >= 4);
   if (mode === "single" && native.includes(durationSeconds)) return [durationSeconds];
   // Balanced valid halves make the two plans comparable; never invent a provider duration.
   const first = [...native].filter((value) => native.includes(durationSeconds - value))

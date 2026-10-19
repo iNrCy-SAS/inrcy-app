@@ -31,7 +31,7 @@ test("le type reste dans le header et les combinaisons durée/scènes dans le ba
   assert.match(modal, /\(\["image", "video"\] as const\)\.filter\(\(mediaType\) => !imageOnly \|\| mediaType === "image"\)\.map/);
   assert.match(modal, /studioTab === "modify" && mediaType === "video"/);
   assert.match(source, /getMediaVideoDurationChoices\(videoMaxDurationSeconds\)/);
-  assert.match(source, /canGenerateAiMediaVideoDuration\(enginePreference\.videoEngine, durationSeconds, videoResolution, videoSceneMode\)/);
+  assert.match(source, /canGenerateAiMediaVideoDuration\(selectedVideoEngine, durationSeconds, videoResolution, videoSceneMode\)/);
   assert.doesNotMatch(source, /setDurationSeconds\(\(current\)/);
   assert.match(source, /creditQuote\.insufficient/);
   assert.match(source, /!creditQuote\.ready/);
@@ -49,7 +49,7 @@ test("le Studio transmet le scénario et les choix visuels structurés sans anci
   assert.match(generation, /visualDirection,/);
   assert.match(generation, /imageStyle,/);
   assert.doesNotMatch(generation, /shotType\s*:|creativity\s*:/);
-  assert.match(generation, /videoEngine: enginePreference\.videoEngine/);
+  assert.match(generation, /videoEngine: selectedVideoEngine/);
   assert.match(generation, /\.\.\.creditQuote\.authorization/);
   assert.doesNotMatch(source, /setConnectScenes|SceneConnectionNotice/);
 });

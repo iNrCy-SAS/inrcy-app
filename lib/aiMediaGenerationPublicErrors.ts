@@ -9,6 +9,16 @@ type Explanation = {
 };
 
 export const AI_MEDIA_PUBLIC_ERROR_CATALOG = {
+  AI_MEDIA_CHARACTER_VOICE_INVALID: {
+    status: 400,
+    reason: "Un vocal de personnage est manquant, invalide ou expiré.",
+    action: "Ajoutez à nouveau le vocal concerné et utilisez Wan 2.7 en mode Personnages.",
+  },
+  AI_MEDIA_CHARACTER_VOICE_UNAVAILABLE: {
+    status: 503,
+    reason: "Le vocal d’un personnage est momentanément indisponible.",
+    action: "Réessayez dans quelques instants ou ajoutez à nouveau le vocal.",
+  },
   AI_MEDIA_QUOTA_REACHED: {
     status: 403,
     reason: "Le solde disponible ne suffit pas pour cette génération.",
@@ -334,6 +344,8 @@ export function classifyAiMediaGenerationError(error: unknown): AiMediaPublicErr
   const plain = text.replace(/[_-]+/g, " ");
   const match = (pattern: RegExp) => pattern.test(text);
   const result = (code: AiMediaPublicErrorCode) => explanation(code);
+  if (match(/\bvoice_(?:reference_(?:invalid_or_expired|missing)|audio_\w+|account_invalid)\b|ai_video_reference_voice_(?:url_missing|assignment_invalid)/)) return result("AI_MEDIA_CHARACTER_VOICE_INVALID");
+  if (match(/\bvoice_(?:storage_unavailable|reference_unavailable)\b/)) return result("AI_MEDIA_CHARACTER_VOICE_UNAVAILABLE");
   // These are iNrCy wallet/session failures, never supplier billing failures.
   if (match(/\bai_media_quota_reached\b/)) return result("AI_MEDIA_QUOTA_REACHED");
   if (match(/\bai_media_credit_quote_changed\b/)) return result("AI_MEDIA_CREDIT_QUOTE_CHANGED");

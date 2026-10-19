@@ -143,6 +143,10 @@ export async function prepareAiMediaIdentityReferences(
         ...(image.characterIndex
           ? { characterIndex: image.characterIndex }
           : {}),
+        ...(image.voiceMode ? { voiceMode: image.voiceMode } : {}),
+        ...(image.voiceMode === "provided" && image.voiceSample
+          ? { voiceSample: { ...image.voiceSample } }
+          : {}),
       })),
     };
   } catch (error) {

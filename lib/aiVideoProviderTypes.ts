@@ -180,6 +180,18 @@ export function assertAiVideoReferenceTeamProviderEgress(
 ) {
   if (args.request.identityMode !== "reference_team") return;
   if (provider === "google") return assertAiVideoReferenceTeamGoogleEgress(args);
+  // Wan R2V binds each original subject image to its own optional voice.
+  // A composed team frame would destroy that association. Keep the existing
+  // one-attempt provider consent, without pretending these were precomposed.
+  if (provider === "alibaba" && args.request.videoEngine === "wan27") {
+    if (args.identityTeamProviderEgressConsent !== "wan27") {
+      throw new Error("ai_video_reference_team_provider_consent_required");
+    }
+    if (!args.request.inspirationImages.length || args.request.inspirationImages.length > 5) {
+      throw new Error("ai_media_video_references_unsupported");
+    }
+    return;
+  }
   if (!args.identityTeamPrecomposed) throw new Error("ai_video_reference_team_precomposition_required");
   if (args.identityTeamProviderEgressConsent !== args.request.videoEngine) {
     throw new Error("ai_video_reference_team_provider_consent_required");

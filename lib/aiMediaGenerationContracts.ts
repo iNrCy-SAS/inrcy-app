@@ -3,6 +3,7 @@ import {
   type AiMediaNarrationVoiceVariant,
 } from "./aiMediaNarrationVoices.ts";
 import { INR_MEDIA_IMAGE_MAX_BYTES } from "./mediaRules.ts";
+import { normalizeAiMediaCharacterVoiceSample, hasProvidedAiMediaCharacterVoice, type AiMediaCharacterVoiceSample } from "./aiMediaCharacterVoices.ts";
 import {
   getAiMediaVideoDurations, getAiMediaVideoNativeDurations, getAiMediaVideoResolution,
   normalizeAiMediaVideoEngine, normalizeAiMediaImageEngine, isAiMediaImageModelCompatible,
@@ -115,6 +116,9 @@ export type AiMediaInspirationImage = {
   usage?: AiMediaReferenceUsage;
   /** Index stable du média Personnage ; un média peut contenir une ou plusieurs personnes. */
   characterIndex?: 1 | 2 | 3;
+  /** Vocal reference associated only with this character, independently of visual usage. */
+  voiceMode?: "ai" | "provided";
+  voiceSample?: AiMediaCharacterVoiceSample;
 };
 
 export const AI_MEDIA_INSPIRATION_MAX_COUNT = 5;
@@ -456,7 +460,7 @@ function normalizeInspirationImages(
       "Ajoutez entre une et cinq images de référence."
     );
   }
-  const normalized = values.map((candidate) => {
+  const normalized: AiMediaInspirationImage[] = values.map((candidate) => {
     const source =
       candidate && typeof candidate === "object" && !Array.isArray(candidate)
         ? (candidate as Record<string, unknown>)
@@ -525,9 +529,18 @@ function normalizeInspirationImages(
         ? "required"
         : "inspiration")) as AiMediaReferenceUsage;
     const characterIndex = Number(source?.characterIndex);
+    const rawVoiceMode = source?.voiceMode;
+    if (rawVoiceMode !== undefined && rawVoiceMode !== "ai" && rawVoiceMode !== "provided") {
+      throw new AiMediaRequestValidationError("Choix de voix du personnage invalide.");
+    }
+    const voiceSample = rawVoiceMode === "provided" ? normalizeAiMediaCharacterVoiceSample(source?.voiceSample) : null;
+    if ((rawVoiceMode === "provided" && (rawRole !== "character" || !voiceSample)) ||
+      (source?.voiceSample !== undefined && rawVoiceMode !== "provided")) {
+      throw new AiMediaRequestValidationError("Insérez un vocal valide pour chaque personnage en voix fournie.");
+    }
     if (
       rawRole === "character" &&
-      usage === "required" &&
+      (usage === "required" || rawVoiceMode === "provided") &&
       !([1, 2, 3] as number[]).includes(characterIndex)
     ) {
       throw new AiMediaRequestValidationError(
@@ -542,13 +555,15 @@ function normalizeInspirationImages(
       ...(rawRole === "character" && [1, 2, 3].includes(characterIndex)
         ? { characterIndex: characterIndex as 1 | 2 | 3 }
         : {}),
+      ...(rawRole === "character" && rawVoiceMode ? { voiceMode: rawVoiceMode } : {}),
+      ...(voiceSample ? { voiceSample } : {}),
     };
   });
 
   if (inputMode === "essential") {
     const characterIndexes = normalized
       .filter(
-        (image) => image.role === "character" && image.usage === "required"
+        (image) => image.role === "character" && (image.usage === "required" || image.voiceMode === "provided")
       )
       .map((image) => image.characterIndex);
     if (new Set(characterIndexes).size !== characterIndexes.length) {
@@ -902,6 +917,13 @@ export function normalizeAiMediaGenerationRequest(
     inputMode,
     creationMode === "free"
   );
+  const providedCharacterVoice = hasProvidedAiMediaCharacterVoice(inspirationImages);
+  if (providedCharacterVoice && (kind !== "video" || operation === "modify" || videoEngine !== "wan27")) {
+    throw new AiMediaRequestValidationError("Wan 2.7 est requis pour utiliser une voix fournie dans une vidéo.");
+  }
+  if (kind === "video" && videoEngine === "wan27" && !inspirationImages.length) {
+    throw new AiMediaRequestValidationError("Ajoutez au moins une photo de référence pour utiliser Wan 2.7.");
+  }
   if (
     operation === "modify" &&
     (inspirationImages.length !== 1 ||
@@ -1096,9 +1118,11 @@ export function normalizeAiMediaGenerationRequest(
   // d'ambiance en mode automatique reste une inspiration visuelle ordinaire.
   const strictIdentityReferenceRequested =
     identityMode !== "auto" && characterReferences.length > 0;
-  if (strictIdentityReferenceRequested && body.identityConsent !== true) {
+  if ((strictIdentityReferenceRequested || providedCharacterVoice) && body.identityConsent !== true) {
     throw new AiMediaRequestValidationError(
-      "Confirmez que chaque personne identifiable est majeure et vous a autorisé à utiliser son image."
+      providedCharacterVoice
+        ? "Confirmez que vous disposez de l’autorisation d’utiliser ces visages et ces voix."
+        : "Confirmez que chaque personne identifiable est majeure et vous a autorisé à utiliser son image."
     );
   }
   const rawTeamVideoMode =
@@ -1128,6 +1152,9 @@ export function normalizeAiMediaGenerationRequest(
     teamVideoMode === "cinematic"
       ? (rawTeamVideoSpeechMode as AiMediaTeamVideoSpeechMode)
       : "voiceover";
+  if (providedCharacterVoice && teamVideoSpeechMode !== "characters") {
+    throw new AiMediaRequestValidationError("Les voix fournies sont utilisées en mode Personnages.");
+  }
   // Les dialogues natifs Veo et une voix off synthétique ne doivent jamais se
   // superposer. En mode personnages, l'audio applicatif est neutralisé au
   // contrat, avant même de démarrer le pipeline de narration.
@@ -1217,7 +1244,7 @@ export function normalizeAiMediaGenerationRequest(
     identityMode,
     videoCharacterMode: identityMode,
     identityConsent:
-      strictIdentityReferenceRequested && body.identityConsent === true,
+      (strictIdentityReferenceRequested || providedCharacterVoice) && body.identityConsent === true,
     teamVideoMode,
     teamVideoSpeechMode,
     teamVideoVeoConsent,

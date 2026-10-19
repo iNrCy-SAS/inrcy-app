@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { purgeExpiredGeneratedAiMediaDrafts } from "@/lib/aiGeneratedMediaRegistry";
 import { purgeExpiredAiMediaProviderImages } from "@/lib/aiMediaProviderImageCleanup";
+import { purgeExpiredAiMediaCharacterVoices } from "@/lib/aiMediaCharacterVoiceStorage";
 import { purgeExpiredAiMediaCompositionObjects } from "@/lib/aiMediaCompositionRecovery";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -44,6 +45,9 @@ async function runCleanup(request: Request) {
 
   const providerImages = await purgeExpiredAiMediaProviderImages().catch(() => ({
     inspected: 0, removed: 0, errors: ["provider_temp_cleanup_failed"],
+  }));
+  const characterVoices = await purgeExpiredAiMediaCharacterVoices().catch(() => ({
+    inspected: 0, removed: 0, errors: ["voice_cleanup_failed"],
   }));
   const compositionObjects = await purgeExpiredAiMediaCompositionObjects().then(
     (removed) => ({ removed, errors: [] as string[] }),
@@ -158,6 +162,7 @@ async function runCleanup(request: Request) {
     errors,
     generatedDrafts,
     providerImages,
+    characterVoices,
     compositionObjects,
   });
 }

@@ -5544,6 +5544,32 @@
   gap: 6px;
 }
 
+.referenceCollection[data-character-voices="true"] {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 8px;
+}
+
+.referenceCollection[data-character-voices="true"] .referenceTile {
+  grid-template-rows: 48px auto auto;
+  align-content: start;
+  padding: 9px;
+  gap: 7px;
+}
+
+.characterVoiceConflict {
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid rgba(255, 188, 91, .3);
+  border-radius: 9px;
+  color: #ffdba0;
+  background: rgba(130, 76, 13, .16);
+  font-size: 11px;
+}
+
+.characterVoiceConflict p { margin: 0; }
+.characterVoiceConflict button { justify-self: start; padding: 7px 9px; border: 1px solid rgba(255, 188, 91, .3); border-radius: 8px; background: rgba(130, 76, 13, .2); color: inherit; font: inherit; cursor: pointer; }
+
 .referenceTile {
   position: relative;
   min-width: 0;

@@ -251,7 +251,7 @@ test("iNrStudio conserve ses quatre réglages en onglets avec l'aperçu sur la m
   assert.match(editorStyles, /@media\s*\(max-width:760px\)\s*\{\s*\.editorBody\s*\{[^}]*flex-direction:column/);
 });
 
-test("les références s’ajoutent immédiatement avec deux choix manuels par photo", () => {
+test("les références s’ajoutent immédiatement avec leur rôle, leur utilisation et une voix optionnelle en vidéo", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
@@ -275,7 +275,7 @@ test("les références s’ajoutent immédiatement avec deux choix manuels par p
     "Type de la référence",
     "Utilisation de la référence",
   ]);
-  for (const label of ["Personne", "Décor", "Produit", "Obligatoire", "Idée"]) {
+  for (const label of ["Personne", "Décor", "Produit", "Obligatoire", "Inspiration"]) {
     assert.match(generator, new RegExp(label));
   }
   assert.match(generator, /className=\{styles\.referenceInfo\}/);

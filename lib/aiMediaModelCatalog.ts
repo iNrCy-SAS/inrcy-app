@@ -1,9 +1,9 @@
 /** Public Studio catalogue. Provider cost estimates are USD, never credit sale prices.
- * Gateway IDs/capabilities verified on 2026-10-13 against /v1/models.
+ * Gateway IDs/capabilities verified on 2026-10-13; Wan 2.7 verified on 2026-10-19 against /v1/models.
  */
 export type AiMediaVideoEngine =
   | "omni" | "veo" | "veo-lite" | "minimax-h3"
-  | "wan-flash" | "wan3" | "grok-lite" | "grok" | "heygen";
+  | "wan-flash" | "wan27" | "wan3" | "grok-lite" | "grok" | "heygen";
 export type AiMediaImageEngine = "openai" | "gemini" | "flux" | "grok" | "recraft";
 export type AiMediaImageFormat = "square" | "portrait" | "story" | "landscape";
 export type AiMediaImageDimensions = Readonly<{ width: number; height: number }>;
@@ -105,6 +105,15 @@ export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze
     durationsSeconds: range(4, 15), maxDurationSeconds: 30, resolutions: ["720p", "1080p"], defaultResolution: "720p",
     nativeAudio: true, frenchDialogue: "to-verify", supportsTextToVideo: false, supportsImageToVideo: true,
     maxReferenceImages: 1, pricingUsdPerSecond: { "720p": 0.05, "1080p": 0.075 }, supplierReferenceCostMicroUsd: 0, referenceInputCredits: 0,
+  },
+  {
+    id: "wan27", label: "Wan 2.7 R2V", family: "Alibaba", provider: "alibaba", providerLabel: "Alibaba",
+    transport: "gateway", modelId: "alibaba/wan-v2.7-r2v",
+    description: "Personnages de référence avec voix fournie et audio synchronisé.", costTier: "premium",
+    creditsPerSecond: 10, creditsByResolution: { "720p": 10, "1080p": 15 },
+    durationsSeconds: range(2, 10), maxDurationSeconds: 20, resolutions: ["720p", "1080p"], defaultResolution: "720p",
+    nativeAudio: true, frenchDialogue: "to-verify", supportsTextToVideo: false, supportsImageToVideo: true,
+    maxReferenceImages: 5, pricingUsdPerSecond: { "720p": 0.1, "1080p": 0.15 }, supplierReferenceCostMicroUsd: 0, referenceInputCredits: 0,
   },
   {
     id: "wan3", label: "Wan 3.0", family: "Alibaba", provider: "alibaba", providerLabel: "Alibaba",
@@ -253,7 +262,7 @@ export function getAiMediaVideoNativeDurations(engine: unknown, resolution?: unk
 /** Studio duration choices use at most two native clips, each at least four seconds. */
 export function getAiMediaVideoDurations(engine: unknown, resolution?: unknown, sceneMode: AiMediaVideoSceneMode = "single"): readonly number[] {
   const model = getAiMediaVideoModel(engine);
-  const native = getAiMediaVideoNativeDurations(engine, resolution);
+  const native = getAiMediaVideoNativeDurations(engine, resolution).filter((duration) => duration >= 4);
   return range(4, model.maxDurationSeconds).filter((duration) =>
     (sceneMode === "single" && native.includes(duration)) ||
     native.some((first) => native.includes(duration - first)));

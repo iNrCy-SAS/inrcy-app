@@ -436,6 +436,10 @@ export async function generateAndSaveAiMedia(args: {
   }
   if (providerRequest.kind === "video") {
     await measure("video_transport_preflight", () => preflightAiMediaVideoTemporaryImages({ accountId: args.accountId, request: providerRequest, signal: args.signal }));
+    if (providerRequest.inspirationImages.some((image) => image.voiceMode === "provided")) {
+      const { preflightAiMediaCharacterVoices } = await import("@/lib/aiMediaCharacterVoiceStorage");
+      await measure("character_voice_preflight", () => preflightAiMediaCharacterVoices({ accountId: args.accountId, images: providerRequest.inspirationImages, signal: args.signal }));
+    }
   }
   const isFreeCreation = providerRequest.creationMode === "free";
   const activePromptVersion = isFreeCreation ? AI_MEDIA_FREE_PROMPT_VERSION : AI_MEDIA_PROMPT_VERSION;
@@ -1135,6 +1139,13 @@ export async function generateAndSaveAiMedia(args: {
     // Le préflight TTS de Grok Libre et du parcours Guidé précède les appels
     // image/vidéo. Les autres moteurs Libre conservent leur voix native.
     const generateVideoGateway = () => measure("video_generation", async () => {
+      // R2V composes the scene itself. Original images must remain separate:
+      // each character's voice reference belongs to that exact image.
+      if (providerRequest.videoEngine === "wan27") {
+        return await generateProviderVideo(providerRequest, providerRequest.identityMode === "reference_team"
+          ? { identityTeamMemberCount: preparedCharacterBuffers.length as 2 | 3 }
+          : {});
+      }
       if (
         providerRequest.inputMode === "essential" &&
         (preparedIdentityReferences.buffers.length > 0 || (isFreeCreation && officialLogo && !localDnaLogo) || needsControlledAiMediaFreeFirstFrame(providerRequest))

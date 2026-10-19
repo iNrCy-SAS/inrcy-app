@@ -226,7 +226,9 @@ export function buildAiMediaFreeReferenceInstructions(request: AiMediaGeneration
           : role === "environment"
             ? "respecter le lieu et ses éléments reconnaissables."
             : "respecter les éléments pertinents pour la demande."
-      : "retenir l'ambiance, le style ou la composition utiles au brief, sans recopier une identité ni imposer le sujet du fichier."}`;
+      : "retenir l'ambiance, le style ou la composition utiles au brief, sans recopier une identité ni imposer le sujet du fichier."}${role === "character" && reference.voiceMode
+        ? ` Voix du personnage ${reference.characterIndex || index + 1} : ${reference.voiceMode === "provided" ? "utiliser uniquement son propre échantillon vocal fourni" : "voix IA"}.`
+        : ""}`;
   }).join("\n");
 }
 
@@ -316,7 +318,9 @@ export function buildAiMediaFreeVideoPrompt(args: AiMediaPromptBuilderArgs) {
     `Format autoritaire ${spec.aspectRatio}, durée totale ${args.request.durationSeconds || 8} secondes.`,
     `Scènes : ${args.request.sceneMode !== "multi" ? "une action continue dans un même décor, sans coupe ni changement de lieu entre les segments" : "exactement deux plans distincts et cohérents"}. Les personnages, décors, style, mouvements, transitions et textes proviennent du brief.`,
     args.request.teamVideoSpeechMode === "characters"
-      ? "Les personnages parlent avec des voix synthétiques naturelles synchronisées à leurs mouvements de bouche. Respecter les répliques demandées, un locuteur à la fois, sans narrateur ajouté ni clonage de voix réelle."
+      ? args.request.inspirationImages.some((image) => image.voiceMode === "provided" && image.voiceSample)
+        ? "Les personnages parlent avec la voix de leur échantillon lorsqu’il est fourni ; les autres utilisent une voix IA naturelle. Chaque voix reste associée à son propre personnage, avec synchronisation labiale. Respecter les répliques demandées, un locuteur à la fois, sans narrateur ajouté."
+        : "Les personnages parlent avec des voix synthétiques naturelles synchronisées à leurs mouvements de bouche. Respecter les répliques demandées, un locuteur à la fois, sans narrateur ajouté ni clonage de voix réelle."
       : args.request.withNarration
       ? usesSeparateAiMediaFreeVoiceover(args.request)
         ? "La voix off est produite séparément puis ajoutée au film. Le moteur visuel crée uniquement l’action et son ambiance ; les personnages ne parlent pas pour cette narration."
@@ -351,6 +355,7 @@ export function buildAiMediaFreeVideoScenePrompt(
 ) {
   const scene = args.plan.scenes[index];
   const nativeDialogue = args.request.teamVideoSpeechMode === "characters";
+  const hasProvidedVoice = args.request.inspirationImages.some((image) => image.voiceMode === "provided" && image.voiceSample);
   const nativeVoiceover = !nativeDialogue && args.request.withNarration && !usesSeparateAiMediaFreeVoiceover(args.request);
   const nativeNarrationLines = args.nativeNarrationLines;
   const spokenLine = nativeDialogue ? resolveAiMediaFreeDialogueSequence(args)[index] : "";
@@ -384,7 +389,7 @@ export function buildAiMediaFreeVideoScenePrompt(
     "Animate naturally from the first frame in the requested medium. Keep cast, objects and style consistent across shots.",
     nativeDialogue
       ? spokenLine
-        ? `NATIVE DIALOGUE: the speaker identified in THIS SHOT says exactly once: “${spokenLine}” Synchronize the mouth and audible speech; finish before the shot ends, then remain silent. One speaker at a time, stable distinct synthetic voices. Never clone an actual person's voice. No narrator, repeated/previous lines or music.`
+        ? `NATIVE DIALOGUE: the speaker identified in THIS SHOT says exactly once: “${spokenLine}” Synchronize the mouth and audible speech; finish before the shot ends, then remain silent. One speaker at a time, ${hasProvidedVoice ? "use each supplied reference voice only for its associated character; use stable distinct AI voices for characters without a supplied sample" : "stable distinct synthetic voices. Never clone an actual person's voice"}. No narrator, repeated/previous lines or music.`
         : "NATIVE DIALOGUE: no speech in this shot; keep mouths closed. The requested lines belong to other shots; never repeat them. No narrator, lyrics or music."
       : nativeVoiceover
         ? narrationLine

@@ -372,7 +372,7 @@ test("Sélection distingue IA libre, IA avec critères et inspiration libre", ()
   ]) {
     assertGeneratorUsesLabel(label);
   }
-  for (const label of ["Personne", "Décor", "Produit", "Obligatoire", "Idée"]) {
+  for (const label of ["Personne", "Décor", "Produit", "Obligatoire", "Inspiration"]) {
     assert.match(generatorSource, new RegExp(label));
   }
   assert.match(generatorSource, /usage:\s*"required"\s*\|\s*"inspiration"/);

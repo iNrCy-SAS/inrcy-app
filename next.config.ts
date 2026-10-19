@@ -76,6 +76,10 @@ const nextConfig: NextConfig = {
     "/api/media-generation/**/*": aiMediaGenerationRuntimeFiles,
     "/api/media-pipeline/**/*": sharpRuntimeFiles,
     "/api/media-library/**/*": sharpRuntimeFiles,
+    "/api/media-library/upload": [
+      ...sharpRuntimeFiles,
+      "node_modules/ffmpeg-static/**/*",
+    ],
     "/api/media/tiktok": sharpRuntimeFiles,
     "/api/admin/image-bank/upload": sharpRuntimeFiles,
     "/api/inrsend/**/*": sharpRuntimeFiles,

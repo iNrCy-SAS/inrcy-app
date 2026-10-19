@@ -266,6 +266,7 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url);
   const type = cleanText(url.searchParams.get("type"), 20) || "all";
+  const includeAudio = ["true", "1"].includes(url.searchParams.get("includeAudio") || "");
   const active = cleanText(url.searchParams.get("active"), 20) || "active";
   const q = cleanText(url.searchParams.get("q"), 120);
   const mediaId = cleanText(url.searchParams.get("id"), 80);
@@ -284,7 +285,10 @@ export async function GET(request: NextRequest) {
     .limit(fetchLimit);
 
   if (mediaId) query = query.eq("id", mediaId);
-  if (type === "image" || type === "video") query = query.eq("media_type", type);
+  if (type === "audio" && !includeAudio) return jsonError("La sélection audio doit être demandée explicitement.", 400);
+  if (type === "image" || type === "video" || type === "audio") query = query.eq("media_type", type);
+  else if (!includeAudio || type === "visual") query = query.in("media_type", ["image", "video"]);
+  else query = query.in("media_type", ["image", "video", "audio"]);
   if (active === "active") query = query.eq("is_active", true);
   else if (active === "inactive") query = query.eq("is_active", false);
 
@@ -314,7 +318,7 @@ export async function GET(request: NextRequest) {
     : rawRows
   ).slice(0, limit);
 
-  const mediaIds = rows.map((row: any) => String(row.id || "")).filter(Boolean);
+  const mediaIds = rows.filter((row: any) => row.media_type !== "audio").map((row: any) => String(row.id || "")).filter(Boolean);
   const optimizationByMediaId = new Map<string, Record<string, unknown>>();
   if (mediaIds.length) {
     const jobs = await supabaseAdmin
@@ -366,6 +370,7 @@ export async function GET(request: NextRequest) {
     total: rows.length,
     images: rows.filter((row: any) => row.media_type === "image").length,
     videos: rows.filter((row: any) => row.media_type === "video").length,
+    audios: rows.filter((row: any) => row.media_type === "audio").length,
     total_bytes: rows.reduce((sum: number, row: any) => sum + Number(row.size_bytes || 0), 0),
   };
 

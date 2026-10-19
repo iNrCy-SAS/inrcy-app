@@ -24,6 +24,8 @@ type Props = {
   onDurationSceneChange?: (seconds: number, mode: AiMediaVideoSceneMode) => void;
   recommendation?: AiMediaModelRecommendation | null;
   brief?: string;
+  requiredVideoEngine?: AiMediaVideoEngine;
+  requiredVideoEngineReason?: string;
   disabled: boolean;
   onVideoEngineChange: (engine: AiMediaVideoEngine, resolution?: AiMediaVideoResolution) => void;
   onImageEngineChange: (engine: AiMediaImageEngine) => void;
@@ -172,6 +174,7 @@ export default function MediaEngineCreditControls(props: Props) {
     return "";
   };
   const videoCompatibilityReason = (engine: AiMediaVideoEngine) => {
+    if (props.requiredVideoEngine && engine !== props.requiredVideoEngine) return props.requiredVideoEngineReason || "";
     const option = getAiMediaVideoModel(engine);
     if (props.referenceCount === 0 && !option.supportsTextToVideo) return t("ai_generator_model_photo_required");
     if (props.referenceCount > 0 && !option.supportsImageToVideo) return t("ai_generator_model_text_only");
@@ -196,13 +199,14 @@ export default function MediaEngineCreditControls(props: Props) {
   }, [props.kind, props.videoEngine, selectedResolution, maximumDuration, duration, sceneMode, changeDurationScene]);
   const choices = getMediaVideoEngineQualityChoices();
   const pairSelectable = (engine: AiMediaVideoEngine, resolution: AiMediaVideoResolution) =>
-    getAiMediaVideoModel(engine).resolutions.includes(resolution) && isMediaVideoReferenceCompatible(engine, props.referenceCount) && isMediaVideoBriefCompatible(engine, props.brief ?? "");
-  const selectable = (engine: AiMediaVideoEngine) => isMediaVideoReferenceCompatible(engine, props.referenceCount) && isMediaVideoBriefCompatible(engine, props.brief ?? "");
+    (!props.requiredVideoEngine || engine === props.requiredVideoEngine) && getAiMediaVideoModel(engine).resolutions.includes(resolution) && isMediaVideoReferenceCompatible(engine, props.referenceCount) && isMediaVideoBriefCompatible(engine, props.brief ?? "");
+  const selectable = (engine: AiMediaVideoEngine) => (!props.requiredVideoEngine || engine === props.requiredVideoEngine) && isMediaVideoReferenceCompatible(engine, props.referenceCount) && isMediaVideoBriefCompatible(engine, props.brief ?? "");
   const recommended = (props.kind === "video" ? AI_MEDIA_VIDEO_MODELS : AI_MEDIA_IMAGE_MODELS).find((option) => option.id === props.recommendation?.engine);
   const recommendedPairs = choices.filter((choice) => choice.engine === props.recommendation?.engine && pairSelectable(choice.engine, choice.resolution));
   const recommendedPair = recommendedPairs.find((choice) => choice.resolution === getAiMediaVideoModel(choice.engine).defaultResolution) ??
     recommendedPairs.sort((first, second) => first.creditsPerSecond - second.creditsPerSecond)[0];
   const selectDescription = [
+    props.requiredVideoEngineReason,
     videoCompatibilityReason(props.videoEngine),
     recommended && props.recommendation ? t("ai_generator_model_recommendation", { model: recommended.label, reason: t(`ai_generator_model_recommendation_${props.recommendation.reason}`) }) : "",
   ].filter(Boolean).join(" ");
@@ -248,6 +252,7 @@ export default function MediaEngineCreditControls(props: Props) {
       <span className={styles.visuallyHidden} role="status" aria-live="polite">{durationNotice}</span>
     </div> : null}
     {props.kind === "video" ? <>
+      {props.requiredVideoEngine && props.requiredVideoEngineReason ? <p className={styles.notice} role="status">{props.requiredVideoEngineReason}</p> : null}
       {!compatible ? <p className={styles.notice} role="status">{t(props.referenceCount === 0 && !model.supportsTextToVideo ? "ai_generator_model_photo_required" : !model.supportsImageToVideo ? "ai_generator_model_text_only" : "ai_generator_model_reference_limit", { count: model.maxReferenceImages })}</p> : null}
       {!isMediaVideoBriefCompatible(props.videoEngine, props.brief ?? "") ? <p className={styles.notice} role="status">{t("ai_generator_engine_brief_too_long")}</p> : null}
     </> : null}

@@ -17,10 +17,12 @@ test("engine selection preserves the duration and uses a compatible native resol
   assert.equal(getCompatibleMediaVideoResolution("veo", 17, "720p"), null);
   assert.equal(getCompatibleMediaVideoResolution("minimax-h3", 25, "720p"), "768p");
   assert.equal(getCompatibleMediaVideoResolution("wan3", 30, "1080p"), "1080p");
+  assert.equal(getCompatibleMediaVideoResolution("wan27", 20, "1080p"), "1080p");
+  assert.equal(getCompatibleMediaVideoResolution("wan27", 21, "720p"), null);
 });
 
 test("two-scene choices require two clips of at least four seconds", () => {
-  for (const engine of ["omni", "veo", "minimax-h3", "wan3", "grok-lite"] as const) {
+  for (const engine of ["omni", "veo", "minimax-h3", "wan27", "wan3", "grok-lite"] as const) {
     assert.equal(getCompatibleMediaVideoResolution(engine, 7, "720p", "multi"), null);
     assert.ok(getCompatibleMediaVideoResolution(engine, 8, "720p", "multi"));
   }
@@ -28,7 +30,7 @@ test("two-scene choices require two clips of at least four seconds", () => {
 
 test("the single dropdown contains only real engine/resolution pairs and their exact credit rates", () => {
   const choices = getMediaVideoEngineQualityChoices();
-  assert.equal(choices.length, 16);
+  assert.equal(choices.length, 18);
   assert.equal(new Set(choices.map((choice) => choice.value)).size, choices.length);
   for (const choice of choices) {
     const model = getAiMediaVideoModel(choice.engine);
@@ -38,6 +40,12 @@ test("the single dropdown contains only real engine/resolution pairs and their e
   assert.deepEqual(choices.filter((choice) => choice.engine === "omni").map((choice) => choice.resolution), ["720p"]);
   assert.deepEqual(choices.filter((choice) => choice.engine === "minimax-h3").map((choice) => choice.resolution), ["768p"]);
   assert.deepEqual(choices.filter((choice) => choice.engine === "grok-lite").map((choice) => choice.creditsPerSecond), [3, 14]);
+  assert.deepEqual(choices.filter((choice) => choice.engine === "wan27").map((choice) => ({
+    resolution: choice.resolution, creditsPerSecond: choice.creditsPerSecond,
+  })), [
+    { resolution: "720p", creditsPerSecond: 10 },
+    { resolution: "1080p", creditsPerSecond: 15 },
+  ]);
   assert.deepEqual(choices.filter((choice) => choice.engine === "heygen").map((choice) => ({
     resolution: choice.resolution, creditsPerSecond: choice.creditsPerSecond,
   })), [

@@ -1,0 +1,50 @@
+.voice {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(150, 178, 228, .15);
+}
+
+.voice > label {
+  color: #d4def3;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.voice > select {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid rgba(150, 178, 228, .24);
+  border-radius: 9px;
+  color: #e7f1ff;
+  background: #18243f;
+  font: inherit;
+  font-size: 11px;
+}
+
+.sample { display: grid; gap: 8px; min-width: 0; }
+.sample small { color: #aebfdd; font-size: 10px; line-height: 1.45; }
+.sample .fileName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sample audio { display: block; width: 100%; min-width: 0; height: 34px; color-scheme: dark; }
+.fileInput { display: none; }
+.actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.recorder { display: grid; gap: 9px; padding: 9px; border: 1px solid rgba(150, 178, 228, .22); border-radius: 9px; background: rgba(9, 17, 37, .36); }
+.actions button { padding: 7px 9px; border: 1px solid rgba(113, 183, 238, .3); border-radius: 8px; background: rgba(48, 111, 164, .18); color: #d9f3ff; font: inherit; font-size: 10px; cursor: pointer; }
+.actions button:disabled, .voice > select:disabled { opacity: .6; cursor: default; }
+.sample .error { color: #ffc4c4; }
+.voice :is(button, select):focus-visible { outline: 2px solid #7ce4ff; outline-offset: 3px; }
+.libraryDialog { width: min(560px, calc(100vw - 32px)); max-height: 80dvh; overflow: auto; padding: 20px; border: 1px solid #536a9a; border-radius: 16px; background: #101d37; color: #e7f1ff; color-scheme: dark; }
+.libraryDialog::backdrop { background: rgba(0, 6, 20, .75); }
+.libraryHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.libraryHeader h3 { margin: 0; }
+.libraryDialog button { min-height: 36px; padding: 6px 12px; border: 1px solid #617ba8; border-radius: 8px; background: #263f68; color: inherit; cursor: pointer; }
+.libraryDialog button:disabled { opacity: .5; cursor: default; }
+.libraryDialog p { font-size: 13px; color: #b8c8e7; }
+.libraryList { display: grid; gap: 12px; margin: 16px 0; }
+.libraryItem { display: grid; gap: 8px; padding: 12px; border: 1px solid #344b72; border-radius: 10px; }
+.libraryItem strong { overflow-wrap: anywhere; }
+.libraryItem audio { width: 100%; height: 36px; }

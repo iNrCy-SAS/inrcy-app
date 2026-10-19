@@ -12,6 +12,8 @@ import {
 } from "@/lib/aiMediaGenerationContracts";
 import { normalizeAiMediaVideoEngine, type AiMediaVideoEngine, type AiMediaImageEngine } from "@/lib/aiMediaModelCatalog";
 import { AI_MEDIA_GENERATION_STREAM_TYPE, readAiMediaGenerationResponse } from "@/lib/aiMediaGenerationTransport";
+import type { AiMediaCharacterVoiceSample } from "@/lib/aiMediaCharacterVoices";
+import { getCharacterVoiceSelectionState, isProvidedCharacterVoice } from "@/lib/aiMediaCharacterVoiceClient";
 import {
   createAiMediaRecoveryStorage, clearAiMediaGenerationRecovery, clearAiMediaGenerationRecoveryForMedia, readAiMediaGenerationRecovery, writeAiMediaGenerationRecovery,
   type AiMediaGenerationRecoveryPointer,
@@ -125,6 +127,8 @@ export type MediaGenerationInspirationImage = {
   role?: MediaGenerationReferenceRole;
   usage?: MediaGenerationReferenceUsage;
   characterIndex?: 1 | 2 | 3;
+  voiceMode?: "ai" | "provided";
+  voiceSample?: AiMediaCharacterVoiceSample;
 };
 
 function characterReferenceCount(
@@ -149,9 +153,10 @@ function hasStrictIdentityReferences(request: MediaGenerationRequest) {
   const identityMode =
     request.identityMode || request.videoCharacterMode || "auto";
   return (
-    request.peopleMode !== "none" &&
+    (request.kind === "video" && (request.inspirationImages || []).some((image) => isProvidedCharacterVoice(image) && image.voiceSample)) ||
+    (request.peopleMode !== "none" &&
     identityMode !== "auto" &&
-    characterReferenceCount(request.inspirationImages, identityMode) > 0
+    characterReferenceCount(request.inspirationImages, identityMode) > 0)
   );
 }
 
@@ -645,6 +650,8 @@ function buildGenerationAttemptKey(
       role: image.role || null,
       usage: image.usage || null,
       characterIndex: image.characterIndex || null,
+      voiceMode: request.kind === "video" && image.role === "character" ? image.voiceMode || "ai" : null,
+      voiceSamplePath: request.kind === "video" && isProvidedCharacterVoice(image) ? image.voiceSample?.path || null : null,
     })),
     source: request.source,
   });
@@ -929,6 +936,12 @@ export default function useMediaGeneration() {
       if (!mountedRef.current) throw new MediaGenerationAccountChangedError();
       if (generationAbortRef.current) throw new Error("Une génération est déjà en cours.");
       if (pendingRecoveryRef.current && !recoveryPointer) throw new Error("Récupérez le résultat de la tentative précédente avant de générer un autre média.");
+      if (request.kind === "video") {
+        const voiceSelection = getCharacterVoiceSelectionState(request.inspirationImages || []);
+        if (voiceSelection.missingSample) throw new Error("Insérez un vocal pour chaque personnage en voix fournie.");
+        if (voiceSelection.requiresWan27 && request.teamVideoSpeechMode !== "characters") throw new Error("Les voix fournies sont utilisées en mode Personnages.");
+        if (voiceSelection.requiresWan27 && request.videoEngine !== "wan27") throw new Error("Wan 2.7 requis pour utiliser une voix fournie.");
+      }
       if (request.creationMode === "free") {
         const freePrompt = String(request.freePrompt || "").trim();
         if (freePrompt.length < 3 || freePrompt.length > AI_MEDIA_FREE_PROMPT_MAX_CHARS) {
@@ -1408,6 +1421,8 @@ export default function useMediaGeneration() {
                   role: image.role,
                   usage: image.usage,
                   characterIndex: image.characterIndex,
+                  voiceMode: request.kind === "video" && image.role === "character" ? image.voiceMode || "ai" : undefined,
+                  voiceSample: request.kind === "video" && isProvidedCharacterVoice(image) ? image.voiceSample : undefined,
                 }))
               : undefined,
             source: request.source,

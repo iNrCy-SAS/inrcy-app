@@ -215,6 +215,9 @@ function generationFingerprint(request: AiMediaGenerationRequest) {
       role: image.role || null,
       usage: image.usage || null,
       characterIndex: image.characterIndex || null,
+      ...(image.voiceMode === "provided" && image.voiceSample ? {
+        voiceMode: "provided", voiceReferencePath: image.voiceSample.path,
+      } : {}),
     })),
     source: request.source,
   });
