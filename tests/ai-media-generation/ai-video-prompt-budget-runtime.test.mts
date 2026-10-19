@@ -65,6 +65,35 @@ function loadPromptRuntime() {
 
 const runtime = loadPromptRuntime();
 
+test("a divination cabinet keeps its actual profession in guided video without becoming a healthcare practice", () => {
+  const scenePrompt = (profession: string, idea: string) => {
+    const args = longBrief("fr", "auto", "landscape", "voiceover");
+    args.profession = profession;
+    args.request.subjectSource = "profile";
+    args.request.creationMode = "guided";
+    args.request.idea = idea;
+    args.request.aiInstruction = "Montrer un échange calme entre deux personnes adultes dans le lieu décrit.";
+    args.request.inspirationImages = [];
+    args.creativeBrief = idea;
+    args.plan = { companyName: "Cabinet exemple", headline: "La consultation", cta: "Découvrez la pratique", scenes: [{ ...args.plan.scenes[0], title: "La consultation", body: "Un échange professionnel.", visualBrief: idea, spokenLine: "" }] };
+    return runtime.buildGoogleVideoScenePrompt(args, 0, 8);
+  };
+  for (const profession of ["Voyant / Voyante", "Médium", "Tarologue", "Cartomancien / Cartomancienne", "Astrologue", "Numérologue", "Chiromancien / Chiromancienne", "Radiesthésiste divinatoire", "Cabinet de voyance"]) {
+    const idea = "Présentation d’un cabinet de voyance, avec une table et un jeu de cartes.";
+    const prompt = scenePrompt(profession, idea);
+    assert.ok(prompt.includes(idea));
+    assert.doesNotMatch(prompt, /Professional healthcare context|adult patient|qualified adult professional/, profession);
+  }
+  for (const [profession, idea] of [
+    ["Dentiste", "Présentation d’un cabinet dentaire et de son praticien."],
+    ["Médecin généraliste", "Présentation d’un cabinet médical et de son praticien."],
+    ["Cabinet médical proposant aussi des ateliers d’astrologie", "Présentation du cabinet médical."],
+    ["Médecin généraliste", "Présentation du cabinet avec un livre d’astrologie sur une étagère."],
+    ["Voyant / Voyante", "Montrer un cabinet médical dans une clinique."],
+    ["Médium", "Montrer un cabinet dentaire et son praticien."],
+  ]) assert.match(scenePrompt(profession, idea), /Professional healthcare context/, `${profession}: ${idea}`);
+});
+
 test("real Agent requests fit the video prompt budget in every format and creative mix", () => {
   const shortIdea="Une consultation de voyance dans un cadre accueillant et professionnel.";
   const longIdea=(shortIdea+Array.from({length:30},(_,i)=>` Étape ${i+1} : montrer une consultation calme, les cartes sur la table, une lumière chaleureuse et des gestes naturels.`).join("")).slice(0,2000);

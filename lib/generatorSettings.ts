@@ -57,6 +57,7 @@ const SECTOR_RECOMMENDATIONS: Record<
   services_particuliers: { avgBasket: 180, conversionRate: 30 },
   transport: { avgBasket: 300, conversionRate: 25 },
   tourisme: { avgBasket: 180, conversionRate: 28 },
+  voyance_arts_divinatoires: DEFAULT_GENERATOR_SETTINGS,
   autre: DEFAULT_GENERATOR_SETTINGS,
 };
 

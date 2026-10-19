@@ -854,5 +854,10 @@ export function getTemplates(
     if (dedicated.length) return sortTemplatesByIntelligentContext(dedicated, effectiveContext);
   }
 
-  return sortTemplatesByIntelligentContext(scoped.filter((t) => !t.professionKey), effectiveContext);
+  const generic = scoped.filter((t) => !t.professionKey);
+  // This sector has its own consultation copy. Generic result/urgent-service
+  // templates would reintroduce claims its dedicated variants deliberately avoid.
+  const divinationSectorTemplates = sectorCategory === "voyance_arts_divinatoires"
+    ? generic.filter((t) => t.sectorCategory === sectorCategory) : [];
+  return sortTemplatesByIntelligentContext(divinationSectorTemplates.length ? divinationSectorTemplates : generic, effectiveContext);
 }

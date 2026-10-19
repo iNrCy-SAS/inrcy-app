@@ -26,6 +26,7 @@ export const ACTIVITY_SECTOR_OPTIONS = [
   { value: 'juridique', label: 'Juridique' },
   { value: 'loisirs_sport', label: 'Loisirs / Sport' },
   { value: 'medecine_douce', label: 'Médecine douce' },
+  { value: 'voyance_arts_divinatoires', label: 'Voyance / Arts divinatoires' },
   { value: 'sante', label: 'Santé' },
   { value: 'securite', label: 'Sécurité' },
   { value: 'plateformes_numeriques', label: 'Plateformes & services numériques' },
@@ -78,11 +79,33 @@ function inferBeautyProductSector(value: string): ActivitySectorCategory | null 
   return 'beaute_bien_etre';
 }
 
+/** Infer a practitioner's main trade, never a client's activity or an unrelated meaning of "medium"/"voyant". */
+function inferDivinationSector(value: string): ActivitySectorCategory | null {
+  const normalized = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  if (!/\b(?:voyant|voyante|voyance|medium|mediumnite|tarologue|tarologie|tarot|taromancien|taromancienne|cartomancien|cartomancienne|cartomancie|astrologue|astrologie|astrologique|numerologue|numerologie|numerologique|chiromancien|chiromancienne|chiromancie|radiesthesiste|radiesthesie|divinatoire|divinatoires)\b/.test(normalized)) return null;
+  if (/\b(?:radiesthesiste|radiesthesie)\b/.test(normalized) &&
+    !/\b(?:voyance|mediumnite|tarologie|cartomancie|astrologie|numerologie|chiromancie|divinatoire|divinatoires)\b/.test(normalized)) return null;
+  if (/\bmedium\b/.test(normalized) && /\b(?:taille|size|format|bois|mdf|panneau|panneaux|densite|peinture|acrylique|artistique|materiau|materiaux)\b/.test(normalized) &&
+    !/\b(?:voyance|mediumnite|divinatoire|divinatoires)\b/.test(normalized)) return null;
+  if (/\bvoyant\b/.test(normalized) && /\b(?:lumineux|led|moteur|automobile|tableau de bord|signalisation)\b/.test(normalized) && !/\bvoyance\b/.test(normalized)) return null;
+  const primary = normalized.replace(/^(?:je suis|nous sommes|un|une|le|la|les|mon|ma|notre)\s+/, '');
+  if (/^(?:ecole privee|cours particuliers)\b/.test(primary)) return 'education_enfance';
+  if (/^(?:ecole|enseignement|formation|formateur|formatrice|professeur|enseignant|enseignante|cours)\b|^(?:centre|organisme|institut) de (?:formation|enseignement)\b/.test(primary)) return 'formation_enseignement';
+  if (/^(?:medium)\b/.test(primary) && /\b(?:taille|size|format|bois|mdf|panneau|panneaux|densite|peinture|acrylique|artistique|materiau|materiaux)\b/.test(primary)) return null;
+  if (/^(?:voyant|voyante)\b/.test(primary) && /\b(?:lumineux|lumineuse|led|moteur|automobile|tableau de bord|temoin|controle|signalisation)\b/.test(primary)) return null;
+  const practitioner = /^(?:(?:cabinet|consultation|consultations) (?:de |d |en )?)?(?:voyant|voyante|voyance|medium|mediumnite|tarologue|tarologie|tarot|taromancien|taromancienne|cartomancien|cartomancienne|cartomancie|astrologue|astrologie|astrologique|numerologue|numerologie|numerologique|chiromancien|chiromancienne|chiromancie)\b/.test(primary) ||
+    /^(?:consultant|consultante|conseiller|conseillere) (?:en )?(?:voyance|arts divinatoires|astrologie|numerologie|cartomancie|tarologie|chiromancie)\b/.test(primary) ||
+    /^(?:radiesthesiste|radiesthesie|pendule)\b.{0,35}\bdivinatoire\b/.test(primary) || /^consultation au pendule divinatoire\b/.test(primary) || /^arts divinatoires\b/.test(primary);
+  return practitioner ? 'voyance_arts_divinatoires' : null;
+}
+
 export function inferSectorCategoryFromProfession(input?: string | null): ActivitySectorCategory {
   const value = String(input || '').toLowerCase();
   if (!value) return DEFAULT_ACTIVITY_SECTOR;
 
   if (/(économie sociale et solidaire|economie sociale et solidaire|économie sociale & solidaire|economie sociale & solidaire|\bess\b|association loi 1901|association d’intérêt général|association d'interet general|organisme d’intérêt général|organisme d'interet general|coopérative|cooperative|\bscop\b|\bscic\b|entreprise sociale|entreprise solidaire|\besus\b|utilité sociale|utilite sociale|fintech mutualiste|holding fintech mutualiste|finance solidaire|finance à impact|finance a impact|financement mutualiste|inclusion financière|inclusion financiere|investissement à impact|investissement a impact|impact investing|infrastructure mutualiste|structure d’insertion|structure d'insertion|\bsiae\b|atelier chantier d’insertion|atelier chantier d'insertion|entreprise d’insertion|entreprise d'insertion|association intermédiaire|association intermediaire|\besat\b|entreprise adaptée|entreprise adaptee|mutuelle|fondation|fonds de dotation|ressourcerie|recyclerie|centre social|tiers[- ]lieu solidaire|\bong\b|solidarité internationale|solidarite internationale)/.test(value) || /^\s*association\s*$/.test(value)) return 'economie_sociale_solidaire';
+  const divinationSector = inferDivinationSector(value);
+  if (divinationSector) return divinationSector;
   const beautyProductSector = inferBeautyProductSector(value);
   if (beautyProductSector) return beautyProductSector;
   if (/(bois de chauffage|bûche|buche|stère|stere|granulé|granule|exploitant forestier|exploitation forestière|exploitation forestiere|travaux forestiers|débardage|debardage|scierie|négoce de bois|negoce de bois|bois sur pied|coupe forestière|coupe forestiere)/.test(value)) return 'bois_foret';

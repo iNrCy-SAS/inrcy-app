@@ -16,6 +16,7 @@ import { beaute_bien_etreTemplates, buildBeauteBienEtreJobTemplates } from './be
 import { santeTemplates, buildSanteJobTemplates } from './sante';
 import { securiteTemplates, buildSecuriteJobTemplates } from './securite';
 import { medecine_douceTemplates, buildMedecineDouceJobTemplates } from './medecine_douce';
+import { voyance_arts_divinatoiresTemplates, buildVoyanceArtsDivinatoiresJobTemplates, createVoyanceSectorTemplates } from './voyance_arts_divinatoires';
 import { immobilierTemplates, buildImmobilierJobTemplates } from './immobilier';
 import { services_particuliersTemplates, buildServicesParticuliersJobTemplates } from './services_particuliers';
 import { services_entreprisesTemplates, buildServicesEntreprisesJobTemplates } from './services_entreprises';
@@ -53,6 +54,7 @@ export const SECTOR_TEMPLATE_DEFINITIONS: Record<string, SectorTemplateDefinitio
   sante: santeTemplates,
   securite: securiteTemplates,
   medecine_douce: medecine_douceTemplates,
+  voyance_arts_divinatoires: voyance_arts_divinatoiresTemplates,
   immobilier: immobilierTemplates,
   industrie: industrieTemplates,
   services_particuliers: services_particuliersTemplates,
@@ -79,7 +81,8 @@ export function buildSectorTemplates(): TemplateDef[] {
   const out: TemplateDef[] = [];
   for (const option of ACTIVITY_SECTOR_OPTIONS) {
     const definition = SECTOR_TEMPLATE_DEFINITIONS[option.value];
-    if (definition) out.push(...createSectorTemplates(definition));
+    if (definition) out.push(...(option.value === 'voyance_arts_divinatoires'
+      ? createVoyanceSectorTemplates(definition) : createSectorTemplates(definition)));
     switch (option.value) {
       case 'agriculture_producteurs':
         out.push(...buildAgricultureProducteursJobTemplates());
@@ -125,6 +128,9 @@ export function buildSectorTemplates(): TemplateDef[] {
         break;
       case 'medecine_douce':
         out.push(...buildMedecineDouceJobTemplates());
+        break;
+      case 'voyance_arts_divinatoires':
+        out.push(...buildVoyanceArtsDivinatoiresJobTemplates());
         break;
       case 'immobilier':
         out.push(...buildImmobilierJobTemplates());

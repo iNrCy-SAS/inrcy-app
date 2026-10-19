@@ -492,7 +492,7 @@ function subjectDigitalDirection(value: string) {
     : "";
 }
 
-function subjectSafetyDirection(value: string) {
+function subjectSafetyDirection(value: string, profession: string) {
   const normalized = value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -512,10 +512,19 @@ function subjectSafetyDirection(value: string) {
   ) {
     return "Professional beauty service only: clearly adult client and practitioner, normal salon clothing or modest treatment coverage, no intimate body area and no sexualized pose";
   }
+  const primaryProfession = profession
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase()
+    .replace(/^\s*\[\[sector:voyance_arts_divinatoires\]\]\s*/, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  const divinationProfession = /^(?:(?:cabinet|consultations?) (?:de |d )?)?(?:voyant(?: voyante)?|voyante|voyance|medium|mediumnite|tarologue|cartomancien(?: cartomancienne)?|cartomancienne|astrologue|numerologue|chiromancien(?: chiromancienne)?|chiromancienne|radiesthesiste divinatoire)$/.test(primaryProfession);
+  const explicitHealthcare = /\b(medecin|medical|sante|clinique|kine|physiotherapie|osteopath|dentiste|dentaire|infirmier)\b/.test(normalized);
   if (
     /\b(medecin|medical|sante|clinique|cabinet|kine|physiotherapie|osteopath|dentiste|infirmier)\b/.test(
       normalized,
-    )
+    ) && (!divinationProfession || explicitHealthcare)
   ) {
     return "Professional healthcare context only: clearly adult patient and qualified adult professional, modest clothing, non-graphic routine care, no injury detail, blood or invasive procedure";
   }
@@ -764,7 +773,7 @@ export function buildGoogleVideoScenePrompt(
   );
   const visualEvidence = subjectVisualEvidence(rawContext);
   const digitalDirection = subjectDigitalDirection(rawContext);
-  const safetyDirection = subjectSafetyDirection(rawContext);
+  const safetyDirection = subjectSafetyDirection(rawContext, customSubject ? "" : args.profession);
   const businessContext = customSubject ? "" : adultSafePromptText(args.creativeBrief, 180);
   const sceneDirection = adultSafePromptText(
     customSubject ? providerContract.instruction || providerContract.subject : scene?.visualBrief,

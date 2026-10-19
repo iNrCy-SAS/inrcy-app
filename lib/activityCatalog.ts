@@ -374,6 +374,19 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
       sophrologue: { label: 'Sophrologue', services: ['Gestion stress', 'Sommeil', 'Préparation examen', 'Confiance en soi', 'Burn-out', 'Séance individuelle', 'Atelier', 'Respiration'] },
     },
   },
+  voyance_arts_divinatoires: {
+    label: 'Voyance / Arts divinatoires',
+    jobs: {
+      voyant: { label: 'Voyant / Voyante', services: ['Consultation de voyance', 'Consultation à distance', 'Consultation par téléphone', 'Consultation par visioconférence', 'Questions personnelles', 'Échange professionnel', 'Présentation de la pratique', 'Informations et tarifs'] },
+      medium: { label: 'Médium', services: ['Consultation de médiumnité', 'Échange individuel', 'Consultation à distance', 'Consultation par visioconférence', 'Présentation de la pratique', 'Déroulement d’une séance', 'Informations et tarifs', 'Demande de rendez-vous'] },
+      tarologue: { label: 'Tarologue', services: ['Tirage de tarot', 'Lecture des cartes', 'Tirage thématique', 'Étude d’une question', 'Séance individuelle', 'Consultation à distance', 'Présentation des jeux', 'Informations et tarifs'] },
+      cartomancien: { label: 'Cartomancien / Cartomancienne', services: ['Tirage de cartes', 'Lecture d’oracles', 'Tirage thématique', 'Étude d’une question', 'Séance individuelle', 'Consultation par téléphone', 'Consultation en visioconférence', 'Informations et tarifs'] },
+      astrologue: { label: 'Astrologue', services: ['Thème natal', 'Lecture du thème astral', 'Révolution solaire', 'Étude des transits', 'Compatibilité astrologique', 'Consultation individuelle', 'Consultation à distance', 'Présentation de la pratique'] },
+      numerologue: { label: 'Numérologue', services: ['Étude numérologique', 'Chemin de vie', 'Lecture du prénom', 'Étude des nombres personnels', 'Année personnelle', 'Consultation individuelle', 'Consultation à distance', 'Informations et tarifs'] },
+      chiromancien: { label: 'Chiromancien / Chiromancienne', services: ['Lecture des lignes de la main', 'Présentation de la chiromancie', 'Étude de la paume', 'Lecture symbolique', 'Séance individuelle', 'Consultation à distance', 'Déroulement d’une séance', 'Informations et tarifs'] },
+      radiesthesiste_divinatoire: { label: 'Radiesthésiste divinatoire', services: ['Radiesthésie divinatoire', 'Consultation au pendule', 'Questions thématiques', 'Présentation des supports', 'Séance individuelle', 'Consultation à distance', 'Déroulement d’une séance', 'Informations et tarifs'] },
+    },
+  },
   sante: {
     label: 'Santé',
     jobs: {
@@ -497,6 +510,17 @@ export const BEAUTE_BIEN_ETRE_JOB_ALIASES: Record<string, string[]> = {
   boutique_beaute_en_ligne: ['E-commerce beauté', 'Ecommerce cosmétique', 'Boutique de cosmétiques en ligne', 'Vente de cosmétiques en ligne', 'E-shop beauté', 'Beauty e-shop'],
   produits_capillaires: ['Produits coiffure', 'Boutique de produits capillaires', 'Grossiste coiffure', 'Grossiste capillaire', 'Fournisseur coiffure', 'Soins capillaires', 'Haircare', 'Hair care'],
   maquillage_cosmetiques: ['Vente de maquillage', 'Magasin de maquillage', 'Boutique maquillage', 'Makeup', 'Make-up', 'Make up', 'Cosmétiques de maquillage'],
+};
+
+export const VOYANCE_ARTS_DIVINATOIRES_JOB_ALIASES: Record<string, string[]> = {
+  voyant: ['Voyant', 'Voyante', 'Voyance', 'Cabinet de voyance', 'Consultation de voyance', 'Voyance à distance', 'Voyance par téléphone', 'Arts divinatoires', 'Conseiller en arts divinatoires'],
+  medium: ['Medium', 'Médium voyant', 'Médium voyante', 'Médium spirite', 'Médiumnité', 'Consultation de médiumnité', 'Cabinet de médiumnité'],
+  tarologue: ['Tarologie', 'Tarot', 'Lecture du tarot', 'Tarologue à distance', 'Consultation de tarot', 'Consultation de tarologie', 'Tarot divinatoire', 'Taromancien', 'Taromancienne'],
+  cartomancien: ['Cartomancien', 'Cartomancienne', 'Cartomancie', 'Consultation de cartomancie', 'Lecture de cartes divinatoires', 'Lecture d’oracles', 'Oracle divinatoire'],
+  astrologue: ['Astrologie', 'Astrologue conseil', 'Consultation astrologique', 'Consultation en astrologie', 'Thème astral', 'Thème natal', 'Lecture du thème astral'],
+  numerologue: ['Numerologue', 'Numérologie', 'Consultation numérologique', 'Consultation en numérologie', 'Étude numérologique'],
+  chiromancien: ['Chiromancien', 'Chiromancienne', 'Chiromancie', 'Lecture des lignes de la main', 'Consultation de chiromancie'],
+  radiesthesiste_divinatoire: ['Radiesthésiste', 'Radiesthésie divinatoire', 'Radiesthésiste au pendule divinatoire', 'Pendule divinatoire', 'Consultation au pendule divinatoire'],
 };
 
 const IMMOBILIER_JOB_ALIASES: Record<string, string> = {
@@ -721,6 +745,10 @@ export function findJobValueByLabel(sector: string, label: string) {
   }
   if (sector === 'beaute_bien_etre') {
     return Object.entries(BEAUTE_BIEN_ETRE_JOB_ALIASES)
+      .find(([, aliases]) => aliases.some((alias) => normalizeJobLabel(alias) === normalized))?.[0] || '';
+  }
+  if (sector === 'voyance_arts_divinatoires') {
+    return Object.entries(VOYANCE_ARTS_DIVINATOIRES_JOB_ALIASES)
       .find(([, aliases]) => aliases.some((alias) => normalizeJobLabel(alias) === normalized))?.[0] || '';
   }
   if (sector === 'immobilier') {

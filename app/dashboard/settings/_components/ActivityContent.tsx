@@ -115,6 +115,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
   const [error, setError] = useState<string>("");
   const [jobSearch, setJobSearch] = useState("");
   const [jobSearchOpen, setJobSearchOpen] = useState(false);
+  const jobSearchResultsVisible = jobSearchOpen && jobSearch.trim().length > 0;
   const [manualSelectionOpen, setManualSelectionOpen] = useState(false);
   const activityBaselineRef = useRef("");
   const loadSucceededRef = useRef(false);
@@ -692,7 +693,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
               gap: 14,
             }}
           >
-            <section data-activity-section="identity" style={sectionCard}>
+            <section data-activity-section="identity" style={{ ...sectionCard, position: "relative", zIndex: jobSearchResultsVisible ? 30 : undefined }}>
               <div style={sectionHeader}>
                 {!isProfileCore ? <span style={sectionBubble}>1</span> : null}
                 <div style={{ minWidth: 0 }}>
@@ -752,7 +753,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
                     aria-label={i18nT("rechercher_votre_metier_da143d6f")}
                     aria-autocomplete="list"
                     aria-controls="activity-job-search-results"
-                    aria-expanded={jobSearchOpen && jobSearch.trim().length > 0}
+                    aria-expanded={jobSearchResultsVisible}
                   />
                   {jobSearch ? (
                     <button
@@ -782,7 +783,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
                   ) : null}
                 </div>
 
-                {jobSearchOpen && jobSearch.trim() ? (
+                {jobSearchResultsVisible ? (
                   <div
                     id="activity-job-search-results"
                     role="listbox"
