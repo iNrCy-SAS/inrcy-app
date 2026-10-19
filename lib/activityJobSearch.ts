@@ -1,4 +1,4 @@
-import { ACTIVITY_CATALOG } from "./activityCatalog.ts";
+import { ACTIVITY_CATALOG, BEAUTE_BIEN_ETRE_JOB_ALIASES } from "./activityCatalog.ts";
 import type { ActivitySectorCategory } from "./activitySectors.ts";
 
 export type ActivityJobSearchResult = {
@@ -11,6 +11,7 @@ export type ActivityJobSearchResult = {
 const JOB_ALIASES: Partial<
   Record<ActivitySectorCategory, Record<string, string[]>>
 > = {
+  beaute_bien_etre: BEAUTE_BIEN_ETRE_JOB_ALIASES,
   immobilier: {
     mandataire_immobilier: [
       "mandataire",

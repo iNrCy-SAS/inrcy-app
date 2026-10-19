@@ -24,6 +24,33 @@ function normalize(value: string) {
     .toLocaleLowerCase("fr-FR");
 }
 
+function normalizedProfession(value: string) {
+  return normalize(value).replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+// Recognize primary product activities, not cosmetic products mentioned by a pharmacy or artisan.
+const COSMETICS_PRODUCT_PROFESSIONS = new Set([
+  "boutique_cosmetiques", "Boutique de cosmétiques",
+  "marque_cosmetique", "Marque de cosmétiques",
+  "fabricant_cosmetiques", "Fabricant de cosmétiques",
+  "formulateur_cosmetiques", "Formulateur / laboratoire cosmétique",
+  "grossiste_cosmetiques", "Grossiste en cosmétiques",
+  "parfumerie", "Parfumerie",
+  "savonnerie", "Savonnerie artisanale",
+  "cosmetiques_naturels", "Cosmétiques naturels / bio",
+  "vente_domicile_beaute", "Vente à domicile de produits de beauté / VDI",
+  "boutique_beaute_en_ligne", "Boutique de beauté en ligne",
+  "produits_capillaires", "Vente de produits capillaires",
+  "maquillage_cosmetiques", "Vente de maquillage / cosmétiques",
+].map(normalizedProfession));
+
+function isCosmeticsProductProfession(source: string) {
+  const profession = normalizedProfession(source.replace(/^\s*\[\[sector:[a-z_]+\]\]\s*/i, ""))
+    .replace(/^beaute bien etre\s+/, "")
+    .replace(/\s+beaute bien etre$/, "");
+  return COSMETICS_PRODUCT_PROFESSIONS.has(profession);
+}
+
 export function hashInrSearchVisualSeed(value: string) {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -36,6 +63,7 @@ export function hashInrSearchVisualSeed(value: string) {
 export function inferInrSearchVisualTheme(value: string): InrSearchVisualTheme {
   const source = normalize(value);
 
+  if (isCosmeticsProductProfession(source)) return "beauty";
   if (/communication|digital|informatique|logiciel|marketing|agence|web|media|graphis|technolog|plateforme|marketplace|mise en relation|saas|comparateur/.test(source)) return "digital";
   if (/batiment|construction|couvreur|macon|plomb|electric|artisan|menuis|peintre|chauffag|renov/.test(source)) return "craft";
   if (/restaurant|boulanger|patisser|traiteur|aliment|cuisine|brasserie|cafe|epicer/.test(source)) return "flavour";

@@ -54,11 +54,37 @@ export function getActivitySectorLabel(value?: string | null): string {
   return LABELS.get(value) || LABELS.get(DEFAULT_ACTIVITY_SECTOR) || 'Autre';
 }
 
+/** Product professions outrank generic shop/industry words, while explicit schools and care professions keep their own sector. */
+function inferBeautyProductSector(value: string): ActivitySectorCategory | null {
+  const normalized = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const beautyProducts = /\b(?:cosmetiques?|cosmetics?|cosmetologie|skincare|skin care|makeup|make up|maquillage|parfumerie|parfumeur|parfumeuse|savonnerie|savonnier|savonniere|savons? artisanaux|savon artisanal|produits? capillaires?|soins? capillaires?|produits? coiffure|haircare|hair care|beaute naturelle|soins naturels|beauty shop|beauty e shop)\b/.test(normalized) ||
+    /\b(?:boutique|magasin|marque|vente|vendeur|vendeuse|conseiller|conseillere|fournisseur|grossiste|e commerce|ecommerce|e shop|vdi)\b.{0,65}\bbeaute\b/.test(normalized) ||
+    /\b(?:boutique|vente|marque|fabrication|creation|grossiste)\b.{0,40}\b(?:parfums?|savons?)\b/.test(normalized) ||
+    /\b(?:grossiste capillaire|grossiste coiffure|fournisseur coiffure)\b/.test(normalized);
+  if (!beautyProducts) return null;
+  const primary = normalized.replace(/^(?:je suis|nous sommes|un|une|le|la|les|mon|ma|notre)\s+/, '');
+  if (/^(?:cabinet de )?(?:medecins?|dermatologues?|chirurgiens?|pharmaciens?|pharmaciennes?|pharmacie|parapharmacie|clinique|infirmier|infirmiere)\b/.test(primary)) return 'sante';
+  if (/^(?:cabinet de )?(?:naturopath|sophrolog|reflexolog|hypnos|magnet|energet|shiatsu|ayurv|reiki)/.test(primary)) return 'medecine_douce';
+  if (/^(?:ecole privee|creche|micro creche|soutien scolaire|cours particuliers|aide aux devoirs)\b/.test(primary)) return 'education_enfance';
+  if (/^(?:ecole|enseignement|formation|formateur|formatrice|professeur|enseignant|enseignante)\b|^(?:centre|organisme|institut) de (?:formation|enseignement)\b/.test(primary)) return 'formation_enseignement';
+  // A client or a target market is not the profession: an architect or a web
+  // creator serving a cosmetics brand must keep their existing sector.
+  const productProfession = /^(?:boutique|magasin|commerce|negoce|marque|fabricant|fabricante|fabrication|faconnier|sous traitant|industrie|formulateur|formulatrice|formulation|laboratoire|chimiste|grossiste|fournisseur|distributeur|distribution|vente|vendeur|vendeuse|vdi|e commerce|ecommerce|e shop|parfumerie|parfumeur|parfumeuse|savonnerie|savonnier|savonniere|artisan savonnier|savon|savons|cosmetique|cosmetiques|cosmetic|cosmetics|cosmetologie|skincare|skin care|makeup|make up|maquillage|produits?|soins?|beaute naturelle|beauty|haircare|hair care)\b|^(?:createur|creatrice) de marque\b|^(?:ingenieur|ingenieure) (?:en )?formulation\b|^developpement de formules\b|^r d\b|^(?:conseiller|conseillere) (?:en )?beaute\b|^(?:entreprise|producteur|productrice) de (?:produits )?cosmetiques?\b/.test(primary);
+  if (!productProfession) return null;
+  // Industrial equipment intended for cosmetics is still an industrial trade.
+  const productMention = primary.search(/\b(?:cosmetiques?|cosmetics?|skincare|skin care|beaute|parfums?|savons?|capillaires?|coiffure|makeup|make up|haircare|hair care)\b/);
+  if (/^(?:fabricant|fabricante|fabrication|industrie)\b/.test(primary) && productMention >= 0 &&
+    /\b(?:machines?|materiels?|equipements?|outillages?|moules?|emballages?)\b/.test(primary.slice(0, productMention))) return null;
+  return 'beaute_bien_etre';
+}
+
 export function inferSectorCategoryFromProfession(input?: string | null): ActivitySectorCategory {
   const value = String(input || '').toLowerCase();
   if (!value) return DEFAULT_ACTIVITY_SECTOR;
 
   if (/(économie sociale et solidaire|economie sociale et solidaire|économie sociale & solidaire|economie sociale & solidaire|\bess\b|association loi 1901|association d’intérêt général|association d'interet general|organisme d’intérêt général|organisme d'interet general|coopérative|cooperative|\bscop\b|\bscic\b|entreprise sociale|entreprise solidaire|\besus\b|utilité sociale|utilite sociale|fintech mutualiste|holding fintech mutualiste|finance solidaire|finance à impact|finance a impact|financement mutualiste|inclusion financière|inclusion financiere|investissement à impact|investissement a impact|impact investing|infrastructure mutualiste|structure d’insertion|structure d'insertion|\bsiae\b|atelier chantier d’insertion|atelier chantier d'insertion|entreprise d’insertion|entreprise d'insertion|association intermédiaire|association intermediaire|\besat\b|entreprise adaptée|entreprise adaptee|mutuelle|fondation|fonds de dotation|ressourcerie|recyclerie|centre social|tiers[- ]lieu solidaire|\bong\b|solidarité internationale|solidarite internationale)/.test(value) || /^\s*association\s*$/.test(value)) return 'economie_sociale_solidaire';
+  const beautyProductSector = inferBeautyProductSector(value);
+  if (beautyProductSector) return beautyProductSector;
   if (/(bois de chauffage|bûche|buche|stère|stere|granulé|granule|exploitant forestier|exploitation forestière|exploitation forestiere|travaux forestiers|débardage|debardage|scierie|négoce de bois|negoce de bois|bois sur pied|coupe forestière|coupe forestiere)/.test(value)) return 'bois_foret';
   if (/(architecte d’intérieur|architecte d'interieur|architecte interieur|architecte|décorateur d’intérieur|decorateur d'interieur|decorateur interieur|déco intérieur|deco interieur|maître d’œuvre|maitre d'oeuvre|maitre oeuvre|bureau d’études bâtiment|bureau d'etudes batiment|bureau etudes batiment|design intérieur|design interieur)/.test(value)) return 'architecture_design';
   if (/(agricult|exploitation agricole|exploitant agricole|exploitante agricole|arboricul|fruiticul|verger|producteur de fruits|productrice de fruits|céréalier|cerealier|producteur de céréales|producteur de cereales|producteur local|ferme|vente directe|maraîcher|maraicher|apiculteur|miel|pépiniériste|pepinieriste|viticulteur|domaine viticole|vigneron|produits locaux|panier local)/.test(value)) return 'agriculture_producteurs';

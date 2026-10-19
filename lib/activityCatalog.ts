@@ -119,6 +119,18 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
   beaute_bien_etre: {
     label: 'Beauté / Bien-être',
     jobs: {
+      boutique_cosmetiques: { label: 'Boutique de cosmétiques', services: ['Vente de soins visage', 'Vente de soins corps', 'Vente de maquillage', 'Conseil produits', 'Routines beauté', 'Coffrets cadeaux', 'Commande et retrait', 'Programme fidélité'] },
+      marque_cosmetique: { label: 'Marque de cosmétiques', services: ['Présentation des gammes', 'Nouveautés produits', 'Conseils d’utilisation', 'Routines beauté', 'Coffrets découverte', 'Recharges et formats', 'Vente directe', 'Distribution professionnelle'] },
+      fabricant_cosmetiques: { label: 'Fabricant de cosmétiques', services: ['Fabrication à façon', 'Petites séries', 'Production de gammes', 'Préparation des produits', 'Conditionnement', 'Marque blanche', 'Suivi des lots', 'Devis de fabrication'] },
+      formulateur_cosmetiques: { label: 'Formulateur / laboratoire cosmétique', services: ['Développement de formules', 'Choix des ingrédients', 'Prototypes', 'Reformulation', 'Essais de stabilité', 'Tests de compatibilité', 'Accompagnement technique', 'Devis de formulation'] },
+      grossiste_cosmetiques: { label: 'Grossiste en cosmétiques', services: ['Catalogue professionnel', 'Vente en gros', 'Tarifs revendeurs', 'Approvisionnement', 'Commande de lots', 'Offres distributeurs', 'Livraison professionnelle', 'Devis de gros'] },
+      parfumerie: { label: 'Parfumerie', services: ['Parfums femme', 'Parfums homme', 'Parfums mixtes', 'Conseil olfactif', 'Formats découverte', 'Coffrets parfumés', 'Commande de parfums', 'Emballage cadeau'] },
+      savonnerie: { label: 'Savonnerie artisanale', services: ['Savons solides', 'Savons liquides', 'Présentation des ingrédients', 'Coffrets de savons', 'Conseils d’utilisation', 'Vente à l’atelier', 'Commande personnalisée', 'Vente aux revendeurs'] },
+      cosmetiques_naturels: { label: 'Cosmétiques naturels / bio', services: ['Soins visage naturels', 'Soins corps naturels', 'Présentation des ingrédients', 'Routines beauté', 'Cosmétiques solides', 'Recharges et vrac', 'Coffrets découverte', 'Conseils de conservation'] },
+      vente_domicile_beaute: { label: 'Vente à domicile de produits de beauté / VDI', services: ['Présentation des produits', 'Démonstration beauté', 'Conseil de routine', 'Vente en réunion', 'Commande personnalisée', 'Offres hôtesse', 'Coffrets cadeaux', 'Suivi des commandes'] },
+      boutique_beaute_en_ligne: { label: 'Boutique de beauté en ligne', services: ['Catalogue en ligne', 'Commande de cosmétiques', 'Conseil produits à distance', 'Routines beauté', 'Coffrets cadeaux', 'Livraison et suivi', 'Retours et échanges', 'Programme fidélité'] },
+      produits_capillaires: { label: 'Vente de produits capillaires', services: ['Shampoings', 'Après-shampoings', 'Masques capillaires', 'Produits coiffants', 'Conseil de routine capillaire', 'Accessoires cheveux', 'Formats professionnels', 'Commande de produits'] },
+      maquillage_cosmetiques: { label: 'Vente de maquillage / cosmétiques', services: ['Produits pour le teint', 'Maquillage des yeux', 'Maquillage des lèvres', 'Pinceaux et accessoires', 'Conseil de teintes', 'Conseils d’application', 'Coffrets maquillage', 'Commande de produits'] },
       coach_sportif: { label: 'Coach sportif', services: ['Coaching individuel', 'Programme personnalisé', 'Remise en forme', 'Renforcement musculaire', 'Perte de poids', 'Préparation physique', 'Suivi à distance', 'Bilan forme'] },
       coiffeur: { label: 'Coiffeur / Barber', services: ['Coupe femme', 'Coupe homme', 'Brushing', 'Coloration', 'Balayage', 'Coiffure événement', 'Soin capillaire', 'Abonnement / fidélité'] },
       estheticienne: { label: 'Institut de beauté', services: ['Soin visage', 'Soin corps', 'Épilation', 'Beauté des mains', 'Beauté des pieds', 'Maquillage', 'Carte cadeau', 'Cure / abonnement'] },
@@ -471,6 +483,22 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
     },
   },};
 
+/** Shared by profession restoration and search, so the same wording selects the same job. */
+export const BEAUTE_BIEN_ETRE_JOB_ALIASES: Record<string, string[]> = {
+  boutique_cosmetiques: ['Cosmétiques', 'Cosmétique', 'Boutique cosmétique', 'Magasin de cosmétiques', 'Commerce de cosmétiques', 'Commerce cosmétique', 'Boutique beauté', 'Beauty shop', 'Cosmetics shop', 'Vente de cosmétiques', 'Skincare', 'Skin care'],
+  marque_cosmetique: ['Marque cosmétique', 'Créateur de marque cosmétique', 'Créatrice de marque cosmétique', 'Marque beauté', 'Marque de skincare', 'Cosmetics brand'],
+  fabricant_cosmetiques: ['Fabricant cosmétique', 'Fabricante de cosmétiques', 'Fabrication cosmétique', 'Fabrication de cosmétiques', 'Fabrication industrielle de cosmétiques', 'Façonnier cosmétique', 'Sous-traitant cosmétique', 'Cosmétiques en marque blanche', 'Laboratoire de fabrication cosmétique'],
+  formulateur_cosmetiques: ['Formulateur cosmétique', 'Formulation cosmétique', 'Laboratoire cosmétique', 'Laboratoire de formulation cosmétique', 'Formulatrice cosmétique', 'Ingénieur formulation cosmétique', 'Ingénieure formulation cosmétique', 'Chimiste cosmétique', 'Développement de formules cosmétiques', 'R&D cosmétique'],
+  grossiste_cosmetiques: ['Grossiste cosmétique', 'Fournisseur de cosmétiques', 'Distributeur de cosmétiques', 'Distribution de cosmétiques', 'Négoce de cosmétiques', 'Cosmétiques en gros', 'Fournisseur de produits de beauté'],
+  parfumerie: ['Parfumeur', 'Parfumeuse', 'Boutique de parfums', 'Vente de parfums', 'Marque de parfums'],
+  savonnerie: ['Savonnier', 'Savonnière', 'Fabrication de savons', 'Artisan savonnier', 'Vente de savons', 'Savon artisanal', 'Savons artisanaux'],
+  cosmetiques_naturels: ['Cosmétiques naturels', 'Cosmétiques bio', 'Cosmétique bio', 'Beauté naturelle', 'Soins naturels', 'Skincare naturel'],
+  vente_domicile_beaute: ['VDI', 'VDI beauté', 'Vente directe beauté', 'Vente à domicile beauté', 'Vendeur à domicile indépendant beauté', 'Vendeuse à domicile indépendante beauté', 'Conseillère beauté à domicile', 'Conseiller beauté à domicile'],
+  boutique_beaute_en_ligne: ['E-commerce beauté', 'Ecommerce cosmétique', 'Boutique de cosmétiques en ligne', 'Vente de cosmétiques en ligne', 'E-shop beauté', 'Beauty e-shop'],
+  produits_capillaires: ['Produits coiffure', 'Boutique de produits capillaires', 'Grossiste coiffure', 'Grossiste capillaire', 'Fournisseur coiffure', 'Soins capillaires', 'Haircare', 'Hair care'],
+  maquillage_cosmetiques: ['Vente de maquillage', 'Magasin de maquillage', 'Boutique maquillage', 'Makeup', 'Make-up', 'Make up', 'Cosmétiques de maquillage'],
+};
+
 const IMMOBILIER_JOB_ALIASES: Record<string, string> = {
   'mandataire': 'mandataire_immobilier',
   'mandataire immobiliere': 'mandataire_immobilier',
@@ -690,6 +718,10 @@ export function findJobValueByLabel(sector: string, label: string) {
   const normalized = normalizeJobLabel(label);
   for (const [value, job] of Object.entries(pack.jobs)) {
     if (normalizeJobLabel(job.label) === normalized) return value;
+  }
+  if (sector === 'beaute_bien_etre') {
+    return Object.entries(BEAUTE_BIEN_ETRE_JOB_ALIASES)
+      .find(([, aliases]) => aliases.some((alias) => normalizeJobLabel(alias) === normalized))?.[0] || '';
   }
   if (sector === 'immobilier') {
     return IMMOBILIER_JOB_ALIASES[normalized] || '';
