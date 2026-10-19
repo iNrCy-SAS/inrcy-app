@@ -116,6 +116,7 @@
   "bodyhtml_47de9289": "bodyHtml",
   "bodytext_fb9442a2": "bodyText",
   "boite_d_envoi_8af123c1": "Verzendadres",
+  "select_send_account": "Kies een verzendend postvak.",
   "boite_gmail_deconnectee_3d83ef35": "✅ Gmail-account losgekoppeld.",
   "boite_imap_connectee_vous_pouvez_maintenant_4d98651e": "✅ IMAP-account verbonden. U kunt het nu gebruiken om e-mails te verzenden.",
   "boite_imap_deconnectee_392ad047": "✅ IMAP-account losgekoppeld.",

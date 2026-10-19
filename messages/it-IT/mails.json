@@ -116,6 +116,7 @@
   "bodyhtml_47de9289": "bodyHtml",
   "bodytext_fb9442a2": "Testo del corpo",
   "boite_d_envoi_8af123c1": "Posta in uscita",
+  "select_send_account": "Scegli una casella di invio.",
   "boite_gmail_deconnectee_3d83ef35": "✅ Account Gmail disconnesso.",
   "boite_imap_connectee_vous_pouvez_maintenant_4d98651e": "✅ Account IMAP connesso. Ora puoi utilizzarlo per inviare email.",
   "boite_imap_deconnectee_392ad047": "✅ Account IMAP disconnesso.",

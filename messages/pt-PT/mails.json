@@ -116,6 +116,7 @@
   "bodyhtml_47de9289": "bodyHtml",
   "bodytext_fb9442a2": "bodyText",
   "boite_d_envoi_8af123c1": "Box A enviar",
+  "select_send_account": "Escolha uma caixa de envio.",
   "boite_gmail_deconnectee_3d83ef35": "✅ Conta do Gmail desligada.",
   "boite_imap_connectee_vous_pouvez_maintenant_4d98651e": "✅ Conta IMAP ligada. Agora pode usá-la para enviar e-mails.",
   "boite_imap_deconnectee_392ad047": "✅ Conta IMAP desligada.",

@@ -183,6 +183,7 @@ import {
   providerSendEndpoint,
 } from "./_lib/mailboxPhase25";
 import { normalizeMailSubject } from "@/lib/mailEncoding";
+import { resolveMailAccountSelection } from "./_lib/mailboxAccountSelection";
 import { stripTemplateSignatureBlock } from "@/lib/mailTemplateCleanup";
 import {
   normalizeRichMailHtmlForSend,
@@ -449,7 +450,9 @@ export default function MailboxClient({
   }, [detailsOpen]);
 
   const [mailAccounts, setMailAccounts] = useState<MailAccount[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+  const [requestedAccountId, setSelectedAccountId] = useState<string>("");
+  const selectedAccount = resolveMailAccountSelection(mailAccounts, requestedAccountId);
+  const selectedAccountId = selectedAccount?.id || "";
   const [filterAccountId, setFilterAccountId] = useState<string>("");
 
   // Compose
@@ -793,7 +796,7 @@ export default function MailboxClient({
   function buildScheduledMailEditPayload(scheduledAt?: string | null) {
     if (!scheduledMailEdit) return null;
     if (!selectedAccount) {
-      throw new Error(i18nT("veuillez_connecter_une_boite_d_envoi_98abd470"));
+      throw new Error(i18nT(mailAccounts.length ? "select_send_account" : "veuillez_connecter_une_boite_d_envoi_98abd470"));
     }
     const recipientsList = normalizeEmails(to);
     if (recipientsList.length === 0) {
@@ -1174,22 +1177,12 @@ export default function MailboxClient({
 
     setMailAccounts(accounts as any);
 
-    const connected = accounts.filter(
-      (a) =>
-        a.status === "connected" &&
-        a.connection_status !== "needs_update" &&
-        !a.requires_update,
-    );
-    const defaultId = connected[0]?.id || "";
-    const usableAccountIds = new Set(
-      connected.map((a) => String(a?.id || "")).filter(Boolean),
-    );
     const accountIds = new Set(
       accounts.map((a) => String(a?.id || "")).filter(Boolean),
     );
 
     setSelectedAccountId((prev) =>
-      prev && usableAccountIds.has(prev) ? prev : defaultId,
+      resolveMailAccountSelection(accounts as MailAccount[], prev)?.id || "",
     );
     setFilterAccountId((prev) => (prev && accountIds.has(prev) ? prev : ""));
   }
@@ -2269,10 +2262,6 @@ export default function MailboxClient({
     detailsChannelEntries,
     detailsEditMode,
   ]);
-
-  const selectedAccount = useMemo(() => {
-    return mailAccounts.find((a) => a.id === selectedAccountId) || null;
-  }, [mailAccounts, selectedAccountId]);
 
   const workflowFinalizerKind = useMemo<
     "propulser" | "fideliser" | null
@@ -3396,7 +3385,7 @@ export default function MailboxClient({
     }
     if (!selectedAccount) {
       throw new Error(
-        i18nT("veuillez_connecter_une_boite_d_envoi_98abd470"),
+        i18nT(mailAccounts.length ? "select_send_account" : "veuillez_connecter_une_boite_d_envoi_98abd470"),
       );
     }
     if (
@@ -3554,7 +3543,7 @@ export default function MailboxClient({
       return;
     }
     if (!selectedAccount) {
-      setToast(i18nT("veuillez_connecter_une_boite_d_envoi_98abd470"));
+      setToast(i18nT(mailAccounts.length ? "select_send_account" : "veuillez_connecter_une_boite_d_envoi_98abd470"));
       return;
     }
     if (

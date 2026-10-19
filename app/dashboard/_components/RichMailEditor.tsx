@@ -75,6 +75,8 @@ export default function RichMailEditor({
     }
   };
 
+  // Expanding moves the editor into a portal and creates a new editable node.
+  // Restore its content even when the message itself did not change.
   useEffect(() => {
     const node = editorRef.current;
     if (!node) return;
@@ -88,7 +90,7 @@ export default function RichMailEditor({
     node.innerHTML = nextHtml;
     lastHtmlRef.current = nextHtml;
     setIsEmpty(!String(text || "").trim());
-  }, [highlightTemplatePlaceholders, html, text]);
+  }, [highlightTemplatePlaceholders, html, isExpanded, text]);
 
   const emitChange = (syncDisplay = false) => {
     const node = editorRef.current;
@@ -214,6 +216,7 @@ export default function RichMailEditor({
     if (!isExpanded || typeof document === "undefined") return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    if (editorRef.current) focusEditableWithoutScroll(editorRef.current);
     return () => {
       document.body.style.overflow = previousOverflow;
     };
@@ -223,7 +226,7 @@ export default function RichMailEditor({
     if (!mobileFullscreen && !allowFullscreen && isExpanded) setIsExpanded(false);
   }, [allowFullscreen, mobileFullscreen, isExpanded]);
 
-  const fillAvailable = minHeight === 0 || minHeight === "0" || minHeight === "0px";
+  const fillAvailable = isExpanded || minHeight === 0 || minHeight === "0" || minHeight === "0px";
   const buttonStyle = compactToolbar ? compactToolbarButtonStyle : toolbarButtonStyle;
   const toolbar = (
     <div style={{ display: "flex", gap: compactToolbar ? 5 : 6, alignItems: "center", flex: "0 0 auto" }}>
@@ -362,7 +365,16 @@ export default function RichMailEditor({
           onTouchCancel={handleTouchEnd}
           style={{
             ...editorStyle,
-            ...(isExpanded ? { minHeight: 0, height: "100%", maxHeight: "100%", borderRadius: 16, padding: 14 } : {}),
+            ...(isExpanded ? {
+              minHeight: 0,
+              height: "100%",
+              maxHeight: "100%",
+              borderRadius: 16,
+              border: "1px solid rgba(125, 211, 252, 0.24)",
+              background: "linear-gradient(145deg, rgba(20, 42, 68, 0.95), rgba(32, 26, 56, 0.95))",
+              color: "rgba(255, 255, 255, 0.96)",
+              padding: 14,
+            } : {}),
             width: "100%",
             flex: "1 1 auto",
             minHeight: fillAvailable ? 0 : "100%",
