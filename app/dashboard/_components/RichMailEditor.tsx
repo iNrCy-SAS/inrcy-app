@@ -372,6 +372,7 @@ export default function RichMailEditor({
               borderRadius: 16,
               border: "1px solid rgba(125, 211, 252, 0.24)",
               background: "linear-gradient(145deg, rgba(20, 42, 68, 0.95), rgba(32, 26, 56, 0.95))",
+              color: "rgba(255, 255, 255, 0.96)",
               padding: 14,
             } : {}),
             width: "100%",
