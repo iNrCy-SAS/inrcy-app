@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { getMediaLibraryOptimizationRequirements } from "@/lib/mediaLibraryOptimizationPolicy";
 import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 import type { ImageInteractions } from "@/lib/imageInteractions";
@@ -28,22 +28,37 @@ export type MediaLibraryPickerItem = {
   media_metadata?: Record<string, unknown> | null;
 };
 
-type MediaLibraryPickerModalProps = {
+export type MediaLibraryPickerAudioItem = Omit<MediaLibraryPickerItem, "media_type"> & { media_type: "audio" };
+type MediaLibraryPickerSelectionItem = MediaLibraryPickerItem | MediaLibraryPickerAudioItem;
+type MediaLibraryPickerTypeFilter = "all" | "image" | "video" | "audio";
+
+type MediaLibraryPickerCommonProps = {
   open: boolean;
   title?: string;
   subtitle?: string;
-  accept?: "all" | "image" | "video";
   multiple?: boolean;
   maxSelection?: number;
   confirmLabel?: string;
+  /** Some callers close themselves while starting their own pending operation. */
+  closeOnConfirm?: boolean;
   selectedHint?: string;
+  audioFilterLabel?: string;
   maxImageBytes?: number;
   maxVideoBytes?: number;
   onOpenOptimizer?: (item: MediaLibraryPickerItem) => void;
   onOversizedMedia?: (item: MediaLibraryPickerItem) => void;
+  getItemDisabledReason?: (item: MediaLibraryPickerSelectionItem) => string | undefined;
   onClose: () => void;
+};
+type MediaLibraryAudioPickerProps = MediaLibraryPickerCommonProps & {
+  accept: "audio";
+  onConfirm: (items: MediaLibraryPickerAudioItem[]) => void | Promise<void>;
+};
+type MediaLibraryVisualPickerProps = MediaLibraryPickerCommonProps & {
+  accept?: "all" | "image" | "video";
   onConfirm: (items: MediaLibraryPickerItem[]) => void | Promise<void>;
 };
+type MediaLibraryPickerModalProps = MediaLibraryAudioPickerProps | MediaLibraryVisualPickerProps;
 
 const MOBILE_DOCK_HEIGHT =
   "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)))";
@@ -85,7 +100,7 @@ function formatDuration(seconds: number | null | undefined) {
   return `${minutes}:${String(remaining).padStart(2, "0")}`;
 }
 
-function displayName(item: MediaLibraryPickerItem) {
+function displayName(item: MediaLibraryPickerSelectionItem) {
   return (
     item.title ||
     item.storage_path.split("/").pop() ||
@@ -107,9 +122,10 @@ function dateLabel(value: string | null, locale: string) {
 }
 
 function getItemOptimizationRequirements(
-  item: MediaLibraryPickerItem,
+  item: MediaLibraryPickerSelectionItem,
   targetBytes: number | undefined,
 ) {
+  if (item.media_type === "audio") return null;
   const hasTarget = Number.isFinite(Number(targetBytes)) && Number(targetBytes) > 0;
   if (!hasTarget) return null;
   return getMediaLibraryOptimizationRequirements({
@@ -136,7 +152,12 @@ export function mediaLibraryItemToAttachment(item: MediaLibraryPickerItem) {
   };
 }
 
-export default function MediaLibraryPickerModal({
+export default function MediaLibraryPickerModal(props: MediaLibraryAudioPickerProps): React.JSX.Element | null;
+// Keep the last public overload visual so ComponentProps-based wrappers retain
+// their original callback contract instead of widening it to audio callbacks.
+export default function MediaLibraryPickerModal(props: MediaLibraryVisualPickerProps): React.JSX.Element | null;
+export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalProps) {
+  const {
   open,
   title,
   subtitle,
@@ -144,26 +165,33 @@ export default function MediaLibraryPickerModal({
   multiple = true,
   maxSelection = 10,
   confirmLabel,
+  closeOnConfirm = true,
   selectedHint,
+  audioFilterLabel,
   maxImageBytes,
   maxVideoBytes,
   onOpenOptimizer,
   onOversizedMedia,
+  getItemDisabledReason,
   onClose,
-  onConfirm,
-}: MediaLibraryPickerModalProps) {
+  } = props;
   const i18nT = useTranslations("media");
   const locale = useLocale();
   const resolvedTitle = title || i18nT("picker_title");
   const resolvedSubtitle = subtitle || i18nT("picker_subtitle");
   const resolvedConfirmLabel = confirmLabel || i18nT("picker_add");
+  const resolvedAudioLabel = audioFilterLabel || i18nT("library_audio");
   const unitKilobytes = i18nT("unit_kilobytes");
   const unitMegabytes = i18nT("unit_megabytes");
-  const [items, setItems] = useState<MediaLibraryPickerItem[]>([]);
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const loadController = useRef<AbortController | null>(null);
+  const [items, setItems] = useState<MediaLibraryPickerSelectionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "image" | "video">(
+  const [previewErrors, setPreviewErrors] = useState<Record<string, boolean>>({});
+  const [typeFilter, setTypeFilter] = useState<MediaLibraryPickerTypeFilter>(
     accept === "all" ? "all" : accept,
   );
   const [query, setQuery] = useState("");
@@ -180,6 +208,7 @@ export default function MediaLibraryPickerModal({
     setOversizeBlocked(false);
     setOversizeBlockedItem(null);
     setError("");
+    setPreviewErrors({});
   }, [open, accept]);
 
   useEffect(() => {
@@ -190,8 +219,21 @@ export default function MediaLibraryPickerModal({
     return () => window.removeEventListener("resize", updateCompact);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus({ preventScroll: true });
+    return () => {
+      loadController.current?.abort();
+      previousFocus?.focus({ preventScroll: true });
+    };
+  }, [open]);
+
   const loadItems = useCallback(async () => {
     if (!open) return;
+    loadController.current?.abort();
+    const controller = new AbortController();
+    loadController.current = controller;
     setLoading(true);
     setError("");
     try {
@@ -200,14 +242,18 @@ export default function MediaLibraryPickerModal({
         active: "active",
         limit: "120",
       });
+      if (accept === "audio") params.set("includeAudio", "true");
       if (query.trim()) params.set("q", query.trim());
       const response = await fetch(
         `/api/media-library/items?${params.toString()}`,
         {
           cache: "no-store",
+          credentials: "include",
+          signal: controller.signal,
         },
       );
       const json = await response.json().catch(() => null);
+      if (controller.signal.aborted) return;
       if (!response.ok || json?.ok === false) {
         throw new Error(
           getLocalizedErrorMessage(
@@ -219,18 +265,19 @@ export default function MediaLibraryPickerModal({
       }
       const nextItems = Array.isArray(json?.items) ? json.items : [];
       setItems(
-        nextItems.filter((item: MediaLibraryPickerItem) => {
-          if (item.media_type !== "image" && item.media_type !== "video") return false;
+        nextItems.filter((item: MediaLibraryPickerSelectionItem) => {
+          if (!item || (accept === "audio" ? item.media_type !== "audio" : item.media_type !== "image" && item.media_type !== "video")) return false;
           if (accept !== "all" && item.media_type !== accept) return false;
           return Boolean(item?.id && item?.storage_path);
         }),
       );
     } catch (err) {
+      if (controller.signal.aborted) return;
       setError(
         getLocalizedErrorMessage(err, locale, i18nT("picker_unavailable")),
       );
     } finally {
-      setLoading(false);
+      if (loadController.current === controller && !controller.signal.aborted) setLoading(false);
     }
   }, [accept, i18nT, locale, open, query, typeFilter]);
 
@@ -243,20 +290,23 @@ export default function MediaLibraryPickerModal({
     const map = new Map(items.map((item) => [item.id, item]));
     return selectedIds
       .map((id) => map.get(id))
-      .filter(Boolean) as MediaLibraryPickerItem[];
+      .filter(Boolean) as MediaLibraryPickerSelectionItem[];
   }, [items, selectedIds]);
 
-  const toggleItem = (item: MediaLibraryPickerItem) => {
+  const toggleItem = (item: MediaLibraryPickerSelectionItem) => {
+    if (busy) return;
     setError("");
     setOversizeBlocked(false);
     setOversizeBlockedItem(null);
+    const disabledReason = getItemDisabledReason?.(item);
+    if (disabledReason) { setError(disabledReason); return; }
     const maxBytes =
       item.media_type === "video" ? maxVideoBytes : maxImageBytes;
     const optimizationRequirements = getItemOptimizationRequirements(
       item,
       maxBytes,
     );
-    if (optimizationRequirements?.needsOptimization) {
+    if (item.media_type !== "audio" && optimizationRequirements?.needsOptimization) {
       if (onOversizedMedia) {
         onClose();
         onOversizedMedia(item);
@@ -293,15 +343,19 @@ export default function MediaLibraryPickerModal({
   };
 
   const validate = async () => {
+    if (busy) return;
     if (!selectedItems.length) {
       setError(i18nT("selectionnez_au_moins_un_media_9bb6a173"));
       return;
     }
+    const disabledReason = selectedItems.map((item) => getItemDisabledReason?.(item)).find(Boolean);
+    if (disabledReason) { setError(disabledReason); return; }
     setBusy(true);
     setError("");
     try {
-      await onConfirm(selectedItems);
-      onClose();
+      if (props.accept === "audio") await props.onConfirm(selectedItems.filter((item): item is MediaLibraryPickerAudioItem => item.media_type === "audio"));
+      else await props.onConfirm(selectedItems.filter((item): item is MediaLibraryPickerItem => item.media_type !== "audio"));
+      if (closeOnConfirm) onClose();
     } catch (err) {
       setError(
         getLocalizedErrorMessage(err, locale, i18nT("picker_add_failed")),
@@ -449,7 +503,7 @@ export default function MediaLibraryPickerModal({
   const confirmButtonLabel = compact
     ? busy
       ? i18nT("picker_adding")
-      : selectedItems.length
+      : confirmLabel ? resolvedConfirmLabel : selectedItems.length
         ? i18nT("picker_add_count", { count: selectedItems.length })
         : i18nT("picker_add")
     : busy
@@ -463,14 +517,16 @@ export default function MediaLibraryPickerModal({
         <select
           value={typeFilter}
           onChange={(event) =>
-            setTypeFilter(event.target.value as "all" | "image" | "video")
+            setTypeFilter(event.target.value as MediaLibraryPickerTypeFilter)
           }
           disabled={accept !== "all"}
           style={compactInputStyle}
         >
-          <option value="all">{i18nT("tous_b97ae3b4")}</option>
-          <option value="image">{i18nT("images_09e871c9")}</option>
-          <option value="video">{i18nT("videos_ea129238")}</option>
+          {accept === "audio" ? <option value="audio">{resolvedAudioLabel}</option> : <>
+            <option value="all">{i18nT("tous_b97ae3b4")}</option>
+            <option value="image">{i18nT("images_09e871c9")}</option>
+            <option value="video">{i18nT("videos_ea129238")}</option>
+          </>}
         </select>
       </label>
       <div style={compactSearchRowStyle}>
@@ -478,6 +534,7 @@ export default function MediaLibraryPickerModal({
           🔎
         </span>
         <input
+          type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={i18nT("titre_tag_fichier_5073bb6a")}
@@ -502,19 +559,22 @@ export default function MediaLibraryPickerModal({
         <select
           value={typeFilter}
           onChange={(event) =>
-            setTypeFilter(event.target.value as "all" | "image" | "video")
+            setTypeFilter(event.target.value as MediaLibraryPickerTypeFilter)
           }
           disabled={accept !== "all"}
           style={inputStyle}
         >
-          <option value="all">{i18nT("tous_b97ae3b4")}</option>
-          <option value="image">{i18nT("images_09e871c9")}</option>
-          <option value="video">{i18nT("videos_ea129238")}</option>
+          {accept === "audio" ? <option value="audio">{resolvedAudioLabel}</option> : <>
+            <option value="all">{i18nT("tous_b97ae3b4")}</option>
+            <option value="image">{i18nT("images_09e871c9")}</option>
+            <option value="video">{i18nT("videos_ea129238")}</option>
+          </>}
         </select>
       </label>
       <label style={fieldStyle}>
         <span>{i18nT("recherche_787b5492")}</span>
         <input
+          type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={i18nT("titre_tag_fichier_5073bb6a")}
@@ -549,25 +609,43 @@ export default function MediaLibraryPickerModal({
       }}
       role="dialog"
       aria-modal="true"
-      onMouseDown={onClose}
+      aria-labelledby={titleId}
+      data-media-library-picker
+      data-media-library-filter={accept === "audio" ? "audio" : "visual"}
+      onMouseDown={() => { if (!busy) onClose(); }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault(); event.stopPropagation(); if (!busy) onClose(); return;
+        }
+        if (event.key !== "Tab") return;
+        event.stopPropagation();
+        const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), audio[controls], [tabindex="0"]') || [])
+          .filter((element) => element.getClientRects().length > 0);
+        const first = focusable[0]; const last = focusable.at(-1);
+        if (first && last && (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+          event.preventDefault(); (event.shiftKey ? last : first).focus();
+        }
+      }}
     >
       <div
+        ref={dialogRef}
         style={modalComputedStyle}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div style={headerComputedStyle}>
           <div style={headerIconComputedStyle} aria-hidden="true">
-            🖼️
+            {accept === "audio" ? "🎙" : "🖼️"}
           </div>
           <div style={{ minWidth: 0 }}>
             {!compact ? <div style={kickerStyle}>{i18nT("mediatheque_inrcy_a885e19e")}</div> : null}
-            <h2 style={titleComputedStyle}>{displayTitle}</h2>
+            <h2 id={titleId} style={titleComputedStyle}>{displayTitle}</h2>
             <p style={subtitleComputedStyle}>{displaySubtitle}</p>
           </div>
           <button
             type="button"
             style={closeStyle}
             onClick={onClose}
+            disabled={busy}
             aria-label={i18nT("fermer_5ab4ec64")}
           >
             ×
@@ -577,7 +655,7 @@ export default function MediaLibraryPickerModal({
         {filtersNode}
 
         {error ? (
-          <div style={errorStyle}>
+          <div style={errorStyle} role="alert">
             <div>{error}</div>
             {oversizeBlocked && oversizeBlockedItem && onOpenOptimizer ? (
               <button
@@ -607,6 +685,7 @@ export default function MediaLibraryPickerModal({
           ) : (
             items.map((item) => {
               const selected = selectedIds.includes(item.id);
+              const disabledReason = getItemDisabledReason?.(item);
               const itemLimit =
                 item.media_type === "video" ? maxVideoBytes : maxImageBytes;
               const itemOptimizationRequirements =
@@ -623,6 +702,7 @@ export default function MediaLibraryPickerModal({
               ) => {
                 event.preventDefault();
                 event.stopPropagation();
+                if (item.media_type === "audio") return;
                 if (!onOpenOptimizer) {
                   toggleItem(item);
                   return;
@@ -636,6 +716,9 @@ export default function MediaLibraryPickerModal({
                   role="button"
                   tabIndex={0}
                   aria-pressed={selected}
+                  aria-disabled={Boolean(disabledReason) || busy || undefined}
+                  aria-describedby={disabledReason ? `${titleId}-${item.id}-reason` : undefined}
+                  data-media-library-item={item.id}
                   onClick={() => toggleItem(item)}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== " ") return;
@@ -646,7 +729,7 @@ export default function MediaLibraryPickerModal({
                     ...rowComputedStyle,
                     borderColor: selected
                       ? "rgba(105,239,255,.65)"
-                      : itemOversized
+                      : itemOversized || disabledReason
                         ? "rgba(251,191,36,.22)"
                       : "rgba(255,255,255,.08)",
                     background: selected
@@ -667,18 +750,28 @@ export default function MediaLibraryPickerModal({
                       />
                     ) : (
                       <span aria-hidden>
-                        {item.media_type === "video" ? "🎬" : "🖼️"}
+                        {item.media_type === "audio" ? "🎙" : item.media_type === "video" ? "🎬" : "🖼️"}
                       </span>
                     )}
                   </span>
                   <span style={nameBlockStyle}>
                     <strong style={nameStyle}>{displayName(item)}</strong>
                     <small style={tagStyle}>{tags}</small>
+                    {item.media_type === "audio" ? <>
+                      <small style={tagStyle}>{formatDuration(item.duration_seconds)} · {formatBytes(item.size_bytes, locale, unitKilobytes, unitMegabytes)}</small>
+                      {item.signed_url ? <span onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") event.stopPropagation(); }}>
+                        <audio controls preload="metadata" src={item.signed_url} style={{ width: "100%", minWidth: 0, height: 34, display: "block", colorScheme: "dark" }}
+                          aria-label={i18nT("library_audio_preview", { name: displayName(item) })}
+                          onError={() => setPreviewErrors((previous) => ({ ...previous, [item.id]: true }))} />
+                      </span> : null}
+                      {previewErrors[item.id] || !item.signed_url ? <small role="alert">{i18nT("apercu_indisponible_d0ce704a")}</small> : null}
+                    </> : null}
+                    {disabledReason ? <small id={`${titleId}-${item.id}-reason`} style={{ color: "#ffd7a3", whiteSpace: "normal", lineHeight: 1.4 }}>{disabledReason}</small> : null}
                   </span>
                   {compact ? (
                     <span style={compactMediaStatusStyle}>
                       <span style={compactTypePillStyle}>
-                        {item.media_type === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")}
+                        {item.media_type === "audio" ? resolvedAudioLabel : item.media_type === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")}
                       </span>
                       {itemOversized ? (
                         <button
@@ -693,7 +786,7 @@ export default function MediaLibraryPickerModal({
                   ) : (
                     <>
                       <span style={pillStyle}>
-                        {item.media_type === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")}
+                        {item.media_type === "audio" ? resolvedAudioLabel : item.media_type === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")}
                       </span>
                       <span style={optimizerCellStyle}>
                         {itemOversized ? (
@@ -710,7 +803,7 @@ export default function MediaLibraryPickerModal({
                         {formatBytes(item.size_bytes, locale, unitKilobytes, unitMegabytes)}
                       </span>
                       <span style={metaStyle}>
-                        {item.media_type === "video"
+                        {item.media_type === "video" || item.media_type === "audio"
                           ? formatDuration(item.duration_seconds)
                           : item.width && item.height
                             ? `${item.width}×${item.height}`

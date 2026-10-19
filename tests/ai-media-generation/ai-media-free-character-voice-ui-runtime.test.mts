@@ -50,12 +50,30 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   const jsx = (type: unknown, props: Props, key?: string): Element => ({ type, props: props || {}, key });
   const css = { __esModule: true, default: new Proxy({}, { get: (_target, key) => key }) };
   const quota = { accountId: "account-a", creditsReady: true, studioEnabled: true, unlimited: true, credits: { remaining: 1000 }, videoMaxDurationSeconds: 30 };
-  const hook = { quota, quotaLoading: false, busy: false, progress: 0, error: "", result: null, canRecover: false, loadQuota() {}, generate: async (request: MediaGenerationRequest) => { requests.push(request); } };
+  type RecoveredResult = { item: { id: string; media_type: "video" | "image" }; format: MediaGenerationRequest["format"]; recovered: true };
+  let failGenerationForRecovery = false; let recoveryFailure = false;
+  const recoveredResult: RecoveredResult = { item: { id: "recovered-paid-result", media_type: kind }, format: kind === "video" ? "story" : "square", recovered: true };
+  const hook = { quota, quotaLoading: false, busy: false, progress: 0, error: "", result: null as RecoveredResult | null, canRecover: false,
+    recoveryContext: null as { kind: "video" | "image"; format: MediaGenerationRequest["format"] } | null,
+    loadQuota() {},
+    generate: async (request: MediaGenerationRequest): Promise<void> => {
+      requests.push(request);
+      if (failGenerationForRecovery) { failGenerationForRecovery = false; hook.canRecover = true; hook.recoveryContext = { kind, format: request.format }; throw new Error("A paid generation needs recovery"); }
+    },
+    retryRecovery: async (): Promise<RecoveredResult> => {
+      if (recoveryFailure) throw new Error("Recovery is temporarily unavailable");
+      hook.canRecover = false; hook.recoveryContext = null; hook.result = recoveredResult; return recoveredResult;
+    },
+    cancelRecovery: async (): Promise<null> => {
+      if (recoveryFailure) throw new Error("Abandon is temporarily unavailable");
+      hook.canRecover = false; hook.recoveryContext = null; return null;
+    },
+  };
   const preference = { videoEngine: initialEngine, imageEngine: "openai" as models.AiMediaImageEngine, videoResolution: models.getAiMediaVideoModel(initialEngine).defaultResolution, update(patch: Props) { Object.assign(preference, patch); } };
   const modules = new Map<string, unknown>([
     ["react", react], ["react/jsx-runtime", { jsx, jsxs: jsx }],
     ["next-intl", { useLocale: () => "fr-FR", useTranslations: () => (key: string, values?: { credits?: string; provider?: string }) => {
-      if (key === "ai_generator_character_voice_provider_consent_label" || key === "ai_generator_team_video_provider_consent") return frenchMessages[key].replace("{provider}", values?.provider || "");
+      if (key === "ai_generator_final_authorization_images_label" || key === "ai_generator_final_authorization_voices_label") return frenchMessages[key].replace("{provider}", values?.provider || "");
       return values?.credits ? `${key} ${values.credits}` : key;
     } }],
     ["@/app/dashboard/_hooks/useMediaGeneration", { __esModule: true, default: () => hook, MediaGenerationAccountChangedError: class extends Error {}, MediaGenerationCancelledError: class extends Error {} }],
@@ -71,7 +89,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     ["./MediaGenerationCreationWorkspace", { __esModule: true, default: "preview", MediaGenerationSettingsTabs: "settings-tabs" }],
   ]);
   for (const name of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaPromptHelp", "./MediaQuotaSummary", "./MediaCharacterVoiceLibraryPicker"]) modules.set(name, { __esModule: true, default: name });
-  const browser = { addEventListener(name: string, callback: () => void) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name)!.add(callback); }, removeEventListener(name: string, callback: () => void) { listeners.get(name)?.delete(callback); } };
+  const browser = { addEventListener(name: string, callback: () => void) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name)!.add(callback); }, removeEventListener(name: string, callback: () => void) { listeners.get(name)?.delete(callback); }, requestAnimationFrame() { return 1; } };
   const fetch = async (_url: string, init: RequestInit) => {
     uploads.push(init.body as FormData);
     if (deferUpload) await new Promise<void>((resolve) => { uploadReply = resolve; });
@@ -114,12 +132,20 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     renderEngines() { const node = find(tree, (item) => item.type === controls.default); return renderChild("engines", controls, node.props); },
     renderEngineInfo() { const node = find(tree, (item) => item.type === controls.default); let child = renderChild("engines", controls, node.props); (find(child, (item) => item.type === "button" && item.props["aria-haspopup"] === "dialog").props.onClick as () => void)(); child = renderChild("engines", controls, node.props); const info = find(child, (item) => typeof item.type === "function" && item.type.name === "MediaEngineInfoModal"); return renderChild("engine-info", { default: info.type as (props: Props) => Element }, info.props); },
     selectEngine(engine: models.AiMediaVideoEngine, resolution = models.getAiMediaVideoModel(engine).defaultResolution) { const node = find(tree, (item) => item.type === controls.default); const child = renderChild("engines", controls, node.props); const menu = find(child, (item) => item.type === "select" && String(item.props.id).endsWith("-engine")); (menu.props.onChange as (event: unknown) => void)({ target: { value: `${engine}:${resolution}` } }); render(); },
+    selectImageEngine(engine: models.AiMediaImageEngine) { const node = find(tree, (item) => item.type === controls.default); const child = renderChild("engines", controls, node.props); const menu = find(child, (item) => item.type === "select" && String(item.props.id).endsWith("-engine")); (menu.props.onChange as (event: unknown) => void)({ target: { value: engine } }); render(); },
+    changePreferredVideoEngine(engine: models.AiMediaVideoEngine) { preference.update({ videoEngine: engine, videoResolution: models.getAiMediaVideoModel(engine).defaultResolution }); render(); },
+    changePreferredImageEngine(engine: models.AiMediaImageEngine) { preference.update({ imageEngine: engine }); render(); },
     async addPhoto(name = "personnage.png") { const input = find(tree, (node) => node.type === "input" && node.props.type === "file"); (input.props.onChange as (event: unknown) => void)({ currentTarget: { files: [new File(["synthetic-photo"], name, { type: "image/png" })], value: "" }, target: { files: [new File(["synthetic-photo"], name, { type: "image/png" })], value: "" } }); await flush(); },
     criteria(index: number, role: string, usage: string) { const menus = elements(cards()[index]).filter((node) => node.type === "select"); (menus[0].props.onChange as (event: unknown) => void)({ target: { value: role } }); render(); const refreshed = elements(cards()[index]).filter((node) => node.type === "select"); (refreshed[1].props.onChange as (event: unknown) => void)({ target: { value: usage } }); render(); },
     chooseVoice(index: number, mode: "ai" | "provided") { const child = renderVoice(index); (find(child, (node) => node.type === "select").props.onChange as (event: unknown) => void)({ target: { value: mode } }); render(); },
     async uploadVoice(index: number) { const child = renderVoice(index); const input = find(child, (node) => node.type === "input" && node.props.type === "file"); (input.props.onChange as (event: unknown) => void)({ currentTarget: { files: [new File(["wav-voice"], "vocal.wav", { type: "audio/wav" })], value: "" } }); await flush(); },
-    consent() { const label = find(tree, (node) => node.type === "label" && node.props.className === "consent"); (find(label, (node) => node.type === "input").props.onChange as (event: unknown) => void)({ target: { checked: true } }); render(); },
-    consentTeam() { const label = elements(tree).filter((node) => node.type === "label" && node.props.className === "consent")[1]; assert.ok(label, "The real provider consent must be present for two required people"); (find(label, (node) => node.type === "input").props.onChange as (event: unknown) => void)({ target: { checked: true } }); render(); },
+    consent(checked = true) { const authorization = find(tree, (node) => node.props["data-media-final-authorization"] !== undefined); (find(authorization, (node) => node.type === "input").props.onChange as (event: unknown) => void)({ target: { checked } }); render(); },
+    regenerationConsent(checked: boolean) { const consents = find(tree, (node) => node.type === "preview").props.regenerationConsents as Array<{ onChange: (checked: boolean) => void }>; assert.equal(consents.length, 1); consents[0].onChange(checked); render(); },
+    failNextGenerationForRecovery() { failGenerationForRecovery = true; },
+    setRecoveryFailure(value: boolean) { recoveryFailure = value; },
+    editRecovered() { (find(tree, (node) => node.type === "preview").props.handleEditCriteria as () => void)(); render(); },
+    async abandonRecovery() { (find(tree, (node) => node.type === "preview").props.handleConfirmGenerationStop as () => void)(); await flush(); },
+    removePhoto(index: number) { (find(cards()[index], (node) => node.type === "button").props.onClick as () => void)(); render(); },
     setSound(value: string) { const input = find(tree, (node) => node.type === "input" && node.props.type === "radio" && node.props.value === value); (input.props.onChange as () => void)(); render(); },
     async generate() { const button = find(tree, (node) => node.props["data-media-primary-action"] !== undefined); if (button.props.disabled) return; (button.props.onClick as () => void)(); await flush(); },
     deferVoiceUpload() { deferUpload = true; }, finishVoiceUpload() { uploadReply?.(); },
@@ -179,7 +205,7 @@ test("all three supported engines remain selected or can be selected through rea
   }
 });
 
-test("two required people keep two distinct supplied voices paired with their portraits and team consent on every supported engine", async () => {
+test("one explicit footer authorization covers two required people and their distinct voices on every supported engine", async () => {
   for (const engine of voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES) {
     const h = harness("video", engine);
     await h.addPhoto("moi.png"); await h.addPhoto("mon-epouse.png");
@@ -191,14 +217,24 @@ test("two required people keep two distinct supplied voices paired with their po
     assert.notEqual(h.uploadedSamples[0].name, h.uploadedSamples[1].name);
     assert.equal(h.quoteInputs.at(-1)!.videoEngine, engine); assert.equal(h.quoteInputs.at(-1)!.identityMode, "reference_team");
     assert.ok(h.uploadedSamples.reduce((seconds, voice) => seconds + voice.durationSeconds, 0) <= 15);
-    const providerConsent = elements(h.tree()).filter((node) => node.type === "label" && node.props.className === "consent")[1];
-    const expectedConsent = `Pour cette génération, j’autorise l’envoi des photos et des vocaux fournis à ${models.getAiMediaVideoModelForCharacterVoice(engine, true).providerLabel}, et je confirme avoir l’autorisation de toutes les personnes représentées.`;
+    const footer = find(h.tree(), (node) => node.props["data-media-footer"] !== undefined);
+    const authorization = find(footer, (node) => node.props["data-media-final-authorization"] !== undefined);
+    const providerConsent = find(authorization, (node) => node.type === "label");
+    assert.equal(elements(h.tree()).filter((node) => node.type === "label" && node.props.className === "consent").length, 1);
+    assert.equal(elements(footer).filter((node) => node.type === "input" && node.props.type === "checkbox").length, 1);
+    const criteria = find(h.tree(), (node) => node.type === "section" && String(node.props.id).endsWith("-panel-criteria"));
+    assert.equal(elements(criteria).some((node) => node.type === "label" && node.props.className === "consent"), false);
+    const tabs = find(h.tree(), (node) => node.type === "settings-tabs").props.tabs as Array<{ id: string; warning: string }>;
+    assert.equal(tabs.find((tab) => tab.id === "criteria")!.warning, "", "Missing footer authorization must not point to Criteria");
+    assert.equal(find(providerConsent, (node) => node.type === "input").props.checked, false);
+    const expectedConsent = `Je confirme que chaque personne représentée est majeure et que je dispose des droits et autorisations pour utiliser son image et sa voix. J’autorise l’envoi des photos et des vocaux fournis à ${models.getAiMediaVideoModelForCharacterVoice(engine, true).providerLabel} pour cette génération.`;
     assert.equal(text(providerConsent), expectedConsent);
     assert.doesNotMatch(text(providerConsent), /image de groupe dérivée|dialogues synthétiques/);
     const regenerationConsents = find(h.tree(), (node) => node.type === "preview").props.regenerationConsents as Array<{ id: string; label: string }>;
-    assert.equal(regenerationConsents.find((consent) => consent.id === "team")?.label, expectedConsent);
-    h.consent(); await h.generate(); assert.equal(h.requests.length, 0, "identity consent cannot bypass the engine-specific team consent");
-    h.consentTeam(); await h.generate(); assert.equal(h.requests.length, 1);
+    assert.equal(regenerationConsents.length, 1); assert.equal(regenerationConsents[0].label, expectedConsent);
+    await h.generate(); assert.equal(h.requests.length, 0, "the unique authorization starts unchecked and gates generation");
+    h.consent(); h.consent(false); await h.generate(); assert.equal(h.requests.length, 0, "unchecking revokes every consent field");
+    h.consent(); await h.generate(); assert.equal(h.requests.length, 1);
     const request = h.requests[0];
     assert.equal(request.videoEngine, engine); assert.equal(request.identityMode, "reference_team"); assert.equal(request.identityConsent, true);
     assert.equal(request.teamVideoProviderConsent, engine); assert.equal(request.teamVideoSpeechMode, "characters"); assert.equal(request.withNarration, false);
@@ -208,6 +244,69 @@ test("two required people keep two distinct supplied voices paired with their po
       assert.equal(reference.voiceMode, "provided"); assert.equal(reference.voiceSample?.path, h.uploadedSamples[index].path); assert.equal(reference.voiceSample?.name, h.uploadedSamples[index].name);
     }
     h.dispose();
+  }
+});
+
+test("photo-only authorization is a single footer checkbox with adult, image rights and provider permission", async () => {
+  const empty = harness("image");
+  assert.equal(elements(empty.tree()).some((node) => node.props["data-media-final-authorization"] !== undefined), false); empty.dispose();
+  for (const kind of ["image", "video"] as const) {
+    const h = harness(kind, "wan27"); await h.addPhoto(); h.criteria(0, "character", "required");
+    const footer = find(h.tree(), (node) => node.props["data-media-footer"] !== undefined);
+    const authorization = find(footer, (node) => node.props["data-media-final-authorization"] !== undefined);
+    const provider = kind === "video" ? models.getAiMediaVideoModel("wan27").providerLabel : models.getAiMediaImageModel("openai").providerLabel;
+    assert.equal(text(find(authorization, (node) => node.type === "label")), `Je confirme que chaque personne représentée est majeure et que je dispose des droits et autorisations pour utiliser son image. J’autorise l’envoi des photos à ${provider} pour cette génération.`);
+    assert.doesNotMatch(text(authorization), /sa voix|vocaux/);
+    assert.equal(find(authorization, (node) => node.type === "input").props.checked, false);
+    await h.generate(); assert.equal(h.requests.length, 0);
+    h.consent(); await h.generate(); assert.equal(h.requests[0].identityConsent, true); assert.equal(h.requests[0].teamVideoProviderConsent, undefined); h.dispose();
+  }
+});
+
+test("changing photos, voice samples, roles or the effective video/image engine revokes final authorization", async () => {
+  const checked = (h: ReturnType<typeof harness>) => find(find(h.tree(), (node) => node.props["data-media-final-authorization"] !== undefined), (node) => node.type === "input").props.checked;
+  const h = harness("video", "wan27"); await h.addPhoto("premier.png"); await h.addPhoto("second.png");
+  for (let index = 0; index < 2; index++) h.criteria(index, "character", "required");
+  h.chooseVoice(0, "provided"); await h.uploadVoice(0); h.consent(); assert.equal(checked(h), true);
+  h.selectEngine("wan3"); assert.equal(checked(h), false);
+  h.consent(); await h.uploadVoice(0); assert.equal(checked(h), false);
+  h.consent(); h.chooseVoice(0, "ai"); assert.equal(checked(h), false);
+  h.consent(); h.criteria(1, "character", "inspiration"); assert.equal(checked(h), false);
+  h.consent(); await h.addPhoto("decor.png"); assert.equal(checked(h), false);
+  h.criteria(2, "environment", "inspiration"); h.consent(); h.removePhoto(2); assert.equal(checked(h), false);
+  h.consent(); h.changePreferredVideoEngine("wan27"); assert.equal(checked(h), false, "async preference changes must revoke consent even without a selector event"); h.dispose();
+  const image = harness("image"); await image.addPhoto(); image.criteria(0, "character", "required");
+  image.consent(); image.selectImageEngine("gemini"); assert.equal(checked(image), false);
+  image.consent(); image.changePreferredImageEngine("openai"); assert.equal(checked(image), false); image.dispose();
+});
+
+test("regeneration also has one explicit authorization and supplies both existing server consent fields", async () => {
+  const h = harness("video", "wan27"); await h.addPhoto("premier.png"); await h.addPhoto("second.png");
+  for (let index = 0; index < 2; index++) h.criteria(index, "character", "required");
+  h.regenerationConsent(true); await h.generate(); assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].identityConsent, true); assert.equal(h.requests[0].teamVideoProviderConsent, "wan27");
+  const consents = find(h.tree(), (node) => node.type === "preview").props.regenerationConsents as Array<{ checked: boolean }>;
+  assert.equal(consents.length, 1); assert.equal(consents[0].checked, false, "a successful generation requires fresh explicit authorization");
+  h.regenerationConsent(false); await h.generate(); assert.equal(h.requests.length, 1); h.dispose();
+});
+
+test("a failed recovery keeps its explicit attempt authorization while completed recovery or abandonment revokes it for a new generation", async () => {
+  for (const action of ["recover", "abandon"]) {
+    const h = harness("video", "wan27"); await h.addPhoto("premier.png"); await h.addPhoto("second.png");
+    for (let index = 0; index < 2; index++) h.criteria(index, "character", "required");
+    h.consent(); h.failNextGenerationForRecovery(); await h.generate(); assert.equal(h.requests.length, 1);
+    const consents = () => find(h.tree(), (node) => node.type === "preview").props.regenerationConsents as Array<{ checked: boolean }>;
+    assert.equal(consents()[0].checked, true, "the same uncertain paid attempt retains its explicit authorization");
+    h.setRecoveryFailure(true);
+    if (action === "recover") await h.generate(); else await h.abandonRecovery();
+    assert.equal(consents()[0].checked, true, "an unsuccessful recovery must not lose the retry authorization");
+    h.setRecoveryFailure(false);
+    if (action === "recover") { await h.generate(); h.editRecovered(); } else await h.abandonRecovery();
+    const authorization = find(h.tree(), (node) => node.props["data-media-final-authorization"] !== undefined);
+    assert.equal(find(authorization, (node) => node.type === "input").props.checked, false);
+    assert.equal(consents()[0].checked, false);
+    assert.equal(find(h.tree(), (node) => node.type === "preview").props.disabled, true, "a new generation requires a fresh check");
+    assert.equal(h.requests.length, 1, "recovery and abandon never submit a second paid generation"); h.dispose();
   }
 });
 
@@ -235,9 +334,9 @@ test("Wan 3 blocks over fifteen seconds of samples without discarding them or ch
 
 test("voice Inspiration alone requires permission but retains identity auto, and incompatible sound cannot silently discard it", async () => {
   const h = harness(); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
-  assert.equal(h.quoteInputs.at(-1)!.identityMode, "auto"); assert.ok(text(h.tree()).includes("ai_generator_character_voice_consent_label"));
+  assert.equal(h.quoteInputs.at(-1)!.identityMode, "auto"); assert.match(text(h.tree()), /son image et sa voix/);
   h.consent(); h.setSound("silent"); await h.generate(); assert.equal(h.requests.length, 0); assert.ok(text(h.tree()).includes("ai_generator_character_voice_speech_required"));
-  h.setSound("characters"); await h.generate(); assert.equal(h.requests[0].identityMode, "auto"); assert.equal(h.requests[0].identityConsent, true); h.dispose();
+  h.setSound("characters"); h.consent(); await h.generate(); assert.equal(h.requests[0].identityMode, "auto"); assert.equal(h.requests[0].identityConsent, true); h.dispose();
 });
 
 test("switching back to AI restores regular engines, and pending voice uploads lock the actual Free editor and clear on account change", async () => {

@@ -213,6 +213,15 @@ export default function MediaFreeGenerator({
   const identityRequired = personReferences.length > 0 || characterVoiceSelection.hasProvidedVoice;
   const identityMode = personReferences.length > 1 ? "reference_team" : personReferences.length === 1 ? "professional" : "auto";
   const teamConsentRequired = kind === "video" && personReferences.length > 1;
+  const authorizationRequired = identityRequired || teamConsentRequired;
+  const authorizationChecked = (!identityRequired || identityConsent) && (!teamConsentRequired || teamConsent);
+  const authorizationVisible = authorizationRequired && !reviewingRecovery;
+  const authorizationEngine = `${kind}:${kind === "video" ? selectedVideoEngine : enginePreference.imageEngine}`;
+  const authorizationLabel = t(characterVoiceSelection.hasProvidedVoice
+    ? "ai_generator_final_authorization_voices_label"
+    : "ai_generator_final_authorization_images_label", {
+      provider: kind === "video" ? videoModel.providerLabel : imageModel.providerLabel,
+    });
   const effectiveWithNarration =
     kind === "video" && speechMode === "voiceover";
   const requestSpeechMode: MediaGenerationTeamVideoSpeechMode =
@@ -248,9 +257,7 @@ export default function MediaFreeGenerator({
     : roleLimitExceeded ? t("ai_generator_free_role_limit")
     : characterVoiceSelection.missingSample ? t("ai_generator_character_voice_sample_missing")
     : characterVoiceSpeechConflict ? t("ai_generator_character_voice_speech_required")
-    : characterVoiceDurationExceeded ? t("ai_generator_character_voice_wan3_duration_limit")
-    : identityRequired && !identityConsent ? t("ai_generator_video_character_consent_required")
-    : teamConsentRequired && !teamConsent ? t("ai_generator_team_video_consent_required") : "";
+    : characterVoiceDurationExceeded ? t("ai_generator_character_voice_wan3_duration_limit") : "";
   const photoRequiredHint = kind === "video" && !videoModel.supportsTextToVideo
     ? t("ai_generator_model_photo_required") : "";
   const creditQuote = useMediaCreditQuote({ kind, format: fixedFormat || format, operation: "generate", creationMode: "free",
@@ -298,6 +305,12 @@ export default function MediaFreeGenerator({
   useEffect(() => {
     void loadQuota();
   }, [loadQuota]);
+
+  useEffect(() => {
+    // Account preferences may load a different provider without a selector event.
+    setIdentityConsent(false);
+    setTeamConsent(false);
+  }, [authorizationEngine, quota?.accountId]);
 
   useLayoutEffect(() => {
     onBusyChange?.(operationLocked);
@@ -351,6 +364,11 @@ export default function MediaFreeGenerator({
     setIdentityConsent(false);
     setTeamConsent(false);
     referenceSetId.current = globalThis.crypto.randomUUID();
+  };
+
+  const setGenerationAuthorization = (checked: boolean) => {
+    setIdentityConsent(checked);
+    setTeamConsent(checked);
   };
 
   const addFiles = async (files: File[], lockOwned = false) => {
@@ -582,6 +600,10 @@ export default function MediaFreeGenerator({
     setActionError("");
     try {
       await retryRecovery();
+      if (sequence.current === currentSequence) {
+        setIdentityConsent(false);
+        setTeamConsent(false);
+      }
     } catch (caught) {
       if (sequence.current === currentSequence && !(caught instanceof MediaGenerationAccountChangedError)) {
         setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
@@ -598,7 +620,11 @@ export default function MediaFreeGenerator({
     setActionError("");
     try {
       const recovered = await cancelRecovery();
-      if (sequence.current === currentSequence && !recovered) setCreationScreen(false);
+      if (sequence.current === currentSequence) {
+        setIdentityConsent(false);
+        setTeamConsent(false);
+        if (!recovered) setCreationScreen(false);
+      }
     } catch (caught) {
       if (sequence.current === currentSequence && !(caught instanceof MediaGenerationAccountChangedError)) {
         setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
@@ -691,8 +717,8 @@ export default function MediaFreeGenerator({
             unavailableVideoEngineReasons={wan3VoiceDurationExceeded ? { wan3: t("ai_generator_character_voice_wan3_duration_limit") } : undefined}
             hasProvidedCharacterVoice={characterVoiceSelection.hasProvidedVoice}
             onVideoEngineChange={(videoEngine, resolution) => { resetConsent(); enginePreference.update({ videoEngine, videoResolution: resolution ?? getAiMediaVideoModel(videoEngine).defaultResolution }); }}
-            onImageEngineChange={(imageEngine) => enginePreference.update({ imageEngine })}
-            onResolutionChange={(resolution) => enginePreference.update({ videoResolution: resolution })} />
+            onImageEngineChange={(imageEngine) => { resetConsent(); enginePreference.update({ imageEngine }); }}
+            onResolutionChange={(resolution) => { resetConsent(); enginePreference.update({ videoResolution: resolution }); }} />
   );
   const creditSummary = reviewingRecovery
     ? <MediaRecoveredCreditSummary creditsUsed={result?.creditsUsed} />
@@ -701,6 +727,7 @@ export default function MediaFreeGenerator({
   const generationAction = <button
     type="button" className={styles.primaryButton} data-media-primary-action
     disabled={recoveryIncompatible || (busy ? !cancellable : canRecover ? operationLocked : Boolean(result) || !canGenerate)}
+    aria-describedby={authorizationVisible && !authorizationChecked ? `${instanceId}-authorization-help` : undefined}
     title={busy && !cancellable ? t("ai_generator_editor_stop_locked") : undefined}
     onClick={() => { if (busy) setStopConfirmOpen(true); else if (canRecover) void handleRecoverResult(); else if (!result) void handleGenerate(); }}
   >
@@ -746,33 +773,14 @@ export default function MediaFreeGenerator({
         referenceCinematicRequested={kind === "video" && references.length > 0}
         editLabel={t("ai_generator_free_edit_prompt")}
         regenerationConsents={
-          identityRequired
+          authorizationRequired
             ? [
                 {
-                  id: "identity",
-                  label: t(
-                    characterVoiceSelection.hasProvidedVoice
-                      ? "ai_generator_character_voice_consent_label"
-                      : personReferences.length > 1
-                      ? "ai_generator_reference_team_consent_label"
-                      : "ai_generator_video_character_consent_label"
-                  ),
-                  checked: identityConsent,
-                  onChange: (checked) => {
-                    setIdentityConsent(checked);
-                    setTeamConsent(false);
-                  },
+                  id: "generation",
+                  label: authorizationLabel,
+                  checked: authorizationChecked,
+                  onChange: setGenerationAuthorization,
                 },
-                ...(teamConsentRequired
-                  ? [{
-                      id: "team",
-                      label: t(characterVoiceSelection.hasProvidedVoice
-                        ? "ai_generator_character_voice_provider_consent_label"
-                        : "ai_generator_team_video_provider_consent", { provider: videoModel.providerLabel }),
-                      checked: teamConsent,
-                      onChange: setTeamConsent,
-                    }]
-                  : []),
               ]
             : undefined
         }
@@ -1003,41 +1011,6 @@ export default function MediaFreeGenerator({
             ) : null}
             {characterVoiceSpeechConflict ? <button type="button" className={styles.secondaryButton} disabled={locked} onClick={() => setSpeechMode("characters")}>{t("ai_generator_character_voice_switch_characters")}</button> : null}
           </div>
-          {identityRequired ? (
-            <label className={styles.consent}>
-              <input
-                type="checkbox"
-                checked={identityConsent}
-                disabled={locked}
-                onChange={(event) => {
-                  setIdentityConsent(event.target.checked);
-                  setTeamConsent(false);
-                }}
-              />
-              <span>
-                {t(
-                  characterVoiceSelection.hasProvidedVoice
-                    ? "ai_generator_character_voice_consent_label"
-                    : personReferences.length > 1
-                    ? "ai_generator_reference_team_consent_label"
-                    : "ai_generator_video_character_consent_label"
-                )}
-              </span>
-            </label>
-          ) : null}
-          {teamConsentRequired ? (
-            <label className={styles.consent}>
-              <input
-                type="checkbox"
-                checked={teamConsent}
-                disabled={locked}
-                onChange={(event) => setTeamConsent(event.target.checked)}
-              />
-              <span>{t(characterVoiceSelection.hasProvidedVoice
-                ? "ai_generator_character_voice_provider_consent_label"
-                : "ai_generator_team_video_provider_consent", { provider: videoModel.providerLabel })}</span>
-            </label>
-          ) : null}
           {kind === "video" ? (
             <div className={styles.audioSection}>
               <h3>{t("ai_generator_essential_sound_title")}</h3>
@@ -1058,7 +1031,7 @@ export default function MediaFreeGenerator({
                       checked={speechMode === mode}
                       onChange={() => {
                         setSpeechMode(mode);
-                        setTeamConsent(false);
+                        resetConsent();
                       }}
                     />
                     <span>
@@ -1255,6 +1228,15 @@ export default function MediaFreeGenerator({
         <div className={editorStyles.previewPane}>{preview}</div>
       </div>
       <div className={styles.footer} data-media-footer>
+        {authorizationVisible ? <div className={styles.footerAuthorization} data-media-final-authorization>
+          <label className={styles.consent} htmlFor={`${instanceId}-authorization`}>
+            <input id={`${instanceId}-authorization`} type="checkbox" required checked={authorizationChecked} disabled={locked}
+              aria-describedby={!authorizationChecked ? `${instanceId}-authorization-help` : undefined}
+              onChange={(event) => setGenerationAuthorization(event.target.checked)} />
+            <span>{authorizationLabel}</span>
+          </label>
+          {!authorizationChecked ? <p id={`${instanceId}-authorization-help`} className={styles.authorizationHint} role="status">{t("ai_generator_footer_consent_blocking")}</p> : null}
+        </div> : null}
         <MediaQuotaSummary kind={kind} counter={counter} unlimited={quota?.unlimited} creditsReady={quota?.creditsReady}
           resetDate={resetDate} locked={locked} onRefresh={() => { void loadQuota({ force: true }); }} />
         <MediaGenerationActions>

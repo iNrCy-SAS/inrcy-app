@@ -152,20 +152,20 @@ test("Critères explique la photo obligatoire sous Wan sans la présenter comme 
   assert.equal(warning(ready, "criteria"), "");
 });
 
-test("les raisons précises des références et autorisations disparaissent lorsqu’elles sont complétées", () => {
+test("les erreurs de références restent dans Critères et l’autorisation finale reste au footer", () => {
   const incomplete = freeEditor({ references: [reference(1)] }).render();
   assert.equal(warning(incomplete, "criteria"), t("ai_generator_free_reference_criteria_required"));
   const exceeded = freeEditor({ references: [1, 2, 3, 4].map((id) => reference(id, "character", "required")) }).render();
   assert.equal(warning(exceeded, "criteria"), t("ai_generator_free_role_limit"));
   const runtime = freeEditor({ references: [reference(1, "character", "required"), reference(2, "character", "required")] });
-  let tree = runtime.render(); assert.equal(warning(tree, "criteria"), t("ai_generator_video_character_consent_required"));
-  const authorize = (tree: Element, index: number) => {
-    const consent = elements(tree).filter((node) => node.type === "label" && node.props.className === "consent")[index]; assert.ok(consent);
-    const checkbox = find(consent, (node) => node.type === "input" && node.props.type === "checkbox");
-    (checkbox.props.onChange as (event: { target: { checked: boolean } }) => void)({ target: { checked: true } });
-  };
-  authorize(tree, 0); tree = runtime.render(); assert.equal(warning(tree, "criteria"), t("ai_generator_team_video_consent_required"));
-  authorize(tree, 1); tree = runtime.render(); assert.equal(warning(tree, "criteria"), "");
+  let tree = runtime.render(); assert.equal(warning(tree, "criteria"), "", "L’autorisation manquante ne doit pas renvoyer vers Critères");
+  const footer = find(tree, (node) => node.props["data-media-footer"] !== undefined);
+  const authorization = find(footer, (node) => node.props["data-media-final-authorization"] !== undefined);
+  const checkbox = find(authorization, (node) => node.type === "input" && node.props.type === "checkbox");
+  assert.equal(checkbox.props.checked, false);
+  assert.equal(find(tree, (node) => node.props["data-media-primary-action"] !== undefined).props.disabled, true);
+  (checkbox.props.onChange as (event: { target: { checked: boolean } }) => void)({ target: { checked: true } });
+  tree = runtime.render(); assert.equal(warning(tree, "criteria"), "");
   assert.equal(find(tree, (node) => node.props["data-media-primary-action"] !== undefined).props.disabled, false);
 });
 
