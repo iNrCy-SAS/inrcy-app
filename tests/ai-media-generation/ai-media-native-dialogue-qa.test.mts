@@ -168,6 +168,49 @@ test("ASR written French and English numbers are equivalent to figures", () => {
   ]) assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript, language }).status, "passed", transcript);
 });
 
+test("French first ordinals match ASR abbreviations while preserving their value and gender", () => {
+  for (const [expectedLine, transcript] of [
+    ["Notre lancement a eu lieu le premier septembre 2026.", "Notre lancement a eu lieu le 1er septembre 2026."],
+    ["Notre lancement a eu lieu le premier septembre 2026.", "Notre lancement a eu lieu le 1ᵉʳ septembre 2026."],
+    ["Notre première cliente rejoint notre réseau.", "Notre 1re cliente rejoint notre réseau."],
+    ["Notre Première cliente rejoint notre réseau.", "Notre 1ère cliente rejoint notre réseau."],
+    ["Le Premier septembre marque notre lancement.", "Le 1er septembre marque notre lancement."],
+  ]) {
+    const input = Object.freeze({ sceneIndex: 0, expectedLine, transcript, language: "fr-FR" });
+    assert.equal(evaluateAiMediaNativeDialogue(input).status, "passed", transcript);
+    assert.equal(evaluateAiMediaNativeDialogue({ ...input, expectedLine: transcript, transcript: expectedLine }).status, "passed", expectedLine);
+    assert.equal(input.expectedLine, expectedLine);
+    assert.equal(input.transcript, transcript);
+  }
+});
+
+test("French first-ordinal typography cannot excuse another ordinal, cardinal, amount, year, month or name", () => {
+  const expectedLine = "Le lancement du premier septembre 2026 à Bordeaux coûte 50 euros seulement.";
+  for (const transcript of [
+    expectedLine.replace("premier", "deuxième"), expectedLine.replace("premier", "2e"),
+    expectedLine.replace("premier", "1"), expectedLine.replace("premier", "première"),
+    expectedLine.replace("premier", "1err"), expectedLine.replace("50", "500"),
+    expectedLine.replace("2026", "2025"), expectedLine.replace("septembre", "octobre"),
+    expectedLine.replace("Bordeaux", "Lyon"),
+  ]) {
+    const result = evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript, language: "fr" });
+    assert.equal(result.status, "rejected", transcript);
+    assert.ok(result.issues.includes("spoken_critical_value_mismatch"), transcript);
+  }
+  assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript: expectedLine.replace("premier", "1er"), language: "en" }).status, "rejected");
+});
+
+test("French date typography and an explicit pronunciation alias combine without another transcription", async () => {
+  const expectedLine = "Depuis le premier septembre 2026, CréaMotion accompagne votre entreprise.";
+  const result = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })], language: "fr",
+    pronunciationAliases: extractAiMediaPronunciationAliases("CréaMotion se prononce « inertie »."),
+    transcribe: async () => ({ text: expectedLine.replace("premier", "1er").replace("CréaMotion", "Inersie") }),
+    confirm: async () => { assert.fail("The same ordinal and explicit sound already match without a second ASR."); },
+  });
+  assert.equal(result.status, "passed");
+});
+
 function fakeClip(overrides: Partial<AiMediaNativeDialogueQaClip> = {}): AiMediaNativeDialogueQaClip {
   return {
     sceneIndex: 0,

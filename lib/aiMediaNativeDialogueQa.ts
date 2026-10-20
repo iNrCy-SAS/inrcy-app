@@ -147,8 +147,23 @@ function criticalSpeechValues(text: string, language: string) {
     .replace(/\b(?:pour\s*cent|per\s+cent)\b/g, "percent");
   const tokens = normalized.match(/\d+(?:[.,]\d+)?|[\p{L}]+/gu) || [];
   const canonical: string[] = [];
+  const ordinals: string[] = [];
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
+    // French ASR can use 1er/1re/1ère (including superscript typography) for
+    // premier/première. Keep ordinal value and gender separate from cardinals.
+    if (/^fr(?:-|$)/.test(language)) {
+      const writtenOrdinal = token === "premier" || token === "premiere" ? token
+        : token === "1" && /^(?:er|re|ere)$/.test(tokens[index + 1] || "")
+          ? tokens[index + 1] === "er" ? "premier" : "premiere"
+          : "";
+      if (writtenOrdinal) {
+        canonical.push(writtenOrdinal);
+        ordinals.push(writtenOrdinal);
+        if (token === "1") index += 1;
+        continue;
+      }
+    }
     if (/^\d/.test(token)) {
       const value = String(Number(token.replace(",", ".")));
       canonical.push(value); continue;
@@ -188,13 +203,16 @@ function criticalSpeechValues(text: string, language: string) {
   if (canonical.some((token, index) => token === "plus" && canonical.slice(Math.max(0, index - 4), index).some((previous) => previous === "ne" || previous === "n"))) negations.push("ne_plus");
   const units = canonical.filter((token) => /^(?:euros?|dollars?|pounds?|percent)$/.test(token)).map((token) => token.replace(/s$/, ""));
   const calendar = canonical.filter((token) => /^(?:lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|monday|tuesday|wednesday|thursday|friday|saturday|sunday|janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre|january|february|march|april|may|june|july|august|september|october|november|december)$/.test(token));
-  return { numbers, negations, units, calendar, canonical };
+  return { numbers, ordinals, negations, units, calendar, canonical };
 }
 
 function missingWrittenName(expected: string, transcript: string, aliases: readonly AiMediaPronunciationAlias[] | undefined, language: string) {
   const detected = new Set(pronunciationTokens(tokenizeAiMediaNativeDialogue(transcript), aliases, language));
   return Array.from(expected.matchAll(/[\p{L}][\p{L}\p{N}]{2,}/gu)).some((match) => {
     const word = match[0];
+    // Capitalized ordinals are covered by the exact critical-value comparison;
+    // an ASR abbreviation must not additionally look like a missing proper name.
+    if (/^fr(?:-|$)/.test(language) && /^(?:premier|premiere)$/.test(word.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase())) return false;
     const before = expected.slice(0, match.index).trimEnd();
     const distinctiveCase = /[a-z][A-Z]|^[A-Z]{3,}$/.test(word);
     const interiorProperName = /^\p{Lu}\p{Ll}/u.test(word) && before.length > 0 && !/[.!?]$/.test(before);
@@ -425,8 +443,8 @@ export function evaluateAiMediaNativeDialogue(args: {
   const extraTokenCount = Math.max(0, detected.length - expected.length);
   const repeatCount = dialogueRepeatCount(expected, detected);
   const issues: AiMediaNativeDialogueQaIssue[] = [];
-  if (["numbers", "negations", "units", "calendar"].some((key) => {
-    const field = key as "numbers" | "negations" | "units" | "calendar";
+  if (["numbers", "ordinals", "negations", "units", "calendar"].some((key) => {
+    const field = key as "numbers" | "ordinals" | "negations" | "units" | "calendar";
     return JSON.stringify(expectedValues[field]) !== JSON.stringify(detectedValues[field]);
   }) || missingWrittenName(args.expectedLine, args.transcript, args.pronunciationAliases, language)) issues.push("spoken_critical_value_mismatch");
 
@@ -495,8 +513,8 @@ function rejectedTranscriptsAgree(args: {
   if (issues(args.initial) !== issues(args.confirmed)) return false;
   const initial = criticalSpeechValues(args.initialText, args.language);
   const confirmed = criticalSpeechValues(args.confirmedText, args.language);
-  if (["numbers", "negations", "units", "calendar"].some((key) => {
-    const field = key as "numbers" | "negations" | "units" | "calendar";
+  if (["numbers", "ordinals", "negations", "units", "calendar"].some((key) => {
+    const field = key as "numbers" | "ordinals" | "negations" | "units" | "calendar";
     return JSON.stringify(initial[field]) !== JSON.stringify(confirmed[field]);
   })) return false;
   // This agreement threshold does not relax the detector's existing thresholds.
