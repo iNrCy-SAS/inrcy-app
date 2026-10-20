@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import test from "node:test";
 import ts from "typescript";
@@ -207,4 +208,74 @@ test("character dialogue keeps its exact line and the image plan remains unchang
   const imagePlan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: image, profile });
   assert.deepEqual(imagePlan, runtime.buildAiMediaFreeBasePlan(image));
   assert.equal(runtime.calls.length, 1);
+});
+
+test("explicit character speech overrides legacy quotes and generated wording without normalizing its copy", async () => {
+  const spokenScript = "  Bonjour, je suis Océane !\n\nBienvenue chez iNrCy.  ";
+  const input = request({ teamVideoSpeechMode: "characters", spokenScript,
+    freePrompt: 'La femme présente l’application. Elle dit « Ancienne réplique ». La marque se prononce « inertie ».' });
+  const runtime = loadPlanner({ direction: visualResponse.direction,
+    scenes: [{ visualBrief: "La femme présente l’application face caméra.", spokenLine: "Paroles automatiques à ignorer." }] });
+  const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile });
+  assert.equal(runtime.calls.length, 1, "The original visual planner remains active.");
+  const sent = JSON.parse(runtime.calls[0].input);
+  assert.deepEqual(sent.exact_dialogue, [spokenScript]);
+  assert.ok(sent.audio_only_quotes.includes(spokenScript));
+  assert.ok(!sent.exact_terms.includes(spokenScript));
+  assert.ok(!sent.exact_terms.includes("inertie"), "Pronunciation notes must not become protected visual lettering.");
+  assert.equal(plan.scenes[0].spokenLine, spokenScript);
+  assert.equal(plan.subline, visualResponse.direction);
+  assert.ok(!plan.scenes[0].visualBrief.includes(spokenScript));
+  assert.deepEqual(prompts.resolveAiMediaFreeDialogueSequence({ request: input, plan }), [spokenScript]);
+  assert.equal(await runtime.writeAiMediaFreeNarration({ accountId: "offline-test", request: input, profile, plan }), null);
+  assert.equal(runtime.calls.length, 1);
+});
+
+test("explicit voiceover returns the exact script and hash without a copywriting or rewriting call", async () => {
+  const spokenScript = "  Bonjour, Océane !\n\n58 € HT/mois.  ";
+  const input = request({ spokenScript, freePrompt: 'Une femme marche. Voix off : « Ancienne narration ». ' });
+  const runtime = loadPlanner(visualResponse);
+  const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile });
+  const narration = await runtime.writeAiMediaFreeNarration({ accountId: "offline-test", request: input, profile, plan });
+  assert.equal(narration?.script, spokenScript);
+  assert.equal(narration?.sha256, createHash("sha256").update(spokenScript).digest("hex"));
+  assert.equal(runtime.calls.length, 1, "Exact narration adds no LLM request to visual planning.");
+});
+
+test("an explicitly empty speech block remains silent despite old quoted speech in the visual brief", async () => {
+  const input = request({ spokenScript: " \n\t ", teamVideoSpeechMode: "characters", withNarration: true, withSubtitles: true,
+    freePrompt: 'Une femme présente une application. Elle dit « Ne pas reprendre ces paroles ». ' });
+  const runtime = loadPlanner(visualResponse);
+  const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile });
+  assert.equal(input.withNarration, false);
+  assert.equal(input.teamVideoSpeechMode, "voiceover");
+  assert.equal(input.withSubtitles, false);
+  assert.equal(plan.scenes[0].spokenLine, "");
+  assert.equal(await runtime.writeAiMediaFreeNarration({ accountId: "offline-test", request: input, profile, plan }), null);
+  assert.equal(runtime.calls.length, 1);
+  const sent = JSON.parse(runtime.calls[0].input);
+  assert.equal(sent.voiceover, false);
+  assert.equal(sent.native_dialogue, false);
+});
+
+test("duration guards reject an oversized exact voiceover without rewriting or truncating it", async () => {
+  const spokenScript = "Bonjour à toutes et à tous, nous sommes heureux de vous présenter notre application et toutes ses fonctionnalités.";
+  const input = request({ spokenScript, durationSeconds: 4 });
+  const runtime = loadPlanner(visualResponse);
+  await assert.rejects(runtime.writeAiMediaFreeNarration({ accountId: "offline-test", request: input, profile,
+    plan: runtime.buildAiMediaFreeBasePlan(input) }), contracts.AiMediaRequestValidationError);
+  assert.equal(input.spokenScript, spokenScript);
+  assert.equal(runtime.calls.length, 0);
+});
+
+test("phonetic guidance does not remove the same wording when it is separately requested on a sign", async () => {
+  const input = request({ spokenScript: "Bienvenue !", teamVideoSpeechMode: "characters",
+    freePrompt: 'La marque se prononce « inertie ». Affiche aussi le titre « inertie ».' });
+  const runtime = loadPlanner({ direction: visualResponse.direction,
+    scenes: [{ visualBrief: "La femme présente l’application devant une enseigne.", spokenLine: "Paroles automatiques à ignorer." }] });
+  const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile });
+  const sent = JSON.parse(runtime.calls[0].input);
+  assert.deepEqual(sent.exact_terms, ["inertie"]);
+  assert.ok(plan.subline.includes("inertie"));
+  assert.equal(plan.scenes[0].spokenLine, "Bienvenue !");
 });

@@ -116,7 +116,8 @@ test("la même direction ADN atteint chaque moteur vidéo sans imposer de sous-t
       businessDnaDirection: "Official palette #123456. Exact logo added locally; do not draw it. No contact text unless requested." } as unknown as AiVideoProviderGenerationArgs;
     const prompt = buildAiMediaFreeVideoScenePrompt(args, 0, 8);
     assert.match(prompt, /#123456/);
-    assert.match(prompt, /no subtitles, captions or quote cards unless requested/);
+    assert.match(prompt, /SUBTITLES OFF/);
+    assert.match(prompt, /no subtitles, captions or automatic speech transcription on screen/);
     assert.ok(prompt.length <= 3_200);
     const unchecked = { ...args, request: { ...input, useBusinessDna: false } };
     assert.doesNotMatch(buildAiMediaFreeVideoScenePrompt(unchecked, 0, 8), /BUSINESS IDENTITY|#123456/);

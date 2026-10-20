@@ -68,15 +68,15 @@ test("le réalisateur et le transport gardent la demande brute avec un cadre uni
   const input = request();
   const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile });
   assert.equal(JSON.parse(runtime.calls[0].input).brief, brief);
-  assert.ok(runtime.calls[0].system.includes(prompts.AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT));
+  assert.ok(runtime.calls[0].system.includes(prompts.buildAiMediaFreeVideoPresentationContract(input)));
   const canonical = prompts.buildAiMediaFreeVideoPrompt({ request: input, profile });
   const transport = prompts.buildAiMediaFreeVideoScenePrompt(provider(input, plan), 0, 15);
   for (const prompt of [canonical, transport]) {
-    assert.ok(prompt.includes(prompts.AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT));
+    assert.ok(prompt.includes(prompts.buildAiMediaFreeVideoPresentationContract(input)));
     assert.match(prompt, /One full-frame view; no bars\. Actions unfold in time/);
     assert.match(prompt, /No split screen, panels, collage or duplicate views unless requested/);
-    assert.match(prompt, /Speech\/dialogue\/narration are audio only/);
-    assert.match(prompt, /no subtitles, captions or quote cards unless requested/);
+    assert.match(prompt, /SUBTITLES OFF/);
+    assert.match(prompt, /no subtitles, captions or automatic speech transcription on screen/);
     assert.doesNotMatch(prompt, /REGLAGE_GUIDE_INTERDIT/);
   }
   assert.ok(canonical.includes(brief));
@@ -88,7 +88,7 @@ test("la première image conserve uniquement l’instant initial et les référe
   const input = request({ inspirationImages: [{ mimeType: "image/png", data: "A".repeat(64), role: "environment", usage: "required" }] });
   const firstFrame = prompts.buildAiMediaFreeSceneFramePrompt({ request: input, profile });
   assert.ok(firstFrame.includes(brief));
-  assert.ok(firstFrame.includes(prompts.AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT));
+  assert.ok(firstFrame.includes(prompts.buildAiMediaFreeVideoPresentationContract({ withSubtitles: false })));
   assert.match(firstFrame, /uniquement l'instant initial/);
   assert.match(firstFrame, /ne pas y résumer les étapes suivantes, dessiner une planche de storyboard ni juxtaposer les futurs plans/);
   assert.match(firstFrame, /rôle environment, usage obligatoire/);
@@ -112,13 +112,15 @@ test("la première image exclut les paroles et leurs valeurs tout en conservant 
   assert.ok(canonical.includes(freePrompt), "Le brief complet reste disponible pour l’audit et les intentions audio.");
 });
 
-test("les sous-titres exacts demandés restent visibles même si la même phrase est aussi prononcée", () => {
+test("une demande brute de sous-titres ne supplante pas leur désactivation dans la première image", () => {
   const line = "Notre équipe travaille ensemble.";
   const freePrompt = `Une femme marche dans une agence. Voix off : « ${line} » Affiche les sous-titres exacts : « ${line} ».`;
   const input = request({ freePrompt, withNarration: true });
   const firstFrame = prompts.buildAiMediaFreeSceneFramePrompt({ request: input, profile });
   assert.equal(firstFrame.split(line).length, 2, "La seule occurrence restante appartient aux sous-titres explicitement demandés.");
   assert.match(firstFrame, /Affiche les sous-titres exacts/);
+  assert.match(firstFrame, /SUBTITLES OFF/);
+  assert.match(firstFrame, /even if the brief requests captions/);
   assert.deepEqual(prompts.splitAiMediaFreeQuotedSpeech(freePrompt).audioOnlyQuotes, [line]);
 });
 
@@ -153,11 +155,11 @@ test("une réplique exacte reste audible sans devenir un texte à incruster", as
   const transport = prompts.buildAiMediaFreeVideoScenePrompt(provider(input, plan), 0, 15);
   assert.match(transport, /NATIVE DIALOGUE:/);
   assert.equal(transport.split(line).length, 2);
-  assert.ok(transport.includes(prompts.AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT));
+  assert.ok(transport.includes(prompts.buildAiMediaFreeVideoPresentationContract(input)));
   assert.doesNotMatch(transport, /No narrator, repeated\/previous lines, subtitles/);
 });
 
-test("une narration séparée reste absente du moteur visuel sans interdire les sous-titres explicitement demandés", async () => {
+test("une narration séparée reste absente du moteur visuel quand la case Sous-titres est décochée", async () => {
   const line = "Notre équipe imagine ensemble sa prochaine campagne.";
   const input = request({ videoEngine: "minimax-h3", withNarration: true, freePrompt: `${brief} Affiche les sous-titres de la voix off.` });
   const runtime = loadPlanner({ direction: "La femme marche vers la salle de réunion avec ses collègues ; les sous-titres demandés accompagnent la voix off.", scenes: ["Les collègues entrent dans la salle de réunion."] });
@@ -170,6 +172,8 @@ test("une narration séparée reste absente du moteur visuel sans interdire les 
   assert.ok(transport.includes(plan.subline));
   assert.doesNotMatch(transport, /No repeated\/previous lines, subtitles/);
   assert.match(transport, /Render requested text faithfully/);
+  assert.match(transport, /SUBTITLES OFF/);
+  assert.match(transport, /even if the brief requests captions/);
 });
 
 test("le texte et les vues multiples demandés restent possibles sans grille guidée ni wording imposé", async () => {
@@ -190,7 +194,8 @@ test("le texte et les vues multiples demandés restent possibles sans grille gui
 
 test("le contrat compact respecte le plafond natif, sans tronquer les directions ou répliques", () => {
   const runtime = loadPlanner({});
-  assert.ok(prompts.AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT.length <= 300);
+  assert.ok(prompts.buildAiMediaFreeVideoPresentationContract({ withSubtitles: false }).length <= 500);
+  assert.ok(prompts.buildAiMediaFreeVideoPresentationContract({ withSubtitles: true }).length <= 500);
   for (const model of AI_MEDIA_VIDEO_MODELS) {
     const durationSeconds = timeline.getAiMediaVideoSegmentDurations(8, model.id, model.defaultResolution, "single")[0];
     for (const speech of ["silent", "voiceover", "characters"] as const) {

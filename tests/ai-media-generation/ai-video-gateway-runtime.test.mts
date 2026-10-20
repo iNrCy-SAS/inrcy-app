@@ -302,7 +302,7 @@ test("Wan Libre conserve la séparation audio/texte et le plein cadre dans son t
   args.request.freePrompt = args.providerContract.instruction;
   const input = context.runtime.buildGatewayAiVideoRequest(args);
   const prompt = (input.prompt as { text: string }).text;
-  assert.ok(prompt.includes(freePrompt.AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT));
+  assert.ok(prompt.includes(freePrompt.buildAiMediaFreeVideoPresentationContract(args.request)));
   assert.ok(prompt.includes(`USER: ${args.request.freePrompt}`));
   assert.ok(prompt.length <= 1500);
   assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
@@ -366,6 +366,18 @@ test("Wan compact preserves explicitly displayed speech wording while native cha
   assert.match(native, /Synchronize the mouth and audible speech/);
   assert.doesNotMatch(native, /VISUAL SPEECH:|No native voices|NATIVE VOICEOVER:/);
   assert.ok(native.length <= 1_500);
+  assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
+});
+
+test("Wan compact retains pronunciation instructions for native character speech", () => {
+  const context = loadRuntime();
+  const args = wanFreeArgs("characters", 'Une femme dit : « Bonjour, voici iNrCy. » iNrCy se prononce « inertie ».');
+  const input = context.runtime.buildGatewayAiVideoRequest(args);
+  const prompt = (input.prompt as { text: string }).text;
+  assert.match(prompt, /AUDIO PRONUNCIATION:/);
+  assert.match(prompt, /"spelling":"iNrCy","pronunciation":"inertie"/);
+  assert.match(prompt, /says exactly once: “Bonjour, voici iNrCy\.”/);
+  assert.ok(prompt.length <= 1_500);
   assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
 });
 

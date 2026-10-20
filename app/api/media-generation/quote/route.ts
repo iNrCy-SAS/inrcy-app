@@ -17,7 +17,9 @@ export async function POST(request: Request) {
     const current = await getCurrentInrcyAccountScope();
     if (!current) return NextResponse.json({ ok: false, code: "UNAUTHORIZED", error: "Non authentifié." }, { status: 401, headers });
     const raw = await request.text();
-    if (raw.length > 8_192) return NextResponse.json({ ok: false, error: "Demande de devis trop longue." }, { status: 413, headers });
+    // A 4000-character script can occupy 8000 JSON code units once escaped,
+    // in addition to the small technical quote parameters. No media files here.
+    if (raw.length > 16_384) return NextResponse.json({ ok: false, error: "Demande de devis trop longue." }, { status: 413, headers });
     const body: unknown = JSON.parse(raw);
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new TypeError("Devis invalide.");
     const input = body as AiMediaCreditsQuoteInput;

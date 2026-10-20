@@ -123,6 +123,8 @@ export type AiVideoProviderGenerationArgs = {
   contentLanguage?: string;
   /** Script de voix off native du mode Libre, découpé sur deux clips maximum. */
   nativeNarrationLines?: readonly string[];
+  /** Exact captions for a separately selected voice-over, only when subtitles are enabled. */
+  subtitleLines?: readonly string[];
   /** Short, server-resolved ADN direction for the visual provider, never a raw profile. */
   businessDnaDirection?: string;
   /**

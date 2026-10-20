@@ -23,6 +23,7 @@ import {
   type AiMediaNativeDialogueTranscriber,
 } from "@/lib/aiMediaNativeDialogueQa";
 import { resolveVideoNormalizationFfmpegPath } from "@/lib/mediaVideoNormalizer";
+import type { AiMediaPronunciationAlias } from "@/lib/aiMediaPronunciation";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_MODEL = "gemini-3.5-flash-lite";
@@ -227,7 +228,7 @@ async function transcribeAudioWithGoogle(args: {
       },
       {
         timeout: args.timeoutMs,
-        // A targeted confirmation below shares this deadline; no hidden SDK retry.
+        // A fresh confirmation below shares this deadline; no hidden SDK retry.
         maxRetries: 0,
         ...(args.signal ? { fetchOptions: { signal: args.signal } } : {}),
       },
@@ -270,6 +271,7 @@ export async function auditAiMediaNativeDialogueWithGoogle(args: {
   accountId: string;
   clips: AiMediaNativeDialogueQaClip[];
   language?: string;
+  pronunciationAliases?: readonly AiMediaPronunciationAlias[];
   signal?: AbortSignal;
 }): Promise<AiMediaNativeDialogueQaResult> {
   const startedAt = Date.now();
@@ -351,8 +353,9 @@ export async function auditAiMediaNativeDialogueWithGoogle(args: {
     return await auditAiMediaNativeDialogueClips({
       clips: args.clips,
       language: args.language,
-      // A QA deadline during confirmation must preserve a known rejection.
-      // Only the caller's cancellation may discard that evidence.
+      pronunciationAliases: args.pronunciationAliases,
+      // A QA deadline makes an unconfirmed rejection inconclusive. Only the
+      // caller's cancellation interrupts delivery of the audit result.
       signal: args.signal,
       transcribe,
       confirm: async (clip, options) => {

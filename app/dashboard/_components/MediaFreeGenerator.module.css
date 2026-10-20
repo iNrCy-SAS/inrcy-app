@@ -1219,3 +1219,59 @@
 .promptHeadingCopy { flex: 1; min-width: 0; }
 .promptTitleRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .promptTitleRow h2 { flex: 1; min-width: 0; }
+
+.audioSection .subtitlesOption { grid-column: 1 / -1; grid-row: 4; }
+
+.workspace[data-view="editor"] .promptPanel[data-spoken-script-open="true"] .promptContainer {
+  min-height: 130px;
+}
+.workspace[data-view="editor"] .promptPanel[data-spoken-script-open="true"] .promptContainer textarea {
+  min-height: 80px;
+  resize: none;
+}
+.spokenScriptSection { flex: 0 0 auto; min-width: 0; }
+.addSpokenScriptButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid rgba(131, 171, 233, .34);
+  border-radius: 10px;
+  background: rgba(38, 68, 111, .5);
+  color: #d7eaff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.addSpokenScriptButton:hover:not(:disabled) { background: rgba(49, 92, 145, .65); }
+.addSpokenScriptButton:disabled { opacity: .55; cursor: default; }
+.addSpokenScriptButton:focus-visible,
+.spokenScriptHeading button:focus-visible,
+.spokenScriptSilentHelp button:focus-visible { outline: 2px solid #9adcf5; outline-offset: 3px; }
+.spokenScriptPanel { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.spokenScriptPanel[hidden] { display: none; }
+.spokenScriptHeading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; }
+.spokenScriptHeading label { color: #e2ebff; font-size: 13px; font-weight: 700; }
+.spokenScriptHeading label span { margin-left: 5px; color: #a8b2cb; font-size: 11px; font-weight: 400; }
+.spokenScriptHeading button,
+.spokenScriptSilentHelp button { padding: 4px 0; border: 0; background: transparent; color: #b5dcff; font: inherit; font-size: 11px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.spokenScriptHeading button:disabled,
+.spokenScriptSilentHelp button:disabled { opacity: .55; cursor: default; }
+.spokenScriptInput { overflow: hidden; border: 1px solid rgba(168, 139, 218, .32); border-radius: 14px; background: rgba(5, 13, 31, .55); }
+.spokenScriptInput:focus-within { border-color: #7da1fa; box-shadow: 0 0 0 3px rgba(105, 110, 233, .12); }
+.spokenScriptInput textarea { display: block; box-sizing: border-box; width: 100%; min-height: 92px; max-height: 160px; padding: 12px 14px; resize: vertical; border: 0; outline: 0; background: transparent; color: #f1f5ff; font: inherit; font-size: 14px; line-height: 1.65; }
+.spokenScriptInput textarea::placeholder { color: #7e8caa; }
+.spokenScriptCounter { display: block; padding: 0 14px 9px; color: #94a7c7; font-size: 11px; font-variant-numeric: tabular-nums; }
+.spokenScriptPanel .promptHelp { font-size: 11px; line-height: 1.5; }
+.spokenScriptSilentHelp { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 9px; margin-top: 5px; color: #a8b2cb; font-size: 11px; line-height: 1.5; }
+.spokenScriptSilentHelp p { margin: 0; }
+.soundChoice[data-disabled="true"] { opacity: .55; cursor: default; }
+@media (max-width: 760px) {
+  .workspace[data-view="editor"] .promptPanel[data-spoken-script-open="true"] .promptContainer { min-height: 160px; }
+  .workspace[data-view="editor"] .promptPanel[data-spoken-script-open="true"] .promptContainer textarea { min-height: 100px; font-size: 16px; }
+  .spokenScriptInput textarea { font-size: 16px; min-height: 110px; }
+  .spokenScriptHeading button { min-height: 36px; }
+  .addSpokenScriptButton { min-height: 42px; }
+}

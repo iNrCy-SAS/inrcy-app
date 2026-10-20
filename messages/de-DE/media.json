@@ -1,4 +1,13 @@
 {
+  "ai_generator_free_subtitles": "Untertitel",
+  "ai_generator_spoken_script_add": "Add speech",
+  "ai_generator_spoken_script_label": "Words to say",
+  "ai_generator_spoken_script_remove": "Remove speech",
+  "ai_generator_spoken_script_placeholder": "E.g. Hello, I’m Océane, co-founder and managing director of iNrCy.",
+  "ai_generator_spoken_script_help": "Enter only the words to say, without quotation marks. Choose voiceover or characters in Criteria.",
+  "ai_generator_spoken_script_silent_help": "Choose Voiceover or Characters in Criteria to add speech.",
+  "ai_generator_spoken_script_choose_audio": "Choose audio mode",
+  "ai_generator_spoken_script_remove_for_silent": "To choose No speech, first remove the text in Words to say.",
   "ai_generator_credit_balance_label": "Guthaben",
   "ai_generator_credit_advance_short": "iNr’Agent-Vorschuss",
   "ai_generator_credit_advance_help": "iNr’Agent arbeitet automatisch weiter. Der Vorschuss wird mit den nächsten Aufladungen verrechnet. Manuelle Generierungen benötigen ausreichend Guthaben.",

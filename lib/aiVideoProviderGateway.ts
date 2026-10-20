@@ -8,7 +8,7 @@ import {
   rollbackAiGatewayAccountAttempt,
 } from "@/lib/aiGatewayAccountGuard";
 import { bufferFromUint8ArrayView } from "./aiMediaBuffer.ts";
-import { AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT, splitAiMediaFreeQuotedSpeech } from "./aiMediaFreeGenerationPrompt.ts";
+import { buildAiMediaFreeVideoPresentationContract, splitAiMediaFreeQuotedSpeech } from "./aiMediaFreeGenerationPrompt.ts";
 import { AiMediaRequestValidationError } from "@/lib/aiMediaGenerationContracts";
 import {
   getAiMediaVideoModel,
@@ -54,7 +54,7 @@ export function buildWanFlashVideoPrompt(args: AiVideoProviderGenerationArgs, va
   // wording, so the new silence rule does not crowd out previously valid briefs.
   const compactSilence = separateVoiceover && Boolean(visualSpeech);
   const audio = args.request.creationMode === "free"
-    ? validatedPrompt.split("\n").filter((line) => /^(?:NATIVE DIALOGUE:|NATIVE VOICEOVER:|No native voices)/.test(line)).join("\n")
+    ? validatedPrompt.split("\n").filter((line) => /^(?:NATIVE DIALOGUE:|NATIVE VOICEOVER:|AUDIO PRONUNCIATION:|No native voices|EXTERNAL VOICEOVER CAPTIONS:)/.test(line)).join("\n")
     : buildGoogleVideoTeamSpeechDirection(args, index);
   const prompt = [
     `SHOT ${index + 1}/${args.plan.scenes.length}; ${duration}s. Motion from frame 1; fill frame, no bars.`,
@@ -68,8 +68,8 @@ export function buildWanFlashVideoPrompt(args: AiVideoProviderGenerationArgs, va
     compactSilence ? "" : `Speech language: ${args.contentLanguage || "fr"}. No repeated lines.`,
     args.request.creationMode === "free"
       ? compactSilence
-        ? "Fill frame, no borders/bars/matte. No split/panels/collage/duplicate views unless asked. Speech is audio: no subtitles/captions/quote cards unless asked. Exact text; wording only if asked."
-        : AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT
+        ? `Fill frame. No split/panels/collage unless asked. Subtitles ${args.request.withSubtitles ? "ON: faithful, same language as speech" : "OFF: no speech captions"}. Other requested visual text allowed.`
+        : buildAiMediaFreeVideoPresentationContract(args.request)
       : "No visual text, numbers, UI, logos or technical annotations; iNrCy adds overlays.",
   ].filter(Boolean).join("\n");
   if (prompt.length > 1500) throw new Error(`ai_video_instruction_contract_too_long:${prompt.length}:1500`);

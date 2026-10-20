@@ -18,6 +18,8 @@ import { writeAiMediaHeadline } from "@/lib/aiMediaCopywriter";
 import { buildAiMediaFreeBasePlan, prepareAiMediaFreeCreativePlan, writeAiMediaFreeNarration } from "@/lib/aiMediaFreeGenerationPlan";
 import { AI_MEDIA_FREE_PROMPT_VERSION, buildAiMediaFreeSceneFramePrompt, getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, getAiMediaFreeImageSize, resolveAiMediaFreeDialogueSequence, resolveAiMediaFreeSpeechLanguage, splitAiMediaFreeNarrationByScene } from "@/lib/aiMediaFreeGenerationPrompt";
 import { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover } from "@/lib/aiMediaFreeVoiceoverPolicy";
+import { splitAiMediaSpokenScript } from "./aiMediaSpokenScript.ts";
+import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
 import {
   AiGatewayAccountLimitError,
   AiGatewayGuardUnavailableError,
@@ -959,6 +961,7 @@ export async function generateAndSaveAiMedia(args: {
     const nativeNarrationLines = nativeVoiceoverNarration
       ? splitAiMediaFreeNarrationByScene(nativeVoiceoverNarration.script, creativePlan.scenes.length, segmentDurations)
       : undefined;
+    let subtitleLines: string[] | undefined;
     const speechLanguage = isFreeCreation
       ? nativeVoiceoverNarration?.language || resolveAiMediaFreeSpeechLanguage(providerRequest.freePrompt || "", creativePlan.scenes.map((scene) => scene.spokenLine || "").join(" "), profile.preferences.language)
       : profile.preferences.language;
@@ -1059,6 +1062,7 @@ export async function generateAndSaveAiMedia(args: {
         brandColors: effectiveColors,
         profileFallback,
         nativeNarrationLines,
+        subtitleLines,
         identityTeamPrecomposed: overrides.identityTeamPrecomposed,
         identityTeamMemberCount: overrides.identityTeamMemberCount,
       });
@@ -1077,6 +1081,7 @@ export async function generateAndSaveAiMedia(args: {
           creativePlan.companyName,
         contentLanguage: speechLanguage,
         nativeNarrationLines,
+        subtitleLines,
         ...(useFreeDna ? { businessDnaDirection: [
           promptBrandColors.length ? `Use the official palette ${promptBrandColors.join(", ")} unless the brief specifies other colours.` : "",
           localDnaLogo ? "The exact official logo is added locally afterwards; do not draw or duplicate it in the scene." : "",
@@ -1454,6 +1459,7 @@ export async function generateAndSaveAiMedia(args: {
               durationSeconds,
               narrationVoice: narrationRequest.narrationVoice || "female",
               narrationVoiceVariant: narrationRequest.narrationVoiceVariant,
+              pronunciationAliases: isFreeCreation ? extractAiMediaPronunciationAliases(narrationRequest.freePrompt || "") : undefined,
               signal: narrationController.signal,
             })
           );
@@ -1544,6 +1550,9 @@ export async function generateAndSaveAiMedia(args: {
         if (!preparedNarration.narration || !preparedNarration.audio) {
           throw new Error("ai_media_narration_unavailable");
         }
+        if (isFreeCreation && providerRequest.withSubtitles) {
+          subtitleLines = splitAiMediaSpokenScript(preparedNarration.narration.script, segmentDurations);
+        }
       } catch (error) {
         narrationController.abort(error);
         args.signal?.removeEventListener("abort", abortNarrationFromCaller);
@@ -1573,7 +1582,7 @@ export async function generateAndSaveAiMedia(args: {
         })
       : [];
     // Reject speech that cannot fit before paying for a video, never trim literal dialogue.
-    if (characterDialogueRequested) {
+    if (characterDialogueRequested && !isFreeCreation) {
       const speechDurations = getAiMediaVideoSegmentDurations(durationSeconds, providerRequest.videoEngine, providerRequest.videoResolution, providerRequest.sceneMode);
       expectedDialogueLines.forEach((line, index) => {
         if (!line) return;
@@ -1685,6 +1694,7 @@ export async function generateAndSaveAiMedia(args: {
             auditAiMediaNativeDialogueWithGoogle({
               accountId: args.accountId,
               language: speechLanguage,
+              pronunciationAliases: isFreeCreation ? extractAiMediaPronunciationAliases(providerRequest.freePrompt || "") : undefined,
               signal: args.signal,
               clips: videoGateway.clips.map((clip, index) => ({
                 sceneIndex: index,
@@ -1694,6 +1704,8 @@ export async function generateAndSaveAiMedia(args: {
                 sourceStartSeconds: clip.sourceStartSeconds,
                 expectedLine: expectedDialogueLines[index] || "",
                 expectSilence: isFreeCreation && !expectedDialogueLines[index],
+                expectedContinuation: isFreeCreation && typeof providerRequest.spokenScript === "string" &&
+                  expectedDialogueLines.slice(index + 1).some((line) => Boolean(line.trim())),
               })),
             })
           )
@@ -1729,6 +1741,7 @@ export async function generateAndSaveAiMedia(args: {
           auditAiMediaNativeDialogueWithGoogle({
             accountId: args.accountId,
             language: nativeVoiceoverNarration?.language || profile.preferences.language,
+            pronunciationAliases: isFreeCreation ? extractAiMediaPronunciationAliases(providerRequest.freePrompt || "") : undefined,
             signal: args.signal,
             clips: videoGateway.clips.map((clip, index) => ({
               sceneIndex: index,
@@ -1738,16 +1751,23 @@ export async function generateAndSaveAiMedia(args: {
               sourceStartSeconds: clip.sourceStartSeconds,
               expectedLine: nativeNarrationLines?.[index] || "",
               expectSilence: !nativeNarrationLines?.[index],
+              expectedContinuation: isFreeCreation && typeof providerRequest.spokenScript === "string" &&
+                nativeNarrationLines?.slice(index + 1).some((line) => Boolean(line.trim())) === true,
             })),
           }))
       : null;
+    if (nativeVoiceoverRequested && (
+      videoGateway.provider.startsWith("inrcy-") || nativeVoiceoverQa?.status === "rejected"
+    )) {
+      const issues = [...new Set(nativeVoiceoverQa?.clips.flatMap((clip) => clip.issues) || [])];
+      throw new Error(`ai_media_free_native_character_speech_unusable:${issues.join(",") || "provider_fallback"}`);
+    }
+    // An inconclusive audit is not proof of conformity or permission to
+    // replace the voice. Preserve native audio as for character dialogue.
     const nativeVoiceoverPreserved = nativeVoiceoverRequested &&
-      nativeVoiceoverQa?.status === "passed";
+      !videoGateway.provider.startsWith("inrcy-") && nativeVoiceoverQa?.status !== "rejected";
     const narrationJoinStartedAt = performance.now();
-    const narrationResult = nativeVoiceoverRequested && !nativeVoiceoverPreserved
-      ? await measure("native_voiceover_tts_fallback", () =>
-          generateNarrationResult(providerRequest, nativeVoiceoverNarration))
-      : await waitForOptionalTaskWithinGrace({
+    const narrationResult = await waitForOptionalTaskWithinGrace({
           task: narrationTask,
           graceMs: positiveInt(
             process.env.AI_MEDIA_NARRATION_AFTER_VIDEO_GRACE_MS,
@@ -1756,13 +1776,6 @@ export async function generateAndSaveAiMedia(args: {
           ),
           signal: args.signal,
         });
-    if (nativeVoiceoverRequested && !nativeVoiceoverPreserved) {
-      pipelineWarnings.push(
-        nativeVoiceoverQa?.status === "rejected"
-          ? "native_voiceover_qa_rejected_tts_fallback_used"
-          : "native_voiceover_qa_unavailable_tts_fallback_used"
-      );
-    }
     pipelineTimingsMs.narration_join_after_veo = roundedDurationMs(
       narrationJoinStartedAt
     );

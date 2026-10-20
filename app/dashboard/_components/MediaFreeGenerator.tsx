@@ -22,6 +22,7 @@ import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import {
   AI_MEDIA_FREE_PROMPT_MAX_CHARS,
   AI_MEDIA_INSPIRATION_MAX_COUNT,
+  AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS,
 } from "@/lib/aiMediaGenerationContracts";
 import {
   AI_MEDIA_NARRATION_VOICE_VARIANTS,
@@ -160,6 +161,9 @@ export default function MediaFreeGenerator({
   const enginePreference = useMediaEnginePreference(quota?.accountId);
   const imageModel = getAiMediaImageModel(enginePreference.imageEngine);
   const [prompt, setPrompt] = useState(initialPrompt);
+  const [spokenScript, setSpokenScript] = useState("");
+  const [spokenScriptOpen, setSpokenScriptOpen] = useState(false);
+  const explicitlyEmptySpokenScript = kind === "video" && spokenScriptOpen && !spokenScript.trim();
   const [useBusinessDna, setUseBusinessDna] = useState(false);
   const [format, setFormat] = useState<MediaGenerationFormat>(
     fixedFormat || (kind === "video" ? "story" : "square")
@@ -168,6 +172,7 @@ export default function MediaFreeGenerator({
   const [sceneMode, setSceneMode] = useState<MediaGenerationVideoSceneMode>("single");
   const [references, setReferences] = useState<Reference[]>([]);
   const [withMusic, setWithMusic] = useState(true);
+  const [withSubtitles, setWithSubtitles] = useState(false);
   const [speechMode, setSpeechMode] =
     useState<"voiceover" | "characters" | "silent">("voiceover");
   const [voice, setVoice] = useState<MediaGenerationNarrationVoice>("female");
@@ -223,9 +228,11 @@ export default function MediaFreeGenerator({
       provider: kind === "video" ? videoModel.providerLabel : imageModel.providerLabel,
     });
   const effectiveWithNarration =
-    kind === "video" && speechMode === "voiceover";
+    kind === "video" && !explicitlyEmptySpokenScript && speechMode === "voiceover";
+  const effectiveWithSubtitles =
+    kind === "video" && !explicitlyEmptySpokenScript && speechMode !== "silent" && withSubtitles;
   const requestSpeechMode: MediaGenerationTeamVideoSpeechMode =
-    speechMode === "characters" ? "characters" : "voiceover";
+    !explicitlyEmptySpokenScript && speechMode === "characters" ? "characters" : "voiceover";
   const referenceCriteriaIncomplete = references.some(
     (reference) => !reference.role || !reference.usage
   );
@@ -235,6 +242,8 @@ export default function MediaFreeGenerator({
     (reference.usage === "required" || (kind === "video" && reference.voiceMode === "provided"))).length > 3;
   const maxUserPromptLength = Math.max(0, MAX_PROMPT - (requiredPromptSuffix ? requiredPromptSuffix.length + 1 : 0));
   const effectivePrompt = [prompt.trim(), requiredPromptSuffix.trim()].filter(Boolean).join(" ");
+  const hasSpokenScript = kind === "video" && spokenScript.trim().length > 0;
+  const spokenScriptConflict = hasSpokenScript && speechMode === "silent";
   const durationUnavailable = kind === "video" && (!durations.includes(duration) || !canGenerateAiMediaVideoDuration(selectedVideoEngine, duration, videoResolution, sceneMode));
   const referenceCompatible = kind === "video" ? isMediaVideoReferenceCompatible(selectedVideoEngine, references.length, characterVoiceSelection.hasProvidedVoice) : isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "generate", inspirationImagesCount: references.length });
   const briefCompatible = kind !== "video" || isMediaVideoBriefCompatible(selectedVideoEngine, effectivePrompt);
@@ -268,6 +277,8 @@ export default function MediaFreeGenerator({
     inspirationImagesCount: references.length, withNarration: effectiveWithNarration,
     hasProvidedCharacterVoice: characterVoiceSelection.hasProvidedVoice,
     teamVideoSpeechMode: requestSpeechMode,
+    ...(kind === "video" ? { withSubtitles: effectiveWithSubtitles } : {}),
+    ...(kind === "video" && spokenScriptOpen ? { spokenScript } : {}),
   }, quota, !durationUnavailable && referenceCompatible && briefCompatible);
   const creditInsufficient = creditQuote.insufficient;
   const modelRecommendation = recommendAiMediaModel({ kind, format: fixedFormat || format, operation: "generate", brief: effectivePrompt,
@@ -292,6 +303,7 @@ export default function MediaFreeGenerator({
     !characterVoiceSelection.missingSample &&
     !characterVoiceSpeechConflict &&
     !characterVoiceDurationExceeded &&
+    !spokenScriptConflict &&
     (!identityRequired || identityConsent) &&
     (!teamConsentRequired || teamConsent);
   const resetDate =
@@ -331,12 +343,15 @@ export default function MediaFreeGenerator({
     const clearAccountState = () => {
       sequence.current += 1;
       setPrompt("");
+      setSpokenScript("");
+      setSpokenScriptOpen(false);
       setUseBusinessDna(false);
       setReferences([]);
       setFormat(fixedFormat || (kind === "video" ? "story" : "square"));
       setDuration(8);
       setSceneMode("single");
       setWithMusic(true);
+      setWithSubtitles(false);
       setSpeechMode("voiceover");
       setVoice("female");
       setVoiceVariant("Kore");
@@ -528,6 +543,7 @@ export default function MediaFreeGenerator({
         operation: "generate",
         creationMode: "free",
         freePrompt: effectivePrompt,
+        ...(kind === "video" && spokenScriptOpen ? { spokenScript } : {}),
         useBusinessDna,
         inputMode: "essential",
         source,
@@ -538,6 +554,7 @@ export default function MediaFreeGenerator({
         durationSeconds: kind === "video" ? duration : undefined,
         sceneMode: kind === "video" ? sceneMode : undefined,
         withMusic: kind === "video" && withMusic,
+        ...(kind === "video" ? { withSubtitles: effectiveWithSubtitles } : {}),
         withNarration: effectiveWithNarration,
         narrationVoice: effectiveWithNarration ? voice : undefined,
         narrationVoiceVariant:
@@ -1022,6 +1039,7 @@ export default function MediaFreeGenerator({
                   <label
                     className={styles.soundChoice}
                     data-selected={speechMode === mode}
+                    data-disabled={mode === "silent" && hasSpokenScript}
                     key={mode}
                   >
                     <input
@@ -1029,7 +1047,10 @@ export default function MediaFreeGenerator({
                       name={`${instanceId}-speech-mode`}
                       value={mode}
                       checked={speechMode === mode}
+                      disabled={mode === "silent" && hasSpokenScript}
+                      aria-describedby={mode === "silent" && hasSpokenScript ? `${instanceId}-speech-mode-help` : undefined}
                       onChange={() => {
+                        if (mode === "silent" && hasSpokenScript) return;
                         setSpeechMode(mode);
                         resetConsent();
                       }}
@@ -1045,6 +1066,9 @@ export default function MediaFreeGenerator({
                   </label>
                 ))}
               </fieldset>
+              {hasSpokenScript ? <p id={`${instanceId}-speech-mode-help`} className={styles.muted}>
+                {t("ai_generator_spoken_script_remove_for_silent")}
+              </p> : null}
               {speechMode === "characters" ? (
                 <p className={styles.muted} role="note">
                   {t("ai_generator_essential_character_speech_notice")}
@@ -1109,11 +1133,22 @@ export default function MediaFreeGenerator({
                 />
                 <span>{t("ai_generator_free_music")}</span>
               </label>
+              <label className={`${styles.musicOption} ${styles.subtitlesOption}`}>
+                <input
+                  type="checkbox"
+                  checked={effectiveWithSubtitles}
+                  disabled={locked || speechMode === "silent" || explicitlyEmptySpokenScript}
+                  data-media-subtitles
+                  onChange={(event) => setWithSubtitles(event.target.checked)}
+                />
+                <span>{t("ai_generator_free_subtitles")}</span>
+              </label>
             </div>
           ) : null}
         </section>
         <section
           className={`${styles.promptPanel} ${editorStyles.tabPanel}`}
+          data-spoken-script-open={kind === "video" && spokenScriptOpen}
           role="tabpanel" id={`${instanceId}-panel-prompt`} aria-labelledby={`${instanceId}-tab-prompt`} hidden={activeSettingsTab !== "prompt"}
         >
           <div className={styles.panelHeading}>
@@ -1194,7 +1229,7 @@ export default function MediaFreeGenerator({
               maxLength={maxUserPromptLength}
               disabled={busy || finishing || referencesBusy || characterVoiceBusy}
               readOnly={voiceBusy}
-              aria-describedby={`${instanceId}-prompt-help`}
+              aria-describedby={kind === "image" ? `${instanceId}-prompt-help` : undefined}
               placeholder={t(
                 kind === "video"
                   ? "ai_generator_free_prompt_placeholder_video"
@@ -1219,9 +1254,54 @@ export default function MediaFreeGenerator({
               />
             </div>
           </div>
-          <p id={`${instanceId}-prompt-help`} className={styles.promptHelp}>
+          {kind === "video" ? <div className={styles.spokenScriptSection}>
+            {!spokenScriptOpen ? <>
+              <button
+                id={`${instanceId}-add-spoken-script`}
+                type="button"
+                className={styles.addSpokenScriptButton}
+                disabled={locked || speechMode === "silent"}
+                aria-expanded={false}
+                aria-controls={`${instanceId}-spoken-script-panel`}
+                aria-describedby={speechMode === "silent" ? `${instanceId}-spoken-script-silent-help` : undefined}
+                onClick={() => {
+                  setSpokenScriptOpen(true);
+                  window.requestAnimationFrame(() => document.getElementById(`${instanceId}-spoken-script`)?.focus());
+                }}
+              ><span aria-hidden="true">＋</span>{t("ai_generator_spoken_script_add")}</button>
+              {speechMode === "silent" ? <div className={styles.spokenScriptSilentHelp}>
+                <p id={`${instanceId}-spoken-script-silent-help`}>{t("ai_generator_spoken_script_silent_help")}</p>
+                <button type="button" disabled={locked} onClick={() => {
+                  setActiveSettingsTab("criteria");
+                  window.requestAnimationFrame(() => document.getElementById(`${instanceId}-tab-criteria`)?.focus());
+                }}>{t("ai_generator_spoken_script_choose_audio")}</button>
+              </div> : null}
+            </> : null}
+            <div id={`${instanceId}-spoken-script-panel`} hidden={!spokenScriptOpen} className={styles.spokenScriptPanel}>
+              <div className={styles.spokenScriptHeading}>
+                <label htmlFor={`${instanceId}-spoken-script`}>{t("ai_generator_spoken_script_label")} <span>{t("ai_generator_free_optional")}</span></label>
+                <button type="button" disabled={locked} aria-controls={`${instanceId}-spoken-script-panel`} aria-expanded={true}
+                  onClick={() => {
+                    setSpokenScript("");
+                    setSpokenScriptOpen(false);
+                    window.requestAnimationFrame(() => document.getElementById(`${instanceId}-add-spoken-script`)?.focus());
+                  }}>{t("ai_generator_spoken_script_remove")}</button>
+              </div>
+              <div className={styles.spokenScriptInput}>
+                <textarea id={`${instanceId}-spoken-script`} value={spokenScript}
+                  maxLength={AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS} disabled={locked || speechMode === "silent"}
+                  aria-describedby={`${instanceId}-spoken-script-help ${instanceId}-spoken-script-count`}
+                  placeholder={t("ai_generator_spoken_script_placeholder")}
+                  onChange={(event) => setSpokenScript(event.target.value)} />
+                <span id={`${instanceId}-spoken-script-count`} className={styles.spokenScriptCounter}>
+                  {spokenScript.length.toLocaleString(locale)} / {AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS.toLocaleString(locale)}
+                </span>
+              </div>
+              <p id={`${instanceId}-spoken-script-help`} className={styles.promptHelp}>{t("ai_generator_spoken_script_help")}</p>
+            </div>
+          </div> : <p id={`${instanceId}-prompt-help`} className={styles.promptHelp}>
             {requiredPromptSuffix ? "Les critères du canal sont ajoutés automatiquement à votre consigne." : t("ai_generator_free_prompt_help")}
-          </p>
+          </p>}
         </section>
           </div>
         </div>

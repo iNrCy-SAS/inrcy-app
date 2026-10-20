@@ -131,6 +131,8 @@ export const AI_MEDIA_GENERATION_MAX_BODY_BYTES = 4 * 1024 * 1024;
 /** Limite propre au brief de Modifier Image, de l'interface au fournisseur. */
 export const AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS = 1_200;
 export const AI_MEDIA_FREE_PROMPT_MAX_CHARS = 4_000;
+/** Optional exact speech, separate from the visual brief. */
+export const AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS = 4_000;
 
 export type AiMediaFormatSpec = {
   format: AiMediaOutputFormat;
@@ -218,6 +220,10 @@ export type AiMediaGenerationRequest = {
   /** Independent free-form creative path; never the legacy `ai_free` casting option. */
   creationMode?: AiMediaCreationMode;
   freePrompt?: string;
+  /** Exact speech for free Studio video. An explicit empty string overrides legacy quoted speech. */
+  spokenScript?: string;
+  /** Optional native subtitles for free Studio video only. */
+  withSubtitles?: boolean;
   /** Optional verified business facts; never restores hidden guided settings. */
   useBusinessDna?: boolean;
   /** `modify` conserve une image source et applique uniquement la consigne. */
@@ -362,6 +368,32 @@ export class AiMediaRequestValidationError extends Error {
     super(message);
     this.name = "AiMediaRequestValidationError";
   }
+}
+
+/** Preserve exact copy and the distinction between an absent field and an empty explicit script. */
+export function normalizeAiMediaSpokenScript(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") {
+    throw new AiMediaRequestValidationError("Le texte des paroles est invalide.");
+  }
+  const script = value.replace(/\r\n?/g, "\n");
+  if (script.length > AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS) {
+    throw new AiMediaRequestValidationError(
+      `Les paroles ne peuvent pas dépasser ${AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS.toLocaleString("fr-FR")} caractères.`
+    );
+  }
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/u.test(script)) {
+    throw new AiMediaRequestValidationError("Le texte des paroles contient des caractères invalides.");
+  }
+  return script;
+}
+
+/** Selecting subtitles does not create speech when the selected mode is silent. */
+export function normalizeAiMediaWithSubtitles(value: unknown, hasSpeech: boolean): boolean {
+  if (value !== undefined && typeof value !== "boolean") {
+    throw new AiMediaRequestValidationError("L’option de sous-titres est invalide.");
+  }
+  return value === true && hasSpeech;
 }
 
 function cleanText(value: unknown, max: number) {
@@ -591,6 +623,13 @@ export function normalizeAiMediaGenerationRequest(
   }
   const creationMode: AiMediaCreationMode = body.creationMode === "free" ? "free" : "guided";
   const useBusinessDna = creationMode === "free" && body.useBusinessDna === true;
+  const spokenScript = creationMode === "free" && body.kind === "video"
+    ? normalizeAiMediaSpokenScript(body.spokenScript)
+    : undefined;
+  const explicitEmptySpokenScript = typeof spokenScript === "string" && !spokenScript.trim();
+  const requestedWithSubtitles = creationMode === "free" && body.kind === "video"
+    ? body.withSubtitles
+    : undefined;
   let freePrompt = "";
   if (creationMode === "free") {
     if (body.useBusinessDna !== undefined && typeof body.useBusinessDna !== "boolean") {
@@ -620,13 +659,13 @@ export function normalizeAiMediaGenerationRequest(
       durationSeconds: body.durationSeconds, sceneMode: body.sceneMode,
       connectScenes: body.connectScenes,
       withMusic: body.withMusic,
-      withNarration: body.teamVideoSpeechMode === "characters" ? false : body.withNarration,
+      withNarration: explicitEmptySpokenScript || body.teamVideoSpeechMode === "characters" ? false : body.withNarration,
       narrationVoice: body.narrationVoice, narrationVoiceVariant: body.narrationVoiceVariant,
       videoEngine: body.videoEngine, imageEngine: body.imageEngine,
       videoResolution: body.videoResolution,
       expectedCredits: body.expectedCredits, creditTariffVersion: body.creditTariffVersion,
       creditQuoteId: body.creditQuoteId, teamVideoMode: "cinematic",
-      teamVideoSpeechMode: body.teamVideoSpeechMode,
+      teamVideoSpeechMode: explicitEmptySpokenScript ? "voiceover" : body.teamVideoSpeechMode,
       useBrandColors: false, logoMode: "none", textMode: "none",
     };
   }
@@ -1163,6 +1202,14 @@ export function normalizeAiMediaGenerationRequest(
   // contrat, avant même de démarrer le pipeline de narration.
   const withNarration =
     requestedWithNarration && teamVideoSpeechMode !== "characters";
+  const withSubtitles = creationMode === "free" && kind === "video"
+    ? normalizeAiMediaWithSubtitles(requestedWithSubtitles, withNarration || teamVideoSpeechMode === "characters")
+    : undefined;
+  if (spokenScript?.trim() && !withNarration && teamVideoSpeechMode !== "characters") {
+    throw new AiMediaRequestValidationError(
+      "Choisissez une voix off ou des personnages parlants pour utiliser les paroles."
+    );
+  }
   // Le consentement est volontairement lié à cette requête, à ce mode et à
   // cette destination. Un booléen isolé sur une image ou un autre mode ne peut
   // jamais ouvrir un egress Google par accident.
@@ -1200,6 +1247,8 @@ export function normalizeAiMediaGenerationRequest(
     requestId,
     creationMode,
     freePrompt: creationMode === "free" ? freePrompt : undefined,
+    spokenScript,
+    withSubtitles,
     useBusinessDna: creationMode === "free" ? useBusinessDna : undefined,
     operation,
     inputMode,

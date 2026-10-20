@@ -15,6 +15,8 @@ import * as freeVoiceoverPolicy from "../../lib/aiMediaFreeVoiceoverPolicy.ts";
 import * as sensitive from "../../lib/aiMediaSensitiveText.ts";
 import * as agentVideoFallback from "../../lib/inrAgentVideoFallback.ts";
 import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
+import * as spokenScript from "../../lib/aiMediaSpokenScript.ts";
+import * as pronunciation from "../../lib/aiMediaPronunciation.ts";
 
 type RecordValue = Record<string, unknown>;
 function compile(file: string, modules: Map<string, unknown>, quiet = false) {
@@ -64,6 +66,8 @@ function serverHarness(providerFailure: boolean | Error = false) {
       officialLogoIncluded: Boolean(args.officialLogo), warnings: [], usage: null };
   };
   const overrides: Array<[string, unknown]> = [
+    ["./aiMediaSpokenScript.ts", spokenScript],
+    ["./aiMediaPronunciation.ts", pronunciation],
     ["./inrAgentVideoFallback.ts", agentVideoFallback],
     ["./aiMediaGenerationPublicErrors.ts", publicErrors],
     ["server-only", {}], ["./aiMediaCharacterVoices.ts", characterVoices], ["@/lib/aiMediaCharacterVoices", characterVoices], ["sharp", {}],

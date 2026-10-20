@@ -78,7 +78,11 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
         if (options.quotaReached) return { outcome: "quota_reached", quota: { remaining: 0 } };
         const completed = completedRequests.get(args.requestKey);
         if (completed) {
-          assert.equal(args.requestFingerprint, completed.fingerprint, "Un rejeu doit porter le même contrat.");
+          if (args.requestFingerprint !== completed.fingerprint) {
+            throw Object.assign(new QuotaError("Cette clé de tentative est déjà associée à une autre demande."), {
+              code: "AI_MEDIA_IDEMPOTENCY_CONFLICT", httpStatus: 409,
+            });
+          }
           return { outcome: "replayed", status: "completed", jobId: completed.jobId };
         }
         const jobId = `job-${pendingRequests.size + 1}`;
@@ -412,6 +416,56 @@ test("l'empreinte sépare les parcours et couvre la fin d'un long prompt Libre",
     fingerprints.push(route.reservationCalls[0]!.requestFingerprint);
   }
   assert.equal(new Set(fingerprints).size, 3);
+});
+
+test("exact speech reaches the original generator separately and changing it cannot replay a prior request ID", async () => {
+  const route = loadRoute();
+  const prefix = "Paroles exactes. ".repeat(200);
+  const spokenScript = `${prefix}\n58 € HT/mois : FIN_ALPHA`;
+  const input = body({ kind: "video", durationSeconds: 8, videoEngine: "veo", teamVideoSpeechMode: "characters", spokenScript });
+  assert.equal((await route.post(input)).status, 200);
+  assert.equal(route.generationCalls[0].request.spokenScript, spokenScript);
+  const replay = await route.post(input);
+  assert.equal(replay.status, 200);
+  assert.equal((await replay.json()).replayed, true);
+  const conflict = await route.post(body({ ...input, spokenScript: `${prefix}\n58 € HT/mois : FIN_BETA` }));
+  assert.equal(conflict.status, 409);
+  assert.equal((await conflict.json()).code, "AI_MEDIA_IDEMPOTENCY_CONFLICT");
+  assert.equal(route.reservationCalls[0].requestFingerprint, route.reservationCalls[1].requestFingerprint);
+  assert.notEqual(route.reservationCalls[0].requestFingerprint, route.reservationCalls[2].requestFingerprint);
+  assert.equal(route.generationCalls.length, 1);
+  assert.equal(route.paidCalls(), 1);
+});
+
+test("an explicitly empty script has a different server identity from absent legacy speech", async () => {
+  const route = loadRoute();
+  const input = body({ kind: "video", durationSeconds: 8, videoEngine: "veo", teamVideoSpeechMode: "characters",
+    freePrompt: 'Une femme dit « Bienvenue ». ' });
+  assert.equal((await route.post(input)).status, 200);
+  assert.equal(route.generationCalls[0].request.spokenScript, undefined);
+  const conflict = await route.post({ ...input, spokenScript: "" });
+  assert.equal(conflict.status, 409);
+  assert.notEqual(route.reservationCalls[0].requestFingerprint, route.reservationCalls[1].requestFingerprint);
+  assert.equal(route.generationCalls.length, 1);
+  const empty = loadRoute();
+  assert.equal((await empty.post(body({ ...input, spokenScript: "" }))).status, 200);
+  assert.equal(empty.generationCalls[0].request.spokenScript, "");
+});
+
+test("subtitles default off preserve replay identity while opting in changes the fingerprint without changing the original tariff", async () => {
+  const route = loadRoute();
+  const input = body({ kind: "video", durationSeconds: 8, videoEngine: "veo", teamVideoSpeechMode: "characters" });
+  assert.equal((await route.post(input)).status, 200);
+  assert.equal(route.generationCalls[0].request.withSubtitles, false);
+  const replay = await route.post({ ...input, withSubtitles: false });
+  assert.equal(replay.status, 200);
+  assert.equal((await replay.json()).replayed, true);
+  assert.equal(route.reservationCalls[0].requestFingerprint, route.reservationCalls[1].requestFingerprint);
+  const conflict = await route.post({ ...input, withSubtitles: true });
+  assert.equal(conflict.status, 409);
+  assert.notEqual(route.reservationCalls[0].requestFingerprint, route.reservationCalls[2].requestFingerprint);
+  assert.equal(route.reservationCalls[0].quotaAmount, route.reservationCalls[2].quotaAmount);
+  assert.equal(route.generationCalls.length, 1);
 });
 
 test("l’ADN atteint les deux parcours média et change l’idempotence sans modifier le tarif", async () => {

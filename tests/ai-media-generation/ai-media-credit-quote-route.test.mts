@@ -87,3 +87,25 @@ test("same-priced image formats have distinct account-scoped quote identities", 
   assert.notEqual(square.quoteId, other.quoteId);
   assert.deepEqual(story.imageDimensions, {width:864,height:1536});
 });
+
+test("maximum exact speech fits the quote envelope after JSON escaping and leaves the original tariff unchanged", async () => {
+  const settings = { ...fourSeconds, source: "studio", operation: "generate", creationMode: "free", format: "story",
+    videoResolution: "720p", sceneMode: "single", inputMode: "essential", identityMode: "auto",
+    inspirationImagesCount: 0, hasProvidedCharacterVoice: false, teamVideoSpeechMode: "characters" };
+  const baseline = await (await fixture().post(settings)).json();
+  for (const spokenScript of ['"'.repeat(4_000), "\\".repeat(4_000), "中".repeat(4_000), "é".repeat(4_000), "😀".repeat(2_000)]) {
+    const input = { ...settings, spokenScript, withSubtitles: true };
+    const serialized = JSON.stringify(input);
+    assert.equal(spokenScript.length, 4_000);
+    assert.ok(serialized.length < 16_384);
+    if (spokenScript.startsWith('"') || spokenScript.startsWith("\\")) assert.ok(serialized.length > 8_192);
+    const response = await fixture().post(input);
+    assert.equal(response.status, 200);
+    const output = await response.json();
+    assert.deepEqual(output.quote, baseline.quote);
+    assert.equal(Object.hasOwn(output.quote, "spokenScript"), false);
+  }
+  const oversized = fixture();
+  assert.equal((await oversized.post({ ...settings, spokenScript: '"'.repeat(8_200) })).status, 413);
+  assert.equal(oversized.calls.length, 0);
+});

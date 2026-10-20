@@ -4,12 +4,21 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import ts from "typescript";
 import * as dialogue from "../../lib/aiMediaNativeDialogueQa.ts";
+import { extractAiMediaPronunciationAliases, type AiMediaPronunciationAlias } from "../../lib/aiMediaPronunciation.ts";
 
 const line = "Nous accompagnons votre projet avec une écoute attentive et des conseils personnalisés.";
 const cut = line.replace(" personnalisés.", "");
 
 /** Execute the production adapter with virtual files, FFmpeg and Google; no network. */
-function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete = false) {
+function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete = false, overrides: {
+  expectedLine?: string;
+  firstTranscript?: string;
+  secondTranscript?: string;
+  pronunciationAliases?: readonly AiMediaPronunciationAlias[];
+  expectedContinuation?: boolean;
+} = {}) {
+  const expectedLine = overrides.expectedLine ?? line;
+  const firstTranscript = overrides.firstTranscript ?? cut;
   const files = new Map<string, Buffer>();
   const calls: Array<{ body: Record<string, unknown>; options: { timeout: number; maxRetries: number } }> = [];
   const reservations: Array<{ reservedOutputTokens: number }> = [];
@@ -30,11 +39,14 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
         calls.push({ body, options });
         assert.ok(calls.length <= 2, "At most one confirmation is allowed.");
         const prompt = (body.input as Array<{ type: string; text?: string }>).find((part) => part.type === "text")!.text!;
-        assert.ok(!prompt.includes(line), "ASR never receives the expected script as a hint.");
+        assert.ok(!prompt.includes(expectedLine), "ASR never receives the expected script as a hint.");
+        assert.ok(!prompt.includes(firstTranscript), "Confirmation never receives the first transcript as a hint.");
         if (calls.length === 2 && outcome === "deadline") {
           qaDeadline.abort(); throw new DOMException("QA deadline", "AbortError");
         }
-        const transcript = firstComplete || calls.length === 2 && outcome === "complete" ? line : cut;
+        const transcript = firstComplete ? expectedLine : calls.length === 2
+          ? overrides.secondTranscript ?? (outcome === "complete" ? expectedLine : firstTranscript)
+          : firstTranscript;
         return { output_text: JSON.stringify({ transcript }), usage: { total_input_tokens: 10, total_output_tokens: 20, total_tokens: 30 } };
       } };
     } }],
@@ -55,7 +67,7 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
     assert.ok(id.startsWith("node:"), `Unexpected production dependency: ${id}`); return native(id);
   }, { env: { GEMINI_API_KEY: "offline-test-only" } }, { timeout: () => qaDeadline.signal, any: AbortSignal.any });
   return { calls, reservations, cleaned: () => cleaned, extractions: () => extractions,
-    audit: (durationSeconds = 8) => record.exports.auditAiMediaNativeDialogueWithGoogle({ accountId: "test-account", language: "fr", clips: [{ sceneIndex: 0, buffer: Buffer.from("synthetic-video"), mediaType: "video/mp4", durationSeconds, expectedLine: line }] }),
+    audit: (durationSeconds = 8) => record.exports.auditAiMediaNativeDialogueWithGoogle({ accountId: "test-account", language: "fr", pronunciationAliases: overrides.pronunciationAliases, clips: [{ sceneIndex: 0, buffer: Buffer.from("synthetic-video"), mediaType: "video/mp4", durationSeconds, expectedLine, expectedContinuation: overrides.expectedContinuation }] }),
   };
 }
 
@@ -68,12 +80,68 @@ test("Google confirmation reuses extracted audio and shares the existing deadlin
   assert.equal(JSON.stringify(result).includes(line), false);
 });
 
-test("a confirmation QA deadline cannot turn an already rejected clip into unavailable", async () => {
+test("a confirmation QA deadline leaves a first rejection inconclusive instead of rejecting the video", async () => {
   for (const outcome of ["still-cut", "deadline"] as const) {
     const h = adapter(outcome); const result = await h.audit();
-    assert.equal(result.status, "rejected"); assert.ok(result.clips[0].issues.includes("spoken_dialogue_incomplete"));
+    assert.equal(result.status, outcome === "deadline" ? "unavailable" : "rejected");
+    assert.ok(result.clips[0].issues.includes(outcome === "deadline" ? "transcription_unavailable" : "spoken_dialogue_incomplete"));
     assert.equal(result.clips[0].confirmation, outcome === "deadline" ? "unavailable" : "rejected");
     assert.equal(h.calls.length, 2); assert.equal(h.cleaned(), 1);
+  }
+});
+
+test("Google confirms a mistaken brand name from audio only without changing the video", async () => {
+  const expectedLine = "Je suis Océane et je représente iNrCy pour accompagner votre entreprise.";
+  const h = adapter("complete", false, { expectedLine, firstTranscript: expectedLine.replace("iNrCy", "inertie") });
+  const result = await h.audit();
+  assert.equal(result.status, "passed");
+  assert.equal(result.clips[0].confirmation, "passed");
+  assert.equal(h.calls.length, 2);
+  assert.equal(h.extractions(), 1);
+  assert.equal(h.cleaned(), 1);
+  assert.doesNotMatch(JSON.stringify(result), /Océane|iNrCy|inertie/);
+});
+
+test("explicit pronunciation aliases stay in local comparison and never enter the Google ASR request", async () => {
+  const expectedLine = "Je suis Océane et je représente iNrCy pour accompagner votre entreprise.";
+  const h = adapter("still-cut", false, {
+    expectedLine,
+    firstTranscript: expectedLine.replace("iNrCy", "inertie"),
+    pronunciationAliases: extractAiMediaPronunciationAliases("iNrCy se prononce « inertie »."),
+  });
+  const result = await h.audit();
+  assert.equal(result.status, "passed");
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.extractions(), 1);
+  assert.doesNotMatch(JSON.stringify(h.calls[0].body), /iNrCy|inertie|pronunciationAliases/);
+  assert.doesNotMatch(JSON.stringify(result), /iNrCy|inertie|pronunciationalias/);
+});
+
+test("a planned internal fragment is compared locally without seeding the Google transcript", async () => {
+  const expectedLine = "Notre outil facilite la création de";
+  const h = adapter("still-cut", true, { expectedLine, firstTranscript: expectedLine, expectedContinuation: true });
+  const result = await h.audit();
+  assert.equal(result.status, "passed");
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.extractions(), 1);
+  assert.ok(!JSON.stringify(h.calls[0].body).includes(expectedLine));
+  assert.ok(!JSON.stringify(h.calls[0].body).includes("expectedContinuation"));
+});
+
+test("Google confirms a real wrong amount but leaves two contradictory amounts inconclusive", async () => {
+  const expectedLine = "Notre offre reste disponible pour votre entreprise au tarif de 50 euros seulement.";
+  for (const secondAmount of ["500", "5000"]) {
+    const h = adapter("still-cut", false, {
+      expectedLine,
+      firstTranscript: expectedLine.replace("50", "500"),
+      secondTranscript: expectedLine.replace("50", secondAmount),
+    });
+    const result = await h.audit();
+    assert.equal(result.status, secondAmount === "500" ? "rejected" : "unavailable");
+    assert.deepEqual(result.clips[0].issues, [secondAmount === "500" ? "spoken_critical_value_mismatch" : "transcription_inconclusive"]);
+    assert.equal(h.calls.length, 2);
+    assert.equal(h.extractions(), 1);
+    assert.equal(h.cleaned(), 1);
   }
 });
 

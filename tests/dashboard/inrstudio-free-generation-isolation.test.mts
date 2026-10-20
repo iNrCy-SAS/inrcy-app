@@ -40,7 +40,7 @@ function handler(name: string, context: Record<string, unknown>) {
 }
 
 function audioControls(kind: "image" | "video", speechMode: "voiceover" | "characters" | "silent") {
-  const context = { kind, speechMode };
+  const context = { kind, speechMode, explicitlyEmptySpokenScript: false };
   return {
     effectiveWithNarration: evaluate(initializer("effectiveWithNarration"), context) as boolean,
     requestSpeechMode: evaluate(initializer("requestSpeechMode"), context) as "voiceover" | "characters",
@@ -80,6 +80,10 @@ function resultContext() {
     identityMode: "auto",
     videoResolution: "720p",
     useBusinessDna: false,
+    hasSpokenScript: false,
+    spokenScript: "",
+    spokenScriptOpen: false,
+    effectiveWithSubtitles: false,
     videoModel: { provider: "google" },
     setCreationScreen: (value: boolean) => { events.push(`creation:${value}`); },
     setFinishing: (value: boolean) => { events.push(`finishing:${value}`); },
@@ -385,6 +389,7 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
   for (const next of ["characters", "silent", "voiceover", "silent", "characters", "voiceover"] as const) {
     const onChange = evaluate(attribute(radio, "onChange"), {
       mode: next,
+      hasSpokenScript: false,
       setSpeechMode: (value: typeof speechMode) => { speechMode = value; },
       resetConsent,
     }) as () => void;

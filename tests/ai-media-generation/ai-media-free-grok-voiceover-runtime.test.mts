@@ -12,6 +12,8 @@ import { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover 
 import * as sensitive from "../../lib/aiMediaSensitiveText.ts";
 import * as agentVideoFallback from "../../lib/inrAgentVideoFallback.ts";
 import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
+import * as spokenScript from "../../lib/aiMediaSpokenScript.ts";
+import * as pronunciation from "../../lib/aiMediaPronunciation.ts";
 import { getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, resolveAiMediaFreeSpeechLanguage } from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 
@@ -48,6 +50,8 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
   for (const name of ["aiMediaImageContactComposer", "aiMediaCopywriter", "aiMediaGateway", "aiMediaImageProviderRequest", "aiMediaReferenceTeam",
     "aiMediaGenerationSoundtracks", "aiMediaNormalizer", "aiVideoReliability"]) modules.set(`@/lib/${name}`, {});
   const entries: Array<[string, unknown]> = [
+    ["./aiMediaSpokenScript.ts", spokenScript],
+    ["./aiMediaPronunciation.ts", pronunciation],
     ["./inrAgentVideoFallback.ts", agentVideoFallback],
     ["./aiMediaGenerationPublicErrors.ts", publicErrors],
     ["server-only", {}], ["./aiMediaCharacterVoices.ts", characterVoices], ["@/lib/aiMediaCharacterVoices", characterVoices], ["sharp", () => ({ png() { return this; }, toBuffer: async () => Buffer.from("transparent-overlay") })],

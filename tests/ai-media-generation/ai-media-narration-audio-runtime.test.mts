@@ -5,12 +5,14 @@ import test from "node:test";
 import ts from "typescript";
 
 import * as narrationVoices from "../../lib/aiMediaNarrationVoices.ts";
+import type { AiMediaPronunciationAlias } from "../../lib/aiMediaPronunciation.ts";
 
 type AudioRequest = {
   accountId: string;
   narration: { script: string; language: string };
   durationSeconds: 8 | 16 | 24;
   narrationVoice: "female" | "male";
+  pronunciationAliases?: readonly AiMediaPronunciationAlias[];
   signal?: AbortSignal;
 };
 
@@ -197,3 +199,30 @@ for (const durationSeconds of [8, 16, 24] as const) {
     assert.equal(harness.reservation.state, "committed");
   });
 }
+
+test("an explicit pronunciation guide precedes the word-for-word script without replacing any original text", async () => {
+  const harness = runtime();
+  const script = "  Bonjour, je suis Océane.\n\nVoici iNrCy, à 58 € HT/mois.  ";
+  const aliases = Object.freeze([Object.freeze({ spelling: "iNrCy", pronunciation: "inertie" })]);
+  const narration = { script, language: "fr" };
+  await harness.api.generateAiMediaNarrationAudio({ ...request, narration, pronunciationAliases: aliases });
+  assert.equal(harness.requests.length, 1);
+  const sent = harness.requests[0].input;
+  const delimiter = "TRANSCRIPTION À LIRE MOT POUR MOT :\n";
+  const scriptOffset = sent.indexOf(delimiter) + delimiter.length;
+  assert.ok(sent.indexOf("GUIDE DE PRONONCIATION") < sent.indexOf(delimiter));
+  assert.ok(sent.slice(0, scriptOffset).includes('"iNrCy" se prononce "inertie".'));
+  assert.equal(sent.slice(scriptOffset), script);
+  assert.equal(narration.script, script);
+  assert.deepEqual(aliases, [{ spelling: "iNrCy", pronunciation: "inertie" }]);
+  assert.equal(harness.reservation.state, "committed");
+});
+
+test("omitted or empty pronunciation aliases keep the existing TTS request unchanged", async () => {
+  const ordinary = runtime();
+  const empty = runtime();
+  await ordinary.api.generateAiMediaNarrationAudio(request);
+  await empty.api.generateAiMediaNarrationAudio({ ...request, pronunciationAliases: [] });
+  assert.deepEqual(empty.requests[0], ordinary.requests[0]);
+  assert.doesNotMatch(empty.requests[0].input, /GUIDE DE PRONONCIATION/);
+});

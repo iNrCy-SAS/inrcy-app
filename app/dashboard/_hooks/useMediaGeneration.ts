@@ -7,6 +7,8 @@ import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import {
   AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS,
   AI_MEDIA_FREE_PROMPT_MAX_CHARS,
+  normalizeAiMediaSpokenScript,
+  normalizeAiMediaWithSubtitles,
   shouldConnectAiMediaVideoScenes,
   type AiMediaNarrationVoiceVariant,
 } from "@/lib/aiMediaGenerationContracts";
@@ -255,6 +257,8 @@ export type MediaGenerationResult = {
 export type MediaGenerationRequest = {
   creationMode?: "guided" | "free";
   freePrompt?: string;
+  spokenScript?: string;
+  withSubtitles?: boolean;
   useBusinessDna?: boolean;
   operation?: MediaGenerationOperation;
   inputMode?: MediaGenerationInputMode;
@@ -557,6 +561,9 @@ function buildGenerationAttemptKey(
   return JSON.stringify({
     creationMode: request.creationMode || "guided",
     freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
+    spokenScript: request.creationMode === "free" && request.kind === "video" ? request.spokenScript : undefined,
+    ...(request.creationMode === "free" && request.kind === "video" && request.withSubtitles &&
+      (request.withNarration || request.teamVideoSpeechMode === "characters") ? { withSubtitles: true } : {}),
     ...(request.creationMode === "free" && request.useBusinessDna ? { useBusinessDna: true } : {}),
     operation: request.operation || "generate",
     inputMode: request.inputMode || "legacy",
@@ -936,22 +943,27 @@ export default function useMediaGeneration() {
       if (!mountedRef.current) throw new MediaGenerationAccountChangedError();
       if (generationAbortRef.current) throw new Error("Une génération est déjà en cours.");
       if (pendingRecoveryRef.current && !recoveryPointer) throw new Error("Récupérez le résultat de la tentative précédente avant de générer un autre média.");
-      if (request.kind === "video") {
-        const voiceSelection = getCharacterVoiceSelectionState(request.inspirationImages || []);
-        if (voiceSelection.missingSample) throw new Error("Insérez un vocal pour chaque personnage en voix fournie.");
-        if (voiceSelection.hasProvidedVoice && request.teamVideoSpeechMode !== "characters") throw new Error("Les voix fournies sont utilisées en mode Personnages.");
-        if (voiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(request.videoEngine)) throw new Error("Utilisez Wan 2.7, Wan 3 ou HeyGen pour une vidéo avec une voix fournie.");
-        if (voiceSelection.hasProvidedVoice && exceedsAiMediaCharacterVoiceEngineDuration(request.videoEngine, request.inspirationImages || [])) throw new Error("Wan 3 accepte au maximum 15 secondes de vocaux au total. Raccourcissez vos échantillons ou choisissez Wan 2.7 ou HeyGen.");
-      }
       if (request.creationMode === "free") {
         const freePrompt = String(request.freePrompt || "").trim();
         if (freePrompt.length < 3 || freePrompt.length > AI_MEDIA_FREE_PROMPT_MAX_CHARS) {
           throw new Error(`Décrivez votre média en 3 à ${AI_MEDIA_FREE_PROMPT_MAX_CHARS.toLocaleString("fr-FR")} caractères.`);
         }
+        const spokenScript = request.kind === "video"
+          ? normalizeAiMediaSpokenScript(request.spokenScript)
+          : undefined;
+        const explicitlyEmptySpokenScript = typeof spokenScript === "string" && !spokenScript.trim();
+        const withSubtitles = request.kind === "video"
+          ? normalizeAiMediaWithSubtitles(request.withSubtitles, !explicitlyEmptySpokenScript && (request.withNarration === true || request.teamVideoSpeechMode === "characters"))
+          : undefined;
+        if (spokenScript?.trim() && !request.withNarration && request.teamVideoSpeechMode !== "characters") {
+          throw new Error("Choisissez une voix off ou des personnages parlants pour utiliser les paroles.");
+        }
         request = {
           ...request,
           operation: "generate", inputMode: "essential", subjectSource: "custom",
           freePrompt, idea: freePrompt.slice(0, 2_000), aiInstruction: "",
+          spokenScript,
+          withSubtitles,
           useBusinessDna: request.useBusinessDna === true,
           generationMode: request.inspirationImages?.length ? "inspiration" : "ai_free",
           peopleCriterion: "auto", settingCriterion: "auto", focusCriterion: "auto",
@@ -960,9 +972,16 @@ export default function useMediaGeneration() {
           typology: "service", visualStyle: "brand", shotType: "auto", creativity: "faithful",
           peopleMode: "auto", useBrandColors: false, logoMode: "none",
           videoEngine: request.videoEngine || "omni", teamVideoMode: "cinematic",
-          teamVideoSpeechMode: request.teamVideoSpeechMode || "voiceover",
-          withNarration: request.teamVideoSpeechMode === "characters" ? false : request.withNarration,
+          teamVideoSpeechMode: explicitlyEmptySpokenScript ? "voiceover" : request.teamVideoSpeechMode || "voiceover",
+          withNarration: explicitlyEmptySpokenScript || request.teamVideoSpeechMode === "characters" ? false : request.withNarration,
         };
+      }
+      if (request.kind === "video") {
+        const voiceSelection = getCharacterVoiceSelectionState(request.inspirationImages || []);
+        if (voiceSelection.missingSample) throw new Error("Insérez un vocal pour chaque personnage en voix fournie.");
+        if (voiceSelection.hasProvidedVoice && request.teamVideoSpeechMode !== "characters") throw new Error("Les voix fournies sont utilisées en mode Personnages.");
+        if (voiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(request.videoEngine)) throw new Error("Utilisez Wan 2.7, Wan 3 ou HeyGen pour une vidéo avec une voix fournie.");
+        if (voiceSelection.hasProvidedVoice && exceedsAiMediaCharacterVoiceEngineDuration(request.videoEngine, request.inspirationImages || [])) throw new Error("Wan 3 accepte au maximum 15 secondes de vocaux au total. Raccourcissez vos échantillons ou choisissez Wan 2.7 ou HeyGen.");
       }
       const idea = String(request.idea || "").trim();
       const textMode = resolveMediaGenerationTextMode(request);
@@ -1293,6 +1312,8 @@ export default function useMediaGeneration() {
             contractVersion: 4,
             creationMode: request.creationMode || "guided",
             freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
+            spokenScript: request.creationMode === "free" && request.kind === "video" ? request.spokenScript : undefined,
+            withSubtitles: request.creationMode === "free" && request.kind === "video" ? request.withSubtitles === true : undefined,
             useBusinessDna: request.creationMode === "free" ? request.useBusinessDna === true : undefined,
             operation: request.operation || "generate",
             inputMode: request.inputMode || "legacy",

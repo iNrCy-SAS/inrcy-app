@@ -120,6 +120,45 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
 }
 const successfulResult = () => ({ type: "result", status: 200, payload: { ok: true, draft: true, item: { id: "draft-a", media_type: "image", signed_url: "https://example.invalid/media.jpg" }, quota: quota() } });
 
+test("the real hook transports optional exact speech and subtitles without merging them into the visual brief", async () => {
+  for (const spokenScript of [undefined, "", " \n\t ", "Bonjour, Océane !\r\n58 € HT/mois."]) {
+    for (const withSubtitles of [false, true]) {
+      const h = harness();
+      const request: MediaGenerationRequest = { ...input(), kind: "video", durationSeconds: 8,
+        teamVideoSpeechMode: "characters", withNarration: false, spokenScript, withSubtitles };
+      const task = h.status().generate(request); h.render();
+      const body = h.attempts[0].body;
+      assert.equal(body.freePrompt, request.freePrompt);
+      assert.equal(Object.hasOwn(body, "spokenScript"), spokenScript !== undefined);
+      assert.equal(body.spokenScript, spokenScript?.replace(/\r\n/g, "\n"));
+      const explicitlyEmpty = typeof spokenScript === "string" && !spokenScript.trim();
+      assert.equal(body.withSubtitles, explicitlyEmpty ? false : withSubtitles);
+      assert.equal(body.teamVideoSpeechMode, explicitlyEmpty ? "voiceover" : "characters");
+      assert.equal(body.withNarration, false);
+      const stream = h.startStream(0); stream.send(successfulResult()); stream.close();
+      await task; await h.flush(); h.dispose();
+    }
+  }
+  const image = harness();
+  const task = image.status().generate({ ...input(), spokenScript: "Stale video speech", withSubtitles: true }); image.render();
+  assert.equal(Object.hasOwn(image.attempts[0].body, "spokenScript"), false);
+  assert.equal(Object.hasOwn(image.attempts[0].body, "withSubtitles"), false);
+  const stream = image.startStream(0); stream.send(successfulResult()); stream.close();
+  await task; await image.flush(); image.dispose();
+});
+
+test("an explicitly empty silent script is transported while subtitles remain off", async () => {
+  for (const spokenScript of ["", " \n\t "]) {
+    const h = harness();
+    const task = h.status().generate({ ...input(), kind: "video", durationSeconds: 8,
+      withNarration: false, teamVideoSpeechMode: "voiceover", spokenScript, withSubtitles: true }); h.render();
+    assert.equal(h.attempts[0].body.spokenScript, spokenScript);
+    assert.equal(h.attempts[0].body.withSubtitles, false);
+    const stream = h.startStream(0); stream.send(successfulResult()); stream.close();
+    await task; await h.flush(); h.dispose();
+  }
+});
+
 test("le hook transporte l’option ADN sans altérer le brief ni les réglages Libre image et vidéo", async () => {
   for (const kind of ["image", "video"] as const) for (const useBusinessDna of [false, true]) {
     const h = harness();

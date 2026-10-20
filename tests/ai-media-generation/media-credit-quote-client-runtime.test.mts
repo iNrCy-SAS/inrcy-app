@@ -110,6 +110,38 @@ test("changing from one to two scenes invalidates the previous quote immediately
   assert.equal(h.status().quote?.quoteId, "account-a-1"); h.dispose();
 });
 
+test("changing exact speech invalidates the old quote and transports the replacement unchanged", async () => {
+  const first = { ...input("grok-lite"), teamVideoSpeechMode: "characters" as const, spokenScript: "Bonjour, Océane !\n58 € HT/mois." };
+  const h = harness(first);
+  h.runTimers();
+  assert.equal(h.requests[0].input.spokenScript, first.spokenScript);
+  h.respond(0, "account-a"); await h.flush();
+  assert.equal(h.status().ready, true);
+  const replacement = { ...first, spokenScript: "Bienvenue !\n\nCommuniquer partout." };
+  h.update(replacement);
+  assert.equal(h.status().ready, false);
+  assert.deepEqual(h.status().authorization, {});
+  h.runTimers();
+  assert.equal(h.requests[1].input.spokenScript, replacement.spokenScript);
+  h.respond(1, "account-a"); await h.flush();
+  assert.equal(h.status().ready, true);
+  h.dispose();
+});
+
+test("subtitles invalidate quote presentation but never add a preparation or rendering fee", async () => {
+  const base = { ...input("grok-lite"), teamVideoSpeechMode: "characters" as const, withSubtitles: false };
+  const h = harness(base); h.runTimers(); h.respond(0, "account-a"); await h.flush();
+  const total = h.status().quote?.totalCredits;
+  h.update({ ...base, withSubtitles: true });
+  assert.equal(h.status().ready, false);
+  h.runTimers();
+  assert.equal(h.requests[1].input.withSubtitles, true);
+  h.respond(1, "account-a"); await h.flush();
+  assert.equal(h.status().ready, true);
+  assert.equal(h.status().quote?.totalCredits, total);
+  h.dispose();
+});
+
 test("an incompatible brief clears price and authorization until a fresh eligible quote arrives", async () => {
   const h = harness(); h.runTimers(); h.respond(0, "account-a"); await h.flush();
   assert.equal(h.status().ready, true);

@@ -6,7 +6,7 @@ import { quoteAiMediaCredits } from "@/lib/aiMediaCreditsPricing";
 import type { MediaGenerationQuota, MediaGenerationRequest } from "./useMediaGeneration";
 
 export type MediaCreditQuoteInput = Pick<MediaGenerationRequest,
-  "kind" | "operation" | "creationMode" | "videoEngine" | "imageEngine" | "format" | "durationSeconds" | "sceneMode" | "videoResolution" | "withNarration" | "teamVideoSpeechMode" | "identityMode" | "inputMode"
+  "kind" | "operation" | "creationMode" | "spokenScript" | "withSubtitles" | "videoEngine" | "imageEngine" | "format" | "durationSeconds" | "sceneMode" | "videoResolution" | "withNarration" | "teamVideoSpeechMode" | "identityMode" | "inputMode"
 > & { inspirationImagesCount: number; hasProvidedCharacterVoice?: boolean };
 export type ConfirmedMediaCreditQuote = {
   totalCredits: number;

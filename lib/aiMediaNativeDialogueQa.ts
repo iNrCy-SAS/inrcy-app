@@ -1,6 +1,7 @@
 import {
   hasCompleteAiMediaSpeechEnding,
 } from "./aiMediaDialogue.ts";
+import type { AiMediaPronunciationAlias } from "./aiMediaPronunciation.ts";
 
 export type AiMediaNativeDialogueQaStatus =
   | "passed"
@@ -10,6 +11,7 @@ export type AiMediaNativeDialogueQaStatus =
 export type AiMediaNativeDialogueQaIssue =
   | "expected_dialogue_missing"
   | "transcription_unavailable"
+  | "transcription_inconclusive"
   | "spoken_dialogue_missing"
   | "spoken_dialogue_incomplete"
   | "spoken_dialogue_mismatch"
@@ -25,6 +27,8 @@ export type AiMediaNativeDialogueQaClip = {
   /** Début logique dans un MP4 cumulatif Omni de 16/24 secondes. */
   sourceStartSeconds?: number;
   expectedLine: string;
+  /** Server-derived: an explicit script continues in a later spoken clip. */
+  expectedContinuation?: boolean;
   /** A silent act is valid only when transcription confirms no speech. */
   expectSilence?: boolean;
 };
@@ -87,6 +91,24 @@ export function tokenizeAiMediaNativeDialogue(value: unknown): string[] {
     .replace(/[^\p{L}\p{N}\p{M}]+/gu, " ")
     .trim();
   return normalized.match(/[\p{L}\p{N}\p{M}]+/gu) || [];
+}
+
+/** Local comparison only: never changes a script, prompt, transcript or audio. */
+function pronunciationTokens(tokens: readonly string[], aliases: readonly AiMediaPronunciationAlias[] = []) {
+  const variants = aliases.flatMap((alias, index) => [alias.spelling, alias.pronunciation].map((value) => ({
+    tokens: tokenizeAiMediaNativeDialogue(value),
+    // A private common token preserves occurrences, so repeated names still count.
+    marker: `pronunciationalias${String.fromCharCode(97 + index)}`,
+  }))).filter((variant) => variant.tokens.length).sort((left, right) => right.tokens.length - left.tokens.length);
+  const result: string[] = [];
+  for (let index = 0; index < tokens.length;) {
+    const variant = variants.find((candidate) => candidate.tokens.every((token, offset) => token === tokens[index + offset]));
+    if (variant) {
+      result.push(variant.marker);
+      index += variant.tokens.length;
+    } else result.push(tokens[index++]);
+  }
+  return result;
 }
 
 const SPEECH_NUMBERS: Record<string, number> = {
@@ -157,14 +179,14 @@ function criticalSpeechValues(text: string, language: string) {
   return { numbers, negations, units, calendar, canonical };
 }
 
-function missingWrittenName(expected: string, transcript: string) {
-  const detected = new Set(tokenizeAiMediaNativeDialogue(transcript));
+function missingWrittenName(expected: string, transcript: string, aliases?: readonly AiMediaPronunciationAlias[]) {
+  const detected = new Set(pronunciationTokens(tokenizeAiMediaNativeDialogue(transcript), aliases));
   return Array.from(expected.matchAll(/[\p{L}][\p{L}\p{N}]{2,}/gu)).some((match) => {
     const word = match[0];
     const before = expected.slice(0, match.index).trimEnd();
     const distinctiveCase = /[a-z][A-Z]|^[A-Z]{3,}$/.test(word);
     const interiorProperName = /^\p{Lu}\p{Ll}/u.test(word) && before.length > 0 && !/[.!?]$/.test(before);
-    return (distinctiveCase || interiorProperName) && tokenizeAiMediaNativeDialogue(word).some((token) => !detected.has(token));
+    return (distinctiveCase || interiorProperName) && pronunciationTokens(tokenizeAiMediaNativeDialogue(word), aliases).some((token) => !detected.has(token));
   });
 }
 
@@ -349,12 +371,14 @@ export function evaluateAiMediaNativeDialogue(args: {
   transcript: string;
   language?: string;
   expectSilence?: boolean;
+  pronunciationAliases?: readonly AiMediaPronunciationAlias[];
+  expectedContinuation?: boolean;
 }): AiMediaNativeDialogueQaClipResult {
   const language = String(args.language || "fr").trim().toLowerCase() || "fr";
   const expectedValues = criticalSpeechValues(args.expectedLine, language);
   const detectedValues = criticalSpeechValues(args.transcript, language);
-  const expected = tokenizeAiMediaNativeDialogue(expectedValues.canonical.join(" "));
-  const detected = tokenizeAiMediaNativeDialogue(detectedValues.canonical.join(" "));
+  const expected = pronunciationTokens(tokenizeAiMediaNativeDialogue(expectedValues.canonical.join(" ")), args.pronunciationAliases);
+  const detected = pronunciationTokens(tokenizeAiMediaNativeDialogue(detectedValues.canonical.join(" ")), args.pronunciationAliases);
   const emptyMetrics: AiMediaNativeDialogueQaMetrics = {
     expectedTokenCount: expected.length,
     detectedTokenCount: detected.length,
@@ -392,10 +416,14 @@ export function evaluateAiMediaNativeDialogue(args: {
   if (["numbers", "negations", "units", "calendar"].some((key) => {
     const field = key as "numbers" | "negations" | "units" | "calendar";
     return JSON.stringify(expectedValues[field]) !== JSON.stringify(detectedValues[field]);
-  }) || missingWrittenName(args.expectedLine, args.transcript)) issues.push("spoken_critical_value_mismatch");
+  }) || missingWrittenName(args.expectedLine, args.transcript, args.pronunciationAliases)) issues.push("spoken_critical_value_mismatch");
 
+  // An exact internal fragment can end on a preposition because the remainder
+  // is spoken in the next clip. This never excuses an omission or an added tail.
+  const exactContinuation = args.expectedContinuation === true &&
+    expected.length === detected.length && expected.every((token, index) => token === detected[index]);
   const incomplete =
-    !hasCompleteAiMediaSpeechEnding(args.transcript, language) ||
+    (!exactContinuation && !hasCompleteAiMediaSpeechEnding(args.transcript, language)) ||
     (expectedCoverage < 0.96 && isExpectedPrefix(expected, detected));
   if (incomplete) issues.push("spoken_dialogue_incomplete");
   if (repeatCount >= 2) issues.push("spoken_dialogue_repeated");
@@ -441,6 +469,29 @@ function unavailableClipResult(
   };
 }
 
+/** Reject only when a fresh listen supports the same defect, not merely another error. */
+function rejectedTranscriptsAgree(args: {
+  initial: AiMediaNativeDialogueQaClipResult;
+  confirmed: AiMediaNativeDialogueQaClipResult;
+  initialText: string;
+  confirmedText: string;
+  language: string;
+  pronunciationAliases?: readonly AiMediaPronunciationAlias[];
+}) {
+  if (args.initial.status !== "rejected" || args.confirmed.status !== "rejected") return false;
+  const issues = (result: AiMediaNativeDialogueQaClipResult) => [...result.issues].sort().join("|");
+  if (issues(args.initial) !== issues(args.confirmed)) return false;
+  const initial = criticalSpeechValues(args.initialText, args.language);
+  const confirmed = criticalSpeechValues(args.confirmedText, args.language);
+  if (["numbers", "negations", "units", "calendar"].some((key) => {
+    const field = key as "numbers" | "negations" | "units" | "calendar";
+    return JSON.stringify(initial[field]) !== JSON.stringify(confirmed[field]);
+  })) return false;
+  // This agreement threshold does not relax the detector's existing thresholds.
+  // Different unintelligible guesses stay inconclusive, even if both were rejected.
+  return tokenSimilarity(pronunciationTokens(initial.canonical, args.pronunciationAliases), pronunciationTokens(confirmed.canonical, args.pronunciationAliases)) >= 0.9;
+}
+
 /**
  * Orchestre le contrôle clip par clip. Le transcripteur reçoit bien le
  * `sourceStartSeconds` du clip : il peut ainsi extraire 8 s d'un même MP4
@@ -449,13 +500,46 @@ function unavailableClipResult(
 export async function auditAiMediaNativeDialogueClips(args: {
   clips: AiMediaNativeDialogueQaClip[];
   language?: string;
+  pronunciationAliases?: readonly AiMediaPronunciationAlias[];
   transcribe: AiMediaNativeDialogueTranscriber;
-  /** One independent listen on an ambiguous near-complete line, never a rewrite. */
+  /** One fresh, script-blind listen must confirm a rejection; never a rewrite. */
   confirm?: AiMediaNativeDialogueTranscriber;
   signal?: AbortSignal;
 }): Promise<AiMediaNativeDialogueQaResult> {
   const startedAt = Date.now();
   const language = String(args.language || "fr").trim().toLowerCase() || "fr";
+  const orderedClips = [...args.clips].sort((left, right) => left.sceneIndex - right.sceneIndex);
+  // Compare repetitions with the requested dialogue, not an ASR hallucination
+  // from an earlier clip. The current clip still needs two concordant listens.
+  const previousDialoguesByClip = new Map<AiMediaNativeDialogueQaClip, string[][]>();
+  const previousDialogues: string[][] = [];
+  for (const clip of orderedClips) {
+    previousDialoguesByClip.set(clip, [...previousDialogues]);
+    const tokens = pronunciationTokens(tokenizeAiMediaNativeDialogue(clip.expectedLine), args.pronunciationAliases);
+    if (tokens.length) previousDialogues.push(tokens);
+  }
+  const evaluate = (clip: AiMediaNativeDialogueQaClip, text: string) => {
+    const result = evaluateAiMediaNativeDialogue({
+      sceneIndex: clip.sceneIndex,
+      expectedLine: clip.expectedLine,
+      transcript: text,
+      language,
+      expectSilence: clip.expectSilence,
+      pronunciationAliases: args.pronunciationAliases,
+      expectedContinuation: clip.expectedContinuation,
+    });
+    const repeatCount = previousDialogueRepeatCount(
+      pronunciationTokens(tokenizeAiMediaNativeDialogue(clip.expectedLine), args.pronunciationAliases),
+      pronunciationTokens(tokenizeAiMediaNativeDialogue(text), args.pronunciationAliases),
+      previousDialoguesByClip.get(clip) || [],
+    );
+    if (repeatCount >= 2) {
+      result.status = "rejected";
+      if (!result.issues.includes("spoken_dialogue_repeated")) result.issues.push("spoken_dialogue_repeated");
+      result.metrics.repeatCount = Math.max(result.metrics.repeatCount, repeatCount);
+    }
+    return result;
+  };
   const results = await Promise.all(args.clips.map(async (clip) => {
     try {
       args.signal?.throwIfAborted();
@@ -464,72 +548,48 @@ export async function auditAiMediaNativeDialogueClips(args: {
         signal: args.signal,
       });
       args.signal?.throwIfAborted();
-      let result = evaluateAiMediaNativeDialogue({
-        sceneIndex: clip.sceneIndex,
-        expectedLine: clip.expectedLine,
-        transcript: transcription.text,
-        language,
-        expectSilence: clip.expectSilence,
-      });
-      const missing = result.metrics.expectedTokenCount - result.metrics.detectedTokenCount;
-      if (args.confirm && !clip.expectSilence &&
-        result.issues.length === 1 && result.issues[0] === "spoken_dialogue_incomplete" &&
-        result.metrics.expectedTokenCount >= 5 && result.metrics.expectedCoverage >= 0.8 &&
-        missing >= 0 && missing <= 2) {
-        // No expected script is sent to ASR by the adapter. Only a fresh,
-        // independently valid transcript may overturn the initial rejection.
-        // A timeout or a second rejection preserves the original evidence.
+      let result = evaluate(clip, transcription.text);
+      if (result.status === "rejected" && args.confirm) {
+        // The adapter sends audio only. No expected script or first transcript
+        // biases the fresh listen, and no video/voice generation is retried.
         try {
           const confirmed = await args.confirm(clip, { language, signal: args.signal });
           args.signal?.throwIfAborted();
-          const checked = evaluateAiMediaNativeDialogue({
-            sceneIndex: clip.sceneIndex, expectedLine: clip.expectedLine,
-            transcript: confirmed.text, language, expectSilence: clip.expectSilence,
-          });
+          const checked = evaluate(clip, confirmed.text);
           if (checked.status === "passed") {
             result = { ...checked, confirmation: "passed" };
             transcription = confirmed;
-          } else result.confirmation = checked.status;
+          } else if (rejectedTranscriptsAgree({
+            initial: result, confirmed: checked,
+            initialText: transcription.text, confirmedText: confirmed.text, language, pronunciationAliases: args.pronunciationAliases,
+          })) {
+            result = { ...checked, confirmation: "rejected" };
+            transcription = confirmed;
+          } else {
+            result = { ...result, status: "unavailable", issues: ["transcription_inconclusive"], confirmation: "unavailable" };
+          }
         } catch (error) {
           if (args.signal?.aborted) throw error;
-          result.confirmation = "unavailable";
+          result = { ...result, status: "unavailable", issues: ["transcription_unavailable"], confirmation: "unavailable" };
         }
+      } else if (result.status === "rejected") {
+        result = { ...result, status: "unavailable", issues: ["transcription_unavailable"], confirmation: "unavailable" };
       }
       return {
         result,
         model: transcription.model,
-        expectedTokens: tokenizeAiMediaNativeDialogue(clip.expectedLine),
-        detectedTokens: tokenizeAiMediaNativeDialogue(transcription.text),
       };
     } catch (error) {
       if (args.signal?.aborted) throw error;
       return {
         result: unavailableClipResult(clip),
         model: undefined,
-        expectedTokens: [],
-        detectedTokens: [],
       };
     }
   }));
-  // Garder uniquement les tokens pendant ce contrôle local, jamais dans les
-  // diagnostics renvoyés. L'ordre narratif ne dépend pas de l'ordre réseau.
+  // L'ordre narratif ne dépend pas de l'ordre réseau. Aucun transcript ni
+  // token privé ne quitte le contrôle, même lorsqu'il est inconclusif.
   results.sort((left, right) => left.result.sceneIndex - right.result.sceneIndex);
-  const previousDialogues: string[][] = [];
-  for (const entry of results) {
-    const repeatCount = previousDialogueRepeatCount(
-      entry.expectedTokens,
-      entry.detectedTokens,
-      previousDialogues,
-    );
-    if (repeatCount >= 2) {
-      entry.result.status = "rejected";
-      if (!entry.result.issues.includes("spoken_dialogue_repeated")) {
-        entry.result.issues.push("spoken_dialogue_repeated");
-      }
-      entry.result.metrics.repeatCount = Math.max(entry.result.metrics.repeatCount, repeatCount);
-    }
-    if (entry.detectedTokens.length) previousDialogues.push(entry.detectedTokens);
-  }
   const clips = results
     .map((entry) => entry.result);
   const status: AiMediaNativeDialogueQaStatus = clips.some(

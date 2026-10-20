@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { extractAiMediaPronunciationAliases } from "../../lib/aiMediaPronunciation.ts";
+import { splitAiMediaSpokenScript } from "../../lib/aiMediaSpokenScript.ts";
 
 import {
   auditAiMediaNativeDialogueClips,
@@ -11,6 +13,82 @@ import {
 } from "../../lib/aiMediaNativeDialogueQa.ts";
 
 const ROOT = process.cwd();
+
+test("an exact explicit script split across clips is not rejected for a planned internal fragment", async () => {
+  const script = "Notre outil facilite la création de contenus pour communiquer avec vos clients.";
+  const lines = splitAiMediaSpokenScript(script, [8, 8]);
+  assert.equal(lines.join(""), script);
+  assert.equal(lines[0].trim(), "Notre outil facilite la création de");
+  assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine: lines[0], transcript: lines[0] }).status, "rejected");
+  const result = await auditAiMediaNativeDialogueClips({
+    clips: lines.map((expectedLine, sceneIndex) => fakeClip({
+      sceneIndex, expectedLine, expectedContinuation: lines.slice(sceneIndex + 1).some((line) => Boolean(line.trim())),
+    })),
+    transcribe: async (clip) => ({ text: clip.expectedLine }),
+    confirm: async () => { assert.fail("The complete expected fragment is already conforming."); },
+  });
+  assert.equal(result.status, "passed");
+  assert.deepEqual(result.clips.map((clip) => clip.status), ["passed", "passed"]);
+});
+
+test("planned continuation never excuses missing words, changed values or an unexpected incomplete tail", () => {
+  const expectedLine = "Notre offre ne comprend pas la livraison et coûte 50 euros pour";
+  for (const transcript of [
+    expectedLine.replace("la livraison ", ""),
+    expectedLine.replace("50", "500"),
+    expectedLine.replace("ne comprend pas", "comprend"),
+    `${expectedLine} une`,
+  ]) {
+    const result = evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript, expectedContinuation: true });
+    assert.equal(result.status, "rejected", transcript);
+  }
+  const finalFragment = evaluateAiMediaNativeDialogue({ sceneIndex: 1, expectedLine, transcript: expectedLine, expectedContinuation: false });
+  assert.equal(finalFragment.status, "rejected");
+  assert.ok(finalFragment.issues.includes("spoken_dialogue_incomplete"));
+});
+
+test("the requested phonetic spelling is accepted locally only with its explicit pronunciation alias", async () => {
+  const expectedLine = "Je suis Océane et je représente iNrCy pour accompagner votre entreprise.";
+  const transcript = expectedLine.replace("iNrCy", "inertie");
+  const pronunciationAliases = extractAiMediaPronunciationAliases("iNrCy se prononce « inertie ».");
+  assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript }).status, "rejected");
+  assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript, pronunciationAliases }).status, "passed");
+  const result = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })], pronunciationAliases,
+    transcribe: async () => ({ text: transcript }),
+    confirm: async () => { assert.fail("An explicitly correct pronunciation needs no second ASR."); },
+  });
+  assert.equal(result.status, "passed");
+  assert.doesNotMatch(JSON.stringify(result), /iNrCy|inertie|pronunciationalias/);
+  assert.equal(expectedLine, "Je suis Océane et je représente iNrCy pour accompagner votre entreprise.");
+});
+
+test("an explicit sound alias does not excuse a different name, wrong amount, negation or another proper name", () => {
+  const expectedLine = "Avec iNrCy à Bordeaux, notre offre ne comprend pas la livraison et coûte 50 euros seulement.";
+  const pronunciationAliases = extractAiMediaPronunciationAliases("Prononciation de iNrCy : « inertie ».");
+  for (const transcript of [
+    expectedLine.replace("iNrCy", "autre chose"),
+    expectedLine.replace("iNrCy", "inertie").replace("50", "500"),
+    expectedLine.replace("iNrCy", "inertie").replace("ne comprend pas", "comprend"),
+    expectedLine.replace("iNrCy", "inertie").replace("Bordeaux", "Lyon"),
+  ]) {
+    const result = evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript, pronunciationAliases });
+    assert.equal(result.status, "rejected");
+    assert.ok(result.issues.includes("spoken_critical_value_mismatch"));
+  }
+  const irrelevantAlias = extractAiMediaPronunciationAliases("AutreNom se prononce « inertie ».");
+  assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript: expectedLine.replace("iNrCy", "inertie"), pronunciationAliases: irrelevantAlias }).status, "rejected");
+});
+
+test("phonetic alias matching respects token boundaries and preserves unintended repetitions", () => {
+  const pronunciationAliases = extractAiMediaPronunciationAliases("iNrCy se prononce « in er si ».");
+  const expectedLine = "Découvrez iNrCy pour votre entreprise.";
+  assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript: "Découvrez in er si pour votre entreprise.", pronunciationAliases }).status, "passed");
+  for (const transcript of [
+    "Découvrez in er si in er si pour votre entreprise.",
+    "Découvrez fin er si pour votre entreprise.",
+  ]) assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript, pronunciationAliases }).status, "rejected");
+});
 
 test("critical prices, times and negations cannot pass on high overall word overlap", () => {
   const pairs = [
@@ -67,14 +145,15 @@ test("a near-complete transcript is independently confirmed without relaxing dia
       },
     });
     assert.equal(confirmations, 1);
-    assert.equal(result.status, outcome === "complete" ? "passed" : "rejected");
+    assert.equal(result.status, outcome === "complete" ? "passed" : outcome === "still-cut" ? "rejected" : "unavailable");
     assert.equal(result.clips[0].confirmation, outcome === "complete" ? "passed" : outcome === "still-cut" ? "rejected" : "unavailable");
-    if (outcome !== "complete") assert.ok(result.clips[0].issues.includes("spoken_dialogue_incomplete"));
-    assert.doesNotMatch(JSON.stringify(result), /personnalisés|attentive|transcript/);
+    if (outcome === "still-cut") assert.ok(result.clips[0].issues.includes("spoken_dialogue_incomplete"));
+    if (outcome === "unavailable") assert.deepEqual(result.clips[0].issues, ["transcription_unavailable"]);
+    assert.doesNotMatch(JSON.stringify(result), /personnalisés|attentive|"transcript"/);
   }
 });
 
-test("confirmation never overrides missing critical values, repetitions, silence or a clearly wrong sentence", async () => {
+test("a second independent listen must confirm missing critical values, repetitions or silence", async () => {
   const expectedLine = "Notre offre ne comprend pas la livraison et reste disponible pour 50 euros seulement.";
   for (const transcript of [
     "Notre offre comprend la livraison et reste disponible pour 50 euros seulement.",
@@ -83,12 +162,77 @@ test("confirmation never overrides missing critical values, repetitions, silence
     "Notre offre ne comprend",
     "",
   ]) {
+    let confirmations = 0;
     const checked = await auditAiMediaNativeDialogueClips({
       clips: [fakeClip({ expectedLine })], transcribe: async () => ({ text: transcript }),
-      confirm: async () => { assert.fail("Unambiguous errors must remain rejected without another ASR call."); },
+      confirm: async () => { confirmations++; return { text: transcript }; },
     });
-    assert.equal(checked.status, "rejected"); assert.equal(checked.clips[0].confirmation, undefined);
+    assert.equal(confirmations, 1);
+    assert.equal(checked.status, "rejected"); assert.equal(checked.clips[0].confirmation, "rejected");
   }
+});
+
+test("a fresh conforming listen clears a mistaken name or any other first-transcript rejection", async () => {
+  const expectedLine = "Je suis Océane et je représente iNrCy pour accompagner votre entreprise.";
+  const initial = "Je suis Océane et je représente inertie pour accompagner votre entreprise.";
+  assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript: initial }).status, "rejected");
+  let confirmations = 0;
+  const result = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })],
+    transcribe: async () => ({ text: initial }),
+    confirm: async () => { confirmations++; return { text: expectedLine }; },
+  });
+  assert.equal(confirmations, 1);
+  assert.equal(result.status, "passed");
+  assert.deepEqual(result.clips[0].issues, []);
+  assert.equal(result.clips[0].confirmation, "passed");
+  assert.doesNotMatch(JSON.stringify(result), /Océane|iNrCy|inertie/);
+});
+
+test("two rejected but contradictory transcripts are inconclusive instead of confirming one another", async () => {
+  const expectedLine = "Notre offre ne comprend pas la livraison et reste disponible pour 50 euros seulement.";
+  for (const [first, second] of [
+    [expectedLine.replace("50", "500"), expectedLine.replace("50", "5000")],
+    [expectedLine.replace("50", "500"), expectedLine.replace("ne comprend pas", "comprend")],
+    ["Une toute autre histoire commence ici.", "Les mots changent pour un voyage différent."],
+    ["", "Une toute autre histoire commence ici."],
+  ]) {
+    assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript: first }).status, "rejected");
+    assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript: second }).status, "rejected");
+    const result = await auditAiMediaNativeDialogueClips({
+      clips: [fakeClip({ expectedLine })],
+      transcribe: async () => ({ text: first }), confirm: async () => ({ text: second }),
+    });
+    assert.equal(result.status, "unavailable");
+    assert.deepEqual(result.clips[0].issues, ["transcription_inconclusive"]);
+    assert.equal(result.clips[0].confirmation, "unavailable");
+    if (first) assert.ok(!JSON.stringify(result).includes(first));
+  }
+});
+
+test("a confirmed defect tolerates ASR typography and a small noncritical transcript variation", async () => {
+  const expectedLine = "Notre offre reste disponible pour votre entreprise au tarif de 50 euros seulement.";
+  const result = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })],
+    transcribe: async () => ({ text: expectedLine.replace("50", "500") }),
+    confirm: async () => ({ text: "Notre offre reste disponible pour votre entreprise au tarif de cinq cents euros seulement ici." }),
+  });
+  assert.equal(result.status, "rejected");
+  assert.ok(result.clips[0].issues.includes("spoken_critical_value_mismatch"));
+  assert.equal(result.clips[0].confirmation, "rejected");
+});
+
+test("an unchecked rejection is unavailable and passing clips never request confirmation", async () => {
+  const unconfirmed = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip()], transcribe: async () => ({ text: "" }),
+  });
+  assert.equal(unconfirmed.status, "unavailable");
+  assert.deepEqual(unconfirmed.clips[0].issues, ["transcription_unavailable"]);
+  const passed = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip()], transcribe: async (clip) => ({ text: clip.expectedLine }),
+    confirm: async () => { assert.fail("Conforming audio does not need another ASR call."); },
+  });
+  assert.equal(passed.status, "passed");
 });
 
 test("caller cancellation still interrupts an ambiguous-dialogue confirmation", async () => {
@@ -301,6 +445,7 @@ test("l'orchestrateur refuse une réplique ou une fin précédente ajoutée dans
     const result = await auditAiMediaNativeDialogueClips({
       clips,
       transcribe: async (clip) => ({ text: clip.sceneIndex === 1 ? transcript : previousLine }),
+      confirm: async (clip) => ({ text: clip.sceneIndex === 1 ? transcript : previousLine }),
     });
     assert.equal(result.status, "rejected");
     assert.deepEqual(result.clips.map((clip) => clip.sceneIndex), [0, 1]);
@@ -325,6 +470,55 @@ test("l'orchestrateur conserve une expression commune prévue dans plusieurs act
   assert.deepEqual(result.clips.map((clip) => clip.issues), [[], []]);
 });
 
+test("an apparent repetition across clips also requires confirmation and can be cleared by a fresh listen", async () => {
+  const previousLine = "Votre entreprise évolue plus facilement.";
+  const currentLine = "Créez vos contenus et partagez vos nouveautés avec tous vos clients.";
+  const clips = [fakeClip({ expectedLine: previousLine }), fakeClip({ sceneIndex: 1, expectedLine: currentLine })];
+  for (const confirmed of [false, true]) {
+    const calls: number[] = [];
+    const result = await auditAiMediaNativeDialogueClips({
+      clips,
+      transcribe: async (clip) => ({ text: clip.sceneIndex === 0 ? previousLine : `${currentLine} Plus facilement.` }),
+      ...(confirmed ? { confirm: async (clip: AiMediaNativeDialogueQaClip) => {
+        calls.push(clip.sceneIndex);
+        return { text: clip.expectedLine };
+      } } : {}),
+    });
+    assert.equal(result.status, confirmed ? "passed" : "unavailable");
+    assert.deepEqual(calls, confirmed ? [1] : []);
+    assert.equal(result.clips[1].confirmation, confirmed ? "passed" : "unavailable");
+  }
+});
+
+test("an ASR hallucination in an earlier clip cannot manufacture a repetition in the next clip", async () => {
+  const previousLine = "Bienvenue dans notre atelier.";
+  const currentLine = "Découvrez notre nouvelle solution.";
+  const firstHallucination = `${previousLine} Clients.`;
+  const clips = [fakeClip({ expectedLine: previousLine }), fakeClip({ sceneIndex: 1, expectedLine: currentLine })];
+  const confirmed: number[] = [];
+  const result = await auditAiMediaNativeDialogueClips({
+    clips,
+    transcribe: async (clip) => ({ text: clip.sceneIndex === 0 ? firstHallucination : `Clients, ${currentLine}` }),
+    confirm: async (clip) => { confirmed.push(clip.sceneIndex); return { text: clip.expectedLine }; },
+  });
+  assert.equal(result.clips[1].status, "passed");
+  assert.ok(!confirmed.includes(1));
+});
+
+test("unexpected speech on a silent clip must be heard twice before rejection", async () => {
+  const clip = fakeClip({ expectedLine: "", expectSilence: true });
+  for (const second of ["Bonjour encore.", ""]) {
+    let confirmations = 0;
+    const result = await auditAiMediaNativeDialogueClips({
+      clips: [clip], transcribe: async () => ({ text: "Bonjour encore." }),
+      confirm: async () => { confirmations++; return { text: second }; },
+    });
+    assert.equal(confirmations, 1);
+    assert.equal(result.status, second ? "rejected" : "passed");
+    assert.ok(!JSON.stringify(result).includes("Bonjour"));
+  }
+});
+
 test("l'orchestrateur refuse un seul mot rejoué à la jonction de deux actes", async () => {
   const clips = [
     fakeClip({ sceneIndex: 0, expectedLine: "Nous accueillons tous vos clients." }),
@@ -337,6 +531,7 @@ test("l'orchestrateur refuse un seul mot rejoué à la jonction de deux actes", 
         ? clip.expectedLine
         : "Clients, découvrez notre nouvelle solution.",
     }),
+    confirm: async () => ({ text: "Clients, découvrez notre nouvelle solution." }),
   });
   assert.equal(result.status, "rejected");
   assert.deepEqual(result.clips[1]?.issues, ["spoken_dialogue_repeated"]);
@@ -352,6 +547,7 @@ test("un rejet prime sur une transcription indisponible, sans exposer le transcr
       if (clip.sceneIndex === 1) throw new Error("google unavailable");
       return { text: "Une phrase complètement différente.", model: "gemini-test" };
     },
+    confirm: async () => ({ text: "Une phrase complètement différente.", model: "gemini-test" }),
   });
   assert.equal(result.status, "rejected");
   assert.equal(result.clips[1]?.status, "unavailable");

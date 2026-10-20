@@ -14,6 +14,7 @@ import type {
   AiMediaNarrationVoiceVariant,
 } from "@/lib/aiMediaGenerationContracts";
 import { isAiMediaNarrationVoiceVariantForGender } from "./aiMediaNarrationVoices.ts";
+import type { AiMediaPronunciationAlias } from "./aiMediaPronunciation.ts";
 
 const DEFAULT_TTS_MODEL = "gemini-3.1-flash-tts-preview";
 const DEFAULT_TTS_VOICE_FEMALE = "Kore";
@@ -204,6 +205,7 @@ export async function generateAiMediaNarrationAudio(args: {
   durationSeconds: number;
   narrationVoice: AiMediaNarrationVoice;
   narrationVoiceVariant?: AiMediaNarrationVoiceVariant | null;
+  pronunciationAliases?: readonly AiMediaPronunciationAlias[];
   signal?: AbortSignal;
 }): Promise<GeneratedAiNarrationAudio> {
   args.signal?.throwIfAborted();
@@ -251,6 +253,11 @@ export async function generateAiMediaNarrationAudio(args: {
                 args.durationSeconds
               } secondes, mais ne compresse jamais les mots et n'accélère jamais la diction pour remplir la durée. Sans chant ni emphase artificielle.`,
               "Lis comme un discours continu adressé à une personne : enchaîne naturellement les groupes de mots, sans pause entre chaque mot. Marque seulement les respirations indiquées par la ponctuation.",
+              ...(args.pronunciationAliases?.length ? [
+                "GUIDE DE PRONONCIATION — ne pas lire ce guide : appliquer ces équivalences aux noms présents dans la transcription, sans ajouter, retirer ni remplacer de mot dans le script.",
+                ...args.pronunciationAliases.map(({ spelling, pronunciation }) =>
+                  `${JSON.stringify(spelling)} se prononce ${JSON.stringify(pronunciation)}.`),
+              ] : []),
               "TRANSCRIPTION À LIRE MOT POUR MOT :",
               args.narration.script,
             ].join("\n"),

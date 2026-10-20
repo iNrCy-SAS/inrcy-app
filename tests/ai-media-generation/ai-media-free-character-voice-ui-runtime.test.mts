@@ -147,6 +147,11 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     async abandonRecovery() { (find(tree, (node) => node.type === "preview").props.handleConfirmGenerationStop as () => void)(); await flush(); },
     removePhoto(index: number) { (find(cards()[index], (node) => node.type === "button").props.onClick as () => void)(); render(); },
     setSound(value: string) { const input = find(tree, (node) => node.type === "input" && node.props.type === "radio" && node.props.value === value); (input.props.onChange as () => void)(); render(); },
+    addSpeech() { const button = find(tree, (node) => node.type === "button" && String(node.props.id).endsWith("-add-spoken-script")); if (!button.props.disabled) (button.props.onClick as () => void)(); render(); },
+    enterSpeech(value: string) { const input = find(tree, (node) => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script")); assert.equal(input.props.disabled, false); (input.props.onChange as (event: unknown) => void)({ target: { value } }); render(); },
+    removeSpeech() { const panel = find(tree, (node) => String(node.props.id).endsWith("-spoken-script-panel")); (find(panel, (node) => node.type === "button").props.onClick as () => void)(); render(); },
+    setTab(value: string) { (find(tree, (node) => node.type === "settings-tabs").props.onChange as (value: string) => void)(value); render(); },
+    setSubtitles(checked: boolean) { const input = find(tree, (node) => node.props["data-media-subtitles"] !== undefined); if (!input.props.disabled) (input.props.onChange as (event: unknown) => void)({ target: { checked } }); render(); },
     async generate() { const button = find(tree, (node) => node.props["data-media-primary-action"] !== undefined); if (button.props.disabled) return; (button.props.onClick as () => void)(); await flush(); },
     deferVoiceUpload() { deferUpload = true; }, finishVoiceUpload() { uploadReply?.(); },
     changeAccount() { for (const callback of [...listeners.get("account-change") || []]) callback(); render(); },
@@ -170,6 +175,149 @@ test("the actual active Free editor shows the real voice selector on video Perso
   }
   const image = harness("image"); await image.addPhoto(); image.criteria(0, "character", "required");
   assert.equal(elements(image.cards()[0]).some((node) => typeof node.type === "function" && String(node.type).includes("MediaCharacterVoiceInput")), false); image.dispose();
+});
+
+test("the optional speech editor keeps exact script separate from the brief in both quote and generation", async () => {
+  const h = harness();
+  const add = find(h.tree(), (node) => node.type === "button" && String(node.props.id).endsWith("-add-spoken-script"));
+  assert.equal(add.props["aria-expanded"], false);
+  assert.equal(find(h.tree(), (node) => node.props.id === add.props["aria-controls"]).props.hidden, true);
+  h.setSound("characters"); h.changePreferredVideoEngine("veo");
+  assert.equal(find(h.tree(), (node) => node.props.id === add.props["aria-controls"]).props.hidden, true, "voice and engine choices never open the optional speech editor");
+  assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
+  h.addSpeech();
+  const script = '  Bonjour, je suis Océane.\n« iNrCy », notre application.  ';
+  h.enterSpeech(script);
+  const input = () => find(h.tree(), (node) => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script"));
+  assert.equal(input().props.maxLength, contracts.AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS);
+  assert.equal(h.quoteInputs.at(-1)!.spokenScript, script);
+  h.setTab("criteria"); h.setSound("characters"); h.setTab("prompt");
+  assert.equal(input().props.value, script, "criteria and speech-mode changes preserve the script");
+  await h.generate();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].spokenScript, script);
+  assert.equal(h.requests[0].freePrompt, "Le personnage présente son métier avec sa voix.");
+  assert.equal(h.requests[0].teamVideoSpeechMode, "characters");
+  h.dispose();
+});
+
+test("a closed speech editor omits the field while an explicitly opened empty editor sends exact empty speech", async () => {
+  for (const script of ["", " \n\t "]) {
+    const h = harness();
+    assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
+    h.addSpeech(); h.enterSpeech(script);
+    assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), true);
+    assert.equal(h.quoteInputs.at(-1)!.spokenScript, script);
+    assert.equal(h.quoteInputs.at(-1)!.withNarration, false);
+    assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode, "voiceover");
+    assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false);
+    await h.generate();
+    assert.equal(Object.hasOwn(h.requests[0], "spokenScript"), true);
+    assert.equal(h.requests[0].spokenScript, script);
+    assert.equal(h.requests[0].withNarration, false);
+    assert.equal(h.requests[0].teamVideoSpeechMode, "voiceover");
+    assert.equal(h.requests[0].withSubtitles, false);
+    h.removeSpeech();
+    assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
+    h.dispose();
+  }
+});
+
+test("empty speech temporarily silences the request while retaining the professional’s voice and subtitle choices", () => {
+  const h = harness(); h.setSound("characters"); h.setSubtitles(true); h.addSpeech();
+  assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false);
+  assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode, "voiceover");
+  assert.equal(find(h.tree(), (node) => node.type === "input" && node.props.value === "characters").props.checked, true);
+  h.enterSpeech("Bienvenue chez nous.");
+  assert.equal(h.quoteInputs.at(-1)!.withSubtitles, true);
+  assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode, "characters");
+  h.enterSpeech("");
+  assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false);
+  assert.equal(h.quoteInputs.at(-1)!.withNarration, false);
+  h.removeSpeech();
+  assert.equal(h.quoteInputs.at(-1)!.withSubtitles, true);
+  assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode, "characters");
+  h.dispose();
+});
+
+test("removing speech clears the optional payload and permits no-speech mode without hidden text", async () => {
+  const h = harness(); h.addSpeech(); h.enterSpeech("Bonjour, bienvenue chez nous.");
+  const silent = () => find(h.tree(), (node) => node.type === "input" && node.props.type === "radio" && node.props.value === "silent");
+  assert.equal(silent().props.disabled, true);
+  h.setSound("silent");
+  assert.equal(silent().props.checked, false, "even a stale event cannot discard active speech");
+  assert.equal(h.quoteInputs.at(-1)!.spokenScript, "Bonjour, bienvenue chez nous.");
+  h.removeSpeech();
+  assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
+  h.setSound("silent");
+  assert.equal(silent().props.checked, true);
+  assert.equal(find(h.tree(), (node) => node.type === "button" && String(node.props.id).endsWith("-add-spoken-script")).props.disabled, true);
+  assert.match(text(h.tree()), /ai_generator_spoken_script_silent_help/);
+  await h.generate();
+  assert.equal(h.requests.length, 1);
+  assert.equal(Object.hasOwn(h.requests[0], "spokenScript"), false);
+  h.dispose();
+});
+
+test("account changes erase speech and image creation never offers or submits it", async () => {
+  const h = harness(); h.addSpeech(); h.enterSpeech("Un texte privé du compte A.");
+  h.changeAccount();
+  assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
+  assert.equal(find(h.tree(), (node) => String(node.props.id).endsWith("-spoken-script-panel")).props.hidden, true);
+  h.addSpeech();
+  assert.equal(find(h.tree(), (node) => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script")).props.value, "");
+  h.dispose();
+  const image = harness("image");
+  assert.equal(elements(image.tree()).some((node) => String(node.props.id).includes("spoken-script")), false);
+  assert.equal(Object.hasOwn(image.quoteInputs.at(-1)!, "spokenScript"), false);
+  assert.match(text(image.tree()), /ai_generator_free_prompt_help/);
+  await image.generate();
+  assert.equal(image.requests.length, 1);
+  assert.equal(Object.hasOwn(image.requests[0], "spokenScript"), false);
+  image.dispose();
+});
+
+test("video subtitles default off and the same explicit choice reaches quote and generation", async () => {
+  const defaultVideo = harness();
+  const control = find(defaultVideo.tree(), (node) => node.props["data-media-subtitles"] !== undefined);
+  assert.equal(control.props.type, "checkbox");
+  assert.equal(control.props.checked, false);
+  assert.equal(control.props.disabled, false);
+  assert.equal(defaultVideo.quoteInputs.at(-1)!.withSubtitles, false);
+  await defaultVideo.generate();
+  assert.equal(defaultVideo.requests[0].withSubtitles, false);
+  defaultVideo.dispose();
+  for (const mode of ["voiceover", "characters"]) {
+    const h = harness(); h.setTab("criteria"); h.setSound(mode); h.setSubtitles(true);
+    h.setTab("prompt"); h.setTab("criteria");
+    assert.equal(find(h.tree(), (node) => node.props["data-media-subtitles"] !== undefined).props.checked, true);
+    assert.equal(h.quoteInputs.at(-1)!.withSubtitles, true);
+    await h.generate();
+    assert.equal(h.requests[0].withSubtitles, true);
+    assert.equal(h.requests[0].teamVideoSpeechMode, mode === "characters" ? "characters" : "voiceover");
+    h.dispose();
+  }
+});
+
+test("silent video disables subtitles without blocking generation; account reset clears the choice and images omit it", async () => {
+  const h = harness(); h.setSubtitles(true); h.setSound("silent");
+  let control = find(h.tree(), (node) => node.props["data-media-subtitles"] !== undefined);
+  assert.equal(control.props.checked, false); assert.equal(control.props.disabled, true);
+  assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false);
+  await h.generate(); assert.equal(h.requests.length, 1); assert.equal(h.requests[0].withSubtitles, false);
+  h.setSound("voiceover");
+  control = find(h.tree(), (node) => node.props["data-media-subtitles"] !== undefined);
+  assert.equal(control.props.checked, true, "returning to speech retains the professional’s subtitle choice");
+  h.changeAccount();
+  assert.equal(find(h.tree(), (node) => node.props["data-media-subtitles"] !== undefined).props.checked, false);
+  assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false); h.dispose();
+  const fresh = harness();
+  assert.equal(find(fresh.tree(), (node) => node.props["data-media-subtitles"] !== undefined).props.checked, false, "a newly mounted form starts without subtitles"); fresh.dispose();
+  const image = harness("image");
+  assert.equal(elements(image.tree()).some((node) => node.props["data-media-subtitles"] !== undefined), false);
+  assert.equal(Object.hasOwn(image.quoteInputs.at(-1)!, "withSubtitles"), false);
+  await image.generate();
+  assert.equal(Object.hasOwn(image.requests[0], "withSubtitles"), false); image.dispose();
 });
 
 test("the real Free voice import enables only supported engines and aligns quote and payload with inspiration voices", async () => {
