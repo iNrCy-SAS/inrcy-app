@@ -339,8 +339,8 @@ test("the real Free voice import enables only supported engines and aligns quote
   assert.equal("id" in request.inspirationImages![0], false); h.dispose();
 });
 
-test("all three supported engines remain selected or can be selected through real controls with the corresponding quote and request", async () => {
-  for (const engine of voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES) {
+test("available supplied-voice engines remain selected or can be selected with the corresponding quote and request", async () => {
+  for (const engine of voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(models.isAiMediaVideoEngineAvailable)) {
     const preserved = harness("video", engine); await preserved.addPhoto(); preserved.criteria(0, "character", "inspiration"); preserved.chooseVoice(0, "provided");
     assert.equal(preserved.quoteInputs.at(-1)!.videoEngine, engine, "an already supported preferred engine must be preserved"); preserved.dispose();
     const h = harness(); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
@@ -354,7 +354,7 @@ test("all three supported engines remain selected or can be selected through rea
 });
 
 test("one explicit footer authorization covers two required people and their distinct voices on every supported engine", async () => {
-  for (const engine of voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES) {
+  for (const engine of voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(models.isAiMediaVideoEngineAvailable)) {
     const h = harness("video", engine);
     await h.addPhoto("moi.png"); await h.addPhoto("mon-epouse.png");
     for (let index = 0; index < 2; index++) {
@@ -458,15 +458,14 @@ test("a failed recovery keeps its explicit attempt authorization while completed
   }
 });
 
-test("HeyGen shows voice-specific 768p and 1080p rates while AI voices retain the regular tariff", async () => {
-  const h = harness("video", "heygen"); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided");
+test("retired HeyGen is absent from regular and supplied-voice menus and their information guide", async () => {
+  const h = harness("video", "wan3"); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided");
   let menu = find(h.renderEngines(), (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
-  const option = (quality: string) => find(menu, (node) => node.type === "option" && node.props.value === `heygen:${quality}`);
-  assert.match(text(option("768p")), /credit_rate_short 10/); assert.match(text(option("1080p")), /credit_rate_short 18/);
-  assert.match(text(h.renderEngineInfo()), /credit_rate_short 18/);
+  assert.ok(!elements(menu).some((node) => node.type === "option" && String(node.props.value).startsWith("heygen:")));
+  assert.doesNotMatch(text(h.renderEngineInfo()), /HeyGen/i);
   h.chooseVoice(0, "ai"); menu = find(h.renderEngines(), (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
-  assert.match(text(option("768p")), /credit_rate_short 4/); assert.match(text(option("1080p")), /credit_rate_short 10/);
-  assert.doesNotMatch(text(h.renderEngineInfo()), /credit_rate_short 18/); h.dispose();
+  assert.ok(!elements(menu).some((node) => node.type === "option" && String(node.props.value).startsWith("heygen:")));
+  assert.doesNotMatch(text(h.renderEngineInfo()), /HeyGen/i); h.dispose();
 });
 
 test("Wan 3 blocks over fifteen seconds of samples without discarding them or changing the selected engine", async () => {
@@ -476,7 +475,7 @@ test("Wan 3 blocks over fifteen seconds of samples without discarding them or ch
   const menu = find(h.renderEngines(), (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
   for (const quality of ["720p", "1080p"]) assert.equal(find(menu, (node) => node.type === "option" && node.props.value === `wan3:${quality}`).props.disabled, true);
   assert.ok(text(h.tree()).includes("ai_generator_character_voice_wan3_duration_limit")); h.consent(); await h.generate(); assert.equal(h.requests.length, 0);
-  h.selectEngine("heygen"); h.consent(); await h.generate(); assert.equal(h.requests[0].videoEngine, "heygen");
+  h.selectEngine("wan27"); h.consent(); await h.generate(); assert.equal(h.requests[0].videoEngine, "wan27");
   assert.equal(h.requests[0].inspirationImages!.filter((image) => image.voiceSample).length, 2); h.dispose();
 });
 

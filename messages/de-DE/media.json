@@ -973,7 +973,7 @@
   "ai_generator_character_voice_file_error": "Wählen Sie eine MP3- oder WAV-Datei mit höchstens 3 MB.",
   "ai_generator_character_voice_duration_error": "Die Sprachaufnahme muss zwischen 1 und 10 Sekunden lang sein.",
   "ai_generator_character_voice_sample_missing": "Laden Sie für jede Figur mit eigener Stimme eine Sprachaufnahme hoch.",
-  "ai_generator_character_voice_engine_required": "Wählen Sie für eine eigene Sprachaufnahme Wan 2.7, Wan 3.0 oder HeyGen.",
+  "ai_generator_character_voice_engine_required": "Wählen Sie für eine eigene Sprachaufnahme Wan 2.7 oder Wan 3.0.",
   "ai_generator_character_voice_speech_required": "Eigene Stimmen werden im Audiomodus Figuren verwendet.",
   "ai_generator_character_voice_switch_characters": "Figuren-Audio verwenden",
   "ai_generator_character_voice_preview": "Sprachaufnahme dieser Figur anhören",
@@ -1016,5 +1016,5 @@
   "ai_generator_character_voice_library_empty": "Keine Sprachaufnahmen in der Mediathek.",
   "ai_generator_character_voice_library_loading": "Sprachaufnahmen werden geladen…",
   "ai_generator_character_voice_library_duration_error": "Wählen Sie eine Sprachaufnahme von 1 bis 10 Sekunden und höchstens 3 MB.",
-  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 erlaubt insgesamt höchstens 15 Sekunden an Sprachaufnahmen. Kürzen Sie die Aufnahmen oder wählen Sie Wan 2.7 oder HeyGen."
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 erlaubt insgesamt höchstens 15 Sekunden an Sprachaufnahmen. Kürzen Sie die Aufnahmen oder wählen Sie Wan 2.7."
 }

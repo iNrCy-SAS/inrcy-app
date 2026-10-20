@@ -973,7 +973,7 @@
   "ai_generator_character_voice_file_error": "Choisissez un fichier MP3 ou WAV de 3 Mo maximum.",
   "ai_generator_character_voice_duration_error": "Le vocal doit durer entre 1 et 10 secondes.",
   "ai_generator_character_voice_sample_missing": "Insérez un vocal pour chaque personnage en voix fournie.",
-  "ai_generator_character_voice_engine_required": "Voix fournie : choisissez Wan 2.7, Wan 3.0 ou HeyGen.",
+  "ai_generator_character_voice_engine_required": "Voix fournie : choisissez Wan 2.7 ou Wan 3.0.",
   "ai_generator_character_voice_speech_required": "Les voix fournies sont utilisées en mode Personnages.",
   "ai_generator_character_voice_switch_characters": "Utiliser le son Personnages",
   "ai_generator_character_voice_preview": "Écouter le vocal de ce personnage",
@@ -1016,5 +1016,5 @@
   "ai_generator_character_voice_library_empty": "Aucun vocal dans la médiathèque.",
   "ai_generator_character_voice_library_loading": "Chargement des vocaux…",
   "ai_generator_character_voice_library_duration_error": "Choisissez un vocal de 1 à 10 secondes et de 3 Mo maximum.",
-  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepte 15 secondes de vocaux au total. Raccourcissez les échantillons ou choisissez Wan 2.7 ou HeyGen."
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepte 15 secondes de vocaux au total. Raccourcissez les échantillons ou choisissez Wan 2.7."
 }

@@ -1,5 +1,5 @@
 import {
-  AI_MEDIA_VIDEO_MODELS,
+  AI_MEDIA_AVAILABLE_VIDEO_MODELS,
   getAiMediaVideoNativeDurations,
   type AiMediaImageEngine,
   type AiMediaVideoEngine,
@@ -83,7 +83,7 @@ export function recommendAiMediaModel(input: AiMediaModelRecommendationInput): A
 
   // The same pure quote validates native durations and references, including
   // essential/team first-frame composition. A suggestion cannot bypass it.
-  const compatible = AI_MEDIA_VIDEO_MODELS.flatMap((model) => {
+  const compatible = AI_MEDIA_AVAILABLE_VIDEO_MODELS.flatMap((model) => {
     // Wan Flash's native prompt limit is enforced at request validation too.
     if (model.id === "wan-flash" && (input.brief?.length ?? 0) > 1_500) return [];
     try {

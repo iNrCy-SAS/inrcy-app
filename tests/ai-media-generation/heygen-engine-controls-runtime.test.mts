@@ -46,7 +46,7 @@ function controls(overrides: Partial<ControlsProps> = {}, locale = "fr-FR") {
     assert.ok(modules.has(name), `Unexpected UI dependency: ${name}`);
     return modules.get(name);
   });
-  const props: ControlsProps = { kind: "video", videoEngine: "heygen", imageEngine: "openai", resolution: "768p", referenceCount: 0, brief: "Une personne salue devant son atelier.", disabled: false, durationSeconds: 8, sceneMode: "single", videoMaxDurationSeconds: 30,
+  const props: ControlsProps = { kind: "video", videoEngine: "omni", imageEngine: "openai", resolution: "720p", referenceCount: 0, brief: "Une personne salue devant son atelier.", disabled: false, durationSeconds: 8, sceneMode: "single", videoMaxDurationSeconds: 30,
     onVideoEngineChange: (...value) => changes.push(["engine", ...value]), onImageEngineChange: (...value) => changes.push(["image", ...value]), onResolutionChange: (...value) => changes.push(["resolution", ...value]), onDurationSceneChange: (...value) => changes.push(["duration", ...value]), ...overrides };
   const render = () => { cursor = 0; return record.exports.default(props); };
   const renderInfo = () => {
@@ -63,34 +63,35 @@ function controls(overrides: Partial<ControlsProps> = {}, locale = "fr-FR") {
   } };
 }
 
-test("HeyGen appears in its family with both supported qualities and can be selected from another engine", () => {
-  const runtime = controls({ videoEngine: "omni", resolution: "720p" });
-  const tree = runtime.render();
-  const family = find(tree, (element) => element.type === "optgroup" && element.props.label === "HeyGen");
-  const options = elements(family).filter((element) => element.type === "option");
-  assert.deepEqual(options.map((option) => option.props.value), ["heygen:768p", "heygen:1080p"]);
-  assert.ok(options.every((option) => option.props.disabled === false));
-  const select = find(tree, (element) => element.type === "select" && String(element.props.id).endsWith("-engine"));
-  (select.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "heygen:1080p" } });
-  assert.deepEqual(runtime.changes, [["engine", "heygen", "1080p"]]);
-  assert.equal(find(controls().render(), (element) => element.type === "select" && String(element.props.id).endsWith("-engine")).props.value, "heygen:768p");
+test("retired HeyGen has no family or quality in the engine menu, including supplied voices", () => {
+  for (const hasProvidedCharacterVoice of [false, true]) {
+    const tree = controls({ hasProvidedCharacterVoice }).render();
+    assert.ok(!elements(tree).some((element) => element.type === "optgroup" && element.props.label === "HeyGen"));
+    assert.ok(!elements(tree).some((element) => element.type === "option" && String(element.props.value).startsWith("heygen:")));
+  }
 });
 
-test("HeyGen info explains native clips, French verification and only the assembled duration available to the account", () => {
+test("available engine and quality choices continue to reach the selection callback", () => {
+  const runtime = controls({ videoEngine: "omni", resolution: "720p" });
+  const tree = runtime.render();
+  const select = find(tree, (element) => element.type === "select" && String(element.props.id).endsWith("-engine"));
+  assert.equal(elements(select).filter((element) => element.type === "option").length, 16);
+  const option = find(select, (element) => element.type === "option" && element.props.value === "grok-lite:1080p");
+  assert.equal(option.props.disabled, false);
+  (select.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "grok-lite:1080p" } });
+  assert.deepEqual(runtime.changes, [["engine", "grok-lite", "1080p"]]);
+  assert.equal(find(controls().render(), (element) => element.type === "select" && String(element.props.id).endsWith("-engine")).props.value, "omni:720p");
+});
+
+test("the information guide excludes retired HeyGen at every account duration and remains closable", () => {
   for (const maximum of [15, 20, 30]) {
     const runtime = controls({ videoMaxDurationSeconds: maximum });
     const dialog = runtime.openInfo();
     assert.equal(dialog.type, "dialog");
-    const card = find(dialog, (element) => element.type === "section" && elements(element).some((child) => child.type === "h3" && text(child) === "HeyGen Video"));
-    assert.equal(card.props["data-active"], true);
-    assert.ok(text(card).includes("5 à 15 secondes par scène"));
-    assert.ok(text(card).includes("qualité des dialogues en français reste à vérifier"));
-    assert.ok(text(card).includes(runtime.t("ai_generator_engine_info_heygen_framing")));
-    const assembled = elements(card).filter((element) => element.type === "p" && text(element).includes("scènes assemblées"));
-    assert.equal(assembled.length, maximum > 15 ? 1 : 0);
-    if (maximum > 15) assert.equal(text(assembled[0]), runtime.t("ai_generator_engine_info_assembled_duration", { seconds: maximum }));
+    assert.doesNotMatch(text(dialog), /HeyGen/i);
+    assert.deepEqual(elements(dialog).filter((element) => element.type === "h3").map(text), [models.getAiMediaVideoModel("omni").label]);
     assert.ok(text(dialog).includes(runtime.t("ai_generator_engine_info_cost_note")), "The guide still explains what the displayed Studio cost covers");
-    assert.doesNotMatch(text(card), /50\s*%|\$|USD|31 octobre/, "Wholesale promotions must not imply a permanent client discount");
+    assert.doesNotMatch(text(dialog), /50\s*%|\$|USD|31 octobre/, "Wholesale promotions must not imply a permanent client discount");
     const close = find(dialog, (element) => element.type === "button" && element.props["aria-label"] === runtime.t("ai_generator_engine_info_close"));
     (close.props.onClick as () => void)();
     assert.equal(find(runtime.render(), (element) => element.props["aria-haspopup"] === "dialog").props["aria-expanded"], false);
@@ -102,7 +103,7 @@ test("the compact guide keeps every model accessible while showing one translate
     for (const kind of ["video", "image"] as const) {
       const runtime = controls({ kind }, locale);
       let dialog = runtime.openInfo();
-      const catalogue = kind === "video" ? models.AI_MEDIA_VIDEO_MODELS : models.AI_MEDIA_IMAGE_MODELS;
+      const catalogue = kind === "video" ? models.AI_MEDIA_AVAILABLE_VIDEO_MODELS : models.AI_MEDIA_IMAGE_MODELS;
       for (const model of catalogue) {
         const choices = elements(dialog).filter((element) => element.type === "button" && "aria-pressed" in element.props);
         assert.equal(choices.length, catalogue.length, `${locale}: all ${kind} choices remain available`);
@@ -114,9 +115,7 @@ test("the compact guide keeps every model accessible while showing one translate
         assert.deepEqual(headings.map(text), [model.label], "Only the viewed model has a detailed card");
         assert.ok(text(dialog).includes(runtime.t(`ai_generator_engine_info_${kind}_use_${model.id}`)), locale);
         assert.ok(text(dialog).includes(runtime.t(`ai_generator_engine_info_${kind}_limits_${model.id}`)), locale);
-        if (kind === "video" && model.id === "heygen") {
-          assert.ok(text(dialog).includes(runtime.t("ai_generator_engine_info_assembled_duration", { seconds: 30 })), locale);
-        }
+        if (kind === "video") assert.doesNotMatch(text(dialog), /HeyGen/i);
         assert.doesNotMatch(text(dialog), /ai_generator_|\{seconds\}/);
       }
       assert.deepEqual(runtime.changes, [], "Browsing information must not alter generation settings");

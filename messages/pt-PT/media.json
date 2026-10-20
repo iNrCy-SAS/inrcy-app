@@ -973,7 +973,7 @@
   "ai_generator_character_voice_file_error": "Escolha um ficheiro MP3 ou WAV até 3 MB.",
   "ai_generator_character_voice_duration_error": "A amostra de voz deve durar entre 1 e 10 segundos.",
   "ai_generator_character_voice_sample_missing": "Carregue uma amostra para cada personagem com voz fornecida.",
-  "ai_generator_character_voice_engine_required": "Para usar uma voz fornecida, escolha Wan 2.7, Wan 3.0 ou HeyGen.",
+  "ai_generator_character_voice_engine_required": "Para usar uma voz fornecida, escolha Wan 2.7 ou Wan 3.0.",
   "ai_generator_character_voice_speech_required": "As vozes fornecidas são utilizadas no modo de áudio Personagens.",
   "ai_generator_character_voice_switch_characters": "Utilizar o áudio Personagens",
   "ai_generator_character_voice_preview": "Ouvir a amostra de voz desta personagem",
@@ -1016,5 +1016,5 @@
   "ai_generator_character_voice_library_empty": "Não existem amostras de voz na biblioteca multimédia.",
   "ai_generator_character_voice_library_loading": "A carregar amostras de voz…",
   "ai_generator_character_voice_library_duration_error": "Escolha uma gravação de voz de 1 a 10 segundos e com um máximo de 3 MB.",
-  "ai_generator_character_voice_wan3_duration_limit": "O Wan 3.0 aceita até 15 segundos de amostras de voz no total. Encurte as amostras ou escolha Wan 2.7 ou HeyGen."
+  "ai_generator_character_voice_wan3_duration_limit": "O Wan 3.0 aceita até 15 segundos de amostras de voz no total. Encurte as amostras ou escolha Wan 2.7."
 }

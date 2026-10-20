@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getMediaVideoDurationChoices, getCompatibleMediaVideoResolution, getMediaVideoEngineQualityChoices, isMediaVideoBriefCompatible } from "../../lib/aiMediaVideoClientOptions.ts";
-import { getAiMediaVideoModel } from "../../lib/aiMediaModelCatalog.ts";
+import { AI_MEDIA_VIDEO_MODELS, AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel, restoreAiMediaVideoPreference, isAiMediaVideoEngineAvailable } from "../../lib/aiMediaModelCatalog.ts";
 
 test("the professional chooses the entire four-to-thirty-second range before choosing an engine", () => {
   assert.deepEqual(getMediaVideoDurationChoices(), Array.from({ length: 27 }, (_, index) => index + 4));
@@ -30,7 +30,7 @@ test("two-scene choices require two clips of at least four seconds", () => {
 
 test("the single dropdown contains only real engine/resolution pairs and their exact credit rates", () => {
   const choices = getMediaVideoEngineQualityChoices();
-  assert.equal(choices.length, 18);
+  assert.equal(choices.length, 16);
   assert.equal(new Set(choices.map((choice) => choice.value)).size, choices.length);
   for (const choice of choices) {
     const model = getAiMediaVideoModel(choice.engine);
@@ -46,12 +46,23 @@ test("the single dropdown contains only real engine/resolution pairs and their e
     { resolution: "720p", creditsPerSecond: 10 },
     { resolution: "1080p", creditsPerSecond: 15 },
   ]);
-  assert.deepEqual(choices.filter((choice) => choice.engine === "heygen").map((choice) => ({
-    resolution: choice.resolution, creditsPerSecond: choice.creditsPerSecond,
-  })), [
-    { resolution: "768p", creditsPerSecond: 4 },
-    { resolution: "1080p", creditsPerSecond: 10 },
-  ]);
+  assert.deepEqual(choices.filter((choice) => choice.engine === "heygen"), []);
+  assert.deepEqual(getMediaVideoEngineQualityChoices(true).filter((choice) => choice.engine === "heygen"), []);
+});
+
+test("retired HeyGen remains in historical records but stored selections restore to an available model", () => {
+  assert.ok(AI_MEDIA_VIDEO_MODELS.some((model) => model.id === "heygen"));
+  assert.equal(getAiMediaVideoModel("heygen").modelId, "heygen/heygen-video-1");
+  assert.equal(isAiMediaVideoEngineAvailable("heygen"), false);
+  assert.ok(!AI_MEDIA_AVAILABLE_VIDEO_MODELS.some((model) => model.id === "heygen"));
+  assert.deepEqual(restoreAiMediaVideoPreference("heygen", "768p"), { videoEngine: "omni", videoResolution: "720p" });
+  assert.deepEqual(restoreAiMediaVideoPreference("wan3", "1080p"), { videoEngine: "wan3", videoResolution: "1080p" });
+  for (const model of AI_MEDIA_AVAILABLE_VIDEO_MODELS) {
+    assert.equal(isAiMediaVideoEngineAvailable(model.id), true);
+    for (const resolution of model.resolutions) {
+      assert.deepEqual(restoreAiMediaVideoPreference(model.id, resolution), { videoEngine: model.id, videoResolution: resolution });
+    }
+  }
 });
 
 test("the Wan Flash brief limit cannot be bypassed by choosing another resolution", () => {

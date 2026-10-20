@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { normalizeAiMediaImageEngine, normalizeAiMediaVideoEngine, type AiMediaImageEngine, type AiMediaVideoEngine } from "@/lib/aiMediaModelCatalog";
+import { normalizeAiMediaImageEngine, restoreAiMediaVideoPreference, type AiMediaImageEngine, type AiMediaVideoEngine } from "@/lib/aiMediaModelCatalog";
 
 type Preference = {
   videoEngine: AiMediaVideoEngine;
@@ -20,16 +20,16 @@ export default function useMediaEnginePreference(accountId: string | null | unde
     try {
       const parsed = JSON.parse(localStorage.getItem(`inrcy:media-engines:v1:${accountId}`) || "null");
       if (parsed && typeof parsed === "object") next = {
-        videoEngine: normalizeAiMediaVideoEngine(parsed.videoEngine) || "omni",
+        ...restoreAiMediaVideoPreference(parsed.videoEngine, parsed.videoResolution),
         imageEngine: normalizeAiMediaImageEngine(parsed.imageEngine) ?? "openai",
-        videoResolution: ["720p", "768p", "1080p"].includes(parsed.videoResolution) ? parsed.videoResolution : "720p",
       };
     } catch { /* The generator still works when browser storage is disabled. */ }
     setStored({ accountId, value: next });
   }, [accountId]);
   const update = useCallback((patch: Partial<Preference>) => {
     if (!accountId) return;
-    const next = { ...value, ...patch };
+    const candidate = { ...value, ...patch };
+    const next = { ...candidate, ...restoreAiMediaVideoPreference(candidate.videoEngine, candidate.videoResolution) };
     try { localStorage.setItem(`inrcy:media-engines:v1:${accountId}`, JSON.stringify(next)); } catch { /* Session state remains available. */ }
     setStored({ accountId, value: next });
   }, [accountId, value]);

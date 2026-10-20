@@ -973,7 +973,7 @@
   "ai_generator_character_voice_file_error": "Elige un archivo MP3 o WAV de hasta 3 MB.",
   "ai_generator_character_voice_duration_error": "La muestra de voz debe durar entre 1 y 10 segundos.",
   "ai_generator_character_voice_sample_missing": "Sube una muestra para cada personaje con voz proporcionada.",
-  "ai_generator_character_voice_engine_required": "Para usar una voz proporcionada, elige Wan 2.7, Wan 3.0 o HeyGen.",
+  "ai_generator_character_voice_engine_required": "Para usar una voz proporcionada, elige Wan 2.7 o Wan 3.0.",
   "ai_generator_character_voice_speech_required": "Las voces proporcionadas se utilizan en el modo de audio Personajes.",
   "ai_generator_character_voice_switch_characters": "Usar el audio Personajes",
   "ai_generator_character_voice_preview": "Escuchar la muestra de voz de este personaje",
@@ -1016,5 +1016,5 @@
   "ai_generator_character_voice_library_empty": "No hay muestras de voz en la biblioteca multimedia.",
   "ai_generator_character_voice_library_loading": "Cargando muestras de voz…",
   "ai_generator_character_voice_library_duration_error": "Elige un audio de voz de entre 1 y 10 segundos y de un máximo de 3 MB.",
-  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 admite hasta 15 segundos de muestras de voz en total. Acorta las muestras o elige Wan 2.7 o HeyGen."
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 admite hasta 15 segundos de muestras de voz en total. Acorta las muestras o elige Wan 2.7."
 }

@@ -9,6 +9,7 @@ import {
   type AiMediaGenerationRequest,
 } from "../../lib/aiMediaGenerationContracts.ts";
 import { normalizeAiMediaVideoEngine } from "../../lib/aiMediaModelCatalog.ts";
+import * as models from "../../lib/aiMediaModelCatalog.ts";
 import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
@@ -48,6 +49,7 @@ function quoteServer() {
     if (id === "node:crypto") return crypto;
     if (id === "./aiMediaCreditsPricing.ts") return pricing;
     if (id === "./aiMediaCharacterVoices.ts") return characterVoices;
+    if (id === "./aiMediaModelCatalog.ts") return models;
     throw new Error(`Unisolated quote dependency: ${id}`);
   });
   return record.exports;
@@ -150,15 +152,21 @@ test("HeyGen team egress requires its named consent and one precomposed team ima
   assert.equal(supplier({ inspirationImagesCount: 2, identityMode: "reference_team" }), 220_000);
 });
 
-test("HeyGen signed quote is stable but cannot authorize another account or the other resolution", () => {
+test("historical HeyGen contracts remain readable but cannot receive a new signed authorization", () => {
   const server = quoteServer();
-  const normalized = request({ durationSeconds: 5 });
+  assert.throws(() => server.quoteAiMediaRequest("account-a", request({ durationSeconds: 5 })), /ai_media_video_engine_unavailable/);
+  assert.throws(() => server.quoteAiMediaRequest("account-b", request({ durationSeconds: 5, videoResolution: "1080p" })), /ai_media_video_engine_unavailable/);
+});
+
+test("available engines retain account, resolution and tariff isolation in signed quotes", () => {
+  const server = quoteServer();
+  const normalized = request({ videoEngine: "grok-lite", videoResolution: "720p", durationSeconds: 5 });
   const signed = server.quoteAiMediaRequest("account-a", normalized);
   assert.deepEqual(server.quoteAiMediaRequest("account-a", normalized), signed);
   const authorized = { ...normalized, expectedCredits: signed.totalCredits, creditTariffVersion: signed.tariffVersion, creditQuoteId: signed.quoteId };
   assert.equal(server.assertAiMediaCreditQuote(authorized, signed), true);
   assert.equal(server.assertAiMediaCreditQuote(authorized, server.quoteAiMediaRequest("account-b", normalized)), false);
-  const changedResolution = request({ durationSeconds: 5, videoResolution: "1080p" });
+  const changedResolution = request({ videoEngine: "grok-lite", durationSeconds: 5, videoResolution: "1080p" });
   assert.equal(server.assertAiMediaCreditQuote(authorized, server.quoteAiMediaRequest("account-a", changedResolution)), false);
   assert.equal(server.assertAiMediaCreditQuote({ ...authorized, creditTariffVersion: "obsolete-tariff" }, signed), false);
 });

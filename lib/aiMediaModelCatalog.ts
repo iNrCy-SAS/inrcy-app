@@ -157,6 +157,28 @@ export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze
   },
 ].map((model) => Object.freeze(model)) as AiMediaVideoModel[]);
 
+// Retired engines remain in the canonical catalogue for saved results and jobs.
+// New selections and quotes must use this availability list.
+export const AI_MEDIA_AVAILABLE_VIDEO_MODELS = Object.freeze(
+  AI_MEDIA_VIDEO_MODELS.filter((model) => model.id !== "heygen"),
+);
+
+export function isAiMediaVideoEngineAvailable(engine: unknown): boolean {
+  const id = normalizeAiMediaVideoEngine(engine);
+  return AI_MEDIA_AVAILABLE_VIDEO_MODELS.some((model) => model.id === id);
+}
+
+export function restoreAiMediaVideoPreference(engine: unknown, resolution: unknown): {
+  videoEngine: AiMediaVideoEngine; videoResolution: AiMediaVideoResolution;
+} {
+  const model = getAiMediaVideoModel(isAiMediaVideoEngineAvailable(engine) ? engine : "omni");
+  return {
+    videoEngine: model.id,
+    videoResolution: model.resolutions.includes(resolution as AiMediaVideoResolution)
+      ? resolution as AiMediaVideoResolution : model.defaultResolution,
+  };
+}
+
 export const AI_MEDIA_IMAGE_MODELS: readonly AiMediaImageModel[] = Object.freeze([
   { id: "openai", label: "OpenAI Image", provider: "openai", providerLabel: "OpenAI", transport: "existing", modelId: null,
     description: "Création et retouche, notamment pour les compositions avec texte précis.",

@@ -958,10 +958,10 @@ export function normalizeAiMediaGenerationRequest(
   );
   const providedCharacterVoice = hasProvidedAiMediaCharacterVoice(inspirationImages);
   if (providedCharacterVoice && (kind !== "video" || operation === "modify" || !isAiMediaCharacterVoiceEngine(videoEngine))) {
-    throw new AiMediaRequestValidationError("Utilisez Wan 2.7, Wan 3 ou HeyGen pour une vidéo avec une voix fournie.");
+    throw new AiMediaRequestValidationError("Utilisez Wan 2.7 ou Wan 3 pour une vidéo avec une voix fournie.");
   }
   if (providedCharacterVoice && exceedsAiMediaCharacterVoiceEngineDuration(videoEngine, inspirationImages)) {
-    throw new AiMediaRequestValidationError("Wan 3 accepte au maximum 15 secondes de vocaux au total. Raccourcissez vos échantillons ou choisissez Wan 2.7 ou HeyGen.");
+    throw new AiMediaRequestValidationError("Wan 3 accepte au maximum 15 secondes de vocaux au total. Raccourcissez vos échantillons ou choisissez Wan 2.7.");
   }
   if (kind === "video" && videoEngine === "wan27" && !inspirationImages.length) {
     throw new AiMediaRequestValidationError("Ajoutez au moins une photo de référence pour utiliser Wan 2.7.");

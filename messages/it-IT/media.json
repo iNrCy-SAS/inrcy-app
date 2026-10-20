@@ -973,7 +973,7 @@
   "ai_generator_character_voice_file_error": "Scegli un file MP3 o WAV di massimo 3 MB.",
   "ai_generator_character_voice_duration_error": "Il campione vocale deve durare da 1 a 10 secondi.",
   "ai_generator_character_voice_sample_missing": "Carica un campione per ogni personaggio con voce fornita.",
-  "ai_generator_character_voice_engine_required": "Per usare una voce fornita, scegli Wan 2.7, Wan 3.0 o HeyGen.",
+  "ai_generator_character_voice_engine_required": "Per usare una voce fornita, scegli Wan 2.7 o Wan 3.0.",
   "ai_generator_character_voice_speech_required": "Le voci fornite vengono utilizzate nella modalità audio Personaggi.",
   "ai_generator_character_voice_switch_characters": "Usa l’audio Personaggi",
   "ai_generator_character_voice_preview": "Ascolta il campione vocale di questo personaggio",
@@ -1016,5 +1016,5 @@
   "ai_generator_character_voice_library_empty": "Nessun campione vocale nella raccolta multimediale.",
   "ai_generator_character_voice_library_loading": "Caricamento dei campioni vocali…",
   "ai_generator_character_voice_library_duration_error": "Scegli una registrazione vocale da 1 a 10 secondi e di massimo 3 MB.",
-  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accetta fino a 15 secondi complessivi di campioni vocali. Accorcia i campioni o scegli Wan 2.7 o HeyGen."
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accetta fino a 15 secondi complessivi di campioni vocali. Accorcia i campioni o scegli Wan 2.7."
 }

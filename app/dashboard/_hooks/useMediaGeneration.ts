@@ -980,8 +980,8 @@ export default function useMediaGeneration() {
         const voiceSelection = getCharacterVoiceSelectionState(request.inspirationImages || []);
         if (voiceSelection.missingSample) throw new Error("Insérez un vocal pour chaque personnage en voix fournie.");
         if (voiceSelection.hasProvidedVoice && request.teamVideoSpeechMode !== "characters") throw new Error("Les voix fournies sont utilisées en mode Personnages.");
-        if (voiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(request.videoEngine)) throw new Error("Utilisez Wan 2.7, Wan 3 ou HeyGen pour une vidéo avec une voix fournie.");
-        if (voiceSelection.hasProvidedVoice && exceedsAiMediaCharacterVoiceEngineDuration(request.videoEngine, request.inspirationImages || [])) throw new Error("Wan 3 accepte au maximum 15 secondes de vocaux au total. Raccourcissez vos échantillons ou choisissez Wan 2.7 ou HeyGen.");
+        if (voiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(request.videoEngine)) throw new Error("Utilisez Wan 2.7 ou Wan 3 pour une vidéo avec une voix fournie.");
+        if (voiceSelection.hasProvidedVoice && exceedsAiMediaCharacterVoiceEngineDuration(request.videoEngine, request.inspirationImages || [])) throw new Error("Wan 3 accepte au maximum 15 secondes de vocaux au total. Raccourcissez vos échantillons ou choisissez Wan 2.7.");
       }
       const idea = String(request.idea || "").trim();
       const textMode = resolveMediaGenerationTextMode(request);

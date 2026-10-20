@@ -973,7 +973,7 @@
   "ai_generator_character_voice_file_error": "เลือกไฟล์ MP3 หรือ WAV ขนาดไม่เกิน 3 MB",
   "ai_generator_character_voice_duration_error": "ตัวอย่างเสียงต้องมีความยาว 1 ถึง 10 วินาที",
   "ai_generator_character_voice_sample_missing": "อัปโหลดตัวอย่างเสียงสำหรับตัวละครแต่ละตัวที่ใช้เสียงที่อัปโหลด",
-  "ai_generator_character_voice_engine_required": "หากใช้เสียงที่อัปโหลด ให้เลือก Wan 2.7, Wan 3.0 หรือ HeyGen",
+  "ai_generator_character_voice_engine_required": "หากใช้เสียงที่อัปโหลด ให้เลือก Wan 2.7 หรือ Wan 3.0",
   "ai_generator_character_voice_speech_required": "เสียงที่อัปโหลดจะใช้ในโหมดเสียงตัวละคร",
   "ai_generator_character_voice_switch_characters": "ใช้โหมดเสียงตัวละคร",
   "ai_generator_character_voice_preview": "ฟังตัวอย่างเสียงของตัวละครนี้",
@@ -1016,5 +1016,5 @@
   "ai_generator_character_voice_library_empty": "ไม่มีตัวอย่างเสียงในคลังสื่อ",
   "ai_generator_character_voice_library_loading": "กำลังโหลดตัวอย่างเสียง…",
   "ai_generator_character_voice_library_duration_error": "เลือกไฟล์เสียงพูดที่มีความยาว 1 ถึง 10 วินาที และมีขนาดไม่เกิน 3 MB",
-  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 รองรับตัวอย่างเสียงรวมกันได้ไม่เกิน 15 วินาที โปรดย่อตัวอย่างเสียงหรือเลือก Wan 2.7 หรือ HeyGen"
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 รองรับตัวอย่างเสียงรวมกันได้ไม่เกิน 15 วินาที โปรดย่อตัวอย่างเสียงหรือเลือก Wan 2.7"
 }

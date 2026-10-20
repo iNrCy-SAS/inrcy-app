@@ -171,7 +171,7 @@ export function buildGatewayAiVideoRequest(
     const audioUrls = signedVoiceUrls?.filter((url): url is string => Boolean(url)) || [];
     if (audioUrls.length > 3) throw new Error("ai_video_reference_voice_count_invalid");
     if (model.id === "wan3") {
-      if (args.request.inspirationImages.reduce((sum, image) => sum + (image.voiceMode === "provided" ? image.voiceSample?.durationSeconds || 0 : 0), 0) > 15) throw new AiMediaRequestValidationError("Wan 3.0 accepte au maximum 15 secondes de vocaux au total. Raccourcissez les vocaux ou choisissez Wan 2.7 / HeyGen.");
+      if (args.request.inspirationImages.reduce((sum, image) => sum + (image.voiceMode === "provided" ? image.voiceSample?.durationSeconds || 0 : 0), 0) > 15) throw new AiMediaRequestValidationError("Wan 3.0 accepte au maximum 15 secondes de vocaux au total. Raccourcissez les vocaux ou choisissez Wan 2.7.");
     }
     if (continuityFrame) {
       if (model.id !== "wan27") throw new Error("ai_video_reference_voice_first_frame_unsupported");

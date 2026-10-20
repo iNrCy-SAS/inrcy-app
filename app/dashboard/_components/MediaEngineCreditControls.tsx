@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { AI_MEDIA_IMAGE_MODELS, AI_MEDIA_VIDEO_MODELS, getAiMediaImageBaseCredits, getAiMediaImageModel, getAiMediaVideoDurations, getAiMediaVideoModel, getAiMediaVideoModelForCharacterVoice, isAiMediaImageModelCompatible, normalizeAiMediaImageEngine, type AiMediaImageEngine, type AiMediaVideoEngine, type AiMediaVideoResolution, type AiMediaVideoSceneMode } from "@/lib/aiMediaModelCatalog";
+import { AI_MEDIA_IMAGE_MODELS, AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaImageBaseCredits, getAiMediaImageModel, getAiMediaVideoDurations, getAiMediaVideoModel, getAiMediaVideoModelForCharacterVoice, isAiMediaImageModelCompatible, normalizeAiMediaImageEngine, type AiMediaImageEngine, type AiMediaVideoEngine, type AiMediaVideoResolution, type AiMediaVideoSceneMode } from "@/lib/aiMediaModelCatalog";
 import { getAiMediaVideoDurationSceneOptions, type AiMediaVideoDurationSceneOption } from "@/lib/aiMediaVideoTimeline";
 import { getMediaVideoEngineQualityChoices, isMediaVideoBriefCompatible } from "@/lib/aiMediaVideoClientOptions";
 import type { AiMediaModelRecommendation } from "@/lib/aiMediaModelRecommendation";
@@ -69,7 +69,7 @@ function MediaEngineInfoModal({ kind, activeEngine, format, videoMaxDurationSeco
   const closeRef = useRef<HTMLButtonElement>(null);
   const [viewedEngine, setViewedEngine] = useState(activeEngine);
   const number = (value: number) => new Intl.NumberFormat(locale).format(value);
-  const videoModels = AI_MEDIA_VIDEO_MODELS.map((option) => getAiMediaVideoModelForCharacterVoice(option.id, hasProvidedCharacterVoice));
+  const videoModels = AI_MEDIA_AVAILABLE_VIDEO_MODELS.map((option) => getAiMediaVideoModelForCharacterVoice(option.id, hasProvidedCharacterVoice));
   const models = kind === "video" ? videoModels : AI_MEDIA_IMAGE_MODELS;
   const viewedModel = models.find((model) => model.id === viewedEngine) ?? models[0];
 
@@ -213,7 +213,7 @@ export default function MediaEngineCreditControls(props: Props) {
   const pairSelectable = (engine: AiMediaVideoEngine, resolution: AiMediaVideoResolution) =>
     videoEngineAllowed(engine) && getAiMediaVideoModelForCharacterVoice(engine, props.hasProvidedCharacterVoice).resolutions.includes(resolution) && isMediaVideoReferenceCompatible(engine, props.referenceCount, props.hasProvidedCharacterVoice) && isMediaVideoBriefCompatible(engine, props.brief ?? "");
   const selectable = (engine: AiMediaVideoEngine) => videoEngineAllowed(engine) && isMediaVideoReferenceCompatible(engine, props.referenceCount, props.hasProvidedCharacterVoice) && isMediaVideoBriefCompatible(engine, props.brief ?? "");
-  const recommended = (props.kind === "video" ? AI_MEDIA_VIDEO_MODELS : AI_MEDIA_IMAGE_MODELS).find((option) => option.id === props.recommendation?.engine);
+  const recommended = (props.kind === "video" ? AI_MEDIA_AVAILABLE_VIDEO_MODELS : AI_MEDIA_IMAGE_MODELS).find((option) => option.id === props.recommendation?.engine);
   const recommendedPairs = choices.filter((choice) => choice.engine === props.recommendation?.engine && pairSelectable(choice.engine, choice.resolution));
   const recommendedPair = recommendedPairs.find((choice) => choice.resolution === getAiMediaVideoModel(choice.engine).defaultResolution) ??
     recommendedPairs.sort((first, second) => first.creditsPerSecond - second.creditsPerSecond)[0];

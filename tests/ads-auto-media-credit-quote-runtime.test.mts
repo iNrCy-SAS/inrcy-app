@@ -4,6 +4,7 @@ import test from "node:test";
 import ts from "typescript";
 import * as contracts from "../lib/aiMediaGenerationContracts.ts";
 import * as characterVoices from "../lib/aiMediaCharacterVoices.ts";
+import * as models from "../lib/aiMediaModelCatalog.ts";
 import * as pricing from "../lib/aiMediaCreditsPricing.ts";
 import * as policy from "../lib/adsCampaignMediaPolicy.ts";
 
@@ -26,6 +27,7 @@ const serverQuotes = compile(readFileSync(new URL("../lib/aiMediaCreditQuoteServ
   "node:crypto": await import("node:crypto"),
   "./aiMediaCreditsPricing.ts": pricing,
   "./aiMediaCharacterVoices.ts": characterVoices,
+  "./aiMediaModelCatalog.ts": models,
 }) as {
   createAiMediaServerQuote: (account: string, input: pricing.AiMediaCreditsQuoteInput) => Quote;
   quoteAiMediaRequest: (account: string, request: contracts.AiMediaGenerationRequest) => Quote;

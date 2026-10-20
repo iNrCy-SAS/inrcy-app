@@ -973,7 +973,7 @@
   "ai_generator_character_voice_file_error": "请选择不超过 3 MB 的 MP3 或 WAV 文件。",
   "ai_generator_character_voice_duration_error": "声音样本时长必须为 1 至 10 秒。",
   "ai_generator_character_voice_sample_missing": "请为每个使用提供声音的角色上传声音样本。",
-  "ai_generator_character_voice_engine_required": "使用提供的声音时，请选择 Wan 2.7、Wan 3.0 或 HeyGen。",
+  "ai_generator_character_voice_engine_required": "使用提供的声音时，请选择 Wan 2.7 或 Wan 3.0。",
   "ai_generator_character_voice_speech_required": "提供的声音用于角色音频模式。",
   "ai_generator_character_voice_switch_characters": "使用角色音频",
   "ai_generator_character_voice_preview": "收听此角色的声音样本",
@@ -1016,5 +1016,5 @@
   "ai_generator_character_voice_library_empty": "媒体库中没有声音样本。",
   "ai_generator_character_voice_library_loading": "正在加载声音样本…",
   "ai_generator_character_voice_library_duration_error": "请选择时长为 1 至 10 秒且不超过 3 MB 的语音录音。",
-  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 接受的声音样本总时长最多为 15 秒。请缩短样本，或选择 Wan 2.7 或 HeyGen。"
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 接受的声音样本总时长最多为 15 秒。请缩短样本，或选择 Wan 2.7。"
 }

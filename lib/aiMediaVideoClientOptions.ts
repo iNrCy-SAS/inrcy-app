@@ -1,9 +1,9 @@
-import { AI_MEDIA_VIDEO_MODELS, getAiMediaVideoModel, getAiMediaVideoModelForCharacterVoice, type AiMediaVideoEngine, type AiMediaVideoResolution, type AiMediaVideoSceneMode } from "./aiMediaModelCatalog.ts";
+import { AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel, getAiMediaVideoModelForCharacterVoice, type AiMediaVideoEngine, type AiMediaVideoResolution, type AiMediaVideoSceneMode } from "./aiMediaModelCatalog.ts";
 import { canGenerateAiMediaVideoDuration } from "./aiMediaVideoTimeline.ts";
 
 /** Each visible choice is an actual model/resolution pair from the provider catalogue. */
 export function getMediaVideoEngineQualityChoices(hasProvidedVoice = false) {
-  return AI_MEDIA_VIDEO_MODELS.flatMap((base) => {
+  return AI_MEDIA_AVAILABLE_VIDEO_MODELS.flatMap((base) => {
     const model = getAiMediaVideoModelForCharacterVoice(base.id, hasProvidedVoice);
     return model.resolutions.map((resolution) => ({
     value: `${model.id}:${resolution}`, engine: model.id, resolution,

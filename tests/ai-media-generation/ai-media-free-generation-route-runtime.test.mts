@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import * as crypto from "node:crypto";
 import * as creditPricing from "../../lib/aiMediaCreditsPricing.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
+import * as models from "../../lib/aiMediaModelCatalog.ts";
 import test from "node:test";
 import ts from "typescript";
 
@@ -24,6 +25,7 @@ new Function("module", "exports", "require", quoteOutput)(quoteRecord, quoteReco
   if (id === "node:crypto") return crypto;
   if (id === "./aiMediaCreditsPricing.ts") return creditPricing;
   if (id === "./aiMediaCharacterVoices.ts") return characterVoices;
+  if (id === "./aiMediaModelCatalog.ts") return models;
   throw new Error(`Unisolated quote dependency: ${id}`);
 });
 
@@ -172,6 +174,33 @@ test("les créations libres passent par la même authentification avant tout dé
   assert.equal(response.status, 401);
   assert.equal(route.reservationCalls.length, 0);
   assert.equal(route.generationCalls.length, 0);
+});
+
+test("a previously valid HeyGen quote cannot reserve credits or start generation after retirement", async () => {
+  const input = body({ kind: "video", format: "landscape", videoEngine: "heygen", videoResolution: "768p", durationSeconds: 5 });
+  assert.equal(input.contractVersion, 4);
+  const normalized = contracts.normalizeAiMediaGenerationRequest(input);
+  // Reproduce the former signer exactly, using historical pricing without the new availability gate.
+  const historicalQuote = creditPricing.quoteAiMediaCredits({ ...normalized,
+    inspirationImagesCount: normalized.inspirationImages.length,
+    hasProvidedCharacterVoice: characterVoices.hasProvidedAiMediaCharacterVoice(normalized.inspirationImages),
+  });
+  const historicalQuoteId = crypto.createHash("sha256")
+    .update(JSON.stringify({ accountId: "active-account-test", ...historicalQuote })).digest("hex");
+  const route = loadRoute();
+  const response = await route.post({ ...input, expectedCredits: historicalQuote.totalCredits,
+    creditTariffVersion: historicalQuote.tariffVersion, creditQuoteId: historicalQuoteId });
+  const output = await response.json();
+  assert.equal(response.status, 400);
+  assert.equal(output.ok, false);
+  assert.equal(output.code, "invalid_ai_media_request");
+  assert.equal(output.error, "Ces paramètres ne sont pas disponibles pour le moteur choisi. Actualisez le devis ou choisissez une autre durée.");
+  assert.equal(output.item, undefined);
+  assert.equal(route.reservationCalls.length, 0);
+  assert.equal(route.generationCalls.length, 0);
+  assert.equal(route.paidCalls(), 0);
+  assert.equal(route.completionCalls.length, 0);
+  assert.equal(route.failureCalls.length, 0, "no reservation was created to refund");
 });
 
 test("generation persists the same safe actionable cause that status recovery will return", async () => {

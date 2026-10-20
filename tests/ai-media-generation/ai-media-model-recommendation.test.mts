@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { recommendAiMediaModel, type AiMediaModelRecommendationInput } from "../../lib/aiMediaModelRecommendation.ts";
-import { AI_MEDIA_VIDEO_MODELS, getAiMediaVideoModel } from "../../lib/aiMediaModelCatalog.ts";
+import { AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel } from "../../lib/aiMediaModelCatalog.ts";
 import { quoteAiMediaCredits, estimateAiMediaVideoSupplierCostMicroUsd } from "../../lib/aiMediaCreditsPricing.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 
@@ -46,7 +46,7 @@ test("economic suggestions use the current catalogue price among compatible mode
   const input = { kind: "video" as const, durationSeconds: 15, sceneMode: "multi" as const, inspirationImagesCount: 0 };
   const result = recommendAiMediaModel(input)!;
   assert.equal(result.reason, "economy");
-  const costs = AI_MEDIA_VIDEO_MODELS.flatMap((model) => {
+  const costs = AI_MEDIA_AVAILABLE_VIDEO_MODELS.flatMap((model) => {
     try { return [estimateAiMediaVideoSupplierCostMicroUsd({ ...input, videoEngine: model.id, videoResolution: model.defaultResolution })]; }
     catch { return []; }
   });
@@ -70,6 +70,7 @@ test("every recommendation passes real quote and at most two exact native clips,
         const result = recommendAiMediaModel(input);
         if (!result) { assert.equal(sceneMode, "multi"); assert.ok(durationSeconds < 8); continue; }
         const model = getAiMediaVideoModel(result.engine);
+        assert.notEqual(result.engine, "heygen", "retired engines cannot return through automatic recommendations");
         assert.doesNotThrow(() => quoteAiMediaCredits({ ...input, videoEngine: result.engine, videoResolution: model.defaultResolution }));
         const durations = getAiMediaVideoSegmentDurations(durationSeconds, model.id, model.defaultResolution, sceneMode);
         assert.ok(durations.length <= 2);

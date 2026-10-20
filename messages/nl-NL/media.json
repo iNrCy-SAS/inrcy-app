@@ -973,7 +973,7 @@
   "ai_generator_character_voice_file_error": "Kies een MP3- of WAV-bestand van maximaal 3 MB.",
   "ai_generator_character_voice_duration_error": "Het stemfragment moet tussen 1 en 10 seconden duren.",
   "ai_generator_character_voice_sample_missing": "Upload een stemfragment voor elk personage met een eigen stem.",
-  "ai_generator_character_voice_engine_required": "Kies Wan 2.7, Wan 3.0 of HeyGen om een aangeleverde stem te gebruiken.",
+  "ai_generator_character_voice_engine_required": "Kies Wan 2.7 of Wan 3.0 om een aangeleverde stem te gebruiken.",
   "ai_generator_character_voice_speech_required": "Eigen stemmen worden gebruikt in de audiomodus Personages.",
   "ai_generator_character_voice_switch_characters": "Personages-audio gebruiken",
   "ai_generator_character_voice_preview": "Luister naar het stemfragment van dit personage",
@@ -1016,5 +1016,5 @@
   "ai_generator_character_voice_library_empty": "Geen stemfragmenten in de mediatheek.",
   "ai_generator_character_voice_library_loading": "Stemfragmenten laden…",
   "ai_generator_character_voice_library_duration_error": "Kies een stemopname van 1 tot 10 seconden en maximaal 3 MB.",
-  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepteert in totaal maximaal 15 seconden aan stemfragmenten. Kort de fragmenten in of kies Wan 2.7 of HeyGen."
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepteert in totaal maximaal 15 seconden aan stemfragmenten. Kort de fragmenten in of kies Wan 2.7."
 }

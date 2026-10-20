@@ -5,6 +5,7 @@ import * as crypto from "node:crypto";
 import ts from "typescript";
 import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
+import * as models from "../../lib/aiMediaModelCatalog.ts";
 import * as policy from "../../lib/aiMediaGenerationQuotaPolicy.ts";
 
 type Row=Record<string,unknown>;
@@ -17,7 +18,7 @@ function load<T>(path:string,modules:Record<string,unknown>):T {
   return runtime.exports;
 }
 const quotes=load<{createAiMediaServerQuote(accountId:string,input:pricing.AiMediaCreditsQuoteInput):pricing.AiMediaCreditsQuote & {quoteId:string}}>("lib/aiMediaCreditQuoteServer.ts",{
-  "server-only":{},"node:crypto":crypto,"./aiMediaCreditsPricing.ts":pricing,"./aiMediaCharacterVoices.ts":characterVoices,
+  "server-only":{},"node:crypto":crypto,"./aiMediaCreditsPricing.ts":pricing,"./aiMediaCharacterVoices.ts":characterVoices,"./aiMediaModelCatalog.ts":models,
 });
 const presentation=load<{presentAiMediaQuotaCounter(counter:Row,unlimited:boolean):Row}>("lib/aiMediaQuotaPresentation.ts",{"@/lib/aiMediaGenerationQuotaPolicy":policy});
 function fixture(options:{authenticated?:boolean;creditsReady?:boolean;unlimited?:boolean;maxDuration?:number;accountId?:string}={}) {
@@ -53,6 +54,19 @@ test("quote refuses an unavailable migration with no paid or reservation operati
 test("invalid engines and unsupported durations cannot obtain a usable quote",async()=>{
   for(const body of [{...fourSeconds,videoEngine:"unreviewed-engine"},{...fourSeconds,durationSeconds:0},{...fourSeconds,videoEngine:"omni",durationSeconds:21},{kind:"image",imageEngine:"unreviewed-engine"}]) {
     const response=await fixture().post(body);assert.equal(response.status,400);assert.equal((await response.json()).code,"AI_MEDIA_QUOTE_INVALID");
+  }
+});
+
+test("retired HeyGen cannot obtain a new quote while its historical catalogue entry remains readable",async()=>{
+  assert.equal(models.getAiMediaVideoModel("heygen").modelId,"heygen/heygen-video-1");
+  for(const hasProvidedCharacterVoice of [false,true]) {
+    const f=fixture();
+    const response=await f.post({...fourSeconds,videoEngine:"heygen",durationSeconds:5,videoResolution:"768p",hasProvidedCharacterVoice});
+    const output=await response.json();
+    assert.equal(response.status,400);
+    assert.equal(output.code,"AI_MEDIA_QUOTE_INVALID");
+    assert.equal(output.quote,undefined);
+    assert.ok(f.calls.every(call=>["wallet","edition"].includes(String(call.type))),"retirement rejects before entitlement or paid work");
   }
 });
 test("a silent four-second clip costs twelve credits and quote identity belongs to the active account",async()=>{

@@ -260,7 +260,7 @@ test("character voice preflight blocks missing samples, other engines and voiceo
   const voiceSample = { path: "opaque-owned-path.wav", name: "vocal.wav", mimeType: "audio/wav" as const, durationSeconds: 2, sizeBytes: 64_044 };
   const complete = { ...request, inspirationImages: [{ ...reference, voiceSample }] };
   await assert.rejects(hook.generate({ ...complete, teamVideoSpeechMode: "voiceover" }), /mode Personnages/);
-  await assert.rejects(hook.generate({ ...complete, videoEngine: "omni" }), /Wan 2\.7, Wan 3 ou HeyGen/);
+  await assert.rejects(hook.generate({ ...complete, videoEngine: "omni" }), /Wan 2\.7 ou Wan 3/);
   assert.equal(requests.length, 0);
 });
 
@@ -268,7 +268,7 @@ test("each reviewed voice engine reaches request serialization while Wan 3 rejec
   const { runtime, requests } = hookRuntime(); const hook = runtime.default();
   const sample = { path: "opaque-owned-path.wav", name: "voice.wav", mimeType: "audio/wav" as const, durationSeconds: 5, sizeBytes: 160_044 };
   const reference = { mimeType: "image/jpeg" as const, data: Buffer.alloc(96, 1).toString("base64"), name: "portrait.jpg", role: "character" as const, usage: "inspiration" as const, characterIndex: 1 as const, voiceMode: "provided" as const, voiceSample: sample };
-  for (const videoEngine of ["wan27", "wan3", "heygen"] as const) {
+  for (const videoEngine of ["wan27", "wan3"] as const) {
     await assert.rejects(hook.generate(clientRequest({ videoEngine, inputMode: "essential", durationSeconds: 8, identityMode: "auto", identityConsent: true, teamVideoSpeechMode: "characters", inspirationImages: [reference] })), { message: "Fixture serialization validated" });
     assert.equal(requests.at(-1)?.videoEngine, videoEngine);
     assert.deepEqual((requests.at(-1)?.inspirationImages as Array<Record<string, unknown>>)[0].voiceSample, sample);
