@@ -21369,6 +21369,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 /* Publication review: editing, schedule, status, then the validation decision. */
 .previewMeta.previewMetaPublish.publishReviewFooter {
   display: flex !important;
+  flex-direction: row !important;
   flex-wrap: wrap !important;
   align-items: center !important;
   justify-content: flex-end !important;
@@ -21475,6 +21476,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 .publicationChannelMenu > summary::-webkit-details-marker { display: none; }
 .publicationChannelMenu > summary > span:nth-child(2) { flex: 1; min-width: 0; text-align: center; }
 .publicationChannelChevron { margin-left: auto; font-size: 21px; }
+.publicationSelectedCountCompact { display: none; }
 .publicationChannelOptions { position: absolute; top: calc(100% + 8px); left: 0; width: min(330px,80vw); border: 1px solid #526da7; border-radius: 15px; padding: 14px; color: #f0f5ff; background: #111f3d; box-shadow: 0 16px 45px #02091dcc; }
 .publicationChannelBulk { display: flex; gap: 8px; margin-bottom: 12px; }
 .publicationChannelBulk > button { flex: 1; padding: 8px; border: 1px solid #475e93; border-radius: 8px; color: inherit; background: #23345c; font-size: 11px; cursor: pointer; }
@@ -21496,6 +21498,13 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 .publishPreview .publishPostStack { gap: 8px !important; }
 .publishPreview .publishCtaStandalone { min-height: 44px; padding-top: 8px !important; padding-bottom: 8px !important; }
 :is(.publicationNavigation button,.publicationChannelCarousel button,.publicationChannelMenu summary,.publicationChannelOptions button,.publicationChannelOptions input):focus-visible { outline: 2px solid #73d4ff; outline-offset: 3px; }
+@media (min-width: 761px) and (max-width: 1250px) {
+ .publishPreview > .publishInfoGrid { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
+ .publishInfoGrid .publicationFormatCard { grid-column: 1 / -1; height: auto !important; }
+ .publicationFormatControls .publishPlacementControls { flex-wrap: wrap; max-width: 420px; gap: 8px; }
+ .publicationFormatControls .publishPlacementSelect { min-width: 120px; height: 32px; font-size: 12px; }
+ .publicationFormatControls .publishStoryOption { height: 32px; padding-inline: 9px; white-space: nowrap; font-size: 12px; }
+}
 @media (max-width: 760px) {
  .publishPreview > .publishInfoGrid { display: grid !important; grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 8px !important; }
  .publishPreview > .publicationNavigation { gap: 12px; }
@@ -21504,11 +21513,21 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
  .publishInfoGrid .publishInfoCardWithAction { padding-right: 38px !important; }
  .publishInfoGrid .campaignInfoCard .campaignInfoIcon { width: 27px; height: 27px; flex-basis: 27px; }
  .publicationChannelMenu > summary { padding-left: 9px; padding-right: 9px; gap: 5px; }
+ .publicationChannelMenu > summary strong { overflow: visible !important; text-overflow: clip !important; }
+ .publicationSelectedCountFull { display: none; }
+ .publicationSelectedCountCompact { display: inline; }
  .publicationChannelCarousel { gap: 4px; }
  .publicationChannelCarousel > button { width: 22px; height: 25px; }
  .publicationChannelCurrent img { width: 27px; height: 27px; }
- .publicationFormatControls .publishPlacementSelect, .publicationFormatControls .publishStoryOption { font-size: 9px; }
+ .publishInfoGrid .publicationFormatCard { grid-column: 1 / -1; height: auto !important; }
+ .publicationFormatControls .publishPlacementControls { flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+ .publicationFormatControls .publishPlacementSelect { flex: 1 1 140px; width: 140px; min-width: 120px; height: 34px; font-size: 12px; }
+ .publicationFormatControls .publishStoryOption { flex: 0 0 auto; height: 34px; padding-inline: 9px; white-space: nowrap; font-size: 12px; }
+ .publicationFormatControls .publishStoryOption input { width: 15px; height: 15px; }
  .publicationChannelOptions { width: min(330px,calc(100vw - 50px)); }
+ .mainGrid:has(.publishReviewFooter) .robotCard:not(.scheduledEditCard) { height: 96px !important; min-height: 96px !important; max-height: 96px !important; }
+ .mainGrid:has(.publishReviewFooter) .robotCard:not(.scheduledEditCard) .robotHalo,
+ .mainGrid:has(.publishReviewFooter) .robotCard:not(.scheduledEditCard) .robotHalo > img { height: 86px !important; min-height: 86px !important; max-height: 86px !important; }
 }
 
 .previewMeta.previewMetaPublish.publishReviewFooter .previewActions {
@@ -21535,10 +21554,103 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 @media (max-width: 760px) {
-  .previewMeta.previewMetaPublish.publishReviewFooter { gap: 8px !important; }
-  .previewMeta.previewMetaPublish.publishReviewFooter .dateItem { flex: 1 1 180px !important; padding: 0 6px !important; }
-  .previewMeta.previewMetaPublish.publishReviewFooter .publishFooterStatus { flex: 1 1 100%; min-width: 0; }
-  .previewMeta.previewMetaPublish.publishReviewFooter .previewActions { width: 100% !important; flex: 1 1 100% !important; }
-  .previewMeta.previewMetaPublish.publishReviewFooter .previewActions > button { flex: 1 1 0 !important; min-width: 0 !important; }
-  .previewMeta.previewMetaPublish.publishReviewFooter .publishMobilePager { order: 1 !important; }
+  .previewMeta.previewMetaPublish.publishReviewFooter {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 40px 40px !important;
+    grid-template-rows: auto auto auto !important;
+    grid-template-areas:
+      "date save edit"
+      "status status status"
+      "actions actions actions" !important;
+    grid-auto-flow: row !important;
+    align-items: center !important;
+    justify-content: stretch !important;
+    gap: 8px !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    padding: 10px !important;
+    box-sizing: border-box;
+  }
+
+  .previewMeta.previewMetaPublish.publishReviewFooter .dateItem {
+    grid-area: date !important;
+    flex: none !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 44px !important;
+    max-height: none !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    padding: 4px 0 !important;
+    text-align: left !important;
+    background: transparent !important;
+  }
+
+  .previewMeta.previewMetaPublish.publishReviewFooter .dateItem > span:last-child { min-width: 0; }
+  .previewMeta.previewMetaPublish.publishReviewFooter .dateItem strong { font-size: 13px !important; line-height: 1.3 !important; white-space: normal !important; }
+  .previewMeta.previewMetaPublish.publishReviewFooter .dateItem .metaIcon { flex: 0 0 28px !important; width: 28px !important; height: 28px !important; min-height: 28px !important; margin: 0 !important; }
+
+  .previewMeta.previewMetaPublish.publishReviewFooter > .saveCampaignDraftButton,
+  .previewMeta.previewMetaPublish.publishReviewFooter > .modifyCampaignButton {
+    display: grid !important;
+    place-items: center !important;
+    flex: none !important;
+    width: 40px !important;
+    min-width: 0 !important;
+    max-width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    padding: 0 !important;
+    font-size: 0 !important;
+    border-radius: 12px !important;
+  }
+
+  .previewMeta.previewMetaPublish.publishReviewFooter > .saveCampaignDraftButton { grid-area: save !important; }
+  .previewMeta.previewMetaPublish.publishReviewFooter > .modifyCampaignButton { grid-area: edit !important; }
+  .previewMeta.previewMetaPublish.publishReviewFooter > button > span { width: 20px !important; height: 20px !important; margin: 0 !important; }
+  .previewMeta.previewMetaPublish.publishReviewFooter > button svg { width: 20px !important; height: 20px !important; }
+
+  .previewMeta.previewMetaPublish.publishReviewFooter .publishFooterStatus {
+    grid-area: status !important;
+    flex: none !important;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    height: auto;
+    padding: 7px 12px;
+    box-sizing: border-box;
+    border-radius: 12px;
+  }
+
+  .previewMeta.previewMetaPublish.publishReviewFooter .publishFooterStatusText { flex: 1; min-width: 0; }
+  .previewMeta.previewMetaPublish.publishReviewFooter .publishFooterStatusText strong { font-size: 14px; }
+  .previewMeta.previewMetaPublish.publishReviewFooter .previewActions {
+    grid-area: actions !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    flex: none !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .previewMeta.previewMetaPublish.publishReviewFooter .previewActions > button {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    max-height: none !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    border-radius: 14px !important;
+  }
+
+  .previewMeta.previewMetaPublish.publishReviewFooter .previewActions > button:only-child { grid-column: 1 / -1; }
+  .previewMeta.previewMetaPublish.publishReviewFooter .publishMobilePager { display: none !important; }
 }

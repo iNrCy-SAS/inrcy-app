@@ -13,12 +13,13 @@ type Props = {
 
 export default function AgentPublicationChannelList({ channels, selectedChannels, disabled, saving, onChange, preparingChannel }: Props) {
   const t = useTranslations("agent");
+  const selectedCount = t("publication_selected_channel_count", { selected: selectedChannels.length, total: channels.length });
   return (
     <details className={`${styles.campaignInfoCard} ${styles.publicationChannelMenu}`}
       onKeyDown={event => { if (event.key === "Escape") event.currentTarget.open = false; }}>
-      <summary aria-label={t("publication_channel_list")}>
+      <summary aria-label={`${t("publication_channel_list")} · ${selectedCount}`}>
         <span className={styles.campaignInfoIcon} aria-hidden>☑</span>
-        <span><small>{t("publication_channel_list")}</small><strong>{t("publication_selected_channel_count", { selected: selectedChannels.length, total: channels.length })}</strong></span>
+        <span><small>{t("publication_channel_list")}</small><strong><span className={styles.publicationSelectedCountFull}>{selectedCount}</span><span className={styles.publicationSelectedCountCompact} aria-hidden>{selectedChannels.length} / {channels.length}</span></strong></span>
         <span className={styles.publicationChannelChevron} aria-hidden>⌄</span>
       </summary>
       <div className={styles.publicationChannelOptions} aria-busy={saving}>
