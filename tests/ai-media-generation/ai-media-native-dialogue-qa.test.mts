@@ -80,6 +80,56 @@ test("an explicit sound alias does not excuse a different name, wrong amount, ne
   assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript: expectedLine.replace("iNrCy", "inertie"), pronunciationAliases: irrelevantAlias }).status, "rejected");
 });
 
+test("documented French inertie spellings require an explicit sound guide and never change the script or transcript", async () => {
+  const expectedLine = "Bonjour, je suis Océane. Avec CréaMotion, créez vos contenus, vos images et vos vidéos.";
+  const pronunciationAliases = Object.freeze(extractAiMediaPronunciationAliases("CréaMotion se prononce « inertie ».").map(alias => Object.freeze(alias)));
+  for (const spelling of ["inercie", "Inersie", "Inersy"]) {
+    const transcript = expectedLine.replace("CréaMotion", spelling);
+    const input = Object.freeze({ sceneIndex: 0, expectedLine, transcript, pronunciationAliases, language: "fr-FR" });
+    assert.equal(evaluateAiMediaNativeDialogue(input).status, "passed");
+    assert.equal(evaluateAiMediaNativeDialogue({ ...input, pronunciationAliases: undefined }).status, "rejected");
+    assert.equal(evaluateAiMediaNativeDialogue({ ...input, language: "en" }).status, "rejected");
+    assert.equal(evaluateAiMediaNativeDialogue({ ...input, pronunciationAliases: extractAiMediaPronunciationAliases("AutreMarque se prononce « inertie ».") }).status, "rejected");
+    assert.equal(evaluateAiMediaNativeDialogue({ ...input, pronunciationAliases: [{ spelling: "CréaMotion", pronunciation: "inertiel" }] }).status, "rejected");
+    assert.equal(input.expectedLine, expectedLine);
+    assert.equal(input.transcript, transcript);
+    const audited = await auditAiMediaNativeDialogueClips({
+      clips: [fakeClip({ expectedLine })], language: "fr", pronunciationAliases,
+      transcribe: async () => ({ text: transcript }),
+      confirm: async () => { assert.fail("A documented spelling of the explicitly requested sound needs no extra ASR."); },
+    });
+    assert.equal(audited.status, "passed");
+    assert.doesNotMatch(JSON.stringify(audited), /CréaMotion|Iners|inercie|pronunciationalias/);
+  }
+});
+
+test("an explicit French sound guide never excuses missing sounds, other names, amounts, negation or repetitions", () => {
+  const expectedLine = "Avec CréaMotion à Bordeaux, notre offre ne comprend pas la livraison et coûte 50 euros seulement.";
+  const pronunciationAliases = extractAiMediaPronunciationAliases("CréaMotion se prononce « inertie ».");
+  const valid = expectedLine.replace("CréaMotion", "Inersie");
+  for (const transcript of [
+    ...["Insi", "Inerzia", "Inertiel", "Finersie", "AutreMarque"].map(name => expectedLine.replace("CréaMotion", name)),
+    valid.replace("50", "500"), valid.replace("euros", "dollars"),
+    valid.replace("ne comprend pas", "comprend"), valid.replace("Bordeaux", "Lyon"),
+    valid.replace("Inersie", "Inersie Inersy"), `${valid} ${valid}`,
+  ]) {
+    assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript, pronunciationAliases, language: "fr" }).status, "rejected", transcript);
+  }
+});
+
+test("independent transcriptions with the documented alias still confirm a wrong amount", async () => {
+  const expectedLine = "Avec CréaMotion, notre offre coûte 50 euros seulement.";
+  const pronunciationAliases = extractAiMediaPronunciationAliases("CréaMotion se prononce « inertie ».");
+  const result = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })], language: "fr", pronunciationAliases,
+    transcribe: async () => ({ text: expectedLine.replace("CréaMotion", "Inersy").replace("50", "500") }),
+    confirm: async () => ({ text: expectedLine.replace("CréaMotion", "Inersie").replace("50", "500") }),
+  });
+  assert.equal(result.status, "rejected");
+  assert.equal(result.clips[0].confirmation, "rejected");
+  assert.ok(result.clips[0].issues.includes("spoken_critical_value_mismatch"));
+});
+
 test("phonetic alias matching respects token boundaries and preserves unintended repetitions", () => {
   const pronunciationAliases = extractAiMediaPronunciationAliases("iNrCy se prononce « in er si ».");
   const expectedLine = "Découvrez iNrCy pour votre entreprise.";

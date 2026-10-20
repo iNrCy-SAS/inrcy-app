@@ -94,12 +94,24 @@ export function tokenizeAiMediaNativeDialogue(value: unknown): string[] {
 }
 
 /** Local comparison only: never changes a script, prompt, transcript or audio. */
-function pronunciationTokens(tokens: readonly string[], aliases: readonly AiMediaPronunciationAlias[] = []) {
-  const variants = aliases.flatMap((alias, index) => [alias.spelling, alias.pronunciation].map((value) => ({
-    tokens: tokenizeAiMediaNativeDialogue(value),
-    // A private common token preserves occurrences, so repeated names still count.
-    marker: `pronunciationalias${String.fromCharCode(97 + index)}`,
-  }))).filter((variant) => variant.tokens.length).sort((left, right) => right.tokens.length - left.tokens.length);
+function pronunciationTokens(tokens: readonly string[], aliases: readonly AiMediaPronunciationAlias[] = [], language = "fr") {
+  const variants = aliases.flatMap((alias, index) => {
+    const values = [alias.spelling, alias.pronunciation];
+    const sound = tokenizeAiMediaNativeDialogue(alias.pronunciation);
+    // A documented French lexeme, only when explicitly supplied as the sound
+    // guide. Académie: "tie se prononce cie"; Larousse: /inɛʀsi/.
+    // https://www.dictionnaire-academie.fr/article/A9I1068
+    // https://www.larousse.fr/dictionnaires/francais/inertie/42804
+    // ASR spellings retain every sound, including /ʁ/. No fuzzy name matching.
+    if (/^fr(?:-|$)/i.test(language) && sound.length === 1 && sound[0] === "inertie") {
+      values.push("inercie", "inersie", "inersy");
+    }
+    return values.map((value) => ({
+      tokens: tokenizeAiMediaNativeDialogue(value),
+      // A private common token preserves occurrences, so repeated names still count.
+      marker: `pronunciationalias${String.fromCharCode(97 + index)}`,
+    }));
+  }).filter((variant) => variant.tokens.length).sort((left, right) => right.tokens.length - left.tokens.length);
   const result: string[] = [];
   for (let index = 0; index < tokens.length;) {
     const variant = variants.find((candidate) => candidate.tokens.every((token, offset) => token === tokens[index + offset]));
@@ -179,14 +191,14 @@ function criticalSpeechValues(text: string, language: string) {
   return { numbers, negations, units, calendar, canonical };
 }
 
-function missingWrittenName(expected: string, transcript: string, aliases?: readonly AiMediaPronunciationAlias[]) {
-  const detected = new Set(pronunciationTokens(tokenizeAiMediaNativeDialogue(transcript), aliases));
+function missingWrittenName(expected: string, transcript: string, aliases: readonly AiMediaPronunciationAlias[] | undefined, language: string) {
+  const detected = new Set(pronunciationTokens(tokenizeAiMediaNativeDialogue(transcript), aliases, language));
   return Array.from(expected.matchAll(/[\p{L}][\p{L}\p{N}]{2,}/gu)).some((match) => {
     const word = match[0];
     const before = expected.slice(0, match.index).trimEnd();
     const distinctiveCase = /[a-z][A-Z]|^[A-Z]{3,}$/.test(word);
     const interiorProperName = /^\p{Lu}\p{Ll}/u.test(word) && before.length > 0 && !/[.!?]$/.test(before);
-    return (distinctiveCase || interiorProperName) && pronunciationTokens(tokenizeAiMediaNativeDialogue(word), aliases).some((token) => !detected.has(token));
+    return (distinctiveCase || interiorProperName) && pronunciationTokens(tokenizeAiMediaNativeDialogue(word), aliases, language).some((token) => !detected.has(token));
   });
 }
 
@@ -377,8 +389,8 @@ export function evaluateAiMediaNativeDialogue(args: {
   const language = String(args.language || "fr").trim().toLowerCase() || "fr";
   const expectedValues = criticalSpeechValues(args.expectedLine, language);
   const detectedValues = criticalSpeechValues(args.transcript, language);
-  const expected = pronunciationTokens(tokenizeAiMediaNativeDialogue(expectedValues.canonical.join(" ")), args.pronunciationAliases);
-  const detected = pronunciationTokens(tokenizeAiMediaNativeDialogue(detectedValues.canonical.join(" ")), args.pronunciationAliases);
+  const expected = pronunciationTokens(tokenizeAiMediaNativeDialogue(expectedValues.canonical.join(" ")), args.pronunciationAliases, language);
+  const detected = pronunciationTokens(tokenizeAiMediaNativeDialogue(detectedValues.canonical.join(" ")), args.pronunciationAliases, language);
   const emptyMetrics: AiMediaNativeDialogueQaMetrics = {
     expectedTokenCount: expected.length,
     detectedTokenCount: detected.length,
@@ -416,7 +428,7 @@ export function evaluateAiMediaNativeDialogue(args: {
   if (["numbers", "negations", "units", "calendar"].some((key) => {
     const field = key as "numbers" | "negations" | "units" | "calendar";
     return JSON.stringify(expectedValues[field]) !== JSON.stringify(detectedValues[field]);
-  }) || missingWrittenName(args.expectedLine, args.transcript, args.pronunciationAliases)) issues.push("spoken_critical_value_mismatch");
+  }) || missingWrittenName(args.expectedLine, args.transcript, args.pronunciationAliases, language)) issues.push("spoken_critical_value_mismatch");
 
   // An exact internal fragment can end on a preposition because the remainder
   // is spoken in the next clip. This never excuses an omission or an added tail.
@@ -489,7 +501,7 @@ function rejectedTranscriptsAgree(args: {
   })) return false;
   // This agreement threshold does not relax the detector's existing thresholds.
   // Different unintelligible guesses stay inconclusive, even if both were rejected.
-  return tokenSimilarity(pronunciationTokens(initial.canonical, args.pronunciationAliases), pronunciationTokens(confirmed.canonical, args.pronunciationAliases)) >= 0.9;
+  return tokenSimilarity(pronunciationTokens(initial.canonical, args.pronunciationAliases, args.language), pronunciationTokens(confirmed.canonical, args.pronunciationAliases, args.language)) >= 0.9;
 }
 
 /**
@@ -515,7 +527,7 @@ export async function auditAiMediaNativeDialogueClips(args: {
   const previousDialogues: string[][] = [];
   for (const clip of orderedClips) {
     previousDialoguesByClip.set(clip, [...previousDialogues]);
-    const tokens = pronunciationTokens(tokenizeAiMediaNativeDialogue(clip.expectedLine), args.pronunciationAliases);
+    const tokens = pronunciationTokens(tokenizeAiMediaNativeDialogue(clip.expectedLine), args.pronunciationAliases, language);
     if (tokens.length) previousDialogues.push(tokens);
   }
   const evaluate = (clip: AiMediaNativeDialogueQaClip, text: string) => {
@@ -529,8 +541,8 @@ export async function auditAiMediaNativeDialogueClips(args: {
       expectedContinuation: clip.expectedContinuation,
     });
     const repeatCount = previousDialogueRepeatCount(
-      pronunciationTokens(tokenizeAiMediaNativeDialogue(clip.expectedLine), args.pronunciationAliases),
-      pronunciationTokens(tokenizeAiMediaNativeDialogue(text), args.pronunciationAliases),
+      pronunciationTokens(tokenizeAiMediaNativeDialogue(clip.expectedLine), args.pronunciationAliases, language),
+      pronunciationTokens(tokenizeAiMediaNativeDialogue(text), args.pronunciationAliases, language),
       previousDialoguesByClip.get(clip) || [],
     );
     if (repeatCount >= 2) {
