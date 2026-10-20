@@ -416,6 +416,7 @@ function isAuthRecoveryPath(pathname: string): boolean {
     pathname.startsWith("/auth/finish-invite") ||
     pathname.startsWith("/auth/finish-reset") ||
     pathname === "/api/auth/finish-password" ||
+    pathname === "/api/auth/password-link-status" ||
     pathname === "/api/auth/resend-link" ||
     pathname === "/api/auth/sign-out"
   );

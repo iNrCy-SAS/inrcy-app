@@ -258,6 +258,7 @@ test("les 401/403 des méthodes non-GET exactes invalident aussi la session", as
 
   try {
     await guardedFetch("https://project.supabase.co/auth/v1/user", { method: "PUT" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
     assert.deepEqual(events, ["inrcy:auth-session-invalid"]);
 
     await guardedFetch("https://project.supabase.co/auth/v1/user/identities", {

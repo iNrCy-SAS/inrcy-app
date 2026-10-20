@@ -1,6 +1,12 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('auth recovery flows', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/api/auth/password-link-status', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ valid: true, expires_at: new Date(Date.now() + 86_400_000).toISOString() }),
+    }));
+  });
   for (const { mode, type, path, button } of [
     { mode: 'invite', type: 'invite', path: '/auth/finish-invite', button: 'Créer mon mot de passe' },
     { mode: 'reset', type: 'recovery', path: '/auth/finish-reset', button: 'Réinitialiser mon mot de passe' },
@@ -41,8 +47,15 @@ test.describe('auth recovery flows', () => {
     });
   }
 
-  test('expired OTP is reported after final submit, without consuming it on page load', async ({ page }) => {
+  test('expired OTP is reported before password entry, without consuming it or sending mail', async ({ page }) => {
     const requests: Array<Record<string, unknown>> = [];
+    await page.route('**/api/auth/password-link-status', (route) => route.fulfill({
+      status: 200, contentType: 'application/json', body: '{"valid":false}',
+    }));
+    await page.route('**/api/auth/resend-link', async (route) => {
+      requests.push({ resend: true });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    });
     await page.route('**/api/auth/finish-password', async (route) => {
       requests.push(route.request().postDataJSON());
       await route.fulfill({
@@ -56,17 +69,26 @@ test.describe('auth recovery flows', () => {
     });
 
     const passwordInputs = page.locator('input[autocomplete="new-password"]');
-    await expect(passwordInputs).toHaveCount(2, { timeout: 30_000 });
-    expect(requests).toHaveLength(0);
-    await page.getByRole('dialog', { name: 'Consentement cookies' }).getByRole('button', { name: 'Refuser' }).click();
-    await passwordInputs.nth(0).fill('SecurePass9!');
-    await passwordInputs.nth(1).fill('SecurePass9!');
-    await page.getByRole('button', { name: 'Créer mon mot de passe' }).click();
-
-    await expect.poll(() => requests.length).toBe(1);
     await expect(page.getByRole('heading', { name: 'Lien expiré' })).toBeVisible();
     await expect(page.getByTestId('auth-resend-link')).toBeVisible();
     await expect(passwordInputs).toHaveCount(0);
+    expect(requests).toHaveLength(0);
+  });
+
+  test('a temporarily unavailable check offers retry instead of an expired-link form', async ({ page }) => {
+    let checks = 0;
+    await page.route('**/api/auth/password-link-status', (route) => {
+      checks++;
+      return route.fulfill(checks === 1
+        ? { status: 503, contentType: 'application/json', body: '{"retryable":true}' }
+        : { status: 200, contentType: 'application/json', body: JSON.stringify({ valid: true, expires_at: new Date(Date.now() + 60_000).toISOString() }) });
+    });
+    await page.goto(`/auth/finish-invite?token_hash=${'c'.repeat(64)}&type=invite&email=invitee%40example.com&lang=fr`);
+    await expect(page.getByTestId('auth-link-retry')).toBeVisible();
+    await expect(page.locator('input[autocomplete="new-password"]')).toHaveCount(0);
+    await expect(page.getByTestId('auth-resend-link')).toHaveCount(0);
+    await page.getByTestId('auth-link-retry').click();
+    await expect(page.locator('input[autocomplete="new-password"]')).toHaveCount(2);
   });
 
   test('forgot-password link is visible on login page', async ({ page }) => {

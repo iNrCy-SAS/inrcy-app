@@ -7,6 +7,7 @@ let browserClient: BrowserSupabaseClient | null = null;
 const AUTH_USER_PATH = "/auth/v1/user";
 let authUserRequest: Promise<Response> | null = null;
 let invalidSessionHandled = false;
+let invalidSessionGeneration = 0;
 
 function getRequestUrl(input: RequestInfo | URL) {
   if (typeof input === "string") return input;
@@ -30,18 +31,27 @@ function getRequestMethod(input: RequestInfo | URL, init?: RequestInit) {
   return "GET";
 }
 
-async function handleInvalidBrowserSession() {
+function handleInvalidBrowserSession() {
   if (invalidSessionHandled || typeof window === "undefined") return;
   invalidSessionHandled = true;
+  const generation = ++invalidSessionGeneration;
 
-  try {
-    // Local scope removes the stale browser session without another Auth API call.
-    await browserClient?.auth.signOut({ scope: "local" });
-  } catch {
-    // The server-side proxy will also clear invalid cookies on the next navigation.
-  }
-
-  window.dispatchEvent(new CustomEvent("inrcy:auth-session-invalid"));
+  // getUser/updateUser hold the Auth lock until this fetch returns. Calling
+  // signOut inside that response chain waits for the same lock and deadlocks.
+  // A new task lets Auth finish first; a newer successful response cancels it.
+  setTimeout(() => {
+    if (generation !== invalidSessionGeneration) return;
+    void (async () => {
+      try {
+        await browserClient?.auth.signOut({ scope: "local" });
+      } catch {
+        // The proxy also clears invalid cookies on the next navigation.
+      }
+      if (generation === invalidSessionGeneration) {
+        window.dispatchEvent(new CustomEvent("inrcy:auth-session-invalid"));
+      }
+    })();
+  }, 0);
 }
 
 export async function guardedFetch(input: RequestInfo | URL, init?: RequestInit) {
@@ -53,10 +63,13 @@ export async function guardedFetch(input: RequestInfo | URL, init?: RequestInit)
   if (shouldCoalesce && authUserRequest) return (await authUserRequest).clone();
 
   const request = fetch(input, init)
-    .then(async (response) => {
-      if (response.ok) invalidSessionHandled = false;
+    .then((response) => {
+      if (response.ok) {
+        invalidSessionHandled = false;
+        invalidSessionGeneration += 1;
+      }
       else if (response.status === 401 || response.status === 403) {
-        await handleInvalidBrowserSession();
+        handleInvalidBrowserSession();
       }
       return response;
     })

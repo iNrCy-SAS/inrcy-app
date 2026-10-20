@@ -9,10 +9,15 @@ test("email-link GET and page load never consume an OTP", () => {
   const client = read("app/auth/_components/FinishEmailLinkClient.tsx");
   const getBlock = route.slice(route.indexOf("export async function GET"), route.indexOf("export async function POST"));
   const postBlock = route.slice(route.indexOf("export async function POST"));
-  const pageLoad = client.slice(client.indexOf("const prepareCredential = async () => {"), client.indexOf("void prepareCredential();"));
+  const pageLoad = client.slice(client.indexOf("const prepareCredential = async () => {"), client.indexOf("void withAuthLinkDeadline(prepareCredential())"));
+  const statusRoute = read("app/api/auth/password-link-status/route.ts");
 
   assert.doesNotMatch(getBlock, /verifyOtp/, "GET must never consume the one-time link");
   assert.doesNotMatch(pageLoad, /prepareEmailLink|verifyOtp|method: "POST"/, "mounting the page must not consume the token");
+  assert.doesNotMatch(statusRoute, /verifyOtp\s*\(|generateLink\s*\(|resetPasswordForEmail\s*\(/);
+  assert.match(statusRoute, /rpc\("inrcy_password_link_status"/);
+  assert.match(pageLoad, /const status = await linkCheck!/);
+  assert.match(pageLoad, /status\.state === "valid"[\s\S]*setReady\(true\)/);
   assert.match(pageLoad, /if \(tokenHash\) \{[\s\S]*setReady\(true\);\s*return;/);
   assert.ok(client.indexOf("if (hasIncomingLinkError && !tokenHash)") < client.indexOf("supabase.auth\n        .getUser()"));
   assert.match(client, /const pendingTokenHash = ready && validTokenHash && !linkRejected && !accountUnavailable/);
@@ -20,7 +25,7 @@ test("email-link GET and page load never consume an OTP", () => {
   assert.ok(postBlock.indexOf("evaluatePassword(password)") < postBlock.indexOf("const { data, error: verifyError } = await supabaseAuth.auth.verifyOtp("), "a rejected password must not consume the token");
   assert.match(client, /showExpired \? t\("linkExpiredTitle"\)/);
   assert.match(client, /data-testid="auth-resend-link"/);
-  assert.match(client, /const showResend = ready && !accountUnavailable && linkRejected && !hasCredential &&/);
+  assert.match(client, /const showResend = ready && !checkFailed && !accountUnavailable && linkRejected && !hasCredential &&/);
   assert.match(client, /const canResend = showResend && isValidResendEmail\(resendEmail\)/);
   assert.match(client, /data-testid="auth-resend-email"/);
 });
@@ -61,5 +66,8 @@ test("expired-link and generic resend messages exist in each supported locale", 
     assert.equal(typeof auth.password.inviteResendTitle, "string", locale);
     assert.equal(typeof auth.password.inviteResendGuidance, "string", locale);
     assert.equal(typeof auth.password.resendAddressUsed, "string", locale);
+    for (const key of ["linkCheckFailedTitle", "linkCheckFailed", "retryLinkCheck"]) {
+      assert.equal(typeof auth.password[key], "string", `${locale}:${key}`);
+    }
   }
 });

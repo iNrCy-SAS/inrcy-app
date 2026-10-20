@@ -14,6 +14,11 @@ import {
 import { waitForServerAuthSession } from "@/lib/browserAuthSessionReady";
 import { appLanguageFromLocale, tryNormalizeAppLocale } from "@/i18n/config";
 import { readAuthEmailLinkParams } from "@/lib/authEmailLinks";
+import {
+  checkPasswordEmailLink,
+  isUnavailableAuthSessionCheck,
+  withAuthLinkDeadline,
+} from "@/lib/authPasswordLinkCheck";
 import { evaluatePassword } from "@/lib/passwordPolicy";
 import AuthLanguageSelector from "./AuthLanguageSelector";
 
@@ -126,11 +131,16 @@ export default function FinishEmailLinkClient({
   const [continuation, setContinuation] = useState<SessionContinuation | null>(null);
   const [serverContinuationAvailable, setServerContinuationAvailable] = useState(false);
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
+  const [checkFailed, setCheckFailed] = useState(false);
+  const [checkAttempt, setCheckAttempt] = useState(0);
+  const [linkExpiresAt, setLinkExpiresAt] = useState<number | null>(null);
+  const [preparedLinkKey, setPreparedLinkKey] = useState<string | null>(null);
 
   const tokenHash = emailLinkParams.tokenHash;
   const rawType = searchParams.get("type");
   const type = (rawType || (mode === "invite" ? "invite" : "recovery")) as EmailOtpType;
   const expectedEmail = normalizeEmail(searchParams.get("email"));
+  const emailLinkKey = JSON.stringify([mode, type, tokenHash, expectedEmail]);
   const validTokenHash = isPlausibleTokenHash(tokenHash);
   const accountEmail = sessionEmail || (validTokenHash ? expectedEmail : null);
   const resendEmail = isValidResendEmail(expectedEmail)
@@ -174,8 +184,12 @@ export default function FinishEmailLinkClient({
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     setReady(false);
+    setCheckFailed(false);
+    setLinkExpiresAt(null);
+    setPreparedLinkKey(null);
     setLinkRejected(false);
     setAccountUnavailable(false);
     setMessage(null);
@@ -199,13 +213,25 @@ export default function FinishEmailLinkClient({
         setReady(true);
         return;
       }
+      if (type !== (mode === "invite" ? "invite" : "recovery")) {
+        setLinkRejected(true);
+        setMessage(t("invalidAction"));
+        setReady(true);
+        return;
+      }
+
+      // This request only reads the token state. It neither exchanges the OTP
+      // nor sends mail, including when a scanner or StrictMode opens it twice.
+      const linkCheck = tokenHash
+        ? checkPasswordEmailLink({ mode, tokenHash, email: expectedEmail }, { signal: controller.signal })
+        : null;
 
       let browserContinuation: SessionContinuation | null = null;
       let serverCanResume = false;
       const { data, error } = await supabase.auth
-        .getUser()
-        .catch(() => ({ data: { user: null }, error: null }));
+        .getUser();
       if (cancelled) return;
+      if (isUnavailableAuthSessionCheck(error)) throw new Error("session_check_unavailable");
 
       const currentUser = data?.user;
       const currentEmail = normalizeEmail(currentUser?.email);
@@ -230,8 +256,8 @@ export default function FinishEmailLinkClient({
 
         if (canReuseCurrentSession) {
           const { data: sessionData } = await supabase.auth
-            .getSession()
-            .catch(() => ({ data: { session: null } }));
+            .getSession();
+          if (cancelled) return;
           browserContinuation = readSessionContinuation(sessionData.session);
           if (browserContinuation) {
             setContinuation(browserContinuation);
@@ -244,8 +270,19 @@ export default function FinishEmailLinkClient({
         // Email security scanners may open and execute this page. A link is
         // single-use, so leave verification and password writing together in
         // the final user-initiated POST.
-        setReady(true);
-        return;
+        const status = await linkCheck!;
+        if (cancelled) return;
+        if (status.state === "unavailable") throw new Error("link_check_unavailable");
+        if (status.state === "valid") {
+          setLinkExpiresAt(status.expiresAt);
+          setPreparedLinkKey(emailLinkKey);
+          setReady(true);
+          return;
+        }
+        setLinkRejected(true);
+        setMessage(t("linkInvalid"));
+        // A previous final submit may already have consumed the OTP while
+        // saving failed. Preserve its encrypted, verified continuation.
       }
 
       if (!browserContinuation) {
@@ -256,6 +293,7 @@ export default function FinishEmailLinkClient({
           const response = await fetch(statusUrl.toString(), {
             cache: "no-store",
             credentials: "same-origin",
+            signal: controller.signal,
           });
           const result = {
             ok: response.ok,
@@ -267,16 +305,18 @@ export default function FinishEmailLinkClient({
           if (serverCanResume) {
             const verifiedLinkEmail = normalizeEmail(result.payload?.email);
             setServerContinuationAvailable(true);
+            setLinkRejected(false);
+            setMessage(null);
             setSessionEmail(verifiedLinkEmail);
           } else if (!result.ok && result.status >= 500) {
-            setMessage(t("finishFailed"));
+            throw new Error("continuation_check_unavailable");
           } else if (hasIncomingLinkError || sessionSourceRequested || result.payload?.code === "session_failed") {
             setLinkRejected(true);
             setMessage(result.payload?.code === "account_mismatch" ? t("accountMismatch") : t("linkInvalid"));
           }
         } catch {
           if (cancelled) return;
-          setMessage(t("finishFailed"));
+          throw new Error("continuation_check_unavailable");
         }
       }
 
@@ -292,13 +332,23 @@ export default function FinishEmailLinkClient({
         setMessage(t("linkIncomplete"));
       }
 
+      setPreparedLinkKey(emailLinkKey);
       setReady(true);
     };
 
-    void prepareCredential();
+    void withAuthLinkDeadline(prepareCredential()).catch(() => {
+      if (cancelled) return;
+      // Stop every late callback from turning a failed check into a ready form.
+      cancelled = true;
+      controller.abort();
+      setCheckFailed(true);
+      setReady(true);
+      setMessage(t("linkCheckFailed"));
+    });
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [
     expectedEmail,
@@ -310,7 +360,26 @@ export default function FinishEmailLinkClient({
     tokenHash,
     type,
     validTokenHash,
+    checkAttempt,
+    emailLinkKey,
   ]);
+
+  useEffect(() => {
+    if (!linkExpiresAt || continuation || serverContinuationAvailable || loading || success) return;
+    const expire = () => {
+      if (Date.now() < linkExpiresAt) return;
+      setLinkRejected(true);
+      setPassword("");
+      setConfirm("");
+      setMessage(t("linkInvalid"));
+    };
+    const timer = window.setTimeout(expire, Math.max(0, linkExpiresAt - Date.now()));
+    document.addEventListener("visibilitychange", expire);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", expire);
+    };
+  }, [linkExpiresAt, continuation, serverContinuationAvailable, loading, success, t]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -513,6 +582,11 @@ export default function FinishEmailLinkClient({
       setMessage(sessionSourceRequested ? t("sessionFailed") : t("linkIncomplete"));
       return;
     }
+    if (!continuation && !serverContinuationAvailable && linkExpiresAt && Date.now() >= linkExpiresAt) {
+      setLinkRejected(true);
+      setMessage(t("linkInvalid"));
+      return;
+    }
 
     const validationError = validatePassword();
     if (validationError) {
@@ -533,8 +607,9 @@ export default function FinishEmailLinkClient({
 
   const confirmTouched = confirm.length > 0;
   const confirmOk = confirmTouched && password === confirm;
-  const pendingTokenHash = ready && validTokenHash && !linkRejected && !accountUnavailable;
-  const hasCredential = Boolean(serverContinuationAvailable || continuation || pendingTokenHash);
+  const pendingTokenHash = ready && validTokenHash && !linkRejected && !accountUnavailable && !checkFailed;
+  const hasCredential = !checkFailed && preparedLinkKey === emailLinkKey &&
+    Boolean(serverContinuationAvailable || continuation || pendingTokenHash);
   const canSubmit =
     ready &&
     !loading &&
@@ -542,11 +617,11 @@ export default function FinishEmailLinkClient({
     hasCredential &&
     strength.isAcceptable &&
     password === confirm;
-  const showResend = ready && !accountUnavailable && linkRejected && !hasCredential &&
+  const showResend = ready && !checkFailed && !accountUnavailable && linkRejected && !hasCredential &&
     (isInvite || isValidResendEmail(resendEmail));
   const canResend = showResend && isValidResendEmail(resendEmail);
   const inviteResendRequested = isInvite && Boolean(resendInfo);
-  const showExpired = ready && linkRejected && !hasCredential && !inviteResendRequested;
+  const showExpired = ready && !checkFailed && linkRejected && !hasCredential && !inviteResendRequested;
   const title = inviteResendRequested
     ? t("inviteResendTitle")
     : isInvite ? t("inviteTitle") : t("resetTitle");
@@ -559,9 +634,9 @@ export default function FinishEmailLinkClient({
         <p className="text-sm font-medium uppercase tracking-[0.18em] text-cyan-300">
           {isInvite ? t("inviteEyebrow") : t("resetEyebrow")}
         </p>
-        <h1 className="mt-3 text-3xl font-semibold text-white">{showExpired ? t("linkExpiredTitle") : title}</h1>
+        <h1 className="mt-3 text-3xl font-semibold text-white">{checkFailed ? t("linkCheckFailedTitle") : showExpired ? t("linkExpiredTitle") : title}</h1>
         <p className="mt-4 text-sm leading-6 text-slate-200">
-          {inviteResendRequested ? t("resendRequestReceived") : showExpired ? t("linkInvalid") : body}
+          {checkFailed ? t("linkCheckFailed") : inviteResendRequested ? t("resendRequestReceived") : showExpired ? t("linkInvalid") : body}
         </p>
         {accountEmail ? (
           <p className="mt-3 text-sm leading-6 text-slate-300">
@@ -573,7 +648,18 @@ export default function FinishEmailLinkClient({
           <p data-testid="auth-link-loading" className="mt-5 text-sm text-slate-200">{t("verifying")}</p>
         ) : null}
 
-        {ready && !hasCredential && !inviteResendRequested ? (
+        {checkFailed ? (
+          <button
+            type="button"
+            data-testid="auth-link-retry"
+            onClick={() => setCheckAttempt((value) => value + 1)}
+            className="mt-5 min-h-12 w-full rounded-2xl bg-cyan-300 px-5 py-3 font-semibold text-slate-950 hover:bg-cyan-200"
+          >
+            {t("retryLinkCheck")}
+          </button>
+        ) : null}
+
+        {ready && !checkFailed && !hasCredential && !inviteResendRequested ? (
           <p
             data-testid="auth-link-error"
             className="mt-5 rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100"
