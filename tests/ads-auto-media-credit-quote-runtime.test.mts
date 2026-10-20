@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import * as contracts from "../lib/aiMediaGenerationContracts.ts";
+import * as characterVoices from "../lib/aiMediaCharacterVoices.ts";
 import * as pricing from "../lib/aiMediaCreditsPricing.ts";
 import * as policy from "../lib/adsCampaignMediaPolicy.ts";
 
@@ -24,6 +25,7 @@ const serverQuotes = compile(readFileSync(new URL("../lib/aiMediaCreditQuoteServ
   "server-only": {},
   "node:crypto": await import("node:crypto"),
   "./aiMediaCreditsPricing.ts": pricing,
+  "./aiMediaCharacterVoices.ts": characterVoices,
 }) as {
   createAiMediaServerQuote: (account: string, input: pricing.AiMediaCreditsQuoteInput) => Quote;
   quoteAiMediaRequest: (account: string, request: contracts.AiMediaGenerationRequest) => Quote;

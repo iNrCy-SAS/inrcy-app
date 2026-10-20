@@ -23,6 +23,7 @@ function footerAction(name: "MediaFreeGenerator" | "MediaModifier", overrides: R
   const events: string[] = [];
   const context = {
     busy: false, generationBusy: false, cancellable: true, generationCancellable: true,
+    authorizationVisible: false, authorizationChecked: true, instanceId: "footer-test",
     canRecover: false, recoveryIncompatible: false, operationLocked: false, canGenerate: true, result: null, kind: "image",
     sourceImage: {}, instruction: "Update the background", quotaLoading: false,
     creditQuote: { ready: true, insufficient: false }, imageQuotaExhausted: false,

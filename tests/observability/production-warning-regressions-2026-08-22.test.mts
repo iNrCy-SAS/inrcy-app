@@ -64,10 +64,22 @@ test("les URL Storage privées utilisent le service protégé ou le store de nou
   const signing = temporaryImages.indexOf(".createSignedUrl(");
   assert.ok(privatePreflight >= 0 && privatePreflight < upload && upload < uploadFailure && uploadFailure < signing);
   assert.doesNotMatch(temporaryImages, /getPublicUrl\(|list\(|signedUrl\(args\./);
+  const temporaryVoiceServicePath = path.join("lib", "aiMediaCharacterVoiceStorage.ts");
+  const temporaryVoices = read(temporaryVoiceServicePath);
+  assert.match(temporaryVoices, /import "server-only"/);
+  assert.match(temporaryVoices, /const SIGNED_URL_SECONDS = 30 \* 60/);
+  assert.match(temporaryVoices, /result\.data\.public !== false/);
+  assert.match(temporaryVoices, /if \(!isOwnedAiMediaCharacterVoicePath\(args\.accountId, args\.path, args\.now\)\) throw/);
+  assert.match(temporaryVoices, /await readAiMediaCharacterVoice\(\{ \.\.\.args, path: sample\.path \}\)/);
+  assert.ok(temporaryVoices.indexOf("await readAiMediaCharacterVoice(") < temporaryVoices.indexOf(".createSignedUrl("));
+  assert.match(temporaryVoices, /url\.protocol !== "https:" \|\| url\.username \|\| url\.password/);
+  assert.equal(temporaryVoices.match(/\.createSignedUrl\s*\(/g)?.length, 1);
+  assert.doesNotMatch(temporaryVoices, /getPublicUrl\(/);
   const offenders = [...sourceFiles("app"), ...sourceFiles("lib")].filter(
     (relativePath) =>
       relativePath !== path.join("lib", "safeStorageSignedUrl.ts") &&
       relativePath !== temporaryImageServicePath &&
+      relativePath !== temporaryVoiceServicePath &&
       /\.createSignedUrl\s*\(/.test(read(relativePath)),
   );
   assert.deepEqual(offenders, []);

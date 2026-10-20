@@ -59,8 +59,12 @@ function resultContext() {
   const sequence = { current: 0 };
   const operationInFlight = { current: false };
   const result = { draft: true, item: { id: "draft-for-account-a" } };
+  const consents = { identity: true, team: true };
   return {
     events, sequence, operationInFlight, result,
+    consents,
+    setIdentityConsent: (value: boolean) => { consents.identity = value; },
+    setTeamConsent: (value: boolean) => { consents.team = value; },
     operationLocked: false,
     busy: false,
     canRecover: false,
@@ -187,6 +191,7 @@ test("récupérer Libre ne dépend pas d'un devis et ne supprime ni ne régénè
   });
   await run();
   assert.deepEqual(context.events, ["error:", "recover-existing-request"]);
+  assert.deepEqual(context.consents, { identity: false, team: false });
   assert.equal(context.operationInFlight.current, false);
 });
 
@@ -213,6 +218,7 @@ test("abandonner Libre clôture seulement une tentative absente et conserve un r
     });
     await run();
     assert.deepEqual(context.events, recovered ? ["error:", "cancel-existing-request"] : ["error:", "cancel-existing-request", "creation:false"]);
+    assert.deepEqual(context.consents, { identity: false, team: false });
     assert.equal(context.operationInFlight.current, false);
   }
 });
@@ -369,11 +375,18 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
   let speechMode: "voiceover" | "characters" | "silent" = "voiceover";
   let withMusic = true;
   const consentChanges: boolean[] = [];
+  let identityConsent = true;
+  const referenceSetId = { current: "previous-reference-set" };
+  const resetConsent = evaluate(initializer("resetConsent"), {
+    setIdentityConsent: (value: boolean) => { identityConsent = value; },
+    setTeamConsent: (value: boolean) => { consentChanges.push(value); },
+    referenceSetId,
+  }) as () => void;
   for (const next of ["characters", "silent", "voiceover", "silent", "characters", "voiceover"] as const) {
     const onChange = evaluate(attribute(radio, "onChange"), {
       mode: next,
       setSpeechMode: (value: typeof speechMode) => { speechMode = value; },
-      setTeamConsent: (value: boolean) => { consentChanges.push(value); },
+      resetConsent,
     }) as () => void;
     onChange();
     assert.equal(speechMode, next);
@@ -384,6 +397,8 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
     assert.equal(withMusic, true, "Changing the speech radio must not change music.");
   }
   assert.deepEqual(consentChanges, [false, false, false, false, false, false]);
+  assert.equal(identityConsent, false);
+  assert.notEqual(referenceSetId.current, "previous-reference-set");
 
   const music = nodes.filter(ts.isJsxSelfClosingElement).find((node) =>
     node.tagName.getText(parsed) === "input" && node.getText(parsed).includes("checked={withMusic}"));

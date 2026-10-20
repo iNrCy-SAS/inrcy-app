@@ -13,6 +13,7 @@ import * as providerContract from "../../lib/aiMediaVideoProviderContract.ts";
 import * as freePrompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as promptShared from "../../lib/aiMediaPromptShared.ts";
 import * as dialogue from "../../lib/aiMediaDialogue.ts";
+import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import {
   normalizeAiMediaGenerationRequest,
   type AiMediaGenerationRequest,
@@ -311,6 +312,7 @@ function loadVideoProviderPromptRuntime() {
   factory(
     commonJsModule.exports,
     (specifier: string) => {
+      if (specifier === "./aiMediaCharacterVoices.ts") return characterVoices;
       if (stubs.has(specifier)) return stubs.get(specifier);
       if (specifier.startsWith("node:")) return nativeRequire(specifier);
       throw new Error(`unexpected_test_dependency:${specifier}`);

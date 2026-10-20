@@ -139,10 +139,6 @@ const agentActionsApiSource = readFileSync(
   new URL("../../app/api/agent/actions/route.ts", import.meta.url),
   "utf8",
 );
-const agentScheduleSource = readFileSync(
-  new URL("../../app/dashboard/agent/_lib/agent.schedule.ts", import.meta.url),
-  "utf8",
-);
 const agentSettingsApiSource = readFileSync(
   new URL("../../app/api/agent/settings/route.ts", import.meta.url),
   "utf8",
