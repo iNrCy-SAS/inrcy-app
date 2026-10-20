@@ -83,7 +83,7 @@ test("an explicit sound alias does not excuse a different name, wrong amount, ne
 test("documented French inertie spellings require an explicit sound guide and never change the script or transcript", async () => {
   const expectedLine = "Bonjour, je suis Océane. Avec CréaMotion, créez vos contenus, vos images et vos vidéos.";
   const pronunciationAliases = Object.freeze(extractAiMediaPronunciationAliases("CréaMotion se prononce « inertie ».").map(alias => Object.freeze(alias)));
-  for (const spelling of ["inercie", "Inersie", "Inersy"]) {
+  for (const spelling of ["inercie", "Inercy", "Inersie", "Inersy"]) {
     const transcript = expectedLine.replace("CréaMotion", spelling);
     const input = Object.freeze({ sceneIndex: 0, expectedLine, transcript, pronunciationAliases, language: "fr-FR" });
     assert.equal(evaluateAiMediaNativeDialogue(input).status, "passed");
@@ -99,7 +99,7 @@ test("documented French inertie spellings require an explicit sound guide and ne
       confirm: async () => { assert.fail("A documented spelling of the explicitly requested sound needs no extra ASR."); },
     });
     assert.equal(audited.status, "passed");
-    assert.doesNotMatch(JSON.stringify(audited), /CréaMotion|Iners|inercie|pronunciationalias/);
+    assert.doesNotMatch(JSON.stringify(audited), /CréaMotion|Iner[cs]|inercie|pronunciationalias/);
   }
 });
 
@@ -108,10 +108,14 @@ test("an explicit French sound guide never excuses missing sounds, other names, 
   const pronunciationAliases = extractAiMediaPronunciationAliases("CréaMotion se prononce « inertie ».");
   const valid = expectedLine.replace("CréaMotion", "Inersie");
   for (const transcript of [
-    ...["Insi", "Inerzia", "Inertiel", "Finersie", "AutreMarque"].map(name => expectedLine.replace("CréaMotion", name)),
+    ...["Insi", "Innoci", "Inersys", "Inerzia", "Inertiel", "Finersie", "Finercy", "AutreMarque"].map(name => expectedLine.replace("CréaMotion", name)),
     valid.replace("50", "500"), valid.replace("euros", "dollars"),
     valid.replace("ne comprend pas", "comprend"), valid.replace("Bordeaux", "Lyon"),
     valid.replace("Inersie", "Inersie Inersy"), `${valid} ${valid}`,
+    valid.replace("Inersie", "Inercy").replace("50", "500"),
+    valid.replace("Inersie", "Inercy").replace("ne comprend pas", "comprend"),
+    valid.replace("Inersie", "Inercy").replace("Bordeaux", "Lyon"),
+    valid.replace("Inersie", "Inercy Inercy"),
   ]) {
     assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript, pronunciationAliases, language: "fr" }).status, "rejected", transcript);
   }

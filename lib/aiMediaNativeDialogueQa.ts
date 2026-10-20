@@ -102,9 +102,12 @@ function pronunciationTokens(tokens: readonly string[], aliases: readonly AiMedi
     // guide. Académie: "tie se prononce cie"; Larousse: /inɛʀsi/.
     // https://www.dictionnaire-academie.fr/article/A9I1068
     // https://www.larousse.fr/dictionnaires/francais/inertie/42804
+    // The finite c/s × ie/y spellings include Inercy, independently transcribed
+    // /inɛʁsi/ in the final audio. French c before i/y is /s/ (OQLF):
+    // https://vitrinelinguistique.oqlf.gouv.qc.ca/21683/lorthographe/accents-trema-et-cedille/cedille-et-trema/cedille
     // ASR spellings retain every sound, including /ʁ/. No fuzzy name matching.
     if (/^fr(?:-|$)/i.test(language) && sound.length === 1 && sound[0] === "inertie") {
-      values.push("inercie", "inersie", "inersy");
+      values.push("inercie", "inercy", "inersie", "inersy");
     }
     return values.map((value) => ({
       tokens: tokenizeAiMediaNativeDialogue(value),
