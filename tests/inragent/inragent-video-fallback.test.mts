@@ -46,6 +46,27 @@ test("lost responses, timeouts, policy, account fuses and chargeable output neve
   }
 });
 
+test("provider balance and billing failures never route the same Agent video to another engine", async () => {
+  for (const statusCode of [undefined, 429, 503]) {
+    const billing = Object.assign(new Error("Video generation requires a minimum balance of $10. Your current balance is insufficient."), { statusCode });
+    let calls = 0;
+    await assert.rejects(generateInrAgentVideoWithFallback(input(), async () => { calls++; throw billing; }), error => error === billing);
+    assert.equal(calls, 1);
+    assert.equal(isRecoverableInrAgentVideoFailure(billing), false);
+  }
+  assert.equal(isRecoverableInrAgentVideoFailure(Object.assign(new Error("Your project has exceeded its monthly spending cap."), { statusCode: 429 })), false);
+});
+
+test("a definite per-minute quota rejection can still use the existing Agent fallback", async () => {
+  for (const suffix of ["", " Check billing for more information."]) {
+    const quota = Object.assign(new Error(`Quota exceeded for metric GenerateContent requests per minute per project. Please retry in 60 seconds.${suffix}`), { statusCode: 429 });
+    const calls: AiVideoProviderGenerationArgs[] = [];
+    assert.equal(isRecoverableInrAgentVideoFailure(quota), true);
+    await generateInrAgentVideoWithFallback(input(), async args => { calls.push(args); if (calls.length === 1) throw quota; return result; });
+    assert.deepEqual(calls.map(call => call.request.videoEngine), ["veo-lite", "grok-lite"]);
+  }
+});
+
 test("no cross-provider fallback for a cancelled call, identities, native characters or another selected engine",async()=>{
   for(const patch of [{identityMode:"professional"},{teamVideoSpeechMode:"characters"},{videoEngine:"omni"},{videoResolution:"1080p"}] as const){
     const args=input();Object.assign(args.request,patch);let calls=0;

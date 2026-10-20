@@ -1109,6 +1109,9 @@ export async function generateAndSaveAiMedia(args: {
         if (isAiVideoProviderBillableFailure(primaryError)) {
           throw primaryError;
         }
+        // A supplier/gateway billing rejection will not be fixed by another
+        // submission, which could also incur a second preparation or video bill.
+        if (classifyVeoFailure(primaryError).kind === "billing") throw primaryError;
         // Omni conserve un repli Veo uniquement pour un clip isolé de 8 s.
         // Quand Veo est choisi et échoue avant tout résultat facturable, tenter
         // Omni avec exactement le même plan et

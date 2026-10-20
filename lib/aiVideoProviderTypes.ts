@@ -2,6 +2,7 @@ import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import type { AiMediaVideoProviderContract } from "@/lib/aiMediaVideoProviderContract";
 import { hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine } from "./aiMediaCharacterVoices.ts";
+import { isAiMediaProviderBillingFailure } from "./aiMediaGenerationPublicErrors.ts";
 
 export type AiVideoProviderClip = {
   buffer: Buffer;
@@ -90,6 +91,7 @@ export function isAiVideoProviderBillableFailure(
  * Return a safe status, never retain the SDK's request body or private URLs.
  */
 export function getAiVideoProviderRecoverableStatus(error: unknown): number {
+  if (isAiMediaProviderBillingFailure(error)) return 0;
   let candidate = error;
   let status = 0;
   for (let depth = 0; candidate && typeof candidate === "object" && depth < 6; depth++) {

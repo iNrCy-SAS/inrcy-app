@@ -15,6 +15,7 @@ import { AiMediaRequestValidationError, normalizeAiMediaGenerationRequest } from
 import { bufferFromUint8ArrayView } from "../../lib/aiMediaBuffer.ts";
 import * as freePrompt from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as sensitiveText from "../../lib/aiMediaSensitiveText.ts";
+import { getAiMediaGenerationPublicError } from "../../lib/aiMediaGenerationPublicErrors.ts";
 
 type Runtime = {
   buildGatewayAiVideoRequest: (args: providerTypes.AiVideoProviderGenerationArgs, index?: number, continuityFrame?: { data: string; mimeType: "image/jpeg" }) => Record<string, unknown>;
@@ -40,7 +41,7 @@ function argsFor(engine: catalog.AiMediaVideoEngine, references = 0, duration = 
   } as unknown as providerTypes.AiVideoProviderGenerationArgs;
 }
 
-function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "bad-asset" | "download-failed" | "second-rejected" | "frame-failed" | "storage-failed" | "warnings-with-url" | "await-abort" = "success") {
+function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-insufficient" | "bad-asset" | "download-failed" | "second-rejected" | "frame-failed" | "storage-failed" | "warnings-with-url" | "await-abort" = "success") {
   const counters = { requests: 0, reservations: 0, commits: 0, rollbacks: 0 };
   let observed: Record<string, unknown> | undefined;
   const submissions: Record<string, unknown>[] = [];
@@ -70,6 +71,9 @@ function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "bad-asset
           });
         }
         if (mode === "rejected") throw new Error("provider rejected before output");
+        if (mode === "balance-insufficient") throw Object.assign(new Error("Video generation requires a minimum balance of $10. Your current balance is insufficient. Visit https://provider.invalid/billing?token=private to top up your credits."), {
+          requestBodyValues: { prompt: "private-brief-sentinel" },
+        });
         if (mode === "http-rejected") throw Object.assign(new Error("Provider unavailable"),{statusCode:503,requestBodyValues:{prompt:"private-brief-sentinel"}});
         if (mode === "second-rejected" && counters.requests === 2) throw new Error("second provider rejected before output");
         if (mode === "download-failed") {
@@ -144,6 +148,23 @@ test("a definite Gateway rejection keeps safe fallback evidence without retainin
       return true;
     });
     assert.deepEqual(context.counters,{requests:1,reservations:1,commits:0,rollbacks:1});
+  });
+});
+
+test("Gateway balance rejection retains a redacted diagnosis, releases its reservation and never retries", async () => {
+  await withMockCredentials(async () => {
+    for (const engine of ["heygen", "grok-lite"] as const) {
+      const context = loadRuntime("balance-insufficient");
+      await assert.rejects(context.runtime.createGatewayAiVideoProvider(engine).generate(argsFor(engine, 0, 8)), error => {
+        assert.equal(getAiMediaGenerationPublicError(error).code, "AI_MEDIA_PROVIDER_BALANCE_INSUFFICIENT");
+        assert.equal(providerTypes.getAiVideoProviderRecoverableStatus(error), 0);
+        assert.match((error as Error).message, /current balance is insufficient/);
+        assert.match((error as Error).message, /provider-url-redacted/);
+        assert.doesNotMatch((error as Error).message + JSON.stringify(error), /provider\.invalid|token=private|private-brief-sentinel|requestBodyValues/);
+        return true;
+      });
+      assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 0, rollbacks: 1 });
+    }
   });
 });
 

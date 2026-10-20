@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AI_MEDIA_PUBLIC_ERROR_CATALOG, getAiMediaGenerationPublicError as explain, isAiMediaContentPolicyRejection } from "../../lib/aiMediaGenerationPublicErrors.ts";
+import { AI_MEDIA_PUBLIC_ERROR_CATALOG, getAiMediaGenerationPublicError as explain, isAiMediaContentPolicyRejection, isAiMediaProviderBillingFailure } from "../../lib/aiMediaGenerationPublicErrors.ts";
 
 // Diagnostic shapes observed in historical jobs; no customer data or prompts.
 const historical = [
@@ -45,6 +45,32 @@ test("nested causes outrank generic wrappers, including timeouts over AbortError
   assert.equal(explain({ message: "Request timed out", cause: { name: "AbortError" } }).code, "AI_MEDIA_GENERATION_TIMEOUT");
   assert.equal(explain(new DOMException("This operation was aborted", "AbortError")).code, "AI_MEDIA_CONNECTION_INTERRUPTED");
   assert.equal(explain(new Error("ai_media_generation_cancelled")).code, "AI_MEDIA_GENERATION_CANCELLED");
+});
+
+test("a supplier minimum-balance refusal has a precise operator-facing cause without a wallet recharge request", () => {
+  const diagnostic = "Video generation requires a minimum balance of $10. Your current balance is insufficient. Visit https://provider.invalid/billing?token=private to top up your credits.";
+  const error = new Error("Video provider unavailable", { cause: new Error(diagnostic) });
+  const result = explain(error);
+  assert.equal(result.code, "AI_MEDIA_PROVIDER_BALANCE_INSUFFICIENT");
+  assert.equal(result.status, 503);
+  assert.match(result.reason, /fournisseur vidéo.*solde nécessaire/);
+  assert.match(result.action, /assistance iNrCy/);
+  assert.doesNotMatch(result.message, /https:|\$10|private|recharg|autre moteur|n’a pas démarré/);
+  assert.equal(isAiMediaProviderBillingFailure(error), true);
+  for (const message of ["insufficient_balance", "INSUFFICIENT FUNDS", "Not enough credits for video", "Credit balance too low"])
+    assert.equal(explain({ error: { message } }).code, result.code);
+  assert.equal(explain({ code: "AI_MEDIA_QUOTA_REACHED" }).code, "AI_MEDIA_QUOTA_REACHED");
+  assert.equal(isAiMediaProviderBillingFailure({ message: "provider unavailable", metadata: { prompt: diagnostic } }), false);
+});
+
+test("per-minute request quotas are distinct from supplier billing failures", () => {
+  for (const suffix of ["", " Check billing for more information."]) {
+    const error = Object.assign(new Error(`Quota exceeded for metric GenerateContent requests per minute per project. Please retry in 60 seconds.${suffix}`), { statusCode: 429 });
+    assert.equal(isAiMediaProviderBillingFailure(error), false);
+    assert.equal(explain(error).code, "AI_MEDIA_VIDEO_CAPACITY_REACHED");
+    assert.equal(explain(error).status, 429);
+    assert.equal(explain(error).retryAfterSeconds, 60);
+  }
 });
 
 test("audio QA explains missing, repeated, incomplete and mismatched speech separately", () => {

@@ -1,5 +1,6 @@
 import type { GoogleGenAIOptions } from "@google/genai";
 import type { gaxios as GoogleAuthGaxios, IdentityPoolClientOptions } from "google-auth-library";
+import { isAiMediaProviderBillingFailure } from "./aiMediaGenerationPublicErrors.ts";
 
 // Legacy Gemini route stays available during the staged migration only.
 export const DEFAULT_VEO_MODEL = "veo-3.1-fast-generate-preview";
@@ -16,6 +17,7 @@ export type VeoInspirationMode = "references" | "source" | "none";
 
 export type VeoFailureKind =
   | "cancelled"
+  | "billing"
   | "invalid_argument"
   | "rate_limited"
   | "unavailable"
@@ -99,8 +101,8 @@ function errorDetails(error: unknown) {
 
 function statusFromDetails(details: string) {
   const match = details.match(
-    /(?:status|statusCode|http(?:Status)?|code)[^0-9]{0,12}(400|401|403|404|408|409|422|429|500|502|503|504)\b/i,
-  ) || details.match(/\b(400|401|403|404|408|409|422|429|500|502|503|504)\b/);
+    /(?:status|statusCode|http(?:Status)?|code)[^0-9]{0,12}(400|401|402|403|404|408|409|422|429|500|502|503|504)\b/i,
+  ) || details.match(/\b(400|401|402|403|404|408|409|422|429|500|502|503|504)\b/);
   return match ? Number(match[1]) : 0;
 }
 
@@ -326,6 +328,8 @@ export function classifyVeoFailure(error: unknown): VeoFailureClassification {
     )
   ) {
     kind = "cancelled";
+  } else if (isAiMediaProviderBillingFailure(error)) {
+    kind = "billing";
   } else if (
     /ai_video_(?:veo|omni)_safety_filtered|rai_media|responsible ai|safety filter|blockedreason|content policy|prohibited content/.test(
       normalized,
@@ -414,5 +418,5 @@ export function isAmbiguousVideoCreationFailure(error: unknown): boolean {
   // HTTP failure wins over suggestive error text (a proxy 503 can mention a
   // rate limit or safety filter without proving the creation was rejected).
   if (status === 408 || status >= 500) return true;
-  return !["invalid_argument", "rate_limited", "authentication", "permission", "not_found", "safety"].includes(kind);
+  return !["billing", "invalid_argument", "rate_limited", "authentication", "permission", "not_found", "safety"].includes(kind);
 }

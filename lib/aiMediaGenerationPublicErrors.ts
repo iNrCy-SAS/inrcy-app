@@ -143,6 +143,11 @@ export const AI_MEDIA_PUBLIC_ERROR_CATALOG = {
     reason: "Le fournisseur du moteur a atteint un plafond technique de quota ou de facturation.",
     action: "Choisissez un autre moteur ou contactez l’assistance. Votre prompt et votre solde de crédits iNrCy ne sont pas en cause.",
   },
+  AI_MEDIA_PROVIDER_BALANCE_INSUFFICIENT: {
+    status: 503,
+    reason: "Le fournisseur vidéo ne dispose pas du solde nécessaire pour créer la vidéo.",
+    action: "Contactez l’assistance iNrCy. Votre solde de crédits iNrCy n’est pas en cause.",
+  },
   AI_MEDIA_GATEWAY_NOT_CONFIGURED: {
     status: 503,
     reason: "L’accès technique à ce moteur est indisponible.",
@@ -328,6 +333,20 @@ function explanation(code: AiMediaPublicErrorCode): AiMediaPublicError {
 
 const CONTENT_POLICY_REJECTION = /\bai_media_content_policy_rejected\b|\bcontent_policy_violation\b|\bmoderation_blocked\b|\bsafety_violation\b|\bcontent_filter\b|request was rejected by the safety system/;
 const SAFETY_FILTER_REJECTION = /safety_filtered|content.moderat|safety filter|responsible ai|\bai_media_(?:reference_policy_rejected|audio_safety_filtered|video_safety_filtered)\b/;
+const PROVIDER_BALANCE_INSUFFICIENT = /\bai_media_provider_balance_insufficient\b|\binsufficient[_ -](?:balance|credits?|funds)\b|\b(?:insufficient|not enough)\b.{0,30}\b(?:balance|credits?|funds)\b|\bbalance\b.{0,40}\b(?:insufficient|exhausted|too low)\b|\b(?:low|exhausted)[_ -](?:credit[_ -])?balance\b/;
+const PROVIDER_BUDGET_EXHAUSTED = /\bai_media_provider_budget_exhausted\b|monthly spending cap|billing[_ ]hard[_ ]limit|insufficient_quota|quota.{0,80}(?:exceed|exhaust)|exceed.{0,80}(?:quota|spending|budget)|credit balance.{0,40}(?:insufficient|exhaust|low)|insufficient.{0,20}(?:credits|funds)/;
+// Historical quota wording also covers throughput. Blocking retries requires
+// explicit money/billing evidence, rather than a generic "quota exceeded".
+const PROVIDER_MONETARY_LIMIT = /\bai_media_provider_budget_exhausted\b|\binsufficient_quota\b|billing[_ ]hard[_ ]limit|\b(?:monthly|daily|annual) (?:spending|cost) (?:cap|limit|budget)\b|exceed.{0,60}\b(?:spending|monetary budget)\b/;
+const PROVIDER_THROUGHPUT_QUOTA = /\b(?:requests?|tokens?|videos?|generations?) (?:per|\/) (?:second|minute|hour|day)\b/;
+
+/** Supplier billing failures need operator intervention, never a blind video retry.
+ * Only diagnostic fields are inspected; request prompts and metadata are ignored.
+ */
+export function isAiMediaProviderBillingFailure(error: unknown): boolean {
+  const text = diagnosticText(error).toLowerCase();
+  return PROVIDER_BALANCE_INSUFFICIENT.test(text) || PROVIDER_MONETARY_LIMIT.test(text);
+}
 
 /** A content refusal requires review, not another identical paid submission.
  * Account spending/safety limits and transport failures remain retryable.
@@ -360,7 +379,10 @@ export function classifyAiMediaGenerationError(error: unknown): AiMediaPublicErr
   if (/replique.{0,30}trop longue|dialogue.{0,20}too long/.test(plain)) return result("AI_MEDIA_DIALOGUE_TOO_LONG");
   if (/trop de textes ou de valeurs exactes/.test(plain)) return result("AI_MEDIA_EXACT_TEXT_TOO_DENSE");
   if (/limite quotidienne de securite/.test(plain)) return result("AI_MEDIA_ACCOUNT_DAILY_SAFETY_LIMIT");
-  if (match(/monthly spending cap|billing[_ ]hard[_ ]limit|insufficient_quota|quota.{0,80}(?:exceed|exhaust)|exceed.{0,80}(?:quota|spending|budget)|credit balance.{0,40}(?:insufficient|exhaust|low)|insufficient.{0,20}(?:credits|funds)/)) return result("AI_MEDIA_PROVIDER_BUDGET_EXHAUSTED");
+  if (PROVIDER_BALANCE_INSUFFICIENT.test(text)) return result("AI_MEDIA_PROVIDER_BALANCE_INSUFFICIENT");
+  if (PROVIDER_MONETARY_LIMIT.test(text)) return result("AI_MEDIA_PROVIDER_BUDGET_EXHAUSTED");
+  if (PROVIDER_THROUGHPUT_QUOTA.test(text)) return result("AI_MEDIA_VIDEO_CAPACITY_REACHED");
+  if (PROVIDER_BUDGET_EXHAUSTED.test(text)) return result("AI_MEDIA_PROVIDER_BUDGET_EXHAUSTED");
   if (match(/ai_gateway_account_limit_reached/)) return result("AI_MEDIA_ACCOUNT_SAFETY_LIMIT");
   if (match(/ai_gateway_guard_unavailable/)) return result("AI_MEDIA_GUARD_UNAVAILABLE");
   if (match(/ai_media_exact_dialogue_unfit/)) return result("AI_MEDIA_EXACT_DIALOGUE_INVALID");

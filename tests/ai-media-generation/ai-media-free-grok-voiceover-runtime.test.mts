@@ -14,6 +14,7 @@ import * as agentVideoFallback from "../../lib/inrAgentVideoFallback.ts";
 import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
 import * as spokenScript from "../../lib/aiMediaSpokenScript.ts";
 import * as pronunciation from "../../lib/aiMediaPronunciation.ts";
+import { classifyVeoFailure } from "../../lib/aiVideoReliability.ts";
 import { getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, resolveAiMediaFreeSpeechLanguage } from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 
@@ -33,7 +34,7 @@ function request(engine: contracts.AiMediaVideoEngine, overrides: Row = {}) {
     withMusic: false, freePrompt: `Une céramiste façonne un vase. Voix off exacte : « ${script} »`, ...overrides });
 }
 
-function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed" | "video" | "composition", withOfficialIdentity = false, options: { qaAdvisories?: string[]; narrationLanguage?: string } = {}) {
+function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed" | "video" | "composition", withOfficialIdentity = false, options: { qaAdvisories?: string[]; narrationLanguage?: string; videoError?: Error } = {}) {
   const events: string[] = [], videoCalls: Row[] = [], ttsCalls: Row[] = [], narrationCalls: Row[] = [], soundtrackCalls: Row[] = [], composeCalls: Row[] = [], saved: Row[] = [], contractCalls: Row[] = [], seedCalls: Row[] = [], googleFallbackCalls: Row[] = [];
   const voicePreflightCalls: Row[] = [], localFallbackCalls: Row[] = [];
   const forbiddenLocalFallback = async (args: Row) => { localFallbackCalls.push(args); throw new Error("unexpected_local_fallback"); };
@@ -111,12 +112,12 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
     ["@/lib/aiMediaSensitiveText", sensitive], ["@/lib/aiMediaVisibleContact", { isAiMediaProfilePhoneDisplayRequested: () => false, cleanAiMediaProfilePhone: () => "" }],
     ["@/lib/aiVideoProvider", { generateOriginalAiVideoClips: async (args: Row) => {
       events.push("video"); videoCalls.push(args);
-      if (failure === "video") throw new Error(videoCalls.length === 1 ? "selected_video_unavailable" : "fallback_video_unavailable");
+      if (failure === "video") throw options.videoError || new Error(videoCalls.length === 1 ? "selected_video_unavailable" : "fallback_video_unavailable");
       return { provider: "vercel-ai-gateway", model: "test-grok", warnings: [], estimatedCostMicroUsd: 0,
         clips: [{ buffer: Buffer.from("synthetic-native-video"), mediaType: "video/mp4", requestId: "test-provider-request", durationSeconds: 15, sourceStartSeconds: 0 }] };
     } }],
     ["@/lib/aiVideoProviderTypes", { isAiVideoProviderBillableFailure: () => false }],
-    ["@/lib/aiVideoReliability", { classifyVeoFailure: () => ({ kind: "transient" }) }],
+    ["@/lib/aiVideoReliability", { classifyVeoFailure }],
     ["@/lib/aiMediaGenerationQuotaPolicy", { getAiMediaVideoMaxDuration: () => 30 }],
     ["@/lib/aiMediaCreditQuoteServer", { quoteAiMediaRequest: (_id: string, original: contracts.AiMediaGenerationRequest) => ({ withNarration: original.withNarration }) }],
     ["@/lib/aiMediaVideoTimeline", { getAiMediaVideoSegmentDurations }],
@@ -198,6 +199,21 @@ test("Veo fallback keeps resolution and the original failure instead of calling 
     await assert.rejects(env.generate(request("veo", { durationSeconds: 8, withNarration: false, videoResolution })), /selected_video_unavailable/);
     assert.equal(env.videoCalls.length, videoResolution === "1080p" ? 1 : 2);
     assert.ok(env.videoCalls.every((call) => (call.request as Row).videoResolution === videoResolution));
+  }
+});
+
+test("supplier billing failures stop the real Free server before fallback, audio QA, composition or persistence", async () => {
+  for (const engine of ["heygen", "grok-lite", "veo"] as const) {
+    const billing = new Error("Video generation requires a minimum balance of $10. Your current balance is insufficient.");
+    const env = harness("video", false, { videoError: billing });
+    await assert.rejects(env.generate(request(engine, { durationSeconds: 8, videoResolution: engine === "heygen" ? "768p" : "720p", withNarration: false })), error => error === billing);
+    assert.equal(env.videoCalls.length, 1, `${engine}: no alternate engine after supplier billing failure`);
+    assert.equal((env.videoCalls[0].request as Row).videoEngine, engine);
+    assert.equal(env.events.includes("native-qa"), false);
+    assert.equal(env.composeCalls.length, 0);
+    assert.equal(env.saved.length, 0);
+    assert.equal(env.localFallbackCalls.length, 0);
+    assert.equal(publicErrors.getAiMediaGenerationPublicError(billing).code, "AI_MEDIA_PROVIDER_BALANCE_INSUFFICIENT");
   }
 });
 

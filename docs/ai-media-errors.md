@@ -16,6 +16,7 @@ Périmètre : 331 tentatives, du 31 août au 14 octobre 2026, extraction complè
 - Réponse initiale et récupération après déconnexion : catalogue commun, code stable conservé avec le message. Les raisons enregistrées ne sont plus remplacées par un échec générique pendant la récupération.
 - Priorité aux causes précises : une voix trop longue prime sur « narration indisponible » ; un plafond fournisseur prime sur « trop de demandes » ; un refus de sécurité prime sur son enveloppe technique.
 - Une interruption réseau ne devient plus automatiquement « arrêt à votre demande ». Seul le marqueur explicite d’annulation utilise cette explication.
+- Solde fournisseur insuffisant : les refus « minimum balance / current balance is insufficient » utilisent une explication dédiée et demandent une intervention de l’assistance. Ils ne proposent pas de recharge du portefeuille iNrCy et ne déclenchent ni nouvel essai vidéo ni changement automatique de moteur. Le diagnostic technique expurgé reste disponible côté serveur.
 
 ## Analyse et limites des corrections
 
@@ -76,6 +77,7 @@ Le texte affiché au pro associe la raison et l’action ci-dessous. Les champs 
 
 | Code | Explication | Action proposée |
 | --- | --- | --- |
+| AI_MEDIA_PROVIDER_BALANCE_INSUFFICIENT | Le fournisseur vidéo ne dispose pas du solde nécessaire pour créer la vidéo. | Contactez l’assistance iNrCy. Votre solde de crédits iNrCy n’est pas en cause. |
 | AI_MEDIA_QUOTA_REACHED | Le solde disponible ne suffit pas pour cette génération. | Choisissez un moteur moins coûteux, réduisez la durée ou rechargez vos crédits. |
 | AI_MEDIA_CREDIT_QUOTE_CHANGED | Le coût de la génération a changé depuis sa préparation. | Actualisez le coût affiché, puis confirmez à nouveau la génération. |
 | AI_MEDIA_CREDITS_NOT_READY | Le portefeuille de crédits média est momentanément indisponible. | Contactez l’assistance si le problème persiste. Recharger vos crédits ne corrigera pas cette indisponibilité. |
