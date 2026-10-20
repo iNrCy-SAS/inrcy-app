@@ -52,12 +52,35 @@ for (const model of AI_MEDIA_VIDEO_MODELS) {
     const prompt = buildAiMediaFreeVideoScenePrompt(args, 0, 8);
     assert.ok(!prompt.includes(AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT));
     assert.match(prompt, /NATIVE DIALOGUE:/);
+    assert.match(prompt, /NATIVE DIALOGUE:.*speaks in fr and says exactly once/);
     assert.match(prompt, /Synchronize the mouth and audible speech/);
     assert.match(prompt, /No narrator/);
     assert.equal(prompt.split(narration).length, 2);
     assert.ok(prompt.includes(direction) && prompt.includes(action));
   });
 }
+
+test("native character speech carries the resolved language and original voice direction without changing exact multilingual words", () => {
+  for (const engine of ["heygen", "grok-lite", "veo"] as const) for (const [language, exact] of [
+    ["fr", "Bonjour, iNrCy !\nVos idées prennent vie."],
+    ["en", "Hello, iNrCy!\nBring your ideas to life."],
+    ["zh", "你好，iNrCy！\n让创意成为现实。"],
+  ]) {
+    const args = provider(engine, "characters");
+    args.contentLanguage = language;
+    args.request.spokenScript = exact;
+    args.request.narrationVoice = "male";
+    const voiceDirection = "Une seule voix féminine chaleureuse, claire et calme, suivant le brief.";
+    args.plan.subline = voiceDirection;
+    const before = structuredClone(args);
+    const prompt = buildAiMediaFreeVideoScenePrompt(args, 0, 8);
+    assert.ok(prompt.includes(`speaks in ${language} and says exactly once: “${exact}”`));
+    assert.ok(prompt.includes(`CREATIVE DIRECTION: ${voiceDirection}`));
+    assert.equal(prompt.split(exact).length, 2, "only the authoritative audio line contains the script");
+    assert.doesNotMatch(prompt, /male narrator|NATIVE VOICEOVER:/, "voiceover defaults do not override the requested character voice");
+    assert.deepEqual(args, before);
+  }
+});
 
 test("the visual speech contract stays inside the transport budget without truncating direction or action", () => {
   for (const model of AI_MEDIA_VIDEO_MODELS) for (const speech of ["silent", "voiceover", "characters"] as const) {

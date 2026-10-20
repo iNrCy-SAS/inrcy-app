@@ -459,7 +459,7 @@ export function buildAiMediaFreeVideoScenePrompt(
       : []),
     nativeDialogue
       ? spokenLine
-        ? `NATIVE DIALOGUE: the speaker identified in THIS SHOT says exactly once: “${spokenLine}” Synchronize the mouth and audible speech; finish before the shot ends, then remain silent. One speaker at a time, ${hasProvidedVoice ? "use each supplied reference voice only for its associated character; use stable distinct AI voices for characters without a supplied sample" : "stable distinct synthetic voices. Never clone an actual person's voice"}. No narrator, repeated/previous lines or music.`
+        ? `NATIVE DIALOGUE: the speaker identified in THIS SHOT speaks in ${args.contentLanguage || "the requested language"} and says exactly once: “${spokenLine}” Synchronize the mouth and audible speech; finish before the shot ends, then remain silent. One speaker at a time, ${hasProvidedVoice ? "use each supplied reference voice only for its associated character; use stable distinct AI voices for characters without a supplied sample" : "stable distinct synthetic voices. Never clone an actual person's voice"}. No narrator, repeated/previous lines or music.`
         : "NATIVE DIALOGUE: no speech in this shot; keep mouths closed. The requested lines belong to other shots; never repeat them. No narrator, lyrics or music."
       : nativeVoiceover
         ? narrationLine
