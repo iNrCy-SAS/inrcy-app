@@ -21437,7 +21437,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 /* Global navigation, followed by compact cards for the current publication. */
 .previewCardNoFrame:has(.publishReviewFooter) { gap: 6px !important; }
 .publishPreview { grid-template-rows: 50px auto minmax(0, 1fr) !important; gap: 12px !important; }
-.publishPreview > .publicationNavigation {
+.publicationNavigation {
  display: flex; align-items: center; justify-content: center; gap: 24px; min-height: 50px; width: 100%;
  color: #edf4ff; border: 1px solid #4161a34d; border-radius: 17px;
  background: linear-gradient(105deg, #0f4c8f47, #542b814d);
@@ -21446,6 +21446,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 .publicationNavigation > button { width: 36px; height: 36px; padding: 9px; display: grid; place-items: center; color: #e4f2ff; border: 1px solid #415b97; border-radius: 11px; background: linear-gradient(135deg,#174775,#243461); cursor: pointer; }
 .publicationNavigation button svg, .publicationChannelCarousel button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .publicationNavigation button:disabled, .publicationChannelCarousel button:disabled { opacity: .4; cursor: default; }
+.publicationNavigationBottom { display: none; }
 .publishPreview > .publishInfoGrid { grid-template-columns: repeat(4,minmax(0,1fr)); grid-auto-rows: 76px; height: auto !important; min-height: 76px; gap: 12px; overflow: visible !important; position: relative; z-index: 3; }
 .publishPreview > .publishInfoGridWithFormat { grid-template-columns: repeat(5,minmax(0,1fr)); }
 .publishInfoGrid .campaignInfoCard { position: relative; height: 76px !important; min-height: 76px !important; padding: 28px 14px 8px !important; display: flex !important; align-items: center !important; gap: 10px; }
@@ -21508,6 +21509,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 @media (max-width: 760px) {
  .publishPreview > .publishInfoGrid { display: grid !important; grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 8px !important; }
  .publishPreview > .publicationNavigation { gap: 12px; }
+ .publicationNavigationBottom { display: flex; flex: 0 0 auto; gap: 12px; touch-action: pan-y; }
  .publicationNavigation > strong { min-width: 135px; }
  .publishInfoGrid .campaignInfoCard { padding-left: 9px !important; padding-right: 9px !important; gap: 5px; }
  .publishInfoGrid .publishInfoCardWithAction { padding-right: 38px !important; }

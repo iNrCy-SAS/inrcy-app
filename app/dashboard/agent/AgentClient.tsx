@@ -7469,6 +7469,21 @@ export default function AgentClient() {
                   </>
                 )}
               </div>
+              {isPublishView && (
+                <nav
+                  className={`${styles.publicationNavigation} ${styles.publicationNavigationBottom}`}
+                  aria-label={i18nT("publication_navigation")}
+                  onTouchStart={startPublicationSwipe}
+                  onTouchEnd={finishPublicationSwipe}
+                  onTouchCancel={() => {
+                    publicationSwipeStartRef.current = null;
+                  }}
+                >
+                  <button type="button" onClick={() => movePublication(-1)} disabled={!canNavigatePublications} aria-label={i18nT("previous_publication")}><NavigationChevronIcon direction="left" /></button>
+                  <strong>{i18nT("publication_counter", { current: Math.max(0, selectedPublicationIndex) + (publicationViewerActions.length ? 1 : 0), total: publicationViewerActions.length })}</strong>
+                  <button type="button" onClick={() => movePublication(1)} disabled={!canNavigatePublications} aria-label={i18nT("next_publication")}><NavigationChevronIcon direction="right" /></button>
+                </nav>
+              )}
             </section>
           </div>
         </div>
