@@ -104,6 +104,12 @@ export const AI_MEDIA_PUBLIC_ERROR_CATALOG = {
     reason: "Les paroles créées par le moteur n’ont pas passé le contrôle audio.",
     action: "Réessayez avec des répliques plus courtes ou choisissez un autre moteur.",
   },
+  AI_MEDIA_VIDEO_SPEECH_VERIFICATION_UNAVAILABLE: {
+    status: 503,
+    reason: "La vérification des paroles n’a pas pu aboutir.",
+    action: "Réessayez dans quelques instants.",
+    retryAfterSeconds: 30,
+  },
   AI_MEDIA_CHARACTER_DIALOGUE_UNAVAILABLE: {
     status: 503,
     reason: "Le service n’a pas pu préparer les voix des personnages.",
@@ -348,6 +354,11 @@ export function isAiMediaProviderBillingFailure(error: unknown): boolean {
   return PROVIDER_BALANCE_INSUFFICIENT.test(text) || PROVIDER_MONETARY_LIMIT.test(text);
 }
 
+/** Retrying verification must never submit a second paid video generation. */
+export function isAiMediaSpeechVerificationUnavailable(error: unknown): boolean {
+  return /\bai_media_native_speech_verification_unavailable\b|\bai_media_video_speech_verification_unavailable\b/i.test(diagnosticText(error));
+}
+
 /** A content refusal requires review, not another identical paid submission.
  * Account spending/safety limits and transport failures remain retryable.
  */
@@ -372,6 +383,7 @@ export function classifyAiMediaGenerationError(error: unknown): AiMediaPublicErr
   if (match(/\bai_media_account_access_denied\b/)) return result("AI_MEDIA_ACCOUNT_ACCESS_DENIED");
   if (match(/\bai_media_idempotency_conflict\b/)) return result("AI_MEDIA_IDEMPOTENCY_CONFLICT");
   if (match(/\bai_media_generation_cancelled\b/)) return result("AI_MEDIA_GENERATION_CANCELLED");
+  if (isAiMediaSpeechVerificationUnavailable(error)) return result("AI_MEDIA_VIDEO_SPEECH_VERIFICATION_UNAVAILABLE");
   if (match(/ai_media_generated_narration_invalid/)) return result("AI_MEDIA_GENERATED_NARRATION_INVALID");
   if (match(/\bai_media_exact_narration_too_long\b/)) return result("AI_MEDIA_EXACT_NARRATION_TOO_LONG");
   if (/texte exact.{0,20}voix off.{0,20}trop long/.test(plain)) return result("AI_MEDIA_EXACT_NARRATION_TOO_LONG");

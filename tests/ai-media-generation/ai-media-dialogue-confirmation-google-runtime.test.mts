@@ -16,6 +16,8 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
   secondTranscript?: string;
   pronunciationAliases?: readonly AiMediaPronunciationAlias[];
   expectedContinuation?: boolean;
+  thirdTranscript?: string;
+  pronunciationStatus?: "verified" | "rejected" | "unavailable" | "invalid" | "deadline";
 } = {}) {
   const expectedLine = overrides.expectedLine ?? line;
   const firstTranscript = overrides.firstTranscript ?? cut;
@@ -37,14 +39,24 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
     ["@google/genai", { GoogleGenAI: class {
       interactions = { create: async (body: Record<string, unknown>, options: { timeout: number; maxRetries: number }) => {
         calls.push({ body, options });
-        assert.ok(calls.length <= 2, "At most one confirmation is allowed.");
+        assert.ok(calls.length <= 3, "At most three bounded audio checks are allowed.");
         const prompt = (body.input as Array<{ type: string; text?: string }>).find((part) => part.type === "text")!.text!;
+        const schema = (body.response_format as { schema: { properties: Record<string, unknown> } }).schema;
+        if (schema.properties.status) {
+          assert.equal(calls.length, 3, "Name verification follows two blind transcripts.");
+          assert.ok(!prompt.includes(expectedLine), "Name verification receives no full script.");
+          assert.ok(!prompt.includes(firstTranscript), "Name verification receives no full transcript.");
+          if (overrides.pronunciationStatus === "deadline") {
+            qaDeadline.abort(); throw new DOMException("QA deadline", "AbortError");
+          }
+          return { output_text: JSON.stringify({ status: overrides.pronunciationStatus ?? "unavailable" }), usage: { total_input_tokens: 10, total_output_tokens: 20, total_tokens: 30 } };
+        }
         assert.ok(!prompt.includes(expectedLine), "ASR never receives the expected script as a hint.");
         assert.ok(!prompt.includes(firstTranscript), "Confirmation never receives the first transcript as a hint.");
         if (calls.length === 2 && outcome === "deadline") {
           qaDeadline.abort(); throw new DOMException("QA deadline", "AbortError");
         }
-        const transcript = firstComplete ? expectedLine : calls.length === 2
+        const transcript = calls.length === 3 ? overrides.thirdTranscript ?? firstTranscript : firstComplete ? expectedLine : calls.length === 2
           ? overrides.secondTranscript ?? (outcome === "complete" ? expectedLine : firstTranscript)
           : firstTranscript;
         return { output_text: JSON.stringify({ transcript }), usage: { total_input_tokens: 10, total_output_tokens: 20, total_tokens: 30 } };
@@ -92,11 +104,15 @@ test("a confirmation QA deadline leaves a first rejection inconclusive instead o
 
 test("Google confirms a mistaken brand name from audio only without changing the video", async () => {
   const expectedLine = "Je suis Océane et je représente iNrCy pour accompagner votre entreprise.";
-  const h = adapter("complete", false, { expectedLine, firstTranscript: expectedLine.replace("iNrCy", "inertie") });
+  const h = adapter("complete", false, {
+    expectedLine,
+    firstTranscript: expectedLine.replace("iNrCy", "inertie"),
+    thirdTranscript: expectedLine,
+  });
   const result = await h.audit();
   assert.equal(result.status, "passed");
   assert.equal(result.clips[0].confirmation, "passed");
-  assert.equal(h.calls.length, 2);
+  assert.equal(h.calls.length, 3);
   assert.equal(h.extractions(), 1);
   assert.equal(h.cleaned(), 1);
   assert.doesNotMatch(JSON.stringify(result), /Océane|iNrCy|inertie/);
@@ -149,4 +165,42 @@ test("longer transcripts receive a bounded output allowance included in the acco
   const h = adapter("complete", true); assert.equal((await h.audit(30)).status, "passed");
   assert.equal(h.calls.length, 1); assert.equal(h.reservations[0].reservedOutputTokens, 360);
   assert.deepEqual(h.calls[0].body.generation_config, { max_output_tokens: 360 });
+});
+
+test("isolated brand verification reuses the audio, never seeds ASR, and has a finite shared budget", async () => {
+  const expectedLine = "Notre module iNrSearch augmente votre visibilité sur les moteurs intelligents.";
+  const heard = expectedLine.replace("iNrSearch", "Inner Search");
+  const h = adapter("still-cut", false, { expectedLine, firstTranscript: heard, secondTranscript: heard, pronunciationStatus: "verified" });
+  const result = await h.audit(15);
+  assert.equal(result.status, "passed");
+  assert.equal(result.clips[0].pronunciationVerification, "verified");
+  assert.equal(h.calls.length, 3); assert.equal(h.extractions(), 1); assert.equal(h.cleaned(), 1);
+  assert.ok(h.calls.every((call) => call.options.maxRetries === 0 && call.options.timeout <= 8_000 && call.body.store === false));
+  assert.ok(h.calls[2].options.timeout <= h.calls[1].options.timeout);
+  assert.ok(h.calls.slice(0, 2).every((call) => !JSON.stringify(call.body).includes("iNrSearch")));
+  assert.equal(h.reservations.length, 3);
+  assert.equal(h.reservations[2].reservedOutputTokens, 128);
+  assert.doesNotMatch(JSON.stringify(result), /Inner|Search|iNrSearch|transcript|pronunciationalias/);
+});
+
+test("negative, uncertain, malformed and timed-out name checks never authorize delivery", async () => {
+  const expectedLine = "Notre module iNrSearch augmente votre visibilité sur les moteurs intelligents.";
+  const heard = expectedLine.replace("iNrSearch", "Inner Search");
+  for (const pronunciationStatus of ["rejected", "unavailable", "invalid", "deadline"] as const) {
+    const h = adapter("still-cut", false, { expectedLine, firstTranscript: heard, secondTranscript: heard, pronunciationStatus });
+    const result = await h.audit(15);
+    assert.equal(result.status, pronunciationStatus === "rejected" ? "rejected" : "unavailable");
+    assert.equal(h.calls.length, 3); assert.equal(h.cleaned(), 1);
+  }
+});
+
+test("a contradictory critical value requires two conforming blind reads and never invokes name verification", async () => {
+  const expectedLine = "Notre offre reste disponible pour votre entreprise au tarif de 50 euros seulement.";
+  for (const thirdTranscript of [expectedLine, expectedLine.replace("50", "500")]) {
+    const h = adapter("complete", false, { expectedLine, firstTranscript: expectedLine.replace("50", "500"), secondTranscript: expectedLine, thirdTranscript });
+    const result = await h.audit(15);
+    assert.equal(result.status, thirdTranscript === expectedLine ? "passed" : "unavailable");
+    assert.equal(h.calls.length, 3); assert.equal(h.extractions(), 1); assert.equal(h.cleaned(), 1);
+    assert.ok(h.calls.every((call) => ((call.body.response_format as { schema: { properties: Record<string, unknown> } }).schema.properties.transcript)));
+  }
 });

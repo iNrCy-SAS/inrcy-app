@@ -1,6 +1,6 @@
 import type { GoogleGenAIOptions } from "@google/genai";
 import type { gaxios as GoogleAuthGaxios, IdentityPoolClientOptions } from "google-auth-library";
-import { isAiMediaProviderBillingFailure } from "./aiMediaGenerationPublicErrors.ts";
+import { isAiMediaProviderBillingFailure, isAiMediaSpeechVerificationUnavailable } from "./aiMediaGenerationPublicErrors.ts";
 
 // Legacy Gemini route stays available during the staged migration only.
 export const DEFAULT_VEO_MODEL = "veo-3.1-fast-generate-preview";
@@ -18,6 +18,7 @@ export type VeoInspirationMode = "references" | "source" | "none";
 export type VeoFailureKind =
   | "cancelled"
   | "billing"
+  | "verification_unavailable"
   | "invalid_argument"
   | "rate_limited"
   | "unavailable"
@@ -328,6 +329,8 @@ export function classifyVeoFailure(error: unknown): VeoFailureClassification {
     )
   ) {
     kind = "cancelled";
+  } else if (isAiMediaSpeechVerificationUnavailable(error)) {
+    kind = "verification_unavailable";
   } else if (isAiMediaProviderBillingFailure(error)) {
     kind = "billing";
   } else if (

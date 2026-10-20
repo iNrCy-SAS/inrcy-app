@@ -48,6 +48,8 @@ export type AiMediaNativeDialogueQaClipResult = {
   issues: AiMediaNativeDialogueQaIssue[];
   metrics: AiMediaNativeDialogueQaMetrics;
   confirmation?: "passed" | "rejected" | "unavailable";
+  /** Verdict only; private candidate names and audio never leave the callback. */
+  pronunciationVerification?: "verified" | "rejected" | "unavailable";
 };
 
 export type AiMediaNativeDialogueQaResult = {
@@ -67,6 +69,22 @@ export type AiMediaNativeDialogueTranscriber = (
   clip: AiMediaNativeDialogueQaClip,
   options: { language: string; signal?: AbortSignal },
 ) => Promise<AiMediaNativeDialogueTranscript>;
+
+export type AiMediaNativeDialoguePronunciationCandidate = {
+  expectedName: string;
+  transcribedName: string;
+};
+
+export type AiMediaNativeDialoguePronunciationVerifier = (
+  clip: AiMediaNativeDialogueQaClip,
+  options: {
+    language: string;
+    candidate: AiMediaNativeDialoguePronunciationCandidate;
+    signal?: AbortSignal;
+  },
+) => Promise<{ status: "verified" | "rejected" | "unavailable"; model?: string }>;
+
+const PRONUNCIATION_GRAMMATICAL_WORD = /^(?:a|au|aux|de|des|du|et|en|la|le|les|ne|ou|un|une|the|an|and|of|or|to|in|on|one)$/;
 
 function boundedRatio(value: number) {
   if (!Number.isFinite(value)) return 0;
@@ -98,6 +116,18 @@ function pronunciationTokens(tokens: readonly string[], aliases: readonly AiMedi
   const variants = aliases.flatMap((alias, index) => {
     const values = [alias.spelling, alias.pronunciation];
     const sound = tokenizeAiMediaNativeDialogue(alias.pronunciation);
+    // ASR sometimes joins the words of an explicitly supplied sound guide.
+    // Only remove separators inside that guide: never derive a pronunciation
+    // from a brand, add/drop letters, or join arbitrary transcript neighbours.
+    // Keep short guides and exclude grammatical/critical words so this cannot
+    // absorb a number, negation, date, unit or a neighbouring sentence word.
+    const soundValues = criticalSpeechValues(alias.pronunciation, language);
+    const joinedSound = sound.join("");
+    if (sound.length >= 2 && sound.length <= 4 && joinedSound.length >= 6 && joinedSound.length <= 48 &&
+      sound.every((token) => /^[a-z]{2,}$/u.test(token) && !PRONUNCIATION_GRAMMATICAL_WORD.test(token)) &&
+      ![soundValues.numbers, soundValues.ordinals, soundValues.negations, soundValues.units, soundValues.calendar].some((value) => value.length)) {
+      values.push(joinedSound);
+    }
     // A documented French lexeme, only when explicitly supplied as the sound
     // guide. Académie: "tie se prononce cie"; Larousse: /inɛʀsi/.
     // https://www.dictionnaire-academie.fr/article/A9I1068
@@ -526,6 +556,60 @@ function rejectedTranscriptsAgree(args: {
 }
 
 /**
+ * Isolate one brand spelling only when the remaining transcript is exact.
+ * No edit distance or pronunciation is inferred here. A separate audio verifier
+ * must prove the equivalence, and an explicit sound guide can never be relaxed.
+ */
+function pronunciationCandidate(args: {
+  expectedLine: string;
+  transcript: string;
+  language: string;
+  pronunciationAliases?: readonly AiMediaPronunciationAlias[];
+}): AiMediaNativeDialoguePronunciationCandidate | undefined {
+  const expectedValues = criticalSpeechValues(args.expectedLine, args.language);
+  const detectedValues = criticalSpeechValues(args.transcript, args.language);
+  if (["numbers", "ordinals", "negations", "units", "calendar"].some((key) => {
+    const field = key as "numbers" | "ordinals" | "negations" | "units" | "calendar";
+    return JSON.stringify(expectedValues[field]) !== JSON.stringify(detectedValues[field]);
+  })) return undefined;
+  const expected = pronunciationTokens(expectedValues.canonical, args.pronunciationAliases, args.language);
+  const detected = pronunciationTokens(detectedValues.canonical, args.pronunciationAliases, args.language);
+  const candidates: AiMediaNativeDialoguePronunciationCandidate[] = [];
+  for (const match of args.expectedLine.matchAll(/[\p{L}][\p{L}\p{N}]{2,}/gu)) {
+    const expectedName = match[0];
+    // Camel case is a strong, bounded signal. Ordinary capitalized words and
+    // numeric/acronym strings must not obtain a semantic rewrite through QA.
+    if (!/^\p{L}{4,64}$/u.test(expectedName) || !/\p{Ll}\p{Lu}/u.test(expectedName)) continue;
+    const nameTokens = tokenizeAiMediaNativeDialogue(expectedName);
+    if (nameTokens.length !== 1) continue;
+    if (args.pronunciationAliases?.some((alias) =>
+      tokenizeAiMediaNativeDialogue(alias.spelling).join(" ") === nameTokens[0])) continue;
+    const start = expected.indexOf(nameTokens[0]);
+    if (start < 0 || expected.lastIndexOf(nameTokens[0]) !== start) continue;
+    const spanLength = detected.length - expected.length + 1;
+    if (spanLength < 1 || spanLength > 4) continue;
+    const span = detected.slice(start, start + spanLength);
+    if (span.length !== spanLength || span.join("").length > 48 ||
+      span.some((token) => !/^[a-z]{2,}$/u.test(token) || PRONUNCIATION_GRAMMATICAL_WORD.test(token))) continue;
+    if (!expected.slice(0, start).every((token, index) => token === detected[index]) ||
+      !expected.slice(start + 1).every((token, index) => token === detected[start + spanLength + index])) continue;
+    const spanValues = criticalSpeechValues(span.join(" "), args.language);
+    if ([spanValues.numbers, spanValues.ordinals, spanValues.negations, spanValues.units, spanValues.calendar].some((value) => value.length)) continue;
+    if (spanLength === 1 && span[0] === nameTokens[0]) continue;
+    const candidate = { expectedName, transcribedName: span.join(" ") };
+    // Re-run every existing check with just this proposed spelling equivalence.
+    // A verifier cannot excuse incomplete speech, a repetition or another name.
+    const proposed = evaluateAiMediaNativeDialogue({
+      sceneIndex: 0, ...args,
+      pronunciationAliases: [...(args.pronunciationAliases || []), { spelling: expectedName, pronunciation: candidate.transcribedName }],
+    });
+    if (proposed.status === "passed" && proposed.metrics.expectedCoverage === 1 &&
+      proposed.metrics.bestWindowSimilarity === 1 && proposed.metrics.extraTokenCount === 0) candidates.push(candidate);
+  }
+  return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+/**
  * Orchestre le contrôle clip par clip. Le transcripteur reçoit bien le
  * `sourceStartSeconds` du clip : il peut ainsi extraire 8 s d'un même MP4
  * cumulatif Omni de 16/24 s sans mélanger les répliques.
@@ -535,8 +619,10 @@ export async function auditAiMediaNativeDialogueClips(args: {
   language?: string;
   pronunciationAliases?: readonly AiMediaPronunciationAlias[];
   transcribe: AiMediaNativeDialogueTranscriber;
-  /** One fresh, script-blind listen must confirm a rejection; never a rewrite. */
+  /** Script-blind confirmation; one further listen adjudicates conflicting critical values. */
   confirm?: AiMediaNativeDialogueTranscriber;
+  /** Optional audio proof for one isolated, undeclared camel-case brand only. */
+  verifyPronunciation?: AiMediaNativeDialoguePronunciationVerifier;
   signal?: AbortSignal;
 }): Promise<AiMediaNativeDialogueQaResult> {
   const startedAt = Date.now();
@@ -582,6 +668,8 @@ export async function auditAiMediaNativeDialogueClips(args: {
       });
       args.signal?.throwIfAborted();
       let result = evaluate(clip, transcription.text);
+      const initialText = transcription.text;
+      let pronunciationModel: string | undefined;
       if (result.status === "rejected" && args.confirm) {
         // The adapter sends audio only. No expected script or first transcript
         // biases the fresh listen, and no video/voice generation is retried.
@@ -590,8 +678,24 @@ export async function auditAiMediaNativeDialogueClips(args: {
           args.signal?.throwIfAborted();
           const checked = evaluate(clip, confirmed.text);
           if (checked.status === "passed") {
-            result = { ...checked, confirmation: "passed" };
-            transcription = confirmed;
+            if (result.issues.includes("spoken_critical_value_mismatch")) {
+              // A changed amount, negation or name cannot be cleared by choosing
+              // the nicer of two contradictory reads. One last blind listen must
+              // support the conforming read. This branch cannot request phonetic
+              // proof afterwards: at most three audio reads are made per clip.
+              const adjudicated = await args.confirm(clip, { language, signal: args.signal });
+              args.signal?.throwIfAborted();
+              const adjudicatedResult = evaluate(clip, adjudicated.text);
+              if (adjudicatedResult.status === "passed") {
+                result = { ...adjudicatedResult, confirmation: "passed" };
+                transcription = adjudicated;
+              } else {
+                result = { ...result, status: "unavailable", issues: ["transcription_inconclusive"], confirmation: "unavailable" };
+              }
+            } else {
+              result = { ...checked, confirmation: "passed" };
+              transcription = confirmed;
+            }
           } else if (rejectedTranscriptsAgree({
             initial: result, confirmed: checked,
             initialText: transcription.text, confirmedText: confirmed.text, language, pronunciationAliases: args.pronunciationAliases,
@@ -608,9 +712,41 @@ export async function auditAiMediaNativeDialogueClips(args: {
       } else if (result.status === "rejected") {
         result = { ...result, status: "unavailable", issues: ["transcription_unavailable"], confirmation: "unavailable" };
       }
+      if (args.verifyPronunciation && result.status === "rejected" && result.confirmation === "rejected" &&
+        result.issues.length === 1 && result.issues[0] === "spoken_critical_value_mismatch") {
+        const initialCandidate = pronunciationCandidate({ expectedLine: clip.expectedLine, transcript: initialText, language, pronunciationAliases: args.pronunciationAliases });
+        const confirmedCandidate = pronunciationCandidate({ expectedLine: clip.expectedLine, transcript: transcription.text, language, pronunciationAliases: args.pronunciationAliases });
+        // Different ASR guesses never confirm one another, even if their
+        // full-sentence similarity is high because the surrounding text matches.
+        if (initialCandidate && confirmedCandidate && initialCandidate.expectedName === confirmedCandidate.expectedName &&
+          initialCandidate.transcribedName === confirmedCandidate.transcribedName) {
+          try {
+            const verification = await args.verifyPronunciation(clip, { language, candidate: { ...confirmedCandidate }, signal: args.signal });
+            args.signal?.throwIfAborted();
+            pronunciationModel = verification.model;
+            if (verification.status === "verified") {
+              const checked = evaluateAiMediaNativeDialogue({
+                sceneIndex: clip.sceneIndex, expectedLine: clip.expectedLine, transcript: transcription.text, language,
+                expectSilence: clip.expectSilence, expectedContinuation: clip.expectedContinuation,
+                pronunciationAliases: [...(args.pronunciationAliases || []), {
+                  spelling: confirmedCandidate.expectedName, pronunciation: confirmedCandidate.transcribedName,
+                }],
+              });
+              if (checked.status === "passed") result = { ...checked, confirmation: "passed", pronunciationVerification: "verified" };
+            } else if (verification.status === "rejected") {
+              result = { ...result, pronunciationVerification: "rejected" };
+            } else {
+              result = { ...result, status: "unavailable", issues: ["transcription_inconclusive"], confirmation: "unavailable", pronunciationVerification: "unavailable" };
+            }
+          } catch (error) {
+            if (args.signal?.aborted) throw error;
+            result = { ...result, status: "unavailable", issues: ["transcription_unavailable"], confirmation: "unavailable", pronunciationVerification: "unavailable" };
+          }
+        }
+      }
       return {
         result,
-        model: transcription.model,
+        model: [transcription.model, pronunciationModel].filter(Boolean).join(",") || undefined,
       };
     } catch (error) {
       if (args.signal?.aborted) throw error;

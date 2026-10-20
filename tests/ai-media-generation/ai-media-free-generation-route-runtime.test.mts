@@ -192,6 +192,55 @@ test("generation persists the same safe actionable cause that status recovery wi
   }
 });
 
+for (const status of ["passed", "rejected", "unavailable"] as const) {
+  for (const stream of [false, true]) {
+    test(`native QA ${status}: real ${stream ? "streaming" : "JSON"} route settles the reservation exactly once and never retries generation`, async () => {
+      const error = status === "passed" ? undefined : new Error(status === "rejected"
+        ? "ai_media_free_native_character_speech_unusable:spoken_critical_value_mismatch"
+        : "ai_media_native_speech_verification_unavailable");
+      const route = loadRoute({ providerError: error });
+      const input = body({ kind: "video", videoEngine: "grok-lite", videoResolution: "720p", durationSeconds: 15,
+        teamVideoSpeechMode: "characters", withNarration: false, spokenScript: "Bonjour, je présente mon atelier.",
+        freePrompt: "PRIVATE_PROMPT Une céramiste présente son atelier.",
+      });
+      const rawResponse = await route.post(input, stream ? {
+        headers: { "Content-Type": "application/json", Accept: generationTransport.AI_MEDIA_GENERATION_STREAM_TYPE },
+      } : {});
+      const response = await generationTransport.readAiMediaGenerationResponse(rawResponse, () => {});
+      const payload = response.payload as Record<string, unknown>;
+      assert.equal(route.reservationCalls.length, 1);
+      assert.ok("expectedCredits" in input);
+      assert.equal(route.reservationCalls[0].quotaAmount, input.expectedCredits);
+      assert.equal(route.paidCalls(), 1);
+      assert.equal(route.generationCalls.length, 1);
+      assert.equal(route.releasedCheckpoints.length, 0, "QA failures precede any composition checkpoint");
+      if (status === "passed") {
+        assert.equal(response.status, 200);
+        assert.equal(payload.ok, true);
+        assert.equal(route.completionCalls.length, 1, "only verified media settles the debit");
+        assert.equal(route.failureCalls.length, 0);
+      } else {
+        const expectedCode = status === "rejected" ? "AI_MEDIA_VIDEO_SPEECH_MISMATCH" : "AI_MEDIA_VIDEO_SPEECH_VERIFICATION_UNAVAILABLE";
+        assert.equal(response.status, status === "rejected" ? 422 : 503);
+        assert.equal(payload.code, expectedCode);
+        assert.equal(payload.item, undefined);
+        assert.equal(route.completionCalls.length, 0);
+        assert.equal(route.failureCalls.length, 1, "failed validation releases/refunds the reservation through the existing quota API");
+        const release = route.failureCalls[0] as { accountId: string; jobId: string; errorCode: string; errorMessage: string };
+        assert.equal(release.accountId, "active-account-test");
+        assert.equal(release.jobId, route.generationCalls[0].jobId);
+        assert.equal(release.errorCode, expectedCode);
+        assert.equal(release.errorMessage, payload.error);
+        assert.doesNotMatch(JSON.stringify({ payload, release }), /PRIVATE_PROMPT|Bonjour|céramiste|token|transcript/);
+        if (status === "unavailable") {
+          assert.equal(payload.error, "La vérification des paroles n’a pas pu aboutir. Réessayez dans quelques instants.");
+          assert.doesNotMatch(String(payload.error), /moteur|prompt|correspondent|raccourcissez/);
+        }
+      }
+    });
+  }
+}
+
 test("a preparation stop while authentication is delayed cannot create a later reservation or paid call", async () => {
   let releaseAuth!: () => void;
   const route = loadRoute({ authentication: new Promise<void>((resolve) => { releaseAuth = resolve; }) });

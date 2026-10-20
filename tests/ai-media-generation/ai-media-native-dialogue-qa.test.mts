@@ -144,6 +144,310 @@ test("phonetic alias matching respects token boundaries and preserves unintended
   ]) assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript, pronunciationAliases }).status, "rejected");
 });
 
+test("an explicit multiword pronunciation accepts ASR word joining without inferring a brand pronunciation", async () => {
+  const expectedLine = "Notre module NovaDesk accompagne votre entreprise sur les moteurs de recherche.";
+  const pronunciationAliases = Object.freeze(extractAiMediaPronunciationAliases("NovaDesk se prononce « Inner Search ».").map(alias => Object.freeze(alias)));
+  for (const spelling of ["Inner Search", "InnerSearch", "INNERSEARCH"]) {
+    const transcript = expectedLine.replace("NovaDesk", spelling);
+    const input = Object.freeze({ sceneIndex: 0, expectedLine, transcript, pronunciationAliases, language: "fr" });
+    const result = evaluateAiMediaNativeDialogue(input);
+    assert.equal(result.status, "passed", spelling);
+    assert.equal(result.metrics.expectedTokenCount, result.metrics.detectedTokenCount);
+    assert.equal(evaluateAiMediaNativeDialogue({ ...input, pronunciationAliases: undefined }).status, "rejected");
+    assert.equal(evaluateAiMediaNativeDialogue({ ...input, pronunciationAliases: [{ spelling: "AutreNom", pronunciation: "Inner Search" }] }).status, "rejected");
+    assert.equal(input.transcript, transcript);
+    const audit = await auditAiMediaNativeDialogueClips({
+      clips: [fakeClip({ expectedLine })], pronunciationAliases,
+      transcribe: async () => ({ text: transcript }),
+      confirm: async () => { assert.fail("Exact letters of the explicitly supplied sound guide need no additional ASR."); },
+    });
+    assert.equal(audit.status, "passed");
+    assert.doesNotMatch(JSON.stringify(audit), /NovaDesk|Inner|pronunciationalias/);
+  }
+});
+
+test("joining an explicit sound guide cannot remove sounds, swallow adjacent words or excuse critical changes", async () => {
+  const expectedLine = "Avec NovaDesk à Bordeaux, notre offre ne comprend pas la livraison et coûte 50 euros seulement.";
+  const pronunciationAliases = extractAiMediaPronunciationAliases("NovaDesk se prononce « Inner Search ».");
+  const valid = expectedLine.replace("NovaDesk", "InnerSearch");
+  for (const transcript of [
+    ...["InSearch", "InnerSeach", "InnerSerch", "InnerSearchx", "InnerSearchà", "FinInnerSearch", "InnerSearch Inner Search"].map(name => expectedLine.replace("NovaDesk", name)),
+    valid.replace("50", "500"), valid.replace("euros", "dollars"), valid.replace("ne comprend pas", "comprend"),
+    valid.replace("Bordeaux", "Lyon"), `${valid} ${valid}`,
+  ]) {
+    assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript, pronunciationAliases }).status, "rejected", transcript);
+  }
+  const rejected = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })], pronunciationAliases,
+    transcribe: async () => ({ text: valid.replace("50", "500") }),
+    confirm: async () => ({ text: valid.replace("InnerSearch", "Inner Search").replace("50", "500") }),
+  });
+  assert.equal(rejected.status, "rejected");
+  assert.ok(rejected.clips[0].issues.includes("spoken_critical_value_mismatch"));
+});
+
+test("joined pronunciation normalization stays bounded to short lexical guides", () => {
+  const expectedLine = "Découvrez NovaDesk pour votre entreprise.";
+  for (const pronunciation of ["Inner Search Studio Connect Plus", "The Rapist", "Sans Souci", "Dix Mille", "Lundi Matin", "Vingt Euros"]) {
+    const pronunciationAliases = [{ spelling: "NovaDesk", pronunciation }];
+    const transcript = expectedLine.replace("NovaDesk", pronunciation.replaceAll(" ", ""));
+    assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript, pronunciationAliases }).status, "rejected", pronunciation);
+  }
+});
+
+test("real pitch ASR: Inner Search needs a declared pronunciation and never a product-specific guess", async () => {
+  const expectedLine = "Depuis un seul espace, il diffuse sur douze canaux, dont Google et les réseaux sociaux. Notre module iNrSearch aide à accroître sa visibilité sur les moteurs d’intelligence artificielle.";
+  const transcript = "Depuis un seul espace, il diffuse sur 12 canaux, dont Google et les réseaux sociaux. Notre module Inner Search aide à accroître sa visibilité sur les moteurs d'intelligence artificielle.";
+  const unrelatedGuide = extractAiMediaPronunciationAliases("iNrCy se prononce « inertie ».");
+  const undeclared = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })], pronunciationAliases: unrelatedGuide,
+    transcribe: async () => ({ text: transcript }), confirm: async () => ({ text: transcript }),
+  });
+  assert.equal(undeclared.status, "rejected");
+  const pronunciationAliases = extractAiMediaPronunciationAliases("iNrSearch se prononce « Inner Search ».");
+  for (const spokenName of ["Inner Search", "InnerSearch"]) {
+    const result = evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript: transcript.replace("Inner Search", spokenName), pronunciationAliases });
+    assert.equal(result.status, "passed");
+    assert.equal(result.metrics.expectedCoverage, 1);
+  }
+});
+
+test("real pitch ASR: a corrupt brand and verb are rejected, not repaired by a sound alias", async () => {
+  const expectedLine = "Je suis Océane, cofondatrice et directrice générale. iNrCy rend la communication simple, rapide et accessible. Prenez un paysagiste. Difficile de préparer sa communication du haut d’un arbre !";
+  const transcript = "Je suis Océane, cofondatrice et directrice générale. Inessire en la communication simple, rapide et accessible. Prenez un paysagiste. Difficile de préparer sa communication du haut d’un arbre.";
+  const result = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })], pronunciationAliases: extractAiMediaPronunciationAliases("iNrCy se prononce « inertie »."),
+    transcribe: async () => ({ text: transcript }), confirm: async () => ({ text: transcript }),
+  });
+  assert.equal(result.status, "rejected");
+  assert.ok(result.clips[0].issues.includes("spoken_critical_value_mismatch"));
+  assert.doesNotMatch(JSON.stringify(result), /Inessire|Océane|arbre/);
+});
+
+test("real pitch ASR: divergent wrong brand readings remain inconclusive and never become passed", async () => {
+  const expectedLine = "Environ cent utilisateurs paient déjà pour iNrCy. Notre fiche Google affiche soixante-cinq avis, avec une note moyenne de cinq sur cinq. Leurs retours soulignent simplicité et temps gagné.";
+  const first = "Environ 100 utilisateurs payent déjà pour In Reci. Notre fiche Google affiche 65 avis avec une note moyenne de 5 sur 5. Leurs retours soulignent simplicité et engagné.";
+  const second = "Environ 100 utilisateurs paient déjà pour une récit. Notre fiche Google affiche 65 avis, avec une note moyenne de 5 sur 5. Le retour souligne simplicité et en gagné.";
+  const result = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })], pronunciationAliases: extractAiMediaPronunciationAliases("iNrCy se prononce « inertie »."),
+    transcribe: async () => ({ text: first }), confirm: async () => ({ text: second }),
+  });
+  assert.equal(result.status, "unavailable");
+  assert.deepEqual(result.clips[0].issues, ["transcription_inconclusive"]);
+  assert.equal(result.clips[0].confirmation, "unavailable");
+  assert.doesNotMatch(JSON.stringify(result), /In Reci|récit|engagné|Google/);
+});
+
+test("independent audio proof may resolve one undeclared brand after two concordant, otherwise exact ASR reads", async () => {
+  const expectedLine = "Depuis un seul espace, il diffuse sur douze canaux, dont Google et les réseaux sociaux. Notre module iNrSearch aide à accroître sa visibilité sur les moteurs d’intelligence artificielle.";
+  const transcript = "Depuis un seul espace, il diffuse sur 12 canaux, dont Google et les réseaux sociaux. Notre module Inner Search aide à accroître sa visibilité sur les moteurs d'intelligence artificielle.";
+  const clip = Object.freeze(fakeClip({ expectedLine, sourceStartSeconds: 16, durationSeconds: 15 }));
+  const originalClip = { ...clip };
+  const calls: string[] = [];
+  const pronunciationAliases = Object.freeze([{ spelling: "iNrCy", pronunciation: "inertie" }]);
+  const result = await auditAiMediaNativeDialogueClips({
+    clips: [clip], pronunciationAliases,
+    transcribe: async () => { calls.push("first"); return { text: transcript, model: "asr-test" }; },
+    confirm: async () => { calls.push("second"); return { text: transcript, model: "asr-test" }; },
+    verifyPronunciation: async (input, options) => {
+      calls.push("audio-proof");
+      assert.equal(input, clip);
+      assert.equal(input.sourceStartSeconds, 16);
+      assert.equal(input.durationSeconds, 15);
+      assert.equal(options.language, "fr");
+      assert.deepEqual(options.candidate, { expectedName: "iNrSearch", transcribedName: "inner search" });
+      assert.equal("transcript" in options, false);
+      assert.equal("expectedLine" in options, false);
+      return { status: "verified", model: "audio-proof-test" };
+    },
+  });
+  assert.deepEqual(calls, ["first", "second", "audio-proof"]);
+  assert.equal(result.status, "passed");
+  assert.equal(result.clips[0].confirmation, "passed");
+  assert.equal(result.clips[0].pronunciationVerification, "verified");
+  assert.equal(result.clips[0].metrics.expectedCoverage, 1);
+  assert.equal(result.clips[0].metrics.bestWindowSimilarity, 1);
+  assert.equal(result.clips[0].metrics.extraTokenCount, 0);
+  assert.equal(result.model, "asr-test,audio-proof-test");
+  assert.deepEqual(clip, originalClip);
+  assert.deepEqual(pronunciationAliases, [{ spelling: "iNrCy", pronunciation: "inertie" }]);
+  assert.doesNotMatch(JSON.stringify(result), /iNrSearch|inner search|Google|intelligence|pronunciationalias|video/);
+});
+
+test("targeted audio proof is generic and any equivalent spelling is scoped to that clip only", async () => {
+  const expectedLine = "Le module NovaDesk accompagne votre entreprise pour publier les contenus rapidement.";
+  const spoken = expectedLine.replace("NovaDesk", "Nova Desk");
+  const clips = [fakeClip({ expectedLine }), fakeClip({ sceneIndex: 1, expectedLine })];
+  const checked: number[] = [];
+  const result = await auditAiMediaNativeDialogueClips({
+    clips,
+    transcribe: async () => ({ text: spoken }), confirm: async () => ({ text: spoken }),
+    verifyPronunciation: async (clip, { candidate }) => {
+      checked.push(clip.sceneIndex);
+      assert.deepEqual(candidate, { expectedName: "NovaDesk", transcribedName: "nova desk" });
+      return { status: clip.sceneIndex === 0 ? "verified" : "rejected" };
+    },
+  });
+  assert.deepEqual(checked.sort(), [0, 1]);
+  assert.equal(result.status, "rejected");
+  assert.deepEqual(result.clips.map(clip => clip.status), ["passed", "rejected"]);
+  assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript: spoken }).status, "rejected");
+});
+
+test("missing, refused, inconclusive or failed phonetic proof never delivers a rejected brand", async () => {
+  const expectedLine = "Le module NovaDesk accompagne votre entreprise pour publier les contenus rapidement.";
+  const transcript = expectedLine.replace("NovaDesk", "Nova Desk");
+  for (const proof of ["missing", "rejected", "unavailable", "error"] as const) {
+    let proofCalls = 0;
+    const result = await auditAiMediaNativeDialogueClips({
+      clips: [fakeClip({ expectedLine })],
+      transcribe: async () => ({ text: transcript }), confirm: async () => ({ text: transcript }),
+      ...(proof === "missing" ? {} : { verifyPronunciation: async () => {
+        proofCalls++;
+        if (proof === "error") throw new DOMException("Audio proof deadline", "TimeoutError");
+        return { status: proof };
+      } }),
+    });
+    assert.equal(proofCalls, proof === "missing" ? 0 : 1);
+    assert.equal(result.status, proof === "missing" || proof === "rejected" ? "rejected" : "unavailable");
+    assert.equal(result.clips[0].pronunciationVerification, proof === "missing" ? undefined : proof === "error" ? "unavailable" : proof);
+    assert.doesNotMatch(JSON.stringify(result), /NovaDesk|nova desk|deadline/);
+  }
+});
+
+test("a verifier is never allowed to override an explicit sound guide, even for a convincing ASR brand spelling", async () => {
+  const expectedLine = "Le module NovaDesk accompagne votre entreprise pour publier les contenus rapidement.";
+  for (const pronunciation of ["inertie", "Super Studio"]) {
+    const result = await auditAiMediaNativeDialogueClips({
+      clips: [fakeClip({ expectedLine })], pronunciationAliases: [{ spelling: "novadesk", pronunciation }],
+      transcribe: async () => ({ text: expectedLine.replace("NovaDesk", "Nova Desk") }),
+      confirm: async () => ({ text: expectedLine.replace("NovaDesk", "Nova Desk") }),
+      verifyPronunciation: async () => { assert.fail("An explicit sound guide is inviolable."); },
+    });
+    assert.equal(result.status, "rejected");
+  }
+});
+
+test("audio proof requires two concordant readings of the same isolated span, not merely high sentence similarity", async () => {
+  const expectedLine = "Notre module NovaDesk permet de préparer facilement tous vos contenus et de les diffuser sur plusieurs canaux pour faire connaître votre entreprise et partager vos dernières nouveautés auprès de tous vos clients.";
+  for (const [first, second] of [
+    [expectedLine.replace("NovaDesk", "Nova Desk"), expectedLine.replace("NovaDesk", "Nouveau Desk")],
+    [expectedLine.replace("NovaDesk", "Nova Desk"), expectedLine.replace("NovaDesk", "Nova Desks")],
+    [expectedLine.replace("NovaDesk", "Nova Desk"), expectedLine.replace("NovaDesk", "Nova Desk").replace("préparer", "créer")],
+  ]) {
+    const result = await auditAiMediaNativeDialogueClips({
+      clips: [fakeClip({ expectedLine })],
+      transcribe: async () => ({ text: first }), confirm: async () => ({ text: second }),
+      verifyPronunciation: async () => { assert.fail("Divergent wrong reads are not phonetic evidence."); },
+    });
+    assert.notEqual(result.status, "passed");
+    assert.equal(result.clips[0].pronunciationVerification, undefined);
+  }
+  const unconfirmed = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })], transcribe: async () => ({ text: expectedLine.replace("NovaDesk", "Nova Desk") }),
+    verifyPronunciation: async () => { assert.fail("One read is insufficient."); },
+  });
+  assert.equal(unconfirmed.status, "unavailable");
+});
+
+test("audio proof cannot repair numbers, negations, calendar values, units, names, word order, repetitions or other words", async () => {
+  const expectedLine = "Notre module NovaDesk à Bordeaux ne comprend pas la livraison et coûte 50 euros depuis le premier septembre pour accompagner votre entreprise.";
+  const candidate = expectedLine.replace("NovaDesk", "Nova Desk");
+  for (const transcript of [
+    candidate.replace("50", "500"), candidate.replace("euros", "dollars"), candidate.replace("ne comprend pas", "comprend"),
+    candidate.replace("septembre", "octobre"), candidate.replace("premier", "deuxième"), candidate.replace("Bordeaux", "Lyon"),
+    candidate.replace("accompagner", "aider"), candidate.replace("votre entreprise", "entreprise votre"),
+    candidate.replace("la livraison", "livraison"), candidate.replace("la livraison", "la belle livraison"),
+    candidate.replace("Nova Desk", "Nova Desk Nova Desk"), `${candidate} Votre entreprise.`,
+  ]) {
+    const result = await auditAiMediaNativeDialogueClips({
+      clips: [fakeClip({ expectedLine })], transcribe: async () => ({ text: transcript }), confirm: async () => ({ text: transcript }),
+      verifyPronunciation: async () => { assert.fail(`Cannot relax another defect: ${transcript}`); },
+    });
+    assert.equal(result.status, "rejected", transcript);
+    assert.equal(result.clips[0].pronunciationVerification, undefined);
+  }
+});
+
+test("phonetic evidence must reject an extra lexical word inside an ambiguous multiword brand span", async () => {
+  const expectedLine = "Notre module NovaDesk accompagne votre entreprise avec des contenus de qualité.";
+  const transcript = expectedLine.replace("NovaDesk", "Nova Desk rend");
+  let proofCalls = 0;
+  const result = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })],
+    transcribe: async () => ({ text: transcript }), confirm: async () => ({ text: transcript }),
+    verifyPronunciation: async (_, { candidate }) => {
+      proofCalls++;
+      assert.deepEqual(candidate, { expectedName: "NovaDesk", transcribedName: "nova desk rend" });
+      return { status: "rejected" };
+    },
+  });
+  assert.equal(proofCalls, 1);
+  assert.equal(result.status, "rejected");
+  assert.equal(result.clips[0].pronunciationVerification, "rejected");
+});
+
+test("audio-proof candidates exclude common words, acronyms, grammatical and critical spans, and ambiguous multiple brands", async () => {
+  const line = "Notre module NovaDesk accompagne votre entreprise pour publier les contenus rapidement.";
+  const pairs = [
+    [line.replace("NovaDesk", "Bordeaux"), line.replace("NovaDesk", "Bord Eau")],
+    [line.replace("NovaDesk", "NASA"), line.replace("NovaDesk", "Nassa")],
+    [line.replace("NovaDesk", "Nova2Desk"), line.replace("NovaDesk", "Nova Desk")],
+    [line.replace("NovaDesk", "notre"), line.replace("NovaDesk", "votre")],
+    [line, line.replace("NovaDesk", "la nouvelle")],
+    [line, line.replace("NovaDesk", "sans souci")],
+    [line, line.replace("NovaDesk", "dix mille")],
+    [line, line.replace("NovaDesk", "lundi matin")],
+    [line, line.replace("NovaDesk", "dix euros")],
+    [line, line.replace("NovaDesk", "Nova Desk Studio Connect Plus")],
+    [line.replace("NovaDesk", "NovaDesk UltraCloud"), line.replace("NovaDesk", "Nova Desk Ultra Cloud")],
+    [line.replace("NovaDesk", "NovaDesk NovaDesk"), line.replace("NovaDesk", "Nova Desk Nova Desk")],
+  ];
+  for (const [expectedLine, transcript] of pairs) {
+    const result = await auditAiMediaNativeDialogueClips({
+      clips: [fakeClip({ expectedLine })], transcribe: async () => ({ text: transcript }), confirm: async () => ({ text: transcript }),
+      verifyPronunciation: async () => { assert.fail(`Not a bounded brand candidate: ${transcript}`); },
+    });
+    assert.equal(result.clips[0].pronunciationVerification, undefined);
+    // A harmless ordinary ASR variation may pass existing checks, but must never
+    // obtain an invented pronunciation equivalence through this new mechanism.
+    if (expectedLine.includes("NovaDesk")) assert.equal(result.status, "rejected", transcript);
+  }
+});
+
+test("audio proof never suppresses inter-clip repetition or confirms a clip that already passed", async () => {
+  const previousLine = "Votre entreprise évolue plus facilement.";
+  const expectedLine = "Notre module NovaDesk accompagne votre entreprise avec des contenus de qualité.";
+  const result = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine: previousLine }), fakeClip({ sceneIndex: 1, expectedLine })],
+    transcribe: async clip => ({ text: clip.sceneIndex === 0 ? previousLine : `${expectedLine.replace("NovaDesk", "Nova Desk")} Plus facilement.` }),
+    confirm: async clip => ({ text: clip.sceneIndex === 0 ? previousLine : `${expectedLine.replace("NovaDesk", "Nova Desk")} Plus facilement.` }),
+    verifyPronunciation: async () => { assert.fail("Inter-clip repetition remains a defect."); },
+  });
+  assert.equal(result.status, "rejected");
+  assert.ok(result.clips[1].issues.includes("spoken_dialogue_repeated"));
+  const passed = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })], transcribe: async clip => ({ text: clip.expectedLine }),
+    verifyPronunciation: async () => { assert.fail("No extra proof is needed for conforming speech."); },
+  });
+  assert.equal(passed.status, "passed");
+});
+
+test("caller cancellation interrupts the targeted audio proof and never becomes an accepted clip", async () => {
+  const controller = new AbortController();
+  const expectedLine = "Notre module NovaDesk accompagne votre entreprise avec des contenus de qualité.";
+  const transcript = expectedLine.replace("NovaDesk", "Nova Desk");
+  await assert.rejects(auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })], signal: controller.signal,
+    transcribe: async () => ({ text: transcript }), confirm: async () => ({ text: transcript }),
+    verifyPronunciation: async (_, { signal }) => {
+      assert.equal(signal, controller.signal);
+      controller.abort();
+      return { status: "verified" };
+    },
+  }), { name: "AbortError" });
+});
+
 test("critical prices, times and negations cannot pass on high overall word overlap", () => {
   const pairs = [
     ["Notre offre est disponible pour 50 euros seulement.", "Notre offre est disponible pour 500 euros seulement."],
@@ -269,7 +573,7 @@ test("a second independent listen must confirm missing critical values, repetiti
   }
 });
 
-test("a fresh conforming listen clears a mistaken name or any other first-transcript rejection", async () => {
+test("two fresh conforming listens can clear an initial mistaken brand transcription", async () => {
   const expectedLine = "Je suis Océane et je représente iNrCy pour accompagner votre entreprise.";
   const initial = "Je suis Océane et je représente inertie pour accompagner votre entreprise.";
   assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript: initial }).status, "rejected");
@@ -279,11 +583,65 @@ test("a fresh conforming listen clears a mistaken name or any other first-transc
     transcribe: async () => ({ text: initial }),
     confirm: async () => { confirmations++; return { text: expectedLine }; },
   });
-  assert.equal(confirmations, 1);
+  assert.equal(confirmations, 2);
   assert.equal(result.status, "passed");
   assert.deepEqual(result.clips[0].issues, []);
   assert.equal(result.clips[0].confirmation, "passed");
   assert.doesNotMatch(JSON.stringify(result), /Océane|iNrCy|inertie/);
+});
+
+test("a first critical mismatch followed by a conforming read needs one final blind adjudication", async () => {
+  const expectedLine = "Notre module NovaDesk ne comprend pas la livraison et coûte 50 euros pour accompagner votre entreprise.";
+  for (const incorrect of [
+    expectedLine.replace("50", "500"),
+    expectedLine.replace("ne comprend pas", "comprend"),
+    expectedLine.replace("NovaDesk", "SuperCloud"),
+  ]) {
+    for (const finalRead of ["conforming", "wrong", "unavailable"] as const) {
+      const calls: string[] = [];
+      const result = await auditAiMediaNativeDialogueClips({
+        clips: [fakeClip({ expectedLine })],
+        transcribe: async () => { calls.push("first"); return { text: incorrect }; },
+        confirm: async (_, options) => {
+          assert.deepEqual(Object.keys(options).sort(), ["language", "signal"]);
+          calls.push("blind");
+          if (calls.length === 2) return { text: expectedLine };
+          if (finalRead === "unavailable") throw new DOMException("Shared QA deadline", "TimeoutError");
+          return { text: finalRead === "conforming" ? expectedLine : incorrect };
+        },
+        verifyPronunciation: async () => { assert.fail("Critical adjudication and phonetic proof cannot both run."); },
+      });
+      assert.deepEqual(calls, ["first", "blind", "blind"]);
+      assert.equal(result.status, finalRead === "conforming" ? "passed" : "unavailable");
+      assert.equal(result.clips[0].confirmation, finalRead === "conforming" ? "passed" : "unavailable");
+      if (finalRead !== "conforming") {
+        assert.deepEqual(result.clips[0].issues, [finalRead === "wrong" ? "transcription_inconclusive" : "transcription_unavailable"]);
+      }
+      assert.doesNotMatch(JSON.stringify(result), /NovaDesk|SuperCloud|livraison|deadline/);
+    }
+  }
+});
+
+test("the final critical-value adjudication shares cancellation and cannot extend an expired audio budget", async () => {
+  const expectedLine = "Notre offre ne comprend pas la livraison et coûte 50 euros seulement.";
+  const controller = new AbortController();
+  let reads = 0;
+  await assert.rejects(auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })], signal: controller.signal,
+    transcribe: async (_, { signal }) => {
+      assert.equal(signal, controller.signal);
+      reads++;
+      return { text: expectedLine.replace("50", "500") };
+    },
+    confirm: async (_, { signal }) => {
+      assert.equal(signal, controller.signal);
+      reads++;
+      if (reads === 3) controller.abort(new DOMException("Shared audio deadline", "TimeoutError"));
+      return { text: expectedLine };
+    },
+    verifyPronunciation: async () => { assert.fail("Only one three-read path is allowed."); },
+  }), { name: "TimeoutError" });
+  assert.equal(reads, 3);
 });
 
 test("two rejected but contradictory transcripts are inconclusive instead of confirming one another", async () => {

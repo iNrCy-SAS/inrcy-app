@@ -11,6 +11,17 @@ import {
   supportsVeoReferenceImages,
 } from "../../lib/aiVideoReliability.ts";
 
+test("speech verification unavailability never triggers paid video retry or provider fallback, even behind HTTP 503", () => {
+  for (const code of ["ai_media_native_speech_verification_unavailable", "AI_MEDIA_VIDEO_SPEECH_VERIFICATION_UNAVAILABLE"]) {
+    for (const error of [new Error(code), Object.assign(new Error(code), { statusCode: 503 }), new Error("video service unavailable", { cause: { code, status: 503 } })]) {
+      const result = classifyVeoFailure(error);
+      assert.equal(result.kind, "verification_unavailable");
+      assert.equal(result.retryable, false);
+      assert.equal(result.modelFallbackEligible, false);
+    }
+  }
+});
+
 test("provider billing refusals are never mistaken for capacity or model problems", () => {
   const text = "Video generation requires a minimum balance of $10. Your current balance is insufficient.";
   for (const error of [new Error(text), Object.assign(new Error(text), { statusCode: 402 }),

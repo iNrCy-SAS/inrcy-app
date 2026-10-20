@@ -303,19 +303,16 @@ test("le montage audio préserve le dialogue natif sans jamais recoller un TTS s
     "une voix off coupe toujours l'audio natif Veo pour empêcher une seconde voix en fond",
   );
   assert.match(server, /auditAiMediaNativeDialogueWithGoogle/);
-  assert.match(server, /native_character_dialogue_qa_rejected_native_audio_muted/);
+  assert.doesNotMatch(server, /native_character_dialogue_qa_(?:rejected_native_audio_muted|unavailable_native_audio_preserved)/);
   assert.match(
     server,
-    /native_character_dialogue_qa_unavailable_native_audio_preserved/,
-  );
-  assert.match(
-    server,
-    /characterDialogueRequested &&[\s\S]*?!characterDialogueProviderFallback &&[\s\S]*?nativeDialogueQa\?\.status !== "rejected"/,
+    /characterDialogueRequested &&[\s\S]*?!characterDialogueProviderFallback &&[\s\S]*?nativeDialogueQa\?\.status === "passed"/,
   );
   assert.doesNotMatch(server, /character_dialogue_fallback_narration/);
   assert.doesNotMatch(server, /character_dialogue_audio_fallback/);
   assert.doesNotMatch(server, /identity_team_character_dialogue_fallback_voiceover/);
-  assert.doesNotMatch(server, /nativeDialogueQa\?\.status !== "passed"/);
+  assert.match(server, /nativeDialogueQa\?\.status !== "passed"/);
+  assert.match(server, /ai_media_native_speech_verification_unavailable/);
   assert.doesNotMatch(server, /ai_media_character_dialogue_quality_unverified/);
   assert.match(server, /minimalNativeDialogueSucceeded/);
   assert.match(server, /video_composition_minimal_native_dialogue/);

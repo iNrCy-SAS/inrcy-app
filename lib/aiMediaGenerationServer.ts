@@ -1711,10 +1711,14 @@ export async function generateAndSaveAiMedia(args: {
                   expectedDialogueLines.slice(index + 1).some((line) => Boolean(line.trim())),
               })),
             })
-          )
+          ).catch(() => {
+            args.signal?.throwIfAborted();
+            throw new Error("ai_media_native_speech_verification_unavailable");
+          })
         : null;
     // Une bouche qui bouge sans voix ou une réplique rejetée ne constitue pas
     // un média Libre valide. Ne jamais coller une voix TTS sur ces lèvres.
+    args.signal?.throwIfAborted();
     if (characterDialogueRequested && (
       characterDialogueProviderFallback || nativeDialogueQa?.status === "rejected"
     )) {
@@ -1738,6 +1742,12 @@ export async function generateAndSaveAiMedia(args: {
         `ai_media_free_native_character_speech_unusable:${issues.join(",") || "quality_rejected"}`
       );
     }
+    // A technical or inconclusive audit proves neither conformity nor a
+    // provider mistake. Stop before composition/persistence; never regenerate
+    // a paid clip or replace its native voice just to retry verification.
+    if (characterDialogueRequested && nativeDialogueQa?.status !== "passed") {
+      throw new Error("ai_media_native_speech_verification_unavailable");
+    }
     const nativeVoiceoverQa = nativeVoiceoverRequested &&
       !videoGateway.provider.startsWith("inrcy-")
       ? await measure("native_voiceover_qa", () =>
@@ -1757,18 +1767,24 @@ export async function generateAndSaveAiMedia(args: {
               expectedContinuation: isFreeCreation && typeof providerRequest.spokenScript === "string" &&
                 nativeNarrationLines?.slice(index + 1).some((line) => Boolean(line.trim())) === true,
             })),
-          }))
+          })).catch(() => {
+            args.signal?.throwIfAborted();
+            throw new Error("ai_media_native_speech_verification_unavailable");
+          })
       : null;
+    args.signal?.throwIfAborted();
     if (nativeVoiceoverRequested && (
       videoGateway.provider.startsWith("inrcy-") || nativeVoiceoverQa?.status === "rejected"
     )) {
       const issues = [...new Set(nativeVoiceoverQa?.clips.flatMap((clip) => clip.issues) || [])];
       throw new Error(`ai_media_free_native_character_speech_unusable:${issues.join(",") || "provider_fallback"}`);
     }
-    // An inconclusive audit is not proof of conformity or permission to
-    // replace the voice. Preserve native audio as for character dialogue.
+    if (nativeVoiceoverRequested && nativeVoiceoverQa?.status !== "passed") {
+      throw new Error("ai_media_native_speech_verification_unavailable");
+    }
+    // Only verified native speech reaches composition, with its original voice.
     const nativeVoiceoverPreserved = nativeVoiceoverRequested &&
-      !videoGateway.provider.startsWith("inrcy-") && nativeVoiceoverQa?.status !== "rejected";
+      !videoGateway.provider.startsWith("inrcy-") && nativeVoiceoverQa?.status === "passed";
     const narrationJoinStartedAt = performance.now();
     const narrationResult = await waitForOptionalTaskWithinGrace({
           task: narrationTask,
@@ -1800,22 +1816,6 @@ export async function generateAndSaveAiMedia(args: {
     ) {
       throw new Error("ai_media_narration_unavailable");
     }
-    // Le dialogue reste natif. La voix off Libre est toujours composée
-    // séparément ; le contrôle natif reste disponible pour les anciens parcours.
-    if (nativeDialogueQa?.status === "rejected") {
-      pipelineWarnings.push(
-        "native_character_dialogue_qa_rejected_native_audio_muted"
-      );
-    } else if (nativeDialogueQa?.status === "unavailable") {
-      pipelineWarnings.push(
-        "native_character_dialogue_qa_unavailable_native_audio_preserved"
-      );
-    }
-    if (characterDialogueProviderFallback) {
-      pipelineWarnings.push(
-        "identity_team_character_dialogue_unavailable_silent_motion"
-      );
-    }
     args.signal?.removeEventListener("abort", abortNarrationFromCaller);
 
     const [soundtrackResult, overlaysResult] = await Promise.all([
@@ -1838,7 +1838,7 @@ export async function generateAndSaveAiMedia(args: {
     let nativeCharacterDialoguePreserved =
       characterDialogueRequested &&
       !characterDialogueProviderFallback &&
-      nativeDialogueQa?.status !== "rejected";
+      nativeDialogueQa?.status === "passed";
 
     const clips = videoGateway.clips.map((clip) => ({
       buffer: clip.buffer,

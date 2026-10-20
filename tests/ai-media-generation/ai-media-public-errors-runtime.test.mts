@@ -89,6 +89,20 @@ test("a critical speech mismatch takes priority over incidental repeated words",
     "AI_MEDIA_VIDEO_SPEECH_REPEATED", "a correctly pronounced script replayed twice is still explained as repetition");
 });
 
+test("an unavailable speech verification is a private-safe technical 503, never a provider or script accusation", () => {
+  for (const error of [
+    new Error("ai_media_native_speech_verification_unavailable"),
+    { code: "AI_MEDIA_VIDEO_SPEECH_VERIFICATION_UNAVAILABLE", message: "PRIVATE_TRANSCRIPT", cause: { message: "503 timeout https://private.invalid/?token=secret" } },
+  ]) {
+    const result = explain(error);
+    assert.equal(result.code, "AI_MEDIA_VIDEO_SPEECH_VERIFICATION_UNAVAILABLE");
+    assert.equal(result.status, 503);
+    assert.equal(result.message, "La vérification des paroles n’a pas pu aboutir. Réessayez dans quelques instants.");
+    assert.equal(result.retryAfterSeconds, 30);
+    assert.doesNotMatch(JSON.stringify(result), /PRIVATE|https:|token|secret|moteur|prompt|réplique|correspondent/);
+  }
+});
+
 test("unknown and malicious diagnostics never become public output, including getter and cycle traps", () => {
   const secret = "PRIVATE_PROMPT https://private.invalid/?token=secret data:image/png;base64,AAAA sk-test-secret";
   const error: Record<string, unknown> = { message: secret, metadata: { code: "ai_media_generation_cancelled" } };

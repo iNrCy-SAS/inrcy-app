@@ -63,6 +63,22 @@ test("credit reservations pass the frozen amount to v3 and never reinterpret it 
   assert.equal((result.quota as Row).unit,"credit");
 });
 
+test("failed native verification releases the credit reservation through fail v3, never completion or legacy quota",async()=>{
+  const row={...base("video"),quota_unit:"credit",quota_amount:37,job_id:actor,job_status:"failed",media_id:null,
+    limit_count:100,used_count:0,reserved_count:0,remaining_count:100};
+  const f=fixture([row],true);
+  const errorCode="AI_MEDIA_VIDEO_SPEECH_VERIFICATION_UNAVAILABLE";
+  const errorMessage="La vérification des paroles n’a pas pu aboutir. Réessayez dans quelques instants.";
+  const result=await f.api.failAiMediaGeneration({accountId:account,jobId:actor,errorCode,errorMessage});
+  assert.deepEqual(f.calls.map(call=>call.name),["fail_ai_media_generation_v3"]);
+  assert.deepEqual(f.calls[0].args,{p_account_id:account,p_job_id:actor,p_error_code:errorCode,p_error_message:errorMessage,p_metadata:{}});
+  assert.equal(result.status,"failed");
+  assert.equal(result.mediaId,null);
+  assert.equal(result.quotaAmount,37);
+  assert.equal((result.quota as Row).reserved,0);
+  assert.equal((result.quota as Row).remaining,100);
+});
+
 test("missing credit RPCs fail closed; fallback is only explicit legacy completion",async()=>{
   const missing=(name:string)=>({data:null,error:{code:"PGRST202",message:`Could not find ${name}`}});
   const f=fixture([],true,async name=>missing(name));
