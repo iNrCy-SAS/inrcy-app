@@ -3,7 +3,7 @@
   "ai_generator_spoken_script_add": "Add speech",
   "ai_generator_spoken_script_label": "Words to say",
   "ai_generator_spoken_script_remove": "Remove speech",
-  "ai_generator_spoken_script_placeholder": "E.g. Hello, I’m Océane, co-founder and managing director of iNrCy.",
+  "ai_generator_spoken_script_placeholder": "Es. Ciao, scopri le nostre novità della settimana.",
   "ai_generator_spoken_script_help": "Enter only the words to say, without quotation marks. Choose voiceover or characters in Criteria.",
   "ai_generator_spoken_script_silent_help": "Choose Voiceover or Characters in Criteria to add speech.",
   "ai_generator_spoken_script_choose_audio": "Choose audio mode",

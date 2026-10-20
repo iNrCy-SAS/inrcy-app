@@ -3,7 +3,7 @@
   "ai_generator_spoken_script_add": "Ajouter paroles",
   "ai_generator_spoken_script_label": "Paroles à prononcer",
   "ai_generator_spoken_script_remove": "Supprimer les paroles",
-  "ai_generator_spoken_script_placeholder": "Ex. Bonjour, je suis Océane, cofondatrice et directrice générale d’iNrCy.",
+  "ai_generator_spoken_script_placeholder": "Ex. Bonjour, découvrez nos nouveautés de la semaine.",
   "ai_generator_spoken_script_help": "Écrivez uniquement les paroles, sans guillemets. Le mode voix off ou personnages se choisit dans Critères.",
   "ai_generator_spoken_script_silent_help": "Choisissez Voix off ou Personnages dans Critères pour ajouter des paroles.",
   "ai_generator_spoken_script_choose_audio": "Choisir le mode audio",

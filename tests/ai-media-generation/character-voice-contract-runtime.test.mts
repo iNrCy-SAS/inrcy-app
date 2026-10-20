@@ -57,7 +57,12 @@ test("Wan 3 enforces its fifteen-second aggregate across distinct character samp
   assert.deepEqual(normalizeAiMediaGenerationRequest(payload({ videoEngine: "wan3", inspirationImages: allowed })).inspirationImages.map((image) => image.voiceSample?.durationSeconds), [5, 5, 5]);
   const excessive = images([5, 5, 5.1]);
   assert.equal(exceedsAiMediaCharacterVoiceEngineDuration("wan3", excessive), true);
-  assert.throws(() => normalizeAiMediaGenerationRequest(payload({ videoEngine: "wan3", inspirationImages: excessive })), /Wan 3.*15 secondes.*Raccourcissez.*Wan 2.7.*HeyGen/);
+  assert.throws(() => normalizeAiMediaGenerationRequest(payload({ videoEngine: "wan3", inspirationImages: excessive })), (error: unknown) => {
+    assert.ok(error instanceof Error);
+    assert.match(error.message, /Wan 3.*15 secondes.*Raccourcissez.*Wan 2\.7/);
+    assert.doesNotMatch(error.message, /HeyGen/i);
+    return true;
+  });
   for (const videoEngine of ["wan27", "heygen"]) {
     const originals = images([10, 10, 10]);
     assert.equal(exceedsAiMediaCharacterVoiceEngineDuration(videoEngine, originals), false);
