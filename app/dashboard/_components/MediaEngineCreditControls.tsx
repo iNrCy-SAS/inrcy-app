@@ -235,11 +235,11 @@ export default function MediaEngineCreditControls(props: Props) {
     if (engine === props.videoEngine) props.onResolutionChange(resolution);
     else props.onVideoEngineChange(engine, resolution);
   };
-  return <><fieldset className={styles.controls} disabled={props.disabled} data-media-engine-controls data-kind={props.kind}>
+  return <><fieldset className={styles.controls} data-media-engine-controls data-kind={props.kind}>
     <legend className={styles.visuallyHidden}>{t("ai_generator_media_engine")}</legend>
     <div className={styles.engineField}>
     <div className={styles.engineLabel}><label htmlFor={`${id}-engine`}>{t(props.kind === "video" ? "ai_generator_engine_quality_label" : "ai_generator_media_engine_choice")}</label><button type="button" className={styles.engineInfoTrigger} aria-label={t("ai_generator_engine_info_open")} title={t("ai_generator_engine_info_open")} aria-haspopup="dialog" aria-expanded={infoOpen} onClick={() => setInfoOpen(true)}><span aria-hidden="true">i</span></button></div>
-    {props.kind === "video" ? <select id={`${id}-engine`} value={`${props.videoEngine}:${selectedResolution}`} title={selectDescription || undefined} onChange={(event) => {
+    {props.kind === "video" ? <select id={`${id}-engine`} value={`${props.videoEngine}:${selectedResolution}`} disabled={props.disabled} title={selectDescription || undefined} onChange={(event) => {
       const choice = choices.find((option) => option.value === event.target.value);
       if (choice) selectVideoPair(choice.engine, choice.resolution);
     }}>
@@ -250,13 +250,13 @@ export default function MediaEngineCreditControls(props: Props) {
           {recommendedPair?.value === option.value ? ` · ${t("ai_generator_model_recommended_short")}` : ""}
         </option>)}
       </optgroup>)}
-    </select> : <select id={`${id}-engine`} value={props.imageEngine} title={imageCompatibilityReason(props.imageEngine) || undefined} onChange={(event) => { const engine = normalizeAiMediaImageEngine(event.target.value); if (engine && imageSelectable(engine)) props.onImageEngineChange(engine); }}>
+    </select> : <select id={`${id}-engine`} value={props.imageEngine} disabled={props.disabled} title={imageCompatibilityReason(props.imageEngine) || undefined} onChange={(event) => { const engine = normalizeAiMediaImageEngine(event.target.value); if (engine && imageSelectable(engine)) props.onImageEngineChange(engine); }}>
       {AI_MEDIA_IMAGE_MODELS.map((option) => <option key={option.id} value={option.id} disabled={!imageSelectable(option.id)}>{option.label} · {t("ai_generator_model_image_credits", { credits: new Intl.NumberFormat(locale).format(getAiMediaImageBaseCredits(option.id, props.format)) })}{!imageSelectable(option.id) ? ` · ${imageCompatibilityReason(option.id)}` : ""}{props.recommendation?.engine === option.id ? ` · ${t("ai_generator_model_recommended_short")}` : ""}</option>)}
     </select>}
     </div>
     {props.kind === "video" ? <div className={styles.durationField}>
       <label htmlFor={`${id}-duration`}>{t("ai_generator_free_duration_label")}</label>
-      <select id={`${id}-duration`} value={`${duration}:${sceneMode}`} onChange={(event) => {
+      <select id={`${id}-duration`} value={`${duration}:${sceneMode}`} disabled={props.disabled} onChange={(event) => {
         const option = durationSceneOptions.find((candidate) => `${candidate.durationSeconds}:${candidate.sceneMode}` === event.target.value);
         if (option) { changeDurationScene?.(option.durationSeconds, option.sceneMode); setDurationNotice(""); }
       }}>

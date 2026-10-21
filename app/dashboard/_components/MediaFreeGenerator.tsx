@@ -1310,10 +1310,10 @@ export default function MediaFreeGenerator({
       <div className={styles.footer} data-media-footer>
         {authorizationVisible ? <div className={styles.footerAuthorization} data-media-final-authorization>
           <label className={styles.consent} htmlFor={`${instanceId}-authorization`}>
+            <span>{authorizationLabel}</span>
             <input id={`${instanceId}-authorization`} type="checkbox" required checked={authorizationChecked} disabled={locked}
               aria-describedby={!authorizationChecked ? `${instanceId}-authorization-help` : undefined}
               onChange={(event) => setGenerationAuthorization(event.target.checked)} />
-            <span>{authorizationLabel}</span>
           </label>
           {!authorizationChecked ? <p id={`${instanceId}-authorization-help`} className={styles.authorizationHint} role="status">{t("ai_generator_footer_consent_blocking")}</p> : null}
         </div> : null}

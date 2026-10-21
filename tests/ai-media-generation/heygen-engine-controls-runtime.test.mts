@@ -85,7 +85,11 @@ test("available engine and quality choices continue to reach the selection callb
 
 test("the information guide excludes retired HeyGen at every account duration and remains closable", () => {
   for (const maximum of [15, 20, 30]) {
-    const runtime = controls({ videoMaxDurationSeconds: maximum });
+    const runtime = controls({ videoMaxDurationSeconds: maximum, disabled: true });
+    const tree = runtime.render();
+    assert.ok(!find(tree, (element) => element.type === "fieldset").props.disabled, "The information button must remain available during generation");
+    assert.ok(elements(tree).filter((element) => element.type === "select").every((element) => element.props.disabled === true), "Generation settings remain locked");
+    assert.ok(!find(tree, (element) => element.props["aria-haspopup"] === "dialog").props.disabled);
     const dialog = runtime.openInfo();
     assert.equal(dialog.type, "dialog");
     assert.doesNotMatch(text(dialog), /HeyGen/i);
