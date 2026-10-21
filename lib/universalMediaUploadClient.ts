@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabaseClient";
+import { uploadSignedStorageObject } from "@/lib/mediaSignedUploadTransport";
 import { INR_MEDIA_VIDEO_SOURCE_MAX_MB_LABEL } from "@/lib/mediaRules";
 import {
   UNIVERSAL_MEDIA_TUS_CHUNK_SIZE_BYTES,
@@ -329,7 +329,6 @@ async function uploadWithSignedToken(
   intent: StorageTransportIntent,
   options: PreparedIntentOptions,
 ) {
-  const supabase = createClient();
   const total = Math.max(1, Number(file.size || 0));
   options.onProgress?.({
     protocol: "signed",
@@ -341,13 +340,19 @@ async function uploadWithSignedToken(
   let lastError: unknown = null;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     throwIfAborted(options.signal);
-    const { error } = await supabase.storage
-      .from(intent.bucket)
-      .uploadToSignedUrl(intent.storagePath, intent.token, file, {
+    try {
+      // The intent was authenticated and scoped by the server. Re-entering
+      // browser Auth here can fail on an unrelated, aborted session lock.
+      await uploadSignedStorageObject({
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+        publicApiKey: getSupabasePublicApiKey(),
+        bucket: intent.bucket,
+        storagePath: intent.storagePath,
+        token: intent.token,
+        file,
         contentType: intent.contentType || file.type || "application/octet-stream",
-        cacheControl: "3600",
+        signal: options.signal,
       });
-    if (!error) {
       options.onProgress?.({
         protocol: "signed",
         bytesUploaded: total,
@@ -355,11 +360,12 @@ async function uploadWithSignedToken(
         percent: 100,
       });
       return;
+    } catch (error) {
+      if (options.signal?.aborted) throw makeAbortError();
+      lastError = error;
+      if (!isTransientSignedUploadError(error) || attempt === 2) break;
+      await wait(500 * (attempt + 1), options.signal);
     }
-
-    lastError = error;
-    if (!isTransientSignedUploadError(error) || attempt === 2) break;
-    await wait(500 * (attempt + 1), options.signal);
   }
 
   throw lastError instanceof Error
