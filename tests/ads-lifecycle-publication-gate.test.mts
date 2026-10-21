@@ -23,7 +23,7 @@ const lifecycleRecovery = actualFunction("lifecycleRecovery", {
 });
 const disabled = {
   INRCY_GOOGLE_ADS_PUBLISH_ENABLED: "false", INRCY_PINTEREST_ADS_PUBLISH_ENABLED: "false",
-  INRCY_LINKEDIN_ADS_PUBLISH_ENABLED: "false", INRCY_ADS_LIVE_PUBLISH_ENABLED: "false",
+  INRCY_LINKEDIN_ADS_PUBLISH_ENABLED: "false", INRCY_ADS_LIVE_PUBLISH_ENABLED: "false", INRCY_META_ADS_PUBLISH_ENABLED: "false",
 };
 
 async function exercise(provider: string, body: Record<string, unknown>, recovery?: Record<string, unknown>, enabled = false) {
@@ -41,7 +41,7 @@ async function exercise(provider: string, body: Record<string, unknown>, recover
   const patch = actualFunction("PATCH", {
     authorizeRemoteLifecycle: async () => ({ campaign, user: { activeUserId: "business" }, account: {} }),
     parseAdsCampaignLifecycleRequest, lifecycleRecovery, isAdsChannelPublishEnabled, publicAdsProviderResources,
-    process: { env: enabled ? { ...disabled, INRCY_GOOGLE_ADS_PUBLISH_ENABLED: "true", INRCY_PINTEREST_ADS_PUBLISH_ENABLED: "true", INRCY_LINKEDIN_ADS_PUBLISH_ENABLED: "true", INRCY_ADS_LIVE_PUBLISH_ENABLED: "true" } : disabled },
+    process: { env: enabled ? { ...disabled, INRCY_GOOGLE_ADS_PUBLISH_ENABLED: "true", INRCY_PINTEREST_ADS_PUBLISH_ENABLED: "true", INRCY_LINKEDIN_ADS_PUBLISH_ENABLED: "true", INRCY_META_ADS_PUBLISH_ENABLED: "true" } : disabled },
     NextResponse: { json: (payload: unknown, options: { status?: number } = {}) => ({ status: options.status || 200, payload }) },
     claimCampaign: async () => { claims += 1; return { claimedAt: "2026-09-30T10:00:00Z" }; },
     executeRemoteAction: async () => { providerCalls += 1; return { providerResources: {}, status: "paused" }; },

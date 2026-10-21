@@ -18,7 +18,7 @@ import type { MediaGenerationResult } from "@/app/dashboard/_hooks/useMediaGener
 import { uploadFileToMediaLibrary } from "@/lib/mediaLibraryUploadClient";
 import PreparedAdsNativeControls, { type PreparedNativeReadiness } from "./PreparedAdsNativeControls";
 import XAdsLocationPicker from "./XAdsLocationPicker";
-import { createReviewedPausedCampaign, preparedXCopyWithDestination, PREPARED_TIKTOK_CTA_LABELS } from "@/lib/adsPreparedNativeClient";
+import { createReviewedPausedCampaign, preparedNativeBlockerLabel, preparedNativeBlockerStep, preparedXCopyWithDestination, PREPARED_TIKTOK_CTA_LABELS } from "@/lib/adsPreparedNativeClient";
 import { xAdsResourcesConsentKey, type XAdsResources } from "@/lib/adsXResources";
 import { TIKTOK_TRAFFIC_GEOGRAPHY_CONTEXT } from "@/lib/adsTikTokResources";
 import { linkedInAdsConnectionErrorMessage } from "@/lib/adsLinkedInConnectionDisplay";
@@ -80,7 +80,7 @@ import {
 } from "@/lib/adsDraftNavigation";
 import { adsDestinationReviewState } from "@/lib/adsDestination";
 import type { AdsPublicationPhase } from "@/lib/adsPublicationProgress";
-import { adsIncompleteLaunchMessage, adsIncompleteLaunchSteps } from "@/lib/adsLaunchReadiness";
+import { adsIncompleteLaunchMessage, adsIncompleteLaunchSteps, adsNativeDeliveryIssueStep, type AdsLaunchStepMap } from "@/lib/adsLaunchReadiness";
 import { buildLinkedInGeoQueries, linkedInGeoQueryKey } from "@/lib/adsLinkedInGeoQueries";
 import { linkedInAdsAutomaticPreflightKey, linkedInAdsContextualGeoDefaults, linkedInAdsLaunchBlockerMessage, linkedInAdsLaunchBlockers, linkedInAdsLaunchPreflightKey, linkedInAdsVerifiedBidDefault } from "@/lib/adsLinkedInClientDefaults";
 import { linkedInCalendarIssue, prepareLinkedInPlanForGroup } from "@/lib/adsLinkedInCalendarReadiness";
@@ -124,7 +124,7 @@ import { defaultOpenaiDeliverySettings, openaiNativeDelivery, type OpenaiDeliver
 import { openaiAdsResourcesConsentKey, type OpenaiAdsResources } from "@/lib/adsOpenaiResources";
 import { ChatGPTAdsBudget, ChatGPTAdsBidding, ChatGPTAdsDistribution, ChatGPTAdsGeography, ChatGPTAdsEffectiveSummary, openaiAdsBudgetLabel } from "./ChatGPTAdsCampaignControls";
 import { defaultPreparedDeliverySettings, plannedNativeCalendar, type PreparedDeliverySettings } from "@/lib/adsPreparedCampaignSettings";
-import { preparedAdsReviewIssues } from "@/lib/adsPreparedReview";
+import { preparedAdsReviewDetails } from "@/lib/adsPreparedReview";
 import { tikTokAdsResourcesConsentKey, type TikTokAdsResources } from "@/lib/adsTikTokResources";
 import { PreparedAdsBudget, PreparedAdsBidding, PreparedAdsEffectiveSummary, preparedAdsBudgetLabel } from "./PreparedAdsCampaignControls";
 import styles from "./ads.module.css";
@@ -135,6 +135,14 @@ type AdsConfigAction = "disconnect" | "save-account" | "clear-account" | "save-p
 type CampaignCreationPath = "choice" | AdsCreationMode;
 type CampaignBusyAction = "save" | "plan" | "publish" | "demo" | null;
 type CampaignMediaUploadKind = "image" | "video";
+type CampaignReadinessIssue = { step: number; message: string };
+
+function CampaignStepWarning({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
+    <path d="M10 2 19 18H1L10 2Z" fill="#18213a" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    <path d="M10 7v5m0 2.5v.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>;
+}
 
 function isMediaLibraryContentReference(value: string): boolean {
   try {
@@ -1181,13 +1189,13 @@ function campaignPromise(channel: AdsChannelId) {
   return "Une campagne claire donne à votre expertise la place qu’elle mérite auprès des personnes prêtes à vous découvrir.";
 }
 
-export default function AdsClient({ initialChannel, initialEditCampaignId, initialConnections, initialConnection, initialReason, livePublishingEnabled, googlePublishingEnabled, pinterestPublishingEnabled, pilotChannelsEnabled }: {
+export default function AdsClient({ initialChannel, initialEditCampaignId, initialConnections, initialConnection, initialReason, metaPublishingEnabled, googlePublishingEnabled, pinterestPublishingEnabled, pilotChannelsEnabled }: {
   initialChannel: AdsChannelId;
   initialEditCampaignId: string;
   initialConnections: AdsConnectionSnapshots;
   initialConnection: "connected" | "error" | null;
   initialReason: string;
-  livePublishingEnabled: boolean;
+  metaPublishingEnabled: boolean;
   googlePublishingEnabled: boolean;
   pinterestPublishingEnabled: boolean;
   pilotChannelsEnabled: boolean;
@@ -1334,6 +1342,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const [planProgress, setPlanProgress] = useState(0);
   const [completedAnalysisStages, setCompletedAnalysisStages] = useState(0);
   const [planRationale, setPlanRationale] = useState("");
+  const [planBudgetRationale, setPlanBudgetRationale] = useState("");
   const [planSources, setPlanSources] = useState<string[]>([]);
   const [planError, setPlanError] = useState("");
   const [planRequestId, setPlanRequestId] = useState("");
@@ -1792,7 +1801,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     ? linkedInPublishingEnabled
     : channelId === "google" ? googlePublishingEnabled
       : channelId === "pinterest" ? pinterestPublishingEnabled
-        : channelId === "openai" ? openaiLiveReady || openaiAccountReady : livePublishingEnabled;
+        : channelId === "openai" ? openaiLiveReady || openaiAccountReady : channelId === "meta" && metaPublishingEnabled;
   const reviewAccountReady = isAdsProvider(channelId)
     ? Boolean(connected && configuredAdvertiserAccount && (channelId !== "meta" || (
       configuredMetaPage
@@ -2743,6 +2752,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setPlanError("");
     setPlanRequestId("");
     setPlanRationale("");
+    setPlanBudgetRationale("");
     setPlanSources([]);
     setAutoMediaPlan(null);
     setAutoMediaState("idle");
@@ -2900,6 +2910,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setPlanError("");
     setPlanRequestId("");
     setPlanRationale("");
+    setPlanBudgetRationale("");
     setPlanSources([]);
     setAutoMediaPlan(null);
     setAutoMediaState("idle");
@@ -2920,6 +2931,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       if (generationRevision !== planGenerationRevision.current) return;
       const plan = result.plan as AdsCampaignPlan;
       applyCampaignPlan(plan);
+      setPlanBudgetRationale(plan.budgetRecommendation?.rationale || "");
       setPlanRequestId(typeof result.requestId === "string" ? result.requestId : "");
       setPlanRationale(plan.rationale || "iNrCy a préparé une base cohérente à partir de vos informations. Vous gardez la main sur chaque choix.");
       setPlanSources(
@@ -2959,6 +2971,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setPlanError("");
     setPlanRequestId("");
     setPlanRationale("");
+    setPlanBudgetRationale("");
     setPlanSources([]);
     setAutoMediaPlan(null);
     setAutoMediaState("idle");
@@ -2999,6 +3012,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setPlanError("");
     setPlanRequestId("");
     setPlanRationale("");
+    setPlanBudgetRationale("");
     setPlanSources([]);
     setAutoMediaPlan(null);
     setAutoMediaState("idle");
@@ -3676,6 +3690,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setPlanError("");
     setPlanRequestId("");
     setPlanRationale("");
+    setPlanBudgetRationale("");
     setPlanSources([]);
     setAutoMediaPlan(null);
     setAutoMediaState("idle");
@@ -3902,49 +3917,55 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const linkedInPreparedLaunchStatus: AdsCampaignLaunchStatus = linkedInPreflight?.account?.canServeCampaigns === true
     && selectedLinkedInCampaignGroup?.status === "ACTIVE" ? "active" : "paused";
   const linkedInUnverifiedGeoTargets = linkedInGeoTargets.filter((target) => !linkedInVerifiedGeoUrns.has(target.urn));
-  const linkedInReadinessDetails = (() => {
-    if (linkedInAudiencePending > 0) return "Confirmez ou ignorez les propositions de ciblage professionnel à l’étape Audience.";
+  const linkedInReadinessIssue: CampaignReadinessIssue = (() => {
+    const issue = (step: number, message: string) => ({ step: step + 1, message });
+    if (linkedInAudiencePending > 0) return issue(targetingStep, "Confirmez ou ignorez les propositions de ciblage professionnel à l’étape Audience.");
     if (linkedInPreflightLoad === "error") {
-      return linkedInPreflightError || "La vérification LinkedIn a échoué. Actualisez les ressources à l’étape Campagne.";
+      return issue(foundationsStep, linkedInPreflightError || "La vérification LinkedIn a échoué. Actualisez les ressources à l’étape Campagne.");
     }
     if (linkedInPreflightLoad !== "ready" || !linkedInPreflight || !linkedInPreflightCurrent) {
-      return "La vérification LinkedIn est en cours. Attendez son résultat avant de lancer.";
+      return issue(foundationsStep, "La vérification LinkedIn est en cours. Attendez son résultat avant de lancer.");
     }
     if (!draft.linkedinCampaignGroupId || !draft.linkedinOrganizationUrn) {
-      return "Le groupe ou la Page n’a pas pu être choisi automatiquement. Vérifiez les réglages à l’étape Campagne.";
+      return issue(foundationsStep, "Le groupe ou la Page n’a pas pu être choisi automatiquement. Vérifiez les réglages à l’étape Campagne.");
     }
     if (linkedInMissingGeoLocations.length) {
       const names = linkedInMissingGeoLocations.map((label) => `« ${label} »`).join(", ");
       const verified = draft.targetLocations.length - linkedInMissingGeoLocations.length;
-      return `La résolution automatique de LinkedIn n’a pas confirmé ${names}. ${verified}/${draft.targetLocations.length} zones du brief sont vérifiées. Réessayez le contrôle ou choisissez une des propositions LinkedIn.`;
+      return issue(geographyStep, `La résolution automatique de LinkedIn n’a pas confirmé ${names}. ${verified}/${draft.targetLocations.length} zones du brief sont vérifiées. Réessayez le contrôle ou choisissez une des propositions LinkedIn.`);
     }
-    if (!linkedInGeoTargets.length) return "Sélectionnez au moins une zone LinkedIn exacte à l’étape Zones géographiques.";
-    if (linkedInGeoTargets.length > 20) return "LinkedIn accepte au maximum 20 zones exactes. Retirez les zones en trop à l’étape Zones géographiques.";
+    if (!linkedInGeoTargets.length) return issue(geographyStep, "Sélectionnez au moins une zone LinkedIn exacte à l’étape Zones géographiques.");
+    if (linkedInGeoTargets.length > 20) return issue(geographyStep, "LinkedIn accepte au maximum 20 zones exactes. Retirez les zones en trop à l’étape Zones géographiques.");
     if (linkedInUnverifiedGeoTargets.length || linkedInPreflight.blockers?.includes("selected_geo_unverified")) {
       const names = linkedInUnverifiedGeoTargets.map((target) => target.name).join(", ");
-      return `À l’étape Zones géographiques, revérifiez les zones LinkedIn non confirmées${names ? ` : ${names}` : ""}.`;
+      return issue(geographyStep, `À l’étape Zones géographiques, revérifiez les zones LinkedIn non confirmées${names ? ` : ${names}` : ""}.`);
     }
     if (linkedInPreflight.blockers?.includes("unresolved_geo_queries") || linkedInPreflight.blockers?.includes("geo_query_provider_rejected")) {
-      return "Une zone du brief n’a pas pu être confirmée par LinkedIn. Actualisez les zones à l’étape Zones géographiques.";
+      return issue(geographyStep, "Une zone du brief n’a pas pu être confirmée par LinkedIn. Actualisez les zones à l’étape Zones géographiques.");
     }
     if (!linkedInBidPricing || linkedInPreflight.blockers?.includes("budget_pricing_required")) {
-      return "LinkedIn n’a pas confirmé les bornes d’enchère. Vérifiez le budget et réactualisez les ressources à l’étape Budget et calendrier.";
+      return issue(budgetStep, "LinkedIn n’a pas confirmé les bornes d’enchère. Vérifiez le budget et réactualisez les ressources à l’étape Budget et calendrier.");
     }
     if (linkedInBudgetBelowProviderMinimum) {
-      return `Augmentez le budget quotidien à au moins ${linkedInBidPricing.dailyBudgetMin.toLocaleString("fr-FR")} € à l’étape Budget et calendrier.`;
+      return issue(budgetStep, `Augmentez le budget quotidien à au moins ${linkedInBidPricing.dailyBudgetMin.toLocaleString("fr-FR")} € à l’étape Budget et calendrier.`);
     }
-    if (linkedInManualBid && (!draft.linkedinBidEuros || draft.linkedinBidEuros <= 0)) return "Renseignez une enchère CPC positive à l’étape Budget et calendrier.";
+    if (linkedInManualBid && (!draft.linkedinBidEuros || draft.linkedinBidEuros <= 0)) return issue(budgetStep, "Renseignez une enchère CPC positive à l’étape Budget et calendrier.");
     if (linkedInBidOutsideVerifiedRange) {
-      return "L’enchère CPC ne respecte plus la plage vérifiée par LinkedIn. Corrigez-la à l’étape Budget et calendrier.";
+      return issue(budgetStep, "L’enchère CPC ne respecte plus la plage vérifiée par LinkedIn. Corrigez-la à l’étape Budget et calendrier.");
     }
-    if (linkedInScheduleIssue) return linkedInScheduleIssue;
-    return linkedInAdsLaunchBlockerMessage(linkedInAdsLaunchBlockers(linkedInPreflight.blockers, linkedInPreparedLaunchStatus === "active" ? "ACTIVE" : "PAUSED")) || "Vérifiez à nouveau les ressources LinkedIn avant de lancer la campagne.";
+    if (linkedInScheduleIssue) return issue(budgetStep, linkedInScheduleIssue);
+    const blockers = linkedInAdsLaunchBlockers(linkedInPreflight.blockers, linkedInPreparedLaunchStatus === "active" ? "ACTIVE" : "PAUSED");
+    const blocker = blockers[0] || "";
+    const issueStep = /professional_targets|audience/.test(blocker) ? targetingStep
+      : /conversion/.test(blocker) ? deliveryStep
+        : /budget|schedule/.test(blocker) ? budgetStep
+          : /political|targeting_notice/.test(blocker) ? validationStep : foundationsStep;
+    return issue(issueStep, linkedInAdsLaunchBlockerMessage(blockers) || "Vérifiez à nouveau les ressources LinkedIn avant de lancer la campagne.");
   })();
+  const linkedInReadinessDetails = linkedInReadinessIssue.message;
   const linkedInComplianceReady = draft.linkedinPoliticalIntentConfirmed === true
     && draft.linkedinTargetingNoticeAcknowledged === true;
-  const incompleteLaunchSteps = adsIncompleteLaunchSteps({
-    draft,
-    steps: {
+  const launchStepMap: AdsLaunchStepMap = {
       foundations: foundationsStep + 1,
       bidding: biddingStep >= 0 ? biddingStep + 1 : undefined,
       geography: geographyStep >= 0 ? geographyStep + 1 : undefined,
@@ -3957,7 +3978,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         ? validationStep + 1 : undefined,
       budget: budgetStep + 1,
       validation: validationStep + 1,
-    },
+  };
+  const incompleteLaunchSteps = adsIncompleteLaunchSteps({
+    draft,
+    steps: launchStepMap,
     googleTimeZone: effectiveGoogleResources?.timeZone,
     openaiTimeZone: effectiveOpenaiResources?.account.timezone || "UTC",
     accountReady: reviewAccountReady,
@@ -3999,34 +4023,77 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         ? "Confirmez les deux déclarations LinkedIn avant de lancer."
         : ""
     : "";
-  const googleLaunchReadinessReason = channelId === "google" && draft.campaignType === "search"
-    ? googleSearchLocalIssue(draft) || (!googleGeoReady ? googleGeoState.key === googleGeoKey && googleGeoState.status === "error" ? googleGeoState.error : "Vérification automatique des zones Google Ads en cours." : "") || (!effectiveGoogleResources || googleResourcesLoad !== "ready"
-      ? googleResourcesError || "Vérification du compte et des conversions Google Ads en cours."
-      : ["maximize_conversions", "maximize_value", "target_cpa", "target_roas"].includes(draft.bidStrategy) && !effectiveGoogleResources.hasBiddableConversions
-        ? "Aucune conversion principale active : choisissez Maximiser les clics à l’étape Enchères." : "")
-    : "";
-  const pinterestLaunchReadinessReason = channelId === "pinterest"
-    ? !effectivePinterestResources || pinterestResourcesLoad !== "ready"
-      ? pinterestResourcesError || "Vérification du compte, des zones et des langues Pinterest en cours."
-      : !pinterestGeoReady ? pinterestResolvedGeography.error
-        : pinterestResolvedLanguages.error || (() => { try { pinterestNativeDelivery(draft); return ""; } catch (error) { return error instanceof Error ? error.message : "Vérifiez le budget et les enchères Pinterest."; } })()
-    : "";
-  const metaLaunchReadinessReason = channelId === "meta"
-    ? !effectiveMetaResources || metaResourcesLoad !== "ready" ? metaResourcesError || "Vérification du compte et de la Page Meta en cours."
-      : !metaGeoReady ? metaGeoState.key === metaGeoKey && metaGeoState.error || "Vérification des zones Meta en cours."
-        : (draft.metaDeliverySettings ? metaResolvedLanguages.error : "") || (() => { try { metaNativeDelivery(draft); return ""; } catch (error) { return error instanceof Error ? error.message : "Vérifiez les réglages Meta."; } })()
-    : "";
-  const openaiLaunchReadinessReason = channelId === "openai"
-    ? !effectiveOpenaiResources || openaiResourcesLoad !== "ready" ? openaiResourcesError || "Vérification du compte ChatGPT Ads en cours."
-      : !openaiGeoReady ? "Une zone ChatGPT Ads reste à confirmer à l’étape Zones géographiques."
-        : (() => { try { openaiNativeDelivery(draft, Date.now(), effectiveOpenaiResources.account.timezone || "UTC"); return ""; } catch (error) { return error instanceof Error ? error.message : "Vérifiez les réglages ChatGPT Ads."; } })()
-    : "";
+  const googleLaunchReadinessIssue: CampaignReadinessIssue | null = channelId === "google" && draft.campaignType === "search" ? (() => {
+    const localIssue = googleSearchLocalIssue(draft);
+    if (localIssue) {
+      const step = /budget|enveloppe|date|début|diffusion/i.test(localIssue) ? budgetStep
+        : /titre|description|chemin/i.test(localIssue) ? creativeStep
+          : /mots-clés|correspondance/i.test(localIssue) ? keywordsStep
+            : /géographique/i.test(localIssue) ? geographyStep : biddingStep;
+      return { step: step + 1, message: localIssue };
+    }
+    if (!googleGeoReady) return { step: geographyStep + 1, message: googleGeoState.key === googleGeoKey && googleGeoState.status === "error" ? googleGeoState.error : "Vérification automatique des zones Google Ads en cours." };
+    if (!effectiveGoogleResources || googleResourcesLoad !== "ready") return { step: foundationsStep + 1, message: googleResourcesError || "Vérification du compte et des conversions Google Ads en cours." };
+    if (["maximize_conversions", "maximize_value", "target_cpa", "target_roas"].includes(draft.bidStrategy) && !effectiveGoogleResources.hasBiddableConversions) return { step: biddingStep + 1, message: "Aucune conversion principale active : choisissez Maximiser les clics à l’étape Enchères." };
+    return null;
+  })() : null;
+  const googleLaunchReadinessReason = googleLaunchReadinessIssue?.message || "";
+  const pinterestLaunchReadinessIssue: CampaignReadinessIssue | null = channelId === "pinterest" ? (() => {
+    if (!effectivePinterestResources || pinterestResourcesLoad !== "ready") return { step: foundationsStep + 1, message: pinterestResourcesError || "Vérification du compte, des zones et des langues Pinterest en cours." };
+    if (!pinterestGeoReady) return { step: geographyStep + 1, message: pinterestResolvedGeography.error };
+    if (pinterestResolvedLanguages.error) return { step: targetingStep + 1, message: pinterestResolvedLanguages.error };
+    try { pinterestNativeDelivery(draft); return null; }
+    catch (error) {
+      const message = error instanceof Error ? error.message : "Vérifiez le budget et les enchères Pinterest.";
+      return { step: adsNativeDeliveryIssueStep(channelId, message, launchStepMap), message };
+    }
+  })() : null;
+  const pinterestLaunchReadinessReason = pinterestLaunchReadinessIssue?.message || "";
+  const metaLaunchReadinessIssue: CampaignReadinessIssue | null = channelId === "meta" ? (() => {
+    if (!effectiveMetaResources || metaResourcesLoad !== "ready") return { step: foundationsStep + 1, message: metaResourcesError || "Vérification du compte et de la Page Meta en cours." };
+    if (!metaGeoReady) return { step: geographyStep + 1, message: metaGeoState.key === metaGeoKey && metaGeoState.error || "Vérification des zones Meta en cours." };
+    if (draft.metaDeliverySettings && metaResolvedLanguages.error) return { step: targetingStep + 1, message: metaResolvedLanguages.error };
+    try { metaNativeDelivery(draft); return null; }
+    catch (error) {
+      const message = error instanceof Error ? error.message : "Vérifiez les réglages Meta.";
+      return { step: adsNativeDeliveryIssueStep(channelId, message, launchStepMap), message };
+    }
+  })() : null;
+  const metaLaunchReadinessReason = metaLaunchReadinessIssue?.message || "";
+  const openaiLaunchReadinessIssue: CampaignReadinessIssue | null = channelId === "openai" ? (() => {
+    if (!effectiveOpenaiResources || openaiResourcesLoad !== "ready") return { step: foundationsStep + 1, message: openaiResourcesError || "Vérification du compte ChatGPT Ads en cours." };
+    if (!openaiGeoReady) return { step: geographyStep + 1, message: "Une zone ChatGPT Ads reste à confirmer à l’étape Zones géographiques." };
+    try { openaiNativeDelivery(draft, Date.now(), effectiveOpenaiResources.account.timezone || "UTC"); return null; }
+    catch (error) {
+      const message = error instanceof Error ? error.message : "Vérifiez les réglages ChatGPT Ads.";
+      return { step: adsNativeDeliveryIssueStep(channelId, message, launchStepMap), message };
+    }
+  })() : null;
+  const openaiLaunchReadinessReason = openaiLaunchReadinessIssue?.message || "";
   const metaConsentCalendar = metaAdsCalendarLabels(draft, effectiveMetaResources?.account.timezone || null);
   const launchBlockingMessage = incompleteLaunchMessage || launchUnavailableReason || linkedInLaunchReadinessReason || googleLaunchReadinessReason || pinterestLaunchReadinessReason || metaLaunchReadinessReason || openaiLaunchReadinessReason;
   const launchBlocked = Boolean(launchBlockingMessage);
 
-  const preparedReviewIssues = preparedOnlyChannel ? preparedAdsReviewIssues(draft, Date.now(), preparedTimeZone) : [];
+  const preparedReviewDetails = preparedOnlyChannel ? preparedAdsReviewDetails(draft, Date.now(), preparedTimeZone) : [];
+  const preparedReviewIssues = preparedReviewDetails.map((issue) => issue.message);
   const preparedNativeCheck = preparedNativeReadiness.draftKey === JSON.stringify(draft) ? preparedNativeReadiness.check : null;
+  const stepWarningMessages = new Map<number, string>();
+  for (const number of incompleteLaunchSteps) stepWarningMessages.set(number, "Informations à compléter dans cette étape.");
+  for (const issue of [
+    linkedInLaunchReadinessReason ? !linkedInComplianceReady && linkedInSelectionsReady
+      ? { step: validationStep + 1, message: linkedInLaunchReadinessReason } : linkedInReadinessIssue : null,
+    googleLaunchReadinessIssue, pinterestLaunchReadinessIssue, metaLaunchReadinessIssue, openaiLaunchReadinessIssue,
+  ]) {
+    if (issue?.message) stepWarningMessages.set(issue.step, issue.message);
+  }
+  for (const issue of preparedReviewDetails) {
+    const index = displayedStepKeys.indexOf(issue.step);
+    if (index >= 0) stepWarningMessages.set(index + 1, issue.message);
+  }
+  if (preparedOnlyChannel) for (const code of preparedNativeCheck?.blockers || []) {
+    const index = displayedStepKeys.indexOf(preparedNativeBlockerStep(code, channelId === "tiktok" ? "tiktok" : "x"));
+    if (index >= 0) stepWarningMessages.set(index + 1, preparedNativeBlockerLabel(code));
+  }
   const preparedNativeReady = preparedNativeCheck?.ready === true && preparedNativeCheck.pausedCreationEnabled;
   const tikTokPausedNotice = channelId === "tiktok" ? {
     title: preparedNativeReady ? "Création en pause disponible" : "Création en pause à vérifier",
@@ -4166,7 +4233,14 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
 
       <SettingsDrawer title={campaignCreationTitle} isOpen={creating} onClose={() => { if (!demoDialog && busy !== "demo") void confirmCampaignExit(); }} closeOnEscape={!demoDialog && busy !== "demo"} closeOnBackdrop={!demoDialog && busy !== "demo"} presentation="centered" headerLead={<div className={styles.modalBrand}>iNr’<span>ADS</span><small>STUDIO DE CAMPAGNE</small></div>} headerStyle={campaignHeaderStyle(channelId)} headerContent={<div className={styles.wizardTitle}><span className={styles.wizardChannelLogo} aria-hidden="true"><Image src={channelMeta.logo} width={34} height={34} alt="" /></span><div>{campaignCreationTitle}<small>{displayedStepNames[step]} · Étape {step + 1} / {displayedStepNames.length}</small></div></div>}>
       <div data-channel={channelId} ref={studioWorkspaceRef} inert={busy === "demo" || undefined} className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) { const nextStep = step + (dx < 0 ? 1 : -1); if (dx < 0 && creationPath === "inrcy" && step === analysisStep && planProgress !== 100) return; navigateToStep(nextStep); } }}>
-      <nav className={styles.stepper} aria-label="Étapes de création">{displayedStepNames.map((name, index) => <button type="button" key={name} disabled={(index !== step && !reachedStepKeys.includes(displayedStepKeys[index])) || busy === "plan" || busy === "demo"} aria-label={`${index + 1}. ${name}`} aria-current={step === index ? "step" : undefined} onClick={() => navigateToStep(index)}><span>{index + 1}</span>{!compactScreen && (channelId === "pinterest" ? PINTEREST_STEPPER_LABELS[name] || name : name)}</button>)}</nav>
+      <nav className={styles.stepper} aria-label="Étapes de création">{displayedStepNames.map((name, index) => {
+        const warning = creationPath !== "choice" && (reachedStepKeys.includes("validation") || reachedStepKeys.includes(displayedStepKeys[index]))
+          ? stepWarningMessages.get(index + 1) : undefined;
+        return <button type="button" key={name} disabled={(index !== step && !reachedStepKeys.includes(displayedStepKeys[index])) || busy === "plan" || busy === "demo"} data-incomplete={Boolean(warning) || undefined} title={warning} aria-label={`${index + 1}. ${name}${warning ? ` · ${warning}` : ""}`} aria-current={step === index ? "step" : undefined} onClick={() => navigateToStep(index)}>
+          <span aria-hidden="true">{index + 1}{warning && <CampaignStepWarning className={styles.studioStepBubbleWarning} />}</span>
+          {!compactScreen && <b className={styles.studioStepName}>{channelId === "pinterest" ? PINTEREST_STEPPER_LABELS[name] || name : name}{warning && <CampaignStepWarning className={styles.studioStepNameWarning} />}</b>}
+        </button>;
+      })}</nav>
       {notice && <p className={styles.notice} role="status" aria-live="polite">{notice}</p>}
       <section hidden={step !== 0} className={`${styles.card} ${styles.studioChoiceCard}`}>
           <StudioStepHeader number={1} label={analysisSetupOpen ? "LE CAP DE L’ANALYSE" : "VOTRE PROJET"} title={analysisSetupOpen ? "Comment iNrCy doit-il vous guider ?" : "Comment créer ?"} mobileTitle={analysisSetupOpen ? "Quel cap choisir ?" : "Comment créer ?"} channel="Sans diffusion" />
@@ -4595,6 +4669,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       <section hidden={step !== budgetStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioBudgetCard}`}>
         <StudioStepHeader number={budgetStep + 1} label={channelId === "pinterest" ? "BUDGET PINTEREST" : "BUDGET"} title="Votre investissement, en clair." mobileTitle="Votre budget" channel={channelMeta.label} />
         <p className={styles.intro}><span className={styles.studioTitleLong}>Choisissez le rythme d’investissement et la durée. Les repères ci-dessous estiment une enveloppe de dépense : ils ne promettent ni clics, ni prospects, ni ventes.</span><span className={styles.studioTitleShort}>Estimation indicative, sans promesse de résultat.</span></p>
+        {creationPath === "inrcy" && planBudgetRationale && <aside className={styles.studioBudgetAdvice}><strong>Pourquoi iNrCy propose ce budget</strong><p>{planBudgetRationale}</p><small>Proposition initiale, à ajuster selon vos moyens et les résultats du test.</small></aside>}
         {preparedOnlyChannel ? <PreparedAdsBudget settings={preparedDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={preparedTimeZone} onChange={updatePreparedDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "meta" ? <MetaAdsBudget settings={metaDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectiveMetaResources?.account.timezone || null} onChange={updateMetaDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "openai" ? <ChatGPTAdsBudget settings={openaiDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectiveOpenaiResources?.account.timezone || null} onChange={updateOpenaiDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "pinterest" ? <PinterestAdsBudget settings={pinterestDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectivePinterestResources?.account.timezone || null} onChange={updatePinterestDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "google" ? <GoogleAdsBudget settings={googleDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectiveGoogleResources?.timeZone || ""} onChange={updateGoogleDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : nativeSettings?.channel === "linkedin" ? <>
           <LinkedInAdsBudget settings={linkedInDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} bid={draft.linkedinBidEuros} objective={nativeSettings.objectiveType} pricing={linkedInBidPricing} onChange={updateLinkedInDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} onBidChange={(linkedinBidEuros) => updateDraft({ linkedinBidEuros })} />
           {selectedLinkedInCampaignGroup?.runSchedule.end && <p className={styles.studioReadiness}>Le groupe « {selectedLinkedInCampaignGroup.name} » termine sa diffusion le {new Date(selectedLinkedInCampaignGroup.runSchedule.end).toLocaleString("fr-FR")}. La campagne doit terminer dans cette période.</p>}
@@ -4746,11 +4821,11 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         ? Boolean(linkedInPublishingEnabled && linkedInPreflight?.account?.canServeCampaigns
           && selectedLinkedInCampaignGroup?.status === "ACTIVE"
           && !linkedInAdsLaunchBlockers(linkedInPreflight.blockers, "ACTIVE").length)
-        : demoDialog.channelId === "x" || demoDialog.channelId === "tiktok" ? false : demoDialog.channelId === "openai" ? openaiLiveReady : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : livePublishingEnabled}
+        : demoDialog.channelId === "x" || demoDialog.channelId === "tiktok" ? false : demoDialog.channelId === "openai" ? openaiLiveReady : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : demoDialog.channelId === "meta" && metaPublishingEnabled}
       pausedEnabled={demoDialog.channelId === "linkedin"
         ? Boolean(linkedInPublishingEnabled && linkedInPreflight?.account?.canManageCampaigns
           && !linkedInAdsLaunchBlockers(linkedInPreflight.blockers, "PAUSED").length)
-        : demoDialog.channelId === "x" || demoDialog.channelId === "tiktok" ? Boolean(preparedNativeReady) : demoDialog.channelId === "openai" ? openaiAccountReady : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : livePublishingEnabled}
+        : demoDialog.channelId === "x" || demoDialog.channelId === "tiktok" ? Boolean(preparedNativeReady) : demoDialog.channelId === "openai" ? openaiAccountReady : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : demoDialog.channelId === "meta" && metaPublishingEnabled}
       activeDisabledReason={demoDialog.channelId === "openai"
         ? openaiLiveReadinessMessage || "La diffusion Active n’est pas encore autorisée pour ce compte ChatGPT Ads."
         : demoDialog.channelId === "x" || demoDialog.channelId === "tiktok" ? "Ce connecteur crée actuellement les campagnes en pause. La diffusion active reste désactivée dans iNrCy." : undefined}

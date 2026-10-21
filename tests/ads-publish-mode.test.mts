@@ -14,15 +14,28 @@ import {
   googleSearchBiddingFields,
 } from "../lib/adsPublishMode.ts";
 
-test("approved Google and Pinterest publish independently while pilot channels stay gated", () => {
-  for (const channel of ["google", "pinterest"]) {
+test("approved Google, Meta and Pinterest publish independently while pilot channels stay gated", () => {
+  for (const channel of ["google", "meta", "pinterest"]) {
     assert.equal(isAdsChannelPublishEnabled(channel, "live", {}), true);
     assert.equal(isAdsChannelPublishEnabled(channel, "paused", {}), true);
   }
   assert.equal(isAdsChannelPublishEnabled("google", "live", { INRCY_GOOGLE_ADS_PUBLISH_ENABLED: "false" }), false);
   assert.equal(isAdsChannelPublishEnabled("pinterest", "live", { INRCY_PINTEREST_ADS_PUBLISH_ENABLED: "false" }), false);
-  for (const channel of ["meta", "linkedin", "x", "tiktok"]) {
+  assert.equal(isAdsChannelPublishEnabled("meta", "live", { INRCY_META_ADS_PUBLISH_ENABLED: "false" }), false);
+  for (const channel of ["linkedin", "x", "tiktok"]) {
     assert.equal(isAdsChannelPublishEnabled(channel, "live", {}), false);
+  }
+});
+
+test("Meta's approved launch ignores the legacy pilot flag but keeps its own emergency switch and demo opt-in", () => {
+  for (const legacy of [undefined, "false", "true"]) {
+    for (const dedicated of [undefined, "false", "true"]) {
+      const environment = { INRCY_ADS_LIVE_PUBLISH_ENABLED: legacy, INRCY_META_ADS_PUBLISH_ENABLED: dedicated };
+      for (const mode of ["live", "paused"] as const) assert.equal(isAdsChannelPublishEnabled("meta", mode, environment), dedicated !== "false");
+      assert.equal(isAdsChannelPublishEnabled("meta", "demo_paused", environment), false);
+      assert.equal(isAdsChannelPublishEnabled("meta", "demo_paused", { ...environment, INRCY_ADS_DEMO_PAUSED_PUBLISH_ENABLED: "true" }), dedicated !== "false");
+      assert.equal(isAdsChannelPublishEnabled("linkedin", "live", environment), false);
+    }
   }
 });
 

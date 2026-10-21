@@ -253,6 +253,7 @@ function finalConfirmationHarness() {
       applyDraftEdit: actualFunction("applyDraftEdit", {}),
     };
     base.updateDraft = (next: Partial<AdsCampaignInput>) => actualFunction("updateDraft", scope())(next);
+    base.launchStepMap = initializer("launchStepMap", base);
     base.incompleteLaunchSteps = initializer("incompleteLaunchSteps", base);
     base.incompleteLaunchMessage = initializer("incompleteLaunchMessage", base);
     base.launchBlockingMessage = initializer("launchBlockingMessage", base);

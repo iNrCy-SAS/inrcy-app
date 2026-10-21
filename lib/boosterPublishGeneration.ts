@@ -1,4 +1,5 @@
 import { canonicalSiteWebChannel, LEGACY_SITE_OUTPUT_ALIASES } from "@/lib/siteWebChannel";
+import type { AiMediaSubjectSource } from "./aiMediaSubject.ts";
 import {
   aiGenerateJSON,
   type AiGenerationFeature,
@@ -354,6 +355,9 @@ const similarityStopWords = new Set([
 
 export type GenerateSharedBoosterPostsArgs = {
   idea: string;
+  mediaSubjectSource?: AiMediaSubjectSource;
+  /** Server-attested transcript from the selected existing video. */
+  mediaTranscriptAvailable?: boolean;
   publicationInstruction?: string;
   theme: BoosterTheme;
   style?: BoosterStyle;
@@ -1041,6 +1045,7 @@ function computeGenerationTimeoutMs(args: {
 
 async function generateVersions(args: {
   idea: string;
+  mediaSubjectSource?: AiMediaSubjectSource;
   publicationInstruction?: string;
   theme: BoosterTheme;
   style: BoosterStyle;
@@ -1063,6 +1068,7 @@ async function generateVersions(args: {
   const mode = args.mode || "primary";
   const compiledPrompt = compileBoosterGenerationPrompt({
     idea: args.idea,
+    mediaSubjectSource: args.mediaSubjectSource,
     publicationInstruction: args.publicationInstruction,
     theme: args.theme,
     style: args.style,
@@ -1293,6 +1299,7 @@ async function repairChannelsOnce(args: {
   issues: Map<BoosterChannels, ChannelQualityIssue[]>;
   versions: Partial<Record<BoosterChannels, ChannelPost>>;
   idea: string;
+  mediaSubjectSource?: AiMediaSubjectSource;
   publicationInstruction?: string;
   theme: BoosterTheme;
   style: BoosterStyle;
@@ -1317,6 +1324,7 @@ async function repairChannelsOnce(args: {
 
   const out = await generateVersions({
     idea: args.idea,
+    mediaSubjectSource: args.mediaSubjectSource,
     publicationInstruction: args.publicationInstruction,
     theme: args.theme,
     style: args.style,
@@ -1661,7 +1669,13 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
           : "booster.media-understanding",
       deadlineAt: operationDeadlineAt,
       skipMediaVisionAnalysis: args.skipMediaVisionAnalysis,
+      mediaSubjectSource: args.mediaSubjectSource,
     });
+    if (args.mediaSubjectSource === "media" &&
+      !preparedMedia.visionAnalysisAvailable && !args.mediaTranscriptAvailable) {
+      // Retry preparation instead of writing a made-up subject from titles/tags.
+      throw new Error("inr_agent_media_understanding_unavailable");
+    }
   } catch (error) {
     timing.mediaPrepMs = elapsedMs(mediaPrepStartedAt);
     console.warn("[booster-generation] media prep failed", {
@@ -1707,7 +1721,7 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
   });
 
   const languageCode = generationProfile.preferences.language;
-  const ideaKeywords = extractIdeaKeywords(args.idea);
+  const ideaKeywords = args.mediaSubjectSource === "media" ? [] : extractIdeaKeywords(args.idea);
   const recoveredChannels = new Set<BoosterChannels>();
   let aiFallback: AiGenerationFallbackInfo | undefined;
   let initialGenerationError: unknown = null;
@@ -1723,6 +1737,7 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
       primaryBatches.map((batch) =>
         generateVersions({
           idea: args.idea,
+          mediaSubjectSource: args.mediaSubjectSource,
           publicationInstruction: args.publicationInstruction,
           theme: args.theme,
           style,
@@ -1846,6 +1861,7 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
             issues: repairIssues,
             versions: safeVersions,
             idea: args.idea,
+            mediaSubjectSource: args.mediaSubjectSource,
             publicationInstruction: args.publicationInstruction,
             theme: args.theme,
             style,

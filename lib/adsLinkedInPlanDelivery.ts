@@ -1,4 +1,5 @@
 import { defaultLinkedInDeliverySettings, linkedInDeliveryBidding, normalizeLinkedInDeliverySettings, type LinkedInDeliverySettings } from "./adsLinkedInCampaignSettings.ts";
+import { adsRequestedDurationDays, type AdsBudgetRecommendation } from "./adsBudgetRecommendation.ts";
 
 export type LinkedInDeliverySuggestion = {
   locationType: LinkedInDeliverySettings["locationType"];
@@ -6,7 +7,7 @@ export type LinkedInDeliverySuggestion = {
   placements: LinkedInDeliverySettings["placements"];
   bidding: LinkedInDeliverySettings["bidding"];
 };
-export type LinkedInPlanDeliveryContext = { intent?: string; now?: string; timezone?: string; objectiveType?: string; format?: string };
+export type LinkedInPlanDeliveryContext = { intent?: string; now?: string; timezone?: string; objectiveType?: string; format?: string; budgetRecommendation?: AdsBudgetRecommendation | null };
 type HumanDelivery = { locationType?: LinkedInDeliverySuggestion["locationType"]; budget: Partial<LinkedInDeliverySuggestion["budget"]>; placements: Partial<LinkedInDeliverySuggestion["placements"]>; bidding: Partial<LinkedInDeliverySuggestion["bidding"]> };
 function key(value: string) { return value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[’]/g, "'"); }
 function object(value: unknown) { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null; }
@@ -125,6 +126,14 @@ export function normalizeLinkedInDeliverySuggestion(value: unknown, context: Lin
   if (!budget || !placements || !bidding || !validKeys(budget, ["startAt", "endAt"]) || !validKeys(placements, ["audienceNetwork", "audienceExpansion"]) || !validKeys(bidding, ["strategy", "amountEuros"])) return fail("Vérifiez les conseils de calendrier, placements et enchères LinkedIn.");
   const proposedBudget = { startAt: budget.startAt ?? null, endAt: budget.endAt ?? null, ...human.constraints.budget };
   for (const instant of [proposedBudget.startAt, proposedBudget.endAt]) if (instant !== null && !isoInstant(instant)) return fail("Vérifiez les dates ISO et leur fuseau horaire pour LinkedIn.");
+  const requestedDuration = adsRequestedDurationDays(context.intent);
+  if (requestedDuration.error) return fail(requestedDuration.error);
+  const duration = requestedDuration.days ?? context.budgetRecommendation?.durationDays;
+  if (!Object.hasOwn(human.constraints.budget, "endAt") && duration) {
+    const start = typeof proposedBudget.startAt === "string" ? Date.parse(proposedBudget.startAt) : Date.parse(context.now || new Date().toISOString());
+    if (!Number.isFinite(start)) return fail("L’heure courante du contexte LinkedIn est invalide.");
+    proposedBudget.endAt = new Date(start + duration * 86_400_000).toISOString();
+  }
   const candidate = {
     ...defaultLinkedInDeliverySettings(),
     locationType: human.constraints.locationType ?? (raw.locationType === undefined ? "recent_or_permanent" : raw.locationType),

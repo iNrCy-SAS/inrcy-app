@@ -34,6 +34,12 @@ export function isAdsPublishModeEnabled(mode: AdsPublishMode, environment: AdsPu
 export function isAdsChannelPublishEnabled(provider: string, mode: AdsPublishMode, environment: AdsPublishEnvironment): boolean {
   if (provider === "google") return environment.INRCY_GOOGLE_ADS_PUBLISH_ENABLED !== "false";
   if (provider === "pinterest") return environment.INRCY_PINTEREST_ADS_PUBLISH_ENABLED !== "false";
+  if (provider === "meta") {
+    if (environment.INRCY_META_ADS_PUBLISH_ENABLED === "false") return false;
+    // Meta is an approved connector. Its normal launch no longer depends on
+    // the legacy global pilot flag; demo creation keeps its separate opt-in.
+    return mode !== "demo_paused" || isAdsPublishModeEnabled(mode, environment);
+  }
   if (provider === "linkedin") return environment.INRCY_LINKEDIN_ADS_PUBLISH_ENABLED === "true";
   // ChatGPT Ads always creates the complete hierarchy in Paused state first.
   // Live activation has its own emergency kill switch and an additional billing
@@ -44,7 +50,7 @@ export function isAdsChannelPublishEnabled(provider: string, mode: AdsPublishMod
     if (mode === "paused") return environment.INRCY_OPENAI_ADS_PAUSED_PUBLISH_ENABLED !== "false";
     return false;
   }
-  return provider === "meta" && isAdsPublishModeEnabled(mode, environment);
+  return false;
 }
 
 /** A confirmed 400 before any provider ID is editable; uncertain responses need manual review. */

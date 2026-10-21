@@ -105,6 +105,7 @@ function finalConfirmationHarness() {
     };
     base.updateDraft = (next: Partial<AdsCampaignInput>) => evaluate(functionDeclaration("updateDraft"), scope())(next);
     base.confirmReviewedDeclaration = (name: string, checked: boolean) => evaluate(functionDeclaration("confirmReviewedDeclaration"), scope())(name, checked);
+    base.launchStepMap = initializer("launchStepMap", base);
     base.incompleteLaunchSteps = initializer("incompleteLaunchSteps", base);
     base.incompleteLaunchMessage = initializer("incompleteLaunchMessage", base);
     base.launchBlockingMessage = initializer("launchBlockingMessage", base);

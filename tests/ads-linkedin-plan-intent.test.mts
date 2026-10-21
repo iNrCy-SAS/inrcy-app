@@ -16,6 +16,7 @@ import * as openaiIntent from "../lib/adsOpenaiPlanIntent.ts";
 import * as pinterestIntent from "../lib/adsPinterestPlanIntent.ts";
 import * as googleLocations from "../lib/adsGoogleLocations.ts";
 import * as quality from "../lib/adsPlanQuality.ts";
+import * as budgetRecommendation from "../lib/adsBudgetRecommendation.ts";
 import { assertAiJsonMatchesSchema } from "../lib/aiJsonSchemaValidation.ts";
 
 const brief = "Une image pour les visites du site en Hauts-de-France, pour les indépendants seuls et les entreprises de 2 à 10 salariés. Budget total 200 €. CTA En savoir plus.";
@@ -29,6 +30,7 @@ const nativeDraft = {
   creative: { introText: "Retrouvez vos outils de communication dans un espace commun. Découvrez le fonctionnement d’iNrCy pour votre entreprise.", headline: "Retrouvez vos outils de communication", mediaBrief: "Une image claire du tableau de bord montrant les différents outils de communication, sans promesse chiffrée.", destinationUrl: context.destinationUrl, leadFormBrief: "" },
 };
 const raw = {
+  budgetRecommendation: { dailyEuros: 25, durationDays: 14, rationale: "Un premier test sur le public professionnel régional permet de comparer les messages ; le niveau de dépense sera ajusté après observation des résultats réels." },
   brand: "iNrCy", name: nativeDraft.name, offer: context.services[0], objective: "website_traffic", conversionGoal: "website_visit", conversionLocation: "website", bidStrategy: "maximize_clicks", campaignType: "generic",
   primaryText: nativeDraft.creative.introText, headlines: [nativeDraft.creative.headline], descriptions: [nativeDraft.creative.introText], mediaBrief: nativeDraft.creative.mediaBrief,
   rationale: "Les indépendants et petites entreprises peuvent découvrir comment centraliser leur communication. Une image du tableau de bord invite à consulter le service dans la région demandée ; le suivi des inscriptions reste à vérifier.",
@@ -133,6 +135,7 @@ function routeRuntime(fixedNow?: string) {
     ["@/lib/adsServer", { adsRequestOriginAllowed: () => true, isAdsChannelUserAllowed: async () => true, requirePremiumAdsUser: async () => ({ user: { authUserId: "auth-test", activeUserId: "owner-test", supabase: fakeSupabase } }) }],
     ["@/lib/adsCampaignPlan", plans], ["@/lib/adsChannelCapabilities", capabilities], ["@/lib/adsCampaignIntelligence", intelligence], ["@/lib/adsValidation", validation], ["@/lib/adsDestination", destinations], ["@/lib/adsPinterestPlanIntent", pinterestIntent], ["@/lib/adsGooglePlanIntent", googleIntent], ["@/lib/adsGoogleLocations", googleLocations], ["@/lib/adsPlanQuality", quality], ["@/lib/adsLinkedInPlanIntent", intent],
     ["@/lib/adsLinkedInPlanDelivery", delivery], ["@/lib/adsPreparedPlanIntent", preparedIntent], ["@/lib/adsMetaPlanIntent", metaIntent], ["@/lib/adsOpenaiPlanIntent", openaiIntent],
+    ["@/lib/adsBudgetRecommendation", budgetRecommendation],
     ["@/lib/aiGatewayClient", { getAiGenerationAttemptTrace: () => null, aiGenerateJSON: async (options: Record<string, unknown>) => {
       requests.push(options);
       const completed = plans.normalizeAdsCampaignPlan(raw, { ...context, intent: "" });

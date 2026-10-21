@@ -1,8 +1,9 @@
 import { readPinterestAdsPlanIntent } from "./adsPinterestPlanIntent.ts";
 import { defaultMetaDeliverySettings, type MetaDeliverySettings } from "./adsMetaCampaignSettings.ts";
+import type { AdsBudgetRecommendation } from "./adsBudgetRecommendation.ts";
 export type MetaBudgetSuggestion = { type: "daily" | "total"; dailyEuros: number | null; totalEuros: number | null; startAt: string | null; endAt: string | null };
 /** Human EUR amounts and dated instants take precedence over model suggestions. */
-export function readMetaAdsPlanIntent(input: { intent?: string; now?: string; timezone?: string }) {
+export function readMetaAdsPlanIntent(input: { intent?: string; now?: string; timezone?: string; budgetRecommendation?: AdsBudgetRecommendation | null }) {
   const parsed = readPinterestAdsPlanIntent({ ...input, objectiveType: "CONSIDERATION" });
   if (parsed.error) return { budget: null, deliverySettings: null, error: parsed.error.replace(/Pinterest/g, "Meta") };
   const settings: MetaDeliverySettings = defaultMetaDeliverySettings();

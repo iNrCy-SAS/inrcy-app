@@ -141,7 +141,7 @@ test("invalid prepared human controls are rejected by the real route before data
 
 test("successful real plan route preserves prepared totals, dates, geography and bids from the human brief", async () => {
   const modules = await Promise.all([
-    import("../lib/adsCampaignPlan.ts"), import("../lib/adsCampaignIntelligence.ts"), import("../lib/adsChannelCapabilities.ts"), import("../lib/adsDestination.ts"), import("../lib/adsPlanQuality.ts"), import("../lib/adsLinkedInPlanIntent.ts"), import("../lib/adsLinkedInPlanDelivery.ts"), import("../lib/adsGooglePlanIntent.ts"), import("../lib/adsGoogleLocations.ts"), import("../lib/adsPinterestPlanIntent.ts"), import("../lib/adsMetaPlanIntent.ts"), import("../lib/adsOpenaiPlanIntent.ts"),
+    import("../lib/adsCampaignPlan.ts"), import("../lib/adsCampaignIntelligence.ts"), import("../lib/adsChannelCapabilities.ts"), import("../lib/adsDestination.ts"), import("../lib/adsPlanQuality.ts"), import("../lib/adsLinkedInPlanIntent.ts"), import("../lib/adsLinkedInPlanDelivery.ts"), import("../lib/adsGooglePlanIntent.ts"), import("../lib/adsGoogleLocations.ts"), import("../lib/adsPinterestPlanIntent.ts"), import("../lib/adsMetaPlanIntent.ts"), import("../lib/adsOpenaiPlanIntent.ts"), import("../lib/adsBudgetRecommendation.ts"),
   ]);
   for (const provider of ["x", "tiktok"] as const) {
     let credits = 0, committed = 0, models = 0;
@@ -154,7 +154,7 @@ test("successful real plan route preserves prepared totals, dates, geography and
     };
     const database = { from: query };
     const memory = { referenceDocuments: [], specialties: [], targetAudiences: [], differentiators: [], customerNeeds: [], values: [], brandPersonality: [], commitments: [], preferredVocabulary: [], forbiddenVocabulary: [] };
-    const names = ["adsCampaignPlan", "adsCampaignIntelligence", "adsChannelCapabilities", "adsDestination", "adsPlanQuality", "adsLinkedInPlanIntent", "adsLinkedInPlanDelivery", "adsGooglePlanIntent", "adsGoogleLocations", "adsPinterestPlanIntent", "adsMetaPlanIntent", "adsOpenaiPlanIntent"];
+    const names = ["adsCampaignPlan", "adsCampaignIntelligence", "adsChannelCapabilities", "adsDestination", "adsPlanQuality", "adsLinkedInPlanIntent", "adsLinkedInPlanDelivery", "adsGooglePlanIntent", "adsGoogleLocations", "adsPinterestPlanIntent", "adsMetaPlanIntent", "adsOpenaiPlanIntent", "adsBudgetRecommendation"];
     const imports: Record<string, unknown> = Object.fromEntries(names.map((name, index) => [`@/lib/${name}`, modules[index]]));
     Object.assign(imports, {
       "node:crypto": { randomUUID: () => "prepared-test-request" }, "next/server": { NextResponse: { json: (value: unknown, init?: ResponseInit) => Response.json(value, init) } },
@@ -162,7 +162,7 @@ test("successful real plan route preserves prepared totals, dates, geography and
       "@/lib/adsServer": { adsRequestOriginAllowed: () => true, requirePremiumAdsUser: async () => ({ user: { authUserId: "auth", activeUserId: "owner", supabase: database } }), isAdsChannelUserAllowed: async () => true },
       "@/lib/observability/request": { getRequestId: () => "prepared-test-request" }, "@/lib/observability/sentry": { captureApiException() {} }, "@/lib/rateLimit": { enforceRateLimit: async () => null },
       "@/lib/aiUsageQuota": { reserveAiCredits: async () => { credits++; return { reservation: {} }; }, commitAiCredits: async () => { committed++; }, rollbackAiCredits: async () => {} },
-      "@/lib/aiGatewayClient": { getAiGenerationAttemptTrace: () => null, aiGenerateJSON: async (options: Record<string, unknown>) => { models++; modelContexts.push(JSON.parse(String(options.input).split("\n").slice(1).join("\n"))); return raw(provider); } },
+      "@/lib/aiGatewayClient": { getAiGenerationAttemptTrace: () => null, aiGenerateJSON: async (options: Record<string, unknown>) => { models++; modelContexts.push(JSON.parse(String(options.input).split("\n").slice(1).join("\n"))); return { ...raw(provider), budgetRecommendation: { dailyEuros: 25, durationDays: 14, rationale: "Un premier test concentré sur l’offre régionale permet de comparer les messages ; les dépenses seront adaptées après observation des résultats." } }; } },
       "@/lib/aiGatewayPolicy": { createAiOperationBudget: () => ({}) },
       "@/lib/aiGenerationProfile": { buildNormalizedAiGenerationProfile: () => ({ business: { interventionZones: context.locations, city: "Lille", services: context.services, customerTypologies: ["Entreprises locales"], strengths: [] }, preferences: {} }) },
       "@/lib/aiMemory": { EMPTY_AI_MEMORY: memory, normalizeAiMemory: () => memory }, "@/lib/professionalBusinessIdentity": { resolveProfessionalCompanyNameFromProfile: () => context.companyName },

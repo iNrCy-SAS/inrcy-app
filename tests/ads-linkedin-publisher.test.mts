@@ -178,7 +178,7 @@ test("LinkedIn rollout is provider-specific and the database permits its real re
           INRCY_LINKEDIN_ADS_PUBLISH_ENABLED: dedicatedFlag,
         };
         assert.equal(routeGate({ provider: "linkedin" }, mode, { env: environment }, isAdsChannelPublishEnabled), dedicatedFlag === "true");
-        assert.equal(routeGate({ provider: "meta" }, mode, { env: environment }, isAdsChannelPublishEnabled), sharedFlag === "true");
+        assert.equal(routeGate({ provider: "meta" }, mode, { env: environment }, isAdsChannelPublishEnabled), mode !== "demo_paused" || sharedFlag === "true");
       }
     }
   }

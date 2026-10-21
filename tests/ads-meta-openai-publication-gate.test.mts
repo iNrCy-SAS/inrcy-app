@@ -197,6 +197,7 @@ function confirmationHarness(channel: Channel) {
       setDraft: (next: AdsCampaignInput | ((current: AdsCampaignInput) => AdsCampaignInput)) => { draft = typeof next === "function" ? next(draft) : next; }, setDirty: (value: boolean) => { dirty = value; }, setConfirmedSpend: (value: boolean) => { spend = value; }, setConfirmedDestinationUrl: (value: string) => { url = value; }, applyDraftEdit: actualFunction("applyDraftEdit", {}),
     };
     base.updateDraft = (next: Partial<AdsCampaignInput>) => actualFunction("updateDraft", scope())(next); base.confirmReviewedDeclaration = actualFunction("confirmReviewedDeclaration", base);
+    base.launchStepMap = initializer("launchStepMap", base);
     base.incompleteLaunchSteps = initializer("incompleteLaunchSteps", base); base.incompleteLaunchMessage = initializer("incompleteLaunchMessage", base); base.launchBlockingMessage = initializer("launchBlockingMessage", base); base.launchBlocked = initializer("launchBlocked", base); return base;
   };
   const button = findAll((node) => ts.isJsxOpeningElement(node) && node.tagName.getText(source) === "button" && node.attributes.properties.some((attribute) => ts.isJsxAttribute(attribute) && attribute.name.getText(source) === "onClick" && attribute.getText(source).includes("openLaunchDialog(")))[0]; assert.ok(button);

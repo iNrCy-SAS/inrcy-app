@@ -45,12 +45,13 @@ function Image({src,alt,className}) { return <img src={src} alt={alt} className=
 function LocalMediaUploadChoice({disabled,triggerLabel}) { return <button type="button" disabled={disabled}>{triggerLabel || "Ajouter une image"}</button>; }
 ${component("StudioStepHeader")}
 ${component("CampaignMediaPreview")}
-export function PinterestMediaFixture({shortScreen,compactScreen}) {
+${component("CampaignStepWarning")}
+export function PinterestMediaFixture({shortScreen,compactScreen,warnings=false}) {
   const channelId="pinterest", creationPath="inrcy", busy=null, analysisSetupOpen=false;
   const channelMeta={label:"Pinterest Ads"}, nativeSettings={channel:"pinterest",intendedPromotionType:"STANDARD_AD",creativeType:"REGULAR"};
   const draft={provider:"pinterest",creationMode:"inrcy",campaignType:"generic",name:"Cuisine en bois clair et rangements en colonnes",creativeType:"image",creativeUrl:${JSON.stringify(imageUrl)},imageUrl:${JSON.stringify(imageUrl)},mediaStrategy:"image",mediaBrief:"Cuisine en bois clair, cadrage portrait 4:5."};
   ${[...new Set(stepVariables)].sort((left, right) => left.pos - right.pos).map((node) => node.getText(parsed)).join("\n")}
-  const step=mediaStep, reachedStepKeys=stepKeys;
+  const step=mediaStep, reachedStepKeys=stepKeys, stepWarningMessages=new Map(warnings?[[mediaStep+1,"Ajoutez un média conforme."],[creativeStep+1,"Complétez le texte de votre annonce."]]:[]);
   const attachedCampaignMediaUrl=draft.imageUrl, nativeMediaUpload=true, googleSearchMedia=false, nativeMediaStrategy="image";
   const campaignMediaUploadBusy=false, campaignMediaUploadError=null, campaignImageInputRef={current:null}, campaignVideoInputRef={current:null};
   const analysisProposalReady=false, planProgress=100, destinationReview={required:false,canContinue:true};
@@ -65,8 +66,8 @@ const compiled = ts.transpileModule(fixtureSource, { compilerOptions: { target: 
 const moduleExports = {};
 new Function("exports", "require", "adsDraftStepKeys", "adsDraftHasKeywordsStep", "adsDraftHasMediaStep", compiled)(moduleExports, require, adsDraftStepKeys, adsDraftHasKeywordsStep, adsDraftHasMediaStep);
 
-function fixture(width, height) {
-  const markup = renderToStaticMarkup(createElement(moduleExports.PinterestMediaFixture, { compactScreen: width < 1000 || height < 660, shortScreen: height <= 600 }));
+function fixture(width, height, warnings=false) {
+  const markup = renderToStaticMarkup(createElement(moduleExports.PinterestMediaFixture, { compactScreen: width < 1000 || height < 660, shortScreen: height <= 600, warnings }));
   return `<!doctype html><html lang="fr"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
     *,*::before,*::after{box-sizing:border-box}html,body{margin:0;font-family:Arial,sans-serif;background:#0b1636}
     ${css.replace(/:global\(([^)]+)\)/g, "$1")}
@@ -125,6 +126,36 @@ test("Pinterest keeps its real portrait, controls and twelve native steps access
           }), true, `${details}: ${control.toString()} is inaccessible; ${JSON.stringify(await control.evaluate((element)=>{const r=element.getBoundingClientRect(); const top=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2); return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,hit:top?.outerHTML};}))}`);
         }
         if (width >= 1000) assert.equal(await page.locator(".studioPureMediaCard").evaluate((element) => element.scrollTop), 0, details);
+      } finally { await page.close(); }
+    }
+  } finally { await browser.close(); }
+});
+
+test("warning icons keep the real wizard circles and navigation usable without adding a row", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const [width, height] of [[320, 568], [375, 667], [768, 1024], [1024, 768], [1366, 768], [1707, 842]]) {
+      const page = await browser.newPage({ viewport: { width, height } });
+      try {
+        await page.route("**/*", (route) => route.request().url() === imageUrl ? route.fulfill({status:200,contentType:"image/svg+xml",body:image}) : route.abort());
+        await page.setContent(fixture(width,height));
+        const before = await page.locator(".stepper").boundingBox();
+        await page.setContent(fixture(width,height,true));
+        const after = await page.locator(".stepper").boundingBox();
+        const layout = await page.evaluate(() => ({
+          overflow: document.documentElement.scrollWidth > innerWidth,
+          warningCount: document.querySelectorAll(".studioStepBubbleWarning").length,
+          labelCount: document.querySelectorAll(".studioStepNameWarning").length,
+          circles: [...document.querySelectorAll(".stepper button>span")].map((node) => ({width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height})),
+          icons: [...document.querySelectorAll(".studioStepBubbleWarning")].map((node) => ({left:node.getBoundingClientRect().left,right:node.getBoundingClientRect().right,top:node.getBoundingClientRect().top})),
+        }));
+        const details = `${width}×${height}: ${JSON.stringify({before,after,layout})}`;
+        assert.equal(layout.overflow,false,details);
+        assert.equal(layout.warningCount,2,details);
+        assert.equal(layout.labelCount,width<1000||height<660?0:2,details);
+        assert.ok(Math.abs(before.height-after.height)<1,details);
+        assert.ok(layout.circles.every((circle)=>Math.abs(circle.width-circle.height)<1),details);
+        assert.ok(layout.icons.every((icon)=>icon.left>=0&&icon.right<=width&&icon.top>=0),details);
       } finally { await page.close(); }
     }
   } finally { await browser.close(); }

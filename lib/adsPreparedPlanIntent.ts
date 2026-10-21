@@ -2,9 +2,10 @@ import { defaultPreparedDeliverySettings, normalizePreparedDeliverySettings, typ
 import { readLinkedInAdsPlanIntent } from "./adsLinkedInPlanIntent.ts";
 import { readLinkedInHumanDeliveryConstraints } from "./adsLinkedInPlanDelivery.ts";
 import type { AdsChannelDraft } from "./adsChannelDrafts.ts";
+import { adsRequestedDurationDays, type AdsBudgetRecommendation } from "./adsBudgetRecommendation.ts";
 
 export type PreparedBudgetSuggestion = { type: "daily" | "total"; dailyEuros: number | null; totalEuros: number | null; startAt: string | null; endAt: string | null };
-type Context = { provider: "x" | "tiktok"; intent?: string; now?: string; timezone?: string };
+type Context = { provider: "x" | "tiktok"; intent?: string; now?: string; timezone?: string; budgetRecommendation?: AdsBudgetRecommendation | null };
 
 /** Human choices are draft controls only; no provider ID or publication permission is generated. */
 export function readPreparedAdsPlanIntent(context: Context): { budget: PreparedBudgetSuggestion | null; deliverySettings: PreparedDeliverySettings | null; error: string | null } {
@@ -18,11 +19,12 @@ export function readPreparedAdsPlanIntent(context: Context): { budget: PreparedB
   if (!Number.isFinite(now)) return fail("La date de référence du brouillon préparé est invalide.");
   const text = (context.intent || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
   const positive = (pattern: RegExp) => [...text.matchAll(pattern)].filter((match) => !/\b(?:pas|sans|aucun\w*|exclu\w*)\b[^,;.!?]{0,35}$/.test(text.slice(Math.max(0, match.index! - 45), match.index)));
-  const durations = [...new Set(positive(/\b(?:pour|sur|pendant)\s+(?:une duree de\s+)?(\d+)\s*(jours?|semaines?)\b/g).filter((match) => /\b(?:campagne|diffusion|budget|enveloppe|publicite)\b/.test(text.slice(Math.max(0, match.index! - 100), match.index))).map((match) => Number(match[1]) * (match[2].startsWith("semaine") ? 7 : 1)))];
-  if (durations.length > 1 || durations.some((days) => !Number.isSafeInteger(days) || days < 1 || days > 90)) return fail(`Choisissez une seule durée préparée ${name} de 1 à 90 jours.`);
+  const requestedDuration = adsRequestedDurationDays(context.intent);
+  if (requestedDuration.error) return fail(requestedDuration.error);
+  const durations = requestedDuration.days ? [requestedDuration.days] : [];
   const startAt = dates.constraints.budget.startAt ?? new Date(now + 15 * 60_000).toISOString();
   const start = startAt ? Date.parse(startAt) : now;
-  const endAt = dates.constraints.budget.endAt || new Date(start + (durations[0] || 7) * 86400000).toISOString();
+  const endAt = dates.constraints.budget.endAt || new Date(start + (durations[0] || context.budgetRecommendation?.durationDays || 7) * 86400000).toISOString();
   const end = Date.parse(endAt);
   if (start < now - 60000 || end <= Math.max(start, now) || end > now + 90 * 86400000) return fail(`Le calendrier préparé ${name} doit être futur, la fin après le début, dans les 90 prochains jours.`);
   if (durations[0] && dates.constraints.budget.endAt && Math.abs((end - start) / 86400000 - durations[0]) > 1) return fail(`Les dates et la durée préparée ${name} se contredisent.`);
@@ -34,7 +36,7 @@ export function readPreparedAdsPlanIntent(context: Context): { budget: PreparedB
   if (Number(Boolean(maximums.length)) + Number(Boolean(caps.length)) + Number(Boolean(automatics.length)) > 1) return fail(`Choisissez une seule stratégie d’enchères préparée ${name}.`);
   if (context.provider === "tiktok" && maximums.length || context.provider === "x" && caps.length) return fail(`Cette stratégie n’est pas proposée dans le brouillon préparé ${name}.`);
   // These are visible proposals, never conversions of an explicit human budget.
-  const proposalType = human.budget?.type || (context.provider === "tiktok" ? "total" : "daily");
+  const proposalType = human.budget?.type || (!context.budgetRecommendation && context.provider === "tiktok" ? "total" : "daily");
   const settings = defaultPreparedDeliverySettings(proposalType);
   settings.budget = { type: proposalType, totalEuros: human.budget?.totalEuros ?? (proposalType === "total" && !human.budget ? 200 : null), startAt, endAt };
   if (context.provider === "x" && !maximums.length && !caps.length && !automatics.length) settings.bidding = { strategy: "max_bid", amountEuros: 1 };
@@ -46,7 +48,7 @@ export function readPreparedAdsPlanIntent(context: Context): { budget: PreparedB
   }
   const checked = normalizePreparedDeliverySettings(settings, context.provider);
   if (checked.error || !checked.settings) return fail(checked.error || "Les réglages préparés sont invalides.");
-  const dailyEuros = settings.budget.type === "daily" ? human.dailyEuros ?? 10 : null;
+  const dailyEuros = settings.budget.type === "daily" ? human.dailyEuros ?? context.budgetRecommendation?.dailyEuros ?? 10 : null;
   if (settings.bidding.amountEuros != null && settings.bidding.amountEuros > (settings.budget.totalEuros ?? dailyEuros ?? 0)) return fail("Le montant d’enchère préparé ne peut pas dépasser le budget choisi.");
   return { budget: { type: settings.budget.type, dailyEuros, totalEuros: settings.budget.totalEuros, startAt, endAt }, deliverySettings: checked.settings, error: null };
 }

@@ -53,6 +53,18 @@ function hasValidBudgetAndEndDate(draft: AdsCampaignInput, now: number) {
     && daysUntilEnd <= 90;
 }
 
+/** The native validation message and its navigation target share this mapping. */
+export function adsNativeDeliveryIssueStep(provider: AdsCampaignInput["provider"], message: string, steps: AdsLaunchStepMap): number {
+  if (provider === "meta") return /âge|audience|langue/i.test(message) ? steps.targeting
+    : /appel|action/i.test(message) ? steps.creative
+      : /enchère/i.test(message) ? steps.bidding ?? steps.budget : steps.budget;
+  if (provider === "pinterest") return /enchère|optimisation/i.test(message) ? steps.bidding ?? steps.budget
+    : /Notoriété|Considération|conversion/i.test(message) ? steps.foundations : steps.budget;
+  if (provider === "openai") return /plateforme|suivi/i.test(message) ? steps.delivery
+    : /enchère/i.test(message) ? steps.bidding ?? steps.budget : steps.budget;
+  return steps.budget;
+}
+
 /**
  * Returns the numbered wizard steps that still miss information required by
  * the live publisher. It deliberately does not control wizard navigation or
@@ -115,7 +127,7 @@ export function adsIncompleteLaunchSteps({
     if (!draft.targetLocations.length || draft.metaDeliverySettings && !draft.metaGeoTargets?.length) add(steps.geography ?? steps.targeting);
     if (draft.primaryText.trim().length < 10 || !draft.callToAction.trim() || draft.metaDeliverySettings && (draft.headlines.length !== 1 || draft.descriptions.length > 1)) add(steps.creative);
     try { metaNativeDelivery(draft, now); }
-    catch (error) { const message = error instanceof Error ? error.message : ""; add(/âge|audience|langue/i.test(message) ? steps.targeting : /appel|action/i.test(message) ? steps.creative : /enchère/i.test(message) ? steps.bidding ?? steps.budget : steps.budget); }
+    catch (error) { add(adsNativeDeliveryIssueStep(draft.provider, error instanceof Error ? error.message : "", steps)); }
     if (!draft.metaPlacements.length) add(steps.delivery);
     if (!mediaReady) add(steps.media);
     if (!draft.noSpecialCategoryConfirmed) add(steps.validation);
@@ -160,8 +172,7 @@ export function adsIncompleteLaunchSteps({
       try { pinterestNativeDelivery(draft, now); }
       catch (error) {
         const message = error instanceof Error ? error.message : "";
-        add(/enchère|optimisation/i.test(message) ? steps.bidding ?? steps.budget
-          : /Notoriété|Considération|conversion/i.test(message) ? steps.foundations : steps.budget);
+        add(adsNativeDeliveryIssueStep(draft.provider, message, steps));
       }
     }
   }
@@ -174,7 +185,7 @@ export function adsIncompleteLaunchSteps({
       || !body || body.length > 100) add(steps.creative);
     if (!mediaReady) add(steps.media);
     try { openaiNativeDelivery(draft, now, openaiTimeZone); }
-    catch (error) { const message = error instanceof Error ? error.message : ""; add(/plateforme|suivi/i.test(message) ? steps.delivery : /enchère/i.test(message) ? steps.bidding ?? steps.budget : steps.budget); }
+    catch (error) { add(adsNativeDeliveryIssueStep(draft.provider, error instanceof Error ? error.message : "", steps)); }
   }
 
   return [...incomplete].sort((left, right) => left - right);

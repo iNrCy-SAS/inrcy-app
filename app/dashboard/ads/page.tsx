@@ -29,7 +29,7 @@ export default async function AdsPage({ searchParams }: { searchParams: Promise<
     initialConnections={initialConnections}
     initialConnection={params.connection === "connected" ? "connected" : params.connection === "error" ? "error" : null}
     initialReason={typeof params.reason === "string" ? params.reason : ""}
-    livePublishingEnabled={process.env.INRCY_ADS_LIVE_PUBLISH_ENABLED === "true"}
+    metaPublishingEnabled={isAdsChannelPublishEnabled("meta", "live", process.env)}
     googlePublishingEnabled={isAdsChannelPublishEnabled("google", "live", process.env)}
     pinterestPublishingEnabled={isAdsChannelPublishEnabled("pinterest", "live", process.env)}
   />;

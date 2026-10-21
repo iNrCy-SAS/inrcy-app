@@ -102,6 +102,9 @@ export function adsPlanQualityRepairInstructions(issueCodes: readonly string[]):
   if (issueCodes.includes("missing_strategy_explanation")) {
     instructions.push("Explique dans rationale le choix d'une offre attestée, le besoin du public, l'intérêt de ce canal, l'action recherchée et la limite de mesure à vérifier, en deux ou trois phrases concrètes.");
   }
+  if (issueCodes.includes("missing_budget_recommendation")) {
+    instructions.push("Complète budgetRecommendation avec dailyEuros, durationDays et une justification de 40 à 1000 caractères fondée sur ce canal, l’offre, le public et le périmètre connus. Respecte en priorité les budgets et dates explicites ; sinon propose une hypothèse de test motivée, sans reconduire mécaniquement 10 € et sept jours ni inventer de performances.");
+  }
   if (issueCodes.some((code) => code.endsWith("repetitive"))) {
     instructions.push("Varie réellement les angles : service, usage client, bénéfice attesté, différence vérifiée, zone pertinente et action. Changer la ponctuation, l'ordre des mots ou seulement la ville ne crée pas une nouvelle annonce.");
   }
@@ -117,7 +120,7 @@ export function adsPlanQualityRepairInstructions(issueCodes: readonly string[]):
 export function canRepairAdsPlanQuality(issueCodes: readonly string[], remainingMs: number): boolean {
   return remainingMs >= 45_000 && issueCodes.length > 0 && issueCodes.every((code) =>
     /(?:_too_long|_incomplete|_repetitive)$/.test(code)
-    || ["missing_strategy_explanation", "geography_scope_conflict", "search_negative_keywords_conflict"].includes(code));
+    || ["missing_strategy_explanation", "missing_budget_recommendation", "geography_scope_conflict", "search_negative_keywords_conflict"].includes(code));
 }
 
 /** Give the writer measured defects rather than asking it to guess what failed. */

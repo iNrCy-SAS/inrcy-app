@@ -51,10 +51,10 @@ function actualFunction(name: string, scope: Record<string, unknown>) {
   return new Function(...Object.keys(scope), `${compiled}\nreturn ${name};`)(...Object.values(scope));
 }
 
-function gateScope(channelId: string, livePublishingEnabled: boolean, publicationEnabled: unknown, load = "ready", googlePublishingEnabled = true, pinterestPublishingEnabled = true) {
+function gateScope(channelId: string, metaPublishingEnabled: boolean, publicationEnabled: unknown, load = "ready", googlePublishingEnabled = true, pinterestPublishingEnabled = true) {
   const scope: Record<string, unknown> = {
     channelId,
-    livePublishingEnabled,
+    metaPublishingEnabled,
     googlePublishingEnabled,
     pinterestPublishingEnabled,
     externalStatuses: { linkedin: { load, publicationEnabled } },
@@ -68,14 +68,14 @@ function gateScope(channelId: string, livePublishingEnabled: boolean, publicatio
 }
 
 test("the four channel gates remain independent in opening and both launch modes", () => {
-  for (const global of [false, true]) {
+  for (const metaEnabled of [false, true]) {
     for (const dedicated of [false, true]) {
       for (const googleEnabled of [false, true]) {
         for (const pinterestEnabled of [false, true]) {
           for (const channel of ["linkedin", "meta", "google", "pinterest"]) {
-            const scope = gateScope(channel, global, dedicated, "ready", googleEnabled, pinterestEnabled);
-            const expected = { linkedin: dedicated, meta: global, google: googleEnabled, pinterest: pinterestEnabled }[channel];
-            assert.equal(expression(variable("channelPublishingEnabled"), scope), expected, `${channel}, global=${global}, dedicated=${dedicated}`);
+            const scope = gateScope(channel, metaEnabled, dedicated, "ready", googleEnabled, pinterestEnabled);
+            const expected = { linkedin: dedicated, meta: metaEnabled, google: googleEnabled, pinterest: pinterestEnabled }[channel];
+            assert.equal(expression(variable("channelPublishingEnabled"), scope), expected, `${channel}, meta=${metaEnabled}, linkedin=${dedicated}`);
             assert.equal(dialogGate("activeEnabled", scope), expected);
             assert.equal(dialogGate("pausedEnabled", scope), expected);
           }

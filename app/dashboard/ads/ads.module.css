@@ -1508,6 +1508,14 @@
   background: linear-gradient(135deg, var(--ads-studio-button-start), var(--ads-studio-button-end));
   box-shadow: 0 0 17px rgba(var(--ads-wizard-primary-rgb), .25);
 }
+.studioStepName{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-width:0;font-weight:inherit}
+.studioStepBubbleWarning,.studioStepNameWarning{display:inline-block;flex:0 0 auto;width:13px;height:13px;color:#ffd760}
+.studioWorkspace[data-channel] .stepper button[data-incomplete]>span{position:relative;border-color:#ffd760;box-shadow:0 0 0 1px #ffd76028}
+.studioStepBubbleWarning{position:absolute;top:-3px;right:-4px;filter:drop-shadow(0 1px 2px #071127)}
+.studioWorkspace[data-channel] .stepper button[data-incomplete] .studioStepName{color:#ffe4a0}
+.studioWorkspace[data-channel] .stepper button:focus-visible{outline:2px solid #c5dcff;outline-offset:3px;border-radius:8px}
+.studioBudgetAdvice{margin:0 0 16px;padding:12px 15px;border:1px solid #80c8f442;border-radius:12px;color:#dceaff;background:#16325740;font-size:12px;line-height:1.5}
+.studioBudgetAdvice strong{color:#f0f7ff}.studioBudgetAdvice p{margin:5px 0}.studioBudgetAdvice small{color:#b7c8e2;font-size:10px}
 
 .studioWorkspace[data-channel] .headerCta,
 .studioWorkspace[data-channel] .primaryButton,

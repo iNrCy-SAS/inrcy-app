@@ -1,4 +1,5 @@
 import { readMetaAdsPlanIntent } from "@/lib/adsMetaPlanIntent";
+import { ADS_BUDGET_RECOMMENDATION_INSTRUCTIONS, adsRequestedDurationDays } from "@/lib/adsBudgetRecommendation";
 import { readOpenaiAdsPlanIntent, selectOpenaiAdsPlanLocations } from "@/lib/adsOpenaiPlanIntent";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
@@ -196,9 +197,9 @@ function planSystemPrompt(provider: AdsChannelId) {
 
 Analyse l’offre réellement attestée, le besoin du client, la page de destination et les zones locales connues. Ne transforme jamais une ville ou région en campagne nationale. Ne promets aucun résultat, n’invente ni prix, témoignage, garantie, certification, donnée personnelle ni proximité fictive. Ne prétends pas qu’OpenAI recommande l’annonce ou que celle-ci fait partie d’une réponse de ChatGPT. L’audience proposée est un contexte de pertinence, pas un ciblage de personnes par attribut sensible.
 
-Retourne uniquement un objet JSON avec exactement les clés : brand, name, campaignType, objective, conversionGoal, conversionLocation, bidStrategy, offer, destinationUrl, urlExpansion, urlExclusions, targetLocations, targetAudiences, languages, googleSearchPartners, googleDisplayExpansion, metaAudienceExpansion, metaPlacements, trackingParameters, primaryText, imageUrl, creativeUrl, creativeType, mediaStrategy, mediaBrief, callToAction, headlines, descriptions, keywords, negativeKeywords, rationale.
+Retourne uniquement un objet JSON avec exactement les clés : brand, name, campaignType, objective, conversionGoal, conversionLocation, bidStrategy, offer, destinationUrl, urlExpansion, urlExclusions, targetLocations, targetAudiences, languages, googleSearchPartners, googleDisplayExpansion, metaAudienceExpansion, metaPlacements, trackingParameters, primaryText, imageUrl, creativeUrl, creativeType, mediaStrategy, mediaBrief, callToAction, headlines, descriptions, keywords, negativeKeywords, rationale, budgetRecommendation.
 
-Utilise campaignType="generic", objective="website_traffic", conversionGoal="website_visit", conversionLocation="website", bidStrategy="manual_review", mediaStrategy="image", creativeType="image", metaPlacements=[], keywords=[], negativeKeywords=[], googleSearchPartners=false, googleDisplayExpansion=false, metaAudienceExpansion=false. Fournis exactement un titre dans headlines, de 3 à 50 caractères, et un texte autonome dans primaryText, de 1 à 100 caractères. Mets exactement le même texte dans descriptions[0], sans variante cachée. N’écris jamais une phrase coupée, un mot coupé ou des points de suspension. Le titre et le corps doivent apporter ensemble une information concrète et une raison honnête de visiter la page. mediaBrief décrit une seule image publicitaire carrée JPG ou PNG fidèle à l’offre, nette sur mobile, sans texte incrusté ni preuve inventée. imageUrl et creativeUrl sont vides : un média réel sera choisi après analyse. La destination HTTPS doit provenir textuellement de preferredDestinationUrl, sinon reste vide. Les zones targetLocations reflètent uniquement les zones attestées dans le contexte, jamais le pays par défaut. Les profils targetAudiences servent à rédiger le message, ils ne constituent pas un ciblage d’audience personnalisée. Les autres listes peuvent rester vides si elles ne sont pas utiles. rationale explique en deux ou trois phrases l’offre, le public, le choix de la carte ChatGPT et la mesure réellement observable. Le budget et les dates explicites du brief sont conservés par le serveur : une enveloppe totale n’est jamais transformée en budget quotidien. Sans indication, propose 15 € par jour et une enchère fixe de 1 € par clic, qui resteront à confirmer sur la dernière page. Les paramètres UTM peuvent être proposés pour le suivi natif de la destination. N’invente aucune conversion ou audience personnalisée.
+Utilise campaignType="generic", objective="website_traffic", conversionGoal="website_visit", conversionLocation="website", bidStrategy="manual_review", mediaStrategy="image", creativeType="image", metaPlacements=[], keywords=[], negativeKeywords=[], googleSearchPartners=false, googleDisplayExpansion=false, metaAudienceExpansion=false. Fournis exactement un titre dans headlines, de 3 à 50 caractères, et un texte autonome dans primaryText, de 1 à 100 caractères. Mets exactement le même texte dans descriptions[0], sans variante cachée. N’écris jamais une phrase coupée, un mot coupé ou des points de suspension. Le titre et le corps doivent apporter ensemble une information concrète et une raison honnête de visiter la page. mediaBrief décrit une seule image publicitaire carrée JPG ou PNG fidèle à l’offre, nette sur mobile, sans texte incrusté ni preuve inventée. imageUrl et creativeUrl sont vides : un média réel sera choisi après analyse. La destination HTTPS doit provenir textuellement de preferredDestinationUrl, sinon reste vide. Les zones targetLocations reflètent uniquement les zones attestées dans le contexte, jamais le pays par défaut. Les profils targetAudiences servent à rédiger le message, ils ne constituent pas un ciblage d’audience personnalisée. Les autres listes peuvent rester vides si elles ne sont pas utiles. rationale explique en deux ou trois phrases l’offre, le public, le choix de la carte ChatGPT et la mesure réellement observable. Le budget et les dates explicites du brief sont conservés par le serveur : une enveloppe totale n’est jamais transformée en budget quotidien. Sans indication, analyse le budget et la durée dans budgetRecommendation ; l’enchère fixe de 1 € par clic reste un repère à confirmer sur la dernière page. Les paramètres UTM peuvent être proposés pour le suivi natif de la destination. N’invente aucune conversion ou audience personnalisée.
 
 ${ADS_PLAN_EDITORIAL_INSTRUCTIONS}
 ${ADS_PLAN_STRATEGY_INSTRUCTIONS}`;
@@ -221,7 +222,7 @@ Si le contexte contient un objectif d’analyse explicite, traite-le comme une d
 Ne révèle pas ce raisonnement intermédiaire : retourne uniquement le JSON demandé. Préfère une campagne focalisée, mesurable et réaliste à une proposition qui essaie de tout faire. Ne laisse pas une rubrique vide quand une recommandation fondée sur le contexte est possible. Ne remplis jamais une rubrique avec une généralité interchangeable. Explique les choix dans rationale en langage professionnel, sans prétendre connaître des statistiques absentes.
 
 Retourne un objet JSON avec exactement ces clés :
-brand, name, campaignType, objective, conversionGoal, conversionLocation, bidStrategy, offer, destinationUrl, urlExpansion, urlExclusions, targetLocations, targetAudiences, languages, googleSearchPartners, googleDisplayExpansion, metaAudienceExpansion, metaPlacements, trackingParameters, primaryText, imageUrl, creativeUrl, creativeType, mediaStrategy, mediaBrief, callToAction, headlines, descriptions, keywords, negativeKeywords, rationale.
+brand, name, campaignType, objective, conversionGoal, conversionLocation, bidStrategy, offer, destinationUrl, urlExpansion, urlExclusions, targetLocations, targetAudiences, languages, googleSearchPartners, googleDisplayExpansion, metaAudienceExpansion, metaPlacements, trackingParameters, primaryText, imageUrl, creativeUrl, creativeType, mediaStrategy, mediaBrief, callToAction, headlines, descriptions, keywords, negativeKeywords, rationale, budgetRecommendation.
 
 Valeurs autorisées :
 - campaignType : search | performance_max | display | video | demand_gen | shopping | meta_sales | meta_leads | meta_traffic | meta_awareness | generic
@@ -518,7 +519,7 @@ export async function POST(request: Request) {
             // Ads owns Terra → Claude → Mistral → Gemini and one optional
             // primary repair, with four actual calls total and one deadline.
             allowProviderFallback: false,
-            system: planSystemPrompt(provider),
+            system: `${planSystemPrompt(provider)}\n\n${ADS_BUDGET_RECOMMENDATION_INSTRUCTIONS}`,
             input: `DONNÉES FIABLES DE L’ENTREPRISE :\n${JSON.stringify(context)}${previousQualityIssues.length
               ? `\nCONTRÔLE QUALITÉ : la proposition précédente a été refusée pour ${previousQualityIssues.join(", ")}. ${adsPlanQualityRepairInstructions(previousQualityIssues)}\n${previousQualityDetails}`
               : ""}`,
@@ -609,8 +610,14 @@ export async function POST(request: Request) {
         });
         if (!targetLocations.length) candidate.targetLocations = [];
         const review = assessAdsCampaignPlanReview(candidate, provider);
+        // A fresh analysis must supply a reasoned budget and duration. Legacy
+        // saved drafts remain readable, but their defaults are not AI advice.
+        if (!candidate.budgetRecommendation) {
+          review.reviewable = false;
+          review.issueCodes.push("missing_budget_recommendation");
+        }
         if (!review.reviewable) {
-          const issueCodes = adsCampaignPlanValidationIssueCodes(rawPlan, {
+          const issueCodes = [...new Set([...review.issueCodes, ...adsCampaignPlanValidationIssueCodes(rawPlan, {
             provider,
             companyName,
             destinationUrl: resolvedDestination.url,
@@ -621,7 +628,7 @@ export async function POST(request: Request) {
             now, timezone,
             audiences: context.audiences,
             services: context.services,
-          });
+          })])];
           previousQualityIssues = issueCodes;
           previousQualityDetails = adsPlanRepairDetails(candidate, provider);
           console.warn("[ads.plan] model attempt rejected", {
@@ -677,7 +684,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({
       plan: provider === "linkedin" ? { ...plan, linkedinCalendarConstraints: {
-        endIsExplicit: Object.hasOwn(humanDelivery?.constraints.budget || {}, "endAt")
+        endIsExplicit: Object.hasOwn(humanDelivery?.constraints.budget || {}, "endAt") || adsRequestedDurationDays(professionalIntent).days !== null
           || /\b(?:pendant|sur|dur[ée]e(?: de)?)\s+\d+\s*(?:jours?|semaines?|mois)\b/i.test(professionalIntent),
       } } : plan,
       requestId,

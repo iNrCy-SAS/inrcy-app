@@ -1,9 +1,10 @@
 import { defaultPinterestDeliverySettings, normalizePinterestDeliverySettings, type PinterestDeliverySettings } from "./adsPinterestCampaignSettings.ts";
 import { readLinkedInAdsPlanIntent, selectLinkedInAdsPlanLocations } from "./adsLinkedInPlanIntent.ts";
 import { readLinkedInHumanDeliveryConstraints } from "./adsLinkedInPlanDelivery.ts";
+import { adsRequestedDurationDays, type AdsBudgetRecommendation } from "./adsBudgetRecommendation.ts";
 
 export type PinterestBudgetSuggestion = { type: "daily" | "total"; dailyEuros: number | null; totalEuros: number | null; startAt: string | null; endAt: string | null };
-type Context = { intent?: string; now?: string; timezone?: string; objectiveType?: string };
+type Context = { intent?: string; now?: string; timezone?: string; objectiveType?: string; budgetRecommendation?: AdsBudgetRecommendation | null };
 /** Human budgets and instants override model guesses. No provider ID or conversion event is generated. */
 export function readPinterestAdsPlanIntent(context: Context): { budget: PinterestBudgetSuggestion | null; deliverySettings: PinterestDeliverySettings | null; error: string | null } {
   const fail = (error: string) => ({ budget: null, deliverySettings: null, error });
@@ -15,12 +16,12 @@ export function readPinterestAdsPlanIntent(context: Context): { budget: Pinteres
   if (!Number.isFinite(now)) return fail("La date de référence Pinterest est invalide.");
   const text = (context.intent || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
   const positive = (pattern: RegExp) => [...text.matchAll(pattern)].filter((match) => !/\b(?:pas|sans|aucun\w*|exclu\w*)\b[^,;.!?]{0,35}$/.test(text.slice(Math.max(0, match.index! - 45), match.index)));
-  const periods = positive(/\b(?:pour|sur|pendant)\s+(?:une duree de\s+)?(\d+)\s*(jours?|semaines?)\b/g).filter((match) => /\b(?:campagne|diffusion|budget|enveloppe|publicite)\b/.test(text.slice(Math.max(0, match.index! - 100), match.index)));
-  const durations = [...new Set(periods.map((match) => Number(match[1]) * (match[2].startsWith("semaine") ? 7 : 1)))];
-  if (durations.length > 1 || durations.some((days) => !Number.isSafeInteger(days) || days < 1 || days > 90)) return fail("Choisissez une seule durée Pinterest de 1 à 90 jours.");
+  const requestedDuration = adsRequestedDurationDays(context.intent);
+  if (requestedDuration.error) return fail(requestedDuration.error);
+  const durations = requestedDuration.days ? [requestedDuration.days] : [];
   const startAt = dates.constraints.budget.startAt ?? null;
   const start = startAt ? Date.parse(startAt) : now;
-  const endAt = dates.constraints.budget.endAt || new Date(start + (durations[0] || 7) * 86400000).toISOString();
+  const endAt = dates.constraints.budget.endAt || new Date(start + (durations[0] || context.budgetRecommendation?.durationDays || 7) * 86400000).toISOString();
   const end = Date.parse(endAt);
   if (start < now - 60000 || end <= Math.max(start, now) || end > now + 90 * 86400000) return fail("Le calendrier Pinterest doit être futur, la fin après le début, dans les 90 prochains jours.");
   if (durations[0] && dates.constraints.budget.endAt && Math.abs((end - start) / 86400000 - durations[0]) > 1) return fail("Les dates et la durée Pinterest demandées se contredisent.");
@@ -37,7 +38,7 @@ export function readPinterestAdsPlanIntent(context: Context): { budget: Pinteres
   }
   const checked = normalizePinterestDeliverySettings(settings);
   if (checked.error) return fail(checked.error);
-  const dailyEuros = settings.budget.type === "daily" ? human.dailyEuros || 10 : null;
+  const dailyEuros = settings.budget.type === "daily" ? human.dailyEuros ?? context.budgetRecommendation?.dailyEuros ?? 10 : null;
   if (settings.bidding.amountEuros != null && settings.bidding.amountEuros > (settings.budget.totalEuros || dailyEuros || 0)) return fail("L’enchère Pinterest ne peut pas dépasser le budget choisi.");
   return { budget: { type: settings.budget.type, dailyEuros, totalEuros: settings.budget.totalEuros, startAt, endAt }, deliverySettings: settings, error: null };
 }

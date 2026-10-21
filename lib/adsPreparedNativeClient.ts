@@ -1,4 +1,5 @@
 import type { AdsCampaignInput } from "./adsValidation.ts";
+import type { AdsDraftStepKey } from "./adsDraftNavigation.ts";
 import { TIKTOK_TRAFFIC_GEOGRAPHY_CONTEXT, isTikTokSparkPushIdentity, type TikTokAdsResources } from "./adsTikTokResources.ts";
 import type { TikTokAdsNativeSelections } from "./adsTikTokNativeSelections.ts";
 import { xAdsTrackedDestination, type XAdsNativeSelections, type XAdsResources } from "./adsXResources.ts";
@@ -75,6 +76,20 @@ export async function createReviewedPausedCampaign(args: {
   const created = published.campaign as Record<string, unknown> | undefined;
   if (!created || created.id !== id || created.status !== "paused") throw new Error("La création native doit être contrôlée dans le suivi. Ne relancez pas la demande automatiquement.");
   return { id, campaign: created };
+}
+
+/** Navigation metadata only; native readiness and permission checks stay authoritative. */
+export function preparedNativeBlockerStep(code: string, provider: "x" | "tiktok"): AdsDraftStepKey {
+  if (/identity|non_spark|aigc_declaration/.test(code)) return provider === "tiktok" ? "identity" : "foundations";
+  if (/promotable|funding|account_/.test(code)) return "foundations";
+  if (/location_|geo_|geograph/.test(code)) return "geography";
+  if (/cta_|copy|ad_text|post_required/.test(code)) return "creative";
+  if (/media|video|thumbnail/.test(code)) return "media";
+  if (/bid_|bidding/.test(code)) return "bidding";
+  if (/budget|calendar|schedule|date/.test(code)) return "budget";
+  if (/destination|tracking|placement|conversion/.test(code)) return "delivery";
+  if (/format|objective/.test(code)) return "foundations";
+  return "validation";
 }
 
 export function preparedNativeBlockerLabel(code: string): string {

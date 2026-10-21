@@ -8,6 +8,7 @@ import { normalizeLinkedInGeoTargets } from "../lib/adsValidation.ts";
 import { buildLinkedInGeoQueries, linkedInGeoQueryKey } from "../lib/adsLinkedInGeoQueries.ts";
 import { defaultLinkedInDeliverySettings } from "../lib/adsLinkedInCampaignSettings.ts";
 import { readLinkedInHumanDeliveryConstraints } from "../lib/adsLinkedInPlanDelivery.ts";
+import { adsRequestedDurationDays } from "../lib/adsBudgetRecommendation.ts";
 import type { AdsCampaignInput } from "../lib/adsValidation.ts";
 import type { LinkedInAdsCampaignGroup } from "../lib/adsLinkedInPreflightPolicy.ts";
 
@@ -163,7 +164,8 @@ test("server-owned calendar provenance protects explicit end dates and campaign 
   let expression: ts.Expression | undefined;
   function visit(node: ts.Node) { if (ts.isPropertyAssignment(node) && node.name.getText(route) === "endIsExplicit") expression = node.initializer; ts.forEachChild(node, visit); }
   visit(route); assert.ok(expression);
-  const evaluate = new Function("humanDelivery", "professionalIntent", `return (${expression.getText(route)});`);
+  const evaluateExpression = new Function("humanDelivery", "professionalIntent", "adsRequestedDurationDays", `return (${expression.getText(route)});`);
+  const evaluate = (humanDelivery: unknown, professionalIntent: string) => evaluateExpression(humanDelivery, professionalIntent, adsRequestedDurationDays);
   for (const [intent, expected] of [
     ["Faire connaître notre essai gratuit de 21 jours sans engagement.", false],
     ["Diffuser la campagne pendant 21 jours avec un budget de 10 € par jour.", true],

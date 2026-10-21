@@ -7,9 +7,10 @@ import { normalizeAiMediaGeneratorPreferences } from "../../lib/aiMediaGeneratio
 import { inrAgentEditorialRetryDecision } from "../../lib/inrAgentEditorialRetryPolicy.ts";
 import { getAiMediaGenerationPublicError, isAiMediaContentPolicyRejection } from "../../lib/aiMediaGenerationPublicErrors.ts";
 import { buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants } from "../../lib/inrAgentMediaFormats.ts";
+import { MEDIA_FIRST_PUBLICATION_IDEA } from "../../lib/aiMediaSubject.ts";
 
 type RecordValue = Record<string, unknown>;
-type Media = { id: string; mediaType: "image"; kind: "image"; source: string; librarySource: string; storagePath: string };
+type Media = { id: string; mediaType: "image" | "video"; kind: "image" | "video"; source: string; librarySource: string; storagePath: string };
 
 const filename = "app/api/agent/actions/prepare-publish/route.ts";
 const route = ts.createSourceFile(filename, readFileSync(new URL(`../../${filename}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
@@ -23,7 +24,7 @@ assert.notEqual(quotaStart, -1);
 const body = post.body.statements.slice(quotaStart).map((node) => node.getText(route)).join("\n");
 const compiled = ts.transpileModule(`async function run(){${body}}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 
-function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCredits?: boolean; failedSnapshot?: boolean; failedPart?: number; mediaFailureOutcome?: string; failedText?: boolean; failedPersistence?: boolean; existingAssets?: Media[] } = {}) {
+function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCredits?: boolean; failedSnapshot?: boolean; failedPart?: number; mediaFailureOutcome?: string; failedText?: boolean; failedPersistence?: boolean; existingAssets?: Media[]; imageCount?: 1 | 3; imageReadFailure?: boolean } = {}) {
   const events: string[] = [];
   const generated = new Map<string, { item: Media; request: string }>();
   const mediaCalls: RecordValue[] = [];
@@ -71,10 +72,10 @@ function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCr
   async function run(overrides: RecordValue = {}) {
     fallbackIndex = 0;
     const scope: Record<string, unknown> = {
-      createHash, randomUUID, normalizeAiMediaGeneratorPreferences,
+      createHash, randomUUID, normalizeAiMediaGeneratorPreferences, MEDIA_FIRST_PUBLICATION_IDEA,
       getAiMediaGenerationPublicError,
       supabase, supabaseAdmin: supabase, userId: "account", quotaAccountId: "account", actorUserId: "actor",
-      isAdmin: false, isCron: true, ghostOnlyPublication: options.ghostOnly === true, threadsPublicationSettings: options.ghostOnly || options.ghostMixed ? { mode: "ghost" } : null, automaticMediaKind: "image", requestedImageCount: options.ghostOnly ? 0 : 3, videoDurationSeconds: undefined,
+      isAdmin: false, isCron: true, ghostOnlyPublication: options.ghostOnly === true, threadsPublicationSettings: options.ghostOnly || options.ghostMixed ? { mode: "ghost" } : null, automaticMediaKind: options.existingAssets?.[0]?.mediaType || "image", requestedImageCount: options.ghostOnly || options.existingAssets?.[0]?.mediaType === "video" ? 0 : options.imageCount || 3, videoDurationSeconds: undefined,
       automation: { useImageBank: fallbackAssets.length > 0, preferredMediaSource: fallbackAssets.length ? "media_library" : "ai_generation", studioMediaPreferencePercent: 100, planningHorizonDays: 15, validationMode: "manual", frequency: "weekly", imageRequired: true },
       editorialTarget: { id: "slot-1", metadata: structuredClone(metadata), plan: { criteriaSignature: "criteria-1", scheduledFor: "2026-10-05T10:00:00Z", sequence: 1, channels: ["facebook"], theme: "realisations" } },
       instantActionId: null, reservedInstantIdea: false,
@@ -88,7 +89,7 @@ function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCr
       asRecord: (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value : {},
       computeBoosterAiCredits: (value: { mediaType: string; imagesForAI: unknown[] }) => value.mediaType === "video" ? 3 : value.imagesForAI.length ? 2 : 1,
       reserveInrAgentEditorialCredits: async ({ credits: amount, idempotencyKey }: { credits: number; idempotencyKey: string }) => {
-        events.push("reserve-credits"); assert.equal(amount, options.ghostOnly ? 1 : 2); assert.equal(idempotencyKey, "slot-1");
+        events.push("reserve-credits"); assert.equal(amount, options.ghostOnly ? 1 : options.existingAssets?.[0]?.mediaType === "video" ? 3 : 2); assert.equal(idempotencyKey, "slot-1");
         if (options.refusedCredits) return { errorResponse: { status: 429 }, reservation: null };
         credits.reserved++; return { reservation: { state: "reserved" }, errorResponse: null };
       },
@@ -113,8 +114,8 @@ function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCr
       buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants,
       generatedPickerItemToAgentMedia: ({ item }: { item: Media }) => item,
       getRecentMediaTrace: () => ({}), isRecentlyUsedMediaRow: () => false, isValidJobForSector: () => true,
-      shouldUseFastAgentMediaContext: () => true,
-      prepareAgentSelectedImageForAI: async (asset: Media) => { events.push(`vision:${asset.id}`); return [{ id: asset.id }]; },
+      prepareAgentSelectedImageForAI: async (asset: Media) => { events.push(`vision:${asset.id}`); return options.imageReadFailure ? [] : [{ id: asset.id }]; },
+      releaseInrAgentPublicationIdea: async () => { events.push("release-idea"); },
       buildAgentSelectedMediaContext: () => ({}), channelMediaReadiness: (_channel: string, media: unknown) => ({ mediaRequired: Boolean(media) }), channelMediaAdaptation: (_channel: string, media: unknown) => ({ mediaType: media ? "image" : "none" }),
       videoAiContextReferenceAliases: () => ({}),
       generateBoosterPosts: async (args: RecordValue) => {
@@ -146,6 +147,56 @@ test("le flux réel réserve les crédits avant les médias et analyse/persiste 
   assert.equal(((h.storedAction?.payload as RecordValue).mediaAssets as unknown[]).length, 3);
   assert.equal(h.credits.committed, 1); assert.equal(h.credits.rolledBack, 0);
   assert.ok(h.events.indexOf("commit") > h.events.indexOf("persist"));
+  assert.equal(h.textCalls[0].mediaSubjectSource, "idea");
+  assert.equal(h.textCalls[0].idea, String(h.mediaCalls[0].idea).split("\n\nCARROUSEL")[0]);
+});
+
+for (const source of ["pro_media_library", "inrcy_image_bank"]) {
+  test(`${source}: une image seule est lue et remplace le sujet pieds préplanifié`, async () => {
+    const asset: Media = { id: "massage-mains", mediaType: "image", kind: "image", source, librarySource: source, storagePath: "account/mains.jpg" };
+    const h = harness({ existingAssets: [asset], imageCount: 1 });
+    assert.equal((await h.run({ idea: "Massage des pieds", runtimeFocus: { source: "professional_idea", subject: "Massage des pieds" } })).status, 200);
+    assert.equal(h.mediaCalls.length, 0);
+    assert.ok(h.events.indexOf("vision:massage-mains") < h.events.indexOf("text"));
+    assert.equal(h.textCalls[0].skipMediaVisionAnalysis, false);
+    assert.equal((h.textCalls[0].imagesForAI as unknown[]).length, 1);
+    assert.equal(h.textCalls[0].mediaSubjectSource, "media");
+    assert.equal(h.textCalls[0].idea, MEDIA_FIRST_PUBLICATION_IDEA);
+    assert.doesNotMatch(String(h.textCalls[0].idea), /Massage des pieds/);
+    assert.ok(h.events.includes("release-idea"));
+    const payload = h.storedAction?.payload as RecordValue;
+    assert.equal(payload.editorialFocus, null);
+    assert.equal((payload.editorialPlan as RecordValue).focus, null);
+    assert.notEqual(payload.idea, "Massage des pieds");
+    assert.equal((h.storedAction?.metadata as RecordValue).editorialPreviouslyGeneratedIdea, undefined);
+  });
+}
+
+test("un original bibliothèque illisible ne produit aucun texte à partir des seuls tags", async () => {
+  const asset: Media = { id: "unreadable", mediaType: "image", kind: "image", source: "pro_media_library", librarySource: "pro_media_library", storagePath: "account/image.jpg" };
+  const h = harness({ existingAssets: [asset], imageCount: 1, imageReadFailure: true });
+  await assert.rejects(h.run(), /inr_agent_media_understanding_unavailable/);
+  assert.equal(h.textCalls.length, 0);
+  assert.equal(h.storedAction, null);
+  assert.equal(h.credits.rolledBack, 1);
+  assert.equal(h.credits.committed, 0);
+});
+
+test("une vidéo existante transmet ses captures et ses paroles avant la rédaction", async () => {
+  const asset: Media = { id: "video-mains", mediaType: "video", kind: "video", source: "pro_media_library", librarySource: "pro_media_library", storagePath: "account/mains.mp4" };
+  const h = harness({ existingAssets: [asset] });
+  const preparation = { frames: [{ dataUrl: "frame1" }, { dataUrl: "frame2" }], transcript: "Un massage des mains", status: "ready", warnings: [], cache: { source: "hit", persisted: true } };
+  const result = await h.run({
+    getOrPrepareInrAgentVideoForAi: async () => { h.events.push("video-read"); return preparation; },
+    getVideoGenerationContextMode: () => "full", buildVideoAiContextReference: () => ({}),
+    INR_AGENT_VIDEO_AI_PREPARATION_VERSION: 1,
+  });
+  assert.equal(result.status, 200);
+  assert.equal(h.mediaCalls.length, 0);
+  assert.ok(h.events.indexOf("video-read") < h.events.indexOf("text"));
+  assert.equal(h.textCalls[0].mediaSubjectSource, "media");
+  assert.equal(h.textCalls[0].mediaTranscriptAvailable, true);
+  assert.deepEqual(h.textCalls[0].imagesForAI, preparation.frames);
 });
 
 test("un carrousel partiel restitue les crédits texte puis réutilise les parties réussies", async () => {
