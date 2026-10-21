@@ -95,7 +95,6 @@ function RegenerationAuthorization({
   return (
     <fieldset className={styles.regenerationConsent} disabled={disabled}>
       <legend>{t("ai_generator_footer_consent_title")}</legend>
-      <small>{t("ai_generator_footer_consent_blocking")}</small>
       {consents.map((consent) => (
         <label className={styles.regenerationConsentOption} key={consent.id}>
           <input

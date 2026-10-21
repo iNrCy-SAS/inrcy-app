@@ -1606,7 +1606,6 @@ export default function MediaGenerator({
     type="button" className={styles.generateButton} data-media-primary-action
     disabled={generationBusy ? !generationCancellable : canRecover ? operationLocked : disabled}
     title={generationBusy && !generationCancellable ? t("ai_generator_editor_stop_locked") : undefined}
-    aria-describedby={identityConsentMissing ? "ai-media-footer-consent-status" : undefined}
     onClick={() => { if (generationBusy) handleRequestGenerationStop(); else if (canRecover) void handleRecoverResult(); else void handleGenerate(); }}
   >
     <span aria-hidden="true">{generationBusy ? "■" : generationResult ? "↻" : "✦"}</span>
@@ -2706,13 +2705,6 @@ export default function MediaGenerator({
             <span className={styles.footerConsentCopy}>
               <span className={styles.footerConsentHeading}>
                 <strong>{t("ai_generator_footer_consent_title")}</strong>
-                <em id="ai-media-footer-consent-status" role="status">
-                  {t(
-                    identityConsent
-                      ? "ai_generator_footer_consent_confirmed"
-                      : "ai_generator_footer_consent_blocking"
-                  )}
-                </em>
               </span>
               <span className={styles.footerConsentStatement}>
                 {t(

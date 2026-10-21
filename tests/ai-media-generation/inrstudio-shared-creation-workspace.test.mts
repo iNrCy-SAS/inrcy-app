@@ -338,7 +338,8 @@ test("les autorisations fraîches restent accessibles pour régénérer ou rées
       const fieldset = byClass(tree, "regenerationConsent");
       assert.equal(fieldset.type, "fieldset");
       assert.equal(fieldset.props.disabled, false);
-      assert.match(text(fieldset), /ai_generator_footer_consent_blocking/);
+      assert.match(text(fieldset), /ai_generator_footer_consent_title/);
+      assert.doesNotMatch(text(fieldset), /ai_generator_footer_consent_blocking/);
       const inputs = elements(fieldset).filter((node) => node.type === "input");
       assert.equal(inputs.length, count);
       inputs.forEach((input) => {
