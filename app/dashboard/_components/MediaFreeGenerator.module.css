@@ -1132,8 +1132,10 @@
   .workspace {
     gap: 13px;
   }
-  .finalAction { position: static; width: 100%; }
-  .footerAuthorization { top: 13px; bottom: auto; inset-inline-end: 13px; width: auto; max-width: calc(50% - 18px); }
+  .finalAction { width: 100%; flex-direction: column; }
+  .footerAuthorization { position: relative; bottom: auto; inset-inline-end: auto; width: 100%; flex: 0 0 17px; margin-bottom: 3px; }
+  .footer[data-media-footer]:has([data-media-final-authorization]) { padding-block: 3px; row-gap: 2px; }
+  .footer .finalAction:has([data-media-final-authorization]) > .primaryButton { height: 44px; min-height: 44px; padding: 0 12px; font-size: 12px; }
   .soundChoices {
     grid-template-columns: 1fr;
   }
