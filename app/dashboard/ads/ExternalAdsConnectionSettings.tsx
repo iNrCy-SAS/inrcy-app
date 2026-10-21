@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import SettingsDrawer from "@/app/dashboard/SettingsDrawer";
 import ChannelSettingsHeader from "@/app/dashboard/_components/ChannelSettingsHeader";
 import ConnectionPill from "@/app/dashboard/_components/ConnectionPill";
@@ -148,10 +148,7 @@ export default function ExternalAdsConnectionSettings({
   onAssociateAccount,
   onDisconnect,
 }: Props) {
-  const [step, setStep] = useState(0);
   const current = CHANNEL_UI[channel];
-
-  useEffect(() => { setStep(0); }, [channel]);
 
   const needsReconnect = status.status === "needs_update" || status.status === "needs_reconnect";
   const linkedinManagementMissing = channel === "linkedin"
@@ -236,7 +233,7 @@ export default function ExternalAdsConnectionSettings({
     headerStyle={getChannelSettingsHeaderStyle(channel)}
     headerActions={<button type="button" className={dashboardStyles.channelSettingsAllChannelsButton} onClick={onClose} aria-label="Tous les canaux" title="Tous les canaux"><span className={dashboardStyles.channelSettingsAllChannelsIcon} aria-hidden="true">☷</span><span className={dashboardStyles.channelSettingsAllChannelsLabel}>Tous les canaux</span></button>}
   >
-    <div className={`${styles.content} ${socialStyles.journey} ${styles[channel]}`} data-step={step}>
+    <div className={`${styles.content} ${socialStyles.journey} ${styles[channel]}`}>
       <section data-step-index="0" className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 1 : Votre connexion">
         <div className={`${socialStyles.stepHeader} ${styles.stepHeader}`}>
           <span className={socialStyles.stepNumber} aria-hidden="true">01</span>
@@ -291,11 +288,6 @@ export default function ExternalAdsConnectionSettings({
       {effectiveError ? <p role="alert" className={styles.inlineError}>{effectiveError}</p> : null}
       {!locked && channel !== "pinterest" ? <p className={styles.footnote}>{channel === "linkedin" ? "Cette connexion permet de créer et gérer vos campagnes LinkedIn Ads et de consulter leurs statistiques, selon vos autorisations sur le compte publicitaire." : `La préparation et l’enregistrement des campagnes sont disponibles. La publication sur ${current.label} n’est pas encore activée : aucune annonce n’est diffusée depuis cet écran.`}</p> : null}
 
-      <div className={styles.footer}>
-        <button type="button" className={styles.previous} disabled={step === 0} onClick={() => setStep(0)}>← Précédent</button>
-        <span className={styles.progress}>Étape {step + 1} / 2</span>
-        {step === 0 ? <button type="button" className={styles.done} onClick={() => setStep(1)}>Suivant →</button> : <button type="button" className={styles.done} onClick={onClose}>Fermer</button>}
-      </div>
     </div>
   </SettingsDrawer>;
 }

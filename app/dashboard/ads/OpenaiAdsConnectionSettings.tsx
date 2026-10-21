@@ -61,7 +61,6 @@ async function readResponse(response: Response): Promise<Status> {
 
 export default function OpenaiAdsConnectionSettings({ isOpen, locked = false, previous, next, onClose, onConnectionChange, initialConnection }: Props) {
   const [status, setStatus] = useState<Status>(() => fromSnapshot(initialConnection));
-  const [step, setStep] = useState(0);
   const [busy, setBusy] = useState<"connect" | "disconnect" | null>(null);
   const [error, setError] = useState("");
   const [refreshed, setRefreshed] = useState(false);
@@ -83,7 +82,6 @@ export default function OpenaiAdsConnectionSettings({ isOpen, locked = false, pr
 
   useEffect(() => {
     if (isOpen) {
-      setStep(0);
       if (locked) {
         setStatus(fromSnapshot());
         setRefreshed(true);
@@ -179,7 +177,7 @@ export default function OpenaiAdsConnectionSettings({ isOpen, locked = false, pr
     headerStyle={getChannelSettingsHeaderStyle("inr_search")}
     headerActions={<button type="button" className={dashboardStyles.channelSettingsAllChannelsButton} onClick={closePanel} aria-label="Tous les canaux" title="Tous les canaux"><span className={dashboardStyles.channelSettingsAllChannelsIcon} aria-hidden="true">☷</span><span className={dashboardStyles.channelSettingsAllChannelsLabel}>Tous les canaux</span></button>}
   >
-    <div ref={contentRef} className={`${adsStyles.content} ${socialStyles.journey} ${styles.openai}`} data-step={step}>
+    <div ref={contentRef} className={`${adsStyles.content} ${socialStyles.journey} ${styles.openai}`}>
       <section data-step-index="0" className={`${socialStyles.stepCard} ${adsStyles.step}`} aria-label="Étape 1 : Votre connexion">
         <div className={`${socialStyles.stepHeader} ${adsStyles.stepHeader}`}>
           <span className={socialStyles.stepNumber} aria-hidden="true">01</span>
@@ -224,7 +222,7 @@ export default function OpenaiAdsConnectionSettings({ isOpen, locked = false, pr
                 : status.readinessMessage || "Connexion reconnue. La création de campagne n’est pas disponible pour le moment."
             : status.status === "needs_update" && status.readinessMessage
               ? status.readinessMessage
-              : "Créez d’abord un compte annonceur dans Ads Manager, puis collez sa clé publicitaire dans l’étape précédente."}</p>
+              : "Créez d’abord un compte annonceur dans Ads Manager, puis collez sa clé publicitaire dans le panneau de connexion ci-dessus."}</p>
         </div>
       </section>
 
@@ -232,11 +230,6 @@ export default function OpenaiAdsConnectionSettings({ isOpen, locked = false, pr
       {!locked && <p className={adsStyles.footnote}>{liveDeliveryEnabled
         ? <>Le statut <strong>Active</strong> ou <strong>En pause</strong> est choisi à la validation finale. En statut Active, une dépense peut démarrer uniquement après votre confirmation explicite et la revue de l’annonce par ChatGPT Ads.</>
         : <>La création <strong>en pause</strong> reste disponible sans diffusion ni dépense. Le statut Active sera proposé dès que le compte remplira toutes les conditions de lancement.</>}</p>}
-      <div className={adsStyles.footer}>
-        <button type="button" className={adsStyles.previous} disabled={step === 0} onClick={() => setStep(0)}>← Précédent</button>
-        <span className={adsStyles.progress}>Étape {step + 1} / 2</span>
-        {step === 0 ? <button type="button" className={adsStyles.done} onClick={() => setStep(1)}>Suivant →</button> : <button type="button" className={adsStyles.done} onClick={closePanel}>Fermer</button>}
-      </div>
     </div>
   </SettingsDrawer>;
 }

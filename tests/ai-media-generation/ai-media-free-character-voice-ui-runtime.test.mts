@@ -74,6 +74,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     ["react", react], ["react/jsx-runtime", { jsx, jsxs: jsx }],
     ["next-intl", { useLocale: () => "fr-FR", useTranslations: () => (key: string, values?: { credits?: string; provider?: string }) => {
       if (key === "ai_generator_final_authorization_images_label" || key === "ai_generator_final_authorization_voices_label") return frenchMessages[key].replace("{provider}", values?.provider || "");
+      if (key === "ai_generator_final_authorization_short" || key === "ai_generator_final_authorization_details") return frenchMessages[key];
       return values?.credits ? `${key} ${values.credits}` : key;
     } }],
     ["@/app/dashboard/_hooks/useMediaGeneration", { __esModule: true, default: () => hook, MediaGenerationAccountChangedError: class extends Error {}, MediaGenerationCancelledError: class extends Error {} }],
@@ -376,7 +377,10 @@ test("one explicit footer authorization covers two required people and their dis
     assert.equal(tabs.find((tab) => tab.id === "criteria")!.warning, "", "Missing footer authorization must not point to Criteria");
     assert.equal(find(providerConsent, (node) => node.type === "input").props.checked, false);
     const expectedConsent = `Je confirme que chaque personne représentée est majeure et que je dispose des droits et autorisations pour utiliser son image et sa voix. J’autorise l’envoi des photos et des vocaux fournis à ${models.getAiMediaVideoModelForCharacterVoice(engine, true).providerLabel} pour cette génération.`;
-    assert.equal(text(providerConsent), expectedConsent);
+    assert.equal(text(providerConsent), frenchMessages.ai_generator_final_authorization_short);
+    assert.equal(find(providerConsent, (node) => node.type === "input").props["aria-label"], expectedConsent);
+    assert.ok(text(find(authorization, (node) => node.type === "details")).includes(expectedConsent));
+    assert.doesNotMatch(text(authorization), /À cocher pour activer|ai_generator_footer_consent_blocking/);
     assert.doesNotMatch(text(providerConsent), /image de groupe dérivée|dialogues synthétiques/);
     const regenerationConsents = find(h.tree(), (node) => node.type === "preview").props.regenerationConsents as Array<{ id: string; label: string }>;
     assert.equal(regenerationConsents.length, 1); assert.equal(regenerationConsents[0].label, expectedConsent);
@@ -403,7 +407,10 @@ test("photo-only authorization is a single footer checkbox with adult, image rig
     const footer = find(h.tree(), (node) => node.props["data-media-footer"] !== undefined);
     const authorization = find(footer, (node) => node.props["data-media-final-authorization"] !== undefined);
     const provider = kind === "video" ? models.getAiMediaVideoModel("wan27").providerLabel : models.getAiMediaImageModel("openai").providerLabel;
-    assert.equal(text(find(authorization, (node) => node.type === "label")), `Je confirme que chaque personne représentée est majeure et que je dispose des droits et autorisations pour utiliser son image. J’autorise l’envoi des photos à ${provider} pour cette génération.`);
+    assert.equal(text(find(authorization, (node) => node.type === "label")), frenchMessages.ai_generator_final_authorization_short);
+    const expectedConsent = `Je confirme que chaque personne représentée est majeure et que je dispose des droits et autorisations pour utiliser son image. J’autorise l’envoi des photos à ${provider} pour cette génération.`;
+    assert.equal(find(authorization, (node) => node.type === "input").props["aria-label"], expectedConsent);
+    assert.ok(text(find(authorization, (node) => node.type === "details")).includes(expectedConsent));
     assert.doesNotMatch(text(authorization), /sa voix|vocaux/);
     assert.equal(find(authorization, (node) => node.type === "input").props.checked, false);
     await h.generate(); assert.equal(h.requests.length, 0);

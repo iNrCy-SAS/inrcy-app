@@ -744,7 +744,6 @@ export default function MediaFreeGenerator({
   const generationAction = <button
     type="button" className={styles.primaryButton} data-media-primary-action
     disabled={recoveryIncompatible || (busy ? !cancellable : canRecover ? operationLocked : Boolean(result) || !canGenerate)}
-    aria-describedby={authorizationVisible && !authorizationChecked ? `${instanceId}-authorization-help` : undefined}
     title={busy && !cancellable ? t("ai_generator_editor_stop_locked") : undefined}
     onClick={() => { if (busy) setStopConfirmOpen(true); else if (canRecover) void handleRecoverResult(); else if (!result) void handleGenerate(); }}
   >
@@ -1308,20 +1307,30 @@ export default function MediaFreeGenerator({
         <div className={editorStyles.previewPane}>{preview}</div>
       </div>
       <div className={styles.footer} data-media-footer>
-        {authorizationVisible ? <div className={styles.footerAuthorization} data-media-final-authorization>
-          <label className={styles.consent} htmlFor={`${instanceId}-authorization`}>
-            <span>{authorizationLabel}</span>
-            <input id={`${instanceId}-authorization`} type="checkbox" required checked={authorizationChecked} disabled={locked}
-              aria-describedby={!authorizationChecked ? `${instanceId}-authorization-help` : undefined}
-              onChange={(event) => setGenerationAuthorization(event.target.checked)} />
-          </label>
-          {!authorizationChecked ? <p id={`${instanceId}-authorization-help`} className={styles.authorizationHint} role="status">{t("ai_generator_footer_consent_blocking")}</p> : null}
-        </div> : null}
         <MediaQuotaSummary kind={kind} counter={counter} unlimited={quota?.unlimited} creditsReady={quota?.creditsReady}
           resetDate={resetDate} locked={locked} onRefresh={() => { void loadQuota({ force: true }); }} />
         <MediaGenerationActions>
           {engineControls}
           {creditSummary}
+          <div className={styles.finalAction} data-media-final-action>
+          {authorizationVisible ? <div className={styles.footerAuthorization} data-media-final-authorization>
+            <details className={styles.authorizationDetails} onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.currentTarget.open = false;
+                event.currentTarget.querySelector("summary")?.focus();
+                event.stopPropagation();
+              }
+            }}>
+              <summary aria-label={t("ai_generator_final_authorization_details")} title={t("ai_generator_final_authorization_details")}><span aria-hidden="true">i</span></summary>
+              <p>{authorizationLabel}</p>
+            </details>
+            <label className={styles.consent} htmlFor={`${instanceId}-authorization`}>
+              <span>{t("ai_generator_final_authorization_short")}</span>
+              <input id={`${instanceId}-authorization`} type="checkbox" required checked={authorizationChecked} disabled={locked}
+                aria-label={authorizationLabel}
+                onChange={(event) => setGenerationAuthorization(event.target.checked)} />
+            </label>
+          </div> : null}
           {recoveryIncompatible ? <a className={styles.secondaryButton} href="/dashboard/generer-media" data-media-recovery-studio-link>
             {t("ai_generator_editor_recover")} · iNrStudio
           </a> : canRecover && !busy ? <div className={styles.recoveryActions} data-media-recovery-actions>
@@ -1330,6 +1339,7 @@ export default function MediaFreeGenerator({
               aria-label={t("ai_generator_editor_abandon")} title={t("ai_generator_editor_abandon")}
               onClick={() => setStopConfirmOpen(true)}>{t("ai_generator_editor_stop")}</button>
           </div> : generationAction}
+          </div>
         </MediaGenerationActions>
       </div>
       {!canRecover && !busy && (exhausted || creditInsufficient || durationUnavailable) ? (

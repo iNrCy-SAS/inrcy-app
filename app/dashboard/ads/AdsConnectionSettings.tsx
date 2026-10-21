@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import SettingsDrawer from "@/app/dashboard/SettingsDrawer";
 import ChannelSettingsHeader from "@/app/dashboard/_components/ChannelSettingsHeader";
 import ConnectionPill from "@/app/dashboard/_components/ConnectionPill";
@@ -119,11 +118,6 @@ export default function AdsConnectionSettings({
   onSavePage,
   onClearPage,
 }: Props) {
-  const [step, setStep] = useState(0);
-  const stepCount = provider === "meta" ? 3 : 2;
-
-  useEffect(() => { setStep(0); }, [provider]);
-
   const current = { label: provider === "meta" ? "Meta Ads" : "Google Ads" };
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId);
   const selectedPage = pages.find((page) => page.id === selectedPageId);
@@ -173,7 +167,7 @@ export default function AdsConnectionSettings({
     headerStyle={getChannelSettingsHeaderStyle(provider === "meta" ? "facebook" : "gmb")}
     headerActions={<button type="button" className={dashboardStyles.channelSettingsAllChannelsButton} onClick={onClose} aria-label="Tous les canaux" title="Tous les canaux"><span className={dashboardStyles.channelSettingsAllChannelsIcon} aria-hidden="true">☷</span><span className={dashboardStyles.channelSettingsAllChannelsLabel}>Tous les canaux</span></button>}
   >
-    <div className={`${styles.content} ${socialStyles.journey} ${provider === "meta" ? styles.meta : styles.google}`} data-step={step}>
+    <div className={`${styles.content} ${socialStyles.journey} ${provider === "meta" ? styles.meta : styles.google}`}>
       {error ? <p role="alert" className={styles.inlineError}>{error}</p> : null}
       <section data-step-index="0" className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 1 : Votre connexion">
         <div className={`${socialStyles.stepHeader} ${styles.stepHeader}`}>
@@ -246,11 +240,6 @@ export default function AdsConnectionSettings({
         </div>
       </section>}
 
-      <div className={styles.footer}>
-        <button type="button" className={styles.previous} disabled={step === 0} onClick={() => setStep((currentStep) => currentStep - 1)}>← Précédent</button>
-        <span className={styles.progress}>Étape {step + 1} / {stepCount}</span>
-        {step < stepCount - 1 ? <button type="button" className={styles.done} onClick={() => setStep((currentStep) => currentStep + 1)}>Suivant →</button> : <button type="button" className={styles.done} onClick={onClose}>Fermer</button>}
-      </div>
     </div>
   </SettingsDrawer>;
 }
