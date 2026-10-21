@@ -70,6 +70,32 @@ export async function recoverTruncatedJpeg(
       throw new Error("image_recovery_source_invalid");
     }
 
+    // A missing end marker does not necessarily mean pixels are missing.
+    // Try a separate, terminated copy with the strictest decoder first.
+    // This also avoids a permissive decoder's deferred native warnings when
+    // no pixel recovery is needed; never change or publish the original.
+    if (bytes.length < 2 || bytes.readUInt16BE(bytes.length - 2) !== 0xffd9) {
+      try {
+        const terminated = Buffer.concat([bytes, Buffer.from([0xff, 0xd9])]);
+        const decoded = await sharp(terminated, {
+          failOn: "warning",
+          limitInputPixels: IMAGE_JPEG_RECOVERY_MAX_INPUT_PIXELS,
+          pages: 1,
+        }).rotate().toColourspace("srgb").raw()
+          .toBuffer({ resolveWithObject: true });
+        const strict = await sharp(decoded.data, {
+          raw: { width: decoded.info.width, height: decoded.info.height, channels: decoded.info.channels },
+          limitInputPixels: IMAGE_JPEG_RECOVERY_MAX_INPUT_PIXELS,
+        }).png({ compressionLevel: 1 }).toBuffer({ resolveWithObject: true });
+        await assertImageFullyDecodes(strict.data, strict.info.width, strict.info.height);
+        return { buffer: strict.data, metadata };
+      } catch (error) {
+        // Actual missing scan data still needs the existing guarded recovery.
+        // Other corruption must not become eligible through this extra try.
+        if (!isTruncatedJpegError(error)) throw error;
+      }
+    }
+
     const warnings: string[] = [];
     const recovered = await sharp(bytes, {
       failOn: "none",

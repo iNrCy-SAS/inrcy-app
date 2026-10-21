@@ -95,6 +95,32 @@ test("les préparations aperçu et miniature propagent aussi la récupération",
   assert.equal(thumbnail.thumbnail.metadata.source_requires_canonical, true);
 });
 
+test("les récupérations successives conservent les pixels quand seul le marqueur de fin manque", async () => {
+  const complete = await jpegFixture(6);
+  const source = complete.subarray(0, -2);
+  const originalBytes = Buffer.from(source);
+  const expected = await sharp(complete, { failOn: "warning" }).rotate().toColourspace("srgb").raw()
+    .toBuffer({ resolveWithObject: true });
+  // Repeated recovery used to fail when libvips evicted a previous permissive
+  // decoder and delivered its delayed warning to the current operation.
+  for (let index = 0; index < 24; index += 1) {
+    const normalized = await normalizeImageBuffer({ buffer: source, mimeType: "image/jpeg" });
+    assert.equal(normalized.source.requiresCanonical, true);
+    assert.deepEqual(normalized.source.recovery, { kind: "truncated_jpeg", version: 1, requiresReview: true });
+    assert.equal(normalized.source.orientation, 6);
+    assert.equal(normalized.source.width, 64);
+    assert.equal(normalized.source.height, 96);
+    const recovered = await recoverTruncatedJpeg(source, prematureEnd);
+    assert.ok(recovered);
+    const actual = await sharp(recovered.buffer, { failOn: "warning" }).raw()
+      .toBuffer({ resolveWithObject: true });
+    assert.equal(actual.info.width, expected.info.width);
+    assert.equal(actual.info.height, expected.info.height);
+    assert.deepEqual(actual.data, expected.data);
+    assert.deepEqual(source, originalBytes);
+  }
+});
+
 test("le worker peut récupérer un fichier en conservant ses octets et les variantes demandées", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "inrcy-jpeg-recovery-"));
   const inputPath = path.join(directory, "source.jpg");
