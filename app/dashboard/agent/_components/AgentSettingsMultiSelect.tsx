@@ -56,18 +56,17 @@ export default function AgentSettingsMultiSelect(props: {
       aria-labelledby={`${id}-label ${id}-value`} aria-expanded={Boolean(position)} aria-haspopup="dialog"
       aria-controls={position ? `${id}-panel` : undefined} onClick={() => position ? close() : open()}>
       <span className={styles.selection}>
-        {chosen.some(option => option.icon) ? <span className={styles.logos} aria-hidden="true">{chosen.filter(option => option.icon).slice(0, 3).map(option => <img key={option.value} src={option.icon} alt="" />)}</span> : null}
+        {chosen.some(option => option.icon) ? <span className={styles.logos} aria-hidden="true">{chosen.filter(option => option.icon).slice(0, 3).map(option => <span key={option.value} className={styles.logoBubble}><img src={option.icon} alt="" /></span>)}</span> : null}
         <span id={`${id}-value`} className={styles.value}>{summary}{chosen.length > 2 ? ` +${chosen.length - 2}` : ""}</span>
       </span>
       <span className={styles.count}>{chosen.length}</span><svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 7 5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </button>
     {position ? createPortal(<div ref={panel} id={`${id}-panel`} role="dialog" aria-label={props.label} className={styles.popover} style={position}>
-      <header><strong>{props.label}</strong><button type="button" aria-label={t("fermer_5ab4ec64")} onClick={() => close(true)}>×</button></header>
       <div className={styles.options}>
         {props.options.map(option => <label key={option.value} data-disabled={option.disabled || undefined}>
           <input type="checkbox" checked={!option.disabled && props.selected.includes(option.value)} disabled={props.disabled || option.disabled}
             onChange={() => props.onToggle(option.value)} />
-          {option.icon ? <img src={option.icon} alt="" /> : null}<span>{option.label}</span>
+          {option.icon ? <span className={styles.logoBubble}><img src={option.icon} alt="" /></span> : null}<span>{option.label}</span>
           {option.disabled ? <small>{option.description || t("publication_channel_not_connected")}</small> : null}
         </label>)}
       </div>
