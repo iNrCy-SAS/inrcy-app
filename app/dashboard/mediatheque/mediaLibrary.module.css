@@ -2941,9 +2941,9 @@
     position:static;
   }
 
-  .card::after{
-    /* La carte d'import laisse son contenu visible sur mobile : son halo
-       déporté de 10% créait à lui seul un débordement horizontal. */
+  .card::after,
+  .libraryCard::after{
+    /* Keep decorative glows inside the cards while their content flows. */
     right:0;
   }
 }
