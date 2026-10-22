@@ -189,13 +189,14 @@ function harness(options: HarnessOptions = {}) {
 const variants = [{ adapter: true, edition: "standard" as const }, { edition: "premium" as const }, { edition: "founder" as const }];
 
 test("Standard, Premium and Founder render the same signature cards, hierarchy and shared CSS", () => {
-  const expected = ["boosterCard", "adsCard", "mailCampaignCard", "studioCard", "sendCard", "statsCard", "calendarCard", "crmCard", "reputationCard"];
+  const expected = ["boosterCard", "adsCard", "mailCampaignCard", "sendCard", "studioCard", "statsCard", "reputationCard", "calendarCard", "crmCard"];
   for (const variant of variants) {
     const { tree, html } = harness(variant).render();
     const cards = elements(tree).flatMap((node) => expected.filter((name) => hasClass(node, name)));
     assert.deepEqual(cards, expected);
     assert.equal(elements(tree).filter((node) => hasClass(node, "signatureGrid")).length, 1);
-    assert.equal(elements(tree).filter((node) => hasClass(node, "relationshipGrid")).length, 1);
+    const toolsGrid = find(tree, (node) => node.props["data-dashboard-relationship-tools"] === "true");
+    assert.deepEqual(elements(toolsGrid).filter((node) => node.type === "article").map((node) => expected.find((name) => hasClass(node, name))), expected.slice(3));
     assert.match(html, /Communiquer et Développer/);
     assert.match(html, /Créer et Piloter/);
     assert.doesNotMatch(html, /undefined|standardActionStack|premiumDashboardList/);

@@ -67,36 +67,32 @@ test("le cockpit Premium groupe la communication à gauche et Studio avec le pil
   const booster = source.indexOf('"premium-booster-publish"');
   const secondary = source.indexOf('data-dashboard-premium-secondary-tools=');
   const ads = source.indexOf('"premium-campaign-ads"');
-  const studio = source.indexOf('"premium-studio-open"');
   const pilot = source.indexOf('id="dashboard-pilot-title"');
   const signatures = source.indexOf("{signatureTools.map");
   const relationships = source.indexOf('data-dashboard-relationship-tools="true"');
-  const reputation = source.indexOf('data-dashboard-prefetch="/dashboard/e-reputation"');
   const mailCampaigns = source.indexOf('"premium-campaign-open"');
 
   assert.ok(creation >= 0 && creation < booster);
   assert.ok(booster < secondary && secondary < ads && ads < mailCampaigns);
-  assert.ok(mailCampaigns < pilot && pilot < relationships && relationships < studio);
-  assert.ok(studio < signatures && signatures < reputation);
+  assert.ok(mailCampaigns < pilot && pilot < relationships && relationships < signatures);
   assert.doesNotMatch(source, /signatureStyles\.dnaCard/);
 
-  // The four tools stay between the full-width Studio and Reputation bands.
+  // Six cards form three pairs, with the Premium tools on the final row.
   const signatureDefinitions = source.slice(source.indexOf("const signatureTools:"), creation);
   const signatureNames = Array.from(
     signatureDefinitions.matchAll(/tone: "([^"]+)"/g),
     (match) => match[1],
   );
-  assert.deepEqual(signatureNames, ["sendCard", "statsCard", "calendarCard", "crmCard"]);
+  assert.deepEqual(signatureNames, ["sendCard", "studioCard", "statsCard", "reputationCard", "calendarCard", "crmCard"]);
   assert.match(signatureDefinitions, /path: standardMode \? "\/dashboard\/mails\?folder=publications&boxView=sent" : "\/dashboard\/mails"/);
-  assert.deepEqual([...signatureDefinitions.matchAll(/\{ path: "(\/dashboard\/[^"]+)"/g)].map((match) => match[1]), ["/dashboard/stats", "/dashboard/agenda", "/dashboard/crm"]);
+  assert.deepEqual([...signatureDefinitions.matchAll(/\{ path: "(\/dashboard\/[^"]+)"/g)].map((match) => match[1]), ["/dashboard/stats", "/dashboard/e-reputation", "/dashboard/agenda", "/dashboard/crm"]);
   assert.match(source, /className=\{signatureStyles\.signatureGrid\}/);
-  assert.match(source, /className=\{signatureStyles\.relationshipGrid\}/);
-  assert.match(source, /signatureStyles\.reputationCard/);
+  assert.match(source, /tone: "reputationCard"/);
   assert.match(source, /signatureStyles\.mailCampaignCard/);
   assert.match(styles, /\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/);
   assert.match(styles, /\.creationGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.signatureGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /\.relationshipGrid\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(styles, /\.signatureGrid\s*\{[^}]*grid-template-rows:\s*repeat\(3,/);
   assert.match(styles, /@media \(max-width: 1100px\)[\s\S]*?\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
   assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.adsCard\s*\{[^}]*grid-column:\s*1 \/ -1/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.boosterWave\s*\{\s*animation:\s*none/);
@@ -111,7 +107,8 @@ test("le cockpit Premium groupe la communication à gauche et Studio avec le pil
   assert.match(source, /onClick=\{adsPilotEnabled \? \(\) => standardMode \? startPanelOpening\("abonnement"\) : startModuleNavigation\("\/dashboard\/ads"\) : undefined\}/);
   assert.match(source, /if \(onOpenBoosterPublish\) onOpenBoosterPublish\(\)/);
   assert.match(source, /if \(onOpenBoosterStats\) onOpenBoosterStats\(\)/);
-  assert.match(source, /data-testid=\{standardMode \? "standard-studio-open" : "premium-studio-open"\}/);
+  assert.match(source, /testId: standardMode \? "standard-studio-open" : "premium-studio-open"/);
+  assert.match(source, /data-testid=\{tool\.testId\}/);
   assert.match(source, /const studioPath = "\/dashboard\/generer-media"/);
   assert.match(source, /const standardMode = standardModeOverride \|\| dashboardEdition === "standard"/);
   assert.match(source, /mobile-shortcuts\/inrcalendar-bubble\.png/);

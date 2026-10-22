@@ -400,9 +400,10 @@ test("les blocs inférieurs Standard conservent Stats, Publications, Réputation
   assert.match(sharedModulesSource, /agentControls\("stats",/);
   assert.doesNotMatch(sharedModulesSource, /signatureStyles\.agentCard/);
   assert.match(sharedModulesSource, /const studioPath = "\/dashboard\/generer-media"/);
-  assert.match(sharedModulesSource, /data-testid=\{standardMode \? "standard-studio-open" : "premium-studio-open"\}/);
-  assert.match(sharedModulesSource, /data-dashboard-prefetch=\{studioPath\}/);
-  assert.match(sharedModulesSource, /signatureStyles\.studioCard/);
+  assert.match(sharedModulesSource, /testId: standardMode \? "standard-studio-open" : "premium-studio-open"/);
+  assert.match(sharedModulesSource, /data-testid=\{tool\.testId\}/);
+  assert.match(sharedModulesSource, /path: studioPath,[^\n]*tone: "studioCard"/);
+  assert.match(sharedModulesSource, /data-dashboard-prefetch=\{standardMode && tool\.premiumOnly \? undefined : tool\.path\}/);
   assert.match(dashboardI18nSource, /"boosterCta": "Créer une publication"/);
   assert.match(dashboardI18nSource, /"studioCta": "Studio Médias"/);
   assert.doesNotMatch(standardModulesSource, /dashboard\/crm/);

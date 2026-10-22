@@ -41,21 +41,22 @@ test("le dashboard compact conserve le cockpit et remplace les sauts haut/bas pa
 });
 
 test("Booster, ADS et Emailings communiquent à gauche ; Studio et les outils de pilotage restent à droite", () => {
-  assertOrdered(modules, 'aria-labelledby="dashboard-create-title"', "signatureStyles.boosterCard", "signatureStyles.adsCard", "signatureStyles.mailCampaignCard", 'aria-labelledby="dashboard-pilot-title"', "signatureStyles.relationshipGrid", "signatureStyles.studioCard", "signatureStyles.signatureGrid", "signatureStyles.reputationCard");
+  assertOrdered(modules, 'aria-labelledby="dashboard-create-title"', "signatureStyles.boosterCard", "signatureStyles.adsCard", "signatureStyles.mailCampaignCard", 'aria-labelledby="dashboard-pilot-title"', "signatureStyles.signatureGrid");
   const signatureDeclaration = modules.slice(modules.indexOf("const signatureTools:"), modules.indexOf("  return (", modules.indexOf("const signatureTools:")));
-  assert.deepEqual([...signatureDeclaration.matchAll(/tone: "([^"]+)"/g)].map((match) => match[1]), ["sendCard", "statsCard", "calendarCard", "crmCard"]);
+  assert.deepEqual([...signatureDeclaration.matchAll(/tone: "([^"]+)"/g)].map((match) => match[1]), ["sendCard", "studioCard", "statsCard", "reputationCard", "calendarCard", "crmCard"]);
   assert.match(signatureDeclaration, /path: standardMode \? "\/dashboard\/mails\?folder=publications&boxView=sent" : "\/dashboard\/mails"/);
-  assert.deepEqual([...signatureDeclaration.matchAll(/path: "([^"]+)"/g)].map((match) => match[1]), ["/dashboard/stats", "/dashboard/agenda", "/dashboard/crm"]);
+  assert.deepEqual([...signatureDeclaration.matchAll(/path: "([^"]+)"/g)].map((match) => match[1]), ["/dashboard/stats", "/dashboard/e-reputation", "/dashboard/agenda", "/dashboard/crm"]);
   assert.match(toolsCss, /\.lowerRow\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
   assert.match(toolsCss, /\.signatureGrid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(toolsCss, /\.relationshipGrid\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(toolsCss, /\.signatureGrid\s*\{[^}]*grid-template-rows: repeat\(3,/);
   assert.doesNotMatch(modules, /signatureStyles\.dnaCard/);
   assert.doesNotMatch(modules, /Autres outils|Other tools/);
 });
 
-test("Studio et Réputation encadrent les quatre outils ; Emailings conserve ses accès dans la colonne de communication", () => {
+test("les six outils partagent une seule grille ; Emailings conserve ses accès dans la colonne de communication", () => {
   const relationshipRow = modules.slice(modules.indexOf('data-dashboard-relationship-tools="true"'), modules.indexOf("{!standardMode && campaignModalOpen ?"));
-  assertOrdered(relationshipRow, "signatureStyles.studioBanner", '"premium-studio-open"', "signatureStyles.signatureGrid", "signatureStyles.reputationCard");
+  assertOrdered(relationshipRow, "signatureTools.map", "signatureStyles.signatureCard", "signatureStyles.cardActions");
+  assert.doesNotMatch(relationshipRow, /studioBanner|relationshipGrid/);
   const communicationRow = modules.slice(modules.indexOf('data-dashboard-premium-secondary-tools='), modules.indexOf('aria-labelledby="dashboard-pilot-title"'));
   assert.match(communicationRow, /signatureStyles\.relationshipLogo[^\n]*<ToolGlyph kind="mail"/);
   assert.match(communicationRow, /<h4>\{copy\.mailCampaigns\}<\/h4><p>\{t\.modules\.campaignsSub\}<\/p>/);
@@ -117,7 +118,8 @@ test("les outils conservent leurs destinations et les callbacks de publication, 
   assert.match(modules, /onClick=\{openPublishModal\}/);
   assert.match(modules, /onClick=\{openBoosterSummary\}/);
   assert.match(modules, /const studioPath = "\/dashboard\/generer-media"/);
-  for (const destination of ["e-reputation", "propulser", "fideliser"]) {
+  assert.match(modules, /path: "\/dashboard\/e-reputation"/);
+  for (const destination of ["propulser", "fideliser"]) {
     assert.ok(modules.includes(`startModuleNavigation("/dashboard/${destination}")`), destination);
   }
   assert.match(modules, /onClick=\{openCampaignModal\}/);
