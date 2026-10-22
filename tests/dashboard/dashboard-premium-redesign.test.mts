@@ -106,7 +106,7 @@ test("les cartes de pilotage conservent des textes et actions lisibles à chaque
       if (padding) assert.ok(Number(padding[1]) >= 46, `${selector}: reserve room below text for the larger action`);
     }
   }
-  assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.toolButton\s*\{[^}]*max-width: calc\(100% - 20px\)/);
+  assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.toolButton\s*\{[^}]*max-width: calc\(100% - 34px\)/);
   assert.match(toolsCss, /@media \(max-width: 420px\)[\s\S]*?\.signatureCard\s*\{[^}]*padding: 12px 10px 60px/);
 });
 

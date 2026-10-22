@@ -380,16 +380,18 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
               <article className={`${signatureStyles.relationshipCard} ${signatureStyles.mailCampaignCard}`}>
                 <span className={signatureStyles.relationshipLogo} aria-hidden="true"><ToolGlyph kind="mail" /></span>
                 <div className={signatureStyles.relationshipCopy}><h4>{copy.mailCampaigns}</h4><p>{t.modules.campaignsSub}</p></div>
-                <span className={signatureStyles.mailCampaignArt} aria-hidden="true"><ToolGlyph kind="mail" /></span>
-                <button
-                  type="button"
-                  className={signatureStyles.cardButton}
-                  data-testid={standardMode ? "standard-campaign-mails" : "premium-campaign-open"}
-                  onClick={openCampaignModal}
-                  disabled={standardMode ? isPanelLoadingVisible("abonnement") : isVisible("modal:campaigns")}
-                  aria-busy={(standardMode ? isPanelLoadingVisible("abonnement") : isVisible("modal:campaigns")) || undefined}
-                  aria-label={standardMode ? `${t.modules.mailCampaignTitle} — ${t.modules.campaignsPremiumLabel}` : t.modules.mailCampaignTitle}
-                >{standardMode ? <><DashboardPremiumLockIcon />{t.modules.campaignsPremiumLabel}</> : <>{isVisible("modal:campaigns") ? i18nT("chargement_01cba1df") : t.modules.campaignsCta}<ArrowIcon /></>}</button>
+                <div className={signatureStyles.cardActions}>
+                  <span className={signatureStyles.mailCampaignArt} aria-hidden="true"><ToolGlyph kind="mail" /></span>
+                  <button
+                    type="button"
+                    className={signatureStyles.cardButton}
+                    data-testid={standardMode ? "standard-campaign-mails" : "premium-campaign-open"}
+                    onClick={openCampaignModal}
+                    disabled={standardMode ? isPanelLoadingVisible("abonnement") : isVisible("modal:campaigns")}
+                    aria-busy={(standardMode ? isPanelLoadingVisible("abonnement") : isVisible("modal:campaigns")) || undefined}
+                    aria-label={standardMode ? `${t.modules.mailCampaignTitle} — ${t.modules.campaignsPremiumLabel}` : t.modules.mailCampaignTitle}
+                  >{standardMode ? <><DashboardPremiumLockIcon />{t.modules.campaignsPremiumLabel}</> : <>{isVisible("modal:campaigns") ? i18nT("chargement_01cba1df") : t.modules.campaignsCta}<ArrowIcon /></>}</button>
+                </div>
               </article>
 
               <div className={signatureStyles.signatureGrid}>
@@ -397,7 +399,6 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                   <article className={`${signatureStyles.signatureCard} ${signatureStyles[tool.tone]}`} key={tool.path}>
                     <span className={signatureStyles.signatureLogo} aria-hidden="true"><Image src={tool.logo} alt="" width={52} height={52} /></span>
                     <div className={signatureStyles.signatureCopy}><h4>{tool.title}</h4><p>{tool.description}</p></div>
-                    <span className={signatureStyles.signatureArt} aria-hidden="true"><ToolGlyph kind={tool.glyph} /></span>
                     {tool.panel && (!standardMode || tool.premiumOnly) ? (
                       <button
                         type="button"
@@ -409,15 +410,18 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                         aria-busy={isPanelLoadingVisible(standardMode ? "abonnement" : tool.panel) || undefined}
                       >{standardMode ? <DashboardPremiumLockIcon /> : <SettingsIcon />}</button>
                     ) : null}
-                    <button
-                      type="button"
-                      className={signatureStyles.toolButton}
-                      data-dashboard-prefetch={standardMode && tool.premiumOnly ? undefined : tool.path}
-                      onClick={standardMode && tool.premiumOnly ? () => startPanelOpening("abonnement") : tool.path === "/dashboard/stats" ? openStats : () => startModuleNavigation(tool.path)}
-                      disabled={standardMode && tool.premiumOnly ? isPanelLoadingVisible("abonnement") : isModuleLoadingVisible(tool.path)}
-                      aria-busy={(standardMode && tool.premiumOnly ? isPanelLoadingVisible("abonnement") : isModuleLoadingVisible(tool.path)) || undefined}
-                      aria-label={standardMode && tool.premiumOnly ? `${tool.title} — ${t.modules.campaignsPremiumLabel}` : tool.title}
-                    >{standardMode && tool.premiumOnly ? <><DashboardPremiumLockIcon />{t.modules.campaignsPremiumLabel}</> : <>{isModuleLoadingVisible(tool.path) ? i18nT("chargement_01cba1df") : tool.action}<ArrowIcon /></>}</button>
+                    <div className={signatureStyles.cardActions}>
+                      <span className={signatureStyles.signatureArt} aria-hidden="true"><ToolGlyph kind={tool.glyph} /></span>
+                      <button
+                        type="button"
+                        className={signatureStyles.toolButton}
+                        data-dashboard-prefetch={standardMode && tool.premiumOnly ? undefined : tool.path}
+                        onClick={standardMode && tool.premiumOnly ? () => startPanelOpening("abonnement") : tool.path === "/dashboard/stats" ? openStats : () => startModuleNavigation(tool.path)}
+                        disabled={standardMode && tool.premiumOnly ? isPanelLoadingVisible("abonnement") : isModuleLoadingVisible(tool.path)}
+                        aria-busy={(standardMode && tool.premiumOnly ? isPanelLoadingVisible("abonnement") : isModuleLoadingVisible(tool.path)) || undefined}
+                        aria-label={standardMode && tool.premiumOnly ? `${tool.title} — ${t.modules.campaignsPremiumLabel}` : tool.title}
+                      >{standardMode && tool.premiumOnly ? <><DashboardPremiumLockIcon />{t.modules.campaignsPremiumLabel}</> : <>{isModuleLoadingVisible(tool.path) ? i18nT("chargement_01cba1df") : tool.action}<ArrowIcon /></>}</button>
+                    </div>
                   </article>
                 ))}
               </div>
@@ -425,15 +429,17 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
               <article className={`${signatureStyles.relationshipCard} ${signatureStyles.reputationCard}`}>
                 <span className={signatureStyles.relationshipLogo} aria-hidden="true"><ToolGlyph kind="trophy" /></span>
                 <div className={signatureStyles.relationshipCopy}><h4>{standardT("reputationName")}</h4><p>{t.modules.reputationSub}</p></div>
-                <span className={signatureStyles.reputationStars} aria-hidden="true">✦<b>★</b>★<b>★</b>✦</span>
-                <button
-                  type="button"
-                  className={signatureStyles.cardButton}
-                  data-dashboard-prefetch="/dashboard/e-reputation"
-                  onClick={() => startModuleNavigation("/dashboard/e-reputation")}
-                  disabled={isModuleLoadingVisible("/dashboard/e-reputation")}
-                  aria-busy={isModuleLoadingVisible("/dashboard/e-reputation") || undefined}
-                >{isModuleLoadingVisible("/dashboard/e-reputation") ? i18nT("chargement_01cba1df") : t.modules.reputationCta}<ArrowIcon /></button>
+                <div className={signatureStyles.cardActions}>
+                  <span className={signatureStyles.reputationStars} aria-hidden="true">✦<b>★</b>★<b>★</b>✦</span>
+                  <button
+                    type="button"
+                    className={signatureStyles.cardButton}
+                    data-dashboard-prefetch="/dashboard/e-reputation"
+                    onClick={() => startModuleNavigation("/dashboard/e-reputation")}
+                    disabled={isModuleLoadingVisible("/dashboard/e-reputation")}
+                    aria-busy={isModuleLoadingVisible("/dashboard/e-reputation") || undefined}
+                  >{isModuleLoadingVisible("/dashboard/e-reputation") ? i18nT("chargement_01cba1df") : t.modules.reputationCta}<ArrowIcon /></button>
+                </div>
               </article>
             </div>
           </section>
@@ -457,8 +463,8 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                 type="button"
                 className={`${styles.cashChoiceCard} ${styles.cashChoiceInvoice}`}
                 onClick={() => {
-                  setCampaignModalOpen(false);
-                  startModuleNavigation("/dashboard/propulser");
+                setCampaignModalOpen(false);
+                startModuleNavigation("/dashboard/propulser");
                 }}
               >
                 <span className={styles.cashChoiceEyebrow}>{t.modules.propulserTitle}</span>
@@ -471,8 +477,8 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                 type="button"
                 className={`${styles.cashChoiceCard} ${styles.cashChoiceQuote}`}
                 onClick={() => {
-                  setCampaignModalOpen(false);
-                  startModuleNavigation("/dashboard/fideliser");
+                setCampaignModalOpen(false);
+                startModuleNavigation("/dashboard/fideliser");
                 }}
               >
                 <span className={styles.cashChoiceEyebrow}>{t.modules.fideliserTitle}</span>
@@ -513,8 +519,8 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                 type="button"
                 className={`${styles.cashChoiceCard} ${styles.cashChoiceInvoice}`}
                 onClick={() => {
-                  setCashModalOpen(false);
-                  startModuleNavigation("/dashboard/factures/new");
+                setCashModalOpen(false);
+                startModuleNavigation("/dashboard/factures/new");
                 }}
               >
                 <span className={styles.cashChoiceEyebrow}>{t.modules.invoiceEyebrow}</span>
@@ -527,8 +533,8 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                 type="button"
                 className={`${styles.cashChoiceCard} ${styles.cashChoiceQuote}`}
                 onClick={() => {
-                  setCashModalOpen(false);
-                  startModuleNavigation("/dashboard/devis/new");
+                setCashModalOpen(false);
+                startModuleNavigation("/dashboard/devis/new");
                 }}
               >
                 <span className={styles.cashChoiceEyebrow}>{t.modules.quoteEyebrow}</span>
