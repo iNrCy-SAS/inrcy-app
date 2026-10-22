@@ -40,28 +40,29 @@ test("le dashboard compact conserve le cockpit et remplace les sauts haut/bas pa
   assert.match(channels, /dynamic\(\(\) => import\("\.\/DashboardChannelsModal"\), \{ ssr: false \}\)/);
 });
 
-test("Booster reste en tête, puis ADS, Studio et Agent ; les signatures précèdent Réputation et Campagnes mails", () => {
-  assertOrdered(modules, 'aria-labelledby="dashboard-create-title"', "signatureStyles.boosterCard", "signatureStyles.adsCard", "signatureStyles.studioCard", "signatureStyles.agentCard", 'aria-labelledby="dashboard-pilot-title"', "signatureStyles.dnaCard", "signatureStyles.signatureGrid", "signatureStyles.relationshipGrid", "signatureStyles.reputationCard", "signatureStyles.mailCampaignCard");
+test("Booster reste en tête, puis ADS, Studio et Agent ; Campagnes mails précède les signatures et Réputation", () => {
+  assertOrdered(modules, 'aria-labelledby="dashboard-create-title"', "signatureStyles.boosterCard", "signatureStyles.adsCard", "signatureStyles.studioCard", "signatureStyles.agentCard", 'aria-labelledby="dashboard-pilot-title"', "signatureStyles.relationshipGrid", "signatureStyles.mailCampaignCard", "signatureStyles.signatureGrid", "signatureStyles.reputationCard");
   const signatureDeclaration = modules.slice(modules.indexOf("const signatureTools:"), modules.indexOf("  return (", modules.indexOf("const signatureTools:")));
   assert.deepEqual([...signatureDeclaration.matchAll(/tone: "([^"]+)"/g)].map((match) => match[1]), ["sendCard", "statsCard", "calendarCard", "crmCard"]);
   assert.match(signatureDeclaration, /path: standardMode \? "\/dashboard\/mails\?folder=publications&boxView=sent" : "\/dashboard\/mails"/);
   assert.deepEqual([...signatureDeclaration.matchAll(/path: "([^"]+)"/g)].map((match) => match[1]), ["/dashboard/stats", "/dashboard/agenda", "/dashboard/crm"]);
   assert.match(toolsCss, /\.lowerRow\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
   assert.match(toolsCss, /\.signatureGrid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(toolsCss, /\.relationshipGrid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(toolsCss, /\.relationshipGrid\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.doesNotMatch(modules, /signatureStyles\.dnaCard/);
   assert.doesNotMatch(modules, /Autres outils|Other tools/);
 });
 
-test("Campagnes mails est une carte visible à côté de Réputation, pas un petit raccourci dans le titre", () => {
+test("Campagnes mails et Réputation encadrent les quatre outils sur toute la largeur", () => {
   const relationshipRow = modules.slice(modules.indexOf('data-dashboard-relationship-tools="true"'), modules.indexOf("{!standardMode && campaignModalOpen ?"));
-  assertOrdered(relationshipRow, "signatureStyles.reputationCard", "signatureStyles.mailCampaignCard", '"premium-campaign-open"');
+  assertOrdered(relationshipRow, "signatureStyles.mailCampaignCard", '"premium-campaign-open"', "signatureStyles.signatureGrid", "signatureStyles.reputationCard");
   assert.match(relationshipRow, /signatureStyles\.relationshipLogo[^\n]*<ToolGlyph kind="mail"/);
   assert.match(relationshipRow, /<h4>\{copy\.mailCampaigns\}<\/h4><p>\{t\.modules\.campaignsSub\}<\/p>/);
   assert.match(relationshipRow, /onClick=\{openCampaignModal\}/);
   assert.match(relationshipRow, /disabled=\{standardMode \? isPanelLoadingVisible\("abonnement"\) : isVisible\("modal:campaigns"\)\}/);
   assert.match(relationshipRow, /aria-busy=\{\(standardMode \? isPanelLoadingVisible\("abonnement"\) : isVisible\("modal:campaigns"\)\) \|\| undefined\}/);
   assert.doesNotMatch(modules, /signatureStyles\.contextButton/);
-  assert.match(toolsCss, /@media \(max-width: 540px\)[\s\S]*?\.relationshipGrid\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(toolsCss, /\.relationshipCard\s*\{[^}]*grid-template-columns: 48px minmax\(0, 1fr\) auto/);
 });
 
 test("les réglages, le planning et le bilan ont des commandes clairement visibles sur ordinateur et mobile", () => {
@@ -76,13 +77,10 @@ test("les réglages, le planning et le bilan ont des commandes clairement visibl
 
 test("les cartes de pilotage conservent des textes et actions lisibles à chaque breakpoint", () => {
   const readableSizes = [
-    [".dnaCopy h4", 21],
-    [".dnaCopy p", 12],
     [".signatureCopy h4", 15],
     [".signatureCopy p", 12],
     [".relationshipCopy h4", 16],
     [".relationshipCopy p", 12],
-    [".dnaCard .cardButton", 11],
     [".toolButton", 11],
     [".relationshipCard .cardButton", 12],
   ] as const;
@@ -101,7 +99,7 @@ test("les cartes de pilotage conservent des textes et actions lisibles à chaque
     }
   }
 
-  for (const selector of ["signatureCard", "relationshipCard"]) {
+  for (const selector of ["signatureCard"]) {
     const blocks = [...toolsCss.matchAll(new RegExp(`^\\s*\\.${selector}\\s*\\{([^}]+)\\}`, "gm"))];
     for (const [, block] of blocks) {
       const padding = block.match(/padding:\s*\d+px\s+\d+px\s+(\d+)px/);
@@ -120,7 +118,7 @@ test("les outils conservent leurs destinations et les callbacks de publication, 
   assert.match(modules, /onClick=\{openBoosterSummary\}/);
   assert.match(modules, /const studioPath = "\/dashboard\/generer-media"/);
   assert.match(modules, /const agentPath = "\/dashboard\/agent"/);
-  for (const destination of ["adn-entreprise", "e-reputation", "propulser", "fideliser"]) {
+  for (const destination of ["e-reputation", "propulser", "fideliser"]) {
     assert.ok(modules.includes(`startModuleNavigation("/dashboard/${destination}")`), destination);
   }
   assert.match(modules, /onClick=\{openCampaignModal\}/);

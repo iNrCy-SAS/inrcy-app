@@ -186,7 +186,7 @@ function harness(options: HarnessOptions = {}) {
 const variants = [{ adapter: true, edition: "standard" as const }, { edition: "premium" as const }, { edition: "founder" as const }];
 
 test("Standard, Premium and Founder render the same signature cards, hierarchy and shared CSS", () => {
-  const expected = ["boosterCard", "adsCard", "studioCard", "agentCard", "dnaCard", "sendCard", "statsCard", "calendarCard", "crmCard", "reputationCard", "mailCampaignCard"];
+  const expected = ["boosterCard", "adsCard", "studioCard", "agentCard", "mailCampaignCard", "sendCard", "statsCard", "calendarCard", "crmCard", "reputationCard"];
   for (const variant of variants) {
     const { tree, html } = harness(variant).render();
     const cards = elements(tree).flatMap((node) => expected.filter((name) => hasClass(node, name)));
@@ -213,7 +213,7 @@ test("the shared visual copy and Ads channel information are translated in all n
     for (const variant of variants.slice(0, 2)) {
       const { tree } = harness({ ...variant, locale }).render();
       const rendered = content(tree);
-      for (const key of ["createTitle", "pilotTitle", "mailCampaigns", "dnaDescription", "adsDescription"]) {
+      for (const key of ["createTitle", "pilotTitle", "mailCampaigns", "adsDescription"]) {
         const expected = translated[key];
         assert.ok(typeof expected === "string" && rendered.includes(expected), `${locale} rendered ${key}`);
       }
@@ -326,9 +326,9 @@ test("both editions preserve Booster publish, distinct Bilan and Stats callbacks
   }
 });
 
-test("ADN, Studio, Agent and Reputation keep their existing accessible routes in every edition", () => {
+test("Studio, Agent and Reputation keep their existing accessible routes in every edition", () => {
   for (const variant of variants) {
-    for (const [name, path] of [["dnaCard", "/dashboard/adn-entreprise"], ["studioCard", "/dashboard/generer-media"], ["agentCard", "/dashboard/agent"], ["reputationCard", "/dashboard/e-reputation"]]) {
+    for (const [name, path] of [["studioCard", "/dashboard/generer-media"], ["agentCard", "/dashboard/agent"], ["reputationCard", "/dashboard/e-reputation"]]) {
       const view = harness(variant);
       click(action(view.render().tree, name));
       assert.deepEqual(view.calls.routes, [path]);

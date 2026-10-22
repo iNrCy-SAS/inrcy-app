@@ -70,7 +70,6 @@ test("le cockpit Premium met Booster en tête et groupe les signatures au-dessus
   const studio = source.indexOf('"premium-studio-open"');
   const agent = source.indexOf('"premium-agent-planning"');
   const pilot = source.indexOf('id="dashboard-pilot-title"');
-  const dna = source.indexOf('data-dashboard-prefetch="/dashboard/adn-entreprise"');
   const signatures = source.indexOf("{signatureTools.map");
   const relationships = source.indexOf('data-dashboard-relationship-tools="true"');
   const reputation = source.indexOf('data-dashboard-prefetch="/dashboard/e-reputation"');
@@ -78,10 +77,11 @@ test("le cockpit Premium met Booster en tête et groupe les signatures au-dessus
 
   assert.ok(creation >= 0 && creation < booster);
   assert.ok(booster < secondary && secondary < ads && ads < studio && studio < agent);
-  assert.ok(agent < pilot && pilot < dna && dna < signatures && signatures < relationships);
-  assert.ok(relationships < reputation && reputation < mailCampaigns);
+  assert.ok(agent < pilot && pilot < relationships && relationships < mailCampaigns);
+  assert.ok(mailCampaigns < signatures && signatures < reputation);
+  assert.doesNotMatch(source, /signatureStyles\.dnaCard/);
 
-  // These four tools stay together; Réputation and Campagnes mails form the row below.
+  // The four tools stay between the full-width Campaigns and Reputation bands.
   const signatureDefinitions = source.slice(source.indexOf("const signatureTools:"), creation);
   const signatureNames = Array.from(
     signatureDefinitions.matchAll(/tone: "([^"]+)"/g),
@@ -97,7 +97,7 @@ test("le cockpit Premium met Booster en tête et groupe les signatures au-dessus
   assert.match(styles, /\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/);
   assert.match(styles, /\.creationGrid\s*\{[^}]*grid-template-columns:\s*1\.3fr 1fr 1fr/);
   assert.match(styles, /\.signatureGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /\.relationshipGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.relationshipGrid\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
   assert.match(styles, /@media \(max-width: 1100px\)[\s\S]*?\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
   assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.adsCard\s*\{[^}]*grid-column:\s*1 \/ -1/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.boosterWave\s*\{\s*animation:\s*none/);

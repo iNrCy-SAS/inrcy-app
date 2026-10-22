@@ -412,7 +412,8 @@ test("les blocs inférieurs Standard conservent Stats, Publications, Réputation
   // checks premiumOnly at both action and prefetch boundaries (tested below).
   assert.match(sharedModulesSource, /signatureStyles\.boosterCard/);
   assert.match(sharedModulesSource, /signatureStyles\.toolButton/);
-  assert.match(sharedModulesSource, /startModuleNavigation\("\/dashboard\/adn-entreprise"\)/);
+  assert.match(dashboardClientSource, /onOpenDna=\{/);
+  assert.doesNotMatch(sharedModulesSource, /signatureStyles\.dnaCard/);
 });
 
 test("Standard reprend la même rangée ADS, Studio et Agent, avec Studio et Agent de même largeur", () => {

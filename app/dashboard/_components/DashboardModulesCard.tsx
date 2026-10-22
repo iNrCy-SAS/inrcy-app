@@ -78,7 +78,7 @@ function SettingsIcon() {
   );
 }
 
-type ToolGlyphKind = "mail" | "stats" | "ads" | "megaphone" | "sparkles" | "image" | "planning" | "dna" | "document" | "people" | "trophy";
+type ToolGlyphKind = "mail" | "stats" | "ads" | "megaphone" | "sparkles" | "image" | "planning" | "people" | "trophy";
 
 function ToolGlyph({ kind }: { kind: ToolGlyphKind }) {
   if (kind === "sparkles") return <StudioIcon />;
@@ -90,8 +90,6 @@ function ToolGlyph({ kind }: { kind: ToolGlyphKind }) {
       {kind === "megaphone" ? <><path d="M28 9 15 17H8v15h7l13 8V9Z" fill="currentColor" fillOpacity=".3" /><path d="m15 32 4 11h-7L8 32m25-15 6-3m-6 18 6 3m-5-11h8M28 16c7 1 7 15 0 16" /></> : null}
       {kind === "image" ? <><rect x="6" y="8" width="36" height="32" rx="5" fill="currentColor" fillOpacity=".12" /><circle cx="16" cy="18" r="3" /><path d="m8 36 11-12 7 7 7-9 8 14" fill="currentColor" fillOpacity=".3" /></> : null}
       {kind === "planning" ? <><rect x="6" y="9" width="36" height="33" rx="5" /><path d="M15 5v9M33 5v9M6 20h36M15 28h5m7 0h5m-17 7h5m7 0h5" /></> : null}
-      {kind === "dna" ? <><path d="M14 5c0 16 20 21 20 38M34 5c0 16-20 21-20 38M16 10h16M19 16h10M18 33h12M15 39h18" /><path d="m20 23 8 5m0-5-8 5" opacity=".5" /></> : null}
-      {kind === "document" ? <><rect x="9" y="5" width="29" height="38" rx="4" fill="currentColor" fillOpacity=".1" /><path d="M16 14h15M16 21h15M16 28h15M16 35h9" /></> : null}
       {kind === "people" ? <><circle cx="19" cy="16" r="7" fill="currentColor" fillOpacity=".35" /><path d="M5 40v-5a14 14 0 0 1 28 0v5H5Z" fill="currentColor" fillOpacity=".35" /><path d="M32 10a7 7 0 0 1 0 14m7 16h5v-5a13 13 0 0 0-8-12" /></> : null}
       {kind === "trophy" ? <><path d="M15 7h18v11c0 9-5 12-9 12s-9-3-9-12V7Z" fill="currentColor" fillOpacity=".3" /><path d="M15 11H7v6c0 7 6 8 10 8M33 11h8v6c0 7-6 8-10 8M24 30v9m-8 3h16m-3-3H19" /></> : null}
     </svg>
@@ -246,7 +244,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
   const copy = {
     createTitle: signatureT("createTitle"), pilotTitle: signatureT("pilotTitle"), mailCampaigns: signatureT("mailCampaigns"), businessSpace: signatureT("businessSpace"),
     amplify: signatureT("amplify"), imagine: signatureT("imagine"), automate: signatureT("automate"), adsDescription: signatureT("adsDescription"),
-    createCampaign: signatureT("createCampaign"), comingSoon: signatureT("comingSoon"), openStudio: signatureT("openStudio"), access: signatureT("access"), manage: signatureT("manage"), open: signatureT("open"), viewStats: signatureT("viewStats"), dnaDescription: signatureT("dnaDescription"),
+    createCampaign: signatureT("createCampaign"), comingSoon: signatureT("comingSoon"), openStudio: signatureT("openStudio"), access: signatureT("access"), manage: signatureT("manage"), open: signatureT("open"), viewStats: signatureT("viewStats"),
   };
   const signatureTools: { path: string; title: string; description: string; logo: string; tone: string; glyph: ToolGlyphKind; action: string; panel?: DashboardPanelName; settingsLabel?: string; premiumOnly?: boolean }[] = [
     { path: standardMode ? "/dashboard/mails?folder=publications&boxView=sent" : "/dashboard/mails", title: sendLabel, description: standardT("sendDescription"), logo: "/inrsend-logo-seul.png", tone: "sendCard", glyph: "mail", action: standardMode ? standardT("sendCta") : copy.manage, panel: "mails", settingsLabel: t.modules.mailsSettingsAria },
@@ -378,65 +376,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
               <span className={signatureStyles.panelCaption}>{copy.businessSpace}</span>
             </header>
 
-            <article className={signatureStyles.dnaCard}>
-              <span className={signatureStyles.cardLogo} aria-hidden="true"><ToolGlyph kind="dna" /></span>
-              <div className={signatureStyles.dnaCopy}><h4>iNr’ADN</h4><p>{copy.dnaDescription}</p></div>
-              <span className={signatureStyles.dnaArt} aria-hidden="true"><ToolGlyph kind="document" /></span>
-              <button
-                type="button"
-                className={signatureStyles.cardButton}
-                data-dashboard-prefetch="/dashboard/adn-entreprise"
-                onClick={() => startModuleNavigation("/dashboard/adn-entreprise")}
-                disabled={isModuleLoadingVisible("/dashboard/adn-entreprise")}
-                aria-busy={isModuleLoadingVisible("/dashboard/adn-entreprise") || undefined}
-              >{isModuleLoadingVisible("/dashboard/adn-entreprise") ? i18nT("chargement_01cba1df") : copy.access}<ArrowIcon /></button>
-            </article>
-
-            <div className={signatureStyles.signatureGrid}>
-              {signatureTools.map((tool) => (
-                <article className={`${signatureStyles.signatureCard} ${signatureStyles[tool.tone]}`} key={tool.path}>
-                  <span className={signatureStyles.signatureLogo} aria-hidden="true"><Image src={tool.logo} alt="" width={52} height={52} /></span>
-                  <div className={signatureStyles.signatureCopy}><h4>{tool.title}</h4><p>{tool.description}</p></div>
-                  <span className={signatureStyles.signatureArt} aria-hidden="true"><ToolGlyph kind={tool.glyph} /></span>
-                  {tool.panel && (!standardMode || tool.premiumOnly) ? (
-                    <button
-                      type="button"
-                      className={signatureStyles.settingsButton}
-                      aria-label={standardMode ? `${tool.settingsLabel} — ${t.modules.campaignsPremiumLabel}` : tool.settingsLabel}
-                      title={t.notifications.settings}
-                      onClick={() => startPanelOpening(standardMode ? "abonnement" : tool.panel!)}
-                      disabled={isPanelLoadingVisible(standardMode ? "abonnement" : tool.panel)}
-                      aria-busy={isPanelLoadingVisible(standardMode ? "abonnement" : tool.panel) || undefined}
-                    >{standardMode ? <DashboardPremiumLockIcon /> : <SettingsIcon />}</button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className={signatureStyles.toolButton}
-                    data-dashboard-prefetch={standardMode && tool.premiumOnly ? undefined : tool.path}
-                    onClick={standardMode && tool.premiumOnly ? () => startPanelOpening("abonnement") : tool.path === "/dashboard/stats" ? openStats : () => startModuleNavigation(tool.path)}
-                    disabled={standardMode && tool.premiumOnly ? isPanelLoadingVisible("abonnement") : isModuleLoadingVisible(tool.path)}
-                    aria-busy={(standardMode && tool.premiumOnly ? isPanelLoadingVisible("abonnement") : isModuleLoadingVisible(tool.path)) || undefined}
-                    aria-label={standardMode && tool.premiumOnly ? `${tool.title} — ${t.modules.campaignsPremiumLabel}` : tool.title}
-                  >{standardMode && tool.premiumOnly ? <><DashboardPremiumLockIcon />{t.modules.campaignsPremiumLabel}</> : <>{isModuleLoadingVisible(tool.path) ? i18nT("chargement_01cba1df") : tool.action}<ArrowIcon /></>}</button>
-                </article>
-              ))}
-            </div>
-
             <div className={signatureStyles.relationshipGrid} data-dashboard-relationship-tools="true">
-              <article className={`${signatureStyles.relationshipCard} ${signatureStyles.reputationCard}`}>
-                <span className={signatureStyles.relationshipLogo} aria-hidden="true"><ToolGlyph kind="trophy" /></span>
-                <div className={signatureStyles.relationshipCopy}><h4>{standardT("reputationName")}</h4><p>{t.modules.reputationSub}</p></div>
-                <span className={signatureStyles.reputationStars} aria-hidden="true">✦<b>★</b>★<b>★</b>✦</span>
-                <button
-                  type="button"
-                  className={signatureStyles.cardButton}
-                  data-dashboard-prefetch="/dashboard/e-reputation"
-                  onClick={() => startModuleNavigation("/dashboard/e-reputation")}
-                  disabled={isModuleLoadingVisible("/dashboard/e-reputation")}
-                  aria-busy={isModuleLoadingVisible("/dashboard/e-reputation") || undefined}
-                >{isModuleLoadingVisible("/dashboard/e-reputation") ? i18nT("chargement_01cba1df") : t.modules.reputationCta}<ArrowIcon /></button>
-              </article>
-
               <article className={`${signatureStyles.relationshipCard} ${signatureStyles.mailCampaignCard}`}>
                 <span className={signatureStyles.relationshipLogo} aria-hidden="true"><ToolGlyph kind="mail" /></span>
                 <div className={signatureStyles.relationshipCopy}><h4>{copy.mailCampaigns}</h4><p>{t.modules.campaignsSub}</p></div>
@@ -450,6 +390,50 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                   aria-busy={(standardMode ? isPanelLoadingVisible("abonnement") : isVisible("modal:campaigns")) || undefined}
                   aria-label={standardMode ? `${t.modules.mailCampaignTitle} — ${t.modules.campaignsPremiumLabel}` : t.modules.mailCampaignTitle}
                 >{standardMode ? <><DashboardPremiumLockIcon />{t.modules.campaignsPremiumLabel}</> : <>{isVisible("modal:campaigns") ? i18nT("chargement_01cba1df") : t.modules.campaignsCta}<ArrowIcon /></>}</button>
+              </article>
+
+              <div className={signatureStyles.signatureGrid}>
+                {signatureTools.map((tool) => (
+                  <article className={`${signatureStyles.signatureCard} ${signatureStyles[tool.tone]}`} key={tool.path}>
+                    <span className={signatureStyles.signatureLogo} aria-hidden="true"><Image src={tool.logo} alt="" width={52} height={52} /></span>
+                    <div className={signatureStyles.signatureCopy}><h4>{tool.title}</h4><p>{tool.description}</p></div>
+                    <span className={signatureStyles.signatureArt} aria-hidden="true"><ToolGlyph kind={tool.glyph} /></span>
+                    {tool.panel && (!standardMode || tool.premiumOnly) ? (
+                      <button
+                        type="button"
+                        className={signatureStyles.settingsButton}
+                        aria-label={standardMode ? `${tool.settingsLabel} — ${t.modules.campaignsPremiumLabel}` : tool.settingsLabel}
+                        title={t.notifications.settings}
+                        onClick={() => startPanelOpening(standardMode ? "abonnement" : tool.panel!)}
+                        disabled={isPanelLoadingVisible(standardMode ? "abonnement" : tool.panel)}
+                        aria-busy={isPanelLoadingVisible(standardMode ? "abonnement" : tool.panel) || undefined}
+                      >{standardMode ? <DashboardPremiumLockIcon /> : <SettingsIcon />}</button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className={signatureStyles.toolButton}
+                      data-dashboard-prefetch={standardMode && tool.premiumOnly ? undefined : tool.path}
+                      onClick={standardMode && tool.premiumOnly ? () => startPanelOpening("abonnement") : tool.path === "/dashboard/stats" ? openStats : () => startModuleNavigation(tool.path)}
+                      disabled={standardMode && tool.premiumOnly ? isPanelLoadingVisible("abonnement") : isModuleLoadingVisible(tool.path)}
+                      aria-busy={(standardMode && tool.premiumOnly ? isPanelLoadingVisible("abonnement") : isModuleLoadingVisible(tool.path)) || undefined}
+                      aria-label={standardMode && tool.premiumOnly ? `${tool.title} — ${t.modules.campaignsPremiumLabel}` : tool.title}
+                    >{standardMode && tool.premiumOnly ? <><DashboardPremiumLockIcon />{t.modules.campaignsPremiumLabel}</> : <>{isModuleLoadingVisible(tool.path) ? i18nT("chargement_01cba1df") : tool.action}<ArrowIcon /></>}</button>
+                  </article>
+                ))}
+              </div>
+
+              <article className={`${signatureStyles.relationshipCard} ${signatureStyles.reputationCard}`}>
+                <span className={signatureStyles.relationshipLogo} aria-hidden="true"><ToolGlyph kind="trophy" /></span>
+                <div className={signatureStyles.relationshipCopy}><h4>{standardT("reputationName")}</h4><p>{t.modules.reputationSub}</p></div>
+                <span className={signatureStyles.reputationStars} aria-hidden="true">✦<b>★</b>★<b>★</b>✦</span>
+                <button
+                  type="button"
+                  className={signatureStyles.cardButton}
+                  data-dashboard-prefetch="/dashboard/e-reputation"
+                  onClick={() => startModuleNavigation("/dashboard/e-reputation")}
+                  disabled={isModuleLoadingVisible("/dashboard/e-reputation")}
+                  aria-busy={isModuleLoadingVisible("/dashboard/e-reputation") || undefined}
+                >{isModuleLoadingVisible("/dashboard/e-reputation") ? i18nT("chargement_01cba1df") : t.modules.reputationCta}<ArrowIcon /></button>
               </article>
             </div>
           </section>
