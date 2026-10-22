@@ -836,5 +836,11 @@
   "media_references_animation_consent": "Autorizo a animação destas personagens com {provider} para os vídeos automáticos do iNrAgent.",
   "media_references_error": "Não foi possível adicionar a referência. Tente novamente.",
   "media_references_import_busy": "A preparar e guardar as referências…",
-  "media_references_character_limit": "Pode utilizar até três referências obrigatórias de pessoas. Altere as restantes para Inspiração ou remova-as."
+  "media_references_character_limit": "Pode utilizar até três referências obrigatórias de pessoas. Altere as restantes para Inspiração ou remova-as.",
+  "settings_sections_label": "Secções das definições",
+  "settings_section_planning": "Agenda",
+  "settings_section_channels": "Canais",
+  "settings_section_generation": "Criação",
+  "settings_section_references": "Referências",
+  "media_references_summary": "As suas pessoas, cenários ou produtos numa nova cena em cada publicação."
 }

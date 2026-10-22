@@ -21555,6 +21555,125 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   .previewMeta.previewMetaPublish.publishReviewFooter .publishMobilePager { display: none !important; }
 }
 
+/* Publier : vue d'ensemble large, puis rubriques directes sur les écrans compacts. */
+.settingsModal.automationSettingsModal.publishSettingsCanvas {
+  width: min(1540px, calc(100vw - 40px));
+  max-height: calc(100dvh - 32px);
+  min-height: 0;
+  padding: 22px 26px !important;
+  overflow: hidden !important;
+  border-radius: 26px;
+}
+
+.publishSettingsCanvas .settingsModalHeader { flex: 0 0 auto; margin-bottom: 16px; }
+.publishSettingsCanvas .settingsModalLayout {
+  flex: 0 1 auto;
+  min-height: 0;
+  grid-template-columns: minmax(0, .92fr) minmax(0, 1.12fr) minmax(0, 1.16fr);
+  gap: 14px;
+}
+.publishSettingsCanvas .settingsScheduleGrid {
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 255, .17);
+  border-radius: 18px;
+  background: rgba(27, 48, 82, .46);
+}
+.publishSettingsCanvas .settingsSectionHeading { grid-column: 1 / -1; margin: 0 0 4px; color: #eaf4ff; font-size: 14px; font-weight: 800; }
+.publishSettingsCanvas .settingsScheduleGrid > label,
+.publishSettingsCanvas .settingsScheduleGrid .scheduleSlotPair {
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+}
+.publishSettingsCanvas .settingsScheduleGrid .scheduleSlotPair { grid-column: 1 / -1; }
+.publishSettingsCanvas .settingsScheduleGrid select { width: 100%; min-width: 0; font-size: 12px; }
+.publishSettingsCanvas .settingsScheduleGrid label > span { letter-spacing: .05em; font-size: 10px; }
+.publishSettingsCanvas .settingsContentColumn { gap: 10px; }
+.publishSettingsCanvas .settingsContentColumn .modalSection { padding: 12px; border-radius: 18px; gap: 8px; }
+.publishSettingsCanvas .settingsContentColumn .choiceGrid { gap: 6px; }
+.publishSettingsCanvas .settingsContentColumn .choiceGrid button { min-height: 30px; padding: 4px 8px; gap: 5px; font-size: 11px; }
+.publishSettingsCanvas .settingsContentColumn .choiceGrid button img { width: 21px; height: 21px; padding: 0; }
+.publishSettingsCanvas .settingsPreferredMediaFullWidth { grid-column: auto; align-content: start; padding: 14px; border-radius: 18px; gap: 9px; }
+.publishSettingsCanvas .settingsPreferredMediaFullWidth > .modalHint { margin: 0; font-size: 11px; line-height: 1.4; }
+.publishSettingsCanvas .settingsMediaPreferencesRow { display: grid; gap: 10px; }
+.publishSettingsCanvas .settingsMediaPreferencesRow .choiceGrid { gap: 5px; }
+.publishSettingsCanvas .settingsMediaPreferencesRow .choiceGrid button { min-height: 32px; padding: 5px 9px; font-size: 11px; }
+.publishSettingsCanvas .publicationMediaTypes { gap: 5px; }
+.publishSettingsCanvas .publicationMediaTypes label { min-height: 32px; padding: 5px 7px; gap: 5px; font-size: 10px; }
+.publishSettingsCanvas .studioMediaMixControl { padding: 10px; gap: 7px; }
+.publishSettingsCanvas .studioMediaMixHeader span { font-size: 11px; }
+.publishSettingsCanvas .studioMediaMixDescription { font-size: 11px; line-height: 1.4; }
+.publishSettingsCanvas .studioMediaMixControl > .modalHint { font-size: 10px; line-height: 1.3; }
+.publishSettingsCanvas .settingsReferencesSection { grid-column: 1 / -1; min-width: 0; }
+.publishSettingsCanvas .settingsModalFooter { flex: 0 0 auto; margin-top: 14px; gap: 8px; }
+.publishSettingsCanvas .settingsModalFooter .modalNote { font-size: 11px; line-height: 1.3; }
+.settingsSectionNav { display: none; }
+
+@media (max-width: 1240px), (max-height: 819px) {
+  .settingsModal.automationSettingsModal.publishSettingsCanvas {
+    width: min(960px, calc(100vw - 32px));
+    height: min(710px, calc(100dvh - 24px));
+    max-height: calc(100dvh - 24px);
+    padding: 18px 22px !important;
+  }
+  .publishSettingsCanvas .settingsSectionNav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); flex: 0 0 auto; gap: 5px; padding: 5px; margin-bottom: 14px; border: 1px solid #5975a136; border-radius: 14px; background: #030d2280; }
+  .settingsSectionNav button { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 38px; padding: 6px 10px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: #b1c4e2; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+  .settingsSectionNav button[aria-pressed="true"] { border-color: #67e8f955; background: linear-gradient(120deg, #1578a65c, #7444bb66); color: #fff; box-shadow: inset 0 1px 0 #ffffff12; }
+  .settingsSectionNav button:focus-visible { outline: 2px solid #67e8f9; outline-offset: 2px; }
+  .settingsSectionNav button > span { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 3px; border-radius: 50%; background: #67e8f929; color: #a7f3ff; font-size: 10px; }
+  .publishSettingsCanvas .settingsModalLayout { display: block; flex: 1 1 auto; min-height: 0; }
+  .publishSettingsCanvas [data-settings-panel] { display: none !important; }
+  .publishSettingsCanvas[data-active-panel="planning"] [data-settings-panel="planning"],
+  .publishSettingsCanvas[data-active-panel="channels"] [data-settings-panel="channels"],
+  .publishSettingsCanvas[data-active-panel="generation"] [data-settings-panel="generation"],
+  .publishSettingsCanvas[data-active-panel="references"] [data-settings-panel="references"] { display: grid !important; }
+  .publishSettingsCanvas .settingsScheduleGrid { max-width: 720px; margin: 0 auto; }
+  .publishSettingsCanvas .settingsContentColumn { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .publishSettingsCanvas .settingsPreferredMediaFullWidth { grid-template-columns: minmax(0, 1fr); }
+  .publishSettingsCanvas .settingsMediaPreferencesRow { display: flex; justify-content: space-between; }
+  .publishSettingsCanvas .studioMediaMixControl { margin-top: 4px; }
+  .publishSettingsCanvas .settingsModalFooter { margin-top: 12px; }
+  .publishSettingsCanvas .settingsModalFooter .modalNote { display: none; }
+}
+
+@media (max-width: 700px) {
+  .settingsModal.automationSettingsModal.publishSettingsCanvas { width: calc(100vw - 20px); height: calc(100dvh - 20px); max-height: calc(100dvh - 20px); padding: 14px !important; border-radius: 22px; }
+  .publishSettingsCanvas .settingsModalHeader { grid-template-areas: "heading close" "heading switch"; margin-bottom: 10px; gap: 5px 8px !important; }
+  .publishSettingsCanvas .settingsModalHeading h2 { font-size: 22px; line-height: 1.1; }
+  .publishSettingsCanvas .settingsModalHeading .modalEyebrow { font-size: 9px; margin-bottom: 4px; }
+  .publishSettingsCanvas .settingsHeaderSwitch { min-height: 30px; padding: 2px 4px 2px 7px; }
+  .publishSettingsCanvas .settingsHeaderSwitch > span { max-width: 88px; font-size: 9px; }
+  .publishSettingsCanvas .settingsHeaderSwitch input[type="checkbox"] { width: 38px; height: 23px; }
+  .publishSettingsCanvas .settingsHeaderSwitch input[type="checkbox"]::before { width: 15px; height: 15px; }
+  .publishSettingsCanvas .settingsHeaderSwitch input[type="checkbox"]:checked::before { transform: translateX(15px); }
+  .publishSettingsCanvas .settingsSectionNav { margin-bottom: 10px; gap: 2px; padding: 3px; }
+  .publishSettingsCanvas .settingsSectionNav button { min-height: 38px; padding: 5px 3px; font-size: 10px; }
+  .publishSettingsCanvas .settingsSectionNav button > span { min-width: 15px; height: 15px; font-size: 9px; }
+  .publishSettingsCanvas .settingsScheduleGrid { padding: 12px; gap: 8px; }
+  .publishSettingsCanvas .settingsScheduleGrid select { min-height: 38px; font-size: 12px; }
+  .publishSettingsCanvas .settingsContentColumn { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .publishSettingsCanvas .settingsContentColumn .modalSection { padding: 10px; gap: 7px; }
+  .publishSettingsCanvas .settingsContentColumn .choiceGrid button { min-height: 29px; padding: 4px 7px; font-size: 10px; }
+  .publishSettingsCanvas .settingsContentColumn .choiceGrid button img { width: 18px; height: 18px; }
+  .publishSettingsCanvas .settingsPreferredMediaFullWidth { padding: 12px; gap: 10px; }
+  .publishSettingsCanvas .settingsMediaPreferencesRow { display: grid; gap: 10px; }
+  .publishSettingsCanvas .settingsMediaPreferencesRow .choiceGrid button { font-size: 11px; }
+  .publishSettingsCanvas .publicationMediaTypes label { font-size: 10px; min-height: 34px; }
+  .publishSettingsCanvas .settingsModalFooter { margin-top: 10px; }
+  .publishSettingsCanvas .settingsModalFooter .modalActionRow { width: 100%; }
+  .publishSettingsCanvas .settingsModalFooter .settingsSaveAction { width: 100% !important; min-width: 0; min-height: 46px !important; height: 46px; font-size: 14px !important; }
+}
+
+@media (max-height: 540px) {
+  .settingsModal.automationSettingsModal.publishSettingsCanvas { height: calc(100dvh - 16px); padding: 10px 16px !important; }
+  .publishSettingsCanvas .settingsModalHeader { margin-bottom: 7px; }
+  .publishSettingsCanvas .settingsModalHeading h2 { font-size: 20px; }
+  .publishSettingsCanvas .settingsSectionNav { margin-bottom: 8px; }
+  .publishSettingsCanvas .settingsModalFooter { margin-top: 8px; }
+  .publishSettingsCanvas .settingsModalFooter .settingsSaveAction { min-height: 42px !important; height: 42px; }
+}
+
 @media (max-width: 760px) {
   .previewMeta.previewMetaPublish.publishReviewFooter {
     display: grid !important;

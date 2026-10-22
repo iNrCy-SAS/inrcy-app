@@ -287,7 +287,7 @@ export function useAgentAutomationController({
   }
 
   async function saveSettings() {
-    await persistSettings();
+    if (await persistSettings()) setSettingsKey(null);
   }
 
   async function confirmEditorialPlanSettings(
@@ -298,6 +298,7 @@ export function useAgentAutomationController({
       showSuccess: false,
     });
     if (!saved) return;
+    setSettingsKey(null);
     showNotice(
       mode === "next_cycle"
         ? "Réglages enregistrés pour le prochain cycle. Les contenus déjà préparés sont conservés."

@@ -836,5 +836,11 @@
   "media_references_animation_consent": "ฉันอนุญาตให้ใช้ {provider} สร้างภาพเคลื่อนไหวของบุคคลเหล่านี้สำหรับวิดีโออัตโนมัติของ iNrAgent",
   "media_references_error": "ไม่สามารถเพิ่มสื่ออ้างอิงได้ โปรดลองอีกครั้ง",
   "media_references_import_busy": "กำลังเตรียมและบันทึกสื่ออ้างอิง…",
-  "media_references_character_limit": "ใช้สื่ออ้างอิงบุคคลแบบบังคับได้สูงสุดสามรายการ เปลี่ยนรายการอื่นเป็นแรงบันดาลใจหรือนำออก"
+  "media_references_character_limit": "ใช้สื่ออ้างอิงบุคคลแบบบังคับได้สูงสุดสามรายการ เปลี่ยนรายการอื่นเป็นแรงบันดาลใจหรือนำออก",
+  "settings_sections_label": "หมวดการตั้งค่า",
+  "settings_section_planning": "กำหนดการ",
+  "settings_section_channels": "ช่องทาง",
+  "settings_section_generation": "การสร้าง",
+  "settings_section_references": "สื่ออ้างอิง",
+  "media_references_summary": "บุคคล ฉาก หรือผลิตภัณฑ์ของคุณในฉากใหม่สำหรับแต่ละโพสต์"
 }

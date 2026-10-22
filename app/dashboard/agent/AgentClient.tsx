@@ -591,6 +591,9 @@ export default function AgentClient() {
   } | null>(null);
   const [settingsKey, setSettingsKey] = useState<AutomationKey | null>(null);
   const [agentReferenceBusy, setAgentReferenceBusy] = useState(false);
+  const [settingsCompactPanel, setSettingsCompactPanel] = useState<
+    "planning" | "channels" | "generation" | "references"
+  >("planning");
   const [publicationIdeasOpen, setPublicationIdeasOpen] = useState(false);
   const [publicationIdeasDraft, setPublicationIdeasDraft] = useState<string[]>([]);
   const [publicationIdeasSaveState, setPublicationIdeasSaveState] = useState<
@@ -1275,6 +1278,7 @@ export default function AgentClient() {
     setPublicationIdeaVoiceIndex(null);
     setDraggedPublicationIdea(null);
     setPublicationIdeaDropTarget(null);
+    setSettingsCompactPanel("planning");
   }, [settingsKey, publicationIdeasOpen]);
   useEffect(() => {
     if (!publicationIdeasOpen) return;
@@ -8731,8 +8735,9 @@ export default function AgentClient() {
           }}
         >
           <section
-            className={`${styles.settingsModal} ${styles.automationSettingsModal} ${publicationIdeasOpen ? styles.publicationIdeasWorkspace : ""}`}
+            className={`${styles.settingsModal} ${styles.automationSettingsModal} ${publicationIdeasOpen ? styles.publicationIdeasWorkspace : ""} ${settingsAutomation.key === "publish" && !publicationIdeasOpen ? styles.publishSettingsCanvas : ""}`}
             data-automation={settingsAutomation.key}
+            data-active-panel={settingsCompactPanel}
             role="dialog"
             aria-modal="true"
             aria-label={publicationIdeasOpen
@@ -8814,6 +8819,24 @@ export default function AgentClient() {
               </div>
             </header>
 
+            {settingsAutomation.key === "publish" && !publicationIdeasOpen ? (
+              <nav className={styles.settingsSectionNav} aria-label={i18nT("settings_sections_label")}>
+                {(["planning", "channels", "generation", "references"] as const).map((panel) => (
+                  <button
+                    key={panel}
+                    type="button"
+                    aria-pressed={settingsCompactPanel === panel}
+                    onClick={() => setSettingsCompactPanel(panel)}
+                  >
+                    {i18nT(`settings_section_${panel}`)}
+                    {panel === "references" && settingsConfig.mediaReferences?.items.length ? (
+                      <span>{settingsConfig.mediaReferences.items.length}</span>
+                    ) : null}
+                  </button>
+                ))}
+              </nav>
+            ) : null}
+
             <div
               className={styles.settingsModalLayout}
               style={{
@@ -8822,7 +8845,9 @@ export default function AgentClient() {
             >
               <div
                 className={`${styles.modalGrid} ${styles.settingsScheduleGrid}`}
+                data-settings-panel="planning"
               >
+                {settingsAutomation.key === "publish" ? <h3 className={styles.settingsSectionHeading}>{i18nT("settings_section_planning")}</h3> : null}
                 <label>
                   <span>{i18nT("frequence_bafbfba7")}</span>
                   <select
@@ -9065,7 +9090,7 @@ export default function AgentClient() {
                 </label>
               </div>
 
-              <div className={styles.settingsContentColumn}>
+              <div className={styles.settingsContentColumn} data-settings-panel="channels">
                 {isCampaignAutomationKey(settingsAutomation.key) ? (
                   <>
                     <div className={styles.campaignSettingsPair}>
@@ -9339,6 +9364,7 @@ export default function AgentClient() {
               {settingsAutomation.key === "publish" && (
                 <div
                   className={`${styles.modalSection} ${styles.settingsPreferredMediaFullWidth}`}
+                  data-settings-panel="generation"
                 >
                   <span>{i18nT("preferred_media_title")}</span>
                   <p className={styles.modalHint}>
@@ -9479,6 +9505,10 @@ export default function AgentClient() {
                       </p>
                     </div>
                   ) : null}
+                </div>
+              )}
+              {settingsAutomation.key === "publish" ? (
+                <div className={styles.settingsReferencesSection} data-settings-panel="references">
                   <AgentMediaReferences
                     value={settingsConfig.mediaReferences}
                     disabled={saveState === "saving"}
@@ -9487,7 +9517,7 @@ export default function AgentClient() {
                     onBusyChange={setAgentReferenceBusy}
                   />
                 </div>
-              )}
+              ) : null}
             </div>
 
             {publicationIdeasOpen ? (

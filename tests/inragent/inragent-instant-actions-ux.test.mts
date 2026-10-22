@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
+import { stripTypeScriptTypes } from "node:module";
 import test from "node:test";
 
 function read(relativePath: string) {
@@ -85,16 +86,26 @@ test("les trois éclairs préparent une seule action sans sauvegarder ni recalcu
   );
 });
 
-test("enregistrer les réglages conserve la modale ouverte, y compris après confirmation du planning", () => {
-  const persistStart = controller.indexOf("async function persistSettings");
-  const runStart = controller.indexOf("async function runAutomationNow", persistStart);
-  const saveFlow = controller.slice(persistStart, runStart);
-
-  assert.ok(persistStart >= 0 && runStart > persistStart);
-  assert.match(saveFlow, /async function saveSettings\(\) \{\s*await persistSettings\(\);/);
-  assert.match(saveFlow, /async function confirmEditorialPlanSettings[\s\S]*?await persistSettings\(/);
-  assert.match(saveFlow, /setSaveState\("saved"\)/);
-  assert.doesNotMatch(saveFlow, /setSettingsKey\(null\)/);
+test("enregistrer ferme les réglages uniquement après une sauvegarde réussie, y compris après confirmation", async () => {
+  const saveStart = controller.indexOf("async function saveSettings");
+  const runStart = controller.indexOf("async function runAutomationNow", saveStart);
+  assert.ok(saveStart >= 0 && runStart > saveStart);
+  const saveFlow = stripTypeScriptTypes(controller.slice(saveStart, runStart));
+  const makeActions = new Function("persistSettings", "setSettingsKey", "showNotice", `${saveFlow}; return { saveSettings, confirmEditorialPlanSettings };`);
+  for (const success of [false, true]) {
+    let complete: (result: boolean) => void = () => {};
+    const calls: unknown[] = [];
+    const pending = new Promise<boolean>((resolve) => { complete = resolve; });
+    const actions = makeActions(() => pending, (value: unknown) => calls.push(value), () => {});
+    const save = actions.saveSettings();
+    assert.equal(calls.length, 0, "le clic ne ferme pas la modale avant la réponse serveur");
+    complete(success);
+    await save;
+    assert.deepEqual(calls, success ? [null] : []);
+    calls.length = 0;
+    await actions.confirmEditorialPlanSettings("next_cycle");
+    assert.deepEqual(calls, success ? [null] : []);
+  }
 });
 
 test("les libellés instantanés sont disponibles dans tous les catalogues iNrAgent", () => {

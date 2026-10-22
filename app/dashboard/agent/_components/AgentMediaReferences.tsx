@@ -81,10 +81,12 @@ export default function AgentMediaReferences(props: {
   const teamAnimation = props.videoEnabled && value.items.filter((item) => item.role === "character" && item.usage === "required").length > 1;
   const tooManyCharacters = value.items.filter((item) => item.role === "character" && item.usage === "required").length > 3;
   return <section className={styles.panel} aria-label={t("media_references_title")}>
-    <header><strong>{t("media_references_title")}</strong><span>{value.items.length}/{AI_MEDIA_INSPIRATION_MAX_COUNT}</span></header>
-    <p>{t("media_references_hint")}</p>
+    <header><strong>{t("media_references_title")}</strong>
+      <details className={styles.information}><summary aria-label={mediaT("ai_generator_reference_information")}>i</summary><p>{t("media_references_hint")}</p></details>
+      <span>{value.items.length}/{AI_MEDIA_INSPIRATION_MAX_COUNT}</span></header>
+    <p>{t("media_references_summary")}</p>
     <MediaReferenceInputs references={value.items.map((item) => ({ ...item, previewUrl: inrAgentReferencePreviewUrl(item.id) }))}
-      accept={ACCEPT} disabled={locked} information={mediaT("ai_generator_essential_new_scene_image")}
+      accept={ACCEPT} compact disabled={locked} information={mediaT("ai_generator_essential_new_scene_image")}
       onFiles={(files) => { void addFiles(files); }} onLibrary={() => setLibraryOpen(true)}
       onRemove={(index) => changeItems(value.items.filter((_, current) => current !== index))}
       onRole={(index, role) => changeItems(value.items.map((item, current) => current === index ? { ...item, role } : item))}

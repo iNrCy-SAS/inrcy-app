@@ -836,5 +836,11 @@
   "media_references_animation_consent": "我允许使用 {provider} 为这些人物制作动画，用于 iNrAgent 自动生成的视频。",
   "media_references_error": "无法添加参考素材，请重试。",
   "media_references_import_busy": "正在准备并保存参考素材…",
-  "media_references_character_limit": "最多可使用三个人物必选参考素材。请将其他素材设为“灵感”或移除。"
+  "media_references_character_limit": "最多可使用三个人物必选参考素材。请将其他素材设为“灵感”或移除。",
+  "settings_sections_label": "设置分类",
+  "settings_section_planning": "计划",
+  "settings_section_channels": "渠道",
+  "settings_section_generation": "创作",
+  "settings_section_references": "参考素材",
+  "media_references_summary": "每篇发布都将您的人物、场景或产品融入全新画面。"
 }

@@ -836,5 +836,11 @@
   "media_references_animation_consent": "I authorise animation of these characters with {provider} for automatic iNrAgent videos.",
   "media_references_error": "The reference could not be added. Please try again.",
   "media_references_import_busy": "Preparing and saving references…",
-  "media_references_character_limit": "You can use up to three required person references. Set the others to Inspiration or remove them."
+  "media_references_character_limit": "You can use up to three required person references. Set the others to Inspiration or remove them.",
+  "settings_sections_label": "Settings sections",
+  "settings_section_planning": "Schedule",
+  "settings_section_channels": "Channels",
+  "settings_section_generation": "Creation",
+  "settings_section_references": "References",
+  "media_references_summary": "Your people, settings or products, in a new scene for every post."
 }

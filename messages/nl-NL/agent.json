@@ -836,5 +836,11 @@
   "media_references_animation_consent": "Ik geef toestemming om deze personen met {provider} te animeren voor automatische iNrAgent-video’s.",
   "media_references_error": "De referentie kon niet worden toegevoegd. Probeer het opnieuw.",
   "media_references_import_busy": "Referenties voorbereiden en opslaan…",
-  "media_references_character_limit": "Je kunt maximaal drie verplichte persoonsreferenties gebruiken. Stel de overige in als Inspiratie of verwijder ze."
+  "media_references_character_limit": "Je kunt maximaal drie verplichte persoonsreferenties gebruiken. Stel de overige in als Inspiratie of verwijder ze.",
+  "settings_sections_label": "Instellingensecties",
+  "settings_section_planning": "Planning",
+  "settings_section_channels": "Kanalen",
+  "settings_section_generation": "Creatie",
+  "settings_section_references": "Referenties",
+  "media_references_summary": "Je personen, omgevingen of producten in een nieuwe scène voor elk bericht."
 }

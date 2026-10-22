@@ -5,3 +5,36 @@
   gap: 10px;
   min-width: 0;
 }
+
+.referenceTabs { display: none; }
+.root[data-compact="true"] .dropzone { min-height: 54px; padding: 8px 10px; gap: 10px; }
+.root[data-compact="true"] .dropzone strong { font-size: 12px; }
+.root[data-compact="true"] .dropzone small { font-size: 10px; }
+.root[data-compact="true"] .dropzone label,
+.root[data-compact="true"] .dropzone button { font-size: 11px; min-height: 34px; }
+.root[data-compact="true"] .collection { gap: 8px; }
+.root[data-compact="true"] .tile { min-height: 94px; grid-template-rows: 44px auto; padding: 8px; gap: 7px; border-radius: 12px; }
+.root[data-compact="true"] .tileHeader { grid-template-columns: 40px minmax(0, 1fr); }
+.root[data-compact="true"] .tileHeader strong { font-size: 11px; }
+.root[data-compact="true"] .tileHeader small { font-size: 10px; }
+.root[data-compact="true"] .tileControls { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.root[data-compact="true"] .tileControls select { width: 100%; font-size: 11px; min-height: 32px; }
+
+@media (max-width: 700px) {
+  .root[data-compact="true"] .dropzone { grid-template-columns: minmax(0, 1fr) auto; }
+  .root[data-compact="true"] .dropzone > label { display: none; }
+  .root[data-compact="true"] .dropzone small { display: none; }
+  .root[data-compact="true"] .dropzone > span { flex-direction: row; width: auto; }
+  .root[data-compact="true"] .dropzone > span > label,
+  .root[data-compact="true"] .dropzone button { padding: 0 9px; min-height: 38px; }
+  .root[data-compact="true"] .collection { grid-template-columns: minmax(0, 1fr); }
+  .root[data-compact="true"] .tile[data-active="false"] { display: none; }
+  .root[data-compact="true"] .tile { grid-template-columns: 1fr; min-height: 100px; }
+  .root[data-compact="true"] .tileHeader { grid-template-columns: 42px minmax(0, 1fr); }
+  .root[data-compact="true"] .tileControls select { font-size: 12px; min-height: 36px; }
+  .referenceTabs { display: flex; align-items: center; gap: 8px; }
+  .referenceTabs button { position: relative; display: grid; place-items: center; width: 44px; height: 44px; padding: 3px; border: 1px solid #52658a; border-radius: 10px; background: #101e38; cursor: pointer; }
+  .referenceTabs button[aria-pressed="true"] { border-color: #67e8f9; box-shadow: 0 0 0 2px #22d3ee22; }
+  .referenceTabs img { width: 100%; height: 100%; object-fit: cover; border-radius: 7px; }
+  .referenceTabs span { position: absolute; bottom: -2px; right: -3px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: #243c68; color: #fff; font-size: 10px; }
+}

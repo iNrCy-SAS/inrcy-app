@@ -1,8 +1,13 @@
-.panel { display: grid; gap: 12px; min-width: 0; margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(124, 164, 232, .2); }
-.panel > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #eaf4ff; font-size: 14px; }
-.panel > header > span { color: #8dddeb; font-size: 12px; }
-.panel > p { margin: 0; color: #b8c9e6; font-size: 12px; line-height: 1.5; }
-.consent { display: flex; align-items: flex-start; gap: 9px; padding: 10px 12px; border: 1px solid rgba(124, 164, 232, .22); border-radius: 10px; color: #d4e5f5; background: rgba(9, 24, 49, .55); font-size: 12px; line-height: 1.5; }
+.panel { display: grid; gap: 8px; min-width: 0; padding: 14px 16px; border: 1px solid rgba(124, 164, 232, .22); border-radius: 18px; background: linear-gradient(120deg, rgba(18, 45, 76, .75), rgba(33, 24, 64, .48)); }
+.panel > header { display: flex; align-items: center; gap: 9px; color: #eaf4ff; font-size: 14px; }
+.panel > header > span { margin-left: auto; padding: 4px 9px; border: 1px solid rgba(103, 232, 249, .22); border-radius: 20px; background: rgba(34, 211, 238, .08); color: #8dddeb; font-size: 12px; font-variant-numeric: tabular-nums; }
+.panel > p { margin: 0; color: #b8c9e6; font-size: 12px; line-height: 1.4; }
+.consent { display: flex; align-items: flex-start; gap: 9px; padding: 7px 9px; border: 1px solid rgba(124, 164, 232, .18); border-radius: 10px; color: #d4e5f5; background: rgba(9, 24, 49, .4); font-size: 11px; line-height: 1.4; }
 .consent input { flex: 0 0 auto; margin: 2px 0 0; width: 17px; height: 17px; accent-color: #4bd0e5; }
 .panel > .error { color: #ffd5df; }
-@media (max-width: 600px) { .panel { gap: 10px; } .panel > header { font-size: 13px; } }
+.information { position: relative; }
+.information summary { display: grid; place-items: center; width: 21px; height: 21px; border: 1px solid rgba(103, 232, 249, .4); border-radius: 50%; color: #8dddeb; font-size: 12px; cursor: pointer; list-style: none; }
+.information summary::-webkit-details-marker { display: none; }
+.information summary:focus-visible { outline: 2px solid #67e8f9; outline-offset: 3px; }
+.information p { position: absolute; z-index: 20; top: 24px; right: -60px; width: min(320px, 78vw); margin: 0; padding: 14px; border: 1px solid #466794; border-radius: 12px; background: #142447; color: #eaf4ff; box-shadow: 0 12px 32px #02081788; font-size: 12px; line-height: 1.5; }
+@media (max-width: 700px) { .panel { gap: 8px; padding: 12px; } .panel > header { font-size: 13px; } .information p { right: -35px; } }
