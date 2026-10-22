@@ -842,5 +842,6 @@
   "settings_section_channels": "Channels",
   "settings_section_generation": "Creation",
   "settings_section_references": "References",
-  "media_references_summary": "Your people, settings or products, in a new scene for every post."
+  "media_references_summary": "Your people, settings or products, in a new scene for every post." ,
+  "settings_selection_empty": "Nothing selected"
 }

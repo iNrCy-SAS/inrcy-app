@@ -842,5 +842,6 @@
   "settings_section_channels": "Kanalen",
   "settings_section_generation": "Creatie",
   "settings_section_references": "Referenties",
-  "media_references_summary": "Je personen, omgevingen of producten in een nieuwe scène voor elk bericht."
+  "media_references_summary": "Je personen, omgevingen of producten in een nieuwe scène voor elk bericht." ,
+  "settings_selection_empty": "Niets geselecteerd"
 }

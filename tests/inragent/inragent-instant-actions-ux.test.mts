@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { stripTypeScriptTypes } from "node:module";
+import ts from "typescript";
 import test from "node:test";
 
 function read(relativePath: string) {
@@ -90,7 +90,7 @@ test("enregistrer ferme les réglages uniquement après une sauvegarde réussie,
   const saveStart = controller.indexOf("async function saveSettings");
   const runStart = controller.indexOf("async function runAutomationNow", saveStart);
   assert.ok(saveStart >= 0 && runStart > saveStart);
-  const saveFlow = stripTypeScriptTypes(controller.slice(saveStart, runStart));
+  const saveFlow = ts.transpileModule(controller.slice(saveStart, runStart), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const makeActions = new Function("persistSettings", "setSettingsKey", "showNotice", `${saveFlow}; return { saveSettings, confirmEditorialPlanSettings };`);
   for (const success of [false, true]) {
     let complete: (result: boolean) => void = () => {};

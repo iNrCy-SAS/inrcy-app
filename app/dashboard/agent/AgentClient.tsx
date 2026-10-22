@@ -2,6 +2,7 @@
 
 import AgentPublicationChannelList from "./_components/AgentPublicationChannelList";
 import AgentMediaReferences from "./_components/AgentMediaReferences";
+import AgentSettingsMultiSelect from "./_components/AgentSettingsMultiSelect";
 import { INR_AGENT_VIDEO_ENGINE } from "@/lib/inrAgentVideoPolicy";
 import { apiChannelToUi } from "./_lib/agent.config";
 import { pendingInrAgentPublicationChannels, selectedInrAgentPublicationChannels, unvalidatedInrAgentPublicationChannels, preparedInrAgentPublicationChannels, withInrAgentPublicationChannelSelection } from "@/lib/inrAgentPublicationChannelSelection";
@@ -8725,7 +8726,7 @@ export default function AgentClient() {
 
       {settingsAutomation && settingsConfig && (
         <div
-          className={styles.modalBackdrop}
+          className={`${styles.modalBackdrop} ${settingsAutomation.key === "publish" && !publicationIdeasOpen ? styles.settingsCanvasBackdrop : ""}`}
           role="presentation"
           onClick={() => {
             if (!settingsPublicationIdeaVoiceBusy && publicationIdeasSaveState !== "saving") {
@@ -9091,7 +9092,32 @@ export default function AgentClient() {
               </div>
 
               <div className={styles.settingsContentColumn} data-settings-panel="channels">
-                {isCampaignAutomationKey(settingsAutomation.key) ? (
+                {settingsAutomation.key === "publish" ? (
+                  <>
+                    <AgentSettingsMultiSelect
+                      label={i18nT("settings_section_channels")}
+                      disabled={saveState === "saving" || connectedChannelsLoadState === "loading"}
+                      selected={settingsConfig.channels}
+                      options={settingsDisplayedChannels.map(channelKey => ({
+                        value: channelKey,
+                        label: agentChannelLabel(channelKey, runtimeT),
+                        icon: channelOptions[channelKey].src,
+                        disabled: connectedChannelsLoadState === "ready" && !settingsAvailableChannels.includes(channelKey),
+                      }))}
+                      onToggle={value => {
+                        const channel = settingsDisplayedChannels.find(key => key === value);
+                        if (channel) updateConfig("publish", { channels: toggleChannelItem(settingsConfig.channels, channel, settingsAvailableChannels) });
+                      }}
+                    />
+                    <AgentSettingsMultiSelect
+                      label={i18nT("themes_5dfcd420")}
+                      disabled={saveState === "saving"}
+                      selected={settingsConfig.themes}
+                      options={settingsAvailableThemes.map(theme => ({ value: theme, label: agentThemeLabel(theme, runtimeT) }))}
+                      onToggle={theme => updateConfig("publish", { themes: toggleItem(settingsConfig.themes, theme) })}
+                    />
+                  </>
+                ) : isCampaignAutomationKey(settingsAutomation.key) ? (
                   <>
                     <div className={styles.campaignSettingsPair}>
                       <div className={styles.modalSection}>
@@ -9238,9 +9264,7 @@ export default function AgentClient() {
                     {settingsAutomation.availableChannels.length > 0 && (
                       <div className={styles.modalSection}>
                         <span>
-                          {settingsAutomation.key === "publish"
-                            ? i18nT("canaux_booster_publier_1ac0f46f")
-                            : i18nT("canal_61f21e6f")}
+                          {i18nT("canal_61f21e6f")}
                         </span>
                         {settingsDisplayedChannels.length > 0 ? (
                           <div className={styles.choiceGrid}>

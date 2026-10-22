@@ -21556,8 +21556,9 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 /* Publier : vue d'ensemble large, puis rubriques directes sur les écrans compacts. */
+.modalBackdrop.settingsCanvasBackdrop { place-items: center; overflow: hidden; padding: 10px; }
 .settingsModal.automationSettingsModal.publishSettingsCanvas {
-  width: min(1540px, calc(100vw - 40px));
+  width: min(1460px, calc(100vw - 40px));
   max-height: calc(100dvh - 32px);
   min-height: 0;
   padding: 22px 26px !important;
@@ -21569,10 +21570,12 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 .publishSettingsCanvas .settingsModalLayout {
   flex: 0 1 auto;
   min-height: 0;
-  grid-template-columns: minmax(0, .92fr) minmax(0, 1.12fr) minmax(0, 1.16fr);
+  grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr);
+  grid-template-areas: "planning generation" "channels generation" "references references";
   gap: 14px;
 }
 .publishSettingsCanvas .settingsScheduleGrid {
+  grid-area: planning;
   gap: 8px;
   padding: 14px;
   border: 1px solid rgba(148, 163, 255, .17);
@@ -21589,31 +21592,31 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 .publishSettingsCanvas .settingsScheduleGrid .scheduleSlotPair { grid-column: 1 / -1; }
 .publishSettingsCanvas .settingsScheduleGrid select { width: 100%; min-width: 0; font-size: 12px; }
 .publishSettingsCanvas .settingsScheduleGrid label > span { letter-spacing: .05em; font-size: 10px; }
-.publishSettingsCanvas .settingsContentColumn { gap: 10px; }
+.publishSettingsCanvas .settingsContentColumn { grid-area: channels; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 0 2px; }
 .publishSettingsCanvas .settingsContentColumn .modalSection { padding: 12px; border-radius: 18px; gap: 8px; }
 .publishSettingsCanvas .settingsContentColumn .choiceGrid { gap: 6px; }
 .publishSettingsCanvas .settingsContentColumn .choiceGrid button { min-height: 30px; padding: 4px 8px; gap: 5px; font-size: 11px; }
 .publishSettingsCanvas .settingsContentColumn .choiceGrid button img { width: 21px; height: 21px; padding: 0; }
-.publishSettingsCanvas .settingsPreferredMediaFullWidth { grid-column: auto; align-content: start; padding: 14px; border-radius: 18px; gap: 9px; }
+.publishSettingsCanvas .settingsPreferredMediaFullWidth { grid-area: generation; align-content: start; padding: 16px 18px; border-radius: 18px; gap: 12px; }
 .publishSettingsCanvas .settingsPreferredMediaFullWidth > .modalHint { margin: 0; font-size: 11px; line-height: 1.4; }
-.publishSettingsCanvas .settingsMediaPreferencesRow { display: grid; gap: 10px; }
+.publishSettingsCanvas .settingsMediaPreferencesRow { display: grid; gap: 12px; }
 .publishSettingsCanvas .settingsMediaPreferencesRow .choiceGrid { gap: 5px; }
 .publishSettingsCanvas .settingsMediaPreferencesRow .choiceGrid button { min-height: 32px; padding: 5px 9px; font-size: 11px; }
 .publishSettingsCanvas .publicationMediaTypes { gap: 5px; }
 .publishSettingsCanvas .publicationMediaTypes label { min-height: 32px; padding: 5px 7px; gap: 5px; font-size: 10px; }
-.publishSettingsCanvas .studioMediaMixControl { padding: 10px; gap: 7px; }
+.publishSettingsCanvas .studioMediaMixControl { padding: 12px; gap: 8px; }
 .publishSettingsCanvas .studioMediaMixHeader span { font-size: 11px; }
 .publishSettingsCanvas .studioMediaMixDescription { font-size: 11px; line-height: 1.4; }
 .publishSettingsCanvas .studioMediaMixControl > .modalHint { font-size: 10px; line-height: 1.3; }
-.publishSettingsCanvas .settingsReferencesSection { grid-column: 1 / -1; min-width: 0; }
+.publishSettingsCanvas .settingsReferencesSection { grid-area: references; min-width: 0; }
 .publishSettingsCanvas .settingsModalFooter { flex: 0 0 auto; margin-top: 14px; gap: 8px; }
 .publishSettingsCanvas .settingsModalFooter .modalNote { font-size: 11px; line-height: 1.3; }
 .settingsSectionNav { display: none; }
 
-@media (max-width: 1240px), (max-height: 819px) {
+@media (max-width: 1240px), (max-height: 899px) {
   .settingsModal.automationSettingsModal.publishSettingsCanvas {
     width: min(960px, calc(100vw - 32px));
-    height: min(710px, calc(100dvh - 24px));
+    height: auto;
     max-height: calc(100dvh - 24px);
     padding: 18px 22px !important;
   }
@@ -21622,14 +21625,14 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   .settingsSectionNav button[aria-pressed="true"] { border-color: #67e8f955; background: linear-gradient(120deg, #1578a65c, #7444bb66); color: #fff; box-shadow: inset 0 1px 0 #ffffff12; }
   .settingsSectionNav button:focus-visible { outline: 2px solid #67e8f9; outline-offset: 2px; }
   .settingsSectionNav button > span { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 3px; border-radius: 50%; background: #67e8f929; color: #a7f3ff; font-size: 10px; }
-  .publishSettingsCanvas .settingsModalLayout { display: block; flex: 1 1 auto; min-height: 0; }
+  .publishSettingsCanvas .settingsModalLayout { display: block; flex: 0 1 auto; min-height: 0; }
   .publishSettingsCanvas [data-settings-panel] { display: none !important; }
   .publishSettingsCanvas[data-active-panel="planning"] [data-settings-panel="planning"],
   .publishSettingsCanvas[data-active-panel="channels"] [data-settings-panel="channels"],
   .publishSettingsCanvas[data-active-panel="generation"] [data-settings-panel="generation"],
   .publishSettingsCanvas[data-active-panel="references"] [data-settings-panel="references"] { display: grid !important; }
   .publishSettingsCanvas .settingsScheduleGrid { max-width: 720px; margin: 0 auto; }
-  .publishSettingsCanvas .settingsContentColumn { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .publishSettingsCanvas .settingsContentColumn { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; padding: 14px; border: 1px solid #7e9bc52b; border-radius: 18px; background: #1b30525c; }
   .publishSettingsCanvas .settingsPreferredMediaFullWidth { grid-template-columns: minmax(0, 1fr); }
   .publishSettingsCanvas .settingsMediaPreferencesRow { display: flex; justify-content: space-between; }
   .publishSettingsCanvas .studioMediaMixControl { margin-top: 4px; }
@@ -21638,7 +21641,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 @media (max-width: 700px) {
-  .settingsModal.automationSettingsModal.publishSettingsCanvas { width: calc(100vw - 20px); height: calc(100dvh - 20px); max-height: calc(100dvh - 20px); padding: 14px !important; border-radius: 22px; }
+  .settingsModal.automationSettingsModal.publishSettingsCanvas { width: calc(100vw - 20px); height: auto; max-height: calc(100dvh - 20px); padding: 14px !important; border-radius: 22px; }
   .publishSettingsCanvas .settingsModalHeader { grid-template-areas: "heading close" "heading switch"; margin-bottom: 10px; gap: 5px 8px !important; }
   .publishSettingsCanvas .settingsModalHeading h2 { font-size: 22px; line-height: 1.1; }
   .publishSettingsCanvas .settingsModalHeading .modalEyebrow { font-size: 9px; margin-bottom: 4px; }
@@ -21666,7 +21669,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 @media (max-height: 540px) {
-  .settingsModal.automationSettingsModal.publishSettingsCanvas { height: calc(100dvh - 16px); padding: 10px 16px !important; }
+  .settingsModal.automationSettingsModal.publishSettingsCanvas { max-height: calc(100dvh - 16px); padding: 10px 16px !important; }
   .publishSettingsCanvas .settingsModalHeader { margin-bottom: 7px; }
   .publishSettingsCanvas .settingsModalHeading h2 { font-size: 20px; }
   .publishSettingsCanvas .settingsSectionNav { margin-bottom: 8px; }

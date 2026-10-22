@@ -842,5 +842,6 @@
   "settings_section_channels": "Canales",
   "settings_section_generation": "Creación",
   "settings_section_references": "Referencias",
-  "media_references_summary": "Tus personas, entornos o productos en una escena nueva en cada publicación."
+  "media_references_summary": "Tus personas, entornos o productos en una escena nueva en cada publicación." ,
+  "settings_selection_empty": "Sin selección"
 }

@@ -842,5 +842,6 @@
   "settings_section_channels": "ช่องทาง",
   "settings_section_generation": "การสร้าง",
   "settings_section_references": "สื่ออ้างอิง",
-  "media_references_summary": "บุคคล ฉาก หรือผลิตภัณฑ์ของคุณในฉากใหม่สำหรับแต่ละโพสต์"
+  "media_references_summary": "บุคคล ฉาก หรือผลิตภัณฑ์ของคุณในฉากใหม่สำหรับแต่ละโพสต์" ,
+  "settings_selection_empty": "ยังไม่ได้เลือก"
 }

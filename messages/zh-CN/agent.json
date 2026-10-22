@@ -842,5 +842,6 @@
   "settings_section_channels": "渠道",
   "settings_section_generation": "创作",
   "settings_section_references": "参考素材",
-  "media_references_summary": "每篇发布都将您的人物、场景或产品融入全新画面。"
+  "media_references_summary": "每篇发布都将您的人物、场景或产品融入全新画面。" ,
+  "settings_selection_empty": "尚未选择"
 }
