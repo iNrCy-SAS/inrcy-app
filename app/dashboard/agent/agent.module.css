@@ -21561,37 +21561,38 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   width: min(1460px, calc(100vw - 40px));
   max-height: calc(100dvh - 32px);
   min-height: 0;
-  padding: 22px 26px !important;
+  padding: 18px 24px !important;
   overflow: hidden !important;
   border-radius: 26px;
 }
 
-.publishSettingsCanvas .settingsModalHeader { flex: 0 0 auto; margin-bottom: 16px; }
+.publishSettingsCanvas .settingsModalHeader { flex: 0 0 auto; margin-bottom: 14px; }
 .publishSettingsCanvas .settingsModalLayout {
   flex: 0 1 auto;
   min-height: 0;
   grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr);
   grid-template-areas: "planning generation" "channels generation" "references references";
-  gap: 14px;
+  gap: 12px;
 }
 .publishSettingsCanvas .settingsScheduleGrid {
   grid-area: planning;
-  gap: 8px;
-  padding: 14px;
+  gap: 6px;
+  padding: 12px;
   border: 1px solid rgba(148, 163, 255, .17);
   border-radius: 18px;
   background: rgba(27, 48, 82, .46);
 }
 .publishSettingsCanvas .settingsSectionHeading { grid-column: 1 / -1; margin: 0 0 4px; color: #eaf4ff; font-size: 14px; font-weight: 800; }
-.publishSettingsCanvas .settingsScheduleGrid > label,
+.settingsModal.publishSettingsCanvas .settingsScheduleGrid > label,
 .publishSettingsCanvas .settingsScheduleGrid .scheduleSlotPair {
-  padding: 6px 0;
+  padding: 0;
   border: 0;
   background: transparent;
 }
+.settingsModal.publishSettingsCanvas .settingsScheduleGrid > label:last-child { grid-column: 1 / -1; grid-template-columns: 100px minmax(0, 1fr); align-items: center; margin-top: 3px; }
 .publishSettingsCanvas .settingsScheduleGrid .scheduleSlotPair { grid-column: 1 / -1; }
 .publishSettingsCanvas .settingsScheduleGrid select { width: 100%; min-width: 0; font-size: 12px; }
-.publishSettingsCanvas .settingsScheduleGrid label > span { letter-spacing: .05em; font-size: 10px; }
+.settingsModal.publishSettingsCanvas .settingsScheduleGrid label > span { letter-spacing: .05em; font-size: 10px; }
 .publishSettingsCanvas .settingsContentColumn { grid-area: channels; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 0 2px; }
 .publishSettingsCanvas .settingsContentColumn .modalSection { padding: 12px; border-radius: 18px; gap: 8px; }
 .publishSettingsCanvas .settingsContentColumn .choiceGrid { gap: 6px; }
@@ -21609,11 +21610,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 .publishSettingsCanvas .studioMediaMixDescription { font-size: 11px; line-height: 1.4; }
 .publishSettingsCanvas .studioMediaMixControl > .modalHint { font-size: 10px; line-height: 1.3; }
 .publishSettingsCanvas .settingsReferencesSection { grid-area: references; min-width: 0; }
-.publishSettingsCanvas .settingsModalFooter { flex: 0 0 auto; margin-top: 14px; gap: 8px; }
+.publishSettingsCanvas .settingsModalFooter { flex: 0 0 auto; margin-top: 12px; gap: 6px; }
 .publishSettingsCanvas .settingsModalFooter .modalNote { font-size: 11px; line-height: 1.3; }
 .settingsSectionNav { display: none; }
 
-@media (max-width: 1240px), (max-height: 899px) {
+@media (max-width: 1240px), (max-height: 819px) {
   .settingsModal.automationSettingsModal.publishSettingsCanvas {
     width: min(960px, calc(100vw - 32px));
     height: auto;
@@ -21653,7 +21654,8 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   .publishSettingsCanvas .settingsSectionNav { margin-bottom: 10px; gap: 2px; padding: 3px; }
   .publishSettingsCanvas .settingsSectionNav button { min-height: 38px; padding: 5px 3px; font-size: 10px; }
   .publishSettingsCanvas .settingsSectionNav button > span { min-width: 15px; height: 15px; font-size: 9px; }
-  .publishSettingsCanvas .settingsScheduleGrid { padding: 12px; gap: 8px; }
+  .publishSettingsCanvas .settingsScheduleGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; padding: 12px; gap: 8px; }
+  .publishSettingsCanvas .settingsScheduleGrid .scheduleSlotPair { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; }
   .publishSettingsCanvas .settingsScheduleGrid select { min-height: 38px; font-size: 12px; }
   .publishSettingsCanvas .settingsContentColumn { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .publishSettingsCanvas .settingsContentColumn .modalSection { padding: 10px; gap: 7px; }

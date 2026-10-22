@@ -33,7 +33,7 @@ export default function MediaReferenceInputs(props: {
   const t = useTranslations("media");
   const full = props.references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT;
   const disabled = props.disabled || full;
-  return <div className={sharedStyles.root} data-media-reference-inputs data-compact={props.compact || undefined}>
+  return <div className={sharedStyles.root} data-media-reference-inputs data-compact={props.compact || undefined} data-full={full || undefined}>
     <div className={`${styles.referenceDropzone} ${sharedStyles.dropzone}`} data-has-files={props.references.length ? "true" : "false"}
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => { event.preventDefault(); if (!disabled) props.onFiles(Array.from(event.dataTransfer.files)); }}>
@@ -83,7 +83,7 @@ export default function MediaReferenceInputs(props: {
             value={reference.usage || "inspiration"} disabled={props.disabled}
             onChange={(event) => props.onUsage(index, event.target.value as "required" | "inspiration")}>
             <option value="required">{t("ai_generator_free_usage_required")}</option>
-            <option value="inspiration">{t("ai_generator_free_usage_inspiration")}</option>
+            <option value="inspiration">{t(props.compact ? "ai_generator_free_role_inspiration" : "ai_generator_free_usage_inspiration")}</option>
           </select>
         </div>
         {props.renderExtra?.(index)}

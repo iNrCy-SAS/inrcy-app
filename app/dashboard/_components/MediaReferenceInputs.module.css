@@ -7,6 +7,7 @@
 }
 
 .referenceTabs { display: none; }
+.root[data-compact="true"][data-full="true"] .dropzone { display: none; }
 .root[data-compact="true"] .dropzone { min-height: 54px; padding: 8px 10px; gap: 10px; }
 .root[data-compact="true"] .dropzone strong { font-size: 12px; }
 .root[data-compact="true"] .dropzone small { font-size: 10px; }
@@ -21,12 +22,13 @@
 .root[data-compact="true"] .tileControls select { width: 100%; font-size: 11px; min-height: 32px; }
 
 @media (max-width: 700px) {
-  .root[data-compact="true"] .dropzone { grid-template-columns: minmax(0, 1fr) auto; }
+  .root[data-compact="true"] .dropzone { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .root[data-compact="true"] .dropzone > label { display: none; }
+  .root[data-compact="true"] .dropzone[data-has-files="true"] > div { display: none; }
   .root[data-compact="true"] .dropzone small { display: none; }
-  .root[data-compact="true"] .dropzone > span { flex-direction: row; width: auto; }
+  .root[data-compact="true"] .dropzone > span { display: flex; flex-direction: row; width: 100%; }
   .root[data-compact="true"] .dropzone > span > label,
-  .root[data-compact="true"] .dropzone button { padding: 0 9px; min-height: 38px; }
+  .root[data-compact="true"] .dropzone button { flex: 1 1 0; width: auto; max-width: none; padding: 0 9px; min-height: 38px; }
   .root[data-compact="true"] .collection { grid-template-columns: minmax(0, 1fr); }
   .root[data-compact="true"] .tile[data-active="false"] { display: none; }
   .root[data-compact="true"] .tile { grid-template-columns: 1fr; min-height: 100px; }
