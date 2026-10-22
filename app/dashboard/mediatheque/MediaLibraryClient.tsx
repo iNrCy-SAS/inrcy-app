@@ -1506,12 +1506,12 @@ export default function MediaLibraryClient() {
       />
 
       {helperOpen ? (
-        <div
+        <div data-inrcy-tool-overlay
           className={styles.helperOverlay}
           role="presentation"
           onClick={() => setHelperOpen(false)}
         >
-          <div
+          <div data-inrcy-tool-dialog
             className={styles.helperModal}
             role="dialog"
             aria-modal="true"
@@ -1573,12 +1573,12 @@ export default function MediaLibraryClient() {
       ) : null}
 
       {previewItem ? (
-        <div
+        <div data-inrcy-tool-overlay
           className={styles.previewOverlay}
           role="presentation"
           onClick={() => setPreviewItem(null)}
         >
-          <div
+          <div data-inrcy-tool-dialog
             className={styles.previewModal}
             role="dialog"
             aria-modal="true"

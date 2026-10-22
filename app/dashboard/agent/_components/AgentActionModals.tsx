@@ -375,8 +375,8 @@ export function RecipientsPreviewModal({
   const i18nT = useTranslations("agent");
   if (!open || !preview) return null;
   return (
-    <div className={styles.modalBackdrop} role="presentation" onClick={onClose}>
-      <section
+    <div data-inrcy-tool-overlay className={styles.modalBackdrop} role="presentation" onClick={onClose}>
+      <section data-inrcy-tool-dialog
         className={`${styles.settingsModal} ${styles.agentListModal}`}
         role="dialog"
         aria-modal="true"
@@ -458,8 +458,8 @@ export function MailAccountEditModal({
   const i18nT = useTranslations("agent");
   if (!open || !preview) return null;
   return (
-    <div className={styles.modalBackdrop} role="presentation" onClick={onClose}>
-      <section
+    <div data-inrcy-tool-overlay className={styles.modalBackdrop} role="presentation" onClick={onClose}>
+      <section data-inrcy-tool-dialog
         className={`${styles.settingsModal} ${styles.agentListModal}`}
         role="dialog"
         aria-modal="true"
@@ -591,8 +591,8 @@ export function AttachmentModal({
   const i18nT = useTranslations("agent");
   if (!open || !preview) return null;
   return (
-    <div className={styles.modalBackdrop} role="presentation" onClick={onClose}>
-      <section
+    <div data-inrcy-tool-overlay className={styles.modalBackdrop} role="presentation" onClick={onClose}>
+      <section data-inrcy-tool-dialog
         className={`${styles.settingsModal} ${styles.attachmentModal}`}
         role="dialog"
         aria-modal="true"
@@ -995,8 +995,8 @@ export function AgentScheduleModal({
 
   if (!open) return null;
   return (
-    <div className={styles.modalBackdrop} role="presentation" onClick={onClose}>
-      <section
+    <div data-inrcy-tool-overlay className={styles.modalBackdrop} role="presentation" onClick={onClose}>
+      <section data-inrcy-tool-dialog
         className={`${styles.settingsModal} ${styles.scheduleModal}`}
         role="dialog"
         aria-modal="true"

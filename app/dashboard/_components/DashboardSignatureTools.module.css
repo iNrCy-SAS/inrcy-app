@@ -238,9 +238,9 @@
 .signatureCard { --tool-accent: #3aacff; position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: 49px minmax(0, 1fr); align-content: start; align-items: center; gap: 0 12px; min-width: 0; padding: 13px 13px 47px; border: 1px solid #1d9cecac; border-radius: 14px; background: linear-gradient(120deg, #06417ec2, #0b2356c7 57%, #081e4ebd); }
 .signatureLogo { display: grid; place-items: center; grid-row: 1; width: 49px; height: 49px; border-radius: 50%; color: var(--tool-accent); filter: drop-shadow(0 0 9px #028bef3b); }
 .signatureLogo img { width: 100%; height: 100%; object-fit: contain; }
-.signatureCopy { align-self: start; min-width: 0; padding-right: 31px; }
-.signatureCopy h4 { margin: 2px 0 5px; font-size: 16px; font-weight: 800; line-height: 1.2; letter-spacing: -.015em; }
-.signatureCopy p { margin: 0; max-width: 205px; font-size: 12px; line-height: 1.4; color: #dce3fb; }
+.signatureCopy { align-self: start; min-width: 0; }
+.signatureCopy h4 { margin: 2px 0 6px; padding-right: 31px; font-size: 16px; font-weight: 800; line-height: 1.2; letter-spacing: -.015em; }
+.signatureCopy p { margin: 0; font-size: 12px; line-height: 1.4; color: #dce3fb; }
 .cardActions { display: flex; align-items: center; justify-content: flex-end; gap: 18px; min-width: 0; }
 .signatureCard .cardActions { position: absolute; right: 12px; bottom: 7px; left: 12px; }
 .signatureArt { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; color: var(--tool-accent); opacity: .4; transform: rotate(8deg); pointer-events: none; }
@@ -260,7 +260,7 @@
 .relationshipLogo { display: grid; place-items: center; width: 48px; height: 48px; border: 1px solid #ed939bb0; border-radius: 50%; color: #ffd0bc; background: radial-gradient(circle at 30% 20%, #d776616e, #ad335248); box-shadow: inset 0 1px 5px #ffc9b827, 0 0 15px #f9686330; }
 .relationshipLogo svg { width: 70%; height: 70%; }
 .relationshipCopy { position: relative; z-index: 1; min-width: 0; }
-.relationshipCopy h4 { margin: 0 0 4px; font-size: 20px; line-height: 1.2; font-weight: 800; }
+.relationshipCopy h4 { margin: 0 0 6px; font-size: 20px; line-height: 1.2; font-weight: 800; }
 .relationshipCopy p { margin: 0; font-size: 12px; line-height: 1.4; color: #efdaee; }
 .relationshipCard .cardButton { position: relative; min-width: 112px; min-height: 39px; padding: 9px 17px; font-size: 12px; gap: 8px; }
 .relationshipCard .cardButton > span { font-size: 16px; }
@@ -440,17 +440,15 @@
 .studioBanner { display: grid; grid-template-columns: 48px minmax(0, 1fr) 48px auto; align-items: center; gap: 16px; min-height: 100px; padding: 16px 18px; }
 .studioBanner .cardLogo { position: static; width: 48px; height: 48px; }
 .studioBanner .creationCopy { padding: 0; min-height: 0; }
-.studioBanner .creationCopy h4 { font-size: 21px; margin-block: 3px; }
+.studioBanner .creationCopy h4 { font-size: 21px; margin: 3px 0 6px; }
 .studioBanner .creationCopy p { max-width: none; }
 .studioBanner .ghostArt { position: static; width: 44px; height: 44px; }
 .studioBanner .cardButton { margin: 0; }
 .statsCard { min-height: 140px; padding-bottom: 70px; }
-.statsCard .signatureCopy { padding-right: 34px; }
 .statsCard .cardActions { justify-content: space-between; gap: 12px; align-items: center; }
 .statsCard .manualToolActions { flex-wrap: nowrap; gap: 10px; }
 .statsCard .signatureArt { width: 28px; height: 28px; flex-basis: 28px; }
-.statsAgent { position: static; padding-left: 12px; border-left: 1px solid #c3afff33; }
-.statsAgent > div > img { width: 40px; height: 40px; }
+.statsAgent { position: static; }
 .statsAgent > div button { min-width: 84px; padding: 7px 11px; min-height: 32px; font-size: 11px; }
 .statsCard .manualToolActions .toolButton { min-width: 108px; padding-inline: 12px; }
 .signatureCard:not(.statsCard) .manualToolActions { justify-content: flex-end; width: 100%; gap: 18px; }
@@ -476,12 +474,9 @@
   .signatureGrid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
   .signatureCard { min-height: 138px; }
   .statsCard { padding-bottom: 74px; }
-  .statsCard .signatureCopy { padding-right: 34px; }
   .statsCard .manualToolActions { gap: 6px; }
   .statsCard .signatureArt { width: 23px; height: 23px; flex-basis: 23px; }
-  .statsAgent { padding-left: 9px; }
   .statsAgent > div { gap: 5px; }
-  .statsAgent > div > img { width: 34px; height: 34px; }
   .statsAgent > div button { min-width: 75px; padding: 7px 8px; }
 }
 
@@ -537,7 +532,7 @@
   .mailCampaignManualActions { gap: 9px; }
   .mailCampaignManualActions .cardButton { min-height: 34px; padding: 7px 12px; font-size: 12px; }
   .mailCampaignCard .mailCampaignArt { width: 27px; height: 27px; flex-basis: 27px; }
-  .campaignsAgent > div > img { width: 38px; height: 38px; }
+  .campaignsAgent > div > img { width: 40px; height: 40px; }
   .campaignsAgent > div button { min-width: 78px; min-height: 32px; padding: 6px 11px; }
   .relationshipGrid { gap: 8px; }
   .studioBanner { min-height: 74px; padding: 14px; grid-template-columns: 38px minmax(0, 1fr) 38px auto; gap: 12px; }
@@ -550,8 +545,8 @@
   .signatureGrid { grid-template-rows: repeat(2, minmax(100px, 1fr)); gap: 8px; }
   .signatureCard { min-height: 100px; grid-template-columns: 37px minmax(0, 1fr); padding: 12px 10px 46px; column-gap: 9px; }
   .signatureLogo { width: 37px; height: 37px; }
-  .signatureCopy h4 { margin: 0 0 2px; font-size: 15px; }
-  .signatureCopy p { font-size: 12px; line-height: 1.2; max-width: 240px; }
+  .signatureCopy h4 { margin: 0 0 6px; font-size: 15px; }
+  .signatureCopy p { font-size: 12px; line-height: 1.3; max-width: none; }
   .signatureCard .cardActions { right: 9px; bottom: 6px; left: 9px; gap: 8px; }
   .signatureCard .toolButton { min-height: 34px; min-width: 88px; padding: 6px 12px; font-size: 11px; }
   .signatureArt { width: 29px; height: 29px; flex-basis: 29px; }
@@ -559,14 +554,13 @@
   .statsCard .manualToolActions { gap: 7px; }
   .statsCard .signatureArt { width: 23px; height: 23px; flex-basis: 23px; }
   .statsCard .manualToolActions .toolButton { min-width: 94px; padding-inline: 11px; }
-  .statsAgent { padding-left: 8px; }
   .statsAgent > div { gap: 7px; }
-  .statsAgent > div > img { width: 32px; height: 32px; }
+  .statsAgent > div > img { width: 40px; height: 40px; }
   .statsAgent > div button { min-width: 75px; min-height: 34px; padding: 6px 9px; }
   .signatureCard .settingsButton, .signatureCard .modulePlanning { width: 30px; height: 30px; padding: 6px; top: 8px; right: 8px; }
   .reputationCard { min-height: 64px; padding: 11px 14px; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; }
   .reputationCard .relationshipLogo { width: 36px; height: 36px; }
-  .reputationCard .relationshipCopy h4 { font-size: 18px; margin-bottom: 2px; }
+  .reputationCard .relationshipCopy h4 { font-size: 18px; margin-bottom: 6px; }
   .reputationCard .relationshipCopy p { font-size: 12px; }
   .reputationCard .cardButton { min-height: 34px; min-width: 94px; padding: 7px 13px; font-size: 12px; }
   .reputationStars { font-size: 16px; }

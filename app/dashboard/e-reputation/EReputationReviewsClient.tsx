@@ -1252,14 +1252,14 @@ export default function EReputationReviewsClient(props: Props) {
 
       {detailsOpen && selectedReview && typeof document !== "undefined"
         ? createPortal(
-            <div
+            <div data-inrcy-tool-overlay
               className={styles.modalBackdrop}
               role="presentation"
               onMouseDown={(event) => {
                 if (event.target === event.currentTarget) void requestCloseDetails();
               }}
             >
-              <section className={styles.detailsModal} role="dialog" aria-modal="true" aria-labelledby="review-details-title" onMouseDown={(event) => event.stopPropagation()}>
+              <section data-inrcy-tool-dialog className={styles.detailsModal} role="dialog" aria-modal="true" aria-labelledby="review-details-title" onMouseDown={(event) => event.stopPropagation()}>
                 <header className={styles.modalHeader}>
                   <span className={styles.modalKicker}>{activePlatform.modalKicker}</span>
                   <h2 id="review-details-title">{i18nT("details_de_l_avis_3fc3ec16")}</h2>

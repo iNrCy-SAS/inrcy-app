@@ -183,13 +183,13 @@ export default function CampaignScheduleModal({
   const displayedError = localError || error || "";
 
   return (
-    <div
+    <div data-inrcy-tool-overlay
       className={styles.overlay}
       role="dialog"
       aria-modal="true"
       aria-labelledby="campaign-schedule-title"
     >
-      <div
+      <div data-inrcy-tool-dialog
         className={styles.card}
         onMouseDown={(event) => event.stopPropagation()}
       >

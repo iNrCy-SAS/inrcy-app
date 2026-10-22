@@ -647,7 +647,7 @@ export default function MediaOptimizerModal({
   if (!open) return null;
 
   return (
-    <div
+    <div data-inrcy-tool-overlay
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -665,7 +665,7 @@ export default function MediaOptimizerModal({
         backdropFilter: "blur(10px)",
       }}
     >
-      <section
+      <section data-inrcy-tool-dialog
         style={{
           width: "min(620px, calc(100vw - 24px))",
           maxHeight: "min(760px, calc(100dvh - 24px))",

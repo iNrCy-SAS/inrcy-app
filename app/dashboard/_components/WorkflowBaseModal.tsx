@@ -79,7 +79,7 @@ export default function BaseModal({
   }, [onClose]);
 
   return (
-    <div
+    <div data-inrcy-tool-overlay
       role="dialog"
       aria-modal="true"
       className={styles.fullscreenModalOverlay}
@@ -104,7 +104,7 @@ export default function BaseModal({
         overflow: "hidden",
       }}
     >
-      <div
+      <div data-inrcy-tool-dialog
         onMouseDown={(e) => e.stopPropagation()}
         className={[styles.blockCard, styles.fullscreenModalCard].join(" ")}
         style={{
@@ -214,6 +214,7 @@ export default function BaseModal({
 
         {/* Content scroll */}
         <div
+          data-inrcy-tool-body
           className={styles.fullscreenModalScroll}
           style={{
             padding: "var(--inrcy-modal-content-padding, max(12px, var(--inrcy-safe-area-top)) max(12px, var(--inrcy-safe-area-right)) max(12px, var(--inrcy-safe-area-bottom)) max(12px, var(--inrcy-safe-area-left)))",

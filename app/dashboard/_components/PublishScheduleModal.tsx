@@ -377,7 +377,7 @@ export default function PublishScheduleModal({
   };
 
   return (
-    <div
+    <div data-inrcy-tool-overlay
       className={styles.fullscreenModalOverlay}
       style={{
         position: "fixed",
@@ -392,7 +392,7 @@ export default function PublishScheduleModal({
         overscrollBehavior: "contain",
       }}
     >
-      <div
+      <div data-inrcy-tool-dialog
         className={styles.blockCard}
         style={{
           width: isMobile ? "min(780px, 100%)" : "min(1080px, 100%)",

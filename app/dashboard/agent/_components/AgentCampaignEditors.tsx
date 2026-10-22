@@ -93,8 +93,8 @@ export function CampaignMailTextModal({
   const i18nT = useTranslations("agent");
   if (!open || !preview) return null;
   return (
-    <div className={styles.modalBackdrop} role="presentation" onClick={onClose}>
-      <section
+    <div data-inrcy-tool-overlay className={styles.modalBackdrop} role="presentation" onClick={onClose}>
+      <section data-inrcy-tool-dialog
         className={`${styles.settingsModal} ${styles.mailTextModal}`}
         role="dialog"
         aria-modal="true"
@@ -230,8 +230,8 @@ export function RecipientsPickerModal({
     ).length;
 
   return (
-    <div className={styles.modalBackdrop} role="presentation" onClick={onClose}>
-      <section
+    <div data-inrcy-tool-overlay className={styles.modalBackdrop} role="presentation" onClick={onClose}>
+      <section data-inrcy-tool-dialog
         className={`${styles.settingsModal} ${styles.agentListModal} ${styles.recipientsPickerModal}`}
         role="dialog"
         aria-modal="true"

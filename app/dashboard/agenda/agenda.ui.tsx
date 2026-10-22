@@ -907,8 +907,8 @@ export function AgendaEventModal(props: AgendaEventModalProps) {
   };
 
   return (
-    <div className={styles.modalOverlay} role="dialog" aria-modal="true">
-      <div className={styles.modal}>
+    <div data-inrcy-tool-overlay className={styles.modalOverlay} role="dialog" aria-modal="true">
+      <div data-inrcy-tool-dialog className={styles.modal}>
         <div className={styles.modalHeader}>
           <div style={{ fontWeight: 950 }}>
             {isRequestMode ? (

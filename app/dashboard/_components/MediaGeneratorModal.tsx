@@ -474,7 +474,7 @@ export default function MediaGeneratorModal({
   if (!mounted || !open) return null;
 
   return createPortal(
-    <div
+    <div data-inrcy-tool-overlay
       ref={layerRef}
       className={styles.layer}
       onKeyDown={handleKeyDown}
@@ -491,7 +491,7 @@ export default function MediaGeneratorModal({
         disabled={locked || closeConfirmOpen}
         onClick={requestClose}
       />
-      <section
+      <section data-inrcy-tool-dialog
         ref={dialogRef}
         className={styles.dialog}
         data-studio-tab={studioTab}

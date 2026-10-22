@@ -84,8 +84,8 @@ export default function ChannelConnectionsModal({
   if (!isOpen || !portalReady) return null;
 
   return createPortal(
-    <div className={styles.channelConnectionsBackdrop} onMouseDown={onClose}>
-      <section
+    <div data-inrcy-tool-overlay className={styles.channelConnectionsBackdrop} onMouseDown={onClose}>
+      <section data-inrcy-tool-dialog
         className={styles.channelConnectionsModal}
         role="dialog"
         aria-modal="true"

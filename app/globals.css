@@ -349,3 +349,55 @@ html[data-inrcy-pull-refresh-enabled="1"],
 html[data-inrcy-pull-refresh-enabled="1"] body {
   overscroll-behavior-y: none;
 }
+
+/* Explicitly opted-in tool workspaces share the planning window's viewport.
+   Menus, confirmations and feedback bubbles keep their own compact layout. */
+:root body [data-inrcy-tool-overlay] {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  min-height: 0 !important;
+  box-sizing: border-box;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  place-items: stretch !important;
+  padding: max(12px, var(--inrcy-safe-area-top)) max(12px, var(--inrcy-safe-area-right)) max(12px, var(--inrcy-safe-area-bottom)) max(12px, var(--inrcy-safe-area-left)) !important;
+  overflow: hidden !important;
+}
+
+:root body [data-inrcy-tool-overlay] > [data-inrcy-tool-dialog] {
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+  align-self: stretch;
+  justify-self: stretch;
+  align-content: start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+:root body [data-inrcy-tool-dialog] > [data-inrcy-tool-body] {
+  flex: 1 1 auto !important;
+  min-height: 0;
+}
+
+@media (max-width: 1100px) {
+  :root body [data-inrcy-tool-overlay] {
+    bottom: var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) !important;
+    height: calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)))) !important;
+    max-height: calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)))) !important;
+    padding: max(6px, var(--inrcy-safe-area-top)) max(6px, var(--inrcy-safe-area-right)) 6px max(6px, var(--inrcy-safe-area-left)) !important;
+  }
+}

@@ -1767,7 +1767,7 @@ export default function NewFacturePage() {
           ) : null}
 
           {draftsOpen ? (
-            <div
+            <div data-inrcy-tool-overlay
               role="dialog"
               aria-modal="true"
               style={{
@@ -1783,7 +1783,7 @@ export default function NewFacturePage() {
               }}
               onClick={() => setDraftsOpen(false)}
             >
-              <div
+              <div data-inrcy-tool-dialog
                 style={{
                   width: "min(720px, 100%)",
                   maxWidth: "calc(100vw - 32px)",

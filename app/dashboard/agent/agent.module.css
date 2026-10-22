@@ -21826,3 +21826,10 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   .agentWorkspace .statsTopGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .workspaceEditBanner { gap: 8px; font-size: 11px; }
 }
+
+/* Full-screen agent workspaces keep their primary action at the bottom. */
+.automationSettingsModal[data-inrcy-tool-dialog] .settingsModalFooter {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 14px;
+}

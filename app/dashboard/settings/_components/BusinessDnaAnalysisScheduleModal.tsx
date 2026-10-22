@@ -189,13 +189,13 @@ export default function BusinessDnaAnalysisScheduleModal({ open, onClose }: Prop
   if (!mounted || !open) return null;
 
   return createPortal(
-    <div
+    <div data-inrcy-tool-overlay
       className={styles.overlay}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !saving) onClose();
       }}
     >
-      <section
+      <section data-inrcy-tool-dialog
         ref={dialogRef}
         className={styles.dialog}
         role="dialog"

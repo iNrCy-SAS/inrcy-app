@@ -181,7 +181,7 @@ export default function GeneratorSettingsModal({
   const referenceCount = opportunities && opportunities > 0 ? opportunities : 10;
 
   return (
-    <div
+    <div data-inrcy-tool-overlay
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -205,7 +205,7 @@ export default function GeneratorSettingsModal({
           section[data-generator-settings-modal] { padding: 16px !important; border-radius: 20px !important; max-height: calc(100dvh - 16px) !important; }
         }
       `}</style>
-      <section
+      <section data-inrcy-tool-dialog
         data-generator-settings-modal
         role="dialog"
         aria-modal="true"

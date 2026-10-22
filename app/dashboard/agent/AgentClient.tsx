@@ -7005,14 +7005,14 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       />
 
       {publishEditOpen && selectedPreparedAction && (
-        <div
+        <div data-inrcy-tool-overlay
           className={styles.modalBackdrop}
           role="presentation"
           onClick={() => {
             if (publishSaveState !== "saving") setPublishEditOpen(false);
           }}
         >
-          <section
+          <section data-inrcy-tool-dialog
             className={`${styles.settingsModal} ${styles.publishTextModal}`}
             role="dialog"
             aria-modal="true"
@@ -7558,7 +7558,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       />
 
       {publishMediaPreviewOpen && isPublishView && (
-        <div
+        <div data-inrcy-tool-overlay
           className={styles.modalBackdrop}
           role="presentation"
           onClick={() => {
@@ -7566,7 +7566,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
               setPublishMediaPreviewOpen(false);
           }}
         >
-          <section
+          <section data-inrcy-tool-dialog
             className={`${styles.settingsModal} ${styles.publishMediaModal}`}
             role="dialog"
             aria-modal="true"
@@ -8161,12 +8161,12 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       )}
 
       {helpOpen && (
-        <div
+        <div data-inrcy-tool-overlay
           className={styles.modalBackdrop}
           role="presentation"
           onClick={() => setHelpOpen(false)}
         >
-          <section
+          <section data-inrcy-tool-dialog
             className={`${styles.settingsModal} ${styles.helpModal}`}
             role="dialog"
             aria-modal="true"
@@ -8220,7 +8220,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       )}
 
       {settingsAutomation && settingsConfig && (
-        <div
+        <div data-inrcy-tool-overlay
           className={`${styles.modalBackdrop} ${settingsAutomation.key === "publish" && !publicationIdeasOpen ? styles.settingsCanvasBackdrop : ""}`}
           role="presentation"
           onClick={() => {
@@ -8230,7 +8230,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
             }
           }}
         >
-          <section
+          <section data-inrcy-tool-dialog
             className={`${styles.settingsModal} ${styles.automationSettingsModal} ${publicationIdeasOpen ? styles.publicationIdeasWorkspace : ""} ${settingsAutomation.key === "publish" && !publicationIdeasOpen ? styles.publishSettingsCanvas : ""}`}
             ref={settingsDialogRef}
             data-automation={settingsAutomation.key}

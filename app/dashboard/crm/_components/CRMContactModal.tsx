@@ -99,8 +99,8 @@ export default function CRMContactModal({
   if (!open) return null;
 
   return (
-    <div className={styles.modalOverlay} role="dialog" aria-modal="true">
-      <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+    <div data-inrcy-tool-overlay className={styles.modalOverlay} role="dialog" aria-modal="true">
+      <div data-inrcy-tool-dialog className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHead}>
           <div className={styles.modalTitle}>{editingId ? i18nT("modifier_un_contact_b7162016") : i18nT("ajouter_un_contact_58e74c01")}</div>
           <div className={styles.modalHeadActions}>

@@ -54,7 +54,7 @@ export default function HelpModal({ open, title, onClose, children, nativeLayer 
   if (!open) return null;
 
   const content = (
-    <div
+    <div data-inrcy-tool-overlay
       role={nativeLayer ? undefined : "dialog"}
       aria-modal={nativeLayer ? undefined : true}
       aria-label={nativeLayer ? undefined : title}
@@ -84,7 +84,7 @@ export default function HelpModal({ open, title, onClose, children, nativeLayer 
       />
 
       {/* modal */}
-      <div
+      <div data-inrcy-tool-dialog
         style={{
           position: "relative",
           width: "min(980px, 100%)",

@@ -593,7 +593,7 @@ export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalPr
   );
 
   return (
-    <div
+    <div data-inrcy-tool-overlay
       style={{
         ...overlayStyle,
         bottom: compact ? MOBILE_DOCK_HEIGHT : undefined,
@@ -627,7 +627,7 @@ export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalPr
         }
       }}
     >
-      <div
+      <div data-inrcy-tool-dialog
         ref={dialogRef}
         style={modalComputedStyle}
         onMouseDown={(event) => event.stopPropagation()}
