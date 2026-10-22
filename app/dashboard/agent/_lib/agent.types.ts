@@ -1,5 +1,6 @@
 import type { BoosterCtaMode } from "../../booster/publier/publishModal.shared";
 import type { ImageInteractions } from "@/lib/imageInteractions";
+import type { InrAgentMediaReferences } from "@/lib/inrAgentMediaReferences";
 import type {
   InrAgentFrequency,
   InrAgentPreferredMediaSource,
@@ -46,6 +47,7 @@ export type AutomationConfig = {
   preferredMediaSource: InrAgentPreferredMediaSource;
   publicationMediaTypes: InrAgentPublicationMediaTypes;
   studioMediaPreferencePercent: number;
+  mediaReferences?: InrAgentMediaReferences;
   planningHorizonDays: InrAgentPlanningHorizonDays;
   publicationIdeas: string[];
 };

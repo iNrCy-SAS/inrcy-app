@@ -33,6 +33,9 @@ import {
   standardAgentAutomationKeysForPersistence,
 } from "@/lib/standardAgentPolicy";
 import { getAppOriginFromRequest } from "@/lib/cronAuth";
+import { INR_AGENT_MEDIA_REFERENCES_KEY, parseInrAgentMediaReferences } from "@/lib/inrAgentMediaReferences";
+import { downloadInrAgentReferences } from "@/lib/inrAgentMediaReferencesServer";
+import { INR_AGENT_VIDEO_ENGINE } from "@/lib/inrAgentVideoPolicy";
 import {
   analyzeInrAgentEditorialPlanChange,
   notifyReadyInrAgentEditorialBatch,
@@ -630,6 +633,29 @@ async function saveAgentSettingsHandler(request: Request) {
     existingGlobalResult.data as DbAgentGlobalSettingsRow | null,
     existingRows,
   );
+  // Older clients omit this field. Preserve saved references in that case;
+  // only the dedicated control can replace the list or clear it explicitly.
+  const referenceValue = requestBody?.settings?.automations?.publish?.metadata?.[INR_AGENT_MEDIA_REFERENCES_KEY];
+  try {
+    const references = parseInrAgentMediaReferences(referenceValue === undefined
+      ? currentSettings.automations.publish.metadata[INR_AGENT_MEDIA_REFERENCES_KEY] : referenceValue);
+    if (references.items.length && !references.authorized) {
+      return NextResponse.json({ error: "Confirmez l’utilisation de ces médias pour les générations automatiques d’iNrAgent.", code: "inr_agent_reference_authorization_required" }, { status: 400 });
+    }
+    if (settings.automations.publish.publicationMediaTypes?.video &&
+      references.items.filter((item) => item.role === "character" && item.usage === "required").length > 1 &&
+      references.animationProviderConsent !== INR_AGENT_VIDEO_ENGINE) {
+      return NextResponse.json({ error: "Confirmez l’animation de ces personnages pour les vidéos automatiques d’iNrAgent.", code: "inr_agent_reference_animation_consent_required" }, { status: 400 });
+    }
+    if (referenceValue !== undefined && references.items.length) {
+      await downloadInrAgentReferences({ supabase: supabaseAdmin, accountId: activeUserId, references });
+    }
+    settings.automations.publish.metadata = { ...settings.automations.publish.metadata,
+      [INR_AGENT_MEDIA_REFERENCES_KEY]: { ...references,
+        ...(references.authorized ? { authorizedBy: authUserId, authorizedAt: now } : {}) } };
+  } catch {
+    return NextResponse.json({ error: "Une référence iNrAgent est invalide ou indisponible. Retirez-la puis ajoutez-la de nouveau.", code: "inr_agent_reference_invalid" }, { status: 400 });
+  }
   const currentPublishMetadata =
     currentSettings.automations.publish.metadata || {};
   const activeEditorialTone = String(

@@ -829,5 +829,12 @@
   "publication_channel_empty_help": "Générez son texte depuis le bloc Contenu pour pouvoir valider ce canal.",
   "publication_generate_content": "Générer le contenu",
   "publication_channel_review_pending": "À valider",
-  "publication_additional_channels_validated": "Les nouveaux canaux ont été validés."
+  "publication_additional_channels_validated": "Les nouveaux canaux ont été validés.",
+  "media_references_title": "Références pour les générations",
+  "media_references_hint": "iNrAgent crée de nouvelles scènes à partir de vos références. Obligatoire impose la personne, le décor ou le produit ; Inspiration guide l’ambiance. Ces choix sont indépendants d’iNrStudio.",
+  "media_references_consent": "Je dispose des autorisations nécessaires et j’autorise iNrAgent à utiliser ces médias dans ses générations automatiques.",
+  "media_references_animation_consent": "J’autorise l’animation de ces personnages avec {provider} pour les vidéos automatiques d’iNrAgent.",
+  "media_references_error": "La référence n’a pas pu être ajoutée. Réessayez.",
+  "media_references_import_busy": "Préparation et enregistrement des références…",
+  "media_references_character_limit": "Vous pouvez utiliser jusqu’à trois références de personnes obligatoires. Passez les autres en Inspiration ou retirez-les."
 }

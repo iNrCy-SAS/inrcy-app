@@ -1,0 +1,7 @@
+.root {
+  --card-accent: 68, 206, 238;
+  --card-accent-alt: 152, 74, 246;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}

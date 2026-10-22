@@ -1,6 +1,8 @@
 "use client";
 
 import AgentPublicationChannelList from "./_components/AgentPublicationChannelList";
+import AgentMediaReferences from "./_components/AgentMediaReferences";
+import { INR_AGENT_VIDEO_ENGINE } from "@/lib/inrAgentVideoPolicy";
 import { apiChannelToUi } from "./_lib/agent.config";
 import { pendingInrAgentPublicationChannels, selectedInrAgentPublicationChannels, unvalidatedInrAgentPublicationChannels, preparedInrAgentPublicationChannels, withInrAgentPublicationChannelSelection } from "@/lib/inrAgentPublicationChannelSelection";
 
@@ -588,6 +590,7 @@ export default function AgentClient() {
     y: number;
   } | null>(null);
   const [settingsKey, setSettingsKey] = useState<AutomationKey | null>(null);
+  const [agentReferenceBusy, setAgentReferenceBusy] = useState(false);
   const [publicationIdeasOpen, setPublicationIdeasOpen] = useState(false);
   const [publicationIdeasDraft, setPublicationIdeasDraft] = useState<string[]>([]);
   const [publicationIdeasSaveState, setPublicationIdeasSaveState] = useState<
@@ -9476,6 +9479,13 @@ export default function AgentClient() {
                       </p>
                     </div>
                   ) : null}
+                  <AgentMediaReferences
+                    value={settingsConfig.mediaReferences}
+                    disabled={saveState === "saving"}
+                    videoEnabled={settingsPublicationMediaTypes.video}
+                    onChange={(mediaReferences) => updateConfig("publish", { mediaReferences })}
+                    onBusyChange={setAgentReferenceBusy}
+                  />
                 </div>
               )}
             </div>
@@ -9724,6 +9734,13 @@ export default function AgentClient() {
                     Boolean(testNowKey) ||
                     settingsPublicationIdeaVoiceBusy ||
                     (!publicationIdeasOpen && settingsNoConnectedChannelBlock && settingsConfig.enabled)
+                    || (!publicationIdeasOpen && settingsAutomation.key === "publish" && (
+                      agentReferenceBusy || Boolean(settingsConfig.mediaReferences?.items.length && !settingsConfig.mediaReferences.authorized) ||
+                      (settingsConfig.mediaReferences?.items.filter((item) => item.role === "character" && item.usage === "required").length || 0) > 3 ||
+                      Boolean(settingsPublicationMediaTypes.video &&
+                        (settingsConfig.mediaReferences?.items.filter((item) => item.role === "character" && item.usage === "required").length || 0) > 1 &&
+                        settingsConfig.mediaReferences?.animationProviderConsent !== INR_AGENT_VIDEO_ENGINE)
+                    ))
                   }
                 >
                   {(publicationIdeasOpen ? publicationIdeasSaveState === "saving" : saveState === "saving")

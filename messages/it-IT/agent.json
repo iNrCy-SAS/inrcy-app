@@ -829,5 +829,12 @@
   "publication_channel_empty_help": "Genera il testo dal riquadro Contenuto prima di approvare questo canale.",
   "publication_generate_content": "Genera contenuto",
   "publication_channel_review_pending": "Da approvare",
-  "publication_additional_channels_validated": "I nuovi canali sono stati approvati."
+  "publication_additional_channels_validated": "I nuovi canali sono stati approvati.",
+  "media_references_title": "Riferimenti per le generazioni",
+  "media_references_hint": "iNrAgent crea nuove scene a partire dai tuoi riferimenti. Obbligatorio include la persona, l’ambiente o il prodotto; Ispirazione guida l’atmosfera. Queste scelte sono indipendenti da iNrStudio.",
+  "media_references_consent": "Dispongo delle autorizzazioni necessarie e autorizzo iNrAgent a utilizzare questi media nelle generazioni automatiche.",
+  "media_references_animation_consent": "Autorizzo l’animazione di questi personaggi con {provider} per i video automatici di iNrAgent.",
+  "media_references_error": "Impossibile aggiungere il riferimento. Riprova.",
+  "media_references_import_busy": "Preparazione e salvataggio dei riferimenti…",
+  "media_references_character_limit": "Puoi usare fino a tre riferimenti obbligatori di persone. Imposta gli altri su Ispirazione o rimuovili."
 }

@@ -1017,5 +1017,8 @@
   "ai_generator_character_voice_library_empty": "No hay muestras de voz en la biblioteca multimedia.",
   "ai_generator_character_voice_library_loading": "Cargando muestras de voz…",
   "ai_generator_character_voice_library_duration_error": "Elige un audio de voz de entre 1 y 10 segundos y de un máximo de 3 MB.",
-  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 admite hasta 15 segundos de muestras de voz en total. Acorta las muestras o elige Wan 2.7."
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 admite hasta 15 segundos de muestras de voz en total. Acorta las muestras o elige Wan 2.7.",
+  "ai_generator_reference_drop_title": "Arrastra tus referencias aquí",
+  "ai_generator_reference_information": "Información sobre las referencias",
+  "ai_generator_reference_drop_hint": "Personas, productos, lugares o inspiraciones"
 }

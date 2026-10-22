@@ -829,5 +829,12 @@
   "publication_channel_empty_help": "สร้างข้อความจากส่วนเนื้อหาก่อนอนุมัติช่องทางนี้",
   "publication_generate_content": "สร้างเนื้อหา",
   "publication_channel_review_pending": "รอการอนุมัติ",
-  "publication_additional_channels_validated": "อนุมัติช่องทางใหม่แล้ว"
+  "publication_additional_channels_validated": "อนุมัติช่องทางใหม่แล้ว",
+  "media_references_title": "สื่ออ้างอิงสำหรับการสร้าง",
+  "media_references_hint": "iNrAgent สร้างฉากใหม่จากสื่ออ้างอิงของคุณ แบบบังคับจะรวมบุคคล ฉาก หรือผลิตภัณฑ์ ส่วนแรงบันดาลใจใช้เป็นแนวทางด้านบรรยากาศ การตั้งค่านี้แยกจาก iNrStudio",
+  "media_references_consent": "ฉันได้รับอนุญาตที่จำเป็นและอนุญาตให้ iNrAgent ใช้สื่อเหล่านี้ในการสร้างอัตโนมัติ",
+  "media_references_animation_consent": "ฉันอนุญาตให้ใช้ {provider} สร้างภาพเคลื่อนไหวของบุคคลเหล่านี้สำหรับวิดีโออัตโนมัติของ iNrAgent",
+  "media_references_error": "ไม่สามารถเพิ่มสื่ออ้างอิงได้ โปรดลองอีกครั้ง",
+  "media_references_import_busy": "กำลังเตรียมและบันทึกสื่ออ้างอิง…",
+  "media_references_character_limit": "ใช้สื่ออ้างอิงบุคคลแบบบังคับได้สูงสุดสามรายการ เปลี่ยนรายการอื่นเป็นแรงบันดาลใจหรือนำออก"
 }

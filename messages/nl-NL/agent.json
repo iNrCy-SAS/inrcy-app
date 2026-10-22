@@ -829,5 +829,12 @@
   "publication_channel_empty_help": "Genereer de tekst via het blok Inhoud voordat je dit kanaal goedkeurt.",
   "publication_generate_content": "Inhoud genereren",
   "publication_channel_review_pending": "Goedkeuring vereist",
-  "publication_additional_channels_validated": "De nieuwe kanalen zijn goedgekeurd."
+  "publication_additional_channels_validated": "De nieuwe kanalen zijn goedgekeurd.",
+  "media_references_title": "Referenties voor generaties",
+  "media_references_hint": "iNrAgent maakt nieuwe scènes op basis van je referenties. Verplicht neemt de persoon, omgeving of het product op; Inspiratie bepaalt de sfeer. Deze keuzes staan los van iNrStudio.",
+  "media_references_consent": "Ik beschik over de nodige toestemmingen en geef iNrAgent toestemming om deze media voor automatische generaties te gebruiken.",
+  "media_references_animation_consent": "Ik geef toestemming om deze personen met {provider} te animeren voor automatische iNrAgent-video’s.",
+  "media_references_error": "De referentie kon niet worden toegevoegd. Probeer het opnieuw.",
+  "media_references_import_busy": "Referenties voorbereiden en opslaan…",
+  "media_references_character_limit": "Je kunt maximaal drie verplichte persoonsreferenties gebruiken. Stel de overige in als Inspiratie of verwijder ze."
 }

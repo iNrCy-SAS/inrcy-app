@@ -1017,5 +1017,8 @@
   "ai_generator_character_voice_library_empty": "No voice samples in the media library.",
   "ai_generator_character_voice_library_loading": "Loading voice samples…",
   "ai_generator_character_voice_library_duration_error": "Choose a voice recording lasting 1 to 10 seconds and no larger than 3 MB.",
-  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepts up to 15 seconds of voice samples in total. Shorten the samples or choose Wan 2.7."
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepts up to 15 seconds of voice samples in total. Shorten the samples or choose Wan 2.7.",
+  "ai_generator_reference_drop_title": "Drop your references here",
+  "ai_generator_reference_information": "About references",
+  "ai_generator_reference_drop_hint": "People, products, places or inspiration"
 }

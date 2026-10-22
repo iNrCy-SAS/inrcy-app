@@ -1017,5 +1017,8 @@
   "ai_generator_character_voice_library_empty": "媒体库中没有声音样本。",
   "ai_generator_character_voice_library_loading": "正在加载声音样本…",
   "ai_generator_character_voice_library_duration_error": "请选择时长为 1 至 10 秒且不超过 3 MB 的语音录音。",
-  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 接受的声音样本总时长最多为 15 秒。请缩短样本，或选择 Wan 2.7。"
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 接受的声音样本总时长最多为 15 秒。请缩短样本，或选择 Wan 2.7。",
+  "ai_generator_reference_drop_title": "将参考素材拖放到此处",
+  "ai_generator_reference_information": "参考素材说明",
+  "ai_generator_reference_drop_hint": "人物、产品、地点或灵感"
 }

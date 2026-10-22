@@ -829,5 +829,12 @@
   "publication_channel_empty_help": "Erstellen Sie den Text im Inhaltsbereich, bevor Sie diesen Kanal freigeben.",
   "publication_generate_content": "Inhalt erstellen",
   "publication_channel_review_pending": "Freigabe ausstehend",
-  "publication_additional_channels_validated": "Die neuen Kanäle wurden freigegeben."
+  "publication_additional_channels_validated": "Die neuen Kanäle wurden freigegeben.",
+  "media_references_title": "Referenzen für die Generierung",
+  "media_references_hint": "iNrAgent erstellt neue Szenen anhand Ihrer Referenzen. Pflicht übernimmt die Person, die Umgebung oder das Produkt; Inspiration gibt die Stimmung vor. Diese Auswahl ist unabhängig von iNrStudio.",
+  "media_references_consent": "Ich verfüge über die erforderlichen Erlaubnisse und gestatte iNrAgent die Verwendung dieser Medien für automatische Generierungen.",
+  "media_references_animation_consent": "Ich gestatte die Animation dieser Personen mit {provider} für automatische iNrAgent-Videos.",
+  "media_references_error": "Die Referenz konnte nicht hinzugefügt werden. Bitte versuchen Sie es erneut.",
+  "media_references_import_busy": "Referenzen werden vorbereitet und gespeichert…",
+  "media_references_character_limit": "Sie können bis zu drei verpflichtende Personenreferenzen verwenden. Wählen Sie für die anderen Inspiration oder entfernen Sie sie."
 }

@@ -1,0 +1,8 @@
+.panel { display: grid; gap: 12px; min-width: 0; margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(124, 164, 232, .2); }
+.panel > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #eaf4ff; font-size: 14px; }
+.panel > header > span { color: #8dddeb; font-size: 12px; }
+.panel > p { margin: 0; color: #b8c9e6; font-size: 12px; line-height: 1.5; }
+.consent { display: flex; align-items: flex-start; gap: 9px; padding: 10px 12px; border: 1px solid rgba(124, 164, 232, .22); border-radius: 10px; color: #d4e5f5; background: rgba(9, 24, 49, .55); font-size: 12px; line-height: 1.5; }
+.consent input { flex: 0 0 auto; margin: 2px 0 0; width: 17px; height: 17px; accent-color: #4bd0e5; }
+.panel > .error { color: #ffd5df; }
+@media (max-width: 600px) { .panel { gap: 10px; } .panel > header { font-size: 13px; } }

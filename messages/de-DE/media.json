@@ -1017,5 +1017,8 @@
   "ai_generator_character_voice_library_empty": "Keine Sprachaufnahmen in der Mediathek.",
   "ai_generator_character_voice_library_loading": "Sprachaufnahmen werden geladen…",
   "ai_generator_character_voice_library_duration_error": "Wählen Sie eine Sprachaufnahme von 1 bis 10 Sekunden und höchstens 3 MB.",
-  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 erlaubt insgesamt höchstens 15 Sekunden an Sprachaufnahmen. Kürzen Sie die Aufnahmen oder wählen Sie Wan 2.7."
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 erlaubt insgesamt höchstens 15 Sekunden an Sprachaufnahmen. Kürzen Sie die Aufnahmen oder wählen Sie Wan 2.7.",
+  "ai_generator_reference_drop_title": "Referenzen hier ablegen",
+  "ai_generator_reference_information": "Informationen zu Referenzen",
+  "ai_generator_reference_drop_hint": "Personen, Produkte, Orte oder Inspirationen"
 }

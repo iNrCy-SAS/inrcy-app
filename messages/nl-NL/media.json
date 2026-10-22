@@ -1017,5 +1017,8 @@
   "ai_generator_character_voice_library_empty": "Geen stemfragmenten in de mediatheek.",
   "ai_generator_character_voice_library_loading": "Stemfragmenten laden…",
   "ai_generator_character_voice_library_duration_error": "Kies een stemopname van 1 tot 10 seconden en maximaal 3 MB.",
-  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepteert in totaal maximaal 15 seconden aan stemfragmenten. Kort de fragmenten in of kies Wan 2.7."
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepteert in totaal maximaal 15 seconden aan stemfragmenten. Kort de fragmenten in of kies Wan 2.7.",
+  "ai_generator_reference_drop_title": "Sleep je referenties hierheen",
+  "ai_generator_reference_information": "Informatie over referenties",
+  "ai_generator_reference_drop_hint": "Personen, producten, locaties of inspiratie"
 }

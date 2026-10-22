@@ -9,6 +9,7 @@ import { resolveInrAgentMediaMix } from "../../lib/inrAgentMediaMix.ts";
 import { quoteAiMediaCredits } from "../../lib/aiMediaCreditsPricing.ts";
 import { inrAgentVideoFailureNeedsRecovery } from "../../lib/inrAgentVideoPolicy.ts";
 import { isAiMediaContentPolicyRejection } from "../../lib/aiMediaGenerationPublicErrors.ts";
+import { emptyInrAgentMediaReferences, inrAgentReferencesSignature } from "../../lib/inrAgentMediaReferences.ts";
 
 type Job = { id: string; accountId: string; status: string; fingerprint: string; amount: number; kind: string; mediaId?: string; errorCode?: string };
 type Args = { accountId?: string; generationRequestId?: string; automaticEditorialActionId?: string; idea?: string; kind?: "image" | "video"; videoDurationSeconds?: 8; outputFormat?: "portrait" | "story" };
@@ -41,6 +42,8 @@ function harness(options: {
   };
   const deps: Record<string, unknown> = {
     "server-only": {}, "node:crypto": crypto,
+    "./inrAgentMediaReferencesServer.ts": { loadInrAgentMediaReferences: async () => ({ references: emptyInrAgentMediaReferences(), images: [] }) },
+    "./inrAgentMediaReferences.ts": { inrAgentReferencesSignature },
     "./inrAgentVideoPolicy.ts": { inrAgentVideoFailureNeedsRecovery },
     "./aiMediaGenerationPublicErrors.ts": { isAiMediaContentPolicyRejection },
     "./inrAgentPreviousMediaJob.ts": { getInrAgentPreviousMediaJob: async (accountId:string,requestKey:string,kind="video") => {

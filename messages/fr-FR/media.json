@@ -1017,5 +1017,8 @@
   "ai_generator_character_voice_library_empty": "Aucun vocal dans la médiathèque.",
   "ai_generator_character_voice_library_loading": "Chargement des vocaux…",
   "ai_generator_character_voice_library_duration_error": "Choisissez un vocal de 1 à 10 secondes et de 3 Mo maximum.",
-  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepte 15 secondes de vocaux au total. Raccourcissez les échantillons ou choisissez Wan 2.7."
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepte 15 secondes de vocaux au total. Raccourcissez les échantillons ou choisissez Wan 2.7.",
+  "ai_generator_reference_drop_title": "Déposez vos références ici",
+  "ai_generator_reference_information": "Information sur les références",
+  "ai_generator_reference_drop_hint": "Personnes, produits, lieux ou inspirations"
 }

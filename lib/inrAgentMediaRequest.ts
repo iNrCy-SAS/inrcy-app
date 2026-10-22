@@ -4,6 +4,7 @@ import {
   type AiMediaGenerationMode,
   type AiMediaGenerationRequest,
   type AiMediaKind,
+  type AiMediaInspirationImage,
   type AiMediaPeopleCriterion,
   type AiMediaTypology,
   type AiMediaVideoSceneMode,
@@ -60,10 +61,15 @@ export function buildInrAgentMediaGenerationRequest(args: {
   videoDurationSeconds?: 8;
   /** Destination format is chosen once for a group of compatible channels. */
   outputFormat?: AiMediaGenerationRequest["format"];
+  inspirationImages?: AiMediaInspirationImage[];
+  identityConsent?: boolean;
+  identityReferenceSetId?: string;
+  animationProviderConsent?: string | null;
 }): AiMediaGenerationRequest {
+  const inspirationImages = args.inspirationImages || [];
   const peopleCriterion = peopleCriterionForMode(args.mediaMix.peopleMode);
   const generationMode: AiMediaGenerationMode =
-    peopleCriterion === "auto" ? "ai_free" : "ai_criteria";
+    inspirationImages.length ? "inspiration" : peopleCriterion === "auto" ? "ai_free" : "ai_criteria";
   const durationSeconds = args.kind === "video"
     ? args.videoDurationSeconds ?? args.mediaMix.durationSeconds
     : null;
@@ -79,7 +85,9 @@ export function buildInrAgentMediaGenerationRequest(args: {
     focusCriterion: "auto",
     subjectSource: "custom",
     idea: args.idea,
-    aiInstruction: "",
+    aiInstruction: inspirationImages.length
+      ? "Créer une nouvelle mise en scène adaptée au sujet de cette publication. Conserver les personnes, produits et décors marqués obligatoires, tout en variant naturellement le cadrage, l’action et la composition. Ne pas simplement recopier la photo de référence. Les médias marqués inspiration guident uniquement l’ambiance."
+      : "",
     // Le texte social appartient à Booster. Ce contrat bloque explicitement
     // toute lettre, accroche, enseigne, interface ou sous-titre fournisseur.
     textMode: "none",
@@ -95,7 +103,7 @@ export function buildInrAgentMediaGenerationRequest(args: {
     visualStyle: args.mediaMix.visualStyle,
     imageStyle: args.mediaMix.imageStyle,
     shotType: args.mediaMix.shotType,
-    peopleMode: args.mediaMix.peopleMode,
+    peopleMode: inspirationImages.length ? "auto" : args.mediaMix.peopleMode,
     creativity: args.mediaMix.creativity,
     useBrandColors: args.mediaMix.useBrandColors,
     logoMode: args.mediaMix.logoMode,
@@ -103,14 +111,15 @@ export function buildInrAgentMediaGenerationRequest(args: {
     videoResolution: args.kind === "video" ? INR_AGENT_VIDEO_RESOLUTION : null,
     identityMode: "auto",
     videoCharacterMode: "auto",
-    identityConsent: false,
-    teamVideoMode: args.mediaMix.teamVideoMode,
+    identityConsent: inspirationImages.length > 0 && args.identityConsent === true,
+    teamVideoMode: inspirationImages.length ? "cinematic" : args.mediaMix.teamVideoMode,
     // iNrAgent n'envoie aucune identité autorisée. Les dialogues natifs
     // « personnages » sont donc ramenés à la voix off historique afin de ne
     // pas couper la narration ni inventer un consentement biométrique.
     teamVideoSpeechMode: "voiceover",
     teamVideoVeoConsent: false,
-    identityReferenceSetId: "",
+    teamVideoProviderConsent: args.animationProviderConsent || null,
+    identityReferenceSetId: inspirationImages.length ? args.identityReferenceSetId || "" : "",
     durationSeconds,
     sceneMode: videoSceneMode({
       kind: args.kind,
@@ -118,7 +127,7 @@ export function buildInrAgentMediaGenerationRequest(args: {
       connectScenes: args.mediaMix.connectScenes,
     }),
     connectScenes: args.mediaMix.connectScenes,
-    inspirationImages: [],
+    inspirationImages,
     // Le quota et la médiathèque iNrAgent restent historiquement rattachés à
     // Booster ; seul le contrat de composition est désormais celui du Studio.
     source: "booster",

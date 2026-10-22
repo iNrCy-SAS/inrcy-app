@@ -829,5 +829,12 @@
   "publication_channel_empty_help": "Generate its text from the Content card before approving this channel.",
   "publication_generate_content": "Generate content",
   "publication_channel_review_pending": "Awaiting approval",
-  "publication_additional_channels_validated": "The new channels have been approved."
+  "publication_additional_channels_validated": "The new channels have been approved.",
+  "media_references_title": "Generation references",
+  "media_references_hint": "iNrAgent creates new scenes from your references. Required includes the person, setting or product; Inspiration guides the mood. These choices are independent of iNrStudio.",
+  "media_references_consent": "I have the necessary permissions and authorise iNrAgent to use these media in its automatic generations.",
+  "media_references_animation_consent": "I authorise animation of these characters with {provider} for automatic iNrAgent videos.",
+  "media_references_error": "The reference could not be added. Please try again.",
+  "media_references_import_busy": "Preparing and saving references…",
+  "media_references_character_limit": "You can use up to three required person references. Set the others to Inspiration or remove them."
 }

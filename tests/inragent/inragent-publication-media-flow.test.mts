@@ -8,6 +8,7 @@ import { inrAgentEditorialRetryDecision } from "../../lib/inrAgentEditorialRetry
 import { getAiMediaGenerationPublicError, isAiMediaContentPolicyRejection } from "../../lib/aiMediaGenerationPublicErrors.ts";
 import { buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants } from "../../lib/inrAgentMediaFormats.ts";
 import { MEDIA_FIRST_PUBLICATION_IDEA } from "../../lib/aiMediaSubject.ts";
+import { blocksInrAgentReferenceFallback } from "../../lib/inrAgentMediaReferences.ts";
 
 type RecordValue = Record<string, unknown>;
 type Media = { id: string; mediaType: "image" | "video"; kind: "image" | "video"; source: string; librarySource: string; storagePath: string };
@@ -72,7 +73,7 @@ function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCr
   async function run(overrides: RecordValue = {}) {
     fallbackIndex = 0;
     const scope: Record<string, unknown> = {
-      createHash, randomUUID, normalizeAiMediaGeneratorPreferences, MEDIA_FIRST_PUBLICATION_IDEA,
+      createHash, randomUUID, normalizeAiMediaGeneratorPreferences, MEDIA_FIRST_PUBLICATION_IDEA, blocksInrAgentReferenceFallback,
       getAiMediaGenerationPublicError,
       supabase, supabaseAdmin: supabase, userId: "account", quotaAccountId: "account", actorUserId: "actor",
       isAdmin: false, isCron: true, ghostOnlyPublication: options.ghostOnly === true, threadsPublicationSettings: options.ghostOnly || options.ghostMixed ? { mode: "ghost" } : null, automaticMediaKind: options.existingAssets?.[0]?.mediaType || "image", requestedImageCount: options.ghostOnly || options.existingAssets?.[0]?.mediaType === "video" ? 0 : options.imageCount || 3, videoDurationSeconds: undefined,

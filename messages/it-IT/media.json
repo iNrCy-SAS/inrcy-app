@@ -1017,5 +1017,8 @@
   "ai_generator_character_voice_library_empty": "Nessun campione vocale nella raccolta multimediale.",
   "ai_generator_character_voice_library_loading": "Caricamento dei campioni vocali…",
   "ai_generator_character_voice_library_duration_error": "Scegli una registrazione vocale da 1 a 10 secondi e di massimo 3 MB.",
-  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accetta fino a 15 secondi complessivi di campioni vocali. Accorcia i campioni o scegli Wan 2.7."
+  "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accetta fino a 15 secondi complessivi di campioni vocali. Accorcia i campioni o scegli Wan 2.7.",
+  "ai_generator_reference_drop_title": "Trascina qui i tuoi riferimenti",
+  "ai_generator_reference_information": "Informazioni sui riferimenti",
+  "ai_generator_reference_drop_hint": "Persone, prodotti, luoghi o ispirazioni"
 }

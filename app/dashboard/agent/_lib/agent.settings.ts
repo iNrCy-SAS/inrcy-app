@@ -1,4 +1,5 @@
 import { canonicalSiteWebChannel, normalizeSiteWebChannelMap } from "@/lib/siteWebChannel";
+import { INR_AGENT_MEDIA_REFERENCES_KEY, parseInrAgentMediaReferences } from "@/lib/inrAgentMediaReferences";
 import {
   INR_AGENT_DEFAULT_SETTINGS,
   normalizeInrAgentPublicationIdeas,
@@ -441,6 +442,7 @@ export function settingsToConfigs(
         ),
         studioMediaPreferencePercent:
           source.studioMediaPreferencePercent,
+        mediaReferences: parseInrAgentMediaReferences(source.metadata?.[INR_AGENT_MEDIA_REFERENCES_KEY]),
         planningHorizonDays: source.planningHorizonDays,
         publicationIdeas:
           automation.key === "publish"
@@ -480,6 +482,7 @@ export function configToAutomationSettings(
         }
       : {}),
     studioMediaPreferencePercent: config.studioMediaPreferencePercent,
+    ...(key === "publish" ? { [INR_AGENT_MEDIA_REFERENCES_KEY]: config.mediaReferences ?? parseInrAgentMediaReferences(existing.metadata?.[INR_AGENT_MEDIA_REFERENCES_KEY]) } : {}),
     planningHorizonDays: config.planningHorizonDays,
     ...(key === "publish"
       ? {

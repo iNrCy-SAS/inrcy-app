@@ -69,6 +69,7 @@ import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { inrAgentManualCreditAvailability, inrAgentManualPublishCreditBudget } from "@/lib/inrAgentManualCreditPolicy";
 import { buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants, type InrAgentMediaFormatPlan } from "@/lib/inrAgentMediaFormats";
 import { loadInrAgentStudioMediaPreferences } from "@/lib/inrAgentMediaPreferencesServer";
+import { blocksInrAgentReferenceFallback } from "@/lib/inrAgentMediaReferences";
 import { normalizeAiMediaGeneratorPreferences } from "@/lib/aiMediaGenerationPreferences";
 import type { BoosterCtaMode } from "@/lib/boosterCta";
 import { applySafePreferredCta, type BoosterCtaDefaults } from "@/lib/boosterCtaPreferences";
@@ -2399,6 +2400,15 @@ export async function POST(request: Request) {
     generatedMediaResults.find((result) => Boolean(result.item)) ||
     generatedMediaResults[0] ||
     null;
+  // A configured reference must never disappear behind an image-bank fallback.
+  // This also covers failed settings reads and withdrawn authorizations.
+  if (generatedMediaResults.some(blocksInrAgentReferenceFallback)) {
+    const quotaReached = generatedMediaResults.some((result) => result.outcome === "quota_reached");
+    return NextResponse.json({ error: quotaReached
+      ? "Les crédits sont insuffisants pour générer le média avec vos références obligatoires. Aucun autre visuel ne les remplacera."
+      : "Le média avec vos références obligatoires n’a pas pu être préparé. Vérifiez Réglages — Publier, puis reprenez la génération.",
+      code: quotaReached ? "editorial_media_required_unavailable" : "inr_agent_reference_unavailable" }, { status: quotaReached ? 429 : 409 });
+  }
   const generatedMediaAssets = (generatedAssetsByFormat[generationFormatPlan?.defaultFormat || "legacy"] || []).slice(existingMediaAssets.length);
   const selectedMediaAssets = [...existingMediaAssets, ...generatedMediaAssets];
   const mediaAssets: ImageBankAsset[] = selectedMediaAssets.length === desiredMediaCount

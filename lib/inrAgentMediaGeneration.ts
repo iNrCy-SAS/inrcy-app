@@ -30,6 +30,8 @@ import type { AiMediaGeneratorPreferences } from "@/lib/aiMediaGenerationPrefere
 import { resolveInrAgentMediaMix } from "@/lib/inrAgentMediaMix";
 import { buildInrAgentMediaGenerationRequest } from "@/lib/inrAgentMediaRequest";
 import { quoteAiMediaRequest } from "@/lib/aiMediaCreditQuoteServer";
+import { loadInrAgentMediaReferences } from "./inrAgentMediaReferencesServer.ts";
+import { inrAgentReferencesSignature } from "./inrAgentMediaReferences.ts";
 
 type SupabaseLike = Parameters<typeof generateAndSaveAiMedia>[0]["supabase"];
 
@@ -41,6 +43,7 @@ export type InrAgentGeneratedMediaOutcome =
   | "studio_unavailable"
   | "generation_failed"
   | "content_rejected"
+  | "reference_unavailable"
   | "finalization_failed";
 
 export type InrAgentGeneratedMediaResult = {
@@ -48,6 +51,7 @@ export type InrAgentGeneratedMediaResult = {
   outcome: InrAgentGeneratedMediaOutcome;
   kind: AiMediaKind;
   errorCode?: string;
+  referencesRequired?: boolean;
 };
 
 function errorCode(error: unknown) {
@@ -60,7 +64,7 @@ function errorCode(error: unknown) {
  * Utilise exactement la meme reservation mensuelle que le Studio media.
  * Une generation iNrAgent n'est jamais gratuite ni comptee dans un silo cache.
  */
-export async function generateInrAgentMedia(args: {
+async function generateMediaWithReferences(args: {
   supabase: SupabaseLike;
   accountId: string;
   actorAuthUserId: string;
@@ -81,7 +85,7 @@ export async function generateInrAgentMedia(args: {
   outputFormat?: AiMediaGenerationRequest["format"];
   /** Server-owned automatic calendar slot, never a client-supplied credit flag. */
   automaticEditorialActionId?: string;
-}): Promise<InrAgentGeneratedMediaResult> {
+}, referenceInput: Awaited<ReturnType<typeof loadInrAgentMediaReferences>>): Promise<InrAgentGeneratedMediaResult> {
   const edition = await getDashboardEditionForAccountId(args.accountId);
   const videoEntitlement =
     args.kind === "video"
@@ -103,10 +107,14 @@ export async function generateInrAgentMedia(args: {
       args.variantSeed ||
       `${args.accountId}:${args.theme}:${args.kind}:${args.idea}`,
   });
+  const referenceSignature = referenceInput.images.length
+    ? createHash("sha256").update(inrAgentReferencesSignature(referenceInput.references)).digest("hex") : "";
   const generationRequestId = args.generationRequestId?.trim();
-  const request = buildInrAgentMediaGenerationRequest({
+  let request: AiMediaGenerationRequest;
+  try {
+    request = buildInrAgentMediaGenerationRequest({
     requestId: generationRequestId
-      ? `inr-agent:${createHash("sha256").update(generationRequestId).digest("hex")}`
+      ? `inr-agent:${createHash("sha256").update(generationRequestId + (referenceSignature ? `:${referenceSignature}` : "")).digest("hex")}`
       : `inr-agent:${randomUUID()}`,
     idea: args.idea,
     theme: args.theme,
@@ -114,7 +122,14 @@ export async function generateInrAgentMedia(args: {
     mediaMix,
     videoDurationSeconds: args.videoDurationSeconds,
     outputFormat: args.outputFormat,
+    inspirationImages: referenceInput.images,
+    identityConsent: referenceInput.references.authorized,
+    identityReferenceSetId: referenceSignature ? `agent:${referenceSignature}` : "",
+    animationProviderConsent: referenceInput.references.animationProviderConsent,
   });
+  } catch (error) {
+    return { item: null, outcome: referenceInput.images.length ? "reference_unavailable" : "generation_failed", kind: args.kind, errorCode: errorCode(error) };
+  }
   const fingerprint = createAiMediaRequestFingerprint({
     contract: "inrcy-agent-ai-media-v1",
     request,
@@ -151,6 +166,8 @@ export async function generateInrAgentMedia(args: {
       studio_media_preference_percent: mediaMix.studioMediaPreferencePercent,
       studio_media_preference_mode: mediaMix.mode,
       studio_media_preference_blocks: mediaMix.appliedStudioBlockIds,
+      agent_reference_count: referenceInput.images.length,
+      agent_reference_signature: referenceSignature || null,
     },
   };
   let reservation: Awaited<ReturnType<typeof reserveAiMediaGeneration>> | null = null;
@@ -340,4 +357,16 @@ export async function generateInrAgentMedia(args: {
       errorCode: failureCode,
     };
   }
+}
+
+/** Shared by automatic, format-variant and manual regeneration paths. */
+export async function generateInrAgentMedia(args: Parameters<typeof generateMediaWithReferences>[0]): Promise<InrAgentGeneratedMediaResult> {
+  let referenceInput: Awaited<ReturnType<typeof loadInrAgentMediaReferences>>;
+  try {
+    referenceInput = await loadInrAgentMediaReferences({ supabase: args.supabase, accountId: args.accountId });
+  } catch (error) {
+    return { item: null, outcome: "reference_unavailable", kind: args.kind, errorCode: errorCode(error) };
+  }
+  const result = await generateMediaWithReferences(args, referenceInput);
+  return { ...result, referencesRequired: referenceInput.references.items.some((item) => item.usage === "required") };
 }

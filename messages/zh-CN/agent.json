@@ -829,5 +829,12 @@
   "publication_channel_empty_help": "请先在“内容”模块生成文字，再批准此渠道。",
   "publication_generate_content": "生成内容",
   "publication_channel_review_pending": "待批准",
-  "publication_additional_channels_validated": "新渠道已批准。"
+  "publication_additional_channels_validated": "新渠道已批准。",
+  "media_references_title": "生成参考素材",
+  "media_references_hint": "iNrAgent 根据参考素材创建新场景。“必选”要求包含指定的人物、场景或产品；“灵感”用于引导氛围。这些选择独立于 iNrStudio。",
+  "media_references_consent": "我已获得必要授权，并允许 iNrAgent 在自动生成中使用这些素材。",
+  "media_references_animation_consent": "我允许使用 {provider} 为这些人物制作动画，用于 iNrAgent 自动生成的视频。",
+  "media_references_error": "无法添加参考素材，请重试。",
+  "media_references_import_busy": "正在准备并保存参考素材…",
+  "media_references_character_limit": "最多可使用三个人物必选参考素材。请将其他素材设为“灵感”或移除。"
 }
