@@ -501,6 +501,7 @@
   .panel { padding: 10px; gap: 8px; }
   .panel:not(.pilotPanel) { display: grid; grid-template-rows: 26px minmax(174px, 1fr) auto; }
   .panelHeader { min-height: 26px; padding: 0 3px; }
+  .pilotPanel .panelHeader { padding-inline-start: 52px; }
   .panelHeader h3 { font-size: clamp(15px, 1.1vw, 18px); gap: 8px; }
   .headingIcon { width: 24px; height: 26px; font-size: 29px; }
   .headingIcon svg { width: 23px; height: 23px; }
