@@ -1001,6 +1001,7 @@
   "library_audio_import_hint": "Áudio MP3 ou WAV · Máximo de 3 MB e 5 minutos",
   "library_audio_file_error": "Escolha um ficheiro MP3 ou WAV até 3 MB.",
   "library_selected_files": "{count} ficheiro(s) · {images} imagem(ns) · {videos} vídeo(s) · {audios} áudio(s) · {size}",
+  "library_statistics": "Estatísticas",
   "library_media_title": "As suas imagens, vídeos e áudios iNrCy",
   "library_upload_empty": "Adicione pelo menos uma imagem, um vídeo ou um áudio.",
   "library_audio_upload_help": "Imagens e vídeos até 300 MB. Áudio MP3 ou WAV até 3 MB e 5 minutos.",

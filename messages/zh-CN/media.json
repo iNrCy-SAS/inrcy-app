@@ -1001,6 +1001,7 @@
   "library_audio_import_hint": "MP3 或 WAV 音频 · 最大 3 MB，最长 5 分钟",
   "library_audio_file_error": "请选择不超过 3 MB 的 MP3 或 WAV 文件。",
   "library_selected_files": "{count} 个文件 · {images} 张图片 · {videos} 个视频 · {audios} 个音频 · {size}",
+  "library_statistics": "统计数据",
   "library_media_title": "您的 iNrCy 图片、视频和音频",
   "library_upload_empty": "请至少添加一张图片、一个视频或一个音频文件。",
   "library_audio_upload_help": "图片和视频最大 300 MB。MP3 或 WAV 音频最大 3 MB、最长 5 分钟。",

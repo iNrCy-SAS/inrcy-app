@@ -548,14 +548,14 @@
   .studioBanner .ghostArt { width: 35px; height: 35px; }
   .studioBanner .cardButton { min-height: 34px; padding: 7px 13px; font-size: 11px; }
   .signatureGrid { grid-template-rows: repeat(2, minmax(100px, 1fr)); gap: 8px; }
-  .signatureCard { min-height: 100px; grid-template-columns: 37px minmax(0, 1fr); padding: 4px 10px 46px; column-gap: 9px; }
+  .signatureCard { min-height: 100px; grid-template-columns: 37px minmax(0, 1fr); padding: 12px 10px 46px; column-gap: 9px; }
   .signatureLogo { width: 37px; height: 37px; }
   .signatureCopy h4 { margin: 0 0 2px; font-size: 15px; }
   .signatureCopy p { font-size: 12px; line-height: 1.2; max-width: 240px; }
   .signatureCard .cardActions { right: 9px; bottom: 6px; left: 9px; gap: 8px; }
   .signatureCard .toolButton { min-height: 34px; min-width: 88px; padding: 6px 12px; font-size: 11px; }
   .signatureArt { width: 29px; height: 29px; flex-basis: 29px; }
-  .statsCard { padding-bottom: 52px; }
+  .statsCard { padding-bottom: 46px; }
   .statsCard .manualToolActions { gap: 7px; }
   .statsCard .signatureArt { width: 23px; height: 23px; flex-basis: 23px; }
   .statsCard .manualToolActions .toolButton { min-width: 94px; padding-inline: 11px; }

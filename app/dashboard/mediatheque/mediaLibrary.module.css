@@ -193,6 +193,35 @@
   margin-bottom:14px;
 }
 
+.metricsPanel{
+  min-width:0;
+  margin-bottom:14px;
+  border:1px solid rgba(142,161,255,.26);
+  border-radius:16px;
+  background:linear-gradient(115deg, rgba(24,68,104,.65), rgba(57,35,98,.55));
+}
+
+.metricsSummary{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  min-height:46px;
+  padding:10px 14px;
+  color:#e9f4ff;
+  font-size:13px;
+  font-weight:800;
+  cursor:pointer;
+  list-style:none;
+}
+
+.metricsSummary::-webkit-details-marker{display:none;}
+.metricsSummary:focus-visible{outline:2px solid #6cecff;outline-offset:3px;border-radius:14px;}
+.metricsIcon{flex:0 0 20px;width:20px;height:20px;color:#73ddff;}
+.metricsOverview{margin-left:auto;color:#bdcce9;font-size:12px;font-weight:700;text-align:right;}
+.metricsChevron{flex:0 0 18px;width:18px;height:18px;color:#c7cfff;}
+.metricsPanel[open] .metricsChevron{transform:rotate(180deg);}
+.metricsPanel > .metricsGrid{margin:0;padding:0 10px 10px;}
+
 .metricCard{
   border-radius:22px;
   padding:18px 20px;
@@ -2842,8 +2871,7 @@
   }
 }
 
-/* Le document reste à la taille de l'écran. Sur les écrans étroits,
-   l'import et la galerie défilent ensemble sous l'en-tête et les compteurs. */
+/* Desktop keeps the workspace in the viewport; narrow screens use one page scroll. */
 .page{
   box-sizing:border-box;
   height:100dvh;
@@ -2862,23 +2890,55 @@
 }
 
 @media (max-width:1180px){
+  .page{
+    overflow-x:hidden;
+    overflow-y:auto;
+    overscroll-behavior-y:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  .wrap{
+    height:auto;
+    display:block;
+  }
+
   .grid{
-    height:100%;
+    height:auto;
     min-width:0;
     min-height:0;
     grid-template-columns:minmax(0, 1fr);
     grid-auto-rows:max-content;
     align-content:start;
-    overflow-x:hidden;
-    overflow-y:auto;
-    overscroll-behavior:contain;
-    scrollbar-gutter:stable;
-    -webkit-overflow-scrolling:touch;
+    overflow:visible;
   }
 
   .heroCard,
-  .metricsGrid{
-    margin-bottom:0;
+  .metricsPanel{
+    margin-bottom:10px;
+  }
+
+  .card,
+  .libraryCard{
+    position:relative;
+    top:auto;
+    height:auto;
+    max-height:none;
+    overflow:visible;
+  }
+
+  .libraryCard{
+    grid-template-rows:auto auto auto auto;
+  }
+
+  .mediaList,
+  .selectedFilesList{
+    height:auto;
+    max-height:none;
+    overflow:visible;
+  }
+
+  .mediaListHead{
+    position:static;
   }
 
   .card::after{
@@ -2886,6 +2946,12 @@
        déporté de 10% créait à lui seul un débordement horizontal. */
     right:0;
   }
+}
+
+@media (max-width:680px){
+  .metricsSummary{padding:10px;gap:7px;}
+  .metricsOverview{font-size:11px;}
+  .metricsPanel .metricCard:last-child{grid-column:1 / -1;}
 }
 
 @media (max-width:1100px){

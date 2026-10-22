@@ -996,35 +996,49 @@ export default function MediaLibraryClient() {
         </section>
 
 
-        <section className={styles.metricsGrid}>
-          <article className={styles.metricCard}>
-            <span className={styles.metricLabel}>{i18nT("medias_486d82f4")}</span>
-            <strong className={styles.metricValue}>{stats.total}</strong>
-            <small className={styles.metricSub}>{i18nT("elements_affiches_20abefad")}</small>
-          </article>
-          <article className={styles.metricCard}>
-            <span className={styles.metricLabel}>{i18nT("images_09e871c9")}</span>
-            <strong className={styles.metricValue}>{stats.images}</strong>
-            <small className={styles.metricSub}>{i18nT("jpg_png_webp_b52b82db")}</small>
-          </article>
-          <article className={styles.metricCard}>
-            <span className={styles.metricLabel}>{i18nT("videos_ea129238")}</span>
-            <strong className={styles.metricValue}>{stats.videos}</strong>
-            <small className={styles.metricSub}>{i18nT("mp4_webm_mov_116ade48")}</small>
-          </article>
-          <article className={styles.metricCard}>
-            <span className={styles.metricLabel}>{i18nT("library_audio")}</span>
-            <strong className={styles.metricValue}>{stats.audios ?? 0}</strong>
-            <small className={styles.metricSub}>{i18nT("library_audio_formats")}</small>
-          </article>
-          <article className={styles.metricCard}>
-            <span className={styles.metricLabel}>{i18nT("poids_affiche_299b78be")}</span>
-            <strong className={styles.metricValueSmall}>
-              {displayBytes(stats.total_bytes)}
-            </strong>
-            <small className={styles.metricSub}>{i18nT("sur_cette_vue_d3d66a31")}</small>
-          </article>
-        </section>
+        <details className={styles.metricsPanel}>
+          <summary className={styles.metricsSummary}>
+            <svg className={styles.metricsIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <path d="M5 20V12M12 20V4M19 20V8" strokeLinecap="round" />
+            </svg>
+            <span>{i18nT("library_statistics")}</span>
+            <span className={styles.metricsOverview}>
+              {stats.total} {i18nT("medias_486d82f4")} · {displayBytes(stats.total_bytes)}
+            </span>
+            <svg className={styles.metricsChevron} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <path d="m5 7.5 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </summary>
+          <div className={styles.metricsGrid}>
+            <article className={styles.metricCard}>
+              <span className={styles.metricLabel}>{i18nT("medias_486d82f4")}</span>
+              <strong className={styles.metricValue}>{stats.total}</strong>
+              <small className={styles.metricSub}>{i18nT("elements_affiches_20abefad")}</small>
+            </article>
+            <article className={styles.metricCard}>
+              <span className={styles.metricLabel}>{i18nT("images_09e871c9")}</span>
+              <strong className={styles.metricValue}>{stats.images}</strong>
+              <small className={styles.metricSub}>{i18nT("jpg_png_webp_b52b82db")}</small>
+            </article>
+            <article className={styles.metricCard}>
+              <span className={styles.metricLabel}>{i18nT("videos_ea129238")}</span>
+              <strong className={styles.metricValue}>{stats.videos}</strong>
+              <small className={styles.metricSub}>{i18nT("mp4_webm_mov_116ade48")}</small>
+            </article>
+            <article className={styles.metricCard}>
+              <span className={styles.metricLabel}>{i18nT("library_audio")}</span>
+              <strong className={styles.metricValue}>{stats.audios ?? 0}</strong>
+              <small className={styles.metricSub}>{i18nT("library_audio_formats")}</small>
+            </article>
+            <article className={styles.metricCard}>
+              <span className={styles.metricLabel}>{i18nT("poids_affiche_299b78be")}</span>
+              <strong className={styles.metricValueSmall}>
+                {displayBytes(stats.total_bytes)}
+              </strong>
+              <small className={styles.metricSub}>{i18nT("sur_cette_vue_d3d66a31")}</small>
+            </article>
+          </div>
+        </details>
 
         <div className={styles.grid} data-media-library-content="true">
           <form className={styles.card} onSubmit={onSubmit}>

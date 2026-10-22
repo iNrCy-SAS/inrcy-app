@@ -1001,6 +1001,7 @@
   "library_audio_import_hint": "MP3- of WAV-audio · Maximaal 3 MB en 5 minuten",
   "library_audio_file_error": "Kies een MP3- of WAV-bestand van maximaal 3 MB.",
   "library_selected_files": "{count} bestand(en) · {images} afbeelding(en) · {videos} video’s · {audios} audiobestand(en) · {size}",
+  "library_statistics": "Statistieken",
   "library_media_title": "Uw iNrCy-afbeeldingen, video’s en audio",
   "library_upload_empty": "Voeg minstens één afbeelding, video of audiobestand toe.",
   "library_audio_upload_help": "Afbeeldingen en video’s tot 300 MB. MP3- of WAV-audio tot 3 MB en 5 minuten.",
