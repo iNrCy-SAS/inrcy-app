@@ -842,6 +842,43 @@
   "settings_section_channels": "渠道",
   "settings_section_generation": "创作",
   "settings_section_references": "参考素材",
-  "media_references_summary": "每篇发布都将您的人物、场景或产品融入全新画面。" ,
-  "settings_selection_empty": "尚未选择"
+  "media_references_summary": "每篇发布都将您的人物、场景或产品融入全新画面。",
+  "settings_selection_empty": "尚未选择",
+  "workspaces": {
+    "publications": {
+      "name": "发布",
+      "description": "准备并安排您的帖子"
+    },
+    "campaigns": {
+      "name": "Emailings",
+      "description": "您的获客和客户维护活动",
+      "premium": "自动营销活动适用于 Premium 账户。"
+    },
+    "stats": {
+      "name": "统计",
+      "description": "适时提供报告和建议"
+    },
+    "grow": "获客",
+    "loyalty": "客户维护",
+    "ideas": "创意",
+    "generate": "生成",
+    "prepare": "准备",
+    "sendReport": "发送报告",
+    "preparing": "准备中…",
+    "planning": "日程",
+    "settings": "设置",
+    "enabled": "自动化已开启",
+    "paused": "自动化已暂停",
+    "help": "帮助",
+    "close": "关闭",
+    "campaignMode": "活动模式",
+    "premium": "自动营销活动适用于 Premium 账户。",
+    "subscription": "查看订阅",
+    "back": "返回仪表板",
+    "open": "打开代理",
+    "configureAutomation": "设置自动化",
+    "agentButton": "AI 代理",
+    "automation": "自动化",
+    "manual": "手动操作"
+  }
 }

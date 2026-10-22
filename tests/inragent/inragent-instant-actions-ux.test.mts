@@ -13,28 +13,23 @@ const controller = read(
   "app/dashboard/agent/_hooks/useAgentAutomationController.ts",
 );
 
-test("Publier, Propulser et Fidéliser proposent l'action instantanée à côté des réglages", () => {
-  const cardsStart = client.indexOf("visibleAutomations.map((automation)");
-  const cardsEnd = client.indexOf("className={styles.mainGrid}", cardsStart);
-  const cards = client.slice(cardsStart, cardsEnd);
-
-  assert.ok(cardsStart >= 0 && cardsEnd > cardsStart);
-  assert.match(cards, /const hasInstantAction = automation\.key !== "stats"/);
-  assert.match(cards, /className=\{styles\.automationCardActions\}/);
-  assert.match(cards, /className=\{styles\.instantActionButton\}/);
-  assert.match(cards, /onAfterExit: \(\) => testAutomationNow\(automation\.key\)/);
-  assert.match(cards, /i18nT\("instant_publish_action_label"\)/);
-  assert.match(cards, /i18nT\("instant_campaign_action_label"\)/);
-  assert.match(cards, /title=\{`\$\{instantActionLabel\} — \$\{manualCreditsBlocked \? manualCreditHelp : instantActionHelp\}`\}/);
-  assert.match(cards, /instantActionUnavailable \|\| manualCreditsBlocked/);
-  assert.match(cards, /aria-description=\{manualCreditsBlocked \? manualCreditHelp : undefined\}/);
-  assert.doesNotMatch(cards, /manual-publish-credit-help|styles\.manualCreditHelp|data-manual-credit-blocked/);
-  assert.doesNotMatch(styles, /manualCreditHelp|data-manual-credit-blocked/);
-  assert.match(cards, /<span aria-hidden>⚡<\/span>/);
-  assert.match(
-    styles,
-    /\.automationCardActions \{[\s\S]*?display: inline-flex[\s\S]*?gap: 6px/,
-  );
+test("each specialist exposes one guarded instant action beside its settings", () => {
+  const header = read("app/dashboard/agent/_components/AgentWorkspaceHeader.tsx");
+  const start = client.indexOf("<AgentWorkspaceHeader");
+  const end = client.indexOf("{scheduledEditSession ?", start);
+  const controls = client.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.match(controls, /onPrepare=\{\(\) =>/);
+  assert.match(controls, /onAfterExit: \(\) => testAutomationNow\(selected\.key\)/);
+  assert.match(controls, /prepareDisabled=\{loadState === "loading"[\s\S]*?prepareActionState === "saving"/);
+  assert.match(controls, /selected\.key !== "stats"[\s\S]*?selectedAvailableChannels\.length === 0/);
+  assert.match(controls, /selected\.key === "publish" && !manualCredits\.availability\?\.allowed/);
+  assert.match(header, /onClick=\{props\.onPrepare\}/);
+  assert.match(header, /disabled=\{props\.prepareDisabled\}/);
+  assert.match(header, /title=\{props\.prepareHelp\}/);
+  assert.match(header, /<span aria-hidden="true">⚡<\/span>/);
+  assert.match(header, /props\.workspace === "stats" \? "sendReport"/);
+  assert.match(header, /onClick=\{props\.onSettings\}/);
 });
 
 test("les modales de réglages n'exécutent plus Publier ou les campagnes, mais Stats reste inchangé", () => {

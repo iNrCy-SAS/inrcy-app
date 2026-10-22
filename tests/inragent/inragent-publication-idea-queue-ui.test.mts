@@ -30,7 +30,11 @@ test("le déplacement manuel persiste la file et la lecture la restitue dans cet
 });
 
 test("l’ampoule ouvre un espace Idées avec une sauvegarde distincte des réglages", () => {
-  assert.match(client, /className=\{styles\.ideasActionButton\}/);
+  const header = readFileSync(new URL("../../app/dashboard/agent/_components/AgentWorkspaceHeader.tsx", import.meta.url), "utf8");
+  assert.match(header, /props\.workspace === "publications"/);
+  assert.match(header, /onClick=\{props\.onIdeas\}/);
+  assert.match(header, /💡/);
+  assert.match(client, /onIdeas=\{\(\) =>/);
   assert.match(client, /setPublicationIdeasOpen\(true\)/);
   assert.match(client, /onClick=\{publicationIdeasOpen \? savePublicationIdeas : saveSettings\}/);
   assert.match(client, /method: "PATCH"[\s\S]*?publicationIdeas: publicationIdeasDraft/);

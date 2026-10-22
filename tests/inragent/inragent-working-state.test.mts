@@ -76,7 +76,7 @@ test("la roulette affiche la progression estimée sans annoncer 100 % avant la r
   );
   assert.equal(
     (client.match(/progress=\{prepareProgress\?\.percent\}/g) || []).length,
-    3,
+    1,
   );
   assert.match(
     styles,
@@ -86,6 +86,7 @@ test("la roulette affiche la progression estimée sans annoncer 100 % avant la r
     styles,
     /\.robotWorkingProgress \{[\s\S]*?font-variant-numeric: tabular-nums/,
   );
+  assert.match(client, /status=\{[\s\S]*?agentWorkingLabel[\s\S]*?prepareProgress\.percent/);
   assert.match(controller, /current\.percent >= 99/);
   assert.match(controller, /Math\.min\(99, current\.percent \+ increment\)/);
   assert.match(

@@ -59,7 +59,7 @@ test("Founder est la seule édition qui possède Encaisser, Factures et Devis", 
   );
 });
 
-test("le cockpit Premium met Booster en tête et groupe les signatures au-dessus de Réputation et Campagnes mails", () => {
+test("le cockpit Premium groupe la communication à gauche et Studio avec le pilotage à droite", () => {
   const source = read("app/dashboard/_components/DashboardModulesCard.tsx");
   const campaignChoices = read("app/dashboard/_components/DashboardCampaignChoices.tsx");
   const styles = read("app/dashboard/_components/DashboardSignatureTools.module.css");
@@ -68,7 +68,6 @@ test("le cockpit Premium met Booster en tête et groupe les signatures au-dessus
   const secondary = source.indexOf('data-dashboard-premium-secondary-tools=');
   const ads = source.indexOf('"premium-campaign-ads"');
   const studio = source.indexOf('"premium-studio-open"');
-  const agent = source.indexOf('"premium-agent-planning"');
   const pilot = source.indexOf('id="dashboard-pilot-title"');
   const signatures = source.indexOf("{signatureTools.map");
   const relationships = source.indexOf('data-dashboard-relationship-tools="true"');
@@ -76,12 +75,12 @@ test("le cockpit Premium met Booster en tête et groupe les signatures au-dessus
   const mailCampaigns = source.indexOf('"premium-campaign-open"');
 
   assert.ok(creation >= 0 && creation < booster);
-  assert.ok(booster < secondary && secondary < ads && ads < studio && studio < agent);
-  assert.ok(agent < pilot && pilot < relationships && relationships < mailCampaigns);
-  assert.ok(mailCampaigns < signatures && signatures < reputation);
+  assert.ok(booster < secondary && secondary < ads && ads < mailCampaigns);
+  assert.ok(mailCampaigns < pilot && pilot < relationships && relationships < studio);
+  assert.ok(studio < signatures && signatures < reputation);
   assert.doesNotMatch(source, /signatureStyles\.dnaCard/);
 
-  // The four tools stay between the full-width Campaigns and Reputation bands.
+  // The four tools stay between the full-width Studio and Reputation bands.
   const signatureDefinitions = source.slice(source.indexOf("const signatureTools:"), creation);
   const signatureNames = Array.from(
     signatureDefinitions.matchAll(/tone: "([^"]+)"/g),
@@ -95,7 +94,7 @@ test("le cockpit Premium met Booster en tête et groupe les signatures au-dessus
   assert.match(source, /signatureStyles\.reputationCard/);
   assert.match(source, /signatureStyles\.mailCampaignCard/);
   assert.match(styles, /\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/);
-  assert.match(styles, /\.creationGrid\s*\{[^}]*grid-template-columns:\s*1\.3fr 1fr 1fr/);
+  assert.match(styles, /\.creationGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.signatureGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.relationshipGrid\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
   assert.match(styles, /@media \(max-width: 1100px\)[\s\S]*?\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
@@ -112,13 +111,8 @@ test("le cockpit Premium met Booster en tête et groupe les signatures au-dessus
   assert.match(source, /onClick=\{adsPilotEnabled \? \(\) => standardMode \? startPanelOpening\("abonnement"\) : startModuleNavigation\("\/dashboard\/ads"\) : undefined\}/);
   assert.match(source, /if \(onOpenBoosterPublish\) onOpenBoosterPublish\(\)/);
   assert.match(source, /if \(onOpenBoosterStats\) onOpenBoosterStats\(\)/);
-  assert.match(source, /data-testid=\{standardMode \? "standard-agent-planning-icon" : "premium-agent-planning"\}/);
-  assert.match(source, /className=\{signatureStyles\.planningButton\}/);
-  assert.match(source, /"premium-agent-planning"\}[\s\S]*?aria-label=\{standardT\("agentPlanning"\)\}/);
   assert.match(source, /data-testid=\{standardMode \? "standard-studio-open" : "premium-studio-open"\}/);
   assert.match(source, /const studioPath = "\/dashboard\/generer-media"/);
-  assert.match(source, /<DashboardAgentPlanningModal/);
-  assert.match(source, /standardMode=\{standardMode\}/);
   assert.match(source, /const standardMode = standardModeOverride \|\| dashboardEdition === "standard"/);
   assert.match(source, /mobile-shortcuts\/inrcalendar-bubble\.png/);
   assert.match(source, /mobile-shortcuts\/inrcrm-bubble\.png/);

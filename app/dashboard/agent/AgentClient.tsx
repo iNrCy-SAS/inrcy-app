@@ -1,5 +1,9 @@
 "use client";
 
+import AgentWorkspaceHeader from "./_components/AgentWorkspaceHeader";
+import AgentWorkspaceMessages from "./_components/AgentWorkspaceMessages";
+import AgentCampaignAccess from "./_components/AgentCampaignAccess";
+import { INR_AGENT_WORKSPACES, isAutomationInAgentWorkspace, filterAgentWorkspaceActions, filterAgentWorkspaceSchedule, type InrAgentWorkspace } from "@/lib/inrAgentWorkspaces";
 import AgentPublicationChannelList from "./_components/AgentPublicationChannelList";
 import AgentMediaReferences from "./_components/AgentMediaReferences";
 import AgentSettingsMultiSelect from "./_components/AgentSettingsMultiSelect";
@@ -37,9 +41,6 @@ import {
   type InrStudioReturnedMedia,
 } from "@/lib/inrStudioNavigation";
 import { useInrStudioSession } from "../_hooks/useInrStudioSession";
-import HelpButton from "../_components/HelpButton";
-import AiConfigurationIcon from "../_components/AiConfigurationIcon";
-import BusinessDnaIcon from "../_components/BusinessDnaIcon";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import CampaignScheduleModal from "../_components/CampaignScheduleModal";
@@ -47,7 +48,6 @@ import PublishScheduleModal, {
   type PublishScheduleItem,
   type PublishScheduleSelection,
 } from "../_components/PublishScheduleModal";
-import PublishAiConfigurationDrawer from "../booster/publier/components/PublishAiConfigurationDrawer";
 import TiktokPublicationSettingsModal, {
   type TiktokPublicationSettings,
   type TiktokPublicationValidationMeta,
@@ -241,7 +241,6 @@ type PendingAgentTiktokValidation =
 import {
   AGENT_MEDIA_MAX_IMAGE_BYTES,
   AGENT_MEDIA_MAX_VIDEO_BYTES,
-  ROBOT_SRC,
   channelOrder,
   channelOptions,
   statsRubriqueOptions,
@@ -280,7 +279,6 @@ import {
   settingsToConfigs,
   configsToSettings,
   inrSendFolderForAutomation,
-  headerToolLinkForAutomation,
 } from "./_lib/agent.settings";
 import {
   extractImageAsset,
@@ -511,29 +509,15 @@ function AgentWorkingIndicator({
   );
 }
 
-function AgentEditorialCronWaitIndicator({
-  label,
-  placement = "overlay",
-}: {
-  label: string;
-  placement?: "overlay" | "rail";
-}) {
-  return (
-    <div
-      className={`${styles.robotCronWaitBadge} ${
-        placement === "rail" ? styles.robotCronWaitRail : ""
-      }`}
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-    >
-      <span className={styles.robotCronWaitPulse} aria-hidden />
-      <span>{label}</span>
-    </div>
-  );
+type AgentClientProps = { workspace?: InrAgentWorkspace };
+
+export default function AgentClient({ workspace = "publications" }: AgentClientProps) {
+  const edition = useDashboardEdition();
+  if (edition === "standard" && workspace === "campaigns") return <AgentCampaignAccess />;
+  return <AgentWorkspaceMessages workspace={workspace}><AgentWorkspaceClient key={workspace} workspace={workspace} /></AgentWorkspaceMessages>;
 }
 
-export default function AgentClient() {
+function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   const { metaPilotEnabled } = useDashboardViewerAccess();
   const i18nT = useTranslations("agent");
   const mediaT = useTranslations("media");
@@ -550,8 +534,8 @@ export default function AgentClient() {
   const visibleAutomations = useMemo(
     () => (standardMode
         ? automations.filter((automation) => isStandardAgentAutomationKey(automation.key))
-        : automations).map((automation) => ({ ...automation, availableChannels: automation.availableChannels.filter((channel) => channel !== "threads" || metaPilotEnabled), availableThemes: automation.availableThemes.filter((theme) => theme !== "Threads" || metaPilotEnabled) })),
-    [standardMode, metaPilotEnabled]
+        : automations).filter((automation) => isAutomationInAgentWorkspace(workspace, automation.key)).map((automation) => ({ ...automation, availableChannels: automation.availableChannels.filter((channel) => channel !== "threads" || metaPilotEnabled), availableThemes: automation.availableThemes.filter((theme) => theme !== "Threads" || metaPilotEnabled) })),
+    [standardMode, metaPilotEnabled, workspace]
   );
   const {
     agentSettings,
@@ -580,9 +564,8 @@ export default function AgentClient() {
     showNotice,
   } = useAgentRuntimeData({ standardMode });
   const [publicationVisibilityNow, setPublicationVisibilityNow] = useState(0);
-  const { robotPanelOpen, setRobotPanelOpen, isMobileHeader } =
-    useAgentResponsiveUi();
-  const [selectedKey, setSelectedKey] = useState<AutomationKey>("publish");
+  const { isMobileHeader } = useAgentResponsiveUi();
+  const [selectedKey, setSelectedKey] = useState<AutomationKey>(INR_AGENT_WORKSPACES[workspace].initialAutomation);
   const [selectedPreparedActionId, setSelectedPreparedActionId] = useState<
     string | null
   >(null);
@@ -614,7 +597,6 @@ export default function AgentClient() {
   const [agentConfirmDialog, setAgentConfirmDialog] =
     useState<AgentConfirmDialogState>(null);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [aiConfigurationOpen, setAiConfigurationOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduledEditSession, setScheduledEditSession] =
     useState<ScheduledActionEditSession | null>(null);
@@ -1128,13 +1110,8 @@ export default function AgentClient() {
     [settingsAutomation, standardMode]
   );
 
-  const selectedHeaderTool = useMemo(
-    () => headerToolLinkForAutomation(selected.key),
-    [selected.key]
-  );
-
   const upcomingScheduleItems = useMemo<ScheduleListItem[]>(() => {
-    return buildAgentScheduleItems({
+    const items = buildAgentScheduleItems({
       actions,
       historyPublications,
       scheduledActions,
@@ -1144,7 +1121,12 @@ export default function AgentClient() {
       locale,
       translate: runtimeT,
     });
+    const manualAutomations = new Map(scheduledActions.map((action) => [
+      action.id, scheduledActionToPreparedAction(action)?.automationKey ?? scheduledAutomationKey(action),
+    ]));
+    return filterAgentWorkspaceSchedule(workspace, items, manualAutomations);
   }, [
+    workspace,
     actions,
     historyPublications,
     agentConnectedChannels,
@@ -5413,7 +5395,7 @@ export default function AgentClient() {
     : i18nT("agent_working_saving");
 
   return (
-    <main className={styles.agentPage}>
+    <main className={`${styles.agentPage} ${styles.agentWorkspace}`} data-agent-workspace={workspace}>
       <AgentFeedbackModals
         publishExecutionProgress={agentPublishExecutionProgress}
         publishSuccessSummary={agentPublishSuccessSummary}
@@ -5434,576 +5416,72 @@ export default function AgentClient() {
         onAlternateConfirm={() => void confirmAgentDialogAlternate()}
       />
 
-      <PublishAiConfigurationDrawer
-        open={aiConfigurationOpen}
-        isMobile={isMobileHeader}
-        drawerHeight="100dvh"
-        onClose={() => setAiConfigurationOpen(false)}
-      />
       <section
         className={styles.agentCanvas}
         aria-label={i18nT("inr_agent_automatisations_e832d99d")}
       >
-        <header className={styles.moduleHeader}>
-          <div className={styles.moduleTitleBlock}>
-            <img
-              className={styles.moduleLogo}
-              src="/icons/inr-agent-header.png"
-              alt={i18nT("inr_agent_88080b90")}
-              width={68}
-              height={68}
-              loading="eager"
-              decoding="sync"
-            />
-            <div className={styles.moduleTitleText}>
-              <h1 aria-label={i18nT("inr_agent_88080b90")}>
-                {i18nT("inr_agent_88080b90").slice(0, 4)}<span className={styles.agentBrandAccent}>{i18nT("inr_agent_88080b90").slice(4)}</span>
-              </h1>
-              <p className={styles.moduleSubtitleDesktop}>
-                {i18nT(
-                  "programmateur_d_automatisations_connecte_a_vos_ee58d0a3"
-                )}{" "}
-              </p>
-            </div>
+        <AgentWorkspaceHeader
+          workspace={workspace}
+          campaignMode={selectedKey === "loyalty" ? "loyalty" : "grow"}
+          onCampaignMode={(mode) => {
+            const changeMode = () => { setSelectedKey(mode); setSelectedPreparedActionId(null); };
+            exitScheduledEditSession({ silent: true, onAfterExit: changeMode });
+          }}
+          onHelp={() => {
+            const open = () => setHelpOpen(true);
+            exitScheduledEditSession({ silent: true, onAfterExit: open });
+          }}
+          onIdeas={() => {
+            const open = () => {
+              setSettingsKey(null);
+              setPublicationIdeasDraft(configs.publish.publicationIdeas);
+              setPublicationIdeasOpen(true);
+            };
+            exitScheduledEditSession({ silent: true, onAfterExit: open });
+          }}
+          onPrepare={() => {
+            exitScheduledEditSession({ silent: true, onAfterExit: () => testAutomationNow(selected.key) });
+          }}
+          onPlanning={() => {
+            const open = () => {
+              setScheduleOpen(true);
+              void refreshActions(true);
+              void refreshScheduledActions(true);
+            };
+            exitScheduledEditSession({ silent: true, onAfterExit: open });
+          }}
+          onSettings={() => {
+            const open = () => { setPublicationIdeasOpen(false); setSettingsKey(selected.key); };
+            exitScheduledEditSession({ silent: true, onAfterExit: open });
+          }}
+          onToggle={() => {
+            const open = () => { setPublicationIdeasOpen(false); setSettingsKey(selected.key); };
+            exitScheduledEditSession({ silent: true, onAfterExit: open });
+          }}
+          onClose={() => {
+            const close = () => router.push("/dashboard");
+            if (exitScheduledEditSession({ silent: true, onAfterExit: close })) close();
+          }}
+          enabled={selectedConfig.enabled}
+          busy={loadState === "loading" || saveState === "saving"}
+          preparing={Boolean(testNowKey) || prepareActionState === "saving"}
+          prepareDisabled={loadState === "loading" || saveState === "saving" || prepareActionState === "saving" || Boolean(testNowKey)
+            || (selected.key !== "stats" && connectedChannelsLoadState === "ready" && selectedAvailableChannels.length === 0)
+            || (selected.key === "publish" && !manualCredits.availability?.allowed)}
+          prepareHelp={selected.key === "publish" ? manualCreditHelp || i18nT("instant_publish_action_help") : undefined}
+          status={loadState === "loading" ? i18nT("synchronisation_60a2d2da")
+            : agentWorking ? `${agentWorkingLabel}${prepareProgress ? ` · ${prepareProgress.percent}%` : ""}`
+            : showEditorialCronWait && workspace === "publications" ? i18nT("next_editorial_publication_in_a_few_minutes") : undefined}
+        />
+        {scheduledEditSession ? (
+          <div className={styles.workspaceEditBanner} role="status">
+            <PencilActionIcon />
+            <strong>{i18nT("action_programmee_ea2709b8")}</strong>
+            <span>{scheduledEditDirty ? i18nT("modifications_non_sauvegardees_ffc636a4") : i18nT("aucune_modification_pour_le_moment_909aff44")}</span>
+            <button type="button" onClick={() => exitScheduledEditSession()}>{i18nT("quitter_l_edition_08b3f0cb")}</button>
           </div>
-
-          <p className={styles.moduleSubtitleMobile}>
-            {i18nT("programmateur_d_automatisations_connecte_a_vos_ee58d0a3")}{" "}
-          </p>
-
-          <div className={styles.moduleHeaderActions}>
-            {loadState === "loading" && (
-              <span className={styles.headerSyncPill}>
-                {i18nT("synchronisation_60a2d2da")}
-              </span>
-            )}
-            {tableMissing && (
-              <span className={styles.headerWarningPill}>
-                {i18nT("tables_supabase_a_creer_61f5bd7b")}{" "}
-              </span>
-            )}
-            <HelpButton
-              onClick={() => {
-                const openHelp = () => setHelpOpen(true);
-                if (
-                  !exitScheduledEditSession({
-                    silent: true,
-                    onAfterExit: openHelp,
-                  })
-                )
-                  return;
-                openHelp();
-              }}
-              title={i18nT("aide_inr_agent_ec5c0488")}
-              size={isMobileHeader ? 26 : 34}
-            />
-            <button
-              type="button"
-              className={styles.headerAiButton}
-              onClick={() => {
-                const openAiConfiguration = () => setAiConfigurationOpen(true);
-                if (
-                  !exitScheduledEditSession({
-                    silent: true,
-                    onAfterExit: openAiConfiguration,
-                  })
-                )
-                  return;
-                openAiConfiguration();
-              }}
-              aria-label={i18nT("configuration_ia_f620c8d8")}
-              title={i18nT("configurer_le_style_des_contenus_generes_c780a7a6")}
-            >
-              <AiConfigurationIcon size={21} />
-            </button>
-            <button
-              type="button"
-              className={`${styles.headerAiButton} ${styles.headerDnaButton}`}
-              onClick={() => {
-                const openBusinessDna = () =>
-                  router.push("/dashboard/adn-entreprise");
-                if (
-                  !exitScheduledEditSession({
-                    silent: true,
-                    onAfterExit: openBusinessDna,
-                  })
-                )
-                  return;
-                openBusinessDna();
-              }}
-              aria-label={dashboardT("aiMemory.openTitle")}
-              title={dashboardT("aiMemory.openTitle")}
-            >
-              <BusinessDnaIcon size={26} className={styles.headerDnaIcon} />
-            </button>
-            <button
-              type="button"
-              className={styles.headerScheduleButton}
-              onClick={() => {
-                const openPlanning = () => {
-                  setScheduleOpen(true);
-                  void refreshActions(true);
-                  void refreshScheduledActions(true);
-                };
-                if (
-                  !exitScheduledEditSession({
-                    silent: true,
-                    onAfterExit: openPlanning,
-                  })
-                )
-                  return;
-                openPlanning();
-              }}
-              aria-label={i18nT("voir_les_actions_programmees_b3d2dc94")}
-              title={i18nT("programmation_6255df3b")}
-            >
-              <span className={styles.headerScheduleIcon} aria-hidden>
-                <CalendarMetaIcon />
-              </span>
-              <span className={styles.headerScheduleLabel}>
-                {i18nT("planning_0005027d")}
-              </span>
-            </button>
-            <button
-              type="button"
-              className={styles.headerToolButton}
-              data-automation={selected.key}
-              onClick={() => {
-                const openTool = () => router.push(selectedHeaderTool.href);
-                if (
-                  !exitScheduledEditSession({
-                    silent: true,
-                    onAfterExit: openTool,
-                  })
-                )
-                  return;
-                openTool();
-              }}
-              aria-label={i18nT("ouvrir_value_b62c18f4", {
-                value0: selectedHeaderTool.label,
-              })}
-              title={i18nT("ouvrir_value_b62c18f4", {
-                value0: selectedHeaderTool.label,
-              })}
-            >
-              {selectedHeaderTool.logoSrc ? (
-                <img
-                  className={styles.headerToolLogo}
-                  src={selectedHeaderTool.logoSrc}
-                  alt=""
-                  aria-hidden
-                  width={34}
-                  height={34}
-                  loading="eager"
-                  decoding="sync"
-                  onError={(event) => {
-                    event.currentTarget.src = "/inrstats-logo.png";
-                  }}
-                />
-              ) : (
-                <span className={styles.headerToolLetter} aria-hidden>
-                  {selectedHeaderTool.compactLabel}
-                </span>
-              )}
-              <span className={styles.headerToolLabel}>
-                {selectedHeaderTool.label}
-              </span>
-            </button>
-            <button
-              type="button"
-              className={styles.headerInrSendButton}
-              onClick={() => {
-                const openInrSend = () =>
-                  router.push(
-                    `/dashboard/mails?folder=${
-                      standardMode
-                        ? "publications"
-                        : inrSendFolderForAutomation(selected.key)
-                    }`
-                  );
-                if (
-                  !exitScheduledEditSession({
-                    silent: true,
-                    onAfterExit: openInrSend,
-                  })
-                )
-                  return;
-                openInrSend();
-              }}
-              aria-label={i18nT("ouvrir_inr_send_d4b453c9")}
-              title={i18nT("voir_l_historique_des_actions_realisees_98b66273")}
-            >
-              <span className={styles.headerInrSendLabel}>
-                {i18nT("inr_send_5c2a3e92")}
-              </span>
-              <img
-                className={styles.headerInrSendLogo}
-                src="/inrsend-logo-seul.png"
-                alt=""
-                aria-hidden
-                width={34}
-                height={34}
-                loading="eager"
-                decoding="sync"
-              />
-            </button>
-            <button
-              type="button"
-              className={styles.headerCloseButton}
-              onClick={() => {
-                const closeAgent = () => router.push("/dashboard");
-                if (
-                  !exitScheduledEditSession({
-                    silent: true,
-                    onAfterExit: closeAgent,
-                  })
-                )
-                  return;
-                closeAgent();
-              }}
-              aria-label={i18nT("retour_au_tableau_de_bord_72006dd2")}
-              title={i18nT("retour_au_tableau_de_bord_72006dd2")}
-            >
-              <span className={styles.headerCloseLabel}>
-                {i18nT("fermer_5ab4ec64")}
-              </span>
-            </button>
-          </div>
-        </header>
-
-        <nav
-          className={`${styles.automationGrid} ${
-            standardMode ? styles.automationGridStandard : ""
-          }`}
-          aria-label={i18nT("automatisations_inr_agent_66ca506e")}
-        >
-          <div className={styles.agentCommandRailIdentity}>
-            <div
-              className={`${styles.robotHalo} ${styles.agentCommandRailRobot} ${
-                agentWorking ? styles.robotHaloWorking : ""
-              }`}
-            >
-              <span className={styles.starOne} />
-              <span className={styles.starTwo} />
-              <span className={styles.starThree} />
-              <span className={styles.starFour} />
-              <span className={styles.starFive} />
-              <span className={styles.starSix} />
-              <span className={styles.starSeven} />
-              <span className={styles.starEight} />
-              <span className={styles.starNine} />
-              <img
-                src={ROBOT_SRC}
-                alt=""
-                width={824}
-                height={900}
-                loading="eager"
-                decoding="sync"
-              />
-              {agentWorking ? (
-                <AgentWorkingIndicator
-                  title={i18nT("agent_working_title")}
-                  detail={agentWorkingLabel}
-                  progress={prepareProgress?.percent}
-                />
-              ) : null}
-            </div>
-            {showEditorialCronWait ? (
-              <AgentEditorialCronWaitIndicator
-                placement="rail"
-                label={i18nT("next_editorial_publication_in_a_few_minutes")}
-              />
-            ) : (
-              <span aria-hidden>
-                <strong>{i18nT("inr_agent_88080b90")}</strong>
-                <small>{i18nT("missions_323ea30c")}</small>
-              </span>
-            )}
-          </div>
-          {visibleAutomations.map((automation) => {
-            const selectedCard = automation.key === selectedKey;
-            const active = configs[automation.key].enabled;
-            const hasInstantAction = automation.key !== "stats";
-            const instantActionLabel =
-              automation.key === "publish"
-                ? i18nT("instant_publish_action_label")
-                : i18nT("instant_campaign_action_label");
-            const instantActionHelp =
-              automation.key === "publish"
-                ? i18nT("instant_publish_action_help")
-                : i18nT("instant_campaign_action_help");
-            const instantActionUnavailable = Boolean(
-              hasInstantAction &&
-                connectedChannelsLoadState === "ready" &&
-                automation.availableChannels.length > 0 &&
-                connectedChannelsForAutomation(
-                  automation,
-                  agentConnectedChannels
-                ).length === 0
-            );
-            const manualCreditsBlocked = automation.key === "publish" && !manualCredits.availability?.allowed;
-
-            return (
-              <article
-                key={automation.key}
-                data-automation={automation.key}
-                data-has-instant-action={hasInstantAction ? "true" : undefined}
-                data-has-ideas-action={automation.key === "publish" ? "true" : undefined}
-                className={`${styles.automationCard} ${
-                  selectedCard ? styles.automationCardActive : ""
-                }`}
-              >
-                <button
-                  type="button"
-                  className={styles.automationSelect}
-                  onClick={() => {
-                    const selectAutomation = () =>
-                      setSelectedKey(automation.key);
-                    if (
-                      !exitScheduledEditSession({
-                        silent: true,
-                        onAfterExit: selectAutomation,
-                      })
-                    )
-                      return;
-                    selectAutomation();
-                  }}
-                  aria-pressed={selectedCard}
-                >
-                  <span className={styles.cardIcon} aria-hidden>
-                    <AutomationIcon type={automation.key} />
-                  </span>
-                  <span className={styles.cardTitle}>
-                    <span className={styles.cardTitleFull}>
-                      {agentAutomationTitle(automation.key, runtimeT)}
-                    </span>
-                    <span className={styles.cardTitleShort}>
-                      {agentAutomationTitle(automation.key, runtimeT, true)}
-                    </span>
-                  </span>
-                  {pendingActionsByAutomation[automation.key] > 0 && (
-                    <span
-                      className={styles.cardPendingCount}
-                      data-count={pendingActionsByAutomation[automation.key]}
-                      aria-label={i18nT("value_action_a_valider_c1bfb13c", {
-                        value0: pendingActionsByAutomation[automation.key],
-                      })}
-                    >
-                      {i18nT("value_a_valider_24b7d9fb", {
-                        value0: pendingActionsByAutomation[automation.key],
-                      })}
-                    </span>
-                  )}
-                  {active && (
-                    <span
-                      className={styles.cardStatus}
-                      aria-label={i18nT("automatisation_activee_4636ff37")}
-                    />
-                  )}
-                </button>
-                <div className={styles.automationCardActions}>
-                  {hasInstantAction ? (
-                    <button
-                      type="button"
-                      className={styles.instantActionButton}
-                      onClick={() => {
-                        exitScheduledEditSession({
-                          silent: true,
-                          onAfterExit: () => testAutomationNow(automation.key),
-                        });
-                      }}
-                      disabled={
-                        saveState === "saving" ||
-                        loadState === "loading" ||
-                        prepareActionState === "saving" ||
-                        Boolean(testNowKey) ||
-                        instantActionUnavailable || manualCreditsBlocked
-                      }
-                      aria-label={instantActionLabel}
-                      aria-busy={testNowKey === automation.key}
-                      aria-description={manualCreditsBlocked ? manualCreditHelp : undefined}
-                      title={`${instantActionLabel} — ${manualCreditsBlocked ? manualCreditHelp : instantActionHelp}`}
-                    >
-                      <span aria-hidden>⚡</span>
-                    </button>
-                  ) : null}
-                  {automation.key === "publish" ? (
-                    <button
-                      type="button"
-                      className={styles.ideasActionButton}
-                      onClick={() => {
-                        const openIdeas = () => {
-                          setSettingsKey(null);
-                          setPublicationIdeasDraft(configs.publish.publicationIdeas);
-                          setPublicationIdeasOpen(true);
-                        };
-                        if (!exitScheduledEditSession({ silent: true, onAfterExit: openIdeas })) return;
-                        openIdeas();
-                      }}
-                      disabled={loadState === "loading" || publicationIdeasSaveState === "saving"}
-                      aria-label={i18nT("publication_ideas_open")}
-                      title={i18nT("publication_ideas_open")}
-                    >
-                      <span aria-hidden="true">💡</span>
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className={styles.settingsButton}
-                    onClick={() => {
-                      const openSettings = () => {
-                        setPublicationIdeasOpen(false);
-                        setSettingsKey(automation.key);
-                      };
-                      if (
-                        !exitScheduledEditSession({
-                          silent: true,
-                          onAfterExit: openSettings,
-                        })
-                      )
-                        return;
-                      openSettings();
-                    }}
-                    aria-label={agentAutomationSettingsTitle(
-                      automation.key,
-                      runtimeT
-                    )}
-                    title={agentAutomationSettingsTitle(
-                      automation.key,
-                      runtimeT
-                    )}
-                  >
-                    <AutomationSettingsIcon />
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </nav>
-
+        ) : null}
         <div className={styles.mainGrid}>
-          {robotPanelOpen && (
-            <button
-              type="button"
-              className={styles.robotPanelBackdrop}
-              onClick={() => setRobotPanelOpen(false)}
-              aria-label={i18nT("fermer_le_panneau_des_missions_c4ea1e1c")}
-            />
-          )}
-          <aside
-            id="inr-agent-robot-panel"
-            className={`${styles.robotCard} ${
-              robotPanelOpen
-                ? styles.robotCardCompactOpen
-                : styles.robotCardCompactClosed
-            } ${scheduledEditSession ? styles.scheduledEditCard : ""}`}
-            aria-label={i18nT(
-              scheduledEditSession
-                ? "scheduled_edit_aria"
-                : "agent_operation_aria"
-            )}
-          >
-            <button
-              type="button"
-              className={styles.robotPanelToggle}
-              onClick={() => setRobotPanelOpen((open) => !open)}
-              aria-expanded={robotPanelOpen}
-              aria-controls="inr-agent-robot-panel"
-              title={i18nT(
-                robotPanelOpen ? "collapse_missions" : "show_missions"
-              )}
-            >
-              <img
-                src="/icons/inr-agent-header.png"
-                alt=""
-                aria-hidden
-                width={30}
-                height={30}
-              />
-              <span>
-                {robotPanelOpen
-                  ? i18nT("missions_inr_agent_f8a40199")
-                  : i18nT("missions_323ea30c")}
-              </span>
-              <b aria-hidden>{robotPanelOpen ? "×" : "›"}</b>
-            </button>
-            {scheduledEditSession ? (
-              <div className={styles.scheduledEditPanel}>
-                <div className={styles.scheduledEditPanelIcon} aria-hidden>
-                  <PencilActionIcon />
-                </div>
-                <span className={styles.scheduledEditEyebrow}>
-                  {i18nT("edition_temporaire_11a384a6")}
-                </span>
-                <h3>{i18nT("action_programmee_ea2709b8")}</h3>
-                <p>
-                  {i18nT("vous_modifiez_une_action_deja_confiee_810807e2")}{" "}
-                </p>
-                <div
-                  className={`${styles.scheduledEditState} ${
-                    scheduledEditDirty ? styles.scheduledEditStateDirty : ""
-                  }`}
-                >
-                  {scheduledEditDirty
-                    ? i18nT("modifications_non_sauvegardees_ffc636a4")
-                    : i18nT("aucune_modification_pour_le_moment_909aff44")}
-                </div>
-                <small className={styles.scheduledEditHint}>
-                  <span>{i18nT("valider_enregistrer_693dd897")}</span>
-                  <span>{i18nT("refuser_supprimer_3811be52")}</span>
-                </small>
-                <button
-                  type="button"
-                  className={styles.scheduledEditQuitButton}
-                  onClick={() => exitScheduledEditSession()}
-                >
-                  {i18nT("quitter_l_edition_08b3f0cb")}{" "}
-                </button>
-              </div>
-            ) : (
-              <>
-                <div
-                  className={`${styles.robotHalo} ${
-                    agentWorking ? styles.robotHaloWorking : ""
-                  }`}
-                >
-                  <span className={styles.starOne} />
-                  <span className={styles.starTwo} />
-                  <span className={styles.starThree} />
-                  <span className={styles.starFour} />
-                  <span className={styles.starFive} />
-                  <span className={styles.starSix} />
-                  <span className={styles.starSeven} />
-                  <span className={styles.starEight} />
-                  <span className={styles.starNine} />
-                  <img
-                    src={ROBOT_SRC}
-                    alt=""
-                    width={824}
-                    height={900}
-                    loading="eager"
-                    decoding="sync"
-                    fetchPriority="high"
-                  />
-                  {agentWorking ? (
-                    <AgentWorkingIndicator
-                      title={i18nT("agent_working_title")}
-                      detail={agentWorkingLabel}
-                      progress={prepareProgress?.percent}
-                    />
-                  ) : null}
-                  {showEditorialCronWait ? (
-                    <AgentEditorialCronWaitIndicator
-                      label={i18nT(
-                        "next_editorial_publication_in_a_few_minutes"
-                      )}
-                    />
-                  ) : null}
-                </div>
-              </>
-            )}
-          </aside>
-
           <div className={styles.workColumn}>
             <section
               className={`${styles.previewCard} ${
@@ -8496,7 +7974,7 @@ export default function AgentClient() {
         open={scheduleOpen}
         items={upcomingScheduleItems}
         mutationState={scheduleMutationState}
-        showCampaigns={!standardMode}
+        showCampaigns={workspace === "campaigns"}
         onClose={() => setScheduleOpen(false)}
         onOpenContent={handleScheduleRowOpenContent}
         onReschedule={handleScheduleRowReschedule}

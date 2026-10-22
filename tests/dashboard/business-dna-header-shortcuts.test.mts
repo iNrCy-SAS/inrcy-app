@@ -7,7 +7,7 @@ const read = (relativePath: string) =>
 
 const booster = read("app/dashboard/_components/DashboardBoosterModalLayer.tsx");
 const agent = read("app/dashboard/agent/AgentClient.tsx");
-const agentCss = read("app/dashboard/agent/agent.module.css");
+const header = read("app/dashboard/agent/_components/AgentWorkspaceHeader.tsx");
 const icon = read("app/dashboard/_components/BusinessDnaIcon.tsx");
 
 test("Booster Publier exposes an accessible guarded ADN shortcut beside IA", () => {
@@ -31,30 +31,18 @@ test("Booster Publier exposes the existing iNrAgent mark with the same draft gua
   assert.match(booster, /styles\.aiHeaderBtn[\s\S]*styles\.agentHeaderBtn/);
 });
 
-test("iNrAgent exposes the same ADN component beside IA and preserves its edit guard", () => {
-  const ai = agent.indexOf("<AiConfigurationIcon");
-  const dna = agent.indexOf("<BusinessDnaIcon");
-  const planning = agent.indexOf("className={styles.headerScheduleButton}", dna);
-
-  assert.ok(ai >= 0 && dna > ai && planning > dna);
-  assert.match(agent, /const openBusinessDna = \(\) =>\s*router\.push\("\/dashboard\/adn-entreprise"\)/);
-  assert.match(
-    agent,
-    /exitScheduledEditSession\(\{\s*silent: true,\s*onAfterExit: openBusinessDna,?\s*\}\)/,
-  );
-  assert.match(agent, /aria-label=\{dashboardT\("aiMemory\.openTitle"\)\}/);
-  assert.match(agent, /styles\.headerAiButton[\s\S]*styles\.headerDnaButton/);
-  assert.match(agent, /<BusinessDnaIcon size=\{26\} className=\{styles\.headerDnaIcon\} \/>/);
-  assert.match(agentCss, /\.headerAiButton\.headerDnaButton \{[\s\S]*width: 38px;[\s\S]*height: 36px;[\s\S]*display: inline-flex;[\s\S]*align-items: center;[\s\S]*justify-content: center;/);
-  assert.match(agentCss, /\.headerDnaIcon \{[\s\S]*width: 26px !important;[\s\S]*height: 26px !important;/);
-  assert.match(agentCss, /@media \(max-width: 760px\) \{[\s\S]*\.headerDnaIcon \{[\s\S]*width: 22px !important;/);
-  assert.match(agentCss, /@media \(max-width: 420px\) \{[\s\S]*\.headerDnaIcon \{[\s\S]*width: 20px !important;/);
-  assert.match(agentCss, /@media \(max-width: 420px\)[\s\S]*\.headerAiButton/);
+test("specialist headers expose their own controls while ADN remains accessible in manual Booster", () => {
+  assert.match(agent, /<AgentWorkspaceHeader/);
+  assert.match(agent, /onSettings=\{\(\) =>/);
+  assert.match(agent, /onPlanning=\{\(\) =>/);
+  assert.match(agent, /exitScheduledEditSession\(\{ silent: true, onAfterExit: open \}\)/);
+  assert.match(agent, /useUnsavedExitGuard\(\{/);
+  assert.doesNotMatch(header, /BusinessDnaIcon|AiConfigurationIcon/);
+  assert.match(booster, /<BusinessDnaIcon/);
 });
 
-test("both headers reuse the existing business DNA asset through one icon component", () => {
+test("the manual Booster header keeps the existing business DNA asset", () => {
   assert.match(icon, /src="\/icons\/business-dna\.svg"/);
   assert.match(icon, /data-business-dna-icon/);
   assert.match(booster, /import BusinessDnaIcon from "\.\/BusinessDnaIcon"/);
-  assert.match(agent, /import BusinessDnaIcon from "\.\.\/_components\/BusinessDnaIcon"/);
 });

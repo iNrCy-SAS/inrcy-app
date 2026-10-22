@@ -36,7 +36,11 @@ test("les réglages iNrAgent exploitent une disposition desktop large et équili
 });
 
 test("les idées Publier ont leur raccourci et leur espace distincts des réglages", () => {
-  assert.match(client, /className=\{styles\.ideasActionButton\}/);
+  const header = readFileSync(new URL("../../app/dashboard/agent/_components/AgentWorkspaceHeader.tsx", import.meta.url), "utf8");
+  assert.match(header, /props\.workspace === "publications"/);
+  assert.match(header, /onClick=\{props\.onIdeas\}/);
+  assert.match(header, /💡/);
+  assert.match(client, /onIdeas=\{\(\) =>/);
   assert.match(client, /setSettingsKey\(null\);\s*setPublicationIdeasDraft\(configs\.publish\.publicationIdeas\);\s*setPublicationIdeasOpen\(true\)/);
   assert.match(client, /publicationIdeasOpen \? styles\.publicationIdeasWorkspace : ""/);
   assert.match(client, /display: publicationIdeasOpen \? "none" : undefined/);

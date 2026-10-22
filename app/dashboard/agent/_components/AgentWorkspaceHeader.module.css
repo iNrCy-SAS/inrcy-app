@@ -1,0 +1,48 @@
+.header { display: flex; align-items: center; flex-wrap: wrap; gap: 14px 24px; width: 100%; padding: 0 0 5px; color: #f5f7ff; }
+.identity { display: flex; align-items: center; gap: 14px; flex: 1 0 300px; min-width: 0; }
+.identity img { width: 76px; height: 76px; object-fit: contain; filter: drop-shadow(0 0 12px #4b82ff44); }
+.identity h1 { margin: 0; font-size: clamp(24px, 2.1vw, 36px); font-weight: 850; letter-spacing: -.035em; line-height: 1.15; }
+.identity h1 span { color: #99c1ff; background: linear-gradient(100deg, #56e5fc, #bd86ff 70%, #ed83de); background-clip: text; -webkit-text-fill-color: transparent; }
+.identity p { margin: 7px 0 0; font-size: 12px; line-height: 1.4; color: #a8bfdf; }
+.controls { display: flex; align-items: flex-end; flex-direction: column; gap: 8px; }
+.actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.actions > button { font-family: inherit; }
+.header button:focus-visible { outline: 2px solid #7ce9ff; outline-offset: 3px; }
+.header button:disabled { opacity: .45; cursor: default; }
+.help { display: flex; align-items: center; }
+.ideas > span, .prepare > span { font-size: 20px; }
+.ideas { border-color: #e5c27266; }
+.icon { display: inline-flex; width: 20px; height: 20px; color: #dff8ff; }
+.icon svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.header .close { display: inline-flex; align-items: center; justify-content: center; width: 42px; min-width: 42px; padding: 0; border-radius: 50%; font-size: 27px; font-weight: 400; }
+.header .toggle { font: inherit; font-size: 11px; font-weight: 750; min-height: 42px; }
+.header .toggle[data-enabled="true"] { border-color: #31c79765; color: #c9f7e7; background: linear-gradient(100deg, #0e5e434f, #13584c52); }
+.track { width: 37px; height: 22px; border-radius: 50px; background: #53617d; padding: 3px; display: inline-flex; align-items: center; box-sizing: border-box; }
+.track i { width: 16px; height: 16px; background: #edffff; border-radius: 50%; box-shadow: 0 1px 4px #0004; }
+.toggle[data-enabled="true"] .track { background: #26c38d; }
+.toggle[data-enabled="true"] .track i { transform: translateX(15px); }
+.modes { display: flex; padding: 4px; gap: 4px; border: 1px solid #718ac344; border-radius: 999px; background: #05132987; }
+.modes button { min-height: 32px; padding: 6px 16px; border: 0; background: transparent; color: #acc0df; border-radius: 999px; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+.modes button[aria-pressed="true"] { color: #fff; background: linear-gradient(100deg, #bd643e99, #96326888); box-shadow: inset 0 1px 8px #ffffff10; }
+.status { flex-basis: 100%; margin: 0; padding: 6px 12px; color: #97dbe9; font-size: 12px; border-left: 2px solid #51d4ef; }
+@media (max-width: 1250px) { .controls { flex: 1 1 100%; align-items: stretch; } .actions { justify-content: flex-end; } .modes { align-self: flex-start; } }
+@media (max-width: 760px) {
+  .header { gap: 12px; padding: 2px 0 4px; }
+  .identity { flex-basis: 100%; gap: 9px; padding-right: 38px; }
+  .identity img { width: 58px; height: 58px; }
+  .identity h1 { font-size: 24px; }
+  .identity p { margin-top: 4px; font-size: 11px; }
+  .controls { min-width: 0; }
+  .actions { justify-content: flex-start; gap: 7px; }
+  .actions > button { min-height: 40px; padding: 0 12px; font-size: 11px; gap: 5px; border-radius: 999px; }
+  .header .close { position: absolute; top: 10px; right: 10px; width: 36px; min-width: 36px; min-height: 36px; }
+  .header .toggle { margin-left: auto; padding: 5px 8px; font-size: 10px; }
+  .modes { width: 100%; }
+  .modes button { flex: 1; }
+}
+@media (max-width: 760px) {
+  .actions { width: 100%; min-width: 0; }
+  .actions > button:not(.close):not(.toggle) { display: inline-flex !important; width: auto !important; min-width: 0 !important; max-width: none !important; height: 40px !important; min-height: 40px !important; max-height: none !important; flex: 0 0 auto !important; padding: 0 12px !important; white-space: nowrap; }
+  .header .close { display: inline-flex !important; position: absolute !important; top: 10px !important; right: 10px !important; left: auto !important; width: 36px !important; min-width: 36px !important; max-width: 36px !important; height: 36px !important; min-height: 36px !important; max-height: 36px !important; transform: none !important; padding: 0 !important; }
+  .header .toggle { width: auto !important; max-width: none !important; min-width: 0 !important; min-height: 38px !important; white-space: nowrap; flex: 0 0 auto; }
+}

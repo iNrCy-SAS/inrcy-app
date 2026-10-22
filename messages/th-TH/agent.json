@@ -842,6 +842,43 @@
   "settings_section_channels": "ช่องทาง",
   "settings_section_generation": "การสร้าง",
   "settings_section_references": "สื่ออ้างอิง",
-  "media_references_summary": "บุคคล ฉาก หรือผลิตภัณฑ์ของคุณในฉากใหม่สำหรับแต่ละโพสต์" ,
-  "settings_selection_empty": "ยังไม่ได้เลือก"
+  "media_references_summary": "บุคคล ฉาก หรือผลิตภัณฑ์ของคุณในฉากใหม่สำหรับแต่ละโพสต์",
+  "settings_selection_empty": "ยังไม่ได้เลือก",
+  "workspaces": {
+    "publications": {
+      "name": "สิ่งพิมพ์",
+      "description": "เตรียมและกำหนดเวลาโพสต์ของคุณ"
+    },
+    "campaigns": {
+      "name": "Emailings",
+      "description": "แคมเปญหาลูกค้าใหม่และรักษาลูกค้า",
+      "premium": "แคมเปญอัตโนมัติพร้อมใช้งานสำหรับ Premium"
+    },
+    "stats": {
+      "name": "สถิติ",
+      "description": "รายงานและคำแนะนำในเวลาที่เหมาะสม"
+    },
+    "grow": "หาลูกค้าใหม่",
+    "loyalty": "รักษาลูกค้า",
+    "ideas": "ไอเดีย",
+    "generate": "สร้าง",
+    "prepare": "เตรียม",
+    "sendReport": "ส่งรายงาน",
+    "preparing": "กำลังเตรียม…",
+    "planning": "กำหนดการ",
+    "settings": "การตั้งค่า",
+    "enabled": "เปิดระบบอัตโนมัติ",
+    "paused": "หยุดระบบอัตโนมัติ",
+    "help": "ช่วยเหลือ",
+    "close": "ปิด",
+    "campaignMode": "โหมดแคมเปญ",
+    "premium": "แคมเปญอัตโนมัติพร้อมใช้งานสำหรับ Premium",
+    "subscription": "ดูการสมัครสมาชิก",
+    "back": "กลับแดชบอร์ด",
+    "open": "เปิดเอเจนต์",
+    "configureAutomation": "ตั้งค่าระบบอัตโนมัติ",
+    "agentButton": "เอเจนต์ AI",
+    "automation": "ระบบอัตโนมัติ",
+    "manual": "ดำเนินการเอง"
+  }
 }

@@ -270,7 +270,7 @@ export default function DashboardToolWarmup() {
         });
       }
 
-      if (pathname === "/dashboard/agent") {
+      if (pathname === "/dashboard/agent" || pathname.startsWith("/dashboard/agent/")) {
         enqueue({
           key: "snapshot:agent",
           priority,

@@ -196,7 +196,7 @@
 .boosterStats { position: absolute; z-index: 3; top: 11px; right: 11px; min-height: 36px; padding: 7px 11px; font-size: 11px; border-color: #a9baff99; background: #243c76de; box-shadow: inset 0 1px 0 #e5edff1c, 0 3px 14px #05133242; }
 .boosterStats svg { width: 18px; height: 18px; color: #b9e8ff; }
 
-.creationGrid { display: grid; grid-template-columns: 1.3fr 1fr 1fr; min-width: 0; min-height: 170px; gap: 9px; }
+.creationGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; min-height: 170px; gap: 9px; }
 .creationCard { --accent: #859bff; position: relative; isolation: isolate; display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; min-width: 0; padding: 16px 13px 13px; border: 1px solid var(--accent); border-radius: 15px; background: linear-gradient(135deg, #123b8b, #192560 68%, #3d246e); box-shadow: inset 0 1px 0 #d2ddff14; }
 .creationCard::before { position: absolute; z-index: -1; width: 150px; height: 150px; right: -65px; bottom: -95px; border-radius: 50%; box-shadow: 0 0 65px 25px #8948ff52; content: ""; }
 .creationCard .cardLogo { position: absolute; top: 16px; left: 13px; width: 45px; height: 45px; }
@@ -415,4 +415,166 @@
   .boosterWave { animation: none; }
   .lowerRow button { transition: none; }
   .lowerRow button:hover { transform: none; }
+}
+
+/* Contextual agents keep the native card design and separate, named controls. */
+.boosterManualActions, .manualToolActions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.boosterManualActions .boosterStats { position: static; min-height: 38px; }
+.boosterCard { min-height: 245px; max-height: 335px; }
+.agentControls { z-index: 3; display: flex; align-items: center; min-width: 0; }
+.publicationsAgent { position: absolute; bottom: 14px; right: 16px; }
+.modulePlanning { position: absolute; z-index: 5; top: 12px; right: 12px; }
+.modulePlanning svg { width: 100%; height: 100%; }
+.mailCampaignCard {
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-areas: "logo copy" "manual manual" "agent agent";
+  align-content: start; align-items: center; min-height: 208px; padding: 16px 14px 12px; gap: 12px;
+}
+.mailCampaignCard .relationshipLogo { grid-area: logo; width: 44px; height: 44px; }
+.mailCampaignCard .relationshipCopy { grid-area: copy; padding: 0 30px 0 0; }
+.mailCampaignCard .relationshipCopy h4 { font-size: 17px; }
+.mailCampaignManualActions { grid-area: manual; display: flex; align-items: center; gap: 14px; }
+.mailCampaignManualActions .cardButton { min-width: 0; width: fit-content; min-height: 35px; padding: 7px 15px; }
+.mailCampaignCard .mailCampaignArt { width: 34px; height: 34px; flex-basis: 34px; }
+.campaignsAgent { grid-area: agent; position: static; justify-content: flex-end; padding-top: 10px; border-top: 1px solid #ffd3c329; }
+.studioBanner { display: grid; grid-template-columns: 48px minmax(0, 1fr) 48px auto; align-items: center; gap: 16px; min-height: 100px; padding: 16px 18px; }
+.studioBanner .cardLogo { position: static; width: 48px; height: 48px; }
+.studioBanner .creationCopy { padding: 0; min-height: 0; }
+.studioBanner .creationCopy h4 { font-size: 21px; margin-block: 3px; }
+.studioBanner .creationCopy p { max-width: none; }
+.studioBanner .ghostArt { position: static; width: 44px; height: 44px; }
+.studioBanner .cardButton { margin: 0; }
+.statsCard { min-height: 140px; padding-bottom: 70px; }
+.statsCard .signatureCopy { padding-right: 34px; }
+.statsCard .cardActions { justify-content: space-between; gap: 12px; align-items: center; }
+.statsCard .manualToolActions { flex-wrap: nowrap; gap: 10px; }
+.statsCard .signatureArt { width: 28px; height: 28px; flex-basis: 28px; }
+.statsAgent { position: static; padding-left: 12px; border-left: 1px solid #c3afff33; }
+.statsAgent > div > img { width: 40px; height: 40px; }
+.statsAgent > div button { min-width: 84px; padding: 7px 11px; min-height: 32px; font-size: 11px; }
+.statsCard .manualToolActions .toolButton { min-width: 108px; padding-inline: 12px; }
+.signatureCard:not(.statsCard) .manualToolActions { justify-content: flex-end; width: 100%; gap: 18px; }
+@media (max-width: 760px) {
+  .creationGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .creationGrid .adsCard { grid-column: auto; padding: 16px 12px 12px; }
+  .creationGrid .adsCard .cardLogo { position: static; width: 44px; height: 44px; }
+  .creationGrid .adsCard .creationCopy { padding: 0; min-height: 0; }
+  .creationGrid .adsCard .cardButton { margin-left: 0; }
+  .creationGrid .adsCard .creationCopy h4 { font-size: 18px; }
+  .boosterCard { padding-top: 24px; padding-bottom: 82px; max-height: none; }
+  .publicationsAgent { bottom: 14px; right: 14px; }
+  .boosterCopy { min-width: 0; }
+  .boosterManualActions { gap: 8px; }
+  .boosterManualActions .primaryButton { min-width: 120px; }
+  .mailCampaignCard { padding: 16px 14px 12px; gap: 12px; }
+  .mailCampaignCard .relationshipLogo, .mailCampaignCard .relationshipCopy { grid-row: auto; grid-column: auto; }
+  .mailCampaignCard .relationshipCopy h4 { padding-right: 0; }
+  .campaignsAgent { padding-top: 10px; }
+  .studioBanner { grid-template-columns: 44px minmax(0, 1fr) 34px auto; gap: 12px; }
+  .studioBanner .ghostArt { width: 34px; height: 34px; }
+  .studioBanner .cardLogo { width: 44px; height: 44px; }
+  .signatureGrid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+  .signatureCard { min-height: 138px; }
+  .statsCard { padding-bottom: 74px; }
+  .statsCard .signatureCopy { padding-right: 34px; }
+  .statsCard .manualToolActions { gap: 6px; }
+  .statsCard .signatureArt { width: 23px; height: 23px; flex-basis: 23px; }
+  .statsAgent { padding-left: 9px; }
+  .statsAgent > div { gap: 5px; }
+  .statsAgent > div > img { width: 34px; height: 34px; }
+  .statsAgent > div button { min-width: 75px; padding: 7px 8px; }
+}
+
+@media (max-width: 540px) {
+  .creationGrid { grid-template-columns: minmax(0, 1fr); }
+  .creationGrid .adsCard { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: start; gap: 12px; min-height: 146px; }
+  .creationGrid .adsCard .cardButton { grid-column: 2; justify-self: start; margin-top: 0; }
+  .creationGrid .adsCard .ghostArt { bottom: 15px; }
+  .mailCampaignCard { min-height: 190px; }
+  .mailCampaignCard .relationshipCopy { padding-right: 32px; }
+  .mailCampaignCard .relationshipCopy h4 { font-size: 18px; }
+  .mailCampaignManualActions { align-self: center; }
+  .campaignsAgent { padding-top: 8px; }
+  .studioBanner { grid-template-columns: 42px minmax(0, 1fr); }
+  .studioBanner .cardButton { grid-column: 2; justify-self: start; }
+  .studioBanner .ghostArt { display: grid; grid-column: 1; grid-row: 2; width: 34px; height: 34px; }
+}
+
+/* On desktop, use the width of each card before adding another row. */
+@media (min-width: 1101px) {
+  .lowerRow { gap: 18px; }
+  .panel { padding: 10px; gap: 8px; }
+  .panel:not(.pilotPanel) { display: grid; grid-template-rows: 26px minmax(174px, 1fr) auto; }
+  .panelHeader { min-height: 26px; padding: 0 3px; }
+  .panelHeader h3 { font-size: clamp(15px, 1.1vw, 18px); gap: 8px; }
+  .headingIcon { width: 24px; height: 26px; font-size: 29px; }
+  .headingIcon svg { width: 23px; height: 23px; }
+  .boosterCard { flex: initial; min-height: 174px; max-height: none; padding: 14px 18px; gap: 18px; }
+  .boosterRocket { width: 68px; height: 68px; }
+  .boosterCopy h4 { font-size: clamp(34px, 2.7vw, 44px); }
+  .boosterCopy p { margin: 4px 0 10px; font-size: 13px; line-height: 1.35; }
+  .boosterCopy .eyebrow { font-size: 7px; }
+  .boosterManualActions { gap: 8px; }
+  .boosterManualActions .primaryButton { min-height: 35px; min-width: 132px; font-size: 12px; }
+  .boosterManualActions .boosterStats { min-height: 34px; }
+  .boosterChart { width: 83px; height: 73px; right: 24%; top: calc(50% - 36px); bottom: auto; padding: 15px 12px 11px; gap: 6px; }
+  .publicationsAgent { bottom: 12px; right: 14px; }
+  .publicationsAgent > div > img { width: 40px; height: 40px; }
+  .publicationsAgent > div button { min-height: 32px; padding-block: 6px; }
+  .modulePlanning { top: 10px; right: 10px; }
+  .creationGrid { min-height: 144px; gap: 8px; }
+  .creationGrid .adsCard { min-height: 144px; padding: 12px; }
+  .creationGrid .adsCard .cardLogo { top: 12px; left: 12px; width: 38px; height: 38px; }
+  .creationGrid .adsCard .creationCopy { padding: 0 24px 0 48px; min-height: 0; }
+  .creationGrid .adsCard .creationCopy h4 { font-size: 17px; margin-block: 3px; }
+  .creationGrid .adsCard .creationCopy p { max-width: 230px; font-size: 11px; }
+  .creationGrid .adsCard .cardButton { min-height: 34px; padding: 7px 13px; font-size: 11px; }
+  .creationGrid .adsCard .ghostArt { width: 43px; height: 43px; bottom: 12px; right: 12px; }
+  .mailCampaignCard { min-height: 144px; padding: 12px; gap: 9px 12px; }
+  .mailCampaignCard .relationshipLogo { width: 38px; height: 38px; }
+  .mailCampaignCard .relationshipCopy h4 { font-size: 17px; }
+  .mailCampaignCard .relationshipCopy p { font-size: 12px; }
+  .mailCampaignManualActions { gap: 9px; }
+  .mailCampaignManualActions .cardButton { min-height: 34px; padding: 7px 12px; font-size: 12px; }
+  .mailCampaignCard .mailCampaignArt { width: 27px; height: 27px; flex-basis: 27px; }
+  .campaignsAgent > div > img { width: 38px; height: 38px; }
+  .campaignsAgent > div button { min-width: 78px; min-height: 32px; padding: 6px 11px; }
+  .relationshipGrid { gap: 8px; }
+  .studioBanner { min-height: 74px; padding: 14px; grid-template-columns: 38px minmax(0, 1fr) 38px auto; gap: 12px; }
+  .studioBanner .cardLogo { width: 38px; height: 38px; }
+  .studioBanner .creationCopy h4 { font-size: 18px; }
+  .studioBanner .eyebrow { display: none; }
+  .studioBanner .creationCopy p { font-size: 11px; }
+  .studioBanner .ghostArt { width: 35px; height: 35px; }
+  .studioBanner .cardButton { min-height: 34px; padding: 7px 13px; font-size: 11px; }
+  .signatureGrid { grid-template-rows: repeat(2, minmax(100px, 1fr)); gap: 8px; }
+  .signatureCard { min-height: 100px; grid-template-columns: 37px minmax(0, 1fr); padding: 4px 10px 46px; column-gap: 9px; }
+  .signatureLogo { width: 37px; height: 37px; }
+  .signatureCopy h4 { margin: 0 0 2px; font-size: 15px; }
+  .signatureCopy p { font-size: 12px; line-height: 1.2; max-width: 240px; }
+  .signatureCard .cardActions { right: 9px; bottom: 6px; left: 9px; gap: 8px; }
+  .signatureCard .toolButton { min-height: 34px; min-width: 88px; padding: 6px 12px; font-size: 11px; }
+  .signatureArt { width: 29px; height: 29px; flex-basis: 29px; }
+  .statsCard { padding-bottom: 52px; }
+  .statsCard .manualToolActions { gap: 7px; }
+  .statsCard .signatureArt { width: 23px; height: 23px; flex-basis: 23px; }
+  .statsCard .manualToolActions .toolButton { min-width: 94px; padding-inline: 11px; }
+  .statsAgent { padding-left: 8px; }
+  .statsAgent > div { gap: 7px; }
+  .statsAgent > div > img { width: 32px; height: 32px; }
+  .statsAgent > div button { min-width: 75px; min-height: 34px; padding: 6px 9px; }
+  .signatureCard .settingsButton, .signatureCard .modulePlanning { width: 30px; height: 30px; padding: 6px; top: 8px; right: 8px; }
+  .reputationCard { min-height: 64px; padding: 11px 14px; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; }
+  .reputationCard .relationshipLogo { width: 36px; height: 36px; }
+  .reputationCard .relationshipCopy h4 { font-size: 18px; margin-bottom: 2px; }
+  .reputationCard .relationshipCopy p { font-size: 12px; }
+  .reputationCard .cardButton { min-height: 34px; min-width: 94px; padding: 7px 13px; font-size: 12px; }
+  .reputationStars { font-size: 16px; }
+}
+
+@media (min-width: 1451px) {
+  .mailCampaignCard { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "copy copy" "manual agent"; align-content: center; }
+  .mailCampaignCard .relationshipLogo { position: absolute; top: 12px; left: 12px; }
+  .mailCampaignCard .relationshipCopy { min-height: 38px; padding: 0 32px 0 48px; }
+  .campaignsAgent { border-top: 0; border-left: 1px solid #ffd3c329; padding: 0 0 0 10px; }
 }

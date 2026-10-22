@@ -842,6 +842,43 @@
   "settings_section_channels": "Canales",
   "settings_section_generation": "Creación",
   "settings_section_references": "Referencias",
-  "media_references_summary": "Tus personas, entornos o productos en una escena nueva en cada publicación." ,
-  "settings_selection_empty": "Sin selección"
+  "media_references_summary": "Tus personas, entornos o productos en una escena nueva en cada publicación.",
+  "settings_selection_empty": "Sin selección",
+  "workspaces": {
+    "publications": {
+      "name": "Publicaciones",
+      "description": "Tus publicaciones, preparadas y programadas"
+    },
+    "campaigns": {
+      "name": "Emailings",
+      "description": "Tus campañas de prospección y fidelización",
+      "premium": "Las campañas automatizadas están disponibles con Premium."
+    },
+    "stats": {
+      "name": "Estadísticas",
+      "description": "Tus informes y recomendaciones en el momento adecuado"
+    },
+    "grow": "Prospección",
+    "loyalty": "Fidelización",
+    "ideas": "Ideas",
+    "generate": "Generar",
+    "prepare": "Preparar",
+    "sendReport": "Enviar un informe",
+    "preparing": "Preparando…",
+    "planning": "Planificación",
+    "settings": "Ajustes",
+    "enabled": "Automatización activa",
+    "paused": "Automatización en pausa",
+    "help": "Ayuda",
+    "close": "Cerrar",
+    "campaignMode": "Modo de campaña",
+    "premium": "Las campañas automatizadas están disponibles con Premium.",
+    "subscription": "Ver mi suscripción",
+    "back": "Volver al panel",
+    "open": "Abrir agente",
+    "configureAutomation": "Configurar automatización",
+    "agentButton": "Agente IA",
+    "automation": "Automatización",
+    "manual": "Acciones manuales"
+  }
 }

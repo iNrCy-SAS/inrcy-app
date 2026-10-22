@@ -842,6 +842,43 @@
   "settings_section_channels": "Channels",
   "settings_section_generation": "Creation",
   "settings_section_references": "References",
-  "media_references_summary": "Your people, settings or products, in a new scene for every post." ,
-  "settings_selection_empty": "Nothing selected"
+  "media_references_summary": "Your people, settings or products, in a new scene for every post.",
+  "settings_selection_empty": "Nothing selected",
+  "workspaces": {
+    "publications": {
+      "name": "Publications",
+      "description": "Your posts, prepared and scheduled"
+    },
+    "campaigns": {
+      "name": "Emailings",
+      "description": "Your prospecting and customer retention campaigns",
+      "premium": "Automated campaigns are available with Premium access."
+    },
+    "stats": {
+      "name": "Stats",
+      "description": "Your reports and recommendations, at the right time"
+    },
+    "grow": "Prospecting",
+    "loyalty": "Retention",
+    "ideas": "Ideas",
+    "generate": "Generate",
+    "prepare": "Prepare",
+    "sendReport": "Send a report",
+    "preparing": "Preparing…",
+    "planning": "Schedule",
+    "settings": "Settings",
+    "enabled": "Automation enabled",
+    "paused": "Automation paused",
+    "help": "Help",
+    "close": "Close",
+    "campaignMode": "Campaign mode",
+    "premium": "Automated campaigns are available with Premium access.",
+    "subscription": "View my subscription",
+    "back": "Back to dashboard",
+    "open": "Open agent",
+    "configureAutomation": "Configure automation",
+    "agentButton": "AI agent",
+    "automation": "Automation",
+    "manual": "Manual actions"
+  }
 }

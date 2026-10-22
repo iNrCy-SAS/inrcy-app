@@ -152,8 +152,8 @@ test("le rafraîchissement du planning conserve le mois choisi et masque les cam
   );
   assert.match(scheduleModalSource, /showCampaigns = true/);
   assert.match(scheduleModalSource, /scheduleFilterKey\(item\) !== "campaigns"/);
-  assert.match(client, /showCampaigns=\{!standardMode\}/);
-  assert.match(dashboardPlanning, /showCampaigns=\{!standardMode\}/);
+  assert.match(client, /showCampaigns=\{workspace === "campaigns"\}/);
+  assert.match(dashboardPlanning, /showCampaigns=\{!standardMode && \(!workspace \|\| workspace === "campaigns"\)\}/);
 });
 
 test("les filtres restent sûrs et la corbeille retire toute publication éditoriale programmée", () => {
@@ -414,7 +414,10 @@ test("l'espace Publier garde le média, la navigation et les commandes dans un c
   assert.match(client, /data-has-media=\{isInstantPublicationPreview \|\| Boolean\(publishMediaPreview\?\.url\)\}/);
   assert.match(client, /className=\{styles\.publishInlineMedia\}/);
   assert.match(client, /className=\{styles\.publishCtaStandalone\}/);
-  assert.match(client, /className=\{styles\.agentCommandRailIdentity\}/);
+  assert.match(client, /<AgentWorkspaceHeader/);
+  assert.match(client, /data-agent-workspace=\{workspace\}/);
+  assert.doesNotMatch(client, /className=\{styles\.agentCommandRailIdentity\}/);
+  assert.doesNotMatch(client, /src=\{ROBOT_SRC\}/);
   assert.doesNotMatch(client, /robotStepsByAutomation/);
   assert.match(
     styles,
@@ -422,5 +425,5 @@ test("l'espace Publier garde le média, la navigation et les commandes dans un c
   );
   assert.match(styles, /\.publishInlineMediaStage img,[\s\S]*?object-fit:\s*contain/);
   assert.match(styles, /\.previewMetaPublish \.channelNavArrow:hover:not\(:disabled\)/);
-  assert.match(styles, /\.automationGridStandard\s*\{\s*grid-template-rows:\s*270px repeat\(2, 68px\)/);
+  assert.match(styles, /\.agentWorkspace \.agentCanvas \{[^}]*flex-direction: column/);
 });

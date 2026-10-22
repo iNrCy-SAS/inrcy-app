@@ -396,8 +396,9 @@ test("les blocs inférieurs Standard conservent Stats, Publications, Réputation
   assert.match(sharedModulesSource, /description: standardT\("sendDescription"\)/);
   assert.match(sharedModulesSource, /\/dashboard\/e-reputation/);
   assert.match(sharedModulesSource, /onClick=\{openPublishModal\}/);
-  assert.match(sharedModulesSource, /data-dashboard-prefetch=\{agentPath\}/);
-  assert.match(sharedModulesSource, /signatureStyles\.agentCard/);
+  assert.match(sharedModulesSource, /agentControls\("publications",/);
+  assert.match(sharedModulesSource, /agentControls\("stats",/);
+  assert.doesNotMatch(sharedModulesSource, /signatureStyles\.agentCard/);
   assert.match(sharedModulesSource, /const studioPath = "\/dashboard\/generer-media"/);
   assert.match(sharedModulesSource, /data-testid=\{standardMode \? "standard-studio-open" : "premium-studio-open"\}/);
   assert.match(sharedModulesSource, /data-dashboard-prefetch=\{studioPath\}/);
@@ -416,9 +417,9 @@ test("les blocs inférieurs Standard conservent Stats, Publications, Réputation
   assert.doesNotMatch(sharedModulesSource, /signatureStyles\.dnaCard/);
 });
 
-test("Standard reprend la même rangée ADS, Studio et Agent, avec Studio et Agent de même largeur", () => {
+test("Standard reprend la même rangée ADS et Studio, les agents étant intégrés à leur outil", () => {
   assert.match(sharedModulesSource, /data-dashboard-standard-secondary-tools=\{standardMode \? "true" : undefined\}/);
-  assert.match(sharedModulesCssSource, /\.creationGrid\s*\{[^}]*grid-template-columns:\s*1\.3fr 1fr 1fr/);
+  assert.match(sharedModulesCssSource, /\.creationGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(sharedModulesCssSource, /@media \(max-width: 700px\)[\s\S]*?\.creationGrid\s*\{\s*grid-template-columns:\s*1fr 1fr/);
   assert.match(sharedModulesCssSource, /@media \(max-width: 700px\)[\s\S]*?\.adsCard\s*\{\s*grid-column:\s*1 \/ -1/);
   for (const key of ["studioEyebrow", "studioLine1", "studioLine2", "studioCta"]) {
@@ -426,17 +427,13 @@ test("Standard reprend la même rangée ADS, Studio et Agent, avec Studio et Age
   }
 });
 
-test("le raccourci calendrier du bloc iNrAgent réutilise la modale sans dupliquer le bouton Planning", () => {
-  const planningTriggers =
-    sharedModulesSource.match(/"standard-agent-planning(?:-icon)?"/g) ?? [];
-
-  assert.deepEqual(planningTriggers, ['"standard-agent-planning-icon"']);
+test("les calendriers des trois agents réutilisent la modale avec le bon périmètre et les droits existants", () => {
+  assert.match(sharedModulesSource, /data-agent-planning-workspace=\{workspace\}/);
   assert.doesNotMatch(
     standardModulesSource,
     /className=\{standardStyles\.agentPlanningButton\}/,
   );
-  assert.match(sharedModulesSource, /data-testid=\{standardMode \? "standard-agent-pilotage" : "premium-agent-pilotage"\}/);
-  assert.match(sharedModulesSource, /standardT\("agentPlanning"\)/);
+  assert.match(sharedModulesSource, /locked \? startPanelOpening\("abonnement"\) : setPlanningWorkspace\(workspace\)/);
   assert.match(sharedModulesSource, /<DashboardAgentPlanningModal[\s\S]*?standardMode=\{standardMode\}/);
   assert.match(
     dashboardAgentPlanningSource,
@@ -444,10 +441,10 @@ test("le raccourci calendrier du bloc iNrAgent réutilise la modale sans dupliqu
   );
   assert.match(dashboardAgentPlanningSource, /<AgentScheduleModal/);
   assert.match(dashboardAgentPlanningSource, /standardMode = true/);
-  assert.match(dashboardAgentPlanningSource, /showCampaigns=\{!standardMode\}/);
+  assert.match(dashboardAgentPlanningSource, /showCampaigns=\{!standardMode && \(!workspace \|\| workspace === "campaigns"\)\}/);
   assert.match(dashboardAgentPlanningSource, /buildAgentScheduleItems/);
   assert.match(agentClientSource, /buildAgentScheduleItems/);
-  assert.match(agentClientSource, /showCampaigns=\{!standardMode\}/);
+  assert.match(agentClientSource, /showCampaigns=\{workspace === "campaigns"\}/);
   assert.match(agentActionModalsSource, /readOnly = false/);
   assert.doesNotMatch(dashboardAgentPlanningSource, /role="dialog"/);
 });

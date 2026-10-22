@@ -21798,3 +21798,31 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   .previewMeta.previewMetaPublish.publishReviewFooter .previewActions > button:only-child { grid-column: 1 / -1; }
   .previewMeta.previewMetaPublish.publishReviewFooter .publishMobilePager { display: none !important; }
 }
+
+/* Three focused workspaces share the existing review components and runtime. */
+.agentWorkspace { position: relative; }
+.agentWorkspace .agentCanvas {
+  display: flex !important; flex-direction: column; grid-template-areas: none !important;
+  grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: none !important;
+  gap: 12px !important; width: 100%; max-width: none; height: 100%; min-height: 0;
+}
+.agentWorkspace .mainGrid {
+  display: block !important; flex: 1 1 auto; grid-area: auto !important;
+  width: 100% !important; max-width: none !important; min-width: 0; min-height: 0;
+  height: auto !important; margin: 0 !important; padding: 0 !important;
+}
+.agentWorkspace .workColumn {
+  grid-area: auto !important; width: 100% !important; max-width: none !important;
+  margin: 0 !important; padding: 0 !important; height: 100%; min-height: 0;
+}
+.workspaceEditBanner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 16px; border: 1px solid #b48cfa55; border-radius: 14px; background: #48356d3b; color: #dcd3ef; font-size: 12px; }
+.workspaceEditBanner > svg { width: 20px; height: 20px; }
+.workspaceEditBanner button { margin-left: auto; padding: 8px 12px; border: 1px solid #9b85d46b; border-radius: 10px; background: #38265c; color: #fff; font: inherit; cursor: pointer; }
+.agentWorkspace[data-agent-workspace="campaigns"] .previewMeta { flex-wrap: wrap; }
+@media (max-width: 760px) {
+  .agentWorkspace .agentCanvas, .agentWorkspace .mainGrid, .agentWorkspace .workColumn { height: auto !important; overflow: visible !important; }
+  .agentWorkspace .agentCanvas { gap: 10px !important; }
+  .agentWorkspace .campaignInfoGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .agentWorkspace .statsTopGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .workspaceEditBanner { gap: 8px; font-size: 11px; }
+}

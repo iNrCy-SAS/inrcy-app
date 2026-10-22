@@ -27,16 +27,17 @@ test("les logos Premium et Standard ouvrent la navigation Agent existante sans i
   assert.match(standard, /<DashboardModulesCard \{\.\.\.props\} standardMode openPanel=\{onOpenPremium\}/);
   assert.doesNotMatch(standard, /useInrAgentPendingCount|DashboardAgentLogoButton|useDelayedPendingAction/);
   assert.match(premium, /inrAgentEnabled = true/);
-  assert.match(premium, /<DashboardAgentLogoButton[\s\S]*?enabled=\{inrAgentEnabled\}[\s\S]*?onClick=\{\(\) => startModuleNavigation\(agentPath\)\}/);
-  assert.match(premium, /<DashboardAgentLogoButton[\s\S]*?busy=\{isModuleLoadingVisible\(agentPath\)\}/);
+  for (const workspace of ["publications", "campaigns", "stats"]) {
+    assert.ok(premium.includes(`agentControls("${workspace}",`));
+  }
   assert.match(logo, /type="button"/);
   assert.match(logo, /disabled=\{!enabled \|\| busy\}/);
   assert.match(logo, /aria-busy=\{busy \|\| undefined\}/);
-  assert.match(logo, /data-dashboard-prefetch=\{enabled \? "\/dashboard\/agent" : undefined\}/);
+  assert.match(logo, /data-dashboard-prefetch=\{enabled \? definition\?\.href \?\? "\/dashboard\/agent" : undefined\}/);
 });
 
 test("le badge n'affiche que le compteur réel partagé, au-delà de zéro et plafonné à 99+", () => {
-  assert.match(logo, /const pendingCount = useInrAgentPendingCount\(enabled\)/);
+  assert.match(logo, /const pendingCount = useInrAgentPendingCount\(enabled && !workspace\)/);
   assert.match(logo, /const pendingLabel = pendingCount > 99 \? "99\+" : String\(pendingCount\)/);
   assert.match(logo, /enabled && pendingCount > 0 \? <span[^\n]*data-testid="dashboard-agent-pending-badge"[^\n]*>\{pendingLabel\}<\/span> : null/);
   assert.doesNotMatch(logo, /fetch\(|setInterval|localStorage|useEffect/);
@@ -52,7 +53,7 @@ test("le logo reste rond, laisse déborder le badge et décrit les actions en at
   for (const key of ["inrAgentOpen", "inrAgentAction", "inrAgentActions", "inrAgentPending", "inrAgentDisabled"]) {
     assert.ok(logo.includes(`t.topbar.${key}`), key);
   }
-  assert.match(logo, /src="\/icons\/inr-agent-header\.png" alt=""/);
+  assert.match(logo, /src=\{definition\?\.icon \?\? "\/icons\/inr-agent-header\.png"\} alt=""/);
   assert.match(logoCss, /button\.button\[data-agent-logo-button\]\s*\{[^}]*overflow: visible;[^}]*border-radius: 50%/);
   assert.match(logoCss, /\.badge\s*\{[^}]*position: absolute;[^}]*top: -7px;[^}]*right: -7px/);
   assert.match(logoCss, /\.button:focus-visible/);

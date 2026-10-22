@@ -40,8 +40,8 @@ test("le dashboard compact conserve le cockpit et remplace les sauts haut/bas pa
   assert.match(channels, /dynamic\(\(\) => import\("\.\/DashboardChannelsModal"\), \{ ssr: false \}\)/);
 });
 
-test("Booster reste en tête, puis ADS, Studio et Agent ; Campagnes mails précède les signatures et Réputation", () => {
-  assertOrdered(modules, 'aria-labelledby="dashboard-create-title"', "signatureStyles.boosterCard", "signatureStyles.adsCard", "signatureStyles.studioCard", "signatureStyles.agentCard", 'aria-labelledby="dashboard-pilot-title"', "signatureStyles.relationshipGrid", "signatureStyles.mailCampaignCard", "signatureStyles.signatureGrid", "signatureStyles.reputationCard");
+test("Booster, ADS et Emailings communiquent à gauche ; Studio et les outils de pilotage restent à droite", () => {
+  assertOrdered(modules, 'aria-labelledby="dashboard-create-title"', "signatureStyles.boosterCard", "signatureStyles.adsCard", "signatureStyles.mailCampaignCard", 'aria-labelledby="dashboard-pilot-title"', "signatureStyles.relationshipGrid", "signatureStyles.studioCard", "signatureStyles.signatureGrid", "signatureStyles.reputationCard");
   const signatureDeclaration = modules.slice(modules.indexOf("const signatureTools:"), modules.indexOf("  return (", modules.indexOf("const signatureTools:")));
   assert.deepEqual([...signatureDeclaration.matchAll(/tone: "([^"]+)"/g)].map((match) => match[1]), ["sendCard", "statsCard", "calendarCard", "crmCard"]);
   assert.match(signatureDeclaration, /path: standardMode \? "\/dashboard\/mails\?folder=publications&boxView=sent" : "\/dashboard\/mails"/);
@@ -53,14 +53,15 @@ test("Booster reste en tête, puis ADS, Studio et Agent ; Campagnes mails préc�
   assert.doesNotMatch(modules, /Autres outils|Other tools/);
 });
 
-test("Campagnes mails et Réputation encadrent les quatre outils sur toute la largeur", () => {
+test("Studio et Réputation encadrent les quatre outils ; Emailings conserve ses accès dans la colonne de communication", () => {
   const relationshipRow = modules.slice(modules.indexOf('data-dashboard-relationship-tools="true"'), modules.indexOf("{!standardMode && campaignModalOpen ?"));
-  assertOrdered(relationshipRow, "signatureStyles.mailCampaignCard", '"premium-campaign-open"', "signatureStyles.signatureGrid", "signatureStyles.reputationCard");
-  assert.match(relationshipRow, /signatureStyles\.relationshipLogo[^\n]*<ToolGlyph kind="mail"/);
-  assert.match(relationshipRow, /<h4>\{copy\.mailCampaigns\}<\/h4><p>\{t\.modules\.campaignsSub\}<\/p>/);
-  assert.match(relationshipRow, /onClick=\{openCampaignModal\}/);
-  assert.match(relationshipRow, /disabled=\{standardMode \? isPanelLoadingVisible\("abonnement"\) : isVisible\("modal:campaigns"\)\}/);
-  assert.match(relationshipRow, /aria-busy=\{\(standardMode \? isPanelLoadingVisible\("abonnement"\) : isVisible\("modal:campaigns"\)\) \|\| undefined\}/);
+  assertOrdered(relationshipRow, "signatureStyles.studioBanner", '"premium-studio-open"', "signatureStyles.signatureGrid", "signatureStyles.reputationCard");
+  const communicationRow = modules.slice(modules.indexOf('data-dashboard-premium-secondary-tools='), modules.indexOf('aria-labelledby="dashboard-pilot-title"'));
+  assert.match(communicationRow, /signatureStyles\.relationshipLogo[^\n]*<ToolGlyph kind="mail"/);
+  assert.match(communicationRow, /<h4>\{copy\.mailCampaigns\}<\/h4><p>\{t\.modules\.campaignsSub\}<\/p>/);
+  assert.match(communicationRow, /onClick=\{openCampaignModal\}/);
+  assert.match(communicationRow, /disabled=\{standardMode \? isPanelLoadingVisible\("abonnement"\) : isVisible\("modal:campaigns"\)\}/);
+  assert.match(communicationRow, /aria-busy=\{\(standardMode \? isPanelLoadingVisible\("abonnement"\) : isVisible\("modal:campaigns"\)\) \|\| undefined\}/);
   assert.doesNotMatch(modules, /signatureStyles\.contextButton/);
   assert.match(toolsCss, /\.relationshipCard\s*\{[^}]*grid-template-columns: 48px minmax\(0, 1fr\) auto/);
 });
@@ -71,7 +72,6 @@ test("les réglages, le planning et le bilan ont des commandes clairement visibl
   assert.match(toolsCss, /\.boosterStats svg\s*\{[^}]*width: 18px; height: 18px/);
   assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.settingsButton,\s*\.planningButton\s*\{[^}]*width: 40px; height: 40px/);
   assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.boosterStats\s*\{[^}]*min-height: 40px/);
-  assert.match(modules, /data-testid=\{standardMode \? "standard-agent-planning-icon" : "premium-agent-planning"\}[\s\S]*?aria-label=\{standardT\("agentPlanning"\)\}/);
   assert.match(modules, /className=\{signatureStyles\.settingsButton\}[\s\S]*?aria-label=\{standardMode \? `\$\{tool\.settingsLabel\} — \$\{t\.modules\.campaignsPremiumLabel\}` : tool\.settingsLabel\}/);
 });
 
@@ -117,12 +117,11 @@ test("les outils conservent leurs destinations et les callbacks de publication, 
   assert.match(modules, /onClick=\{openPublishModal\}/);
   assert.match(modules, /onClick=\{openBoosterSummary\}/);
   assert.match(modules, /const studioPath = "\/dashboard\/generer-media"/);
-  assert.match(modules, /const agentPath = "\/dashboard\/agent"/);
   for (const destination of ["e-reputation", "propulser", "fideliser"]) {
     assert.ok(modules.includes(`startModuleNavigation("/dashboard/${destination}")`), destination);
   }
   assert.match(modules, /onClick=\{openCampaignModal\}/);
-  assert.match(modules, /onClick=\{openAgentPlanning\}/);
+  assert.match(modules, /setPlanningWorkspace\(workspace\)/);
   assert.match(modules, /onClick=\{\(\) => startPanelOpening\(standardMode \? "abonnement" : tool\.panel!\)\}/);
 });
 

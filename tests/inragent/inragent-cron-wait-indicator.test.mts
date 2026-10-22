@@ -79,9 +79,11 @@ test("le client dérive le badge de la liste d’actions sans ajouter de polling
         /next_editorial_publication_in_a_few_minutes/g,
       ) || []
     ).length,
-    2,
+    1,
   );
-  assert.match(styles, /\.robotCronWaitBadge \{[\s\S]*?position: absolute;/);
+  const header = read("app/dashboard/agent/_components/AgentWorkspaceHeader.tsx");
+  assert.match(header, /props\.status.*role="status"/);
+  assert.match(client, /showEditorialCronWait && workspace === "publications"/);
   assert.match(
     styles,
     /@media \(max-width: 760px\) \{[\s\S]*?\.robotCronWaitBadge/,

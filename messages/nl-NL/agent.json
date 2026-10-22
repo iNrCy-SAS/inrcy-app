@@ -842,6 +842,43 @@
   "settings_section_channels": "Kanalen",
   "settings_section_generation": "Creatie",
   "settings_section_references": "Referenties",
-  "media_references_summary": "Je personen, omgevingen of producten in een nieuwe scène voor elk bericht." ,
-  "settings_selection_empty": "Niets geselecteerd"
+  "media_references_summary": "Je personen, omgevingen of producten in een nieuwe scène voor elk bericht.",
+  "settings_selection_empty": "Niets geselecteerd",
+  "workspaces": {
+    "publications": {
+      "name": "Publicaties",
+      "description": "Je berichten, voorbereid en ingepland"
+    },
+    "campaigns": {
+      "name": "Emailings",
+      "description": "Je campagnes voor acquisitie en klantbehoud",
+      "premium": "Automatische campagnes zijn beschikbaar met Premium."
+    },
+    "stats": {
+      "name": "Statistieken",
+      "description": "Je rapporten en aanbevelingen op het juiste moment"
+    },
+    "grow": "Acquisitie",
+    "loyalty": "Klantbehoud",
+    "ideas": "Ideeën",
+    "generate": "Genereren",
+    "prepare": "Voorbereiden",
+    "sendReport": "Rapport verzenden",
+    "preparing": "Voorbereiden…",
+    "planning": "Planning",
+    "settings": "Instellingen",
+    "enabled": "Automatisering actief",
+    "paused": "Automatisering gepauzeerd",
+    "help": "Help",
+    "close": "Sluiten",
+    "campaignMode": "Campagnemodus",
+    "premium": "Automatische campagnes zijn beschikbaar met Premium.",
+    "subscription": "Abonnement bekijken",
+    "back": "Terug naar dashboard",
+    "open": "Agent openen",
+    "configureAutomation": "Automatisering instellen",
+    "agentButton": "AI-agent",
+    "automation": "Automatisering",
+    "manual": "Handmatige acties"
+  }
 }

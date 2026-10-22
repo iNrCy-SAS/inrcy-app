@@ -842,6 +842,43 @@
   "settings_section_channels": "Kanäle",
   "settings_section_generation": "Erstellung",
   "settings_section_references": "Referenzen",
-  "media_references_summary": "Ihre Personen, Umgebungen oder Produkte in einer neuen Szene für jeden Beitrag." ,
-  "settings_selection_empty": "Keine Auswahl"
+  "media_references_summary": "Ihre Personen, Umgebungen oder Produkte in einer neuen Szene für jeden Beitrag.",
+  "settings_selection_empty": "Keine Auswahl",
+  "workspaces": {
+    "publications": {
+      "name": "Publikationen",
+      "description": "Ihre Beiträge, vorbereitet und geplant"
+    },
+    "campaigns": {
+      "name": "Emailings",
+      "description": "Ihre Kampagnen für Akquise und Kundenbindung",
+      "premium": "Automatische Kampagnen sind mit Premium verfügbar."
+    },
+    "stats": {
+      "name": "Statistiken",
+      "description": "Ihre Berichte und Empfehlungen zur richtigen Zeit"
+    },
+    "grow": "Akquise",
+    "loyalty": "Kundenbindung",
+    "ideas": "Ideen",
+    "generate": "Generieren",
+    "prepare": "Vorbereiten",
+    "sendReport": "Bericht senden",
+    "preparing": "Vorbereitung…",
+    "planning": "Planung",
+    "settings": "Einstellungen",
+    "enabled": "Automatisierung aktiv",
+    "paused": "Automatisierung pausiert",
+    "help": "Hilfe",
+    "close": "Schließen",
+    "campaignMode": "Kampagnenmodus",
+    "premium": "Automatische Kampagnen sind mit Premium verfügbar.",
+    "subscription": "Abonnement ansehen",
+    "back": "Zum Dashboard",
+    "open": "Agent öffnen",
+    "configureAutomation": "Automatisierung einstellen",
+    "agentButton": "KI-Agent",
+    "automation": "Automatisierung",
+    "manual": "Manuelle Aktionen"
+  }
 }

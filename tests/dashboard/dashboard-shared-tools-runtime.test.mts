@@ -5,17 +5,19 @@ import test from "node:test";
 import { cloneElement, createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
+import * as workspacePolicy from "../../lib/inrAgentWorkspaces.ts";
 import * as editionPolicy from "../../lib/dashboardEdition.ts";
 
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 const require = createRequire(import.meta.url);
 const dashboardMessages = JSON.parse(read("messages/fr-FR/dashboard.json"));
 const shellMessages = JSON.parse(read("messages/fr-FR/shell.json"));
-const localeMessages = new Map([["fr-FR", { dashboard: dashboardMessages, shell: shellMessages }]]);
+const localeMessages = new Map([["fr-FR", { dashboard: dashboardMessages, shell: shellMessages, agent: JSON.parse(read("messages/fr-FR/agent.json")) }]]);
 function messagesFor(locale: string) {
   if (!localeMessages.has(locale)) localeMessages.set(locale, {
     dashboard: JSON.parse(read(`messages/${locale}/dashboard.json`)),
     shell: JSON.parse(read(`messages/${locale}/shell.json`)),
+    agent: JSON.parse(read(`messages/${locale}/agent.json`)),
   });
   return localeMessages.get(locale)!;
 }
@@ -68,7 +70,7 @@ function card(tree: ReactNode, name: string): Element {
 }
 
 function action(tree: ReactNode, cardName: string): Element {
-  const buttons = elements(card(tree, cardName)).filter((node) => node.type === "button");
+  const buttons = elements(card(tree, cardName)).filter((node) => node.type === "button" && !node.props["data-agent-workspace"] && !node.props["data-agent-planning-workspace"]);
   assert.ok(buttons.length, `No action in ${cardName}`);
   return buttons[buttons.length - 1];
 }
@@ -128,7 +130,7 @@ function harness(options: HarnessOptions = {}) {
       useRouter: () => ({ replace: (path: string) => { calls.routes.push(path); } }),
     };
     if (specifier === "next/image") return { __esModule: true, default: ({ src, alt, width, height, className }: Props) => createElement("img", { src, alt, width, height, className }) };
-    if (specifier === "next/dynamic") return { __esModule: true, default: () => (props: Props) => createElement("div", { "data-agent-planning": "true", "data-standard-mode": props.standardMode }) };
+    if (specifier === "next/dynamic") return { __esModule: true, default: () => (props: Props) => createElement("div", { "data-agent-planning": "true", "data-standard-mode": props.standardMode, "data-workspace": props.workspace }) };
     if (specifier.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) };
     if (specifier === "./WorkflowBaseModal") return { __esModule: true, default: (props: Props) => createElement("div", { role: "dialog", "aria-label": props.title }, props.headerActions as ReactNode, ...(Array.isArray(props.children) ? props.children : [props.children]) as ReactNode[]) };
     if (specifier === "./AdsChannelInfoModal") return { __esModule: true, default: (props: Props) => createElement("div", { role: "dialog", "aria-label": "iNr’ADS", onClick: props.onClose }) };
@@ -136,6 +138,7 @@ function harness(options: HarnessOptions = {}) {
     if (specifier === "../_hooks/useInrAgentPendingCount") return { useInrAgentPendingCount: (enabled: boolean) => { calls.enabled.push(enabled); return enabled ? options.pendingCount ?? 0 : 0; } };
     if (specifier === "./DashboardToolWarmup") return { requestDashboardToolWarmup: (path: string) => { calls.warmups.push(path); } };
     if (specifier === "@/hooks/useDelayedPendingAction") return { useDelayedPendingAction: () => pending };
+    if (specifier === "@/lib/inrAgentWorkspaces") return workspacePolicy;
     if (specifier === "@/lib/dashboardEdition") return editionPolicy;
     if (specifier === "./DashboardEditionProvider") return { useDashboardEdition: () => options.edition ?? "premium" };
     if (specifier === "../dashboard.scroll") return { DASHBOARD_GEARBOX_ANCHOR_ID: "dashboard-gearbox" };
@@ -186,15 +189,15 @@ function harness(options: HarnessOptions = {}) {
 const variants = [{ adapter: true, edition: "standard" as const }, { edition: "premium" as const }, { edition: "founder" as const }];
 
 test("Standard, Premium and Founder render the same signature cards, hierarchy and shared CSS", () => {
-  const expected = ["boosterCard", "adsCard", "studioCard", "agentCard", "mailCampaignCard", "sendCard", "statsCard", "calendarCard", "crmCard", "reputationCard"];
+  const expected = ["boosterCard", "adsCard", "mailCampaignCard", "studioCard", "sendCard", "statsCard", "calendarCard", "crmCard", "reputationCard"];
   for (const variant of variants) {
     const { tree, html } = harness(variant).render();
     const cards = elements(tree).flatMap((node) => expected.filter((name) => hasClass(node, name)));
     assert.deepEqual(cards, expected);
     assert.equal(elements(tree).filter((node) => hasClass(node, "signatureGrid")).length, 1);
     assert.equal(elements(tree).filter((node) => hasClass(node, "relationshipGrid")).length, 1);
-    assert.match(html, /Créer &amp; amplifier/);
-    assert.match(html, /Piloter &amp; développer/);
+    assert.match(html, /Communiquer et Développer/);
+    assert.match(html, /Créer et Piloter/);
     assert.doesNotMatch(html, /undefined|standardActionStack|premiumDashboardList/);
   }
 });
@@ -328,7 +331,7 @@ test("both editions preserve Booster publish, distinct Bilan and Stats callbacks
 
 test("Studio, Agent and Reputation keep their existing accessible routes in every edition", () => {
   for (const variant of variants) {
-    for (const [name, path] of [["studioCard", "/dashboard/generer-media"], ["agentCard", "/dashboard/agent"], ["reputationCard", "/dashboard/e-reputation"]]) {
+    for (const [name, path] of [["studioCard", "/dashboard/generer-media"], ["reputationCard", "/dashboard/e-reputation"]]) {
       const view = harness(variant);
       click(action(view.render().tree, name));
       assert.deepEqual(view.calls.routes, [path]);
@@ -338,13 +341,34 @@ test("Studio, Agent and Reputation keep their existing accessible routes in ever
   }
 });
 
-test("Agent planning receives the real edition, keeping campaign automation hidden for Standard", () => {
+test("the three contextual agents open the correct workspace and preserve campaign access", () => {
   for (const variant of variants) {
-    const view = harness(variant);
-    click(find(view.render().tree, (node) => hasClass(node, "planningButton")));
-    const planning = find(view.render().tree, (node) => node.props["data-agent-planning"] === "true");
-    assert.equal(planning.props["data-standard-mode"], variant.edition === "standard");
-    assert.deepEqual(view.calls.routes, []);
+    for (const [workspace, path] of Object.entries(workspacePolicy.INR_AGENT_WORKSPACES)) {
+      const view = harness(variant);
+      const logo = find(view.render().tree, (node) => node.props["data-agent-workspace"] === workspace);
+      click(logo);
+      const locked = variant.edition === "standard" && workspace === "campaigns";
+      assert.deepEqual(view.calls.routes, locked ? [] : [path.href]);
+      assert.deepEqual(view.calls.panels, locked ? ["abonnement"] : []);
+      assert.deepEqual(view.calls.warmups, locked ? [] : [path.href]);
+    }
+  }
+});
+
+test("planning shortcuts open a scoped read-only plan and keep Standard campaign access locked", () => {
+  for (const variant of variants) {
+    for (const workspace of Object.keys(workspacePolicy.INR_AGENT_WORKSPACES)) {
+      const view = harness(variant);
+      const icon = find(view.render().tree, (node) => node.props["data-agent-planning-workspace"] === workspace);
+      click(icon);
+      const locked = variant.edition === "standard" && workspace === "campaigns";
+      if (locked) assert.deepEqual(view.calls.panels, ["abonnement"]);
+      else {
+        const planning = find(view.render().tree, (node) => node.props["data-agent-planning"] === "true");
+        assert.equal(planning.props["data-workspace"], workspace);
+      }
+      assert.deepEqual(view.calls.routes, []);
+    }
   }
 });
 
@@ -384,20 +408,19 @@ test("the provider remains fail-closed when Standard is rendered directly or ove
   }
 });
 
-test("shared Agent logo uses the real counter input, caps its badge and obeys account availability", () => {
+test("contextual icons remain distinct and disabled when account access is unavailable", () => {
   for (const variant of variants) {
-    for (const [enabled, pendingCount, label] of [[true, 0, null], [true, 3, "3"], [true, 120, "99+"], [false, 120, null]] as const) {
-      const view = harness({ ...variant, pendingCount, props: { inrAgentEnabled: enabled } });
+    for (const enabled of [true, false]) {
+      const view = harness({ ...variant, props: { inrAgentEnabled: enabled } });
       const tree = view.render().tree;
-      const logo = find(tree, (node) => node.props["data-testid"] === "dashboard-agent-logo");
-      const badge = elements(tree).find((node) => node.props["data-testid"] === "dashboard-agent-pending-badge");
-      assert.equal(badge ? content(badge) : null, label);
-      assert.equal(logo.props.disabled, !enabled);
-      assert.deepEqual(view.calls.enabled, [enabled]);
-      if (enabled) {
-        click(logo);
-        assert.deepEqual(view.calls.routes, ["/dashboard/agent"]);
-      } else assert.equal(logo.props["data-dashboard-prefetch"], undefined);
+      const logos = elements(tree).filter((node) => node.props["data-testid"] === "dashboard-agent-logo");
+      assert.equal(logos.length, 3);
+      logos.forEach((logo) => assert.equal(logo.props.disabled, !enabled));
+      const sources = elements(tree).filter((node) => node.type === "img" && String(node.props.src).startsWith("/agent/agent-")).map((node) => node.props.src);
+      assert.equal(new Set(sources).size, 3);
+      // A global count must not be repeated as the count of every specialist.
+      assert.equal(elements(tree).filter((node) => node.props["data-testid"] === "dashboard-agent-pending-badge").length, 0);
+      if (!enabled) assert.ok(logos.every((logo) => logo.props["data-dashboard-prefetch"] === undefined));
     }
   }
 });
@@ -420,9 +443,10 @@ test("the shared delayed action guard blocks repeat clicks and preserves Standar
     publish.flushEffects();
     assert.deepEqual(publish.calls.completed, variant.edition === "standard" ? ["modal:publish"] : []);
 
-    const busy = harness({ ...variant, visibleKey: "route:/dashboard/agent" });
+    const busy = harness({ ...variant, visibleKey: "route:/dashboard/agent/publications" });
     const busyTree = busy.render().tree;
-    assert.equal(action(busyTree, "agentCard").props.disabled, true);
-    assert.equal(find(busyTree, (node) => node.props["data-testid"] === "dashboard-agent-logo").props["aria-busy"], true);
+    const busyAgent = find(busyTree, (node) => node.props["data-agent-workspace"] === "publications");
+    assert.equal(busyAgent.props.disabled, true);
+    assert.equal(busyAgent.props["aria-busy"], true);
   }
 });
