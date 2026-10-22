@@ -592,6 +592,8 @@ export default function AgentClient() {
   } | null>(null);
   const [settingsKey, setSettingsKey] = useState<AutomationKey | null>(null);
   const [agentReferenceBusy, setAgentReferenceBusy] = useState(false);
+  const settingsDialogRef = useRef<HTMLElement | null>(null);
+  const [settingsAutoCompact, setSettingsAutoCompact] = useState(false);
   const [settingsCompactPanel, setSettingsCompactPanel] = useState<
     "planning" | "channels" | "generation" | "references"
   >("planning");
@@ -1280,6 +1282,21 @@ export default function AgentClient() {
     setDraggedPublicationIdea(null);
     setPublicationIdeaDropTarget(null);
     setSettingsCompactPanel("planning");
+    setSettingsAutoCompact(false);
+  }, [settingsKey, publicationIdeasOpen]);
+  useEffect(() => {
+    if (settingsKey !== "publish" || publicationIdeasOpen) return;
+    const dialog = settingsDialogRef.current;
+    if (!dialog) return;
+    const fit = () => {
+      if (dialog.scrollHeight > dialog.clientHeight + 2) setSettingsAutoCompact(true);
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(dialog);
+    dialog.querySelectorAll("[data-settings-panel], header, footer").forEach(element => observer.observe(element));
+    window.addEventListener("resize", fit);
+    fit();
+    return () => { observer.disconnect(); window.removeEventListener("resize", fit); };
   }, [settingsKey, publicationIdeasOpen]);
   useEffect(() => {
     if (!publicationIdeasOpen) return;
@@ -8737,8 +8754,14 @@ export default function AgentClient() {
         >
           <section
             className={`${styles.settingsModal} ${styles.automationSettingsModal} ${publicationIdeasOpen ? styles.publicationIdeasWorkspace : ""} ${settingsAutomation.key === "publish" && !publicationIdeasOpen ? styles.publishSettingsCanvas : ""}`}
+            ref={settingsDialogRef}
             data-automation={settingsAutomation.key}
             data-active-panel={settingsCompactPanel}
+            data-auto-compact={settingsAutoCompact || undefined}
+            onFocusCapture={(event) => {
+              const panel = (event.target as HTMLElement).closest<HTMLElement>("[data-settings-panel]")?.dataset.settingsPanel;
+              if (panel === "planning" || panel === "channels" || panel === "generation" || panel === "references") setSettingsCompactPanel(panel);
+            }}
             role="dialog"
             aria-modal="true"
             aria-label={publicationIdeasOpen
