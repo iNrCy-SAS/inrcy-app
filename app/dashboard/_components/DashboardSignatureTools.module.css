@@ -445,7 +445,7 @@
 .studioBanner .ghostArt { position: static; width: 44px; height: 44px; }
 .studioBanner .cardButton { margin: 0; }
 .statsCard { min-height: 140px; padding-bottom: 70px; }
-.statsCard .cardActions { justify-content: space-between; gap: 12px; align-items: center; }
+.statsCard .cardActions { justify-content: space-between; gap: 12px; align-items: flex-end; }
 .statsCard .manualToolActions { flex-wrap: nowrap; gap: 10px; }
 .statsCard .signatureArt { width: 28px; height: 28px; flex-basis: 28px; }
 .statsAgent { position: static; }
@@ -567,8 +567,9 @@
 }
 
 @media (min-width: 1451px) {
-  .mailCampaignCard { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "copy copy" "manual agent"; align-content: center; }
+  .mailCampaignCard { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "copy copy" "manual agent"; align-content: stretch; }
   .mailCampaignCard .relationshipLogo { position: absolute; top: 12px; left: 12px; }
   .mailCampaignCard .relationshipCopy { min-height: 38px; padding: 0 32px 0 48px; }
-  .campaignsAgent { border-top: 0; border-left: 1px solid #ffd3c329; padding: 0 0 0 10px; }
+  .mailCampaignManualActions { align-self: end; }
+  .campaignsAgent { align-self: end; border-top: 0; border-left: 1px solid #ffd3c329; padding: 0 0 0 10px; }
 }
