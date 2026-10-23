@@ -8,6 +8,14 @@ test.describe('booster actions', () => {
   test.skip(!email || !password, 'E2E_EMAIL et E2E_PASSWORD requis');
 
   test('booster publish modal has actionable UI elements', async ({ page }) => {
+    // A fresh authenticated session still needs a cookie choice. Handle the
+    // real dialog even if it hydrates just before a wizard interaction.
+    const cookieConsent = page.getByRole('dialog', { name: 'Consentement cookies', exact: true });
+    await page.addLocatorHandler(cookieConsent, async () => {
+      await cookieConsent.getByRole('button', { name: 'Refuser', exact: true }).click();
+      await expect(cookieConsent).toBeHidden();
+    });
+
     await login(page);
 
     // /dashboard/booster redirects intentionally to the dashboard modal layer.
