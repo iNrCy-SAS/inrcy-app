@@ -52,28 +52,38 @@ test("le menu des brouillons flotte au-dessus de l'outil sans être rogné", () 
   );
 });
 
-test("le titre Publier reste centré malgré les actions du header", () => {
+test("Booster utilise sa signature fusée sans répéter le titre Publier au centre", () => {
+  assert.match(modalLayer, /headerBrand=\{<BoosterHeaderBrand/);
+  assert.doesNotMatch(modalLayer, /moduleLabel=\{i18nT\("module_booster_0eb9581c"\)\}/);
   assert.match(
     workflowBaseModal,
-    /"minmax\(0, 1fr\) auto minmax\(0, 1fr\)"/,
+    /gridTemplateColumns: headerBrand[\s\S]{0,70}"minmax\(0, 1fr\) auto"/,
   );
 });
 
 test("les brouillons sont regroupés avec l'enregistrement après les outils du header", () => {
-  const agentShortcutIndex = modalLayer.indexOf("data-inr-agent-header-shortcut");
-  const draftMenuIndex = modalLayer.indexOf("<PublishDraftHeaderMenu", agentShortcutIndex);
+  const dnaShortcutIndex = modalLayer.indexOf("<BusinessDnaIcon");
+  const draftMenuIndex = modalLayer.indexOf("<PublishDraftHeaderMenu", dnaShortcutIndex);
   const saveDraftIndex = modalLayer.indexOf(
     "publishSaveDraftRef.current?.()",
     draftMenuIndex,
   );
 
-  assert.ok(agentShortcutIndex >= 0);
-  assert.ok(draftMenuIndex > agentShortcutIndex);
+  assert.ok(dnaShortcutIndex >= 0);
+  assert.ok(draftMenuIndex > dnaShortcutIndex);
   assert.ok(saveDraftIndex > draftMenuIndex);
   assert.match(
     draftMenuStyles,
     /@media \(max-width: 768px\)[\s\S]*?\.root \.trigger\s*\{[\s\S]*?width:\s*34px;[\s\S]*?\.triggerLabel,[\s\S]*?display:\s*none;/,
   );
+});
+
+test("le statut du brouillon appartient à son bouton sans pastille ni toast séparés", () => {
+  assert.match(modalLayer, /statusMessage=\{publishDraftHeaderState\.draftMessage\}/);
+  assert.doesNotMatch(modalLayer, /headerStatus=|publishDraftMobileToast/);
+  assert.match(draftMenu, /role="status"/);
+  assert.match(draftMenu, /menuStyles\.triggerStatus/);
+  assert.match(draftMenu, /menuStyles\.noticeIndicator/);
 });
 
 test("la barre de génération est révélée automatiquement après le clic IA", () => {

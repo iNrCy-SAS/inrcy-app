@@ -18,9 +18,11 @@ const videoAdapter = read(
 );
 
 test("channel titles keep raw spaces while the user is typing", () => {
-  assert.ok(
+  // Desktop and phone now share one title input; typing must still bypass trimming.
+  assert.equal(
     (contentEditor.match(/\{ title: e\.target\.value \},\s*\{ sanitize: false \}/g) || [])
-      .length >= 2,
+      .length,
+    1,
   );
   assert.doesNotMatch(publishModal, /\[ctaDefaults, postsByChannel\]/);
   assert.match(publishModal, /\}, \[ctaDefaults\]\);/);

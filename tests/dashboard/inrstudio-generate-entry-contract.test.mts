@@ -104,6 +104,23 @@ test("Booster ouvre le générateur sans fabriquer de média source", () => {
   assert.match(generatorEntry, /openStudio\(href\)/);
 });
 
+test("les cases Image et Vidéo ouvrent le bon générateur sans annoncer une source inexistante", async () => {
+  for (const kind of ["image", "video"] as const) {
+    let request: Record<string, unknown> | null = null;
+    await handler<(kind: string) => Promise<void>>(publishPath, "openInrStudioGenerator", {
+      idea: "Notre projet",
+      preparePublicationDraftForStudio: async () => ({ draftId: "draft", returnHref: "/dashboard?action=publish", videoDraft: null }),
+      createInrStudioHandoff: async (input: Record<string, unknown>) => { request = input; return { href: "test:studio" }; },
+      openStudio: () => {}, setImgError: (error: string) => assert.fail(error),
+    })(kind);
+    assert.ok(request);
+    assert.equal((request as Record<string, unknown>).source, undefined);
+    assert.equal(((request as Record<string, unknown>).context as Record<string, unknown>).mediaType, kind);
+  }
+  const studio = read("app/dashboard/generer-media/MediaGeneratorStudioClient.tsx");
+  assert.match(studio, /initialMediaType=\{handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : "image"\)\}/);
+});
+
 test("le clic Générer de Booster transmet seulement le dernier sujet saisi", async () => {
   const requests: Record<string, unknown>[] = [];
   const opened: string[] = [];

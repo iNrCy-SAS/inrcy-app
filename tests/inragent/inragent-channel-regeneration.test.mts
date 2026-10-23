@@ -58,27 +58,27 @@ test("media regeneration is atomic and shares each required format across its co
   assert.match(route, /const actionChannels = currentChannelsForAction\(action\)/);
   assert.match(
     route,
-    /const expectedCount =\s*mediaKind === "image" \? currentPublicationImageCount\(action\) : 1/,
+    /const expectedCount =\s*mediaKind === "image" \? currentPublicationImageCount\(action, requestedScope === "channel" \? channel : undefined\) : 1/,
   );
   assert.match(route, /for \(let index = 0; index < expectedCount; index \+= 1\)/);
-  assert.match(route, /variantSeed: `\$\{actionId\}:global:\$\{mediaKind\}/);
+  assert.match(route, /variantSeed: `\$\{actionId\}:\$\{mediaScopeKey\}:\$\{mediaKind\}/);
   assert.match(route, /if \(generatedMedia\.length !== expectedCount/);
-  assert.match(route, /generationRequestId: `\$\{actionId\}:global:\$\{mediaKind\}:\$\{generationRevision\}:\$\{generationIntent\}:format:\$\{outputFormat\}:\$\{index\}`/);
+  assert.match(route, /generationRequestId: `\$\{actionId\}:\$\{mediaScopeKey\}:\$\{mediaKind\}:\$\{generationRevision\}:\$\{generationIntent\}:format:\$\{outputFormat\}:\$\{index\}`/);
   assert.match(route, /Promise\.allSettled\(formatPlan\.formats\.map\(async \(outputFormat\)/);
   assert.match(route, /Aucun média de la publication n’a été remplacé/);
   assert.match(
     mediaBranch,
-    /const nextImagesByChannel = \{ \.\.\.setChannelsValue\(imagesByChannel, actionChannels, nextImages\), \.\.\.formatBindings\.imagesByChannel \}/,
+    /const nextImagesByChannel = \{ \.\.\.setChannelsValue\(imagesByChannel, mediaTargetChannels, nextImages\), \.\.\.formatBindings\.imagesByChannel \}/,
   );
   assert.match(
     mediaBranch,
-    /const nextVideoByChannel = \{ \.\.\.setChannelsValue\(videoByChannel, actionChannels, nextVideo\), \.\.\.formatBindings\.videoByChannel \}/,
+    /const nextVideoByChannel = \{ \.\.\.setChannelsValue\(videoByChannel, mediaTargetChannels, nextVideo\), \.\.\.formatBindings\.videoByChannel \}/,
   );
   assert.match(
     mediaBranch,
-    /const nextMediaModeByChannel = setChannelsValue\(mediaModeByChannel, actionChannels, nextMode\)/,
+    /const nextMediaModeByChannel = setChannelsValue\(mediaModeByChannel, mediaTargetChannels, nextMode\)/,
   );
-  assert.match(mediaBranch, /for \(const targetChannel of actionChannels\)/);
+  assert.match(mediaBranch, /for \(const targetChannel of mediaTargetChannels\)/);
   assert.match(mediaBranch, /nextPostByChannel\[targetChannel\] =/);
   assert.match(mediaBranch, /nextReadiness\[targetChannel\] = buildPublishMediaReadiness/);
   assert.match(mediaBranch, /nextAdaptation\[targetChannel\] = buildPublishMediaAdaptation/);
@@ -86,10 +86,10 @@ test("media regeneration is atomic and shares each required format across its co
   assert.match(mediaBranch, /mediaAssets: generatedMedia/);
   assert.match(mediaBranch, /image_assets: generatedMedia/);
   assert.match(mediaBranch, /imageAssets: generatedMedia/);
-  assert.match(mediaBranch, /appliedToChannels: actionChannels/);
+  assert.match(mediaBranch, /appliedToChannels: mediaTargetChannels/);
   assert.match(route, /previewText: action\.previewText/);
-  assert.match(route, /editType: "regenerate_publish_global_media"/);
-  assert.match(route, /scope: "publication"/);
+  assert.match(route, /editType: requestedScope === "publication" \? "regenerate_publish_global_media" : "regenerate_publish_channel_media"/);
+  assert.match(route, /scope: requestedScope/);
   assert.doesNotMatch(
     mediaBranch,
     /setChannelValue\((?:imagesByChannel|videoByChannel|mediaModeByChannel), channel/,
@@ -145,6 +145,9 @@ test("the review UI exposes independent content and media regeneration controls"
     const messages = JSON.parse(read(`messages/${locale}/agent.json`)) as Record<string, string>;
     for (const key of [
       "regenerate_media_confirm",
+      "regenerate_media_scope_title",
+      "regenerate_media_scope_message",
+      "regenerate_media_channel_success",
       "regenerate_media_success",
       "agent_working_regenerating_media",
       "regenerate_content_scope_title",
@@ -154,7 +157,7 @@ test("the review UI exposes independent content and media regeneration controls"
       "agent_working_regenerating_all_content",
     ]) {
       assert.ok(messages[key]?.trim(), `${locale}.${key}`);
-      if (key !== "regenerate_current_channel") {
+      if (!["regenerate_current_channel", "regenerate_media_scope_message", "regenerate_media_channel_success"].includes(key)) {
         assert.doesNotMatch(messages[key], /\{channel\}/, `${locale}.${key}`);
       }
     }

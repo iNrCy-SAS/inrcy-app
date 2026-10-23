@@ -155,7 +155,24 @@ test("an empty resource selector shows one loading message during discovery and 
   }
   const selected = h.render("default", { item: { ...item, connection: { accountConnected: true, value: "locations/1", resourceLabel: "iNrCy", onSelect() {}, busy: true } } });
   assert.equal(nodes(selected).find(node => node.type === "select")!.props.value, "locations/1");
-  assert.equal(nodes(selected).find(node => node.props.role === "status")!.props.children[1], labels.loading);
+  assert.equal(nodes(selected).find(node => node.props.role === "status")!.props.children, labels.loading);
+});
+
+test("reconnect stays in the main action without a duplicate subtitle and preserves operation feedback", () => {
+  const h = runtime("app/dashboard/_components/DashboardFluxBubble.tsx");
+  const reconnect = { ...item, bubbleStatus: "reconnect", bubbleStatusText: "À reconnecter", connection: { accountConnected: true, onConnect() {} } };
+  const tree = h.render("default", { item: reconnect });
+  const action = nodes(tree).find(node => node.props["aria-label"] === `${labels.reconnect} — ${item.name}`)!;
+  assert.ok(action, "The main reconnect action remains available");
+  assert.match(String(action.props.className), /actionMainReconnect/);
+  assert.equal(nodes(tree).find(node => node.props.role === "status")!.props.hidden, true);
+  assert.ok(!nodes(tree).some(node => node.props.role === "alert"));
+  const failed = h.render("default", { item: { ...reconnect, connection: { ...reconnect.connection, error: "Impossible de mettre à jour le lien." } } });
+  assert.equal(nodes(failed).find(node => node.props.role === "alert")!.props.children, "Impossible de mettre à jour le lien.");
+  const saved = h.render("default", { item: { ...reconnect, connection: { ...reconnect.connection, notice: "Lien mis à jour." } } });
+  const notice = nodes(saved).find(node => node.props.role === "status")!;
+  assert.equal(notice.props.hidden, false);
+  assert.equal(notice.props.children, "Lien mis à jour.");
 });
 
 test("Google Business prevents a disconnect from racing the automatic selection write", () => {

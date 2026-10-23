@@ -1326,6 +1326,32 @@ export default function usePublishImageController({
     });
   };
 
+  const movePoolImageTo = (imageKey: string, targetImageKey: string) => {
+    const nextKeys = moveImageKeyToTarget(imageKeys, imageKey, targetImageKey);
+    if (nextKeys.every((key, index) => key === imageKeys[index])) return;
+
+    const nextFiles = nextKeys.map((key) => imageFileByKey[key]);
+    setImages(nextFiles);
+    setImagePreviews(nextKeys.map((key) => previewByKey[key]));
+    setChannelImageEditors((current) => {
+      const next = { ...current };
+      for (const channel of Object.keys(current) as ChannelKey[]) {
+        const editor = current[channel];
+        if (!editor) continue;
+        next[channel] = {
+          ...editor,
+          imageKeys: applyReferenceImageOrder(nextKeys, editor.imageKeys),
+          synchronizedImageKeys: [...nextKeys],
+        };
+      }
+      return next;
+    });
+    void syncPersistentWorkspaceImages?.(
+      nextFiles,
+      nextFiles.map((file) => ({ source_metadata: imageMetaByKey[makeImageKey(file)] || null })),
+    );
+  };
+
   const moveChannelImage = (
     channel: ChannelKey,
     imageKey: string,
@@ -1766,6 +1792,7 @@ export default function usePublishImageController({
     assignExistingImagesToChannel,
     removeImagesFromChannel,
     removeImage,
+    movePoolImageTo,
     getDraftImageSettingsByChannel,
     uploadPublicationDraftImages,
     restorePublicationDraftImages,

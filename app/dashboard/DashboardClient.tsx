@@ -211,6 +211,7 @@ export default function DashboardClient({
   const [channelConnectionsOpen, setChannelConnectionsOpen] = useState(false);
   const channelConnectionsOpenedFromRouteRef = useRef(false);
   const [dashboardBoosterModal, setDashboardBoosterModal] = useState<null | "publish" | "stats">(null);
+  const [boosterPublishSession, setBoosterPublishSession] = useState(0);
   const [siteConnectionsReady, setSiteConnectionsReady] = useState(false);
   const [officialChannelStatesReady, setOfficialChannelStatesReady] = useState(() => (
     hasCompleteOfficialDashboardChannelState(initialDashboardChannelState)
@@ -387,6 +388,9 @@ export default function DashboardClient({
 
   const openBoosterPublish = useCallback(() => {
     void requestNavigation(() => {
+      // Only an explicit new publication starts a fresh editor. Draft saves and
+      // Studio returns keep their mounted session and their chosen mode.
+      setBoosterPublishSession((current) => current + 1);
       // L'URL est aussi l'état partagé avec le bandeau mobile. Sans ce
       // paramètre, l'ouverture locale de la modale laisse le bouton « Publier »
       // actif sur le Dashboard.
@@ -4099,7 +4103,9 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       />
 
       <DashboardBoosterModalLayer
+        key={boosterPublishSession}
         mode={dashboardBoosterModal}
+        companyName={inrBadgeProfile.companyLegalName}
         initialConnectedChannels={{
 
           site_web: Boolean(normalizeSiteUrl(siteWebSavedUrl)),

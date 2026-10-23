@@ -3,6 +3,8 @@
 import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import { isMetaPilotChannelVisible } from "@/lib/metaChannelUiAccess";
 import { useTranslations } from "next-intl";
+import PublishWizardFrame, { PublishWizardScreen } from "../booster/publier/components/PublishWizardFrame";
+import type { PublishWizardStep } from "../booster/publier/components/publishWizard";
 
 import {
   useEffect,
@@ -91,6 +93,7 @@ export default function PublishExecutionResultModal({
   onOpenInrSend,
   onRetryFailed,
   retrying = false,
+  wizardSteps,
 }: {
   styles: DashboardStyles;
   summary: PublishExecutionSummary | null | undefined;
@@ -98,6 +101,7 @@ export default function PublishExecutionResultModal({
   onOpenInrSend: () => void;
   onRetryFailed?: () => void | Promise<void>;
   retrying?: boolean;
+  wizardSteps?: readonly PublishWizardStep[];
 }) {
   const { metaPilotEnabled } = useDashboardViewerAccess();
   const i18nT = useTranslations("booster");
@@ -476,30 +480,13 @@ export default function PublishExecutionResultModal({
           ? `${publishedCount}/${totalCount} ${totalCount > 1 ? "canaux publiés" : "canal publié"} avec succès.`
           : `${pendingCount || totalCount} ${(pendingCount || totalCount) > 1 ? "canaux sont" : "canal est"} encore en traitement. iNrCy actualise ce bilan automatiquement.`;
 
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={overallTitle}
-      className={styles.fullscreenModalOverlay}
-      style={{
-        position: "fixed",
-        inset: 0,
-        display: "grid",
-        placeItems: "center",
-        background: "rgba(3, 8, 20, 0.64)",
-        zIndex: 150,
-        padding: 16,
-        overflowY: "auto",
-        overscrollBehavior: "contain",
-      }}
-    >
+  const resultCard = (
       <div
         className={styles.publishResultDialogShell}
         style={{
-          width: "min(660px, 100%)",
+          width: wizardSteps ? "min(980px, 100%)" : "min(660px, 100%)",
           maxHeight:
-            "calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) - 32px)",
+            wizardSteps ? "none" : "calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) - 32px)",
           position: "relative",
           minWidth: 0,
         }}
@@ -522,7 +509,7 @@ export default function PublishExecutionResultModal({
           style={{
             width: "100%",
             maxHeight:
-              "calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) - 32px)",
+              wizardSteps ? "none" : "calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) - 32px)",
             overflowY: "auto",
             textAlign: "left",
             position: "relative",
@@ -1076,6 +1063,34 @@ export default function PublishExecutionResultModal({
         </div>
         </div>
       </div>
+  );
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={overallTitle}
+      className={styles.fullscreenModalOverlay}
+      style={{
+        position: "fixed",
+        inset: 0,
+        display: wizardSteps ? "flex" : "grid",
+        flexDirection: "column",
+        height: wizardSteps ? "100dvh" : undefined,
+        boxSizing: "border-box",
+        placeItems: "center",
+        background: wizardSteps ? "radial-gradient(circle at 12% 0%, #193f624d, transparent 40%), linear-gradient(135deg, #090e20, #17112b)" : "rgba(3, 8, 20, 0.64)",
+        zIndex: 150,
+        padding: 16,
+        overflowY: "auto",
+        overscrollBehavior: "contain",
+      }}
+    >
+      {wizardSteps ? (
+        <PublishWizardFrame step="results" steps={wizardSteps} canOpenStep={() => false} onOpenStep={() => {}}>
+          <PublishWizardScreen active step="results">{resultCard}</PublishWizardScreen>
+        </PublishWizardFrame>
+      ) : resultCard}
     </div>
   );
 }

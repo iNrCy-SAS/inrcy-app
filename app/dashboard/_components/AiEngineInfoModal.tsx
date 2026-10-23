@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   AI_ENGINE_OPTIONS,
   getAiEngineOption,
@@ -22,14 +22,30 @@ const MOBILE_DOCK_HEIGHT =
 export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props) {
   const i18nT = useTranslations("booster");
   const activeOption = getAiEngineOption(activeEngine);
+  const dialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!open) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        onClose();
+      } else if (event.key === "Tab") {
+        const buttons = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") || []);
+        const first = buttons[0];
+        const last = buttons.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      previousFocus?.focus({ preventScroll: true });
+    };
   }, [open, onClose]);
 
   if (!open) return null;
@@ -58,6 +74,7 @@ export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props
       }}
     >
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="ai-engine-info-title"

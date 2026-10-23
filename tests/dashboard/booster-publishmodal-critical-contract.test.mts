@@ -115,7 +115,7 @@ test("cutover delegates video retouching to iNrStudio and keeps server preparati
     publishModal,
     /deferVideoPreparation: mediaPipelineCutoverEnabled/,
   );
-  assert.match(publishModal, /openVideoRetoucher=\{/);
+  assert.match(publishModal, /onRetouchVideo=\{\(\) => void openInrStudioVideoRetoucher\(activeImageChannel\)\}/);
   assert.match(videoPanel, /onRetouchVideo\(activeChannel\)/);
   assert.doesNotMatch(videoPanel, /BoosterVideoFormatManager/);
   assert.match(

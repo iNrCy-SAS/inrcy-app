@@ -22,8 +22,15 @@ test.describe('booster api', () => {
     const channels = asObject(json.channels);
     expect(typeof channels).toBe('object');
 
-    for (const key of ['inrcy_site', 'site_web', 'gmb', 'facebook', 'instagram', 'linkedin']) {
-      expect(typeof channels[key]).toBe('boolean');
+    // Site Web is the single website channel; the former inrcy_site alias
+    // was retired when website connections were consolidated.
+    const expectedChannels = [
+      'site_web', 'inr_search', 'gmb', 'facebook', 'instagram', 'threads',
+      'linkedin', 'tiktok', 'youtube_shorts', 'pinterest', 'x',
+    ];
+    expect(Object.keys(channels).sort()).toEqual([...expectedChannels].sort());
+    for (const key of expectedChannels) {
+      expect(typeof channels[key], `channels.${key}`).toBe('boolean');
     }
   });
 

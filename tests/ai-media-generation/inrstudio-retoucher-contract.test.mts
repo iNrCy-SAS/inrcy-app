@@ -302,7 +302,7 @@ test("le header iNrStudio centralise Action et Image ou Vidéo", () => {
   assert.match(modal, /\["image", "video"\] as const/);
   assert.match(
     studio,
-    /initialMediaType=\{handoff\?\.source\?\.mediaType \|\| "image"\}/
+    /initialMediaType=\{handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : "image"\)\}/
   );
   assert.match(modal, /activeMediaType === "video"/);
   assert.match(modal, /studioTab === "generate"\s*\? freeMediaType/);
@@ -333,6 +333,19 @@ test("le handoff transporte images et vidéos sans télécharger les vidéos dis
   assert.match(navigation, /if \(source\.mediaType === "video"\) return null/);
   assert.match(
     studio,
-    /initialMediaType=\{handoff\?\.source\?\.mediaType \|\| "image"\}/
+    /initialMediaType=\{handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : "image"\)\}/
   );
+});
+
+test("le média source reste prioritaire et une génération sans source conserve le type demandé", () => {
+  const expression = studio.match(/initialMediaType=\{([^\r\n]+)\}/)?.[1];
+  assert.ok(expression, "Le studio doit transmettre le type du média initial");
+  const resolveInitialMediaType = new Function("handoff", `return (${expression});`);
+
+  assert.equal(resolveInitialMediaType(null), "image");
+  assert.equal(resolveInitialMediaType({ context: {} }), "image");
+  assert.equal(resolveInitialMediaType({ context: { mediaType: "image" } }), "image");
+  assert.equal(resolveInitialMediaType({ context: { mediaType: "video" } }), "video");
+  assert.equal(resolveInitialMediaType({ source: { mediaType: "image" }, context: { mediaType: "video" } }), "image");
+  assert.equal(resolveInitialMediaType({ source: { mediaType: "video" }, context: { mediaType: "image" } }), "video");
 });

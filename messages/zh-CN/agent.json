@@ -880,5 +880,8 @@
     "agentButton": "AI 代理",
     "automation": "自动化",
     "manual": "手动操作"
-  }
+  },
+  "regenerate_media_scope_title": "重新生成媒体",
+  "regenerate_media_scope_message": "为所有渠道还是仅为 {channel} 重新生成媒体？文字和日期保持不变。已批准的发布需要重新批准。",
+  "regenerate_media_channel_success": "已重新生成 {channel} 的媒体。日期保持不变，发布需要批准。"
 }

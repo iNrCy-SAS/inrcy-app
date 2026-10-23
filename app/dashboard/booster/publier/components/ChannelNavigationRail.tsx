@@ -25,6 +25,8 @@ type ChannelNavigationRailProps<ItemKey extends string> = {
   trackClassName?: string;
   rootStyle?: CSSProperties;
   disabled?: boolean;
+  getItemLabel?: (item: ItemKey) => string;
+  getItemIcon?: (item: ItemKey) => string;
   children: ReactNode;
 };
 
@@ -44,6 +46,8 @@ export default function ChannelNavigationRail<ItemKey extends string>({
   trackClassName,
   rootStyle,
   disabled = false,
+  getItemLabel,
+  getItemIcon,
   children,
 }: ChannelNavigationRailProps<ItemKey>) {
   const shellT = useTranslations("shell");
@@ -91,7 +95,7 @@ export default function ChannelNavigationRail<ItemKey extends string>({
 
   return (
     <div
-      className={styles.root}
+      className={`${styles.root}${getItemLabel ? ` ${styles.compactRoot}` : ""}`}
       style={rootStyle}
       aria-label={navigationLabel}
       data-channel-count={items.length}
@@ -119,6 +123,25 @@ export default function ChannelNavigationRail<ItemKey extends string>({
           />
         </svg>
       </button>
+
+      {getItemLabel ? <div className={styles.selector}>
+        <span className={styles.selectorValue} aria-hidden="true">
+          {getItemIcon ? <img src={getItemIcon(activeItem)} alt="" /> : null}
+          <span>{getItemLabel(activeItem)}</span>
+        </span>
+        <svg className={styles.selectorChevron} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
+        <select
+        value={activeItem}
+        disabled={disabled}
+        aria-label={navigationLabel}
+        onChange={(event) => {
+          const item = items.find((candidate) => candidate === event.target.value);
+          if (item) onSelect(item);
+        }}
+      >
+        {items.map((item) => <option key={item} value={item}>{getItemLabel(item)}</option>)}
+        </select>
+      </div> : null}
 
       <div
         ref={trackRef}

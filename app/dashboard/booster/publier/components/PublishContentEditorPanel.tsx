@@ -1,7 +1,9 @@
 import type { ThreadsPublicationMode, ThreadsPublicationPreferences } from "@/lib/threadsPublicationPreferences";
 import ThreadsPublicationModeControls from "./ThreadsPublicationModeControls";
 import { useTranslations } from "next-intl";
+import { createPortal } from "react-dom";
 import type {
+  CSSProperties,
   Dispatch,
   KeyboardEvent,
   MutableRefObject,
@@ -59,6 +61,8 @@ import {
 import RichSiteContentEditor from "./RichSiteContentEditor";
 import ChannelNavigationRail from "./ChannelNavigationRail";
 import PublishStepTitle from "./PublishStepTitle";
+import css from "./PublishContentEditorPanel.module.css";
+import { PUBLISH_CHANNEL_IDENTITY } from "./publishChannelIdentity";
 
 type PublishModalStyles = Readonly<Record<string, string>>;
 
@@ -122,6 +126,7 @@ function MetaPublicationFormatControls({
     <div
       aria-label={label}
       role="group"
+      className={css.metaFormats}
       style={{
         display: "flex",
         alignItems: "center",
@@ -193,6 +198,7 @@ function MetaPublicationFormatControls({
 }
 
 type PublishContentEditorPanelProps = {
+  actionsContainer?: HTMLElement | null;
   styles: PublishModalStyles;
   isMobile: boolean;
   creationMode: BoosterCreationMode | null;
@@ -251,6 +257,7 @@ type PublishContentEditorPanelProps = {
 };
 
 export default function PublishContentEditorPanel({
+  actionsContainer,
   styles,
   isMobile,
   creationMode,
@@ -298,11 +305,23 @@ export default function PublishContentEditorPanel({
 }: PublishContentEditorPanelProps) {
   const i18nT = useTranslations("booster");
   const runtimeT = i18nT as unknown as (key: string) => string;
+  const titleEditorRef = useRef<HTMLDivElement | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const titleEmojiRangeRef = useRef<Range | null>(null);
+  const titleEmojiSelectionRef = useRef<{ start: number; end: number } | null>(null);
   const siteEmojiSelectionRef = useRef<Range | null>(null);
   const plainEmojiSelectionRef = useRef<{ start: number; end: number } | null>(null);
+  const [activeTextField, setActiveTextField] = useState<"title" | "content">("content");
   const [activeVoiceTarget, setActiveVoiceTarget] =
     useState<ManualVoiceTarget | null>(null);
   const voiceBusy = activeVoiceTarget !== null;
+
+  useEffect(() => {
+    titleEmojiRangeRef.current = null;
+    titleEmojiSelectionRef.current = null;
+    siteEmojiSelectionRef.current = null;
+    plainEmojiSelectionRef.current = null;
+  }, [activeCard]);
 
   useEffect(() => {
     onVoiceBusyChange?.(voiceBusy);
@@ -405,6 +424,97 @@ export default function PublishContentEditorPanel({
     });
   };
 
+  const saveTitleEmojiSelection = () => {
+    if (isSiteDisplayKey(activeCard)) {
+      const selection = window.getSelection();
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+      if (range && titleEditorRef.current?.contains(range.commonAncestorContainer)) {
+        titleEmojiRangeRef.current = range.cloneRange();
+      }
+    } else {
+      const input = titleInputRef.current;
+      if (input) titleEmojiSelectionRef.current = { start: input.selectionStart ?? input.value.length, end: input.selectionEnd ?? input.value.length };
+    }
+  };
+
+  const insertTitleEmoji = (emoji: string) => {
+    if (isSiteDisplayKey(activeCard)) {
+      const editor = titleEditorRef.current;
+      if (!editor) return;
+      editor.focus({ preventScroll: true });
+      const range = titleEmojiRangeRef.current;
+      if (range && editor.contains(range.commonAncestorContainer)) {
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      }
+      document.execCommand("insertText", false, emoji);
+      updatePost(activeCard, { title: editableHtmlToSiteText(readSanitizedElementHtml(editor)) });
+      return;
+    }
+    const input = titleInputRef.current;
+    if (!input) return;
+    const title = getDisplayPost(activeCard).title;
+    const selection = titleEmojiSelectionRef.current || { start: input.selectionStart ?? title.length, end: input.selectionEnd ?? title.length };
+    const cursor = selection.start + emoji.length;
+    updatePost(activeCard, { title: title.slice(0, selection.start) + emoji + title.slice(selection.end) }, { sanitize: false });
+    titleEmojiSelectionRef.current = { start: cursor, end: cursor };
+    window.requestAnimationFrame(() => { titleInputRef.current?.focus({ preventScroll: true }); titleInputRef.current?.setSelectionRange(cursor, cursor); });
+  };
+
+  const applyTitleFormat = (kind: "bold" | "italic" | "underline") => {
+    const editor = titleEditorRef.current;
+    if (!isSiteDisplayKey(activeCard) || !editor || voiceBusy) return;
+    editor.focus({ preventScroll: true });
+    document.execCommand(kind, false);
+    updatePost(activeCard, { title: editableHtmlToSiteText(readSanitizedElementHtml(editor)) });
+  };
+
+  const rememberTextSelection = (field: "title" | "content") => {
+    if (field === "title") saveTitleEmojiSelection();
+    else saveEmojiSelection();
+  };
+
+  const applyActiveTextFormat = (kind: "bold" | "italic" | "underline") => {
+    if (!isSiteDisplayKey(activeCard) || voiceBusy || activeStoryOnly) return;
+    const editor = activeTextField === "title" ? titleEditorRef.current : siteContentEditorRef.current;
+    const range = activeTextField === "title" ? titleEmojiRangeRef.current : siteEmojiSelectionRef.current;
+    if (!editor) return;
+    editor.focus({ preventScroll: true });
+    if (range && editor.contains(range.commonAncestorContainer)) {
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+    if (activeTextField === "title") applyTitleFormat(kind);
+    else applySiteContentFormat(kind);
+    rememberTextSelection(activeTextField);
+  };
+
+  const renderFormattingTools = (field: "title" | "content") => (
+    <div className={css.formatTools} role="toolbar" aria-label={i18nT(field === "title" ? "titre_eb97899a" : "contenu_f3cb82af")}>
+      {([
+        ["bold", "B", i18nT("format_bold")],
+        ["italic", "I", i18nT("format_italic")],
+        ["underline", "U", i18nT("format_underline")],
+      ] as const).map(([kind, label, title]) => (
+        <button key={kind} type="button"
+          title={isSiteDisplayKey(activeCard) ? title : i18nT("format_site_only")}
+          aria-label={title}
+          disabled={!isSiteDisplayKey(activeCard) || voiceBusy || activeStoryOnly}
+          onPointerDown={() => rememberTextSelection(field)}
+          onMouseDown={(event) => { if (event.cancelable) event.preventDefault(); }}
+          onClick={() => applyActiveTextFormat(kind)}
+          style={{ fontWeight: 900, fontStyle: kind === "italic" ? "italic" : "normal", textDecoration: kind === "underline" ? "underline" : "none" }}>
+          {label}
+        </button>
+      ))}
+      <EmojiPickerButton onBeforeOpen={field === "title" ? saveTitleEmojiSelection : saveEmojiSelection}
+        onSelect={field === "title" ? insertTitleEmoji : insertEmoji} disabled={voiceBusy || activeStoryOnly}
+        buttonStyle={{ minWidth: 32, height: 30, borderRadius: 9, border: "1px solid rgba(76,195,255,0.35)", background: "rgba(76,195,255,0.12)", color: "#eaf7ff", fontSize: 16, cursor: voiceBusy ? "not-allowed" : "pointer" }} />
+    </div>
+  );
+
   const activePost = getDisplayPost(activeCard);
   const xHashtagsSignature =
     activeCard === "x" ? (activePost.hashtags || []).join("|") : "";
@@ -484,10 +594,37 @@ export default function PublishContentEditorPanel({
     activeTextGuidelines.content + contentFormattingLength,
   );
 
+  const duplicateAction = (
+    <button
+      type="button"
+      className={`${styles.secondaryBtn} ${css.duplicateButton}`}
+      data-publish-duplicate-action
+      onClick={onDuplicateContentToAllChannels}
+      disabled={displayCards.length < 2 || voiceBusy}
+      aria-label={i18nT("dupliquer_ce_contenu_sur_tous_les_464b623c")}
+      title={i18nT("dupliquer_ce_contenu_sur_tous_les_464b623c")}
+    >
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="8" y="8" width="12" height="12" rx="3" /><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3" /></svg>
+      {i18nT("wizard_duplicate")}
+    </button>
+  );
+
+  const footerActions = (
+    <div className={css.footerActions} data-publish-content-footer-actions>
+      <AiContentReportButton
+        className={css.reportButton}
+        surface={`booster:${activeCard}`}
+        content={`${getDisplayPost(activeCard).title}\n${getDisplayPost(activeCard).content}`}
+      />
+      {duplicateAction}
+    </div>
+  );
+
   return (
     <div
-      className={styles.blockCard}
-      style={{ minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}
+      className={css.editor}
+      data-publish-content-editor
+      style={{ "--editor-accent": PUBLISH_CHANNEL_IDENTITY[activeCard].color, "--editor-rgb": PUBLISH_CHANNEL_IDENTITY[activeCard].rgb } as CSSProperties}
     >
       <PublishStepTitle
         styles={styles}
@@ -498,18 +635,13 @@ export default function PublishContentEditorPanel({
           ? i18nT("textes_par_canal_bf3c7397")
           : i18nT("contenus_generes_par_canal_5197ef4e")}
       </PublishStepTitle>
-      <div
-        className={styles.subtitle}
-        style={{ marginBottom: 10, maxWidth: "none", whiteSpace: "normal" }}
-      >
-        {creationMode === "manual"
-          ? i18nT("redigez_directement_le_texte_de_chaque_83f7eae7")
-          : i18nT("verifiez_les_contenus_generes_et_adaptez_8907d2ac")}
-      </div>
       {displayCards.length ? (
         <>
+          <div className={css.rail}>
           <ChannelNavigationRail
             items={displayCards}
+            getItemLabel={(channel) => getLocalizedChannelLabel(channel, runtimeT)}
+            getItemIcon={(channel) => PUBLISH_CHANNEL_IDENTITY[channel].icon}
             activeItem={activeCard}
             onSelect={(channel) => setSynchronizedActiveChannel(channel)}
             disabled={voiceBusy}
@@ -565,6 +697,10 @@ export default function PublishContentEditorPanel({
                   type="button"
                   onClick={() => setSynchronizedActiveChannel(key)}
                   disabled={voiceBusy}
+                  className={css.channelButton}
+                  aria-pressed={activeCard === key}
+                  data-active={activeCard === key}
+                  data-content-state={xUrlBlocked ? "blocked" : hasText ? "ready" : "empty"}
                   title={
                     xUrlBlocked
                       ? "X est bloqué : retirez le lien détecté."
@@ -573,6 +709,7 @@ export default function PublishContentEditorPanel({
                         : i18nT("content_text_to_review")
                   }
                   style={{
+                    ...({ "--channel-accent": PUBLISH_CHANNEL_IDENTITY[key].color, "--channel-rgb": PUBLISH_CHANNEL_IDENTITY[key].rgb } as CSSProperties),
                     ...pillBtn,
                     ...statusStyle,
                     ...(activeCard === key
@@ -606,12 +743,16 @@ export default function PublishContentEditorPanel({
                     opacity: voiceBusy && activeCard !== key ? 0.58 : 1,
                   }}
                 >
-                  {getLocalizedChannelLabel(key, runtimeT)}
+                  <img className={css.channelLogo} src={PUBLISH_CHANNEL_IDENTITY[key].icon} alt="" aria-hidden="true" />
+                  <span className={css.channelLabel}>{getLocalizedChannelLabel(key, runtimeT)}</span>
+                  <span className={css.channelDot} aria-hidden="true" />
                 </button>
               );
             })}
           </ChannelNavigationRail>
+          </div>
           <div
+            className={css.card}
             style={{
               border: "1px solid rgba(255,255,255,0.10)",
               borderRadius: 16,
@@ -620,6 +761,7 @@ export default function PublishContentEditorPanel({
             }}
           >
             <div
+              className={css.editorTopbar}
               style={{
                 display: activeCard === "threads" ? "grid" : "flex",
                 gridTemplateColumns: activeCard === "threads" ? "auto minmax(0, 1fr)" : undefined,
@@ -630,10 +772,10 @@ export default function PublishContentEditorPanel({
                 minWidth: 0,
               }}
             >
-              <div style={{ fontWeight: 900, flex: "0 0 auto" }}>
-                {getLocalizedChannelLabel(activeCard, runtimeT)}
-              </div>
+              <div className={css.publicationFormats}>
               {activeCard === "pinterest" ? (
+                <label className={css.boardField}>
+                <span>{i18nT("wizard_board")}</span>
                 <select
                   value={pinterestBoardId}
                   onChange={(event) =>
@@ -668,6 +810,7 @@ export default function PublishContentEditorPanel({
                     </option>
                   ))}
                 </select>
+                </label>
               ) : null}
               {activeCard === "threads" ? <ThreadsPublicationModeControls inline mode={threadsPublicationMode} preferences={threadsPublicationPreferences} loading={threadsPreferencesLoading} failed={threadsPreferencesFailed} disabled={voiceBusy} onChange={onThreadsPublicationModeChange} /> : null}
               {activeCard === "instagram" ? (
@@ -704,6 +847,24 @@ export default function PublishContentEditorPanel({
                   onStoryEnabledChange={onFacebookStoryEnabledChange}
                 />
               ) : null}
+              </div>
+              <div className={css.sharedTools} data-publish-shared-toolbar data-active-field={activeTextField}>
+                <span className={css.toolTarget} aria-live="polite">{i18nT(activeTextField === "title" ? "titre_eb97899a" : "contenu_f3cb82af")}</span>
+                {renderFormattingTools(activeTextField)}
+                {creationMode === "manual" ? (
+                  <MediaSubjectVoiceButton
+                    key={`manual-voice:${activeCard}:${activeTextField}`}
+                    purpose={activeTextField}
+                    placement="inline"
+                    mergeMode={activeTextField === "title" ? "space" : "paragraph"}
+                    maxLength={activeTextField === "title" ? titleVoiceMaxLength : contentVoiceMaxLength}
+                    value={activePost[activeTextField]}
+                    disabled={activeStoryOnly || isVoiceTargetDisabled(activeCard, activeTextField)}
+                    onBusyChange={(busy) => handleVoiceBusyChange(activeCard, activeTextField, busy)}
+                    onChange={(value) => updatePost(activeCard, { [activeTextField]: value }, isSiteDisplayKey(activeCard) ? undefined : { sanitize: false })}
+                  />
+                ) : null}
+              </div>
             </div>
             {activeCard === "pinterest" && pinterestBoardsError ? (
               <div style={{ marginBottom: 8, fontSize: 12, color: "#fecaca" }}>
@@ -796,6 +957,7 @@ export default function PublishContentEditorPanel({
               </div>
             ) : null}
             <fieldset
+              className={css.fields}
               disabled={activeStoryOnly}
               aria-disabled={activeStoryOnly}
               data-meta-story-only-content={activeStoryOnly ? "disabled" : "enabled"}
@@ -811,7 +973,12 @@ export default function PublishContentEditorPanel({
                 transition: "opacity 160ms ease",
               }}
             >
-              <div>
+              <div className={css.titleField}
+                data-active-field={activeTextField === "title"}
+                onFocusCapture={() => { if (!voiceBusy) setActiveTextField("title"); }}
+                onBlurCapture={() => rememberTextSelection("title")}
+                onPointerUp={() => rememberTextSelection("title")}
+                onKeyUp={() => rememberTextSelection("title")}>
                 <div
                   style={{
                     display: "flex",
@@ -824,51 +991,15 @@ export default function PublishContentEditorPanel({
                   <div style={{ fontSize: 12, opacity: 0.85 }}>
                     {i18nT("titre_eb97899a")}{" "}
                   </div>
-                  {creationMode === "manual" ? (
-                    <MediaSubjectVoiceButton
-                      key={`manual-voice:${activeCard}:title`}
-                      purpose="title"
-                      placement="inline"
-                      mergeMode="space"
-                      maxLength={titleVoiceMaxLength}
-                      value={activePost.title}
-                      disabled={isVoiceTargetDisabled(activeCard, "title")}
-                      onBusyChange={(busy) =>
-                        handleVoiceBusyChange(activeCard, "title", busy)
-                      }
-                      onChange={(title) =>
-                        updatePost(activeCard, { title }, { sanitize: false })
-                      }
-                    />
-                  ) : null}
                 </div>
-                {isMobile ? (
-                  <textarea
-                    value={activePost.title}
-                    readOnly={voiceBusy}
-                    onKeyDown={keepEditorTypingInsideField}
-                    onChange={(e) =>
-                      updatePost(
-                        activeCard,
-                        { title: e.target.value },
-                        { sanitize: false },
-                      )
-                    }
-                    style={{
-                      ...inputStyle,
-                      minHeight: 64,
-                      height: 64,
-                      padding: "10px 14px",
-                      lineHeight: 1.35,
-                      resize: "none",
-                      overflowY: "auto",
-                      whiteSpace: "pre-wrap",
-                    }}
-                    rows={2}
-                    placeholder={i18nT("titre_eb97899a")}
-                  />
+                {isSiteDisplayKey(activeCard) ? (
+                  <RichSiteContentEditor value={activePost.title} onChange={(title) => updatePost(activeCard, { title })}
+                    minHeight={42} editorRef={titleEditorRef} multiline={false} readOnly={voiceBusy}
+                    ariaLabel={i18nT("titre_eb97899a")} className={css.titleRichField} style={inputStyle} />
                 ) : (
                   <input
+                    ref={(element) => { titleInputRef.current = element; }}
+                    aria-label={i18nT("titre_eb97899a")}
                     value={activePost.title}
                     readOnly={voiceBusy}
                     onKeyDown={keepEditorTypingInsideField}
@@ -880,16 +1011,21 @@ export default function PublishContentEditorPanel({
                       )
                     }
                     style={inputStyle}
-                    placeholder={i18nT("titre_eb97899a")}
+
                   />
                 )}
                 {renderLimitCounter(
                   i18nT("titre_eb97899a"),
-                  getDisplayPost(activeCard).title.length,
+                  isSiteDisplayKey(activeCard) ? stripSiteTextFormatting(getDisplayPost(activeCard).title).length : getDisplayPost(activeCard).title.length,
                   CHANNEL_TEXT_GUIDELINES[activeCard].title,
                 )}
               </div>
-              <div>
+              <div className={css.bodyField}
+                data-active-field={activeTextField === "content"}
+                onFocusCapture={() => { if (!voiceBusy) setActiveTextField("content"); }}
+                onBlurCapture={() => rememberTextSelection("content")}
+                onPointerUp={() => rememberTextSelection("content")}
+                onKeyUp={() => rememberTextSelection("content")}>
                 <div
                   style={{
                     display: "flex",
@@ -905,117 +1041,11 @@ export default function PublishContentEditorPanel({
                        ? i18nT("phrase_courte_inr_search_ee6e97e1")
                        : i18nT("contenu_f3cb82af")}
                    </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {!isSiteDisplayKey(activeCard) ? (
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: "rgba(255,255,255,0.48)",
-                          marginRight: 2,
-                        }}
-                      >
-                        {i18nT("formatage_reserve_au_site_internet_18e28060")}{" "}</span>
-                    ) : null}
-                    {(
-                      [
-                        ["bold", "B", i18nT("format_bold")],
-                        ["italic", "I", i18nT("format_italic")],
-                        ["underline", "U", i18nT("format_underline")],
-                      ] as const
-                    ).map(([kind, label, title]) => (
-                      <button
-                        key={kind}
-                        type="button"
-                        title={
-                          isSiteDisplayKey(activeCard)
-                            ? title
-                            : i18nT("format_site_only")
-                        }
-                        aria-label={title}
-                        disabled={!isSiteDisplayKey(activeCard) || voiceBusy}
-                        onMouseDown={(event) => {
-                          if (event.cancelable) event.preventDefault();
-                          applySiteContentFormat(kind);
-                        }}
-                        style={{
-                          minWidth: 32,
-                          height: 30,
-                          borderRadius: 9,
-                          border: isSiteDisplayKey(activeCard)
-                            ? "1px solid rgba(76,195,255,0.35)"
-                            : "1px solid rgba(255,255,255,0.10)",
-                          background: isSiteDisplayKey(activeCard)
-                            ? "rgba(76,195,255,0.12)"
-                            : "rgba(255,255,255,0.04)",
-                          color: isSiteDisplayKey(activeCard)
-                            ? "#eaf7ff"
-                            : "rgba(255,255,255,0.32)",
-                          fontWeight: 900,
-                          fontStyle: kind === "italic" ? "italic" : "normal",
-                          textDecoration:
-                            kind === "underline" ? "underline" : "none",
-                          cursor: isSiteDisplayKey(activeCard)
-                            ? voiceBusy
-                              ? "not-allowed"
-                              : "pointer"
-                            : "not-allowed",
-                          opacity: voiceBusy ? 0.56 : 1,
-                        }}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                    <EmojiPickerButton
-                      onBeforeOpen={saveEmojiSelection}
-                      onSelect={insertEmoji}
-                      disabled={voiceBusy}
-                      buttonStyle={{
-                        minWidth: 32,
-                        height: 30,
-                        borderRadius: 9,
-                        border: "1px solid rgba(76,195,255,0.35)",
-                        background: "rgba(76,195,255,0.12)",
-                        color: "#eaf7ff",
-                        fontSize: 16,
-                        cursor: voiceBusy ? "not-allowed" : "pointer",
-                        opacity: voiceBusy ? 0.56 : 1,
-                      }}
-                    />
-                    {creationMode === "manual" ? (
-                      <MediaSubjectVoiceButton
-                        key={`manual-voice:${activeCard}:content`}
-                        purpose="content"
-                        placement="inline"
-                        mergeMode="paragraph"
-                        maxLength={contentVoiceMaxLength}
-                        value={activePost.content}
-                        disabled={isVoiceTargetDisabled(activeCard, "content")}
-                        onBusyChange={(busy) =>
-                          handleVoiceBusyChange(activeCard, "content", busy)
-                        }
-                        onChange={(content) =>
-                          updatePost(
-                            activeCard,
-                            { content },
-                            isSiteDisplayKey(activeCard)
-                              ? undefined
-                              : { sanitize: false },
-                          )
-                        }
-                      />
-                    ) : null}
-                  </div>
                 </div>
                 {isSiteDisplayKey(activeCard) ? (
                   <RichSiteContentEditor
                     value={activePost.content}
+                    ariaLabel={i18nT("contenu_f3cb82af")}
                     onChange={(content) => updatePost(activeCard, { content })}
                     minHeight={280}
                     editorRef={siteContentEditorRef}
@@ -1049,7 +1079,7 @@ export default function PublishContentEditorPanel({
                       overflowY: "auto",
                     }}
                     rows={10}
-                    placeholder={i18nT("contenu_f3cb82af")}
+                    aria-label={i18nT("contenu_f3cb82af")}
                   />
                 )}
                 {renderLimitCounter(
@@ -1061,15 +1091,8 @@ export default function PublishContentEditorPanel({
                     : getDisplayPost(activeCard).content.length,
                   CHANNEL_TEXT_GUIDELINES[activeCard].content,
                 )}
-                {creationMode === "ai" ? (
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-                    <AiContentReportButton
-                      surface={`booster:${activeCard}`}
-                      content={`${getDisplayPost(activeCard).title}\n${getDisplayPost(activeCard).content}`}
-                    />
-                  </div>
-                ) : null}
               </div>
+              <aside className={css.options}>
               <div>
                 {(() => {
                   const currentPost = getDisplayPost(activeCard);
@@ -1085,22 +1108,14 @@ export default function PublishContentEditorPanel({
                   );
                   const activeWebsiteSourceLabel =
                     getLocalizedWebsiteSourceLabelForChannel(activeCard, ctaDefaults, runtimeT);
-                  const websiteChoices = [
-                    ctaDefaults?.siteWebUrl
-                      ? { label: i18nT("site_web_7e78af33"), url: ctaDefaults.siteWebUrl }
-                      : null,
-                  ].filter(Boolean) as Array<{ label: string; url: string }>;
-                  const ctaGridColumns = isMobile
-                    ? "1fr"
-                    : ctaMode === "website" || ctaMode === "custom"
-                      ? "minmax(0, 0.8fr) minmax(0, 1.1fr) minmax(0, 1fr)"
-                      : ctaMode === "call"
-                        ? "minmax(0, 0.9fr) minmax(0, 1.1fr)"
-                        : "minmax(0, 0.9fr)";
+                  const ctaGridColumns = isMobile ? "minmax(0, 1fr)"
+                    : ctaMode === "website" || ctaMode === "custom" ? "minmax(180px, .8fr) minmax(0, 1.1fr) minmax(0, 1fr)"
+                    : ctaMode === "call" ? "minmax(180px, .9fr) minmax(0, 1.1fr)" : "minmax(180px, .9fr)";
 
                   return (
                     <>
                       <div
+                        className={css.ctaGrid}
                         style={{
                           display: "grid",
                           gridTemplateColumns: ctaGridColumns,
@@ -1120,6 +1135,7 @@ export default function PublishContentEditorPanel({
                               ? "CTA intégré au texte"
                               : i18nT("bouton_fd5aea71")}{" "}</div>
                           <select
+                            aria-label={activeCard === "x" ? "CTA intégré au texte" : i18nT("bouton_fd5aea71")}
                             value={ctaChoice}
                             disabled={voiceBusy}
                             onChange={(e) =>
@@ -1153,6 +1169,7 @@ export default function PublishContentEditorPanel({
                               >
                                 {i18nT("url_de_destination_f11980ae")}{" "}</div>
                               <input
+                                aria-label={i18nT("url_de_destination_f11980ae")}
                                 value={currentPost.ctaUrl || ""}
                                 readOnly={voiceBusy}
                                 onChange={(e) =>
@@ -1164,52 +1181,9 @@ export default function PublishContentEditorPanel({
                                 placeholder={
                                   activeWebsiteUrl
                                     ? i18nT("website_url_prefilled", { source: activeWebsiteSourceLabel })
-                                    : websiteChoices.length > 1
-                                      ? i18nT("website_choose_source")
-                                      : i18nT("website_url_optional")
+                                    : i18nT("website_url_optional")
                                 }
                               />
-                              {websiteChoices.length ? (
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    gap: 6,
-                                    flexWrap: "wrap",
-                                    marginTop: 7,
-                                  }}
-                                >
-                                  {websiteChoices.map((choice) => (
-                                    <button
-                                      key={choice.label}
-                                      type="button"
-                                      disabled={voiceBusy}
-                                      onClick={() =>
-                                        updatePost(updateTarget, {
-                                          ctaUrl: choice.url,
-                                        })
-                                      }
-                                      style={{
-                                        border:
-                                          currentPost.ctaUrl === choice.url
-                                            ? "1px solid rgba(76,195,255,0.55)"
-                                            : "1px solid rgba(255,255,255,0.14)",
-                                        background:
-                                          currentPost.ctaUrl === choice.url
-                                            ? "rgba(76,195,255,0.14)"
-                                            : "rgba(255,255,255,0.06)",
-                                        color: "rgba(255,255,255,0.86)",
-                                        borderRadius: 999,
-                                        padding: "5px 9px",
-                                        fontSize: 11,
-                                        fontWeight: 800,
-                                        cursor: "pointer",
-                                      }}
-                                    >
-                                      {choice.label}
-                                    </button>
-                                  ))}
-                                </div>
-                              ) : null}
                             </div>
                             <div>
                               <div
@@ -1224,6 +1198,7 @@ export default function PublishContentEditorPanel({
                                   : i18nT("texte_du_bouton_5bc213b4")}{" "}
                               </div>
                               <input
+                                aria-label={activeCard === "x" ? "Texte du CTA" : i18nT("texte_du_bouton_5bc213b4")}
                                 value={currentPost.cta}
                                 readOnly={voiceBusy}
                                 onChange={(e) =>
@@ -1248,6 +1223,7 @@ export default function PublishContentEditorPanel({
                             >
                               {i18nT("telephone_d3b023ea")}{" "}</div>
                             <input
+                              aria-label={i18nT("telephone_d3b023ea")}
                               value={currentPost.ctaPhone || ""}
                               readOnly={voiceBusy}
                               onChange={(e) =>
@@ -1278,6 +1254,7 @@ export default function PublishContentEditorPanel({
                                   {i18nT("telephone_d3b023ea")}{" "}
                                 </div>
                                 <input
+                                  aria-label={i18nT("telephone_d3b023ea")}
                                   inputMode="tel"
                                   value={
                                     currentPost.ctaPhone ||
@@ -1309,6 +1286,7 @@ export default function PublishContentEditorPanel({
                                 >
                                   {i18nT("url_de_destination_f11980ae")}{" "}</div>
                                 <input
+                                  aria-label={i18nT("url_de_destination_f11980ae")}
                                   value={currentPost.ctaUrl || ""}
                                   readOnly={voiceBusy}
                                   onChange={(e) =>
@@ -1348,7 +1326,7 @@ export default function PublishContentEditorPanel({
                           </>
                         ) : null}
                       </div>
-                      <div
+                      <div data-publish-field-help
                         style={{
                           fontSize: 11,
                           marginTop: 6,
@@ -1379,7 +1357,7 @@ export default function PublishContentEditorPanel({
                         </div>
                       ) : null}
                       {ctaMode === "website" && activeWebsiteUrl ? (
-                        <div
+                        <div data-publish-field-help
                           style={{
                             fontSize: 11,
                             marginTop: 8,
@@ -1392,20 +1370,10 @@ export default function PublishContentEditorPanel({
                             url: activeWebsiteUrl,
                           })}
                         </div>
-                      ) : ctaMode === "website" && websiteChoices.length > 1 ? (
-                        <div
-                          style={{
-                            fontSize: 11,
-                            marginTop: 8,
-                            color: "rgba(255,255,255,0.62)",
-                            lineHeight: 1.45,
-                          }}
-                        >
-                          {i18nT("deux_sites_sont_connectes_choisissez_le_ec7d3ccc")}{" "}</div>
                       ) : null}
                       {(ctaMode === "call" || ctaChoice === "whatsapp") &&
                       ctaDefaults?.phone ? (
-                        <div
+                        <div data-publish-field-help
                           style={{
                             fontSize: 11,
                             marginTop: 8,
@@ -1596,39 +1564,17 @@ export default function PublishContentEditorPanel({
                   )}
                 </div>
               ) : null}
+              </aside>
             </fieldset>
+            {duplicateFeedback ? (
+              <div className={css.duplicateFeedback}
+                role={duplicateFeedback.kind === "error" ? "alert" : "status"}
+                data-publish-duplicate-feedback={duplicateFeedback.kind}>
+                {duplicateFeedback.message}
+              </div>
+            ) : null}
           </div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-              marginTop: 12,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 12,
-                color:
-                  duplicateFeedback?.kind === "error"
-                    ? "#ffb4b4"
-                    : "rgba(255,255,255,0.72)",
-              }}
-            >
-              {(duplicateFeedback?.message || null) ||
-                i18nT("dupliquez_le_titre_et_le_contenu_30b8cc6a")}
-            </div>
-            <button
-              type="button"
-              className={styles.secondaryBtn}
-              onClick={onDuplicateContentToAllChannels}
-              disabled={displayCards.length < 2 || voiceBusy}
-              style={{ marginLeft: "auto" }}
-            >
-              {i18nT("dupliquer_ce_contenu_sur_tous_les_464b623c")}{" "}</button>
-          </div>
+          {actionsContainer ? createPortal(footerActions, actionsContainer) : footerActions}
         </>
       ) : (
         <div style={{ fontSize: 13, opacity: 0.75 }}>

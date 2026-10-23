@@ -35,10 +35,6 @@ export function ChannelBubbleIcon({ kind }: { kind: "eye" | "plug" | "disconnect
   </svg>;
 }
 
-function WarningTriangle({ size }: { size: number }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ display: "inline", verticalAlign: "middle", marginRight: 5, color: "#fb923c" }}><path d="M12 3.5 21 20H3L12 3.5Z" fill="currentColor" /><path d="M12 8.5v5.7" stroke="#241204" strokeWidth="2.1" strokeLinecap="round" /><circle cx="12" cy="17.2" r="1.15" fill="#241204" /></svg>;
-}
-
 export default function DashboardFluxBubble({ item, itemKey }: { item: DashboardFluxBubbleData; itemKey?: string }) {
   const t = useTranslations("dashboard.channelBubble");
   const connection = item.connection;
@@ -90,7 +86,7 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
   const loadingInResource = Boolean(!item.premiumLocked && !connection?.mailboxes && !connection?.resourceContent && !showConnect && (
     connection?.onSelect ? !value && (busy || connection.loading) : !hasResource && !disabled && connection?.loading
   ));
-  const statusText = loadingInResource ? "" : busy || (connection?.loading && !hasResource) ? t("loading") : connection?.notice || (item.bubbleStatus === "reconnect" ? item.bubbleStatusText : "");
+  const statusText = loadingInResource ? "" : busy || (connection?.loading && !hasResource) ? t("loading") : connection?.notice || "";
 
   return <>
     <article key={itemKey ?? item.key} data-channel-bubble={item.key} aria-label={`${item.name} — ${item.bubbleStatusText}`} className={`${bubbleStyles.card} ${bubbleStyles.workspaceCard} ${styles[`accent_${item.accent}`]} ${item.bubbleStatus === "coming" ? bubbleStyles.comingSoon : ""} ${item.bubbleStatus === "reconnect" ? bubbleStyles.reconnectCard : ""}`}>
@@ -126,7 +122,7 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
             {item.bubbleStatus === "available" && !connection?.accountConnected && item.createHref && !item.createDisabled ? <a href={item.createHref} target="_blank" rel="noreferrer" className={bubbleStyles.iconAction} title={item.createLabel || t("create")} aria-label={`${item.createLabel || t("create")} — ${item.name}`}><ChannelBubbleIcon kind="create" /></a> : null}
           </div>
         </>}
-        {feedback ? <p className={bubbleStyles.connectionFeedback} role="alert" title={feedback}>{feedback}</p> : <span hidden={!statusText} className={bubbleStyles.connectionStatus} role="status">{item.bubbleStatus === "reconnect" ? <WarningTriangle size={12} /> : null}{statusText}</span>}
+        {feedback ? <p className={bubbleStyles.connectionFeedback} role="alert" title={feedback}>{feedback}</p> : <span hidden={!statusText} className={bubbleStyles.connectionStatus} role="status">{statusText}</span>}
       </div>
     </article>
     {parametersOpen && hasParameters ? <ChannelParametersDialog name={item.name} title={`${parametersLabel} — ${item.name}`} contentOnly={connection?.parametersOwnHeading} fullScreen={connection?.parametersFullScreen} onClose={() => { void requestNavigation(() => setParametersOpen(false)); }}>{connection?.parameters}</ChannelParametersDialog> : null}

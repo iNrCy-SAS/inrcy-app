@@ -14,10 +14,13 @@ export default function BaseModal({
   headerStatus,
   headerStatusMobileHidden = false,
   headerActions,
+  headerActionsClassName,
+  headerBrand,
   titleOnLeftOnMobile = false,
   hideModuleLabelOnMobile = false,
   compact = false,
   wideOnDesktop = false,
+  stepWorkspace = false,
   maxWidth,
   children,
 }: {
@@ -28,10 +31,13 @@ export default function BaseModal({
   headerStatus?: React.ReactNode;
   headerStatusMobileHidden?: boolean;
   headerActions?: React.ReactNode;
+  headerActionsClassName?: string;
+  headerBrand?: React.ReactNode;
   titleOnLeftOnMobile?: boolean;
   hideModuleLabelOnMobile?: boolean;
   compact?: boolean;
   wideOnDesktop?: boolean;
+  stepWorkspace?: boolean;
   maxWidth?: number | string;
   children: React.ReactNode;
 }) {
@@ -82,6 +88,7 @@ export default function BaseModal({
     <div data-inrcy-tool-overlay
       role="dialog"
       aria-modal="true"
+      aria-label={title}
       className={styles.fullscreenModalOverlay}
       onMouseDown={() => void onClose()}
       style={{
@@ -117,6 +124,7 @@ export default function BaseModal({
           borderRadius: "var(--inrcy-modal-card-radius, 22px)",
           overflow: "hidden",
           minHeight: 0,
+          paddingBottom: stepWorkspace ? 4 : undefined,
           display: "flex",
           flexDirection: "column",
           background:
@@ -145,7 +153,9 @@ export default function BaseModal({
                 width: "100%",
                 minWidth: 0,
                 display: "grid",
-                gridTemplateColumns: titleMovesLeft
+                gridTemplateColumns: headerBrand
+                  ? "minmax(0, 1fr) auto"
+                  : titleMovesLeft
                   ? "minmax(0, auto) minmax(0, 1fr) minmax(0, auto)"
                   : "minmax(0, 1fr) auto minmax(0, 1fr)",
                 alignItems: "center",
@@ -154,7 +164,7 @@ export default function BaseModal({
             >
               {/* Left badge */}
               <div style={{ minWidth: 0 }}>
-                {titleMovesLeft ? (
+                {headerBrand ? headerBrand : titleMovesLeft ? (
                   <span style={isMobileHeader ? compactPillStyle : pillStyle}>{title}</span>
                 ) : showModuleLabel ? (
                   <span style={isMobileHeader ? compactPillStyle : pillStyle}>{moduleLabel}</span>
@@ -162,12 +172,13 @@ export default function BaseModal({
               </div>
 
               {/* Center title */}
-              <div style={{ textAlign: titleMovesLeft ? "left" : "center", minWidth: 0 }}>
+              {!headerBrand ? <div style={{ textAlign: titleMovesLeft ? "left" : "center", minWidth: 0 }}>
                 {!titleMovesLeft ? <span style={isMobileHeader ? compactPillStyle : pillStyle}>{title}</span> : null}
-              </div>
+              </div> : null}
 
               {/* Right actions */}
               <div
+                className={headerActionsClassName}
                 style={{
                   display: "flex",
                   justifyContent: "flex-end",
@@ -218,7 +229,8 @@ export default function BaseModal({
           className={styles.fullscreenModalScroll}
           style={{
             padding: "var(--inrcy-modal-content-padding, max(12px, var(--inrcy-safe-area-top)) max(12px, var(--inrcy-safe-area-right)) max(12px, var(--inrcy-safe-area-bottom)) max(12px, var(--inrcy-safe-area-left)))",
-            overflowY: "auto",
+            paddingBottom: stepWorkspace ? "max(2px, var(--inrcy-safe-area-bottom))" : undefined,
+            overflowY: stepWorkspace ? "hidden" : "auto",
             overflowX: "hidden",
             flex: compact ? "0 1 auto" : 1,
             minHeight: 0,

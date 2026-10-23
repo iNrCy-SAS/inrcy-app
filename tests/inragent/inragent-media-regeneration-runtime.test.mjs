@@ -10,10 +10,10 @@ const parsed = ts.createSourceFile("route.ts", source, ts.ScriptTarget.Latest, t
 const names = ["currentPublicationImageCount", "regeneratedMediaIdea", "generatedItemToAgentMedia", "setChannelsValue"];
 const helpers = parsed.statements.filter((node) => ts.isFunctionDeclaration(node) && names.includes(node.name?.text)).map((node) => node.getText(parsed)).join("\n");
 assert.equal(names.filter((name) => helpers.includes(`function ${name}(`)).length, names.length);
-const body = source.slice(source.indexOf("  const mediaModeByChannel"), source.lastIndexOf("}"));
+const body = source.slice(source.indexOf("  const mediaTargetChannels"), source.lastIndexOf("}"));
 const compiled = ts.transpileModule(`
 ${helpers}
-return async function run(action) {
+return async function run(action, requestedScope = "publication") {
   const payload = action.payload, nested = asRecord(payload.publishPayload) || {};
   const postByChannel = payload.postByChannel || nested.postByChannel || {};
   const channel = "facebook", actionChannels = ["facebook", "instagram"];
@@ -42,6 +42,7 @@ function harness({ failAt = 0, duplicate = false, wrongKind = false, wrongDurati
       ? { ...value, kind: value.kind || value.mediaType || value.media_type, duration: value.duration || value.duration_seconds } : null,
     readPublishChannelValue: (map, channel) => map[channel],
     readPublishPost: (map, channel) => map[channel] || {},
+    readInrAgentThreadsPublicationSettings: () => ({ mode: "classic" }),
     INR_AGENT_IMAGES_PER_PUBLICATION: 1,
     INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT: 5,
     NextResponse: { json: (body, options = {}) => ({ body, status: options.status || 200 }) },
@@ -160,4 +161,28 @@ test("la vidéo courte reste à huit secondes et une sortie incompatible ne remp
     assert.equal(h.calls[0].videoDurationSeconds, 8);
     assert.equal(h.writes.length, wrongDuration ? 0 : 1);
   }
+});
+
+test("régénérer seulement Facebook préserve les médias, formats, textes et dates des autres canaux", async () => {
+  const original = action();
+  original.payload.mediaFormatVariants = { version: 1, kind: "image", defaultFormat: "portrait", byFormat: { portrait: original.imageAssets } };
+  original.payload.imagesByPlacement = { instagram: { classic: original.imageAssets } };
+  const before = structuredClone(original), h = harness();
+  const response = await h.run(original, "channel");
+  assert.equal(response.status, 200);
+  assert.equal(response.body.scope, "channel");
+  assert.deepEqual(response.body.channels, ["facebook"]);
+  assert.equal(h.calls.length, 3);
+  assert.ok(h.calls.every(call => call.generationRequestId.includes(":facebook:")));
+  const saved = h.writes[0];
+  assert.equal(saved.imageAssets, undefined);
+  assert.deepEqual(saved.payload.images, before.payload.images);
+  assert.deepEqual(saved.payload.mediaFormatVariants, before.payload.mediaFormatVariants);
+  assert.deepEqual(saved.payload.imagesByChannel.instagram, before.payload.imagesByChannel.instagram);
+  assert.deepEqual(saved.payload.postByChannel.instagram, before.payload.postByChannel.instagram);
+  assert.deepEqual(saved.payload.imagesByPlacement.instagram, before.payload.imagesByPlacement.instagram);
+  assert.equal(saved.payload.mediaFormatVariantsByChannel.facebook.version, 1);
+  assert.notEqual(saved.payload.imagesByChannel.facebook[0].id, "old-1");
+  assert.equal(saved.payload.scheduledFor, before.payload.scheduledFor);
+  assert.deepEqual(original, before);
 });

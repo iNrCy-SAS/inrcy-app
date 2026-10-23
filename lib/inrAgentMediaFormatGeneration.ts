@@ -21,9 +21,44 @@ export async function ensureInrAgentMediaFormats(args: {
   rebindChannels?: readonly string[];
   /** Publication itself must never buy an unseen replacement media. */
   allowGeneration?: boolean;
-}) {
+}): Promise<{ payload: RecordValue; createdFormats: string[] }> {
   const payload = args.payload;
   const nested = record(payload.publishPayload);
+  const overrides = record(payload.mediaFormatVariantsByChannel || nested.mediaFormatVariantsByChannel);
+  const overrideChannels = args.channels.filter(channel => record(overrides[channel]).version === 1);
+  if (overrideChannels.length) {
+    // A channel-only regeneration owns its formats. Rebinding the shared
+    // cache must never replace that channel with the previous global image.
+    const sharedChannels = args.channels.filter(channel => !overrideChannels.includes(channel));
+    const withoutOverrides = { ...payload, mediaFormatVariantsByChannel: null,
+      ...(Object.keys(nested).length ? { publishPayload: { ...nested, mediaFormatVariantsByChannel: null } } : {}) };
+    const shared = sharedChannels.length ? await ensureInrAgentMediaFormats({ ...args,
+      payload: withoutOverrides, channels: sharedChannels,
+      rebindChannels: args.rebindChannels?.filter(channel => sharedChannels.includes(channel)),
+    }) : { payload: withoutOverrides, createdFormats: [] as string[] };
+    const nextPayload: RecordValue = { ...shared.payload };
+    const nextOverrides = { ...overrides };
+    const createdFormats = [...shared.createdFormats];
+    for (const channel of overrideChannels) {
+      const result = await ensureInrAgentMediaFormats({ ...args, channels: [channel], rebindChannels: [channel],
+        payload: { ...withoutOverrides, mediaFormatVariants: overrides[channel],
+          ...(Object.keys(nested).length ? { publishPayload: { ...nested, mediaFormatVariantsByChannel: null, mediaFormatVariants: overrides[channel] } } : {}) },
+      });
+      nextOverrides[channel] = result.payload.mediaFormatVariants;
+      createdFormats.push(...result.createdFormats);
+      for (const key of ["imagesByChannel", "videoByChannel", "imagesByPlacement", "videoSettingsByChannel"]) {
+        const resultMap = record(result.payload[key]);
+        if (Object.hasOwn(resultMap, channel)) nextPayload[key] = { ...record(nextPayload[key]), [channel]: resultMap[channel] };
+      }
+    }
+    nextPayload.mediaFormatVariantsByChannel = nextOverrides;
+    if (Object.keys(nested).length) nextPayload.publishPayload = { ...record(nextPayload.publishPayload),
+      mediaFormatVariantsByChannel: nextOverrides,
+      ...Object.fromEntries(["imagesByChannel", "videoByChannel", "imagesByPlacement", "videoSettingsByChannel"]
+        .filter(key => nextPayload[key] !== undefined).map(key => [key, nextPayload[key]])),
+    };
+    return { payload: nextPayload, createdFormats };
+  }
   let variants = readInrAgentMediaFormatVariants(payload);
   // A manual replacement is authoritative, including mixed image/video
   // publications. Choosing a placement must never overwrite that work with AI.

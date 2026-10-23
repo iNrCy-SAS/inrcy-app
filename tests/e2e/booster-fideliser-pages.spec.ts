@@ -14,10 +14,9 @@ test.describe('booster and fideliser pages', () => {
     await login(page);
     await page.goto('/dashboard?action=publish', { waitUntil: 'domcontentloaded' });
 
-    await expect(page).toHaveURL(/\/dashboard(?:\?.*action=publish)?/, { timeout: 30_000 });
-    await expect(
-      page.getByText(/Publier|Module Booster|Phrase libre|Votre intention/i).first()
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page).toHaveURL(/\/dashboard\?.*action=publish/, { timeout: 30_000 });
+    await expect(page.locator('[data-publish-wizard]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('booster-creation-mode-panel')).toBeVisible();
 
     await runtime.expectNoErrors();
   });
@@ -26,10 +25,9 @@ test.describe('booster and fideliser pages', () => {
     await login(page);
     await page.goto('/dashboard/booster?action=publish', { waitUntil: 'domcontentloaded' });
 
-    await expect(page).toHaveURL(/\/dashboard(?:\?.*action=publish)?/, { timeout: 30_000 });
-    await expect(
-      page.getByText(/Publier|Module Booster|Phrase libre|Votre intention/i).first()
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page).toHaveURL(/\/dashboard\?.*action=publish/, { timeout: 30_000 });
+    await expect(page.locator('[data-publish-wizard]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('booster-creation-mode-panel')).toBeVisible();
   });
 
   test('fideliser page loads', async ({ page }) => {

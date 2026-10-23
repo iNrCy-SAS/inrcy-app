@@ -1,0 +1,128 @@
+.intent {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: 100%; min-height: 0; min-width: 0; gap: 10px;
+}
+.panels {
+  display: grid; grid-template-rows: minmax(0, 1fr) auto;
+  gap: 22px; min-height: 0; min-width: 0;
+}
+.writing {
+  display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 24px; min-width: 0; min-height: 0;
+}
+.field {
+  display: grid; grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px; min-height: 0; min-width: 0;
+}
+.fieldHeading { display: grid; gap: 5px; min-width: 0; }
+.fieldHeading label { display: inline-flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 800; color: #f1f5ff; }
+.fieldGlyph { width: 21px; height: 21px; flex: 0 0 auto; color: #ffb17d; filter: drop-shadow(0 0 5px #fa897220); }
+.field[data-brief-field="instruction"] .fieldGlyph { color: #ba9cf7; }
+.fieldHeading span { color: #9fb0d1; font-size: 12px; line-height: 1.4; }
+.textareaWrap { position: relative; min-height: 0; min-width: 0; }
+.textarea {
+  display: block; box-sizing: border-box; width: 100%; height: 100%; min-height: 0;
+  resize: none; border: 1px solid #8fa9dc30; border-radius: 18px;
+  padding: 20px 64px 55px 20px;
+  background: linear-gradient(130deg, #14294270, #1c163e60);
+  color: #f3f6ff; font: inherit; font-size: 16px; line-height: 1.6; outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.textarea::placeholder { color: #91a1bc; }
+.field[data-brief-field="idea"] .textarea { border-color: #f5a07945; background: radial-gradient(ellipse at 0 0,#f68c5320,transparent 65%),linear-gradient(135deg,#1c273b80,#231b3770); }
+.field[data-brief-field="instruction"] .textarea { border-color: #ad89e747; background: radial-gradient(ellipse at 0 0,#8953d31b,transparent 65%),linear-gradient(135deg,#1b234080,#251b3b70); }
+.textarea:focus { border-color: #ce9df5 !important; box-shadow: 0 0 0 3px #c478e412,0 9px 35px #15112c24; }
+.references {
+  display: grid;
+  grid-template-columns: minmax(115px, 150px) auto minmax(0, 1fr) minmax(100px, 150px);
+  align-items: center; gap: 14px; min-width: 0; min-height: 78px;
+  padding: 14px 0 0; border: 0; border-top: 1px solid #b29fdc26;
+  background: transparent;
+}
+.referenceHeading { display: grid; gap: 4px; }
+.referenceHeading h2 { font-size: 14px; margin: 0; font-weight: 800; }
+.referenceHeading > span { color: #91a5c7; font-size: 10px; line-height: 1.35; }
+.referenceActions { display: flex; flex-wrap: wrap; gap: 6px; }
+.referenceAction {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 36px; min-width: 0; padding: 7px 10px;
+  color: #cfdef4; border: 1px solid #a0b7ef2a; border-radius: 11px;
+  background: #4262931f; font: inherit; font-size: 11px; font-weight: 700;
+  text-align: center; cursor: pointer; transition: background .2s, border-color .2s;
+}
+.referenceAction > span { font-size: 16px; line-height: 1; font-weight: 500; }
+.referenceAction:hover:enabled { background: #66569f30; border-color: #b19be178; }
+.referenceAction:disabled { opacity: .4; cursor: default; }
+.referenceThumbnails {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  overflow-x: auto; overflow-y: hidden; padding: 4px 2px;
+}
+.thumbnail, .videoThumbnail, .pdfThumbnail {
+  position: relative; height: 50px; width: 58px; min-width: 58px; flex: 0 0 auto;
+  border: 1px solid #8eb8f246; border-radius: 9px; background: #0a143c;
+}
+.thumbnail img, .videoThumbnail video { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
+.remove {
+  display: grid; place-items: center; position: absolute; top: -3px; right: -3px;
+  height: 19px; width: 19px; border-radius: 999px;
+  border: 1px solid #acc5eb5e; background: #0a1736f5; color: #e2edff;
+  font-size: 13px; padding: 0; cursor: pointer;
+}
+.pdfThumbnail { display: flex; align-items: center; gap: 8px; width: 130px; padding: 0 9px; box-sizing: border-box; }
+.pdfThumbnail > span { color: #9ed4f5; font-size: 9px; font-weight: 900; }
+.pdfThumbnail strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.videoThumbnail { width: 90px; }
+.videoThumbnail > span { position: absolute; bottom: 3px; left: 4px; font-size: 9px; color: #fff; background: #111d39bd; border-radius: 4px; padding: 2px 4px; }
+.retouchVideo { position: absolute; bottom: 2px; right: 3px; font-size: 9px; color: white; background: #21365acc; border: 1px solid #a0b7ef44; border-radius: 5px; padding: 2px 4px; cursor: pointer; }
+.emptyReference { font-size: 10px; line-height: 1.4; color: #7f95b8; }
+.aiReference { display: flex; align-items: center; gap: 7px; color: #a9c2e1; font-size: 10px; line-height: 1.4; }
+.aiReference input { accent-color: #71d8ff; width: 14px; height: 14px; flex: 0 0 auto; margin: 0; }
+.messages { display: grid; gap: 6px; color: #d8eaff; font-size: 12px; line-height: 1.4; min-height: 0; max-height: 100px; overflow-y: auto; }
+.error { color: #ffb9c4; }
+.warning { color: #ffd19f; }
+.generationProgress { display: grid; gap: 5px; }
+.generationProgress > div:first-child { display: flex; justify-content: space-between; }
+.progressTrack { height: 6px; background: #a5b3d724; border-radius: 999px; overflow: hidden; }
+.progressTrack span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #4cc3ff, #b677ef); transition: width .42s ease; }
+.intent button:focus-visible { outline: 2px solid #8bcfff; outline-offset: 3px; }
+.engineControl { display: flex !important; align-items: center; gap: 8px !important; }
+.engineControl > div { flex: 0 0 auto; font-size: 11px; }
+.engineControl select { flex: 1; min-width: 0; width: auto !important; }
+@media (max-width: 1180px) and (min-width: 701px) {
+  .references { grid-template-columns: 130px minmax(0, 1fr) 130px; gap: 6px 14px; }
+  .referenceHeading { grid-column: 1; grid-row: 1 / 3; }
+  .referenceActions, .referenceThumbnails { grid-column: 2; }
+  .aiReference { grid-column: 3; grid-row: 1 / 3; }
+  .referenceThumbnails:has(> .emptyReference:only-child) { display: none; }
+  .referenceAction { min-height: 32px; padding: 5px 8px; }
+}
+@media (max-height: 800px) and (min-width: 701px) {
+  .panels { gap: 16px; } .writing { gap: 18px; }
+  .fieldHeading label { font-size: 16px; }
+  .references { padding: 9px 12px; min-height: 64px; }
+  .thumbnail, .videoThumbnail, .pdfThumbnail { height: 42px; }
+}
+@media (max-width: 700px) {
+  .intent { height: auto; min-height: 100%; grid-template-rows: auto auto; }
+  .engineControl { gap: 6px !important; }
+  .engineControl > div { font-size: 10px; gap: 3px !important; }
+  .engineControl select { font-size: 11px !important; padding: 6px !important; }
+  .panels { gap: 12px; }
+  .writing { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(155px, auto)); gap: 14px; }
+  .field { gap: 6px; } .fieldHeading label { font-size: 14px; }
+  .fieldHeading span { display: none; }
+  .textarea { padding: 12px 50px 38px 13px; font-size: 15px; border-radius: 13px; }
+  .references { grid-template-columns: minmax(0, 1fr); padding: 9px; gap: 8px; }
+  .referenceHeading { display: flex; align-items: baseline; gap: 8px; }
+  .referenceHeading h2 { font-size: 12px; }
+  .referenceHeading > span { font-size: 9px; }
+  .referenceActions { gap: 4px; }
+  .referenceAction { min-height: 36px; padding: 6px 8px; font-size: 11px; gap: 5px; }
+  .referenceAction > span { font-size: 13px; }
+  .referenceThumbnails { padding-block: 2px; }
+  .referenceThumbnails:has(> .emptyReference:only-child) { display: none; }
+  .thumbnail, .videoThumbnail, .pdfThumbnail { height: 36px; min-width: 42px; width: 44px; }
+  .pdfThumbnail { width: 110px; } .videoThumbnail { width: 80px; }
+  .aiReference { font-size: 9px; }
+}

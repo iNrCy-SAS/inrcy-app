@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import type { MutableRefObject } from "react";
+import type { MutableRefObject, ReactNode } from "react";
 import StatusMessage from "../../../_components/StatusMessage";
 import PublishExecutionProgress from "../../../_components/PublishExecutionProgress";
 
@@ -22,6 +22,7 @@ type PublishFooterActionsProps = {
   mediaPreparationFailed?: boolean;
   onPublish: () => void;
   onSchedule: () => void;
+  reviewControl?: ReactNode;
 };
 
 export default function PublishFooterActions({
@@ -41,6 +42,7 @@ export default function PublishFooterActions({
   mediaPreparationFailed = false,
   onPublish,
   onSchedule,
+  reviewControl,
 }: PublishFooterActionsProps) {
   const i18nT = useTranslations("booster");
   const busy = saving || scheduling;
@@ -58,7 +60,8 @@ export default function PublishFooterActions({
             phaseLabel={scheduling ? undefined : publishProgressPhaseLabel}
           />
         ) : (
-          <div className={styles.publishFooterActionsGroup}>
+          <div className={styles.publishFooterActionsGroup} data-publish-footer-actions>
+            {reviewControl}
             <button
               type="button"
               className={`${styles.secondaryBtn} ${styles.publishScheduleButton}`}
@@ -84,7 +87,7 @@ export default function PublishFooterActions({
               <span className={styles.publishActionIcon} aria-hidden="true">
                 🚀
               </span>
-              <span>{i18nT("verifier_et_publier_8f73de05")}</span>
+              <span>{i18nT("publier_34e6b19e")}</span>
             </button>
           </div>
         )}

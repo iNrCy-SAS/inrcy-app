@@ -22,7 +22,7 @@ function messagesFor(locale: string) {
   return localeMessages.get(locale)!;
 }
 const compiled = new Map<string, string>();
-for (const file of ["DashboardModulesCard", "DashboardStandardModulesCard", "DashboardAgentLogoButton", "DashboardPremiumLockIcon", "StudioIcon"]) {
+for (const file of ["DashboardModulesCard", "DashboardStandardModulesCard", "DashboardAgentLogoButton", "DashboardPremiumLockIcon", "StudioIcon", "BoosterIcon"]) {
   compiled.set(file, ts.transpileModule(read(`app/dashboard/_components/${file}.tsx`), {
     fileName: `${file}.tsx`,
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },

@@ -1,5 +1,8 @@
+import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import type { ChannelKey, PublicationMediaType } from "../publishModal.shared";
+import css from "./PublishFinalReviewModal.module.css";
 
 export type PublishFinalReviewItem = {
   channel: ChannelKey;
@@ -18,291 +21,57 @@ export type PublishFinalReviewItem = {
   hasImage: boolean;
 };
 
-type PublishModalStyles = Readonly<Record<string, string>>;
 
-type PublishFinalReviewModalProps = {
+type Props = {
   open: boolean;
-  styles: PublishModalStyles;
+  styles: Readonly<Record<string, string>>;
   items: PublishFinalReviewItem[];
   hasBlockers: boolean;
   publishableCount: number;
-  isMobile: boolean;
   saving: boolean;
   onClose: () => void;
   onConfirm: () => void;
 };
 
 export default function PublishFinalReviewModal({
-  open,
-  styles,
-  items,
-  hasBlockers,
-  publishableCount,
-  isMobile,
-  saving,
-  onClose,
-  onConfirm,
-}: PublishFinalReviewModalProps) {
-  const i18nT = useTranslations("booster");
+  open, styles, items, hasBlockers, publishableCount, saving, onClose, onConfirm,
+}: Props) {
+  const t = useTranslations("booster");
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus({ preventScroll: true });
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!saving) onClose();
+      }
+      if (event.key !== "Tab") return;
+      const buttons = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>("button:not([disabled])") || []);
+      const first = buttons[0], last = buttons[buttons.length - 1];
+      if (!first) { event.preventDefault(); dialogRef.current?.focus(); }
+      else if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current)) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", keydown, true);
+    return () => { document.removeEventListener("keydown", keydown, true); previous?.focus({ preventScroll: true }); };
+  }, [open, onClose, saving]);
   if (!open) return null;
-
-  return (
-    <div
-      className={styles.fullscreenModalOverlay}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 10012,
-        background: "rgba(4, 8, 18, 0.74)",
-        backdropFilter: "blur(8px)",
-        display: "grid",
-        placeItems: "center",
-        padding: 16,
-        overflowY: "auto",
-        overscrollBehavior: "contain",
-      }}
-    >
-      <div
-        className={styles.blockCard}
-        style={{
-          width: isMobile ? "min(760px, 100%)" : "min(1080px, 100%)",
-          maxHeight:
-            "calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) - 32px)",
-          overflowY: "auto",
-          display: "grid",
-          gap: isMobile ? 16 : 22,
-          padding: isMobile ? 14 : 24,
-          background: "#111827",
-          backgroundImage: "none",
-          border: "1px solid rgba(148, 163, 184, 0.28)",
-          boxShadow: "0 30px 90px rgba(0,0,0,0.62)",
-          backdropFilter: "none",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            alignItems: "flex-start",
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 22 }}>✅</div>
-            <div className={styles.blockTitle} style={{ marginBottom: 0 }}>
-              {i18nT("verification_avant_publication_8ff13190")}{" "}</div>
-            <div
-              style={{
-                fontSize: 13,
-                color: "rgba(255,255,255,0.72)",
-                lineHeight: 1.5,
-              }}
-            >
-              {i18nT("controlez_les_canaux_les_medias_et_01e0e60d")}{" "}</div>
-          </div>
-          <div
-            style={{
-              fontSize: 12,
-              padding: "7px 10px",
-              borderRadius: 999,
-              background: "rgba(76,195,255,0.10)",
-              border: "1px solid rgba(76,195,255,0.22)",
-              color: "rgba(255,255,255,0.86)",
-            }}
-          >
-            {i18nT("value_canal_aux_selectionne_s_e508e84f", { value0: items.length })}</div>
-        </div>
-
-        <div style={{ display: "grid", gap: isMobile ? 10 : 14 }}>
-          {items.map((item) => {
-            const details = item.details || [];
-            const hasMessages =
-              details.length || item.warnings.length || item.blockers.length;
-            return (
-              <div
-                key={item.channel}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: isMobile
-                    ? "1fr"
-                    : "minmax(150px, 0.75fr) minmax(170px, 0.85fr) minmax(0, 1.4fr)",
-                  gap: isMobile ? 10 : 18,
-                  alignItems: "center",
-                  borderRadius: 16,
-                  padding: isMobile ? 12 : 16,
-                  background: "rgba(255,255,255,0.04)",
-                  border: item.blockers.length
-                    ? "1px solid rgba(248,113,113,0.34)"
-                    : "1px solid rgba(255,255,255,0.08)",
-                }}
-              >
-                <div style={{ minWidth: 0, display: "grid", gap: 5 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div style={{ fontWeight: 900, color: "#fff" }}>
-                      {item.label}
-                    </div>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 900,
-                        padding: "4px 7px",
-                        borderRadius: 999,
-                        background: item.blockers.length
-                          ? "rgba(248,113,113,0.14)"
-                          : "rgba(34,197,94,0.14)",
-                        color: item.blockers.length ? "#fecaca" : "#bbf7d0",
-                        border: item.blockers.length
-                          ? "1px solid rgba(248,113,113,0.25)"
-                          : "1px solid rgba(34,197,94,0.25)",
-                      }}
-                    >
-                      {item.blockers.length ? i18nT("bloquant_c05c5176") : i18nT("pret_c5e3c29f")}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "rgba(255,255,255,0.58)",
-                    }}
-                  >
-                    {i18nT("canal_selectionne_a989eaec")}{" "}</div>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                    minWidth: 0,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 12,
-                      padding: "6px 9px",
-                      borderRadius: 999,
-                      background: "rgba(255,255,255,0.07)",
-                      color: "rgba(255,255,255,0.84)",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {item.mediaLabel}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      padding: "6px 9px",
-                      borderRadius: 999,
-                      background: item.hasContent
-                        ? "rgba(34,197,94,0.12)"
-                        : "rgba(251,191,36,0.12)",
-                      color: item.hasContent ? "#bbf7d0" : "#fde68a",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {item.hasContent ? i18nT("texte_ok_e490a202") : i18nT("texte_vide_5e1fe6d5")}
-                  </span>
-                </div>
-                <div
-                  style={{
-                    display: "grid",
-                    gap: 6,
-                    fontSize: 12,
-                    lineHeight: 1.45,
-                  }}
-                >
-                  {!hasMessages ? (
-                    <span style={{ color: "#bbf7d0" }}>
-                      {item.tiktokParametersValidated ? i18nT("pret_parametres_valides_8c17cc93") : i18nT("pret_a_publier_a82b75ce")}
-                    </span>
-                  ) : null}
-                  {item.tiktokParametersValidated && !item.blockers.length ? (
-                    <span style={{ color: "#bbf7d0" }}>
-                      {i18nT("parametres_tiktok_valides_aab3d118")}{" "}</span>
-                  ) : null}
-                  {details.map((detail) => (
-                    <span
-                      key={detail}
-                      style={{ display: "flex", gap: 6, color: "#bae6fd" }}
-                    >
-                      <span aria-hidden>{String.fromCodePoint(0x2139, 0xfe0f)}</span>
-                      <span>{detail}</span>
-                    </span>
-                  ))}
-                  {item.warnings.map((warning) => (
-                    <span key={warning} style={{ color: "#fde68a" }}>
-                      ⚠️ {warning}
-                    </span>
-                  ))}
-                  {item.blockers.map((blocker) => (
-                    <span key={blocker} style={{ color: "#fecaca" }}>
-                      ⛔ {blocker}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {hasBlockers ? (
-          <div
-            style={{
-              borderRadius: 14,
-              padding: 12,
-              background: "rgba(248,113,113,0.10)",
-              border: "1px solid rgba(248,113,113,0.24)",
-              color: "#fecaca",
-              fontSize: 13,
-              lineHeight: 1.5,
-            }}
-          >
-            {i18nT("les_canaux_rouges_seront_inscrits_en_6ff68b36")}{" "}</div>
-        ) : null}
-
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 10,
-            flexWrap: "wrap",
-            position: "sticky",
-            bottom: -1,
-            paddingTop: 4,
-            background: "#111827",
-          }}
-        >
-          <button
-            type="button"
-            className={styles.secondaryBtn}
-            onClick={onClose}
-          >
-            {i18nT("retour_modifier_ee98859e")}{" "}</button>
-          <button
-            type="button"
-            className={styles.primaryBtn}
-            onClick={onConfirm}
-            disabled={!publishableCount || saving}
-            style={{
-              opacity: !publishableCount || saving ? 0.58 : 1,
-            }}
-          >
-            {saving
-              ? i18nT("publication_en_cours_09ec4187")
-              : hasBlockers
-                ? i18nT("publier_les_value_canal_aux_prets_400cb943", { value0: publishableCount })
-                : i18nT("confirmer_la_publication_dbfb1790")}
-          </button>
+  return createPortal(
+    <div className={css.overlay} onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+      <div className={css.dialog} ref={dialogRef} role="alertdialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId} aria-busy={saving} tabIndex={-1}>
+        <span className={css.mark} aria-hidden="true"><svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m21 3-7 18-4-7-7-4Z"/><path d="m10 14 5-5"/></svg></span>
+        <h2 id={titleId}>{t("wizard_confirm_publication")}</h2>
+        <p id={descriptionId}>{hasBlockers ? t("publier_les_value_canal_aux_prets_400cb943", { value0: publishableCount }) : t("value_canal_aux_selectionne_s_e508e84f", { value0: items.length })}</p>
+        <div className={css.actions}>
+          <button type="button" className={styles.secondaryBtn} onClick={onClose} disabled={saving}>{t("annuler_49ba3292")}</button>
+          <button type="button" className={styles.primaryBtn} onClick={onConfirm} disabled={!publishableCount || saving}>{t("publier_34e6b19e")}</button>
         </div>
       </div>
-    </div>
+    </div>, document.body,
   );
 }

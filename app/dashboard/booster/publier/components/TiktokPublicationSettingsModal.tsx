@@ -1,13 +1,15 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useUnsavedExitGuard } from "../../../_hooks/useUnsavedExitGuard";
 import {
   formatVideoDuration,
   validateVideoDurationForChannel,
 } from "@/lib/videoPublicationPolicy";
 import type { InrAgentTiktokCreatorInfo } from "@/lib/inrAgentTiktokValidationSession";
+import reviewStyles from "./TiktokPublicationSettingsModal.module.css";
 
 export type TiktokPrivacyLevel =
   | "PUBLIC_TO_EVERYONE"
@@ -61,6 +63,7 @@ type Props = {
     meta: TiktokPublicationValidationMeta,
   ) => void;
   onExcludeAndContinue?: () => void;
+  showPreview?: boolean;
 };
 
 const privacyLabelKeys = {
@@ -101,22 +104,7 @@ function LegalLink({ href, label }: { href: string; label: string }) {
 
 function SectionIcon({ children }: { children: string }) {
   return (
-    <span
-      aria-hidden="true"
-      style={{
-        width: 24,
-        height: 24,
-        borderRadius: 999,
-        display: "grid",
-        placeItems: "center",
-        flex: "0 0 auto",
-        background: "rgba(56,189,248,0.12)",
-        border: "1px solid rgba(56,189,248,0.28)",
-        color: "#93c5fd",
-        fontSize: 13,
-        lineHeight: 1,
-      }}
-    >
+    <span aria-hidden="true" className={reviewStyles.sectionIcon}>
       {children}
     </span>
   );
@@ -124,9 +112,9 @@ function SectionIcon({ children }: { children: string }) {
 
 function SectionHeader({ icon, title }: { icon: string; title: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+    <div className={reviewStyles.sectionHeader}>
       <SectionIcon>{icon}</SectionIcon>
-      <strong style={{ color: "#fff", fontSize: 15, lineHeight: 1.15 }}>{title}</strong>
+      <h3>{title}</h3>
     </div>
   );
 }
@@ -200,9 +188,11 @@ export default function TiktokPublicationSettingsModal({
   onCancel,
   onValidate,
   onExcludeAndContinue,
+  showPreview = false,
 }: Props) {
   const i18nT = useTranslations("booster");
   const mediaT = useTranslations("media");
+  const titleId = useId();
   const [creatorInfo, setCreatorInfo] = useState<CreatorInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -215,6 +205,22 @@ export default function TiktokPublicationSettingsModal({
   const [photoAutoMusic, setPhotoAutoMusic] = useState(false);
   const [musicUsageConfirmed, setMusicUsageConfirmed] = useState(false);
   const [rememberForSession, setRememberForSession] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousBodyOverflow = body.style.overflow;
+    const ownsHtmlLock = previousHtmlOverflow !== "hidden";
+    const ownsBodyLock = previousBodyOverflow !== "hidden";
+    if (ownsHtmlLock) html.style.overflow = "hidden";
+    if (ownsBodyLock) body.style.overflow = "hidden";
+    return () => {
+      if (ownsHtmlLock) html.style.overflow = previousHtmlOverflow;
+      if (ownsBodyLock) body.style.overflow = previousBodyOverflow;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -327,11 +333,17 @@ export default function TiktokPublicationSettingsModal({
     variant: "warning",
   });
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
   const accountLabel = creatorInfo
     ? creatorInfo.username || creatorInfo.displayName || i18nT("tiktok_connected_account")
     : i18nT("tiktok_connected_account");
+  const accountDisplayName = creatorInfo?.displayName?.trim();
+  const showAccountDisplayName = Boolean(
+    accountDisplayName &&
+      accountDisplayName.replace(/^@/, "").toLocaleLowerCase() !==
+        accountLabel.trim().replace(/^@/, "").toLocaleLowerCase(),
+  );
   const hashtags = Array.isArray(previewHashtags) ? previewHashtags.filter(Boolean) : [];
   const caption = trimText(previewContent || previewTitle || i18nT("tiktok_default_publication"), 420);
 
@@ -355,21 +367,20 @@ export default function TiktokPublicationSettingsModal({
     color: "white",
     colorScheme: "dark",
     padding: isMobile ? "11px 12px" : "9px 12px",
-    outline: "none",
+    minHeight: 44,
+    fontSize: isMobile ? 16 : 14,
   } as const;
 
-  const helperTextStyle = {
-    color: "rgba(226,232,240,0.62)",
-    fontSize: 12,
-    lineHeight: 1.42,
-  } as const;
-
-  return (
+  return createPortal(
     <div
-      className={styles.fullscreenModalOverlay}
+      className={reviewStyles.overlay}
+      onMouseDown={(event) => event.stopPropagation()}
       style={{
         position: "fixed",
         inset: 0,
+        height: "100dvh",
+        maxHeight: "100dvh",
+        boxSizing: "border-box",
         zIndex: 10013,
         background: "rgba(4, 8, 18, 0.78)",
         backdropFilter: "blur(8px)",
@@ -377,16 +388,21 @@ export default function TiktokPublicationSettingsModal({
         alignItems: "flex-start",
         justifyContent: "center",
         padding: isMobile ? 10 : 18,
-        overflowY: "auto",
+        overflow: "hidden",
         overscrollBehavior: "contain",
         WebkitOverflowScrolling: "touch",
       }}
     >
       <div
-        className={styles.blockCard}
+        className={`${styles.blockCard} ${reviewStyles.dialog}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        data-mobile={isMobile || undefined}
         style={{
-          width: isMobile ? "min(100%, 720px)" : "min(1110px, calc(100vw - 36px))",
+          width: isMobile ? "min(100%, 720px)" : showPreview ? "min(1110px, calc(100vw - 36px))" : "min(800px, calc(100vw - 36px))",
           minWidth: 0,
+          maxHeight: isMobile ? "calc(100dvh - 20px)" : "calc(100dvh - 36px)",
           boxSizing: "border-box",
           overflow: "hidden",
           display: "flex",
@@ -403,33 +419,68 @@ export default function TiktokPublicationSettingsModal({
         }}
       >
         <div
+          className={reviewStyles.header}
           style={{
             display: "flex",
             alignItems: "center",
             gap: 12,
             minWidth: 0,
             flexShrink: 0,
-            padding: isMobile ? "14px 14px 12px" : "16px 18px 14px",
+            padding: "12px 16px",
             borderBottom: "1px solid rgba(148,163,184,0.16)",
             background: "linear-gradient(180deg, rgba(30,41,59,0.78), rgba(17,24,39,0.96))",
           }}
         >
-          <div style={{ fontSize: 28, lineHeight: 1, flex: "0 0 auto" }}>🎵</div>
+          <div aria-hidden="true" className={reviewStyles.tiktokMark}>♪</div>
           <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
-            <div className={styles.blockTitle} style={{ marginBottom: 0, lineHeight: 1.08 }}>
-              {i18nT("verification_finale_tiktok_040236e6")}{" "}</div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.70)", lineHeight: 1.2 }}>
-              {i18nT("compte_contenu_visibilite_et_declarations_avant_bddd0f36")}{" "}</div>
+            <h2 id={titleId} className={reviewStyles.title}>
+              {i18nT("verification_finale_tiktok_040236e6")}
+            </h2>
           </div>
+          {creatorInfo ? (
+          <div className={reviewStyles.account}>
+                <div
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 999,
+                    overflow: "hidden",
+                    display: "grid",
+                    placeItems: "center",
+                    background: "linear-gradient(135deg, #087f96, #2968c0)",
+                    border: "1px solid rgba(255,255,255,0.16)",
+                    color: "#fff",
+                    fontWeight: 900,
+                    fontSize: 18,
+                    textTransform: "lowercase",
+                  }}
+                >
+                  {creatorInfo.avatarUrl ? (
+                    <img src={creatorInfo.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    (accountLabel.replace(/^@/, "").slice(0, 1) || "t").toLowerCase()
+                  )}
+                </div>
+                <div className={reviewStyles.accountIdentity}>
+                  <strong className={reviewStyles.accountName} title={accountLabel}>{accountLabel}</strong>
+                  {showAccountDisplayName ? (
+                    <span className={reviewStyles.accountDisplayName}>{accountDisplayName}</span>
+                  ) : null}
+                </div>
+          </div>
+          ) : null}
         </div>
 
         <div
+          className={reviewStyles.body}
           style={{
             display: "grid",
             gap: isMobile ? 12 : 10,
             minWidth: 0,
             padding: isMobile ? 12 : 14,
             background: "#111827",
+            overflowY: "auto",
+            overscrollBehavior: "contain",
           }}
         >
           {loading ? <TiktokSettingsLoader /> : null}
@@ -452,50 +503,8 @@ export default function TiktokPublicationSettingsModal({
 
         {creatorInfo ? (
           <>
-            <section style={{ ...sectionCardStyle, display: "grid", gap: isMobile ? 12 : 10 }}>
-              <SectionHeader icon="👤" title={i18nT("compte_tiktok_0099e07c")} />
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "auto 1fr",
-                  gap: isMobile ? 12 : 14,
-                  alignItems: "center",
-                  paddingLeft: isMobile ? 0 : 34,
-                }}
-              >
-                <div
-                  style={{
-                    width: isMobile ? 54 : 52,
-                    height: isMobile ? 54 : 52,
-                    borderRadius: 999,
-                    overflow: "hidden",
-                    display: "grid",
-                    placeItems: "center",
-                    background: "linear-gradient(135deg, rgba(124,58,237,0.95), rgba(217,70,239,0.78))",
-                    border: "1px solid rgba(255,255,255,0.16)",
-                    color: "#fff",
-                    fontWeight: 900,
-                    fontSize: 22,
-                    textTransform: "lowercase",
-                  }}
-                >
-                  {creatorInfo.avatarUrl ? (
-                    <img src={creatorInfo.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : (
-                    (accountLabel.replace(/^@/, "").slice(0, 1) || "t").toLowerCase()
-                  )}
-                </div>
-                <div style={{ display: "grid", gap: 5, minWidth: 0 }}>
-                  <strong style={{ color: "#fff", fontSize: 14 }}>{accountLabel}</strong>
-                  {creatorInfo.displayName && creatorInfo.displayName !== accountLabel ? (
-                    <span style={{ color: "rgba(255,255,255,0.64)", fontSize: 13 }}>{creatorInfo.displayName}</span>
-                  ) : null}
-                  <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12, lineHeight: 1.4 }}>
-                    {i18nT("cette_publication_sera_envoyee_uniquement_sur_5132cb3f")}{" "}</span>
-                </div>
-              </div>
-            </section>
 
+            {showPreview ? (
             <section style={{ ...sectionCardStyle, display: "grid", gap: isMobile ? 12 : 10 }}>
               <SectionHeader icon="🖼️" title={i18nT("contenu_envoye_aaa62b2f")} />
               <div
@@ -584,6 +593,7 @@ export default function TiktokPublicationSettingsModal({
                 </div>
               </div>
             </section>
+            ) : null}
 
             {durationBlocker ? (
               <div
@@ -610,18 +620,11 @@ export default function TiktokPublicationSettingsModal({
               </div>
             ) : null}
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "repeat(2, minmax(0, 1fr))",
-                gap: isMobile ? 14 : 12,
-                alignItems: "stretch",
-              }}
-            >
-              <section style={{ ...sectionCardStyle, display: "grid", gap: isMobile ? 12 : 10 }}>
-                <SectionHeader icon="⚙️" title={i18nT("parametres_de_publication_tiktok_ab9e3a10")} />
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.70)", fontWeight: 800 }}>{i18nT("visibilite_44e47704")}</span>
+            <div className={reviewStyles.controlsGrid}>
+              <section className={`${reviewStyles.section} ${reviewStyles.settings}`}>
+                <SectionHeader icon="⚙" title={i18nT("tiktok_review_settings")} />
+                <label className={reviewStyles.fieldLabel}>
+                  <span>{i18nT("visibilite_44e47704")}</span>
                   <select
                     value={privacyLevel}
                     onChange={(event) => {
@@ -640,47 +643,8 @@ export default function TiktokPublicationSettingsModal({
                     })}
                   </select>
                 </label>
-
-                <div style={{ display: "grid", gap: 7 }}>
-                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.70)", fontWeight: 800 }}>{i18nT("interactions_0b3583ec")}</span>
-                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : mediaType === "video" ? "repeat(3, 1fr)" : "1fr", gap: isMobile ? 10 : 8 }}>
-                    <label style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", borderRadius: 12, border: "1px solid rgba(148,163,184,0.22)", background: "rgba(15,23,42,0.52)", padding: isMobile ? "10px 12px" : "9px 10px", color: creatorInfo.commentDisabled ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.88)", fontSize: 13 }}>
-                      <span>{i18nT("commentaires_ccbb190a")}</span>
-                      <input type="checkbox" checked={allowComments} disabled={creatorInfo.commentDisabled} onChange={(event) => {
-                        clearFinalConsent();
-                        setAllowComments(event.target.checked);
-                      }} />
-                    </label>
-                    {mediaType === "video" ? (
-                      <>
-                        <label style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", borderRadius: 12, border: "1px solid rgba(148,163,184,0.22)", background: "rgba(15,23,42,0.52)", padding: isMobile ? "10px 12px" : "9px 10px", color: creatorInfo.duetDisabled ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.88)", fontSize: 13 }}>
-                          <span>{i18nT("duo_798e2216")}</span>
-                          <input type="checkbox" checked={allowDuo} disabled={creatorInfo.duetDisabled} onChange={(event) => {
-                            clearFinalConsent();
-                            setAllowDuo(event.target.checked);
-                          }} />
-                        </label>
-                        <label style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", borderRadius: 12, border: "1px solid rgba(148,163,184,0.22)", background: "rgba(15,23,42,0.52)", padding: isMobile ? "10px 12px" : "9px 10px", color: creatorInfo.stitchDisabled ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.88)", fontSize: 13 }}>
-                          <span>{i18nT("stitch_7656945d")}</span>
-                          <input type="checkbox" checked={allowStitch} disabled={creatorInfo.stitchDisabled} onChange={(event) => {
-                            clearFinalConsent();
-                            setAllowStitch(event.target.checked);
-                          }} />
-                        </label>
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div style={helperTextStyle}>
-                  {i18nT("choix_renvoyes_par_tiktok_les_options_fe3d7149")}{" "}{mediaType === "images" ? i18nT("pour_les_photos_tiktok_ne_demande_c47f7493") : ""}
-                </div>
-              </section>
-
-              <section style={{ ...sectionCardStyle, display: "grid", gap: isMobile ? 12 : 10 }}>
-                <SectionHeader icon="🛡️" title={i18nT("declarations_tiktok_1f4aea8c")} />
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.70)", fontWeight: 800 }}>{i18nT("contenu_commercial_593e3b1d")}</span>
+                <label className={reviewStyles.fieldLabel}>
+                  <span>{i18nT("contenu_commercial_593e3b1d")}</span>
                   <select
                     value={commercialContent}
                     onChange={(event) => {
@@ -696,162 +660,118 @@ export default function TiktokPublicationSettingsModal({
                     <option value="both">{i18nT(commercialLabelKeys.both)}</option>
                   </select>
                 </label>
-
-                {commercialContent ? (
-                  <div
-                    style={{
-                      borderRadius: 12,
-                      padding: isMobile ? "10px 12px" : "8px 10px",
-                      background: needsBrandedConsent ? "rgba(251,191,36,0.10)" : "rgba(76,195,255,0.07)",
-                      border: needsBrandedConsent ? "1px solid rgba(251,191,36,0.22)" : "1px solid rgba(76,195,255,0.14)",
-                      color: "rgba(255,255,255,0.72)",
-                      fontSize: 12,
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    {i18nT("declaration_945c5d1d")}{" "}<strong style={{ color: "#fff" }}>{i18nT(commercialLabelKeys[commercialContent])}</strong>.
-                    {needsBrandedConsent
-                      ? i18nT("le_consentement_inclura_aussi_la_branded_d625eded")
-                      : ""}
-                  </div>
+                {needsBrandedConsent ? (
+                  <p className={reviewStyles.helper}>
+                    {i18nT("le_consentement_inclura_aussi_la_branded_d625eded")}
+                  </p>
                 ) : null}
+              </section>
 
+              <section className={`${reviewStyles.section} ${reviewStyles.options}`}>
+                <SectionHeader icon="☑" title={i18nT("tiktok_review_options")} />
+                <div className={reviewStyles.interactionGrid}>
+                  <label className={reviewStyles.option}>
+                    <span>{i18nT("commentaires_ccbb190a")}</span>
+                    <input type="checkbox" checked={allowComments} disabled={creatorInfo.commentDisabled} onChange={(event) => {
+                      clearFinalConsent();
+                      setAllowComments(event.target.checked);
+                    }} />
+                  </label>
+                  {mediaType === "video" ? (
+                    <>
+                      <label className={reviewStyles.option}>
+                        <span>{i18nT("duo_798e2216")}</span>
+                        <input type="checkbox" checked={allowDuo} disabled={creatorInfo.duetDisabled} onChange={(event) => {
+                          clearFinalConsent();
+                          setAllowDuo(event.target.checked);
+                        }} />
+                      </label>
+                      <label className={reviewStyles.option}>
+                        <span>{i18nT("stitch_7656945d")}</span>
+                        <input type="checkbox" checked={allowStitch} disabled={creatorInfo.stitchDisabled} onChange={(event) => {
+                          clearFinalConsent();
+                          setAllowStitch(event.target.checked);
+                        }} />
+                      </label>
+                    </>
+                  ) : null}
+                </div>
                 {mediaType === "images" ? (
-                  <label
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      alignItems: "flex-start",
-                      borderRadius: 12,
-                      border: "1px solid rgba(148,163,184,0.22)",
-                      background: "rgba(15,23,42,0.52)",
-                      padding: "10px 12px",
-                      color: "rgba(255,255,255,0.82)",
-                      fontSize: 13,
-                      lineHeight: 1.4,
-                    }}
-                  >
+                  <label className={reviewStyles.option}>
+                    <span>{i18nT("autoriser_tiktok_a_ajouter_une_musique_14d4bc98")}</span>
                     <input type="checkbox" checked={photoAutoMusic} onChange={(event) => {
                       clearFinalConsent();
                       setPhotoAutoMusic(event.target.checked);
-                    }} style={{ marginTop: 3 }} />
-                    <span>{i18nT("autoriser_tiktok_a_ajouter_une_musique_14d4bc98")}</span>
+                    }} />
                   </label>
                 ) : null}
-
-                <label
-                  style={{
-                    display: "grid",
-                    gap: 6,
-                    borderRadius: 12,
-                    border: "1px solid rgba(148,163,184,0.22)",
-                    background: "rgba(15,23,42,0.52)",
-                    padding: isMobile ? "10px 12px" : "10px 12px",
-                    color: "rgba(255,255,255,0.88)",
-                    fontSize: 13,
-                  }}
-                >
-                  <span style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                    <strong style={{ color: "#fff", fontSize: 13 }}>{i18nT("contenu_genere_ou_modifie_par_ia_029d323a")}</strong>
-                    <input type="checkbox" checked={aiContent} onChange={(event) => {
-                        clearFinalConsent();
-                        setAiContent(event.target.checked);
-                      }} />
+                <label className={reviewStyles.option}>
+                  <span className={reviewStyles.optionCopy}>
+                    <span>{i18nT("contenu_genere_ou_modifie_par_ia_029d323a")}</span>
+                    <span className={reviewStyles.optionHelp}>
+                      {i18nT("a_cocher_seulement_si_le_media_c04d6572")}
+                    </span>
                   </span>
-                  <span style={helperTextStyle}>
-                    {i18nT("a_cocher_seulement_si_le_media_c04d6572")}{" "}</span>
+                  <input type="checkbox" checked={aiContent} onChange={(event) => {
+                    clearFinalConsent();
+                    setAiContent(event.target.checked);
+                  }} />
                 </label>
-              </section>
-            </div>
-
-            <section
-              style={{
-                ...sectionCardStyle,
-                display: "grid",
-                gap: isMobile ? 10 : 8,
-                background: "linear-gradient(135deg, rgba(14,165,233,0.12), rgba(30,41,59,0.70))",
-                border: "1px solid rgba(56,189,248,0.22)",
-                color: "rgba(255,255,255,0.82)",
-                fontSize: 13,
-                lineHeight: isMobile ? 1.5 : 1.35,
-              }}
-            >
-              <SectionHeader icon="✓" title={i18nT("consentement_final_tiktok_a5ba437b")} />
-              <label style={{ display: "flex", gap: 12, alignItems: "flex-start", paddingLeft: isMobile ? 0 : 34 }}>
-                <input type="checkbox" checked={musicUsageConfirmed} onChange={(event) => setMusicUsageConfirmed(event.target.checked)} style={{ marginTop: 3 }} />
-                <span>
-                  {i18nT("j_ai_verifie_le_compte_le_627a983d")}{" "}{" "}
-                  <LegalLink href={tiktokLegalLinks.terms} label={i18nT("conditions_d_utilisation_tiktok_2f65dfa6")} />{i18nT("les_5821eaf7")}{" "}{" "}
-                  <LegalLink href={tiktokLegalLinks.communityGuidelines} label={i18nT("regles_communautaires_tiktok_f47cd130")} /> {" "}{i18nT("et_la_34718812")}{" "}{" "}
-                  <LegalLink href={tiktokLegalLinks.musicUsageConfirmation} label={i18nT("music_usage_confirmation_8f0792a9")} />
-                  {needsBrandedConsent ? (
-                    <>
-                      {i18nT("ainsi_que_la_52d7ae11")}
-                      <LegalLink href={tiktokLegalLinks.brandedContentPolicy} label={i18nT("branded_content_policy_tiktok_f9e8e677")} />
-                    </>
-                  ) : null}
-                  .
-                </span>
-              </label>
+                {creatorInfo.commentDisabled || (mediaType === "video" && (creatorInfo.duetDisabled || creatorInfo.stitchDisabled)) ? (
+                  <p className={reviewStyles.helper}>
+                    {i18nT("choix_renvoyes_par_tiktok_les_options_fe3d7149")}
+                  </p>
+                ) : null}
               {allowSessionReuse ? (
-                <label
-                  style={{
-                    display: "flex",
-                    gap: 12,
-                    alignItems: "flex-start",
-                    marginLeft: isMobile ? 0 : 34,
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid rgba(167,139,250,0.28)",
-                    background: "rgba(124,58,237,0.10)",
-                  }}
-                >
+                <label className={reviewStyles.reuse}>
                   <input
                     type="checkbox"
                     checked={rememberForSession}
-                    onChange={(event) =>
-                      setRememberForSession(event.target.checked)
-                    }
-                    style={{ marginTop: 3 }}
+                    onChange={(event) => setRememberForSession(event.target.checked)}
                   />
                   <span>
-                    <strong style={{ color: "#fff" }}>
-                      {i18nT("tiktok_reuse_settings_session")}
-                    </strong>
-                    <br />
-                    <small style={{ color: "rgba(255,255,255,0.68)" }}>
-                      {i18nT("tiktok_reuse_settings_session_help")}
-                    </small>
+                    <strong>{i18nT("tiktok_reuse_settings_session")}</strong>
+                    <small>{i18nT("tiktok_reuse_settings_session_help")}</small>
                   </span>
                 </label>
               ) : null}
-            </section>
+              </section>
+            </div>
           </>
         ) : null}
 
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "auto auto",
-            justifyContent: isMobile ? "stretch" : "end",
-            gap: isMobile ? 10 : 12,
-            minWidth: 0,
-            flexShrink: 0,
-            padding: isMobile
-              ? "12px 12px max(12px, var(--inrcy-safe-area-bottom))"
-              : "12px 14px 14px",
-            borderTop: "1px solid rgba(148,163,184,0.18)",
-            background: "linear-gradient(180deg, rgba(17,24,39,0.98), rgba(15,23,42,1))",
-            boxShadow: "0 -12px 28px rgba(2,6,23,0.18)",
-          }}
-        >
+        <div className={reviewStyles.footer}>
+          {creatorInfo ? (
+              <label className={reviewStyles.consent}>
+                <input type="checkbox" checked={musicUsageConfirmed} onChange={(event) => setMusicUsageConfirmed(event.target.checked)} />
+                <span className={reviewStyles.consentCopy}>
+                  <span className={reviewStyles.consentText}>
+                    {i18nT("j_ai_verifie_le_compte_le_627a983d")}
+                  </span>
+                  <span className={reviewStyles.legalLinks}>
+                    {i18nT("tiktok_review_legal_intro")}{" "}
+                    <LegalLink href={tiktokLegalLinks.terms} label={i18nT("tiktok_review_terms")} />{" · "}
+                    <LegalLink href={tiktokLegalLinks.communityGuidelines} label={i18nT("tiktok_review_community")} />{" · "}
+                    <LegalLink href={tiktokLegalLinks.musicUsageConfirmation} label={i18nT("tiktok_review_music")} />
+                    {needsBrandedConsent ? (
+                      <>
+                        {" · "}
+                        <LegalLink href={tiktokLegalLinks.brandedContentPolicy} label={i18nT("branded_content_policy_tiktok_f9e8e677")} />
+                      </>
+                    ) : null}
+                    .
+                  </span>
+                </span>
+              </label>
+          ) : null}
+          <div className={reviewStyles.footerActions}>
           <button
             type="button"
             className={styles.secondaryBtn}
             onClick={() => void confirmExit()}
-            style={{ width: isMobile ? "100%" : undefined, minHeight: 42 }}
+            style={{ width: isMobile ? "100%" : undefined, minHeight: 44, paddingInline: 14 }}
           >
             {i18nT("retour_modifier_ee98859e")}{" "}</button>
           <button
@@ -860,7 +780,8 @@ export default function TiktokPublicationSettingsModal({
             disabled={!canValidate || loading}
             style={{
               width: isMobile ? "100%" : undefined,
-              minHeight: 42,
+              minHeight: 44,
+              paddingInline: 14,
               opacity: !canValidate || loading ? 0.58 : 1,
             }}
             onClick={() => {
@@ -889,8 +810,10 @@ export default function TiktokPublicationSettingsModal({
           >
             {validateLabel ||
               i18nT("valider_et_publier_sur_tiktok_7324f0cf")}{" "}</button>
+          </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

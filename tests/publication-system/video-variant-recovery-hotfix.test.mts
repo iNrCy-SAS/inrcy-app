@@ -121,8 +121,8 @@ test("duration-invalid channels turn red before dispatch and are reported as fai
   const mediaPanel = await read(
     "app/dashboard/booster/publier/components/PublishImagesPanel.tsx",
   );
-  const previewPanel = await read(
-    "app/dashboard/booster/publier/components/PublishPreviewPanel.tsx",
+  const validationBoard = await read(
+    "app/dashboard/booster/publier/components/PublishValidationBoard.tsx",
   );
 
   assert.match(
@@ -138,7 +138,7 @@ test("duration-invalid channels turn red before dispatch and are reported as fai
     modal,
     /tone:\s*reviewItem\?\.mediaBlockers\?\.length[\s\S]*\("blocked" as const\)/,
   );
-  assert.match(modal, /message:\s*reviewItem\?\.blockers\?\.\[0\]/);
+  assert.match(validationBoard, /item\.mediaBlockerCodes\?\.length \? "blocked"/);
   assert.match(
     mediaPanel,
     /if \(readinessTone === "blocked"\) return "blocked"/,
@@ -146,7 +146,9 @@ test("duration-invalid channels turn red before dispatch and are reported as fai
   assert.match(mediaPanel, /role="alert"/);
   assert.match(mediaPanel, /i18nT\("media_incompatible_pour_value_20130e10"/);
   assert.match(mediaPanel, /activeMediaBlockers\.map/);
-  assert.match(previewPanel, /tab\.message \|\| "Canal incompatible/);
+  assert.match(validationBoard, /messages=\{mediaMessages\}/);
+  assert.match(validationBoard, /\.\.\.mediaBlockers, \.\.\.mediaWarnings/);
+  assert.match(validationBoard, /role="tooltip"/);
   assert.match(layer, /mergePreflightFailuresIntoPublicationSummary/);
   assert.doesNotMatch(layer, /status:\s*"skipped"/);
 });

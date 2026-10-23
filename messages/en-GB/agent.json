@@ -880,5 +880,8 @@
     "agentButton": "AI agent",
     "automation": "Automation",
     "manual": "Manual actions"
-  }
+  },
+  "regenerate_media_scope_title": "Regenerate media",
+  "regenerate_media_scope_message": "Regenerate media for every channel or only {channel}? Text and dates stay unchanged. An approved publication will require approval again.",
+  "regenerate_media_channel_success": "Media for {channel} has been regenerated. The date is preserved; the publication needs approval."
 }

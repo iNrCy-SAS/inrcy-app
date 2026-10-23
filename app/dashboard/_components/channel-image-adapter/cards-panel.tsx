@@ -8,9 +8,11 @@ import { useViewportWidth } from "./hooks";
 import { FinalImageFrame } from "./frames";
 
 import { ChannelPublicationPreview } from "./publication-preview";
+import WorkspaceGallery from "./workspace-gallery";
 
 
 export function ChannelImageAdapterCardsPanel({
+  presentation = "cards",
   tabs,
   activeChannel,
   onActiveChannelChange,
@@ -57,6 +59,10 @@ export function ChannelImageAdapterCardsPanel({
     blocked: { border: "1px solid rgba(248,113,113,0.38)", color: "#fecaca", background: "rgba(248,113,113,0.10)" },
     empty: { border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.72)", background: "rgba(255,255,255,0.045)" },
   };
+
+  if (presentation === "workspace") {
+    return <WorkspaceGallery items={items} aspectRatio={aspectRatio} emptyMessage={emptyMessage} />;
+  }
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>

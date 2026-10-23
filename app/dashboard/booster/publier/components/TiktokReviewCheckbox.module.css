@@ -1,0 +1,7 @@
+.review { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; min-height: 40px; padding: 8px 12px; border: 1px solid #e0b25d4d; border-radius: 12px; background: #c18a2810; color: #f0c778; font-size: 12px; line-height: 1.25; font-weight: 650; cursor: pointer; white-space: nowrap; }
+.review input { margin: 0; width: 17px; height: 17px; flex-shrink: 0; accent-color: #3cd8aa; cursor: pointer; }
+.review img { width: 19px; height: 19px; border-radius: 50%; }
+.review[data-ready="true"] { border-color: #5bd7ae52; color: #7edec0; background: #199e7914; }
+.review:has(input:disabled) { opacity: .55; cursor: default; }
+.review:focus-within { outline: 2px solid #80d4f6; outline-offset: 3px; }
+@media(max-width:700px) { .review { min-height: 34px; padding: 7px 10px; font-size: 11px; gap: 7px; } .review input { width: 16px; height: 16px; } .review img { width: 17px; height: 17px; } }

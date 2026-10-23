@@ -1,5 +1,12 @@
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import { useTranslations } from "next-intl";
+import PublishWizardFrame, { PublishWizardScreen } from "./components/PublishWizardFrame";
+import { canOpenPublishWizardStep, getPublishWizardSteps, getRestoredPublishWizardStep, type PublishWizardStep } from "./components/publishWizard";
+import wizardStyles from "./components/publishWizard.module.css";
+import intentStyles from "./components/PublishIntentPanel.module.css";
+import { getActionablePublicationWarningCodes, getPublicationMediaPoolDefaults } from "./publicationMediaPool";
+import { setImageKeysForChannel } from "./imageChannelAssignment";
+import TiktokReviewCheckbox from "./components/TiktokReviewCheckbox";
 import {
   useCallback,
   useEffect,
@@ -115,6 +122,7 @@ import {
   normalizeBoosterPreferredCta,
   getWebsiteUrlForChannel,
   getOptimizedTransform,
+  getBoosterMaxImageCountForChannel,
   getLocalizedVideoAdaptationModeLabel,
   getLocalizedVideoFormatLabel,
   VIDEO_FORMAT_ASPECT_RATIOS,
@@ -180,7 +188,6 @@ import {
   readVideoSourceMetadata,
 } from "./publishModal.videoAiRuntime";
 import {
-  scrollIntoViewWhenAvailable,
   settleOptionalMediaEnrichment,
 } from "./publishModal.clientResilience";
 
@@ -197,8 +204,8 @@ import PublishScheduleModal, {
 import PublishIntentPanel from "./components/PublishIntentPanel";
 import PublishCreationModePanel from "./components/PublishCreationModePanel";
 import PublishContentEditorPanel from "./components/PublishContentEditorPanel";
-import PublishImagesPanel from "./components/PublishImagesPanel";
-import PublishPreviewPanel from "./components/PublishPreviewPanel";
+import PublishMediaPoolPanel from "./components/PublishMediaPoolPanel";
+import PublishValidationBoard from "./components/PublishValidationBoard";
 import PublishHelpModal from "./components/PublishHelpModal";
 import PublishWarningModals from "./components/PublishWarningModals";
 import {
@@ -452,7 +459,9 @@ export default function PublishModal({
   saveDraftActionRef,
   openHelpActionRef,
   onDraftHeaderStateChange,
+  onWizardModeChange,
   initialConnectedChannels,
+  companyName,
 }: {
   styles: typeof stylesDash;
   onClose: () => void;
@@ -460,6 +469,7 @@ export default function PublishModal({
   onPublishSuccess?: (result?: any) => void;
   onOverlayOpenChange?: (open: boolean) => void;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
+  onWizardModeChange?: (mode: BoosterCreationMode | null) => void;
   saveDraftActionRef?: MutableRefObject<(() => void) | null>;
   openHelpActionRef?: MutableRefObject<(() => void) | null>;
   onDraftHeaderStateChange?: (state: {
@@ -469,6 +479,7 @@ export default function PublishModal({
     draftMessage: string;
   }) => void;
   initialConnectedChannels?: Partial<Record<ChannelKey, boolean>>;
+  companyName?: string;
 }) {
   const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
   const CHANNEL_KEYS = useMemo(() => ALL_CHANNEL_KEYS.filter((key) => key !== "threads" || metaPilotEnabled), [metaPilotEnabled]);
@@ -571,6 +582,11 @@ export default function PublishModal({
     Partial<Record<ChannelKey, ChannelPost>>
   >({});
   const [contentWorkspaceOpen, setContentWorkspaceOpen] = useState(false);
+  const [wizardStep, setWizardStep] = useState<PublishWizardStep>("mode");
+  const [intentActionsContainer, setIntentActionsContainer] = useState<HTMLDivElement | null>(null);
+  const [contentActionsContainer, setContentActionsContainer] = useState<HTMLDivElement | null>(null);
+  const [channelActionsContainer, setChannelActionsContainer] = useState<HTMLDivElement | null>(null);
+  useEffect(() => { onWizardModeChange?.(creationMode); }, [creationMode, onWizardModeChange]);
   const [selectedActiveCard, setActiveCard] = useState<DisplayKey>("site_web");
   const activeCard = selectedActiveCard === "threads" && !metaPilotEnabled ? "site_web" : selectedActiveCard;
   const [isMobile, setIsMobile] = useState(false);
@@ -661,10 +677,11 @@ export default function PublishModal({
   ] = useState<PendingImmediatePublishAfterSchedule | null>(null);
   const [tiktokSettingsOpen, setTiktokSettingsOpen] = useState(false);
   const [tiktokSettingsFlow, setTiktokSettingsFlow] = useState<
-    "publish" | "schedule" | null
+    "publish" | "schedule" | "review" | null
   >(null);
   const [tiktokPublicationSettings, setTiktokPublicationSettings] =
     useState<TiktokPublicationSettings | null>(null);
+  const [tiktokReviewSignature, setTiktokReviewSignature] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -853,6 +870,7 @@ export default function PublishModal({
   const [cameraCaptureTargetChannel, setCameraCaptureTargetChannel] =
     useState<ChannelKey | null>(null);
   const [mediaLibraryPickerOpen, setMediaLibraryPickerOpen] = useState(false);
+  const [mediaLibraryPickerKind, setMediaLibraryPickerKind] = useState<"image" | "video" | "all">("all");
   const [mediaLibraryPickerScope, setMediaLibraryPickerScope] = useState<
     "generation" | "publication"
   >("generation");
@@ -1050,9 +1068,6 @@ export default function PublishModal({
   const generationProgressRef = useRef<HTMLDivElement | null>(null);
   const contentTextAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const siteContentEditorRef = useRef<HTMLDivElement | null>(null);
-  const creationPathRef = useRef<HTMLDivElement | null>(null);
-  const contentWorkspaceRef = useRef<HTMLDivElement | null>(null);
-  const contentWorkspaceScrollCleanupRef = useRef<(() => void) | null>(null);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const publishRootRef = useRef<HTMLDivElement | null>(null);
   const publishScrollSnapshotRef = useRef<{
@@ -1060,13 +1075,6 @@ export default function PublishModal({
     scrollTop: number;
     windowY: number;
   } | null>(null);
-
-  useEffect(() => {
-    return () => {
-      contentWorkspaceScrollCleanupRef.current?.();
-      contentWorkspaceScrollCleanupRef.current = null;
-    };
-  }, []);
 
   const getInitialConnectedChannels = (): Record<ChannelKey, boolean> => ({
 
@@ -1432,26 +1440,21 @@ export default function PublishModal({
             {} as Record<ChannelKey, boolean>,
           );
           applyConnectedChannels(nextConnected);
-          if (json?.channelDetails) {
-            setChannelDetails((prev) => {
-              const next = { ...prev, ...json.channelDetails };
-              CHANNEL_KEYS.forEach((key) => {
-                next[key] = { ...next[key], availabilityError: false };
-              });
-              return next;
-            });
-          }
+          const nextChannelDetails: Partial<Record<ChannelKey, ChannelConnectionDetail>> = {
+            ...json?.channelDetails,
+          };
+          let hasChannelDetails = Boolean(json?.channelDetails);
           if (json.channels.pinterest) {
-            void fetch("/api/integrations/pinterest/status?live=1", {
-              cache: "no-store" as any,
-            })
-              .then(async (pinterestResponse) => {
-                if (!pinterestResponse.ok) return null;
-                return pinterestResponse.json().catch(() => null);
-              })
-              .then((pinterestStatus) => {
-                if (!isCurrent() || !pinterestStatus?.ok || !pinterestStatus?.connected)
-                  return;
+            try {
+              const pinterestResponse = await fetch("/api/integrations/pinterest/status?live=1", {
+                cache: "no-store" as any,
+              });
+              if (!isCurrent()) return;
+              const pinterestStatus = pinterestResponse.ok
+                ? await pinterestResponse.json().catch(() => null)
+                : null;
+              if (!isCurrent()) return;
+              if (pinterestStatus?.ok && pinterestStatus?.connected) {
                 const username = String(pinterestStatus.username || "")
                   .replace(/^@+/, "")
                   .trim();
@@ -1465,17 +1468,28 @@ export default function PublishModal({
                 const accountLabel = String(
                   pinterestStatus.accountName || username || profileHref,
                 ).trim();
-                setChannelDetails((current) => ({
-                  ...current,
-                  pinterest: {
-                    ...(current.pinterest || EMPTY_CHANNEL_DETAILS.pinterest),
-                    type: "account",
-                    label: accountLabel || "Compte Pinterest connecté",
-                    href: profileHref || null,
-                  },
-                }));
-              })
-              .catch(() => null);
+                nextChannelDetails.pinterest = {
+                  ...(nextChannelDetails.pinterest || EMPTY_CHANNEL_DETAILS.pinterest),
+                  type: "account",
+                  label: accountLabel || "Compte Pinterest connecté",
+                  href: profileHref || null,
+                };
+                hasChannelDetails = true;
+              }
+            } catch {
+              // The connected-channels snapshot remains authoritative when live identity is unavailable.
+            }
+          }
+          if (!isCurrent()) return;
+          if (hasChannelDetails) {
+            setChannelDetails((prev) => {
+              if (!isCurrent()) return prev;
+              const next = { ...prev, ...nextChannelDetails };
+              CHANNEL_KEYS.forEach((key) => {
+                next[key] = { ...next[key], availabilityError: false };
+              });
+              return next;
+            });
           }
           if (json.channels.tiktok) {
             void fetch("/api/integrations/tiktok/status", {
@@ -2534,6 +2548,7 @@ export default function PublishModal({
     assignExistingImagesToChannel,
     removeImagesFromChannel,
     removeImage,
+    movePoolImageTo,
     getDraftImageSettingsByChannel,
     uploadPublicationDraftImages,
     restorePublicationDraftImages,
@@ -3302,6 +3317,10 @@ export default function PublishModal({
         setTheme(nextTheme);
         setContentStyle(nextContentStyle);
         setCreationMode(nextCreationMode);
+        setWizardStep(getRestoredPublishWizardStep(nextCreationMode, Object.values(nextPostsByChannel).some((post) => {
+          const normalized = normalizePost(post);
+          return Boolean(normalized.title.trim() || normalized.content.trim());
+        })));
         aiEngineRestoredFromDraftRef.current = hasDraftAiEngine;
         setSelectedAiPreferredEngine(nextAiPreferredEngine);
         setCreationModeError("");
@@ -3649,6 +3668,7 @@ export default function PublishModal({
     clearAiCreationWork();
     clearChannelCreationWork();
     setCreationMode(null);
+    setWizardStep("mode");
     setCreationModeError("");
     setDraftMessage("");
     setLastPublicationDraftSnapshot(null);
@@ -3671,40 +3691,12 @@ export default function PublishModal({
   };
 
   const scrollToContentWorkspace = () => {
-    if (typeof window === "undefined") return;
-    contentWorkspaceScrollCleanupRef.current?.();
-    contentWorkspaceScrollCleanupRef.current = scrollIntoViewWhenAvailable({
-      getTarget: () => contentWorkspaceRef.current,
-      requestFrame: (callback) => window.requestAnimationFrame(callback),
-      cancelFrame: (handle) => window.cancelAnimationFrame(handle),
-      maxAttempts: 24,
-      options: {
-        behavior: "smooth",
-        block: "start",
-      },
-    });
-  };
-
-  const scrollToCreationPath = () => {
-    if (typeof window === "undefined") return;
-    window.setTimeout(() => {
-      creationPathRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 100);
+    setWizardStep("content");
   };
 
   const onSelectCreationMode = async (nextMode: BoosterCreationMode) => {
     if (generating || saving || draftSaving || scheduleSaving) return;
-    if (nextMode === creationMode) return;
-
-    if (!selectedChannels.length) {
-      setCreationModeError(
-        i18nT("selectionnez_au_moins_1_canal_avant_d976021a"),
-      );
-      return;
-    }
+    if (nextMode === creationMode) return true;
 
     if (creationMode && hasCurrentCreationModeWork) {
       const switchingFromAi = creationMode === "ai";
@@ -3738,13 +3730,9 @@ export default function PublishModal({
     setMediaOptimizerRequest(null);
     setCreationMode(nextMode);
     setContentWorkspaceOpen(nextMode === "manual");
-    setSynchronizedActiveChannel(selectedChannels[0]);
+    if (selectedChannels[0]) setSynchronizedActiveChannel(selectedChannels[0]);
 
-    if (nextMode === "manual") {
-      scrollToContentWorkspace();
-    } else {
-      scrollToCreationPath();
-    }
+    return true;
   };
 
   const onPdfChange = (files: FileList | null) => {
@@ -3783,7 +3771,6 @@ export default function PublishModal({
     }
 
     const trimmed = idea.trim();
-    const selectedAiEngineOption = getAiEngineOption(selectedAiPreferredEngine);
     if (!selectedChannels.length) {
       setGenError(i18nT("veuillez_selectionner_au_moins_1_canal_0e52243b"));
       return;
@@ -3793,6 +3780,7 @@ export default function PublishModal({
       return;
     }
 
+    const selectedAiEngineOption = getAiEngineOption(selectedAiPreferredEngine);
     if (hasWrittenChannelContent) {
       const confirmed = await confirmInrcy({
         eyebrow: i18nT("contenus_deja_presents_37541640"),
@@ -5306,6 +5294,7 @@ export default function PublishModal({
       channelKey: channel,
       channelLabel: getLocalizedChannelLabel(channel, runtimeT),
       mediaType: "video" as const,
+      accountName: getChannelDetailInfo(channel)?.fullLabel,
       title: post.title,
       content: post.content,
       cta: getPreviewCtaForDisplayKey(displayKey, post),
@@ -5373,6 +5362,7 @@ export default function PublishModal({
       channelKey: channel,
       channelLabel: getLocalizedChannelLabel(channel, runtimeT),
       title: post.title,
+      accountName: getChannelDetailInfo(channel)?.fullLabel,
       content: post.content,
       cta: getPreviewCtaForDisplayKey(displayKey, post),
       hashtags:
@@ -5429,6 +5419,7 @@ export default function PublishModal({
         channelKey: activePreviewChannel,
         channelLabel: getLocalizedChannelLabel(activePreviewChannel, runtimeT),
         mediaType: "images" as const,
+        accountName: getChannelDetailInfo(activePreviewChannel)?.fullLabel,
         title: post.title,
         content: post.content,
         cta: getPreviewCtaForDisplayKey(displayKey, post),
@@ -5445,6 +5436,17 @@ export default function PublishModal({
     }
     return null;
   })();
+
+  const tiktokCurrentSignature = JSON.stringify({
+    account: getChannelDetailInfo("tiktok")?.mobileLabel,
+    connected: connected.tiktok,
+    post: buildPreparedPostsByChannel().tiktok,
+    mode: resolveChannelMediaMode("tiktok"),
+    images: getPublishImageKeysForChannel("tiktok").map((key) => ({ key, transform: channelImageEditors.tiktok?.transforms?.[key] })),
+    video: videoFile ? { name: videoFile.name, size: videoFile.size, lastModified: videoFile.lastModified, url: videoPreviewUrl } : { url: videoPreviewUrl },
+    videoSettings: videoSettingsByChannel.tiktok,
+  });
+  const tiktokReviewCurrent = Boolean(tiktokPublicationSettings && tiktokReviewSignature === tiktokCurrentSignature);
 
   const closeEmptyContentWarnings = () => {
     setEmptyContentWarningChannels([]);
@@ -6640,7 +6642,7 @@ export default function PublishModal({
     setScheduleError("");
     setDraftMessage("");
     setImgError("");
-    setTiktokPublicationSettings(null);
+    if (!tiktokReviewCurrent) setTiktokPublicationSettings(null);
 
     if (!selectedChannels.length) {
       setPublishError(i18nT("selectionnez_au_moins_1_canal_a_54437af6"));
@@ -7209,7 +7211,7 @@ export default function PublishModal({
     const tiktokWillPublishNow = immediateChannels.includes("tiktok");
     if (
       (tiktokWillSchedule || tiktokWillPublishNow) &&
-      !tiktokPublicationSettings
+      !tiktokReviewCurrent
     ) {
       setPendingScheduleRequest({
         selections,
@@ -7261,8 +7263,8 @@ export default function PublishModal({
     const tiktokReviewItem = reviewItems.find(
       (item) => item.channel === "tiktok",
     );
-    setTiktokPublicationSettings(null);
-    if (tiktokReviewItem && tiktokReviewItem.blockers.length === 0) {
+    if (!tiktokReviewCurrent) setTiktokPublicationSettings(null);
+    if (tiktokReviewItem && tiktokReviewItem.blockers.length === 0 && !tiktokReviewCurrent) {
       setTiktokSettingsFlow("publish");
       setTiktokSettingsOpen(true);
       return;
@@ -7432,6 +7434,8 @@ export default function PublishModal({
         ...requirements.mediaBlockerCodes,
         ...(hasVideoPreparationBlocker ? ["video_conversion_failed"] : []),
         ...(hasMediaUploadBlocker ? ["media_upload_pending"] : []),
+        ...(facebookVerticalFormat && !hasImage && !hasVideo ? ["facebook_vertical_media_required"] : []),
+        ...(facebookVerticalDurationInvalid ? ["facebook_vertical_duration_invalid"] : []),
       ];
       const localizeRequirement = (code: string) =>
         code === "threads_ghost_preferences_loading" || code === "threads_ghost_preferences_error" || code === "threads_ghost_disabled" || code === "threads_text_too_long"
@@ -7449,6 +7453,7 @@ export default function PublishModal({
               runtimeT,
             );
       const blockers = blockerCodes.map(localizeRequirement);
+      const actionableWarningCodes = getActionablePublicationWarningCodes(requirements.warningCodes);
 
       return {
         channel,
@@ -7504,11 +7509,18 @@ export default function PublishModal({
               : [],
         blockers,
         blockerCodes,
+        contentBlockers: blockerCodes.filter((code) => !mediaBlockerCodes.includes(code)).map(localizeRequirement),
+        contentWarnings: actionableWarningCodes.filter((code) => /content|title|text|url|board/.test(code)).map(localizeRequirement),
+        mediaWarnings: [
+          ...actionableWarningCodes.filter((code) => !/content|title|text|url|board/.test(code)).map(localizeRequirement),
+          ...(instagramStoryPublished ? [i18nT("instagram_review_media_only_warning", { mode: i18nT("instagram_stories") })] : []),
+          ...(facebookStoryPublished ? [i18nT("instagram_review_media_only_warning", { mode: i18nT("instagram_stories") })] : []),
+        ],
         mediaBlockers: mediaBlockerCodes.map(localizeRequirement),
         mediaBlockerCodes,
         publishable: blockers.length === 0,
         tiktokParametersValidated:
-          channel === "tiktok" && Boolean(tiktokPublicationSettings),
+          channel === "tiktok" && tiktokReviewCurrent,
         hasContent,
         hasTitle,
         hasText,
@@ -7581,49 +7593,28 @@ export default function PublishModal({
     };
   });
 
-  const previewReadinessTabs = imageAdapterChannels.map((channel) => {
-    const reviewItem = publishReadinessItems.find(
-      (item) => item.channel === channel,
-    );
-    const hasText = !!reviewItem?.hasText;
-    const mode = resolveChannelMediaMode(channel);
-    const hasMedia =
-      mode === "video"
-        ? !!videoPreviewUrl
-        : mode === "images"
-          ? !!reviewItem?.hasImage
-          : false;
-    return {
-      key: channel,
-      label: getLocalizedChannelLabel(channel, runtimeT),
-      tone: reviewItem?.blockers?.length
-        ? ("blocked" as const)
-        : hasText && hasMedia
-          ? ("ready" as const)
-          : hasText || hasMedia
-            ? ("warning" as const)
-            : ("blocked" as const),
-      message: reviewItem?.blockers?.[0] || "",
-    };
-  });
-
   const closeFinalReview = () => {
     setFinalReviewOpen(false);
-    setTiktokPublicationSettings(null);
+    if (!tiktokReviewCurrent) setTiktokPublicationSettings(null);
   };
 
   const closeTiktokSettingsModal = () => {
     setTiktokSettingsOpen(false);
+    if (tiktokSettingsFlow !== "review") setTiktokPublicationSettings(null);
     setTiktokSettingsFlow(null);
     setPendingScheduleRequest(null);
-    setTiktokPublicationSettings(null);
   };
 
   const validateTiktokSettingsModal = async (
     settings: TiktokPublicationSettings,
   ) => {
     setTiktokPublicationSettings(settings);
+    setTiktokReviewSignature(tiktokCurrentSignature);
     setTiktokSettingsOpen(false);
+    if (tiktokSettingsFlow === "review") {
+      setTiktokSettingsFlow(null);
+      return;
+    }
 
     if (tiktokSettingsFlow === "schedule" && pendingScheduleRequest) {
       const request = pendingScheduleRequest;
@@ -7653,6 +7644,7 @@ export default function PublishModal({
   const excludeTiktokAndContinue = () => {
     const flow = tiktokSettingsFlow;
     deselectChannel("tiktok");
+    if (flow === "review") { setTiktokSettingsOpen(false); setTiktokSettingsFlow(null); return; }
     setPendingScheduleRequest(null);
     if (flow === "schedule") {
       setScheduleModalOpen(true);
@@ -7666,7 +7658,6 @@ export default function PublishModal({
     : isMobile
       ? "100svh"
       : "100dvh";
-  const publicationImagesPanelVisible = true;
 
   useEffect(() => {
     const openAiConfiguration = () => setAiConfigurationOpen(true);
@@ -7687,7 +7678,7 @@ export default function PublishModal({
     const tiktokWillPublish = publishableItems.some(
       (item) => item.channel === "tiktok",
     );
-    if (tiktokWillPublish && !tiktokPublicationSettings) {
+    if (tiktokWillPublish && !tiktokReviewCurrent) {
       setFinalReviewOpen(false);
       setTiktokSettingsFlow("publish");
       setTiktokSettingsOpen(true);
@@ -7773,7 +7764,7 @@ export default function PublishModal({
     };
   };
 
-  const openInrStudioGenerator = async () => {
+  const openInrStudioGenerator = async (kind?: "image" | "video") => {
     try {
       const draftState = await preparePublicationDraftForStudio();
       if (!draftState) return;
@@ -7784,6 +7775,7 @@ export default function PublishModal({
         publicationBrief: idea.trim(),
         context: {
           draftId: draftState.draftId,
+          ...(kind ? { mediaType: kind } : {}),
         },
       });
       openStudio(href);
@@ -7968,23 +7960,83 @@ export default function PublishModal({
     }
   };
 
+  const wizardSteps = getPublishWizardSteps(creationMode);
+  const wizardBusy = generating || saving || draftSaving || scheduleSaving || voiceInputBusy;
+  const activeWizardStep: PublishWizardStep = saving || scheduleSaving
+    ? "publication"
+    : wizardStep;
+  const canOpenWizardStep = (step: PublishWizardStep) => canOpenPublishWizardStep(step, {
+    mode: creationMode,
+    channelCount: selectedChannels.length,
+    contentReady: showContentWorkspace,
+    busy: wizardBusy,
+  });
+  const openWizardStep = (step: PublishWizardStep) => {
+    if (!canOpenWizardStep(step)) return;
+    if (finalReviewOpen) closeFinalReview();
+    if (step === "control") setShowPublicationPreview(true);
+    setWizardStep(step);
+  };
+  const wizardIndex = wizardSteps.indexOf(activeWizardStep === "mode" ? "channels" : activeWizardStep === "validation" ? "control" : activeWizardStep);
+  const previousWizardStep = !wizardBusy && !tiktokSettingsOpen && !scheduleModalOpen && wizardIndex > 0 && wizardIndex < wizardSteps.indexOf("publication")
+    ? wizardSteps[wizardIndex - 1] : undefined;
+  const nextWizardStep = activeWizardStep === "mode" || activeWizardStep === "channels" ? (creationMode === "manual" ? "content" : "intention")
+    : activeWizardStep === "content" ? "media"
+    : activeWizardStep === "media" ? "control" : undefined;
+
+  const previousMediaPoolSignature = useRef("");
+  const mediaPoolSignature = JSON.stringify([[...imageKeys].sort(), videoPreviewUrl]);
+  useEffect(() => {
+    if (previousMediaPoolSignature.current === mediaPoolSignature) return;
+    previousMediaPoolSignature.current = mediaPoolSignature;
+    if (activeWizardStep !== "media" || (publicationDraftIdParam && loadedPublicationDraftId !== publicationDraftIdParam)) return;
+    const defaults = getPublicationMediaPoolDefaults(selectedChannels, imageKeys, Boolean(videoPreviewUrl), getBoosterMaxImageCountForChannel);
+    setChannelMediaModes((current) => ({ ...current, ...defaults.modes }));
+    setChannelImageEditors((current) => {
+      let next = current;
+      for (const channel of selectedChannels) {
+        const keys = defaults.selections[channel];
+        if (!keys) continue;
+        next = setImageKeysForChannel(next, channel, keys, {
+          fallback: { imageKeys: [], transforms: {} },
+          patch: { synchronizedImageKeys: [...imageKeys] },
+        });
+      }
+      return next;
+    });
+  }, [activeWizardStep, mediaPoolSignature, imageKeys, videoPreviewUrl, selectedChannels, publicationDraftIdParam, loadedPublicationDraftId]);
+
+  const publicationActions = (
+          <PublishFooterActions
+            styles={styles}
+            publishAreaRef={publishAreaRef}
+            saving={saving}
+            scheduling={scheduleSaving}
+            draftSaving={draftSaving}
+            voiceBusy={voiceInputBusy}
+            publishProgress={publishProgress}
+            publishProgressLabel={publishProgressLabel}
+            publishProgressPhaseIndex={publishProgressPhaseIndex}
+            publishProgressPhaseTotal={PUBLICATION_PROGRESS_STAGES.length}
+            publishProgressPhaseLabel={publishProgressPhaseLabel}
+            publishError={publishError}
+            mediaPreparationIssue={publishImagePreparationIssue}
+            mediaPreparationFailed={
+              Boolean(imagePreparationError) ||
+              imagePreparationItems.some((item) => item.status === "failed")
+            }
+            onPublish={onPublish}
+            onSchedule={openSchedulePublicationModal}
+            reviewControl={selectedChannels.includes("tiktok") ? <TiktokReviewCheckbox checked={tiktokReviewCurrent} disabled={wizardBusy} onReview={() => { setTiktokSettingsFlow("review"); setTiktokSettingsOpen(true); }} /> : null}
+          />
+  );
+
   return (
-    <div ref={publishRootRef} style={{ display: "grid", gap: 12, minWidth: 0 }}>
+    <div ref={publishRootRef} style={{ display: "flex", flexDirection: "column", flex: 1, height: "100%", minHeight: 0, minWidth: 0 }}>
       {studio}
-      <PublishHelpModal
-        open={publishHelpOpen}
-        onClose={() => setPublishHelpOpen(false)}
-      />
-
-      <PublishAiConfigurationDrawer
-        open={aiConfigurationOpen}
-        isMobile={isMobile}
-        drawerHeight={aiDrawerHeight}
-        presentation="workspace"
-        onClose={() => setAiConfigurationOpen(false)}
-      />
-
       <TiktokPublicationSettingsModal
+        showPreview={false}
+        validateLabel={tiktokSettingsFlow === "review" ? i18nT("valider_be4220f7") : undefined}
         open={tiktokSettingsOpen}
         styles={styles}
         isMobile={isMobile}
@@ -8006,45 +8058,17 @@ export default function PublishModal({
         onExcludeAndContinue={excludeTiktokAndContinue}
       />
 
-      <PublishFinalReviewModal
-        open={finalReviewOpen}
-        styles={styles}
-        items={finalReviewItems}
-        hasBlockers={hasFinalReviewBlockers}
-        publishableCount={finalReviewPublishableCount}
-        isMobile={isMobile}
-        saving={saving}
-        onClose={closeFinalReview}
-        onConfirm={confirmFinalReview}
+      <PublishHelpModal
+        open={publishHelpOpen}
+        onClose={() => setPublishHelpOpen(false)}
       />
 
-      <PublishScheduleModal
-        open={scheduleModalOpen}
-        styles={styles}
-        items={scheduleModalItems}
+      <PublishAiConfigurationDrawer
+        open={aiConfigurationOpen}
         isMobile={isMobile}
-        saving={scheduleSaving}
-        error={scheduleError}
-        progress={publishProgress}
-        progressLabel={publishProgressLabel}
-        onClose={() => {
-          if (scheduleSaving) return;
-          setScheduleModalOpen(false);
-        }}
-        successMessage={i18nT("programmation_reussie_1307249b")}
-        savingLabel={i18nT("envoi_en_cours_2de80069")}
-        enableImmediateUnselectedWarning
-        onConfirm={confirmSchedulePublication}
-        onSuccess={() => {
-          const immediatePublishRequest = pendingImmediatePublishAfterSchedule;
-          setScheduleModalOpen(false);
-          setPendingImmediatePublishAfterSchedule(null);
-          if (immediatePublishRequest?.immediateChannels.length) {
-            publishImmediateChannelsAfterSchedule(immediatePublishRequest);
-            return;
-          }
-          onClose();
-        }}
+        drawerHeight={aiDrawerHeight}
+        presentation="workspace"
+        onClose={() => setAiConfigurationOpen(false)}
       />
 
       <PublishWarningModals
@@ -8111,17 +8135,17 @@ export default function PublishModal({
         accept={
           mediaLibraryPickerScope === "generation"
             ? generationMediaSelectionPolicy.libraryAccept
-            : "all"
+            : mediaLibraryPickerKind
         }
         multiple={
           mediaLibraryPickerScope === "generation"
             ? generationMediaSelectionPolicy.libraryMultiple
-            : true
+            : mediaLibraryPickerKind !== "video"
         }
         maxSelection={
           mediaLibraryPickerScope === "generation"
             ? generationMediaSelectionPolicy.libraryMaxSelection
-            : BOOSTER_MAX_IMAGE_COUNT + 1
+            : mediaLibraryPickerKind === "video" ? 1 : mediaLibraryPickerKind === "image" ? Math.max(0, BOOSTER_MAX_IMAGE_COUNT - images.length) : BOOSTER_MAX_IMAGE_COUNT + 1
         }
         maxImageBytes={BOOSTER_MAX_IMAGE_BYTES}
         maxVideoBytes={BOOSTER_MAX_VIDEO_BYTES}
@@ -8158,19 +8182,6 @@ export default function PublishModal({
         onOptimized={applyOptimizedMediaToBooster}
       />
 
-      <PublishChannelSelector
-        styles={styles}
-        isMobile={isMobile}
-        connected={connected}
-        channels={channels}
-        channelReadiness={channelReadiness}
-        channelInfoOpen={channelInfoOpen}
-        setChannelInfoOpen={setChannelInfoOpen}
-        toggle={toggle}
-        setAllChannelsSelected={setAllChannelsSelected}
-        getChannelDetailInfo={getChannelDetailInfo}
-      />
-
       {creationMode !== "ai" ? (
         <>
           <input
@@ -8197,6 +8208,35 @@ export default function PublishModal({
         </>
       ) : null}
 
+      <PublishWizardFrame
+        step={activeWizardStep}
+        steps={wizardSteps}
+        canOpenStep={canOpenWizardStep}
+        onOpenStep={openWizardStep}
+        onPrevious={previousWizardStep ? () => openWizardStep(previousWizardStep) : undefined}
+        onNext={nextWizardStep ? () => openWizardStep(nextWizardStep) : undefined}
+        nextDisabled={nextWizardStep ? !canOpenWizardStep(nextWizardStep) : false}
+        footer={activeWizardStep === "intention" ? (
+          <div ref={setIntentActionsContainer} className={wizardStyles.intentActions} />
+        ) : activeWizardStep === "content" ? <div ref={setContentActionsContainer} /> : activeWizardStep === "control" ? publicationActions : undefined}
+      >
+        <PublishWizardScreen active={activeWizardStep === "mode" || activeWizardStep === "channels"} step="channels">
+          <div className={wizardStyles.preparation}>
+            <div ref={setChannelActionsContainer} className={wizardStyles.selectionActions} />
+      <PublishChannelSelector
+        actionsContainer={channelActionsContainer}
+        companyName={companyName}
+        styles={styles}
+        isMobile={isMobile}
+        connected={connected}
+        channels={channels}
+        channelReadiness={channelReadiness}
+        channelInfoOpen={channelInfoOpen}
+        setChannelInfoOpen={setChannelInfoOpen}
+        toggle={toggle}
+        setAllChannelsSelected={setAllChannelsSelected}
+        getChannelDetailInfo={getChannelDetailInfo}
+      />
       <PublishCreationModePanel
         styles={styles}
         isMobile={isMobile}
@@ -8208,20 +8248,31 @@ export default function PublishModal({
           scheduleSaving ||
           voiceInputBusy
         }
-        selectedChannelCount={selectedChannels.length}
         error={creationModeError}
-        showReset={hasDraftablePublicationContent || Boolean(pdfFile)}
-        onSelectMode={(mode) => {
-          void onSelectCreationMode(mode);
+        showReset={Boolean(creationMode) && (hasDraftablePublicationContent || Boolean(pdfFile))}
+        onSelectMode={async (mode) => {
+          const scroller = document.activeElement?.closest("[data-publish-wizard]")?.querySelector<HTMLElement>("[data-publish-scroll]");
+          const scrollTop = scroller?.scrollTop;
+          if (await onSelectCreationMode(mode)) {
+            setWizardStep("channels");
+            // Both mode choices belong to the same visible preparation step.
+            // Keep its position when the step count or reset action changes.
+            if (scroller && scrollTop !== undefined) {
+              window.requestAnimationFrame(() => scroller.scrollTo({ top: scrollTop }));
+            }
+          }
         }}
         onReset={() => {
           void onReset();
         }}
       />
-
+          </div>
+        </PublishWizardScreen>
+        <PublishWizardScreen active={activeWizardStep === "intention"} step="intention">
       {creationMode === "ai" && workflowSteps?.intention && creationWorkflow?.showsIntent ? (
-        <div ref={creationPathRef} style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0 }}>
           <PublishIntentPanel
+            actionsContainer={intentActionsContainer}
             styles={styles}
             isMobile={isMobile}
             stepNumber={workflowSteps.intention ?? 3}
@@ -8245,6 +8296,7 @@ export default function PublishModal({
             onTakePhotoClick={() => onTakePhotoClick(undefined, "generation")}
             onOpenMediaLibrary={() => {
               setMediaLibraryPickerScope("generation");
+              setMediaLibraryPickerKind("all");
               setMediaLibraryPickerOpen(true);
             }}
             images={images}
@@ -8287,14 +8339,71 @@ export default function PublishModal({
           />
         </div>
       ) : null}
+        </PublishWizardScreen>
+        <PublishWizardScreen active={activeWizardStep === "validation"} step="validation">
+      <PublishScheduleModal
+        showReviewSummary={false}
+        confirmLabel={i18nT("programmer_ad97007f")}
+        open={scheduleModalOpen}
+        styles={styles}
+        items={scheduleModalItems}
+        isMobile={isMobile}
+        saving={scheduleSaving}
+        error={scheduleError}
+        progress={publishProgress}
+        progressLabel={publishProgressLabel}
+        onClose={() => {
+          if (scheduleSaving) return;
+          setScheduleModalOpen(false);
+        }}
+        successMessage={i18nT("programmation_reussie_1307249b")}
+        savingLabel={i18nT("envoi_en_cours_2de80069")}
+        enableImmediateUnselectedWarning
+        onConfirm={confirmSchedulePublication}
+        onSuccess={() => {
+          const immediatePublishRequest = pendingImmediatePublishAfterSchedule;
+          setScheduleModalOpen(false);
+          setPendingImmediatePublishAfterSchedule(null);
+          if (immediatePublishRequest?.immediateChannels.length) {
+            publishImmediateChannelsAfterSchedule(immediatePublishRequest);
+            return;
+          }
+          onClose();
+        }}
+      />
 
+
+      <PublishFinalReviewModal
+        open={finalReviewOpen}
+        styles={styles}
+        items={finalReviewItems}
+        hasBlockers={hasFinalReviewBlockers}
+        publishableCount={finalReviewPublishableCount}
+        saving={saving}
+        onClose={closeFinalReview}
+        onConfirm={confirmFinalReview}
+      />
+        </PublishWizardScreen>
+        <PublishWizardScreen active={activeWizardStep === "publication"} step="publication">
+          <div className={wizardStyles.execution}>{activeWizardStep === "publication" ? publicationActions : null}</div>
+        </PublishWizardScreen>
       {showContentWorkspace && workflowSteps ? (
         <>
-          <div
-            ref={contentWorkspaceRef}
-            style={{ display: "grid", gap: 12, minWidth: 0 }}
-          >
+          <PublishWizardScreen active={activeWizardStep === "content"} step="content">
+          <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, height: isMobile ? "auto" : "100%" }}>
+            {activeWizardStep === "content" && (generationNotice || generationMediaWarning) ? (
+              <div
+                data-publish-generation-outcome
+                className={intentStyles.messages}
+                style={{ flexShrink: 0, marginBottom: 8, padding: "8px 12px", border: "1px solid #8fa9dc30", borderRadius: 12, background: "#17253e61" }}
+              >
+                {generationNotice ? <div role="status">{generationNotice}</div> : null}
+                {generationMediaWarning ? <div role="status" className={intentStyles.warning}>⚠️ {generationMediaWarning}</div> : null}
+              </div>
+            ) : null}
+            <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
             <PublishContentEditorPanel
+              actionsContainer={contentActionsContainer}
               styles={styles}
               isMobile={isMobile}
               creationMode={creationMode}
@@ -8376,131 +8485,49 @@ export default function PublishModal({
               }}
               onVoiceBusyChange={setContentVoiceBusy}
             />
+            </div>
 
-            <PublishImagesPanel
-              threadsPublicationMode={threadsPublicationMode}
-              threadsPublicationPreferences={threadsPublicationPreferences}
-              threadsPreferencesLoading={threadsPreferencesLoading}
-              threadsPreferencesFailed={threadsPreferencesFailed}
-              onThreadsPublicationModeChange={onThreadsPublicationModeChange}
-              styles={styles}
-              isMobile={isMobile}
-              stepNumber={workflowSteps.media}
-              channelMediaModes={channelMediaModes}
-              setChannelMediaMode={setChannelMediaMode}
-              onRemoveMediaFromChannel={removeMediaFromChannel}
-              images={images}
-              videoFile={videoFile}
-              videoPreviewUrl={videoPreviewUrl}
-              videoDurationSeconds={videoDurationSeconds}
-              videoSourceMetadata={videoSourceMetadata}
-              videoVariantPreparationByChannel={
-                mediaPipelineCutoverEnabled
-                  ? {}
-                  : videoVariantPreparationByChannel
-              }
-              openVideoRetoucher={(channel) =>
-                void openInrStudioVideoRetoucher(channel)
-              }
-              removeVideo={removeVideo}
-              imgError={imgError}
-              imagePreparationItems={
-                mediaPipelineCutoverEnabled ? imagePreparationItems : []
-              }
-              imagePreparationError={imagePreparationError}
-              showMediaOptimizerAction={false}
-              onOpenMediaOptimizer={openMediaOptimizer}
-              selectedChannels={selectedChannels}
-              activeImageChannel={activeImageChannel}
-              imageAdapterTabs={imageAdapterTabs}
-              imageKeys={imageKeys}
-              channelImageEditors={channelImageEditors}
-              imageMetaByKey={imageMetaByKey}
-              previewByKey={previewByKey}
-              previewAspectRatio={previewAspectRatio}
-              setSynchronizedActiveChannel={setSynchronizedActiveChannel}
-              onPickImagesClick={() => {
-                pendingDirectMediaDestinationRef.current = { kind: "publication" };
-                onPickImagesClick();
-              }}
-              onPickImagesForChannel={(channel) => {
-                pendingDirectMediaDestinationRef.current = {
-                  kind: "channel",
-                  channel,
-                };
-                onPickImagesForChannel(channel);
-              }}
-              onUseExistingImagesForChannel={
-                assignExistingImagesToChannel
-              }
-              onRemoveImagesFromChannel={removeImagesFromChannel}
-              onPickVideoClick={() => onPickVideoClick({ kind: "publication" })}
-              onGenerateMedia={() => void openInrStudioGenerator()}
-              onOpenMediaLibrary={() => {
-                setMediaLibraryPickerScope("publication");
-                setMediaLibraryPickerOpen(true);
-              }}
-              onPickVideoForChannel={onPickVideoForChannel}
-              onTakePhotoClick={(channel) =>
-                onTakePhotoClick(channel, "publication")
-              }
-              toggleChannelImage={toggleChannelImage}
-              openImageRetoucher={(channel, imageKey) =>
-                void openInrStudioRetoucher(channel, imageKey)
-              }
-              openImageModifier={(channel, imageKey) =>
-                void openInrStudioModifier(channel, imageKey)
-              }
-              resetChannelImage={resetChannelImage}
-              removeImage={removeImage}
-              moveChannelImage={moveChannelImage}
-              moveChannelImageTo={moveChannelImageTo}
-              applyChannelImageOrderToAllChannels={
-                applyChannelImageOrderToSelectedChannels
-              }
-            />
-
-            <PublishPreviewPanel
-              threadsPublicationMode={threadsPublicationMode}
-              threadsPublicationPreferences={threadsPublicationPreferences}
-              threadsPreferencesLoading={threadsPreferencesLoading}
-              threadsPreferencesFailed={threadsPreferencesFailed}
-              onThreadsPublicationModeChange={onThreadsPublicationModeChange}
-              styles={styles}
-              isMobile={isMobile}
-              stepNumber={workflowSteps.preview}
-              activePublicationPreview={activePublicationPreview}
-              previewReadinessTabs={previewReadinessTabs}
-              activeImageChannel={activeImageChannel}
-              showPublicationPreview={showPublicationPreview}
-              setShowPublicationPreview={setShowPublicationPreview}
-              setSynchronizedActiveChannel={setSynchronizedActiveChannel}
-            />
           </div>
-
-          <PublishFooterActions
-            styles={styles}
-            publishAreaRef={publishAreaRef}
-            saving={saving}
-            scheduling={scheduleSaving}
-            draftSaving={draftSaving}
-            voiceBusy={voiceInputBusy}
-            publishProgress={publishProgress}
-            publishProgressLabel={publishProgressLabel}
-            publishProgressPhaseIndex={publishProgressPhaseIndex}
-            publishProgressPhaseTotal={PUBLICATION_PROGRESS_STAGES.length}
-            publishProgressPhaseLabel={publishProgressPhaseLabel}
-            publishError={publishError}
-            mediaPreparationIssue={publishImagePreparationIssue}
-            mediaPreparationFailed={
-              Boolean(imagePreparationError) ||
-              imagePreparationItems.some((item) => item.status === "failed")
-            }
-            onPublish={onPublish}
-            onSchedule={openSchedulePublicationModal}
-          />
+          </PublishWizardScreen>
+          <PublishWizardScreen active={activeWizardStep === "media"} step="media">
+            <PublishMediaPoolPanel images={images} imagePreviews={imagePreviews} videoFile={videoFile} videoPreviewUrl={videoPreviewUrl} isMobile={isMobile} error={imgError}
+              onPickImages={() => { pendingDirectMediaDestinationRef.current = { kind: "publication" }; onPickImagesClick(); }}
+              onPickVideo={() => onPickVideoClick({ kind: "publication" })}
+              onGenerate={(kind) => void openInrStudioGenerator(kind)}
+              onLibrary={(kind) => { setMediaLibraryPickerScope("publication"); setMediaLibraryPickerKind(kind); setMediaLibraryPickerOpen(true); }}
+              onCamera={() => onTakePhotoClick(undefined, "publication")}
+              onRemoveImage={removeImage} onRemoveVideo={removeVideo}
+              onReorderImage={movePoolImageTo}
+              onModifyImage={(index) => void openInrStudioImageTool("modify", activeImageChannel, imageKeys[index])}
+              onRetouchImage={(index) => void openInrStudioImageTool("retouch", activeImageChannel, imageKeys[index])}
+              onRetouchVideo={() => void openInrStudioVideoRetoucher(activeImageChannel)} />
+          </PublishWizardScreen>
+          <PublishWizardScreen active={activeWizardStep === "control"} step="control">
+            <PublishValidationBoard items={publishReadinessItems} imageKeys={imageKeys} previewByKey={previewByKey} videoPreviewUrl={videoPreviewUrl}
+              getMode={resolveChannelMediaMode}
+              getSelectedImageKeys={(channel) => channelImageEditors[channel]?.imageKeys || imageKeys}
+              onModeChange={(channel, mode) => {
+                if (mode === "none") removeMediaFromChannel(channel);
+                else if (mode === "images" && !(channelImageEditors[channel]?.imageKeys.length)) assignExistingImagesToChannel(channel);
+                else setChannelMediaMode(channel, mode);
+              }}
+              onToggleImage={(channel, key) => {
+                if ((channelImageEditors[channel]?.imageKeys || imageKeys).length <= 1) removeImagesFromChannel(channel);
+                else toggleChannelImage(channel, key);
+              }}
+              onAddImage={(channel, key) => {
+                if (resolveChannelMediaMode(channel) !== "images") removeImagesFromChannel(channel);
+                setChannelMediaMode(channel, "images");
+                toggleChannelImage(channel, key);
+              }}
+              onReorderImage={moveChannelImageTo} onSelectChannel={setSynchronizedActiveChannel}
+              onOpenMediaPool={() => openWizardStep("media")}
+              activePreview={activePublicationPreview}
+              disabled={wizardBusy} />
+          </PublishWizardScreen>
         </>
       ) : null}
+      </PublishWizardFrame>
     </div>
   );
 }

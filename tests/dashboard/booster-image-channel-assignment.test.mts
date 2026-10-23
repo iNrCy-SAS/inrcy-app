@@ -235,11 +235,11 @@ test("reuse and removal mutate only the selected channel and never sync the pool
 
   assert.match(
     publishModal,
-    /onUseExistingImagesForChannel=\{[\s\S]{0,100}assignExistingImagesToChannel/,
+    /onModeChange=\{[\s\S]{0,300}assignExistingImagesToChannel\(channel\)/,
   );
   assert.match(
     publishModal,
-    /onRemoveImagesFromChannel=\{removeImagesFromChannel\}/,
+    /onToggleImage=\{[\s\S]{0,300}removeImagesFromChannel\(channel\)/,
   );
 });
 
@@ -358,7 +358,7 @@ test("visible media order is the publish order and supports drag-and-drop", () =
   assert.doesNotMatch(cardPanel, /fitLabel=\{item\.fitLabel\}/);
 });
 
-test("one action applies the active media order without changing channel selections", () => {
+test("shared order helpers preserve selections while Validation reorders only the selected channel", () => {
   const applyEverywhere = between(
     imageController,
     "const applyChannelImageOrderToSelectedChannels",
@@ -374,7 +374,7 @@ test("one action applies the active media order without changing channel selecti
   );
   assert.match(
     publishModal,
-    /applyChannelImageOrderToAllChannels=\{[\s\S]{0,100}applyChannelImageOrderToSelectedChannels/,
+    /onReorderImage=\{moveChannelImageTo\}/,
   );
 });
 

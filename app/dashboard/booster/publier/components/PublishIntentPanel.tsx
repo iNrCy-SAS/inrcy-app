@@ -1,4 +1,5 @@
 import { useTranslations } from "next-intl";
+import { createPortal } from "react-dom";
 import {
   useEffect,
   useState,
@@ -31,9 +32,8 @@ import {
   getLocalizedBoosterVideoLimits,
   type ThemeKey,
 } from "../publishModal.shared";
-import { textAreaStyle } from "../publishModal.styles";
 import { getGenerationMediaSelectionPolicy } from "../generationMediaSelection";
-import PublishStepTitle from "./PublishStepTitle";
+import css from "./PublishIntentPanel.module.css";
 
 type PublishModalStyles = Readonly<Record<string, string>>;
 
@@ -65,6 +65,7 @@ const THEME_PLACEHOLDER_KEYS: Record<ThemeKey, string> = {
 };
 
 type PublishIntentPanelProps = {
+  actionsContainer?: HTMLElement | null;
   styles: PublishModalStyles;
   isMobile: boolean;
   stepNumber: number;
@@ -119,6 +120,7 @@ type PublishIntentPanelProps = {
 };
 
 export default function PublishIntentPanel({
+  actionsContainer,
   styles,
   isMobile,
   stepNumber,
@@ -178,8 +180,6 @@ export default function PublishIntentPanel({
     values?: Record<string, string | number>,
   ) => string;
   const [voiceTarget, setVoiceTarget] = useState<VoiceTarget | null>(null);
-  const [mobileInstructionExpanded, setMobileInstructionExpanded] =
-    useState(false);
   const [engineInfoOpen, setEngineInfoOpen] = useState(false);
   const selectedAiEngineOption = getAiEngineOption(aiPreferredEngine);
   const visibleErrors = Array.from(
@@ -212,64 +212,40 @@ export default function PublishIntentPanel({
     generating || (voiceTarget !== null && voiceTarget !== target);
 
   const renderIntentField = (args: {
-    target: VoiceTarget;
-    label: string;
-    helper: string;
-    placeholder: string;
-    value: string;
-    onChange: (value: string) => void;
-    maxLength?: number;
-  }) => {
-    const voiceDisabled = isVoiceTargetDisabled(args.target);
-    return (
-      <div style={{ minWidth: 0, display: "grid", alignContent: "start" }}>
-        <div
-          style={{
-            minHeight: isMobile ? 34 : 38,
-            marginBottom: 6,
-            display: "grid",
-            alignContent: "start",
-            gap: 2,
-          }}
-        >
-          <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.94 }}>
-            {args.label}
-          </div>
-          <div style={{ fontSize: 10.5, opacity: 0.68, lineHeight: 1.2 }}>
-            {args.helper}
-          </div>
-        </div>
-        <div style={{ display: "grid", gap: 8 }}>
-          <div style={{ position: "relative", minWidth: 0 }}>
-            <textarea
-              placeholder={args.placeholder}
-              style={{
-                ...textAreaStyle,
-                minHeight: isMobile ? 104 : 130,
-                paddingRight: isMobile ? 58 : 66,
-                paddingBottom: isMobile ? 52 : 56,
-              }}
-              value={args.value}
-              maxLength={args.maxLength}
-              readOnly={voiceTarget !== null}
-              onChange={(event) => args.onChange(event.target.value)}
-            />
-            <MediaSubjectVoiceButton
-              purpose={args.target === "idea" ? "subject" : "instruction"}
-              disabled={voiceDisabled}
-              value={args.value}
-              maxLength={args.maxLength}
-              mergeMode="paragraph"
-              onBusyChange={(busy) =>
-                handleVoiceBusyChange(args.target, busy)
-              }
-              onChange={args.onChange}
-            />
-          </div>
-        </div>
+    target: VoiceTarget; label: string; helper: string; placeholder: string;
+    value: string; onChange: (value: string) => void; maxLength?: number;
+  }) => (
+    <div className={css.field} data-brief-field={args.target}>
+      <div className={css.fieldHeading}>
+        <label htmlFor={`booster-brief-${args.target}`}>
+          <svg className={css.fieldGlyph} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            {args.target === "idea" ? <><path d="M9 18h6m-5 3h4M8 14a6 6 0 1 1 8 0c-1 .8-1 1.5-1 2H9c0-.5 0-1.2-1-2Z" /></> : <><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="#161e36"/><circle cx="15" cy="12" r="2" fill="#161e36"/><circle cx="10" cy="18" r="2" fill="#161e36"/></>}
+          </svg>
+          {i18nT(args.target === "idea" ? "wizard_brief_idea" : "wizard_brief_instruction")}
+        </label>
+        <span>{args.helper}</span>
       </div>
-    );
-  };
+      <div className={css.textareaWrap}>
+        <textarea
+          id={`booster-brief-${args.target}`}
+          aria-label={args.label}
+          placeholder={args.placeholder}
+          className={css.textarea}
+          value={args.value}
+          maxLength={args.maxLength}
+          readOnly={voiceTarget !== null}
+          onChange={(event) => args.onChange(event.target.value)}
+        />
+        <MediaSubjectVoiceButton
+          purpose={args.target === "idea" ? "subject" : "instruction"}
+          disabled={isVoiceTargetDisabled(args.target)}
+          value={args.value} maxLength={args.maxLength} mergeMode="paragraph"
+          onBusyChange={(busy) => handleVoiceBusyChange(args.target, busy)}
+          onChange={args.onChange}
+        />
+      </div>
+    </div>
+  );
   const hasImages = images.length > 0;
   const hasVideoMedia = Boolean(videoFile || videoPreviewUrl);
   const imagesLimitReached = images.length >= BOOSTER_MAX_IMAGE_COUNT;
@@ -283,688 +259,8 @@ export default function PublishIntentPanel({
   const cameraDisabled =
     !isMobile || generationMediaPolicy.cameraCaptureDisabled;
 
-  return (
-    <div
-      className={styles.blockCard}
-      style={{ minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 10,
-          marginBottom: 8,
-          flexWrap: "wrap",
-        }}
-      >
-        <PublishStepTitle
-          styles={styles}
-          step={stepNumber}
-          testId="booster-intention-title"
-        >
-          {i18nT("votre_intention_97631932")}{" "}</PublishStepTitle>
-      </div>
-      <div
-        className={styles.subtitle}
-        style={{ marginBottom: 10, maxWidth: "none", whiteSpace: "normal" }}
-      >
-        {i18nT("decrivez_le_sujet_de_cette_publication_d6313015")}
-      </div>
-      <div style={{ display: "grid", gap: 10 }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile
-              ? "minmax(0, 1fr)"
-              : "minmax(0, 1fr) minmax(0, 1fr)",
-            gap: 10,
-            alignItems: "start",
-            minWidth: 0,
-          }}
-        >
-          {renderIntentField({
-            target: "idea",
-            label: i18nT("sujet_de_la_publication_obligatoire_pour_62d82326"),
-            helper: i18nT("le_theme_et_les_faits_a_3ed5ecc7"),
-            placeholder: runtimeT(THEME_PLACEHOLDER_KEYS[theme] || THEME_PLACEHOLDER_KEYS[""]),
-            value: idea,
-            onChange: setIdea,
-          })}
-
-          {isMobile ? (
-            <div style={{ display: "grid", gap: 8, minWidth: 0 }}>
-              <button
-                type="button"
-                className={styles.secondaryBtn}
-                disabled={voiceTarget !== null}
-                onClick={() =>
-                  setMobileInstructionExpanded((current) => !current)
-                }
-                aria-expanded={mobileInstructionExpanded}
-                style={{
-                  width: "100%",
-                  minHeight: 38,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 10,
-                  padding: "7px 11px",
-                  borderRadius: 12,
-                  textAlign: "left",
-                  fontSize: 12,
-                  fontWeight: 850,
-                }}
-              >
-                <span>
-                  {publicationInstruction.trim()
-                    ? i18nT("consigne_ajoutee_modifier_ee9b29d7")
-                    : i18nT("ajouter_une_consigne_a_l_ia_d2a6adfb")}
-                </span>
-                <span aria-hidden="true">
-                  {mobileInstructionExpanded ? "▴" : "▾"}
-                </span>
-              </button>
-              {mobileInstructionExpanded
-                ? renderIntentField({
-                    target: "instruction",
-                    label: i18nT("consigne_ponctuelle_a_l_ia_facultatif_cf850551"),
-                    helper:
-                      i18nT("prioritaire_sur_votre_configuration_ia_pour_5278e325"),
-                    placeholder:
-                      i18nT("ex_insistez_sur_la_personnalisation_redigez_19b7a61d"),
-                    value: publicationInstruction,
-                    onChange: setPublicationInstruction,
-                    maxLength: 4_000,
-                  })
-                : null}
-            </div>
-          ) : (
-            renderIntentField({
-              target: "instruction",
-              label: i18nT("consigne_ponctuelle_a_l_ia_facultatif_cf850551"),
-              helper:
-                i18nT("prioritaire_sur_votre_configuration_ia_pour_5278e325"),
-              placeholder:
-                i18nT("ex_insistez_sur_la_personnalisation_redigez_19b7a61d"),
-              value: publicationInstruction,
-              onChange: setPublicationInstruction,
-              maxLength: 4_000,
-            })
-          )}
-        </div>
-        <input
-          ref={pdfInputRef}
-          type="file"
-          accept={BOOSTER_PDF_ACCEPT}
-          style={{ display: "none" }}
-          onChange={(event) => {
-            onPdfChange(event.target.files);
-            event.currentTarget.value = "";
-          }}
-        />
-        <div
-          data-testid="booster-pdf-context-control"
-          style={{
-            display: "grid",
-            gap: 8,
-            minWidth: 0,
-            padding: isMobile ? "8px 10px" : "10px 12px",
-            borderRadius: 14,
-            border: "1px solid rgba(76,195,255,0.20)",
-            background: "rgba(76,195,255,0.055)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 9,
-              flexWrap: "wrap",
-            }}
-          >
-            <button
-              type="button"
-              className={styles.secondaryBtn}
-              disabled={generationDisabled}
-              onClick={() => pdfInputRef.current?.click()}
-              style={{
-                minHeight: isMobile ? 32 : 34,
-                padding: isMobile ? "6px 9px" : "7px 12px",
-                fontSize: isMobile ? 11 : 12,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {i18nT("add_pdf_attachment")}
-            </button>
-            <span style={{ fontSize: 10.5, lineHeight: 1.35, opacity: 0.7 }}>
-              {i18nT("pdf_attachment_help", {
-                size: Math.round(BOOSTER_PDF_MAX_BYTES / (1024 * 1024)),
-              })}
-            </span>
-          </div>
-          {pdfFile ? (
-            <div
-              data-testid="booster-selected-pdf"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                minWidth: 0,
-                padding: "8px 10px",
-                borderRadius: 11,
-                border: "1px solid rgba(255,255,255,0.10)",
-                background: "rgba(2,6,23,0.28)",
-              }}
-            >
-              <span
-                aria-hidden="true"
-                style={{
-                  flex: "0 0 auto",
-                  fontSize: 10,
-                  fontWeight: 900,
-                  letterSpacing: 0.5,
-                  color: "#7dd3fc",
-                }}
-              >
-                PDF
-              </span>
-              <span style={{ display: "grid", minWidth: 0, flex: "1 1 auto" }}>
-                <strong
-                  title={pdfFile.name}
-                  style={{
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    fontSize: 11.5,
-                  }}
-                >
-                  {pdfFile.name}
-                </strong>
-                <span style={{ fontSize: 10, opacity: 0.64 }}>
-                  {formatAttachmentSize(pdfFile.size)}
-                </span>
-              </span>
-              <button
-                type="button"
-                className={styles.secondaryBtn}
-                disabled={generationDisabled}
-                onClick={onRemovePdf}
-                aria-label={`${i18nT("remove_pdf_attachment")} ${pdfFile.name}`}
-                style={{
-                  flex: "0 0 auto",
-                  minHeight: 28,
-                  padding: "4px 8px",
-                  fontSize: 10.5,
-                }}
-              >
-                {i18nT("remove_pdf_attachment")}
-              </button>
-            </div>
-          ) : null}
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={BOOSTER_IMAGE_ACCEPT}
-          multiple
-          style={{ display: "none" }}
-          onChange={(e) => {
-            onImagesChange(e.target.files);
-            e.currentTarget.value = "";
-          }}
-        />
-        <input
-          ref={videoInputRef}
-          type="file"
-          accept={BOOSTER_VIDEO_ACCEPT}
-          style={{ display: "none" }}
-          onChange={(e) => {
-            onVideoChange(e.target.files);
-            e.currentTarget.value = "";
-          }}
-        />
-        <div
-          style={{
-            display: "grid",
-            gap: isMobile ? 8 : 10,
-            minWidth: 0,
-            padding: isMobile ? "8px 10px" : "10px 12px",
-            borderRadius: 14,
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(255,255,255,0.035)",
-            overflow: "visible",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: isMobile ? 7 : 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <LocalMediaUploadChoice
-              className={styles.secondaryBtn}
-              style={{
-                flex: "0 0 auto",
-                minHeight: isMobile ? 32 : 34,
-                padding: isMobile ? "6px 9px" : "7px 12px",
-                fontSize: isMobile ? 11 : 12,
-                whiteSpace: "nowrap",
-              }}
-              image={{
-                onSelect: onPickImagesClick,
-                disabled: pickImagesDisabled,
-                disabledReason: hasVideoMedia
-                  ? i18nT("generation_images_blocked_by_video")
-                  : imagesLimitReached
-                    ? i18nT("generation_images_limit", {
-                        count: BOOSTER_MAX_IMAGE_COUNT,
-                      })
-                    : undefined,
-                detail: `${getLocalizedBoosterImageLimits(runtimeT)} · ${getLocalizedBoosterImageFormats(runtimeT)}`,
-                maxSelection: Math.max(
-                  0,
-                  BOOSTER_MAX_IMAGE_COUNT - images.length,
-                ),
-              }}
-              video={{
-                onSelect: onPickVideoClick,
-                disabled: pickVideoDisabled,
-                disabledReason: hasImages
-                  ? i18nT("generation_video_blocked_by_images")
-                  : pickVideoDisabled
-                    ? i18nT("generation_video_limit")
-                    : undefined,
-                detail: `${getLocalizedBoosterVideoLimits(runtimeT)} · ${getLocalizedBoosterVideoFormats(runtimeT)} · ${getLocalizedBoosterRecommendedVideoDuration(runtimeT)}`,
-              }}
-              testId="booster-generation-local-media-choice"
-            />
-            <button
-              type="button"
-              className={styles.secondaryBtn}
-              onClick={onGenerateMedia}
-              title={mediaT("ai_generator_generate_media")}
-              style={{
-                flex: "0 0 auto",
-                minHeight: isMobile ? 32 : 34,
-                padding: isMobile ? "6px 9px" : "7px 12px",
-                fontSize: isMobile ? 11 : 12,
-                whiteSpace: "nowrap",
-                borderColor: "rgba(81,215,255,0.34)",
-                background:
-                  "linear-gradient(135deg, rgba(38,180,238,0.20), rgba(183,65,197,0.24))",
-              }}
-            >
-              ✦ {mediaT("ai_generator_generate_media")}
-            </button>
-            <button
-              type="button"
-              className={styles.secondaryBtn}
-              onClick={onOpenMediaLibrary}
-              title={i18nT("ajouter_depuis_la_mediatheque_d0f700b2")}
-              style={{
-                flex: "0 0 auto",
-                minHeight: isMobile ? 32 : 34,
-                padding: isMobile ? "6px 9px" : "7px 12px",
-                fontSize: isMobile ? 11 : 12,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {i18nT("mediatheque_f23ba807")}{" "}</button>
-            <span
-              title={
-                !isMobile
-                  ? i18nT("camera_mobile_only")
-                  : hasVideoMedia
-                    ? i18nT("camera_open_to_take_photo")
-                    : imagesLimitReached
-                      ? i18nT("generation_images_limit", { count: BOOSTER_MAX_IMAGE_COUNT })
-                      : hasImages
-                        ? i18nT("camera_open_to_take_photo")
-                        : i18nT("camera_open_photo_or_video")
-              }
-              style={{ display: "inline-flex", flex: "0 0 auto" }}
-            >
-              <button
-                type="button"
-                className={styles.secondaryBtn}
-                onClick={!cameraDisabled ? onTakePhotoClick : undefined}
-                disabled={cameraDisabled}
-                aria-disabled={cameraDisabled}
-                style={{
-                  flex: "0 0 auto",
-                  minHeight: 32,
-                  padding: "6px 9px",
-                  fontSize: 11,
-                  whiteSpace: "nowrap",
-                  opacity: cameraDisabled ? 0.48 : 1,
-                  filter: cameraDisabled ? "grayscale(1)" : undefined,
-                  cursor: cameraDisabled ? "not-allowed" : "pointer",
-                }}
-              >
-                {i18nT("appareil_inrcy_89d04cc9")}{" "}</button>
-            </span>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: isMobile ? 7 : 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <div
-              style={{
-                flex: "1 1 100%",
-                minWidth: 0,
-                fontSize: isMobile ? 10.5 : 12,
-                opacity: hasImages || hasVideoMedia ? 0.85 : 0.7,
-                lineHeight: 1.45,
-                overflowWrap: "anywhere",
-              }}
-            >
-              {getLocalizedBoosterSelectedMediaSummary({
-                imageCount: images.length,
-                hasVideo: hasVideoMedia,
-                context: "generation",
-              }, runtimeT)}
-              <span style={{ opacity: 0.74 }}>
-                {hasImages ? ` · ${getLocalizedBoosterImageFormats(runtimeT)}` : ""}
-                {hasVideoMedia
-                  ? ` · ${getLocalizedBoosterVideoFormats(runtimeT)} · ${getLocalizedBoosterRecommendedVideoDuration(runtimeT)}`
-                  : ""}
-              </span>
-            </div>
-            <label
-              title={i18nT(
-                useImagesForAI
-                  ? "generation_images_used_by_ai"
-                  : "generation_images_publication_only",
-              )}
-              style={{
-                flex: "0 0 auto",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: isMobile ? 5 : 7,
-                minHeight: isMobile ? 30 : 32,
-                padding: isMobile ? "5px 8px" : "6px 10px",
-                borderRadius: 999,
-                border: useImagesForAI
-                  ? "1px solid rgba(76,195,255,0.34)"
-                  : "1px solid rgba(255,255,255,0.14)",
-                background: useImagesForAI
-                  ? "rgba(76,195,255,0.12)"
-                  : "rgba(255,255,255,0.055)",
-                color: useImagesForAI ? "#dff6ff" : "rgba(255,255,255,0.76)",
-                fontSize: isMobile ? 10.5 : 12,
-                fontWeight: 850,
-                whiteSpace: "nowrap",
-                cursor: images.length ? "pointer" : "default",
-                userSelect: "none",
-                opacity: images.length ? 1 : 0.9,
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={useImagesForAI}
-                disabled={!images.length}
-                onChange={(event) => setUseImagesForAI(event.target.checked)}
-                style={{
-                  width: isMobile ? 13 : 14,
-                  height: isMobile ? 13 : 14,
-                  margin: 0,
-                  accentColor: "#4cc3ff",
-                }}
-              />
-              {useImagesForAI
-                ? i18nT("images_utilisees_par_l_ia_27b19f51")
-                : i18nT("images_hors_generation_c3e94f90")}
-            </label>
-          </div>
-
-          {videoPreviewUrl && videoFile ? (
-            <div
-              style={{
-                display: isMobile ? "grid" : "flex",
-                alignItems: "center",
-                justifyContent: isMobile ? "center" : "flex-start",
-                gap: isMobile ? 10 : 12,
-                padding: isMobile ? 10 : 12,
-                borderRadius: 14,
-                border: "1px solid rgba(76,195,255,0.22)",
-                background: "rgba(76,195,255,0.08)",
-                width: "100%",
-                maxWidth: "100%",
-                minWidth: 0,
-                boxSizing: "border-box",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  width: isMobile ? "100%" : 260,
-                  maxWidth: isMobile ? "min(100%, 260px)" : "100%",
-                  marginInline: isMobile ? "auto" : undefined,
-                  justifySelf: isMobile ? "center" : undefined,
-                  alignSelf: isMobile ? "center" : undefined,
-                  aspectRatio: "16 / 9",
-                  height: "auto",
-                  borderRadius: 12,
-                  background: "#050816",
-                  overflow: "hidden",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 10px 28px rgba(0,0,0,0.28)",
-                }}
-              >
-                <video
-                  src={videoPreviewUrl}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "contain",
-                    borderRadius: 12,
-                    background: "#050816",
-                    display: "block",
-                  }}
-                />
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: isMobile ? "center" : "space-between",
-                  gap: 8,
-                  minWidth: 0,
-                  width: isMobile ? "100%" : "min(360px, 100%)",
-                  textAlign: isMobile ? "center" : "left",
-                }}
-              >
-                <strong
-                  style={{
-                    fontSize: isMobile ? 11 : 12,
-                    maxWidth: isMobile ? 230 : 300,
-                    overflowWrap: "anywhere",
-                    lineHeight: 1.25,
-                  }}
-                >
-                  {videoFile.name}
-                </strong>
-                <div
-                  style={{
-                    flex: "0 0 auto",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: isMobile ? "center" : "flex-end",
-                    gap: 7,
-                  }}
-                >
-                  <button
-                    type="button"
-                    className={styles.secondaryBtn}
-                    onClick={onRetouchVideo}
-                    style={{
-                      minHeight: isMobile ? 30 : 32,
-                      padding: "5px 11px",
-                      borderColor: "rgba(251,146,60,0.62)",
-                      background:
-                        "linear-gradient(135deg, rgba(249,115,22,0.92), rgba(244,63,94,0.88))",
-                      color: "#fff7ed",
-                      fontSize: isMobile ? 10.5 : 11,
-                      fontWeight: 900,
-                    }}
-                  >
-                    <span aria-hidden="true">🎞️</span>{" "}
-                    {mediaT("ai_generator_studio_tab_retouch")}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={i18nT("supprimer_la_video_pour_tous_les_42f4e867")}
-                    title={i18nT("supprimer_la_video_pour_tous_les_42f4e867")}
-                    onClick={removeVideo}
-                    style={{
-                      flex: "0 0 auto",
-                      width: isMobile ? 30 : 32,
-                      height: isMobile ? 30 : 32,
-                      borderRadius: 999,
-                      border: "1px solid rgba(255,255,255,0.22)",
-                      background: "rgba(255,255,255,0.10)",
-                      color: "#fff",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      fontSize: isMobile ? 13 : 14,
-                      boxShadow: "0 8px 18px rgba(0,0,0,0.22)",
-                    }}
-                  >
-                    🗑️
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {imagePreviews.length ? (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: isMobile ? 6 : 7,
-                minWidth: 0,
-                overflow: "visible",
-                flexWrap: "wrap",
-              }}
-            >
-              {imagePreviews.map((url, index) => (
-                <div
-                  key={`${url}-${index}`}
-                  title={images[index]?.name || `Image ${index + 1}`}
-                  style={{
-                    position: "relative",
-                    width: isMobile ? 38 : 48,
-                    height: isMobile ? 38 : 48,
-                    flex: "0 0 auto",
-                    borderRadius: 10,
-                    overflow: "hidden",
-                    border: "1px solid rgba(255,255,255,0.20)",
-                    background: "rgba(255,255,255,0.06)",
-                  }}
-                >
-                  <img
-                    src={url}
-                    alt={i18nT("image_value_5907a7ef", { value0: index + 1 })}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                      display: "block",
-                    }}
-                  />
-                  <button
-                    type="button"
-                    aria-label={i18nT("supprimer_l_image_value_pour_tous_561091e2", { value0: index + 1 })}
-                    title={i18nT("supprimer_l_image_value_pour_tous_561091e2", { value0: index + 1 })}
-                    onClick={() => removeImage(index)}
-                    style={{
-                      position: "absolute",
-                      top: 2,
-                      right: 2,
-                      width: isMobile ? 17 : 18,
-                      height: isMobile ? 17 : 18,
-                      borderRadius: 999,
-                      border: "1px solid rgba(255,255,255,0.30)",
-                      background: "rgba(10,16,30,0.88)",
-                      color: "#fff",
-                      display: "grid",
-                      placeItems: "center",
-                      fontSize: isMobile ? 11 : 12,
-                      fontWeight: 900,
-                      lineHeight: 1,
-                      cursor: "pointer",
-                      padding: 0,
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-        {visibleErrors.map((message) => (
-          <div
-            key={message}
-            role="alert"
-            style={{ fontSize: 13, color: "#ffb4b4" }}
-          >
-            {message}
-          </div>
-        ))}
-        {showMediaOptimizerAction && onOpenMediaOptimizer ? (
-          <button
-            type="button"
-            onClick={() => onOpenMediaOptimizer()}
-            style={{
-              justifySelf: "start",
-              border: "1px solid rgba(105,239,255,0.42)",
-              borderRadius: 999,
-              background:
-                "linear-gradient(135deg, rgba(47,209,255,0.24), rgba(155,81,255,0.28))",
-              color: "#effcff",
-              padding: "9px 14px",
-              fontSize: 12,
-              fontWeight: 900,
-              cursor: "pointer",
-            }}
-          >
-            {i18nT("optimiser_le_media_1bc4fc40")}{" "}</button>
-        ) : null}
-        {generationNotice ? (
-          <div
-            role="status"
-            style={{
-              fontSize: 13,
-              lineHeight: 1.4,
-              color: "#dff6ff",
-              border: "1px solid rgba(126, 220, 255, 0.28)",
-              background: "rgba(78, 177, 220, 0.10)",
-              borderRadius: 10,
-              padding: "8px 10px",
-            }}
-          >
-            {generationNotice}
-          </div>
-        ) : null}
-        <div style={{ display: "grid", gap: 8 }}>
-          <div
+  const generationActions = (
+<div
             data-testid="booster-ai-generation-actions"
             style={{
               display: "flex",
@@ -976,12 +272,12 @@ export default function PublishIntentPanel({
               minWidth: 0,
             }}
           >
-            <div
+            <div className={css.engineControl}
               style={{
                 display: "grid",
                 gap: 5,
-                flex: isMobile ? "1 1 100%" : "0 1 280px",
-                width: isMobile ? "100%" : 280,
+                flex: isMobile ? "1 1 100%" : "1 1 420px",
+                width: isMobile ? "100%" : 420,
                 maxWidth: "100%",
                 minWidth: isMobile ? 0 : 220,
                 color: "rgba(255,255,255,0.84)",
@@ -1064,7 +360,7 @@ export default function PublishIntentPanel({
               type="button"
               className={`${styles.primaryBtn} ${styles.aiGenerateBtn}`}
               onClick={onGenerate}
-              disabled={generationDisabled}
+              disabled={generationDisabled || !idea.trim()}
               style={{
                 flex: isMobile ? "1 1 100%" : "0 0 auto",
                 width: isMobile ? "100%" : "auto",
@@ -1079,105 +375,94 @@ export default function PublishIntentPanel({
                   : i18nT("generer_avec_inrcy_58900495")}
             </button>
           </div>
-          {generationMediaWarning ? (
-            <div
-              role="status"
-              style={{
-                width: "min(620px, 100%)",
-                fontSize: 12.5,
-                lineHeight: 1.4,
-                color: "#ffd7a3",
-                border: "1px solid rgba(251, 146, 60, 0.34)",
-                background: "rgba(251, 146, 60, 0.10)",
-                borderRadius: 10,
-                padding: "8px 10px",
-              }}
-            >
-              ⚠️ {generationMediaWarning}
-            </div>
-          ) : null}
-          {generating ? (
-            <div
-              ref={generationProgressRef}
-              style={{
-                width: "min(520px, 100%)",
-                display: "grid",
-                gap: 7,
-                color: "rgba(255,255,255,0.72)",
-                scrollMarginBlock: 88,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  gap: 10,
-                  fontSize: 12,
-                  lineHeight: 1.25,
-                }}
-              >
-                <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
-                  <strong
-                    style={{
-                      color: "rgba(255,255,255,0.94)",
-                      fontSize: 12,
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    {i18nT("etape_13146b48")}{" "}{Math.max(1, generationPhaseIndex)}/{generationPhaseTotal}
-                    {generationPhaseLabel ? ` · ${generationPhaseLabel}` : ""}
-                  </strong>
-                  <span
-                    style={{
-                      color: "rgba(255,255,255,0.66)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {generationStage || i18nT("generation_en_cours_01513ecf")}
-                  </span>
-                </div>
-                <strong
-                  style={{
-                    color: "rgba(255,255,255,0.9)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {generationProgress}%
-                </strong>
-              </div>
-              <div
-                aria-hidden="true"
-                style={{
-                  height: 7,
-                  borderRadius: 999,
-                  background: "rgba(255,255,255,0.10)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  position: "relative",
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${generationProgress}%`,
-                    borderRadius: 999,
-                    background:
-                      "linear-gradient(90deg, rgba(76,195,255,0.92), rgba(99,102,241,0.95))",
-                    transition: "width 420ms ease",
-                  }}
-                />
-              </div>
-            </div>
-          ) : null}
+  );
+
+  const referenceSummary = getLocalizedBoosterSelectedMediaSummary({
+    imageCount: images.length, hasVideo: hasVideoMedia, context: "generation",
+  }, runtimeT);
+
+  return (
+    <div className={css.intent} data-publish-intent>
+      <div className={css.panels}>
+        <div className={css.writing}>
+          {renderIntentField({
+            target: "idea",
+            label: i18nT("sujet_de_la_publication_obligatoire_pour_62d82326"),
+            helper: i18nT("le_theme_et_les_faits_a_3ed5ecc7"),
+            placeholder: runtimeT(THEME_PLACEHOLDER_KEYS[theme] || THEME_PLACEHOLDER_KEYS[""]),
+            value: idea, onChange: setIdea,
+          })}
+          {renderIntentField({
+            target: "instruction",
+            label: i18nT("consigne_ponctuelle_a_l_ia_facultatif_cf850551"),
+            helper: i18nT("prioritaire_sur_votre_configuration_ia_pour_5278e325"),
+            placeholder: i18nT("ex_insistez_sur_la_personnalisation_redigez_19b7a61d"),
+            value: publicationInstruction, onChange: setPublicationInstruction, maxLength: 4_000,
+          })}
         </div>
+        <aside className={css.references} aria-label={i18nT("wizard_inspirations")}>
+          <div className={css.referenceHeading}>
+            <h2>{i18nT("wizard_inspirations")}</h2>
+            <span>{i18nT("wizard_inspirations_help")}</span>
+          </div>
+          <div className={css.referenceActions}>
+            <button type="button" className={css.referenceAction} data-testid="booster-pdf-context-control"
+              onClick={() => pdfInputRef.current?.click()} disabled={generationDisabled}
+              title={i18nT("pdf_attachment_help", { size: Math.round(BOOSTER_PDF_MAX_BYTES / (1024 * 1024)) })}>
+              <span aria-hidden="true">▤</span>{i18nT("wizard_file")}
+            </button>
+            <LocalMediaUploadChoice className={css.referenceAction} triggerLabel={i18nT("wizard_add_media")} triggerIcon={<span aria-hidden="true">＋</span>}
+              image={{ onSelect: onPickImagesClick, disabled: pickImagesDisabled,
+                disabledReason: hasVideoMedia ? i18nT("generation_images_blocked_by_video") : imagesLimitReached ? i18nT("generation_images_limit", { count: BOOSTER_MAX_IMAGE_COUNT }) : undefined,
+                detail: `${getLocalizedBoosterImageLimits(runtimeT)} · ${getLocalizedBoosterImageFormats(runtimeT)}`,
+                maxSelection: Math.max(0, BOOSTER_MAX_IMAGE_COUNT - images.length) }}
+              video={{ onSelect: onPickVideoClick, disabled: pickVideoDisabled,
+                disabledReason: hasImages ? i18nT("generation_video_blocked_by_images") : pickVideoDisabled ? i18nT("generation_video_limit") : undefined,
+                detail: `${getLocalizedBoosterVideoLimits(runtimeT)} · ${getLocalizedBoosterVideoFormats(runtimeT)} · ${getLocalizedBoosterRecommendedVideoDuration(runtimeT)}` }}
+              testId="booster-generation-local-media-choice" />
+            <button type="button" className={css.referenceAction} onClick={onGenerateMedia} title={mediaT("ai_generator_generate_media")}><span aria-hidden="true">✦</span>{i18nT("wizard_generate_media")}</button>
+            <button type="button" className={css.referenceAction} onClick={onOpenMediaLibrary} title={i18nT("ajouter_depuis_la_mediatheque_d0f700b2")}><span aria-hidden="true">▧</span>{i18nT("wizard_media_library")}</button>
+            <button type="button" className={css.referenceAction} onClick={!cameraDisabled ? onTakePhotoClick : undefined} disabled={cameraDisabled} aria-disabled={cameraDisabled} title={!isMobile ? i18nT("camera_mobile_only") : i18nT("camera_open_photo_or_video")}><span aria-hidden="true">◎</span>{i18nT("wizard_camera")}</button>
+          </div>
+          <div className={css.referenceThumbnails} data-wizard-reference-media>
+            {pdfFile ? <div className={css.pdfThumbnail} data-testid="booster-selected-pdf" title={`${pdfFile.name} · ${formatAttachmentSize(pdfFile.size)}`}>
+              <span aria-hidden="true">PDF</span><strong>{pdfFile.name}</strong>
+              <button type="button" className={css.remove} disabled={generationDisabled} onClick={onRemovePdf} aria-label={`${i18nT("remove_pdf_attachment")} ${pdfFile.name}`}>×</button>
+            </div> : null}
+            {imagePreviews.map((url,index) => <div className={css.thumbnail} key={url} title={images[index]?.name || i18nT("image_value_5907a7ef", { value0: index + 1 })}>
+              <img src={url} alt={i18nT("image_value_5907a7ef", { value0: index + 1 })} />
+              <button type="button" className={css.remove} aria-label={i18nT("supprimer_l_image_value_pour_tous_561091e2", { value0: index + 1 })} onClick={() => removeImage(index)}>×</button>
+            </div>)}
+            {hasVideoMedia && videoPreviewUrl ? <div className={css.videoThumbnail} title={videoFile?.name}>
+              <video src={videoPreviewUrl} playsInline preload="metadata" muted />
+              <span>{videoDurationSeconds !== null ? formatVideoSeconds(videoDurationSeconds) : "▶"}</span>
+              <button type="button" className={css.remove} onClick={removeVideo} aria-label={i18nT("supprimer_la_video_pour_tous_les_42f4e867")}>×</button>
+              <button type="button" className={css.retouchVideo} onClick={onRetouchVideo}>{mediaT("ai_generator_studio_tab_retouch")}</button>
+            </div> : null}
+            {!pdfFile && !hasImages && !hasVideoMedia ? <span className={css.emptyReference}>{referenceSummary}</span> : null}
+          </div>
+          <label className={css.aiReference} title={i18nT(useImagesForAI ? "generation_images_used_by_ai" : "generation_images_publication_only")}>
+            <input type="checkbox" checked={useImagesForAI} disabled={!images.length} onChange={(event) => setUseImagesForAI(event.target.checked)} />
+            <span>{useImagesForAI ? i18nT("images_utilisees_par_l_ia_27b19f51") : i18nT("images_hors_generation_c3e94f90")}</span>
+          </label>
+        </aside>
       </div>
-      <AiEngineInfoModal
-        open={engineInfoOpen}
-        activeEngine={aiPreferredEngine}
-        onClose={() => setEngineInfoOpen(false)}
-      />
+      <input ref={pdfInputRef} type="file" accept={BOOSTER_PDF_ACCEPT} hidden onChange={(event) => { onPdfChange(event.target.files); event.currentTarget.value = ""; }} />
+      <input ref={fileInputRef} type="file" accept={BOOSTER_IMAGE_ACCEPT} multiple hidden onChange={(e) => { onImagesChange(e.target.files); e.currentTarget.value = ""; }} />
+      <input ref={videoInputRef} type="file" accept={BOOSTER_VIDEO_ACCEPT} hidden onChange={(e) => { onVideoChange(e.target.files); e.currentTarget.value = ""; }} />
+      {visibleErrors.length || generationNotice || generationMediaWarning || generating || showMediaOptimizerAction ? <div className={css.messages}>
+        {visibleErrors.map(message => <div key={message} role="alert" className={css.error}>{message}</div>)}
+        {showMediaOptimizerAction && onOpenMediaOptimizer ? <button type="button" className={css.referenceAction} onClick={() => onOpenMediaOptimizer()}>{i18nT("optimiser_le_media_1bc4fc40")}</button> : null}
+        {generationNotice ? <div role="status">{generationNotice}</div> : null}
+        {generationMediaWarning ? <div role="status" className={css.warning}>⚠️ {generationMediaWarning}</div> : null}
+        {generating ? <div ref={generationProgressRef} className={css.generationProgress} role="status">
+          <div><strong>{i18nT("etape_13146b48")} {Math.max(1, generationPhaseIndex)}/{generationPhaseTotal}{generationPhaseLabel ? ` · ${generationPhaseLabel}` : ""}</strong><span>{generationProgress}%</span></div>
+          <span>{generationStage || i18nT("generation_en_cours_01513ecf")}</span>
+          <div aria-hidden="true" className={css.progressTrack}><span style={{ width: `${generationProgress}%` }} /></div>
+        </div> : null}
+      </div> : null}
+      {actionsContainer ? createPortal(generationActions, actionsContainer) : generationActions}
+      <AiEngineInfoModal open={engineInfoOpen} activeEngine={aiPreferredEngine} onClose={() => setEngineInfoOpen(false)} />
     </div>
   );
 }

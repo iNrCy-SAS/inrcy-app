@@ -66,7 +66,8 @@ test("une programmation Booster est déjà validée et son édition conserve sa 
     editSource,
     /session\.scheduledAction\.scheduledAt \|\| session\.action\.scheduledFor/,
   );
-  assert.match(editSource, /saveScheduledEditPublication\(selections\)/);
+  assert.match(editSource, /saveScheduledEditPublication\(selections, tiktokPublicationSettings\)/);
+  assert.match(editSource, /resolveAgentTiktokSessionSettings\(\)/);
   assert.match(editSource, /exitScheduledEditSession\(\{ silent: true, force: true \}\)/);
 
   const clickSource = client.slice(

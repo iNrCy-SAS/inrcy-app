@@ -1,0 +1,102 @@
+.selector {
+  width: min(1180px, 100%) !important;
+  margin-inline: auto;
+  padding: 0 !important;
+  border: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+}
+
+.bulkControl {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 0;
+  color: #c8d9f2;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color .18s;
+}
+.bulkControl:hover { color: #fff; }
+.bulkControl:has(input:focus-visible) { outline: 2px solid #b49bff; outline-offset: 4px; border-radius: 6px; }
+
+.bulkControl input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #a28bff;
+  cursor: inherit;
+}
+
+.channelGrid {
+  justify-content: center;
+  align-content: center;
+  gap: 16px !important;
+}
+
+.channelCard {
+  flex: 0 0 calc((100% - 80px) / 6);
+  box-sizing: border-box;
+  min-height: 112px !important;
+  border: 1px solid #b6c9ef1c !important;
+  border-radius: 18px !important;
+  padding: 14px 10px 12px !important;
+  gap: 10px;
+  background: #11172685 !important;
+  box-shadow: none !important;
+  transition: transform .18s, border-color .18s, box-shadow .18s, background .18s;
+}
+.channelCard[aria-pressed="true"] {
+  border-color: rgba(var(--channel-rgb), .9) !important;
+  background: linear-gradient(135deg, rgba(var(--channel-rgb), .29), rgba(var(--channel-rgb), .11)), #152039 !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--channel-rgb), .18), 0 5px 18px rgba(var(--channel-rgb), .08) !important;
+}
+.channelCard[aria-disabled="false"]:hover { transform: translateY(-2px); border-color: var(--channel-accent) !important; box-shadow: 0 8px 22px rgba(var(--channel-rgb), .1) !important; }
+.channelCard[aria-disabled="false"]:active { transform: translateY(0); }
+.channelCard:focus-visible { outline: 2px solid var(--channel-accent); outline-offset: 4px; }
+.channelCard[data-reconnect="true"] { border-color: #fb923c80 !important; background: #fb923c0d !important; }
+.selectionMark { position: absolute; top: 7px; left: 7px; display: grid; place-items: center; box-sizing: border-box; width: 18px; height: 18px; border: 1px solid #aebed154; border-radius: 5px; background: #0d1426; color: #091321; font-size: 12px; font-weight: 900; line-height: 1; }
+.channelCard[aria-pressed="true"] .selectionMark { border-color: var(--channel-accent); background: var(--channel-accent); }
+.channelCard[aria-pressed="false"] .channelLogo, .channelCard[aria-pressed="false"] .mobileLogo { opacity: .58 !important; filter: grayscale(.7) !important; }
+.channelCard[aria-pressed="false"] .channelName, .channelCard[aria-pressed="false"] .mobileName { color: #b8c5d9 !important; }
+.channelLogo { width: 43px !important; height: 43px !important; box-shadow: 0 4px 16px #00000026 !important; }
+.channelName { color: #eef5ff; font-size: 14px !important; font-weight: 750 !important; letter-spacing: -.02em; line-height: 1.25; }
+.channelCopy { display: flex; flex-direction: column; justify-content: center; flex: 1 1 0; gap: 3px; min-width: 0; max-width: 100%; }
+.desktopCopy { align-items: center; width: 100%; padding-inline: 4px; box-sizing: border-box; text-align: center; }
+.accountName { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #aebdd3; font-size: 11px; font-weight: 450; line-height: 1.25; letter-spacing: 0; }
+.desktopConnection { position: absolute; top: 7px; right: 7px; display: grid; place-items: center; width: 19px; height: 19px; color: #98a7bc; }
+.desktopConnection[data-connected="true"] { color: #84e5b0; }
+.mobileLogo { width: 24px; height: 24px; border-radius: 50%; object-fit: contain; flex: 0 0 auto; }
+.mobileIdentity { display: inline-flex; align-items: center; flex: 0 0 24px; width: 24px; height: 28px; }
+.mobileCard[data-reconnect="false"] .connectionButton[data-connected="true"] { border-color: #78dba24d !important; background: #19553b40 !important; color: #84e5b0 !important; }
+
+@media (max-width: 1000px) and (min-width: 701px) {
+  .selector { max-width: 800px !important; }
+  .channelCard { flex-basis: calc((100% - 42px) / 4); min-height: 104px !important; }
+  .channelGrid { gap: 14px !important; }
+}
+
+@media (max-height: 760px) and (min-width: 1001px) {
+  .channelCard { min-height: 112px !important; }
+}
+
+@media (max-width: 700px) {
+  .channelGrid { gap: 9px !important; }
+  .bulkControl { font-size: 11px; }
+  .mobileCard { flex-basis: auto; min-height: 58px !important; padding: 9px 8px !important; border-radius: 13px !important; gap: 6px !important; }
+  .mobileCard > span { font-size: 12px !important; line-height: 1.2 !important; font-weight: 700 !important; }
+  .mobileCard .mobileName { white-space: normal !important; overflow-wrap: anywhere; color: #f2f5fc; font-size: 11.5px !important; line-height: 1.2; }
+  .mobileCard .accountName { width: 100%; font-size: 10px; }
+  .mobileCard > .connectionButton { width: 20px !important; height: 20px !important; box-shadow: none !important; box-sizing: border-box; }
+  .mobileCard > .selectionMark { position: static; flex: 0 0 16px; width: 16px; height: 16px; border-radius: 4px; font-size: 11px !important; }
+  .mobileCard[aria-disabled="true"] .mobileLogo { opacity: .45 !important; filter: grayscale(.7); }
+}
+@media (max-width: 360px) {
+  .mobileCard { gap: 4px !important; }
+  .mobileIdentity { flex-basis: 22px; width: 22px; }
+  .mobileLogo { width: 22px; height: 22px; }
+  .mobileCard .mobileName { font-size: 10.5px !important; }
+  .mobileCard .accountName { font-size: 9px; }
+}
+@media (prefers-reduced-motion: reduce) { .channelCard { transition: none; } }

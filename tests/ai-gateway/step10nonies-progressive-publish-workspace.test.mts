@@ -17,8 +17,9 @@ test("Step 10 nonies keeps advanced publishing blocks behind an explicit creatio
   assert.match(modal, /creationMode === "ai" && workflowSteps\?\.intention/);
   assert.match(modal, /showContentWorkspace && workflowSteps/);
   assert.match(modal, /<PublishContentEditorPanel/);
-  assert.match(modal, /<PublishImagesPanel/);
-  assert.match(modal, /<PublishPreviewPanel/);
+  assert.doesNotMatch(modal, /<PublishImagesPanel/);
+  assert.match(modal, /<PublishMediaPoolPanel/);
+  assert.match(modal, /<PublishValidationBoard/);
   assert.match(modal, /<PublishFooterActions/);
 });
 
@@ -33,8 +34,8 @@ test("Step 10 nonies opens the manual workspace directly without duplicating pub
 
   assert.match(modal, /const onSelectCreationMode = async/);
   assert.match(modal, /setContentWorkspaceOpen\(nextMode === "manual"\)/);
-  assert.match(modePanel, /titleKey: "creer_avec_inrcy_6abf3922"/);
-  assert.match(modePanel, /titleKey: "creer_manuellement_89b2d47e"/);
+  assert.match(modePanel, /titleKey: "wizard_automatic"/);
+  assert.match(modePanel, /titleKey: "wizard_manual"/);
   assert.doesNotMatch(intentPanel, /onCreateManually/);
   assert.equal((modal.match(/<PublishFooterActions/g) || []).length, 1);
 });
@@ -74,6 +75,9 @@ test("Step 10 nonies derives dynamic numbering for AI and manual paths", () => {
     /intention: null[\s\S]*content: 3[\s\S]*media: 4[\s\S]*preview: 5/,
   );
   assert.match(modal, /stepNumber=\{workflowSteps\.content\}/);
-  assert.match(modal, /stepNumber=\{workflowSteps\.media\}/);
-  assert.match(modal, /stepNumber=\{workflowSteps\.preview\}/);
+  assert.match(modal, /<PublishWizardScreen active=\{activeWizardStep === "media"\} step="media"/);
+  assert.match(modal, /const wizardSteps = getPublishWizardSteps\(creationMode\)/);
+  const wizard = read("app/dashboard/booster/publier/components/publishWizard.ts");
+  assert.match(wizard, /mode === "manual"/);
+  assert.match(wizard, /step !== "intention"/);
 });

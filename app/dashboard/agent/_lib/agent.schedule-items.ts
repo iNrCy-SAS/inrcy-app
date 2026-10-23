@@ -1,5 +1,6 @@
 import { pendingActionStatuses } from "./agent.config";
 import { publicationValidationState } from "./agent.publication-validation";
+import { inrAgentPublicationNeedsRevisionReview } from "@/lib/inrAgentPublicationRevision";
 import type { AgentPublicationHistoryItem } from "@/lib/inrAgentPublicationHistory";
 import {
   agentActionStatusLabel,
@@ -134,7 +135,7 @@ export function buildAgentScheduleItems({
       : [];
     return (
       action.automationKey === "publish" &&
-      Boolean(editorialPlan) &&
+      (Boolean(editorialPlan) || inrAgentPublicationNeedsRevisionReview(action.payload)) &&
       !historicalActionIds.has(action.id) &&
       !linkedScheduledIds.some((id) => historicalScheduledIds.has(id)) &&
       !["completed", "cancelled"].includes(

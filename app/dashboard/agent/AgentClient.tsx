@@ -10,6 +10,7 @@ import AgentSettingsMultiSelect from "./_components/AgentSettingsMultiSelect";
 import { INR_AGENT_VIDEO_ENGINE } from "@/lib/inrAgentVideoPolicy";
 import { apiChannelToUi } from "./_lib/agent.config";
 import { pendingInrAgentPublicationChannels, selectedInrAgentPublicationChannels, unvalidatedInrAgentPublicationChannels, preparedInrAgentPublicationChannels, withInrAgentPublicationChannelSelection } from "@/lib/inrAgentPublicationChannelSelection";
+import { canReviseInrAgentPublication, inrAgentPublicationNeedsRevisionReview } from "@/lib/inrAgentPublicationRevision";
 
 import { CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES, normalizeThreadsPublicationPreferences, getEnabledThreadsPublicationModes, isThreadsPublicationModeEnabled, type ThreadsPublicationMode, type ThreadsPublicationPreferences } from "@/lib/threadsPublicationPreferences";
 import { readInrAgentThreadsPublicationSettings, applyInrAgentThreadsPublicationSettings } from "@/lib/inrAgentThreadsPublication";
@@ -52,6 +53,7 @@ import TiktokPublicationSettingsModal, {
   type TiktokPublicationSettings,
   type TiktokPublicationValidationMeta,
 } from "../booster/publier/components/TiktokPublicationSettingsModal";
+import TiktokReviewCheckbox from "../booster/publier/components/TiktokReviewCheckbox";
 import RichSiteContentEditor from "../booster/publier/components/RichSiteContentEditor";
 import MediaLibraryPickerModal, {
   type MediaLibraryPickerItem,
@@ -228,16 +230,43 @@ type AgentMediaOptimizerRequest = {
   destination: "publish" | "campaign";
 };
 
-type PendingAgentTiktokValidation =
+type PendingAgentTiktokValidation = (
   | { kind: "run_now" }
   | { kind: "confirm_existing_plan" }
-  | { kind: "update_session" }
+  | { kind: "save_existing_edit" }
+  | { kind: "review" }
   | { kind: "channel_selection"; channels: ChannelKey[]; confirmPending?: boolean }
   | {
       kind: "schedule";
       selections: PublishScheduleSelection[];
       immediateChannels: BoosterChannelKey[];
-    };
+    }) & { actionId?: string; reviewSignature?: string | null };
+
+type AgentTiktokPublicationReview = {
+  signature: string;
+  session: InrAgentTiktokValidationSession;
+};
+
+function agentTiktokReviewSignature(action: AgentPreparedAction | null, channels: ChannelKey[]) {
+  if (!action) return null;
+  return JSON.stringify({
+    id: action.id, updatedAt: action.updatedAt, title: action.title,
+    summary: action.summary, previewText: action.previewText,
+    payload: action.payload, imageAssets: action.imageAssets,
+    channels: [...channels].sort(),
+  });
+}
+
+function agentTiktokReviewCandidate(args: {
+  signature: string | null;
+  review?: AgentTiktokPublicationReview;
+  session: InrAgentTiktokValidationSession | null;
+}) {
+  if (!args.signature) return null;
+  // A changed publication must be reviewed again, even when session reuse was enabled.
+  if (args.review) return args.review.signature === args.signature ? args.review.session : null;
+  return args.session;
+}
 import {
   AGENT_MEDIA_MAX_IMAGE_BYTES,
   AGENT_MEDIA_MAX_VIDEO_BYTES,
@@ -425,7 +454,7 @@ function isRobotPlannedPublication(
       action.validationRequired === true &&
       action.executionPolicy === "manual_validation" &&
       action.scheduledFor &&
-      asRecord(action.payload?.editorialPlan)
+      (asRecord(action.payload?.editorialPlan) || inrAgentPublicationNeedsRevisionReview(action.payload))
   );
 }
 
@@ -622,6 +651,10 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     useState<PendingAgentTiktokValidation | null>(null);
   const [tiktokValidationSession, setTiktokValidationSession] =
     useState<InrAgentTiktokValidationSession | null>(null);
+  const [tiktokPublicationReviews, setTiktokPublicationReviews] = useState<
+    Record<string, AgentTiktokPublicationReview>
+  >({});
+  const tiktokReviewSignatureRef = useRef<string | null>(null);
   const [tiktokSessionCheckState, setTiktokSessionCheckState] = useState<
     "idle" | "checking"
   >("idle");
@@ -1043,6 +1076,11 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   const canReviewSelectedAction = isAgentActionAwaitingValidation(
     selectedPreparedAction
   ) && publishPlacementSaveState !== "saving" && !publishChannelSelectionSaving;
+  const canEditSelectedPublication = canReviseInrAgentPublication(selectedPreparedAction)
+    && publishPlacementSaveState !== "saving" && !publishChannelSelectionSaving;
+  const canRegenerateSelectedPublication = canEditSelectedPublication && !scheduledEditDirty
+    && (!scheduledEditSession || Boolean(firstSafeString(selectedPreparedAction?.payload.sourceActionId,
+      asRecord(selectedPreparedAction?.payload.publishPayload)?.inrAgentActionId)));
   const publicationViewerActions = buildPublicationViewerItems(
     publicationCarouselActions,
     selectedKey === "publish" ? selectedPreparedAction : null,
@@ -1525,9 +1563,14 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         tiktokPublishMediaRecord?.duration_seconds ||
         0
     ) || null;
-  const hasActiveTiktokValidationSession = Boolean(
-    tiktokValidationSession && tiktokValidationSession.expiresAt > Date.now()
-  );
+  const tiktokCurrentReviewSignature = agentTiktokReviewSignature(selectedPreparedAction, selectedPublishChannels);
+  const tiktokCurrentReview = selectedPreparedAction ? tiktokPublicationReviews[selectedPreparedAction.id] : undefined;
+  const tiktokReviewCurrent = Boolean(tiktokCurrentReview
+    && tiktokCurrentReview.signature === tiktokCurrentReviewSignature
+    && tiktokCurrentReview.session.expiresAt > Date.now());
+  useEffect(() => {
+    tiktokReviewSignatureRef.current = tiktokCurrentReviewSignature;
+  }, [tiktokCurrentReviewSignature]);
   const activeMetaPublicationChannel = isInrAgentMetaChannel(
     activePreviewChannel
   )
@@ -2769,6 +2812,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         action.id === updatedAction.id ? updatedAction : action
       )
     );
+    if (inrAgentPublicationNeedsRevisionReview(updatedAction.payload)) await refreshScheduledActions(true);
   }
 
   async function savePublishPlacement(
@@ -3332,6 +3376,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         )
       );
       setPublishEditOpen(false);
+      if (inrAgentPublicationNeedsRevisionReview(updatedAction.payload)) await refreshScheduledActions(true);
       showNotice(
         options.applyToAllChannels
           ? i18nT("publish_content_applied_everywhere")
@@ -4143,6 +4188,25 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       return;
     }
 
+    const sourceActionId = firstSafeString(scheduledAction.payload.sourceActionId,
+      asRecord(scheduledAction.payload.publishPayload)?.inrAgentActionId);
+    if (scheduledAction.actionType === "publication" && scheduledAction.targetTool === "booster" && sourceActionId) {
+      // Edit the same authoritative publication, rather than a detached
+      // scheduled snapshot that could keep an obsolete approval.
+      const sourceAction = actions.find(action => action.id === sourceActionId);
+      if (!sourceAction || !canReviseInrAgentPublication(sourceAction)) {
+        showNotice(i18nT("scheduled_action_not_openable"));
+        return;
+      }
+      setScheduleOpen(false);
+      setValidationChoiceOpen(false);
+      setValidationScheduleOpen(false);
+      setScheduledEditSession(null);
+      setSelectedPreparedActionId(sourceAction.id);
+      setSelectedKey("publish");
+      return;
+    }
+
     const action = scheduledActionToPreparedAction(scheduledAction);
     if (!action) {
       showNotice(i18nT("scheduled_action_not_openable"));
@@ -4241,7 +4305,8 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   }
 
   async function saveScheduledEditPublication(
-    selections: PublishScheduleSelection[]
+    selections: PublishScheduleSelection[],
+    tiktokPublicationSettings?: TiktokPublicationSettings | null
   ) {
     const session = scheduledEditSession;
     if (!session) return;
@@ -4264,6 +4329,10 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     if (!grouped.length) {
       throw new Error(i18nT("schedule_channels_required"));
     }
+    const reviewedAction = tiktokPublicationSettings ? {
+      ...session.action, payload: { ...session.action.payload, tiktokPublicationSettings,
+        publishPayload: { ...(asRecord(session.action.payload.publishPayload) || {}), tiktokPublicationSettings } },
+    } : session.action;
 
     const savedActions: AgentScheduledAction[] = [];
     const [firstScheduledAt, firstChannels] = grouped[0] as [
@@ -4273,7 +4342,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     savedActions.push(
       await patchScheduledAction(
         session.scheduledAction.id,
-        scheduledEditUpdateFromAction(session.action, {
+        scheduledEditUpdateFromAction(reviewedAction, {
           scheduledAt: firstScheduledAt,
           channels: firstChannels,
         })
@@ -4283,7 +4352,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     for (const [scheduledAt, channels] of grouped.slice(1)) {
       savedActions.push(
         await createExtraScheduledAction(
-          scheduledEditUpdateFromAction(session.action, {
+          scheduledEditUpdateFromAction(reviewedAction, {
             scheduledAt,
             channels,
           })
@@ -4851,15 +4920,26 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   }
 
   async function resolveAgentTiktokSessionSettings() {
-    const session = tiktokValidationSession;
-    if (!session || tiktokSessionCheckInFlightRef.current) return null;
+    const actionId = selectedPreparedAction?.id;
+    const signature = tiktokCurrentReviewSignature;
+    const session = agentTiktokReviewCandidate({
+      signature, review: tiktokCurrentReview, session: tiktokValidationSession,
+    });
+    if (!actionId || !signature || !session || tiktokSessionCheckInFlightRef.current) return null;
+
+    const invalidateReview = () => {
+      setTiktokValidationSession(null);
+      setTiktokPublicationReviews(current => current[actionId]
+        ? { ...current, [actionId]: { ...current[actionId], signature: "" } } : current);
+    };
 
     tiktokSessionCheckInFlightRef.current = true;
     setTiktokSessionCheckState("checking");
     try {
       const creatorInfo = await readCurrentTiktokCreatorInfo();
+      if (tiktokReviewSignatureRef.current !== signature) return null;
       if (!creatorInfo) {
-        setTiktokValidationSession(null);
+        invalidateReview();
         return null;
       }
       const settings = resolveReusableInrAgentTiktokSettings({
@@ -4868,10 +4948,11 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         mediaType: tiktokPublishMediaType,
         videoDurationSeconds: tiktokPublishVideoDurationSeconds,
       });
-      if (!settings) setTiktokValidationSession(null);
+      if (!settings) invalidateReview();
+      else setTiktokPublicationReviews(current => ({ ...current, [actionId]: { signature, session } }));
       return settings;
     } catch {
-      setTiktokValidationSession(null);
+      invalidateReview();
       return null;
     } finally {
       tiktokSessionCheckInFlightRef.current = false;
@@ -4880,12 +4961,13 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   }
 
   function openAgentTiktokSettings(pending: PendingAgentTiktokValidation) {
-    setPendingTiktokValidation(pending);
+    setPendingTiktokValidation({ ...pending, actionId: selectedPreparedAction?.id,
+      reviewSignature: tiktokCurrentReviewSignature });
     setTiktokSettingsOpen(true);
   }
 
-  function editAgentTiktokSessionSettings() {
-    openAgentTiktokSettings({ kind: "update_session" });
+  function reviewAgentTiktokSettings() {
+    openAgentTiktokSettings({ kind: "review" });
   }
 
   async function confirmRobotPlannedPublication(
@@ -4936,7 +5018,9 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     }
   }
 
-  async function saveScheduledEditAtExistingDate() {
+  async function saveScheduledEditAtExistingDate(
+    tiktokPublicationSettings?: TiktokPublicationSettings | null
+  ) {
     const session = scheduledEditSession;
     if (!session || validationScheduleState === "saving") return;
 
@@ -4952,6 +5036,17 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       session.action.actionType === "publication" &&
       session.action.targetTool === "booster";
 
+    if (isPublication && selectedPublicationUsesTiktok && !tiktokPublicationSettings) {
+      if (tiktokSessionCheckInFlightRef.current) return;
+      const reusableSettings = await resolveAgentTiktokSessionSettings();
+      if (reusableSettings) {
+        await saveScheduledEditAtExistingDate(reusableSettings);
+        return;
+      }
+      openAgentTiktokSettings({ kind: "save_existing_edit" });
+      return;
+    }
+
     setValidationScheduleState("saving");
     setNotice(null);
     try {
@@ -4965,7 +5060,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
             return true;
           })
           .map((channel) => ({ channel, scheduledAt }));
-        await saveScheduledEditPublication(selections);
+        await saveScheduledEditPublication(selections, tiktokPublicationSettings);
       } else {
         await saveScheduledEditCampaign(scheduledAt);
       }
@@ -5067,7 +5162,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       setValidationScheduleState("saving");
       setNotice(null);
       try {
-        await saveScheduledEditPublication(selections);
+        await saveScheduledEditPublication(selections, effectiveTiktokSettings);
         setPendingImmediateAgentPublishAfterSchedule(null);
       } catch (error) {
         const message = i18nT("scheduled_publication_update_failed");
@@ -5185,19 +5280,24 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   ) {
     const pending = pendingTiktokValidation;
     if (!pending) return;
+    if (!selectedPreparedAction || !tiktokCurrentReviewSignature
+      || pending.actionId !== selectedPreparedAction.id
+      || pending.reviewSignature !== tiktokCurrentReviewSignature) {
+      setTiktokSettingsOpen(false);
+      setPendingTiktokValidation(null);
+      showNotice(i18nT("verification_indisponible_83dd6d8c"));
+      return;
+    }
 
-    setTiktokValidationSession(
-      meta.rememberForSession
-        ? createInrAgentTiktokValidationSession({
-            settings,
-            creatorInfo: meta.creatorInfo,
-          })
-        : null
-    );
+    const session = createInrAgentTiktokValidationSession({ settings, creatorInfo: meta.creatorInfo });
+    setTiktokPublicationReviews(current => ({ ...current, [selectedPreparedAction.id]: {
+      signature: tiktokCurrentReviewSignature, session,
+    } }));
+    setTiktokValidationSession(meta.rememberForSession ? session : null);
     setTiktokSettingsOpen(false);
     setPendingTiktokValidation(null);
 
-    if (pending.kind === "update_session") return;
+    if (pending.kind === "review") return;
     if (pending.kind === "channel_selection") {
       await savePublicationChannelSelection(pending.channels, settings, pending.confirmPending);
       return;
@@ -5212,6 +5312,10 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
 
     if (pending.kind === "confirm_existing_plan") {
       await confirmRobotPlannedPublication(settings);
+      return;
+    }
+    if (pending.kind === "save_existing_edit") {
+      await saveScheduledEditAtExistingDate(settings);
       return;
     }
 
@@ -5247,7 +5351,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   ) {
     if (
       !selectedPreparedAction ||
-      scheduledEditSession ||
+      !canRegenerateSelectedPublication ||
       publishRegeneration ||
       actionMutationState === "saving"
     ) {
@@ -5256,15 +5360,20 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
 
     setNotice(null);
     setPublishRegeneration({ kind, channel, scope });
+    const sourceActionId = scheduledEditSession
+      ? firstSafeString(selectedPreparedAction.payload.sourceActionId,
+          asRecord(selectedPreparedAction.payload.publishPayload)?.inrAgentActionId)
+      : selectedPreparedAction.id;
     try {
       const response = await fetch("/api/agent/actions/regenerate-channel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          actionId: selectedPreparedAction.id,
+          actionId: sourceActionId,
           channel: boosterChannelKeyFromAgentChannel(channel),
           kind,
           scope,
+          ...(!scheduledEditSession ? { expectedUpdatedAt: selectedPreparedAction.updatedAt } : {}),
         }),
       });
       const payload = (await response.json().catch(() => null)) as {
@@ -5276,11 +5385,12 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       }
 
       const updatedAction = payload.action;
-      setActions((current) =>
-        current.map((action) =>
-          action.id === updatedAction.id ? updatedAction : action
-        )
-      );
+      setActions(current => current.some(action => action.id === updatedAction.id)
+        ? current.map(action => action.id === updatedAction.id ? updatedAction : action)
+        : [updatedAction, ...current]);
+      if (scheduledEditSession) setScheduledEditSession(null);
+      setSelectedPreparedActionId(updatedAction.id);
+      await refreshScheduledActions(true);
       if (kind === "media") setPublishMediaActiveIndex(0);
       showNotice(
         kind === "content"
@@ -5289,7 +5399,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
             : i18nT("regenerate_content_success", {
                 channel: agentChannelLabel(channel, runtimeT),
               })
-          : i18nT("regenerate_media_success")
+          : scope === "channel" ? i18nT("regenerate_media_channel_success", { channel: agentChannelLabel(channel, runtimeT) }) : i18nT("regenerate_media_success")
       );
     } catch (error) {
       showNotice(
@@ -5307,8 +5417,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     if (
       !selectedPreparedAction ||
       !activePreviewChannel ||
-      !canReviewSelectedAction ||
-      scheduledEditSession ||
+      !canRegenerateSelectedPublication ||
       publishRegeneration ||
       (kind === "content" && publishMediaOnly)
     ) {
@@ -5316,10 +5425,10 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     }
     const channel = activePreviewChannel;
     const channelLabel = agentChannelLabel(channel, runtimeT);
-    if (kind === "content" && preparedChannels.length > 1) {
+    if (kind === "media" || preparedChannels.length > 1) {
       openAgentConfirmDialog({
-        title: i18nT("regenerate_content_scope_title"),
-        message: i18nT("regenerate_content_scope_message", {
+        title: i18nT(kind === "media" ? "regenerate_media_scope_title" : "regenerate_content_scope_title"),
+        message: i18nT(kind === "media" ? "regenerate_media_scope_message" : "regenerate_content_scope_message", {
           channel: channelLabel,
         }),
         confirmLabel: i18nT("regenerate_all_channels"),
@@ -5329,9 +5438,9 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         cancelLabel: i18nT("annuler_49ba3292"),
         tone: "warning",
         onConfirm: () =>
-          performPublishChannelRegeneration("content", channel, "publication"),
+          performPublishChannelRegeneration(kind, channel, "publication"),
         onAlternate: () =>
-          performPublishChannelRegeneration("content", channel, "channel"),
+          performPublishChannelRegeneration(kind, channel, "channel"),
       });
       return;
     }
@@ -5353,7 +5462,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         performPublishChannelRegeneration(
           kind,
           channel,
-          kind === "media" ? "publication" : "channel"
+          "channel"
         ),
     });
   }
@@ -5870,7 +5979,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                           disabled={
                             !selectedPreparedAction ||
                             publishMediaOnly ||
-                            (!canReviewSelectedAction && !(activePublicationChannelEmpty && canEditPublicationChannels)) ||
+                            (!canEditSelectedPublication && !(activePublicationChannelEmpty && canEditPublicationChannels)) ||
                             actionMutationState === "saving"
                           }
                           title={
@@ -5904,8 +6013,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                           disabled={
                             !selectedPreparedAction ||
                             publishMediaOnly ||
-                            (!canReviewSelectedAction && !(activePublicationChannelEmpty && canEditPublicationChannels)) ||
-                            (Boolean(scheduledEditSession) && !activePublicationChannelEmpty) ||
+                            (!canRegenerateSelectedPublication && !(activePublicationChannelEmpty && canEditPublicationChannels)) ||
                             actionMutationState === "saving" ||
                             Boolean(publishRegeneration)
                           }
@@ -5925,7 +6033,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                           disabled={
                             activeThreadsGhost ||
                             !selectedPreparedAction ||
-                            !canReviewSelectedAction ||
+                            !canEditSelectedPublication ||
                             actionMutationState === "saving"
                           }
                           title={
@@ -5955,8 +6063,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                           disabled={
                             activeThreadsGhost ||
                             !selectedPreparedAction ||
-                            !canReviewSelectedAction ||
-                            Boolean(scheduledEditSession) ||
+                            !canRegenerateSelectedPublication ||
                             actionMutationState === "saving" ||
                             Boolean(publishRegeneration)
                           }
@@ -6521,40 +6628,6 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                 )}
               </div>
 
-              {isPublishView &&
-              selectedPublicationUsesTiktok &&
-              hasActiveTiktokValidationSession ? (
-                <div
-                  className={styles.tiktokSessionBanner}
-                  role="status"
-                  aria-live="polite"
-                >
-                  <span className={styles.tiktokSessionBadge} aria-hidden>
-                    ♪
-                  </span>
-                  <span className={styles.tiktokSessionCopy}>
-                    <strong>{i18nT("tiktok_session_active")}</strong>
-                    <small>
-                      {i18nT("tiktok_session_consent_hint")}{" "}
-                      <a
-                        href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {i18nT("tiktok_music_usage_confirmation")}
-                      </a>
-                    </small>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={editAgentTiktokSessionSettings}
-                    disabled={tiktokSessionCheckState === "checking"}
-                  >
-                    {i18nT("tiktok_session_change")}
-                  </button>
-                </div>
-              ) : null}
-
               <div
                 className={`${styles.previewMeta} ${
                   selected.key === "stats" ? styles.previewMetaStats : ""
@@ -6846,7 +6919,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                         }
                         disabled={
                           !hasPreparedAction ||
-                          !canReviewSelectedAction ||
+                          !(isPublishView ? canEditSelectedPublication : canReviewSelectedAction) ||
                           actionMutationState === "saving"
                         }
                         onClick={() => {
@@ -6882,6 +6955,16 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                       </div>
                     ) : null}
                     <div className={styles.previewActions}>
+                      {isPublishView && selectedPublicationUsesTiktok ? (
+                        <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "center", minWidth: 0 }}>
+                          <TiktokReviewCheckbox
+                            checked={tiktokReviewCurrent}
+                            disabled={!hasPreparedAction || actionMutationState === "saving"
+                              || validationScheduleState === "saving" || tiktokSessionCheckState === "checking"}
+                            onReview={reviewAgentTiktokSettings}
+                          />
+                        </div>
+                      ) : null}
                       {actionMutationState === "saving" ||
                       validationScheduleState === "saving" ||
                       tiktokSessionCheckState === "checking" ? (
@@ -7584,19 +7667,11 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
             </button>
             <div className={styles.publishMediaModalHeader}>
               <div>
-                <p className={styles.modalEyebrow}>
-                  {i18nT("media_inr_agent_75389c98")}
-                </p>
                 <h2>
                   {i18nT("gerer_le_media_value_be737c89", {
                     value0: activePreviewChannelLabel,
                   })}
                 </h2>
-                <span>
-                  {i18nT(
-                    "choisissez_ajoutez_remplacez_ou_preparez_le_ff06dd03"
-                  )}{" "}
-                </span>
               </div>
               <div
                 className={`${styles.publishMediaStatusPill} ${
@@ -7613,7 +7688,8 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
               </div>
             </div>
 
-            <div className={styles.publishMediaHero}>
+            <div className={styles.publishMediaWorkspace}>
+              <div className={styles.publishMediaPreviewColumn}>
               <div className={styles.publishMediaVisual}>
                 {publishMediaPreview?.url ? (
                   publishMediaPreview.kind === "video" ? (
@@ -7641,125 +7717,73 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                   </div>
                 )}
               </div>
-              <div className={styles.publishMediaCurrentText}>
-                <span className={styles.publishMediaTypeChip}>
-                  {publishMediaPreview?.typeLabel || i18nT("media_d8a313d3")}
-                </span>
-                <strong>
-                  {publishMediaPreview?.name || i18nT("aucun_media_c1858e25")}
-                </strong>
-                <small>
-                  {publishMediaPreview?.note ||
-                    i18nT("ajoutez_une_image_ou_une_video_d7497a12")}
-                </small>
-                {publishMediaAdaptationPreview?.userEditable &&
-                publishMediaPreview?.url ? (
-                  publishMediaPreview.kind === "image" ? (
-                    <div className={styles.publishMediaImageActions}>
-                      <button
-                        type="button"
-                        className={styles.publishMediaModifyButton}
-                        onClick={() => void openPublishImageInStudio("modify")}
-                        disabled={publishMediaUploadState === "saving"}
-                      >
-                        <span aria-hidden>✦</span>
-                        {i18nT("modifier_f260e757")}
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.publishMediaRetouchButton}
-                        onClick={() => void openPublishImageInStudio("retouch")}
-                        disabled={publishMediaUploadState === "saving"}
-                      >
-                        <span aria-hidden>{publishMediaRetouchIcon}</span>
-                        {publishMediaRetouchLabel}
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className={`${styles.publishMediaRetouchButton} ${styles.publishMediaVideoRetouchButton}`}
-                      onClick={openPublishMediaRetouchPreview}
-                      disabled={publishMediaUploadState === "saving"}
-                    >
-                      <span aria-hidden>{publishMediaRetouchIcon}</span>
-                      {publishMediaRetouchLabel}
-                    </button>
-                  )
-                ) : (
-                  <div className={styles.publishMediaRetouchHint}>
-                    <span aria-hidden>✨</span>
-                    {i18nT("ajoutez_un_media_pour_pouvoir_l_f137cd89")}{" "}
-                  </div>
-                )}
-              </div>
-            </div>
-
             {publishMediaPreview && publishMediaPreview.items.length > 1 ? (
               <div
-                className={styles.publishMediaGallery}
-                role="list"
+                className={styles.publishMediaCarouselControls}
+                role="group"
                 aria-label={i18nT("medias_value_508589dd", {
                   value0: activePreviewChannelLabel,
                 })}
               >
-                {publishMediaPreview.items.map((item, index) => (
-                  <button
-                    key={`${item.url}-${index}`}
-                    type="button"
-                    role="listitem"
-                    className={`${styles.publishMediaGalleryItem} ${
-                      index === publishMediaPreview.activeIndex
-                        ? styles.publishMediaGalleryItemActive
-                        : ""
-                    }`}
-                    onClick={() => setPublishMediaActiveIndex(index)}
-                    disabled={publishMediaUploadState === "saving"}
-                    aria-label={i18nT(
-                      "afficher_l_image_value_sur_value_516cb86d",
-                      {
-                        value0: index + 1,
-                        value1: publishMediaPreview.items.length,
-                      }
-                    )}
-                  >
-                    {item.kind === "video" ? (
-                      <video
-                        src={item.url}
-                        poster={item.posterUrl || undefined}
-                        muted
-                        playsInline
-                        preload="metadata"
-                      />
-                    ) : (
-                      <img
-                        src={item.url}
-                        alt={
-                          item.name ||
-                          i18nT("image_number_alt", { number: index + 1 })
-                        }
-                      />
-                    )}
-                    <span>{index + 1}</span>
-                  </button>
-                ))}
+                <button type="button"
+                  onClick={() => setPublishMediaActiveIndex((publishMediaPreview.activeIndex + publishMediaPreview.items.length - 1) % publishMediaPreview.items.length)}
+                  disabled={publishMediaUploadState === "saving"}
+                  aria-label={i18nT("afficher_l_image_value_sur_value_516cb86d", {
+                    value0: (publishMediaPreview.activeIndex + publishMediaPreview.items.length - 1) % publishMediaPreview.items.length + 1,
+                    value1: publishMediaPreview.items.length,
+                  })}>
+                  <NavigationChevronIcon direction="left" />
+                </button>
+                <strong aria-live="polite">{publishMediaPreview.activeIndex + 1} / {publishMediaPreview.items.length}</strong>
+                <button type="button"
+                  onClick={() => setPublishMediaActiveIndex((publishMediaPreview.activeIndex + 1) % publishMediaPreview.items.length)}
+                  disabled={publishMediaUploadState === "saving"}
+                  aria-label={i18nT("afficher_l_image_value_sur_value_516cb86d", {
+                    value0: (publishMediaPreview.activeIndex + 1) % publishMediaPreview.items.length + 1,
+                    value1: publishMediaPreview.items.length,
+                  })}>
+                  <NavigationChevronIcon direction="right" />
+                </button>
               </div>
             ) : null}
-
-            <div className={styles.publishMediaAdaptationBox}>
-              <div>
-                <strong>iNrStudio</strong>
-                <span>
-                  {publishMediaAdaptationPreview?.note ||
-                    i18nT("inragent_preparera_le_media_selon_les_c6452f9f")}
-                </span>
               </div>
-              <small>{mediaT("ai_generator_studio_tab_retouch")}</small>
-            </div>
+
+              <aside className={styles.publishMediaControls}>
+                <small className={styles.publishMediaFilename} title={publishMediaPreview?.name}>
+                  {publishMediaPreview?.name || i18nT("aucun_media_c1858e25")}
+                </small>
+                <div className={styles.publishMediaImageActions}>
+                  {publishMediaAdaptationPreview?.userEditable && publishMediaPreview?.url ? (
+                    publishMediaPreview.kind === "image" ? (
+                      <>
+                        <button type="button" className={styles.publishMediaModifyButton}
+                          onClick={() => void openPublishImageInStudio("modify")}
+                          disabled={publishMediaUploadState === "saving"}>
+                          <span aria-hidden>✦</span>{i18nT("modifier_f260e757")}
+                        </button>
+                        <button type="button" className={styles.publishMediaRetouchButton}
+                          onClick={() => void openPublishImageInStudio("retouch")}
+                          disabled={publishMediaUploadState === "saving"}>
+                          <span aria-hidden>{publishMediaRetouchIcon}</span>{publishMediaRetouchLabel}
+                        </button>
+                      </>
+                    ) : (
+                      <button type="button" className={`${styles.publishMediaRetouchButton} ${styles.publishMediaVideoRetouchButton}`}
+                        onClick={openPublishMediaRetouchPreview} disabled={publishMediaUploadState === "saving"}>
+                        <span aria-hidden>{publishMediaRetouchIcon}</span>{publishMediaRetouchLabel}
+                      </button>
+                    )
+                  ) : null}
+                  <button type="button" className={styles.publishMediaRegenerateButton}
+                    onClick={() => { setPublishMediaPreviewOpen(false); requestPublishChannelRegeneration("media"); }}
+                    disabled={!canRegenerateSelectedPublication || publishMediaUploadState === "saving" || Boolean(publishRegeneration) || activeThreadsGhost}
+                    aria-label={i18nT("regenerate_media")}>
+                    <span aria-hidden>↻</span>{mediaT("ai_generator_regenerate")}
+                  </button>
+                </div>
 
             <div className={styles.publishMediaSourcePanel}>
               <div className={styles.publishMediaSourceHeader}>
-                <strong>{i18nT("ajouter_ou_remplacer_9e1561b3")}</strong>
                 <span>
                   {publishMediaPreview?.kind === "image"
                     ? publishImageLimitReached
@@ -7836,6 +7860,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                 <LocalMediaUploadChoice
                   disabled={publishMediaUploadState === "saving"}
                   triggerIcon={<span aria-hidden>＋</span>}
+                  triggerLabel={i18nT("ajouter_87c57ed1")}
                   image={{
                     onSelect: () =>
                       document.getElementById("agent-publish-media-image")?.click(),
@@ -7867,10 +7892,10 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                   onClick={() => setPublishMediaLibraryPickerOpen(true)}
                   disabled={publishMediaUploadState === "saving"}
                 >
-                  <span aria-hidden>🗂️</span>
+                  <span aria-hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="16" rx="3" /><path d="m3 16 5-5 4 4 3-3 6 6" /><circle cx="16" cy="9" r="1.5" /></svg></span>
                   <strong>{i18nT("mediatheque_e4fa8e31")}</strong>
-                  <small>{i18nT("choisir_un_media_existant_6606a11d")}</small>
                 </button>
+                {isMobileHeader ? (
                 <label
                   htmlFor={
                     isMobileHeader ? "agent-publish-media-camera" : undefined
@@ -7897,12 +7922,8 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                 >
                   <span aria-hidden>📷</span>
                   <strong>{i18nT("prendre_une_photo_49b3ea58")}</strong>
-                  <small>
-                    {isMobileHeader
-                      ? i18nT("depuis_mobile_f39b9223")
-                      : i18nT("disponible_sur_mobile_386aeb66")}
-                  </small>
                 </label>
+                ) : null}
               </div>
               <small className={styles.publishMediaSourceNote}>
                 {i18nT("media_source_jusqu_a_300_mo_04468d50")}{" "}
@@ -7966,6 +7987,8 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                 {i18nT("apply_media_everywhere")}
               </button>
             </div>
+              </aside>
+            </div>
           </section>
         </div>
       )}
@@ -7999,6 +8022,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         open={tiktokSettingsOpen}
         styles={dashboardStyles}
         isMobile={isMobileHeader}
+        showPreview={false}
         mediaType={tiktokPublishMediaType}
         videoDurationSeconds={tiktokPublishVideoDurationSeconds}
         previewTitle={tiktokPublishPreview?.title}
@@ -8009,7 +8033,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         previewMediaCount={tiktokPublishMediaPreview?.count || 0}
         allowSessionReuse
         validateLabel={
-          pendingTiktokValidation?.kind === "update_session"
+          pendingTiktokValidation?.kind === "review"
             ? i18nT("tiktok_session_save")
             : undefined
         }

@@ -41,7 +41,7 @@ import { pillBtn, pillBtnActive } from "../publishModal.styles";
 import { getImageChannelAction } from "../imageChannelAssignment";
 import { getVideoChannelAction } from "../videoChannelAssignment";
 import ChannelNavigationRail from "./ChannelNavigationRail";
-import PublishStepTitle from "./PublishStepTitle";
+import css from "./PublishMediaWorkspace.module.css";
 
 type PublishModalStyles = Readonly<Record<string, string>>;
 
@@ -86,6 +86,8 @@ type ImageAdapterTab = {
 };
 
 type PublishImagesPanelProps = {
+  acquisition?: boolean;
+  hideChannelNavigation?: boolean;
   threadsPublicationMode: ThreadsPublicationMode;
   threadsPublicationPreferences: ThreadsPublicationPreferences;
   threadsPreferencesLoading: boolean;
@@ -150,6 +152,8 @@ type PublishImagesPanelProps = {
 };
 
 export default function PublishImagesPanel({
+  acquisition = true,
+  hideChannelNavigation = false,
   threadsPublicationMode,
   threadsPublicationPreferences,
   threadsPreferencesLoading,
@@ -158,7 +162,6 @@ export default function PublishImagesPanel({
 
   styles,
   isMobile,
-  stepNumber,
   channelMediaModes,
   setChannelMediaMode,
   onRemoveMediaFromChannel,
@@ -439,132 +442,9 @@ export default function PublishImagesPanel({
 
   return (
     <div
-      className={styles.blockCard}
+      className={css.media}
       style={{ minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 10,
-          flexWrap: "wrap",
-          marginBottom: 8,
-        }}
-      >
-        <PublishStepTitle styles={styles} step={stepNumber}>
-          {i18nT("medias_de_la_publication_12d110a4")}{" "}</PublishStepTitle>
-      </div>
-      <div
-        className={styles.subtitle}
-        style={{ marginBottom: 12, maxWidth: "none", whiteSpace: "normal" }}
-      >
-        {getLocalizedBoosterMediaOptimization("publication", runtimeT)}
-      </div>
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          flexWrap: "wrap",
-          alignItems: "center",
-          marginBottom: 14,
-        }}
-      >
-        <LocalMediaUploadChoice
-          className={styles.secondaryBtn}
-          image={{
-            onSelect: onPickImagesClick,
-            disabled: pickImagesDisabled,
-            disabledReason: imagesLimitReached
-              ? i18nT("media_max_images", { count: BOOSTER_MAX_IMAGE_COUNT })
-              : undefined,
-            detail: i18nT("media_add_image_details", {
-              limits: getLocalizedBoosterImageLimits(runtimeT),
-              formats: getLocalizedBoosterImageFormats(runtimeT),
-            }),
-            maxSelection: Math.max(0, BOOSTER_MAX_IMAGE_COUNT - images.length),
-          }}
-          video={{
-            onSelect: onPickVideoClick,
-            disabled: pickVideoDisabled,
-            disabledReason: pickVideoDisabled
-              ? i18nT("media_max_one_video")
-              : undefined,
-            detail: i18nT("media_video_details", {
-              limits: getLocalizedBoosterVideoLimits(runtimeT),
-              formats: getLocalizedBoosterVideoFormats(runtimeT),
-              duration: getLocalizedBoosterRecommendedVideoDuration(runtimeT),
-            }),
-          }}
-          testId="booster-publication-local-media-choice"
-        />
-        <button
-          type="button"
-          className={styles.secondaryBtn}
-          onClick={onGenerateMedia}
-          title={mediaT("ai_generator_generate_media")}
-          style={{
-            borderColor: "rgba(81,215,255,0.34)",
-            background:
-              "linear-gradient(135deg, rgba(38,180,238,0.20), rgba(183,65,197,0.24))",
-          }}
-        >
-          ✦ {mediaT("ai_generator_generate_media")}
-        </button>
-        <button
-          type="button"
-          className={styles.secondaryBtn}
-          onClick={onOpenMediaLibrary}
-          title={i18nT("ajouter_depuis_la_mediatheque_d0f700b2")}
-        >
-          {i18nT("mediatheque_f23ba807")}
-        </button>
-        <span
-          title={
-            !isMobile
-              ? i18nT("camera_mobile_only")
-              : imagesLimitReached
-                ? i18nT("media_max_images", { count: BOOSTER_MAX_IMAGE_COUNT })
-                : i18nT("camera_open_to_take_photo")
-          }
-          style={{ display: "inline-flex" }}
-        >
-          <button
-            type="button"
-            className={styles.secondaryBtn}
-            onClick={!cameraDisabled ? () => onTakePhotoClick() : undefined}
-            disabled={cameraDisabled}
-            aria-disabled={cameraDisabled}
-            style={{
-              opacity: cameraDisabled ? 0.48 : 1,
-              filter: cameraDisabled ? "grayscale(1)" : undefined,
-              cursor: cameraDisabled ? "not-allowed" : "pointer",
-            }}
-          >
-            {i18nT("appareil_inrcy_89d04cc9")}{" "}</button>
-        </span>
-        <div
-          style={{
-            fontSize: 12,
-            opacity: hasImages || hasVideoMedia ? 0.85 : 0.7,
-            lineHeight: 1.45,
-            minWidth: 0,
-            overflowWrap: "anywhere",
-          }}
-        >
-          {getLocalizedBoosterSelectedMediaSummary({
-            imageCount: images.length,
-            hasVideo: hasVideoMedia,
-            context: "publication",
-          }, runtimeT)}
-          <span style={{ opacity: 0.74 }}>
-            {hasImages ? ` · ${getLocalizedBoosterImageFormats(runtimeT)}` : ""}
-            {hasVideoMedia
-              ? ` · ${getLocalizedBoosterVideoFormats(runtimeT)} · ${getLocalizedBoosterRecommendedVideoDuration(runtimeT)}`
-              : ""}
-          </span>
-        </div>
-      </div>
       {imgError ? (
         <div
           style={{
@@ -630,7 +510,8 @@ export default function PublishImagesPanel({
       ) : null}
 
       {selectedChannels.length ? (
-        <div style={{ display: "grid", gap: 12 }}>
+        <div className={css.mediaWorkspace}>
+          {!hideChannelNavigation ? (
           <ChannelNavigationRail
             items={selectedChannels}
             activeItem={activeImageChannel}
@@ -770,9 +651,161 @@ export default function PublishImagesPanel({
               );
             })}
           </ChannelNavigationRail>
+          ) : null}
+          <div className={css.mediaControls}>
+      {acquisition ? (
+      <div className={css.mediaActions} title={getLocalizedBoosterMediaOptimization("publication", runtimeT)}
+        style={{
+          display: "flex",
+          gap: 10,
+          flexWrap: "wrap",
+          alignItems: "center",
+          marginBottom: 14,
+        }}
+      >
+        <LocalMediaUploadChoice
+          className={styles.secondaryBtn}
+          image={{
+            onSelect: onPickImagesClick,
+            disabled: pickImagesDisabled,
+            disabledReason: imagesLimitReached
+              ? i18nT("media_max_images", { count: BOOSTER_MAX_IMAGE_COUNT })
+              : undefined,
+            detail: i18nT("media_add_image_details", {
+              limits: getLocalizedBoosterImageLimits(runtimeT),
+              formats: getLocalizedBoosterImageFormats(runtimeT),
+            }),
+            maxSelection: Math.max(0, BOOSTER_MAX_IMAGE_COUNT - images.length),
+          }}
+          video={{
+            onSelect: onPickVideoClick,
+            disabled: pickVideoDisabled,
+            disabledReason: pickVideoDisabled
+              ? i18nT("media_max_one_video")
+              : undefined,
+            detail: i18nT("media_video_details", {
+              limits: getLocalizedBoosterVideoLimits(runtimeT),
+              formats: getLocalizedBoosterVideoFormats(runtimeT),
+              duration: getLocalizedBoosterRecommendedVideoDuration(runtimeT),
+            }),
+          }}
+          testId="booster-publication-local-media-choice"
+        />
+        <button
+          type="button"
+          className={styles.secondaryBtn}
+          onClick={onGenerateMedia}
+          title={mediaT("ai_generator_generate_media")}
+          style={{
+            borderColor: "rgba(81,215,255,0.34)",
+            background:
+              "linear-gradient(135deg, rgba(38,180,238,0.20), rgba(183,65,197,0.24))",
+          }}
+        >
+          ✦ {mediaT("ai_generator_generate_media")}
+        </button>
+        <button
+          type="button"
+          className={styles.secondaryBtn}
+          onClick={onOpenMediaLibrary}
+          title={i18nT("ajouter_depuis_la_mediatheque_d0f700b2")}
+        >
+          {i18nT("mediatheque_f23ba807")}
+        </button>
+        <span
+          title={
+            !isMobile
+              ? i18nT("camera_mobile_only")
+              : imagesLimitReached
+                ? i18nT("media_max_images", { count: BOOSTER_MAX_IMAGE_COUNT })
+                : i18nT("camera_open_to_take_photo")
+          }
+          style={{ display: "inline-flex" }}
+        >
+          <button
+            type="button"
+            className={styles.secondaryBtn}
+            onClick={!cameraDisabled ? () => onTakePhotoClick() : undefined}
+            disabled={cameraDisabled}
+            aria-disabled={cameraDisabled}
+            style={{
+              opacity: cameraDisabled ? 0.48 : 1,
+              filter: cameraDisabled ? "grayscale(1)" : undefined,
+              cursor: cameraDisabled ? "not-allowed" : "pointer",
+            }}
+          >
+            {i18nT("appareil_inrcy_89d04cc9")}{" "}</button>
+        </span>
+        <div
+          style={{
+            fontSize: 12,
+            opacity: hasImages || hasVideoMedia ? 0.85 : 0.7,
+            lineHeight: 1.45,
+            minWidth: 0,
+            overflowWrap: "anywhere",
+          }}
+        >
+          {getLocalizedBoosterSelectedMediaSummary({
+            imageCount: images.length,
+            hasVideo: hasVideoMedia,
+            context: "publication",
+          }, runtimeT)}
+          <span style={{ opacity: 0.74 }}>
+            {hasImages ? ` · ${getLocalizedBoosterImageFormats(runtimeT)}` : ""}
+            {hasVideoMedia
+              ? ` · ${getLocalizedBoosterVideoFormats(runtimeT)} · ${getLocalizedBoosterRecommendedVideoDuration(runtimeT)}`
+              : ""}
+          </span>
+        </div>
+      </div>
+      ) : null}
+          <div className={css.mediaModes}
+            style={{
+              display: "flex",
+              gap: isMobile ? 6 : 8,
+              flexWrap: isMobile ? "nowrap" : "wrap",
+              alignItems: "center",
+              width: "100%",
+              minWidth: 0,
+            }}
+          >
+            {mediaModeButton(
+              "video",
+              videoChannelActionLabel,
+              !acquisition && !hasVideoMedia,
+              () => {
+                if (videoChannelAction.kind === "pick") {
+                  onPickVideoForChannel(activeImageChannel);
+                  return;
+                }
+                setChannelMediaMode(activeImageChannel, "video");
+              },
+            )}
+            {mediaModeButton(
+              "images",
+              imageChannelActionLabel,
+              !channelSupportsImages(activeImageChannel) || (!acquisition && !hasImages),
+              () => {
+                if (imageChannelAction.kind === "pick") {
+                  onPickImagesForChannel(activeImageChannel);
+                  return;
+                }
+                if (imageChannelAction.kind === "reuse") {
+                  onUseExistingImagesForChannel(activeImageChannel);
+                  return;
+                }
+                setChannelMediaMode(activeImageChannel, "images");
+              },
+            )}
+            {mediaModeButton("none", i18nT("media_none"), !channelSupportsTextOnly(activeImageChannel))}
+          </div>
+
+          </div>
 
           <div
             role="status"
+            className={css.allocation}
+            title={i18nT("cliquez_sur_un_canal_puis_choisissez_f2189aac")}
             aria-label={i18nT("repartition_actuelle_des_medias_par_canal_538dffe4")}
             style={{
               display: "flex",
@@ -793,52 +826,9 @@ export default function PublishImagesPanel({
             <strong style={{ minWidth: 0 }}>
               {i18nT("repartition_actuelle_8ccf5af1")}{" "}{allocationParts.join(" · ") || i18nT("aucun_media_30513906")}
             </strong>
-            <span style={{ opacity: 0.7 }}>
-              {i18nT("cliquez_sur_un_canal_puis_choisissez_f2189aac")}{" "}</span>
           </div>
 
           {activeImageChannel === "threads" ? <ThreadsPublicationModeControls mode={threadsPublicationMode} preferences={threadsPublicationPreferences} loading={threadsPreferencesLoading} failed={threadsPreferencesFailed} onChange={onThreadsPublicationModeChange} /> : null}
-
-          <div
-            style={{
-              display: "flex",
-              gap: isMobile ? 6 : 8,
-              flexWrap: isMobile ? "nowrap" : "wrap",
-              alignItems: "center",
-              width: "100%",
-              minWidth: 0,
-            }}
-          >
-            {mediaModeButton(
-              "video",
-              videoChannelActionLabel,
-              false,
-              () => {
-                if (videoChannelAction.kind === "pick") {
-                  onPickVideoForChannel(activeImageChannel);
-                  return;
-                }
-                setChannelMediaMode(activeImageChannel, "video");
-              },
-            )}
-            {mediaModeButton(
-              "images",
-              imageChannelActionLabel,
-              !channelSupportsImages(activeImageChannel),
-              () => {
-                if (imageChannelAction.kind === "pick") {
-                  onPickImagesForChannel(activeImageChannel);
-                  return;
-                }
-                if (imageChannelAction.kind === "reuse") {
-                  onUseExistingImagesForChannel(activeImageChannel);
-                  return;
-                }
-                setChannelMediaMode(activeImageChannel, "images");
-              },
-            )}
-            {mediaModeButton("none", i18nT("media_none"), !channelSupportsTextOnly(activeImageChannel))}
-          </div>
 
           {activeImageChannel === "x" && activeMode === "images" ? (
             <div
@@ -932,31 +922,8 @@ export default function PublishImagesPanel({
             </div>
           ) : (
             <>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  marginBottom: 2,
-                }}
-              >
-                <button
-                  type="button"
-                  className={styles.secondaryBtn}
-                  onClick={() =>
-                    onRemoveImagesFromChannel(activeImageChannel)
-                  }
-                  title={i18nT("retirer_les_images_de_value_sans_2fc93efd", { value0: getLocalizedChannelLabel(activeImageChannel, runtimeT) })}
-                  aria-label={i18nT("retirer_les_images_de_ce_canal_87c1a09b", { value0: getLocalizedChannelLabel(activeImageChannel, runtimeT) })}
-                  style={{
-                    minHeight: 30,
-                    padding: "4px 10px",
-                    fontSize: 11,
-                    opacity: 0.82,
-                  }}
-                >
-                  {i18nT("retirer_les_images_de_ce_canal_b025e5ef")}{" "}</button>
-              </div>
               <ChannelImageAdapterCardsPanel
+                presentation="workspace"
                 tabs={imageAdapterTabs}
                 activeChannel={activeImageChannel}
                 onActiveChannelChange={(key) =>
@@ -1109,7 +1076,7 @@ export default function PublishImagesPanel({
                 pillButtonActiveStyle={pillBtnActive}
                 showTabs={false}
               />
-              <div
+              <div className={css.mediaBulk}
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
@@ -1119,14 +1086,30 @@ export default function PublishImagesPanel({
                   marginTop: 12,
                 }}
               >
-                <div
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginBottom: 2,
+                }}
+              >
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  onClick={() =>
+                    onRemoveImagesFromChannel(activeImageChannel)
+                  }
+                  title={i18nT("retirer_les_images_de_value_sans_2fc93efd", { value0: getLocalizedChannelLabel(activeImageChannel, runtimeT) })}
+                  aria-label={i18nT("retirer_les_images_de_ce_canal_87c1a09b", { value0: getLocalizedChannelLabel(activeImageChannel, runtimeT) })}
                   style={{
-                    fontSize: 12,
-                    color: "rgba(255,255,255,0.72)",
+                    minHeight: 30,
+                    padding: "4px 10px",
+                    fontSize: 11,
+                    opacity: 0.82,
                   }}
                 >
-                  {i18nT("apply_media_order_everywhere_hint")}
-                </div>
+                  {i18nT("retirer_les_images_de_ce_canal_b025e5ef")}{" "}</button>
+              </div>
                 <button
                   type="button"
                   className={styles.secondaryBtn}

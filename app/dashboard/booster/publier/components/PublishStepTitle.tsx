@@ -23,6 +23,7 @@ export default function PublishStepTitle({
     <div
       className={styles.blockTitle}
       data-testid={testId}
+      data-publish-step-title
       style={{
         display: "inline-flex",
         alignItems: "center",

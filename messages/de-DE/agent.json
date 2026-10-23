@@ -880,5 +880,8 @@
     "agentButton": "KI-Agent",
     "automation": "Automatisierung",
     "manual": "Manuelle Aktionen"
-  }
+  },
+  "regenerate_media_scope_title": "Medien neu erstellen",
+  "regenerate_media_scope_message": "Medien für alle Kanäle oder nur für {channel} neu erstellen? Texte und Termine bleiben unverändert. Freigegebene Beiträge müssen erneut bestätigt werden.",
+  "regenerate_media_channel_success": "Die Medien für {channel} wurden neu erstellt. Der Termin bleibt erhalten; der Beitrag muss bestätigt werden."
 }
