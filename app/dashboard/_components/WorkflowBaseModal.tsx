@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { useEffect, useState } from "react";
 import styles from "../dashboard.module.css";
+import headerStyles from "./WorkflowBaseModal.module.css";
 
 export default function BaseModal({
   title,
@@ -16,6 +17,7 @@ export default function BaseModal({
   headerActions,
   headerActionsClassName,
   headerBrand,
+  headerCenter,
   titleOnLeftOnMobile = false,
   hideModuleLabelOnMobile = false,
   compact = false,
@@ -33,6 +35,7 @@ export default function BaseModal({
   headerActions?: React.ReactNode;
   headerActionsClassName?: string;
   headerBrand?: React.ReactNode;
+  headerCenter?: React.ReactNode;
   titleOnLeftOnMobile?: boolean;
   hideModuleLabelOnMobile?: boolean;
   compact?: boolean;
@@ -134,7 +137,7 @@ export default function BaseModal({
         {/* Header sticky (unique) */}
         {!headerHidden ? (
           <div
-            className={[styles.blockHeaderRow, styles.fullscreenModalHeader].join(" ")}
+            className={[styles.blockHeaderRow, styles.fullscreenModalHeader, headerCenter ? headerStyles.centeredHeader : ""].join(" ")}
             style={{
               alignItems: "center",
               padding: "var(--inrcy-modal-header-padding, max(12px, var(--inrcy-safe-area-top)) max(12px, var(--inrcy-safe-area-right)) max(12px, var(--inrcy-safe-area-bottom)) max(12px, var(--inrcy-safe-area-left)))",
@@ -149,6 +152,7 @@ export default function BaseModal({
             }}
           >
             <div
+              className={headerCenter ? headerStyles.headerGrid : undefined}
               style={{
                 width: "100%",
                 minWidth: 0,
@@ -172,13 +176,14 @@ export default function BaseModal({
               </div>
 
               {/* Center title */}
+              {headerCenter ? <div className={headerStyles.center}>{headerCenter}</div> : null}
               {!headerBrand ? <div style={{ textAlign: titleMovesLeft ? "left" : "center", minWidth: 0 }}>
                 {!titleMovesLeft ? <span style={isMobileHeader ? compactPillStyle : pillStyle}>{title}</span> : null}
               </div> : null}
 
               {/* Right actions */}
               <div
-                className={headerActionsClassName}
+                className={[headerActionsClassName, headerCenter ? headerStyles.actions : ""].filter(Boolean).join(" ")}
                 style={{
                   display: "flex",
                   justifyContent: "flex-end",

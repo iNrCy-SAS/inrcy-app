@@ -74,7 +74,9 @@ test("the publication balance highlights successes and keeps independent process
   assert.match(modal, /if \(embedded\) return resultCard/);
   assert.match(modal, /export function PublishExecutionResultActions\(/);
   assert.match(modal, /const hasPublishedChannels = publishedCount > 0/);
-  assert.match(modal, /Publication avec résultats mixtes/);
+  assert.match(modal, /<PublicationVisualHub/);
+  assert.match(modal, /progress=\{100\}/);
+  assert.match(modal, /centerLabel="Bilan prêt"/);
   assert.match(modal, /publishedCount[\s\S]*?publié/);
   assert.match(modal, /pendingCount[\s\S]*?en traitement/);
   assert.match(modal, /failedOrSkippedCount[\s\S]*?à revoir/);
@@ -84,7 +86,8 @@ test("the publication balance highlights successes and keeps independent process
   assert.match(modal, /loading="eager" decoding="sync"/);
   assert.match(modal, /Afficher le détail de l’échec/);
   assert.match(modal, /expandedEntryDetails/);
-  assert.match(modal, /const orderedEntries = \[\.\.\.entries\]\.sort/);
+  assert.match(modal, /const orderedEntries = entries/);
+  assert.match(modal, /\.\.\.destinationsByChannel\.keys\(\), \.\.\.entriesByChannel\.keys\(\)/);
   assert.match(modal, /i18nT\("voir_8a754f1f"\)/);
   assert.match(modal, /i18nT\("voir_dans_inr_send_a74cc9ea"\)/);
   assert.match(modal, /i18nT\("retenter_value_value_en_echec_b7d1f934"/);
@@ -112,7 +115,7 @@ test("Pinterest derives its account URL for settings, the immediate balance and 
   assert.match(settings, /onSaved=\{\(url\) => \{[\s\S]*?publicProfileUrl: url, profileUrl: url/);
   assert.match(publishModal, /status\?live=1/g);
   assert.match(publishModal, /recoveredPinterestHref/);
-  assert.match(publishModal, /channelLinks = Object\.fromEntries/);
+  assert.match(publishModal, /channelLinks = \{ \.\.\.options\?\.retryPreviousSummary\?\.channelLinks, \.\.\.Object\.fromEntries/);
   assert.match(inrSend, /status\?live=1/);
   assert.match(inrSend, /activeChannelAccountHref/);
   assert.match(inrSend, /t\("ouvrir_le_compte_72c79948"\)/);

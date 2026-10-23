@@ -1,7 +1,7 @@
 import { useTranslations } from "next-intl";
 import type { MutableRefObject, ReactNode } from "react";
 import StatusMessage from "../../../_components/StatusMessage";
-import PublishExecutionProgress from "../../../_components/PublishExecutionProgress";
+import PublishExecutionProgress, { type PublicationProgressDestination } from "../../../_components/PublishExecutionProgress";
 
 type PublishModalStyles = Readonly<Record<string, string>>;
 
@@ -17,6 +17,7 @@ type PublishFooterActionsProps = {
   publishProgressPhaseIndex?: number;
   publishProgressPhaseTotal?: number;
   publishProgressPhaseLabel?: string;
+  publicationDestinations?: readonly PublicationProgressDestination[];
   publishError: string;
   mediaPreparationIssue?: string;
   mediaPreparationFailed?: boolean;
@@ -37,6 +38,7 @@ export default function PublishFooterActions({
   publishProgressPhaseIndex,
   publishProgressPhaseTotal,
   publishProgressPhaseLabel,
+  publicationDestinations,
   publishError,
   mediaPreparationIssue = "",
   mediaPreparationFailed = false,
@@ -52,6 +54,8 @@ export default function PublishFooterActions({
         {busy ? (
           <PublishExecutionProgress
             styles={styles}
+            variant="immersive"
+            destinations={publicationDestinations}
             scheduling={scheduling}
             publishProgress={publishProgress}
             publishProgressLabel={publishProgressLabel}

@@ -19,8 +19,9 @@ import {
   ensureFrenchPublicationErrorMessage,
   getFrenchPublicationErrorMessage,
 } from "@/lib/publicationErrorFrench";
-import { isBoosterPublicationPendingStatus } from "@/lib/boosterPublicationStatus";
 import resultCss from "./PublishExecutionResultModal.module.css";
+import { getPublicationDestinationStatus, PublicationVisualHub, type PublicationProgressDestination } from "./PublishExecutionProgress";
+import progressCss from "./PublishExecutionProgress.module.css";
 
 type DashboardStyles = Readonly<Record<string, string>>;
 
@@ -37,6 +38,7 @@ export type PublishExecutionSummary = {
   entries?: Array<{
     channel: string;
     label: string;
+    publicationId?: string | null;
     ok?: boolean;
     status?: "published" | "published_with_warning" | "queued" | "processing" | "failed" | string;
     technicalStatus?: string | null;
@@ -53,6 +55,10 @@ export type PublishExecutionSummary = {
 };
 
 type PublishExecutionEntry = NonNullable<PublishExecutionSummary["entries"]>[number];
+
+function publicationChannelKey(channel: string) {
+  return ({ google_business: "gmb", youtube: "youtube_shorts", twitter: "x" } as Record<string, string>)[channel] || channel;
+}
 
 const CHANNEL_LOGO_BY_KEY: Readonly<Record<string, string>> = {
 
@@ -75,17 +81,38 @@ const CHANNEL_LOGO_BY_KEY: Readonly<Record<string, string>> = {
 };
 
 function isPendingPublicationEntry(entry: PublishExecutionEntry) {
-  const status = String(entry.status || "").trim().toLowerCase();
-  const technicalStatus = String(entry.technicalStatus || "")
-    .trim()
-    .toLowerCase();
-  const warningKind = String(entry.warning_kind || "").trim().toLowerCase();
+  return getPublicationDestinationStatus(entry) === "pending";
+}
 
-  return (
-    isBoosterPublicationPendingStatus(status) ||
-    isBoosterPublicationPendingStatus(technicalStatus) ||
-    warningKind === "pending"
-  );
+function entryPublicationId(entry: PublishExecutionEntry, summary: PublishExecutionSummary) {
+  return String(entry.publicationId || summary.publicationId || summary.publication_id || "").trim();
+}
+
+export function mergePublicationResultSnapshot(
+  current: PublishExecutionSummary | null,
+  snapshot: PublishExecutionSummary,
+  polledPublicationId: string,
+): PublishExecutionSummary | null {
+  if (!current || !Array.isArray(current.entries)) return current;
+  const snapshotEntries = Array.isArray(snapshot.entries) ? snapshot.entries : [];
+  const entries = current.entries.map((entry) => {
+    if (entryPublicationId(entry, current) !== polledPublicationId) return entry;
+    const next = snapshotEntries.find((candidate) => publicationChannelKey(candidate.channel) === publicationChannelKey(entry.channel));
+    // A slower status read must not undo an already confirmed terminal result.
+    if (next && isPendingPublicationEntry(next) && !isPendingPublicationEntry(entry)) return entry;
+    return next ? { ...next, channel: entry.channel, label: next.label || entry.label, publicationId: polledPublicationId } : entry;
+  });
+  const statuses = entries.map(getPublicationDestinationStatus);
+  const pendingCount = statuses.filter((status) => status === "pending").length;
+  const failureCount = statuses.filter((status) => status === "failed").length;
+  const warningCount = statuses.filter((status) => status === "warning").length;
+  const skippedCount = statuses.filter((status) => status === "skipped").length;
+  const successCount = statuses.filter((status) => status === "published" || status === "warning" || status === "pending").length;
+  return {
+    ...current, entries, successCount, pendingCount, failureCount, warningCount, skippedCount,
+    retryableFailureCount: entries.filter((entry) => getPublicationDestinationStatus(entry) === "failed" && entry.retryable !== false).length,
+    allFailed: failureCount > 0 && successCount === 0,
+  };
 }
 
 export function PublishExecutionResultActions({
@@ -93,17 +120,21 @@ export function PublishExecutionResultActions({
   onOpenInrSend,
   onRetryFailed,
   retrying = false,
+  compact = false,
 }: {
   summary: PublishExecutionSummary | null | undefined;
   onOpenInrSend: () => void;
   onRetryFailed?: () => void | Promise<void>;
   retrying?: boolean;
+  compact?: boolean;
 }) {
   const i18nT = useTranslations("booster");
-  const retryableFailureCount = Math.max(0, Number(summary?.retryableFailureCount || 0));
+  const retryableFailureCount = summary?.entries?.length
+    ? summary.entries.filter((entry) => getPublicationDestinationStatus(entry) === "failed" && entry.retryable !== false).length
+    : Math.max(0, Number(summary?.retryableFailureCount || 0));
 
   return (
-    <div className={resultCss.actions} data-publish-result-actions>
+    <div className={resultCss.actions} data-publish-result-actions data-compact={compact}>
       {onRetryFailed && retryableFailureCount > 0 ? (
         <button
           type="button"
@@ -111,11 +142,13 @@ export function PublishExecutionResultActions({
           onClick={() => void onRetryFailed()}
           disabled={retrying}
           aria-busy={retrying}
+          aria-label={retrying ? i18nT("relance_en_cours_82dfaae8") : i18nT("retenter_value_value_en_echec_b7d1f934", { value0: retryableFailureCount, value1: retryableFailureCount > 1 ? "canaux" : "canal" })}
         >
           <span aria-hidden="true">↻</span>
-          {retrying
+          <span className={resultCss.actionFullLabel}>{retrying
             ? i18nT("relance_en_cours_82dfaae8")
-            : i18nT("retenter_value_value_en_echec_b7d1f934", { value0: retryableFailureCount, value1: retryableFailureCount > 1 ? "canaux" : "canal" })}
+            : i18nT("retenter_value_value_en_echec_b7d1f934", { value0: retryableFailureCount, value1: retryableFailureCount > 1 ? "canaux" : "canal" })}</span>
+          {compact ? <span className={resultCss.actionCompactLabel} aria-hidden="true">{retrying ? "Relance…" : `${retryableFailureCount} échec${retryableFailureCount > 1 ? "s" : ""}`}</span> : null}
         </button>
       ) : null}
       <button type="button" onClick={onOpenInrSend} className={resultCss.inrSendButton}>
@@ -135,6 +168,8 @@ export default function PublishExecutionResultModal({
   retrying = false,
   wizardSteps,
   embedded = false,
+  publicationDestinations,
+  onSummaryChange,
 }: {
   styles: DashboardStyles;
   summary: PublishExecutionSummary | null | undefined;
@@ -144,6 +179,8 @@ export default function PublishExecutionResultModal({
   retrying?: boolean;
   wizardSteps?: readonly PublishWizardStep[];
   embedded?: boolean;
+  publicationDestinations?: readonly PublicationProgressDestination[];
+  onSummaryChange?: (summary: PublishExecutionSummary) => void;
 }) {
   const { metaPilotEnabled } = useDashboardViewerAccess();
   const i18nT = useTranslations("booster");
@@ -214,9 +251,14 @@ export default function PublishExecutionResultModal({
     ? liveSummary.entries.filter((entry) => isMetaPilotChannelVisible(entry.channel, metaPilotEnabled))
     : [];
   const hasPendingAsyncJob = liveEntries.some(isPendingPublicationEntry);
+  const pendingPublicationIds = JSON.stringify([...new Set(liveEntries
+    .filter(isPendingPublicationEntry)
+    .map((entry) => entryPublicationId(entry, liveSummary || {}))
+    .filter(Boolean))].sort());
 
   useEffect(() => {
-    if (!publicationId || !hasPendingAsyncJob) return;
+    const publicationIds = JSON.parse(pendingPublicationIds) as string[];
+    if (!hasPendingAsyncJob || !publicationIds.length) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -249,22 +291,24 @@ export default function PublishExecutionResultModal({
       inFlight = true;
       let shouldContinue = true;
       try {
-        const response = await fetch(
-          `/api/booster/publications/${encodeURIComponent(publicationId)}/status`,
-          { method: "GET", cache: "no-store" },
-        );
-        const payload = await response.json().catch(() => ({}));
-        if (response.ok && payload?.summary) {
-          setLiveSummary((current) => ({
-            ...(current || {}),
-            ...payload.summary,
-            publicationId,
-            publication_id: publicationId,
-            channelLinks: current?.channelLinks || {},
-            retryableFailureCount: current?.retryableFailureCount || 0,
-          }));
-          shouldContinue = payload?.done !== true;
-        }
+        const pendingJobs = await Promise.all(publicationIds.map(async (jobId) => {
+          try {
+            const response = await fetch(
+              `/api/booster/publications/${encodeURIComponent(jobId)}/status`,
+              { method: "GET", cache: "no-store" },
+            );
+            const payload = await response.json().catch(() => ({}));
+            if (cancelled) return false;
+            if (response.ok && payload?.summary) {
+              setLiveSummary((current) => mergePublicationResultSnapshot(current, payload.summary, jobId));
+              return payload?.done !== true;
+            }
+            return true;
+          } catch {
+            return true;
+          }
+        }));
+        shouldContinue = pendingJobs.some(Boolean);
       } catch {
         shouldContinue = true;
       } finally {
@@ -302,14 +346,17 @@ export default function PublishExecutionResultModal({
       clearTimer();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [publicationId, hasPendingAsyncJob]);
+  }, [pendingPublicationIds, hasPendingAsyncJob]);
   const pendingTiktokEntry = liveEntries.find(
     (entry) => entry.channel === "tiktok" && entry.status === "processing",
   );
   const hasPendingTiktok = Boolean(pendingTiktokEntry);
+  const tiktokPublicationId = pendingTiktokEntry
+    ? entryPublicationId(pendingTiktokEntry, liveSummary || {})
+    : "";
 
   useEffect(() => {
-    if (!publicationId || !hasPendingTiktok) return;
+    if (!tiktokPublicationId || !hasPendingTiktok) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -342,7 +389,7 @@ export default function PublishExecutionResultModal({
       let shouldContinue = true;
       try {
         const res = await fetch(
-          `/api/inrsend/publications/${encodeURIComponent(publicationId)}/tiktok/status`,
+          `/api/inrsend/publications/${encodeURIComponent(tiktokPublicationId)}/tiktok/status`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -350,6 +397,7 @@ export default function PublishExecutionResultModal({
           },
         );
         const json = await res.json().catch(() => ({}));
+        if (cancelled) return;
         const status = String(json?.status?.status || "").toUpperCase();
         const complete = ["PUBLISH_COMPLETE", "DONE", "SUCCESS"].includes(status);
         const failed = ["FAILED", "PUBLISH_FAILED", "ERROR"].includes(status);
@@ -364,17 +412,18 @@ export default function PublishExecutionResultModal({
         setLiveSummary((current) => {
           if (!current || !Array.isArray(current.entries)) return current;
           const previousEntry = current.entries.find(
-            (entry) => entry.channel === "tiktok",
+            (entry) => entry.channel === "tiktok" && entryPublicationId(entry, current) === tiktokPublicationId,
           );
           if (!previousEntry) return current;
 
           const nextEntries = current.entries.map((entry) => {
-            if (entry.channel !== "tiktok") return entry;
+            if (entry.channel !== "tiktok" || entryPublicationId(entry, current) !== tiktokPublicationId) return entry;
             if (complete) {
               return {
                 ...entry,
                 ok: true,
                 status: "published",
+                technicalStatus: "completed",
                 error: null,
                 warning: null,
                 warning_kind: null,
@@ -386,6 +435,7 @@ export default function PublishExecutionResultModal({
                 ...entry,
                 ok: false,
                 status: "failed",
+                technicalStatus: "failed",
                 error: message,
                 warning: null,
                 warning_kind: null,
@@ -402,25 +452,7 @@ export default function PublishExecutionResultModal({
             };
           });
 
-          let successCount = Number(current.successCount || 0);
-          let failureCount = Number(current.failureCount || 0);
-          let pendingCount = Number(current.pendingCount || 0);
-          if (previousEntry.status === "processing" && complete) {
-            pendingCount = Math.max(0, pendingCount - 1);
-          } else if (previousEntry.status === "processing" && failed) {
-            pendingCount = Math.max(0, pendingCount - 1);
-            successCount = Math.max(0, successCount - 1);
-            failureCount += 1;
-          }
-
-          return {
-            ...current,
-            entries: nextEntries,
-            successCount,
-            failureCount,
-            pendingCount,
-            allFailed: failureCount > 0 && successCount === 0,
-          };
+          return mergePublicationResultSnapshot(current, { entries: nextEntries }, tiktokPublicationId);
         });
       } catch {
         shouldContinue = true;
@@ -459,7 +491,14 @@ export default function PublishExecutionResultModal({
       clearTimer();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [publicationId, hasPendingTiktok]);
+  }, [tiktokPublicationId, hasPendingTiktok]);
+
+  useEffect(() => {
+    if (!liveSummary || !onSummaryChange) return;
+    const liveId = liveSummary.publicationId || liveSummary.publication_id;
+    const sourceId = summary?.publicationId || summary?.publication_id;
+    if (liveId === sourceId) onSummaryChange(liveSummary);
+  }, [liveSummary, summary, onSummaryChange]);
 
   const effectiveSummary = liveSummary || summary;
   const failureCount = Number(effectiveSummary?.failureCount || 0);
@@ -468,28 +507,25 @@ export default function PublishExecutionResultModal({
   const entries = Array.isArray(effectiveSummary?.entries) ? effectiveSummary.entries : [];
   const warningCount = Math.max(
     Number(effectiveSummary?.warningCount || 0),
-    entries.filter((entry) => entry.status === "published_with_warning").length,
+    entries.filter((entry) => getPublicationDestinationStatus(entry) === "warning").length,
   );
+  const entriesByChannel = new Map(entries.map((entry) => [publicationChannelKey(entry.channel), entry]));
+  const destinationsByChannel = new Map((publicationDestinations || []).map((destination) => [publicationChannelKey(destination.key), destination]));
+  const destinationKeys = [...new Set([...destinationsByChannel.keys(), ...entriesByChannel.keys()])];
+  const missingDestinationCount = destinationKeys.filter((key) => !entriesByChannel.has(key)).length;
   const pendingCount = Math.max(
     Number(effectiveSummary?.pendingCount || 0),
-    entries.filter(isPendingPublicationEntry).length,
+    entries.filter(isPendingPublicationEntry).length + missingDestinationCount,
   );
   const skippedCount = Math.max(
     Number(effectiveSummary?.skippedCount || 0),
-    entries.filter((entry) => entry.status === "skipped").length,
+    entries.filter((entry) => getPublicationDestinationStatus(entry) === "skipped").length,
   );
   const publishedEntryCount = entries.filter(
-    (entry) =>
-      entry.status !== "skipped" &&
-      !isPendingPublicationEntry(entry) &&
-      entry.ok !== false &&
-      String(entry.status || "").toLowerCase() !== "failed",
+    (entry) => ["published", "warning"].includes(getPublicationDestinationStatus(entry)),
   ).length;
   const failedEntryCount = entries.filter(
-    (entry) =>
-      entry.status !== "skipped" &&
-      !isPendingPublicationEntry(entry) &&
-      (entry.ok === false || String(entry.status || "").toLowerCase() === "failed"),
+    (entry) => getPublicationDestinationStatus(entry) === "failed",
   ).length;
   const publishedCount = entries.length
     ? publishedEntryCount
@@ -501,32 +537,12 @@ export default function PublishExecutionResultModal({
     1,
   );
   const hasPublishedChannels = publishedCount > 0;
-  const orderedEntries = [...entries].sort((left, right) => {
-    const rank = (entry: PublishExecutionEntry) => {
-      if (entry.status === "skipped") return 3;
-      if (isPendingPublicationEntry(entry)) return 1;
-      if (entry.ok === false || String(entry.status || "").toLowerCase() === "failed") return 2;
-      return 0;
-    };
-    return rank(left) - rank(right);
-  });
+  const orderedEntries = entries;
 
-  const hasMixedResults =
-    hasPublishedChannels && (pendingCount > 0 || failedOrSkippedCount > 0);
   const hasPublishedWarnings = warningCount > 0;
-  const overallTitle = allFailed
-    ? "Publication échouée"
-    : hasMixedResults
-      ? "Publication avec résultats mixtes"
-      : hasPublishedWarnings
-        ? "Publication publiée avec avertissement"
-      : hasPublishedChannels
-        ? "Votre publication est en ligne"
-        : pendingCount
-          ? "Publication en cours"
-          : failureCount
-            ? "Publication envoyée partiellement"
-            : "Bilan de publication";
+  const overallTitle = hasPublishedChannels
+    ? `${publishedCount} publication${publishedCount > 1 ? "s" : ""} en ligne`
+    : "Bilan de publication";
   const resultTone = allFailed || (!hasPublishedChannels && failedOrSkippedCount > 0 && !pendingCount)
     ? "failed"
     : pendingCount > 0
@@ -534,6 +550,29 @@ export default function PublishExecutionResultModal({
       : hasPublishedWarnings || failedOrSkippedCount > 0
         ? "warning"
         : hasPublishedChannels ? "published" : "neutral";
+
+  const visualDestinations: PublicationProgressDestination[] = destinationKeys.map((key) => {
+    const entry = entriesByChannel.get(key);
+    if (!entry) return { key, label: destinationsByChannel.get(key)?.label || key, status: "pending", details: "En attente du résultat de ce canal." };
+    const status = getPublicationDestinationStatus(entry);
+    const pending = status === "pending";
+    const failed = status === "failed";
+    const rawWarning = String(entry.warning_message || (entry.warning !== "pending" ? entry.warning || "" : "")).trim();
+    const errorMessage = !pending && entry.error
+      ? getFrenchPublicationErrorMessage(entry.channel, entry.error, entry.label + " n’a pas pu publier. Merci de réessayer.")
+      : failed ? getFrenchPublicationErrorMessage(entry.channel, "publication_failed", entry.label + " n’a pas pu publier. Merci de réessayer.") : "";
+    const warningMessage = rawWarning ? ensureFrenchPublicationErrorMessage(rawWarning,
+      pending ? entry.label + " est encore en attente de finalisation." : entry.label + " a publié avec un avertissement.") : "";
+    const blockers = (entry.blockers || []).map((blocker) => ensureFrenchPublicationErrorMessage(blocker, entry.label + " n’est pas prêt pour la publication."));
+    return {
+      key,
+      label: entry.label,
+      status,
+      href: String(effectiveSummary?.channelLinks?.[entry.channel] || effectiveSummary?.channelLinks?.[key] || "").trim() || undefined,
+      details: [errorMessage, warningMessage, ...blockers].filter(Boolean).join("\n") || undefined,
+    };
+  });
+  const visualTotalCount = Math.max(totalCount, visualDestinations.length);
 
   const resultActions = (
     <PublishExecutionResultActions summary={effectiveSummary} onOpenInrSend={onOpenInrSend} onRetryFailed={onRetryFailed} retrying={retrying} />
@@ -555,22 +594,26 @@ export default function PublishExecutionResultModal({
   );
 
   const resultCard = (
-    <div className={resultCss.resultBody} data-result-tone={resultTone}>
-      <header className={resultCss.hero}>
-        <div className={resultCss.headline} role="status" aria-live="polite" aria-atomic="true">
-          <h2 id={titleId}>{overallTitle}</h2>
-        </div>
-      </header>
+    <div className={`${resultCss.resultBody}${embedded ? ` ${progressCss.immersive}` : ""}`} data-result-tone={resultTone} data-embedded={embedded}>
+      {embedded && visualDestinations.length ? (
+        <PublicationVisualHub
+          progress={100}
+          destinations={visualDestinations}
+          completed={pendingCount === 0 && visualDestinations.every((destination) => Boolean(destination.status))}
+          outcome={resultTone}
+          centerLabel="Bilan prêt"
+        />
+      ) : null}
+      <div className={resultCss.overview} data-publication-hub-summary={embedded || undefined} role="status" aria-live="polite" aria-atomic="true">
+        <header className={resultCss.hero}>
+          <div className={resultCss.headline}>
+            {!embedded && hasPublishedChannels ? <span className={resultCss.overallSuccess} aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.7" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4 4L19 6" /></svg></span> : null}
+            <h2 id={titleId}>{embedded && visualDestinations.length ? `${publishedCount}/${visualTotalCount} publié${publishedCount > 1 ? "s" : ""}` : overallTitle}</h2>
+          </div>
+        </header>
 
-      <div className={resultCss.summary} aria-label="État des publications">
+      {pendingCount > 0 || failedOrSkippedCount > 0 || warningCount > 0 || !publishedCount ? <div className={resultCss.summary} aria-label="État des publications">
         <div className={resultCss.summaryCounts}>
-          {publishedCount > 0 ? (
-            <div className={resultCss.metric} data-tone="published">
-              <span className={resultCss.metricIcon} aria-hidden="true">✓</span>
-              <strong>{publishedCount}</strong>
-              <span>{i18nT("publie_bf504032")}{publishedCount > 1 ? "s" : ""}</span>
-            </div>
-          ) : null}
           {pendingCount > 0 ? (
             <div className={resultCss.metric} data-tone="pending">
               <span className={resultCss.metricIcon} aria-hidden="true">◷</span>
@@ -583,29 +626,32 @@ export default function PublishExecutionResultModal({
               <strong>{failedOrSkippedCount}</strong><span>à revoir</span>
             </div>
           ) : null}
+          {warningCount > 0 ? (
+            <div className={resultCss.metric} data-tone="warning">
+              <span className={resultCss.metricIcon} aria-hidden="true">!</span>
+              <strong>{warningCount}</strong><span>avertissement{warningCount > 1 ? "s" : ""}</span>
+            </div>
+          ) : null}
           {!publishedCount && !pendingCount && !failedOrSkippedCount ? <p className={resultCss.emptySummary}>Consultez le suivi détaillé dans iNrSend.</p> : null}
         </div>
-        <div className={resultCss.progressTrack} aria-hidden="true">
+      </div> : null}
+      </div>
+        {!embedded ? <div className={resultCss.progressTrack} aria-hidden="true">
           <span data-tone="published" style={{ width: (publishedCount / totalCount * 100) + "%" }} />
           <span data-tone="pending" style={{ width: (pendingCount / totalCount * 100) + "%" }} />
           <span data-tone="failed" style={{ width: (failedOrSkippedCount / totalCount * 100) + "%" }} />
-        </div>
-      </div>
+        </div> : null}
 
-      {entries.length ? (
+      {!embedded && entries.length ? (
         <section className={resultCss.channelsSection} aria-label="Résultat par canal">
-          <div className={resultCss.sectionHeading}>
-            <h3>Vos canaux</h3>
-            {pendingCount > 0 ? <span className={resultCss.liveIndicator}><span aria-hidden="true" />Suivi en direct</span> : null}
-          </div>
+          {pendingCount > 0 ? <div className={resultCss.sectionHeading}><span className={resultCss.liveIndicator}><span aria-hidden="true" />Suivi en direct</span></div> : null}
           <div className={resultCss.channelGrid}>
             {orderedEntries.map((entry) => {
-              const entryIsPending = isPendingPublicationEntry(entry);
-              const entryIsSkipped = entry.status === "skipped";
-              const entryIsFailed = !entryIsPending && !entryIsSkipped && (
-                entry.ok === false || String(entry.status || "").toLowerCase() === "failed"
-              );
-              const entryHasWarning = entry.status === "published_with_warning";
+              const entryStatus = getPublicationDestinationStatus(entry);
+              const entryIsPending = entryStatus === "pending";
+              const entryIsSkipped = entryStatus === "skipped";
+              const entryIsFailed = entryStatus === "failed";
+              const entryHasWarning = entryStatus === "warning";
               const channelHref = String(effectiveSummary?.channelLinks?.[entry.channel] || "").trim();
               const channelLogo = CHANNEL_LOGO_BY_KEY[entry.channel];
               const visibleError = !entryIsPending && entry.error
@@ -641,26 +687,22 @@ export default function PublishExecutionResultModal({
                   : entryIsFailed ? "Échec"
                     : entryHasWarning ? "Publié avec avertissement" : "Publié";
               // Pending is evaluated before ok: an accepted job is not a published post.
-              const semanticStatusIcon = entry.status === "skipped"
+              const semanticStatusIcon = entryIsSkipped
                 ? "⏭"
                 : entryIsPending
                   ? "⏳"
-                  : entry.ok
-                    ? entryHasWarning ? "!" : "✓"
-                    : "×";
-              const accessibleStatusLabel = entry.status === "skipped"
+                  : entryIsFailed ? "×" : entryHasWarning ? "!" : "✓";
+              const accessibleStatusLabel = entryIsSkipped
                 ? "Ignoré avant envoi"
                 : entryIsPending
                   ? "En attente"
-                  : entry.ok
-                    ? entryHasWarning ? "Publié avec avertissement" : "Publié"
-                    : "Échec";
+                  : entryIsFailed ? "Échec" : entryHasWarning ? "Publié avec avertissement" : "Publié";
               const hasFailureDetails = (entryIsFailed || entryIsSkipped) && Boolean(visibleError || visibleBlockers.length);
               const failureDetailsOpen = Boolean(expandedEntryDetails[entry.channel]);
               const detailsId = titleId + "-details-" + entry.channel;
 
               return (
-                <article key={entry.channel} className={resultCss.channelCard} data-tone={tone}>
+                <article key={entry.channel} className={resultCss.channelCard} data-tone={tone} data-channel={entry.channel}>
                   <div className={resultCss.channelMain}>
                     <span className={resultCss.channelLogo} aria-hidden="true">
                       {channelLogo ? <img src={channelLogo} alt="" width={34} height={34} loading="eager" decoding="sync" /> : <span>{entry.label.slice(0, 1)}</span>}
@@ -668,7 +710,11 @@ export default function PublishExecutionResultModal({
                     <div className={resultCss.channelIdentity}>
                       <strong title={entry.label}>{entry.label}</strong>
                       <span className={resultCss.channelStatus} aria-label={entry.label + " — " + accessibleStatusLabel} data-status-icon={semanticStatusIcon}>
-                        <span aria-hidden="true">{entryIsPending ? "◷" : entryIsFailed || entryIsSkipped ? "!" : entryHasWarning ? "!" : "✓"}</span>
+                        <span className={resultCss.statusMark} aria-hidden="true">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            {entryIsPending ? <><circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" /></> : entryIsFailed || entryIsSkipped || entryHasWarning ? <><path d="m12 3 10 18H2L12 3Z" /><path d="M12 9v4m0 4h.01" /></> : <path d="m5 12 4 4L19 6" />}
+                          </svg>
+                        </span>
                         {statusLabel}
                       </span>
                     </div>

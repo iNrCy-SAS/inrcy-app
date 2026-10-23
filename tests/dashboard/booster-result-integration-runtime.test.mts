@@ -5,10 +5,13 @@ import test from "node:test";
 import ts from "typescript";
 import { canOpenPublishWizardStep } from "../../app/dashboard/booster/publier/components/publishWizard.ts";
 import { mergePreflightFailuresIntoPublicationSummary } from "../../lib/boosterPublicationOutcome.ts";
+import { isBoosterPublicationPendingStatus } from "../../lib/boosterPublicationStatus.ts";
 
 const parse = (path: string) => ts.createSourceFile(path, readFileSync(new URL(`../../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
 const modal = parse("app/dashboard/booster/publier/PublishModal.tsx");
 const layer = parse("app/dashboard/_components/DashboardBoosterModalLayer.tsx");
+const progress = parse("app/dashboard/_components/PublishExecutionProgress.tsx");
+const resultModal = parse("app/dashboard/_components/PublishExecutionResultModal.tsx");
 function find(source: ts.Node, predicate: (node: ts.Node) => boolean): ts.Node {
   let result: ts.Node | undefined;
   const visit = (node: ts.Node) => {
@@ -37,6 +40,8 @@ function evaluate(expression: string, scope: Record<string, unknown> = {}): any 
 function callback(name: string, scope: Record<string, unknown>) {
   return evaluate(variable(layer, name).getText(layer), { useCallback: (fn: unknown) => fn, ...scope });
 }
+const destinationStatus = evaluate(find(progress, node => ts.isFunctionDeclaration(node) && node.name?.text === "getPublicationDestinationStatus").getText(progress).replace(/^export\s+/, ""), { isBoosterPublicationPendingStatus });
+const mergeRetrySummary = evaluate(find(modal, node => ts.isFunctionDeclaration(node) && node.name?.text === "mergeRetriedPublicationSummary").getText(modal), { getPublicationDestinationStatus: destinationStatus });
 function resultProps(scope: Record<string, unknown>) {
   return evaluate(attribute(layer, "PublishModal", "publicationResult").getText(layer), {
     publishSuccessOpen: true, publishSummary: { publicationId: "previous" }, publishRetrying: false,
@@ -56,7 +61,7 @@ test("acknowledged immediate publications retain the mounted Booster while stand
     const calls: string[] = [];
     evaluate(`() => { ${completion.map(node => node.getText(modal)).join("\n")} }`, {
       options, publicationAccepted, result: { summary: { successCount: 1 } }, channelLinks: {},
-      preflightFailedChannels: [], retryFailedChannels: [], retryFailed: undefined,
+      preflightFailedChannels: [], remainingRetryChannels: [], retryFailed: undefined, completedSummary: { successCount: 1 },
       onPublishSuccess: hasHandler ? () => calls.push("result") : undefined,
       onClose: () => calls.push("close"),
     })();
@@ -68,6 +73,123 @@ test("acknowledged immediate publications retain the mounted Booster while stand
   assert.deepEqual(execute({ suppressPublishSuccess: true }, true), ["close"]);
   assert.deepEqual(execute({ closeOnSuccess: false }, false), []);
   assert.deepEqual(execute(undefined, true, false), ["result"]);
+});
+
+test("retry executes only its failed targets and explicitly carries the previous balance across the stale initial closure", async () => {
+  const completedSummary = { publicationId: "publication-A", channelLinks: { site_web: "https://example.test/post" }, entries: [
+    { channel: "site_web", label: "Site Web", ok: true, status: "published" },
+    { channel: "gmb", label: "Google Business", ok: false, status: "failed", retryable: true },
+    { channel: "tiktok", label: "TikTok", ok: true, status: "processing" },
+  ] };
+  const calls: any[] = [];
+  const retry = evaluate(variable(modal, "retryFailed").getText(modal), {
+    remainingRetryChannels: ["gmb"], completedSummary, latestPublicationSummaryRef: { current: completedSummary }, getPublicationDestinationStatus: destinationStatus, runPublish: async (request: unknown) => calls.push(request),
+    preparedPostsByChannel: { gmb: { content: "Prepared content" } }, options: undefined, tiktokPublicationSettings: null,
+    publicationResult: undefined,
+  });
+  await retry();
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].channels, ["gmb"]);
+  assert.equal(calls[0].retryPreviousSummary, completedSummary);
+  assert.equal(calls[0].throwOnError, true);
+  const runPublish = variable(modal, "runPublish");
+  const destinationUpdate = find(runPublish, node => ts.isCallExpression(node) && node.expression.getText(modal) === "setPublicationDestinations") as ts.CallExpression;
+  const update = evaluate(destinationUpdate.arguments[0].getText(modal), {
+    publicationResult: undefined, options: calls[0], publishTargetChannels: ["gmb"],
+    CHANNEL_LABELS: { gmb: "Google Business" }, getPublicationDestinationStatus: destinationStatus,
+  });
+  const destinations = completedSummary.entries.map(({ channel, label }) => ({ key: channel, label }));
+  const next = update(destinations);
+  assert.deepEqual(next.map((destination: any) => destination.key), ["site_web", "gmb", "tiktok"]);
+  assert.deepEqual(next.map((destination: any) => destination.status), ["published", "pending", "pending"]);
+});
+
+test("a pending channel that later fails updates the footer and retries only the current retryable failure", async () => {
+  const completedSummary = { publicationId: "publication-A", pendingCount: 1, entries: [
+    { channel: "site_web", label: "Site Web", status: "published", ok: true },
+    { channel: "tiktok", label: "TikTok", status: "processing", ok: true },
+    { channel: "youtube_shorts", label: "YouTube", status: "failed", ok: false, retryable: false },
+  ] };
+  const latestPublicationSummaryRef = { current: completedSummary };
+  const requests: any[] = [];
+  const retry = evaluate(variable(modal, "retryFailed").getText(modal), {
+    remainingRetryChannels: [], completedSummary, latestPublicationSummaryRef,
+    getPublicationDestinationStatus: destinationStatus,
+    runPublish: async (request: unknown) => requests.push(request),
+    preparedPostsByChannel: {}, options: undefined, tiktokPublicationSettings: null,
+  });
+  assert.equal(typeof retry, "function", "a pending result retains a callback for a later confirmed failure");
+  await retry();
+  assert.equal(requests.length, 0, "pending and non-retryable channels are never resent");
+  let livePublicationResult: any = null;
+  const onSummaryChange = evaluate(variable(modal, "handlePublicationSummaryChange").getText(modal), {
+    useCallback: (fn: unknown) => fn, latestPublicationSummaryRef,
+    publicationResult: { summary: completedSummary },
+    setLivePublicationResult: (update: any) => { livePublicationResult = update(livePublicationResult); },
+  });
+  const forwardingEffect = find(resultModal, node => ts.isCallExpression(node) && node.expression.getText(resultModal) === "useEffect" && Boolean(node.arguments[1]?.getText(resultModal).includes("onSummaryChange"))) as ts.CallExpression;
+  const failed = { ...completedSummary, pendingCount: 0, retryableFailureCount: 1, entries: completedSummary.entries.map(entry => entry.channel === "tiktok" ? { ...entry, status: "failed", ok: false, retryable: true } : entry) };
+  evaluate(forwardingEffect.arguments[0].getText(resultModal), { liveSummary: failed, summary: completedSummary, onSummaryChange })();
+  assert.equal(latestPublicationSummaryRef.current, failed);
+  const unchangedLiveResult = livePublicationResult;
+  onSummaryChange(failed);
+  assert.equal(livePublicationResult, unchangedLiveResult, "receiving the same summary must not create a render loop");
+  const publicationSummaryForActions = evaluate(variable(modal, "publicationSummaryForActions").getText(modal), { livePublicationResult, publicationResult: { summary: completedSummary } });
+  assert.equal(publicationSummaryForActions.retryableFailureCount, 1);
+  assert.equal(evaluate(attribute(modal, "PublishExecutionResultActions", "summary").getText(modal), { publicationSummaryForActions }), failed);
+  await retry();
+  assert.deepEqual(requests.map(request => request.channels), [["tiktok"]]);
+  assert.equal(requests[0].retryPreviousSummary, failed);
+  evaluate(forwardingEffect.arguments[0].getText(resultModal), { liveSummary: { ...failed, publicationId: "older-publication" }, summary: completedSummary, onSummaryChange })();
+  assert.equal(latestPublicationSummaryRef.current, failed, "an old effect cannot replace the latest operation");
+});
+
+test("retry summary replaces only retried channels and preserves successes, preflight failures, order and original pending provenance", () => {
+  const previous = { publicationId: "publication-A", entries: [
+    { channel: "site_web", label: "Site Web", ok: true, status: "published" },
+    { channel: "gmb", label: "Google Business", ok: false, status: "failed", retryable: true },
+    { channel: "tiktok", label: "TikTok", ok: true, status: "processing" },
+    { channel: "youtube_shorts", label: "YouTube", ok: false, status: "failed", retryable: false, blockers: ["Vidéo obligatoire"] },
+  ] };
+  const merged = mergeRetrySummary(previous, { entries: [
+    { channel: "gmb", label: "Google Business", ok: true, status: "published" },
+    { channel: "site_web", label: "Site Web", ok: false, status: "failed" },
+  ] }, "publication-B", ["gmb"]);
+  assert.deepEqual(merged.entries.map((entry: any) => entry.channel), previous.entries.map(entry => entry.channel));
+  assert.deepEqual(merged.entries.map((entry: any) => entry.status), ["published", "published", "processing", "failed"]);
+  assert.deepEqual(merged.entries.map((entry: any) => entry.publicationId), ["publication-A", "publication-B", "publication-A", "publication-A"]);
+  assert.equal(merged.successCount, 3);
+  assert.equal(merged.pendingCount, 1);
+  assert.equal(merged.failureCount, 1);
+  assert.equal(merged.total, 4);
+  assert.equal(merged.allFailed, false);
+  assert.equal(merged.allSucceeded, false);
+  assert.deepEqual(merged.entries[3].blockers, ["Vidéo obligatoire"]);
+  assert.equal(previous.entries[1].status, "failed", "the prior balance must not be mutated");
+  const missing = mergeRetrySummary(previous, { entries: [] }, "publication-B", ["gmb"]);
+  assert.equal(missing.entries[1].status, "failed", "an absent retry result must not invent a success");
+});
+
+test("partial retry retains the existing account links and refreshes only the channels sent again", () => {
+  const links = evaluate(variable(modal, "channelLinks").getText(modal), {
+    options: { retryPreviousSummary: { channelLinks: { pinterest: "https://www.pinterest.fr/inrcy/", site_web: "https://example.test/post", gmb: "https://example.test/old-business" } } },
+    publishableChannels: ["gmb"], channelDetails: { gmb: { href: "https://example.test/business" } },
+    normalizeExternalHref: (value: unknown) => String(value || ""), recoveredPinterestHref: "",
+  });
+  assert.deepEqual(links, { pinterest: "https://www.pinterest.fr/inrcy/", site_web: "https://example.test/post", gmb: "https://example.test/business" });
+});
+
+test("a successful partial retry keeps all eleven original channels and recalculates a full successful balance", () => {
+  const previous = { publicationId: "publication-A", entries: Array.from({ length: 11 }, (_, index) => ({
+    channel: `channel-${index}`, label: `Canal ${index}`, ok: index !== 4, status: index === 4 ? "failed" : "published",
+  })) };
+  const merged = mergeRetrySummary(previous, { entries: [{ channel: "channel-4", label: "Canal 4", ok: true, status: "published" }] }, "publication-B", ["channel-4"]);
+  assert.equal(merged.entries.length, 11);
+  assert.equal(merged.successCount, 11);
+  assert.equal(merged.failureCount, 0);
+  assert.equal(merged.pendingCount, 0);
+  assert.equal(merged.allSucceeded, true);
+  assert.deepEqual(merged.failedChannels, []);
 });
 
 test("a result is terminal, a retry temporarily shows execution, and no result leaves editable navigation intact", () => {

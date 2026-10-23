@@ -55,11 +55,14 @@ test("the client-only callback is deleted before the server payload is built", (
   assert.match(layer, /onProgress: onPublicationProgress/);
 });
 
-test("the execution UI keeps one clean global bar without a horizontal channel strip", () => {
+test("Booster binds its destination hub to the existing global progress while preserving compact consumers", () => {
   assert.doesNotMatch(modal, /setPublishChannelProgress/);
   assert.doesNotMatch(footer, /publishChannelProgress|channels=/);
   assert.doesNotMatch(execution, /État de publication par canal|channels\.map/);
   assert.match(execution, /role="progressbar"/);
+  assert.match(footer, /variant="immersive"/);
+  assert.match(footer, /destinations=\{publicationDestinations\}/);
+  assert.match(execution, /variant = "compact"/);
   assert.match(css, /\.publishProgressFillActive::after/);
   assert.match(css, /@keyframes publishProgressSweep/);
 });

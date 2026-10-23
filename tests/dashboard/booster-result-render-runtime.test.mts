@@ -28,14 +28,21 @@ const wizard = {
   default: ({ children, footer }: any) => createElement("div", { "data-publish-wizard": true }, children, createElement("footer", null, footer)),
   PublishWizardScreen: ({ children }: any) => createElement("section", { "data-wizard-screen": "results" }, children),
 };
+const cssModule = { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
+const intl = { useTranslations: () => (key: string, values: Record<string, unknown> = {}) => (messages[key] || key).replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? "")) };
 const resultDependencies = {
   "./DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ metaPilotEnabled: true }) },
   "@/lib/metaChannelUiAccess": { isMetaPilotChannelVisible: () => true },
-  "next-intl": { useTranslations: () => (key: string, values: Record<string, unknown> = {}) => (messages[key] || key).replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? "")) },
+  "next-intl": intl,
   "../booster/publier/components/PublishWizardFrame": wizard,
   "@/lib/publicationErrorFrench": load("lib/publicationErrorFrench.ts", {}),
   "@/lib/boosterPublicationStatus": load("lib/boosterPublicationStatus.ts", {}),
-  "./PublishExecutionResultModal.module.css": { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) },
+  "./PublishExecutionResultModal.module.css": cssModule,
+  "./PublishExecutionProgress.module.css": cssModule,
+  "./PublishExecutionProgress": load("app/dashboard/_components/PublishExecutionProgress.tsx", {
+    "next-intl": intl, "./PublishExecutionProgress.module.css": cssModule,
+    "@/lib/boosterPublicationStatus": load("lib/boosterPublicationStatus.ts", {}),
+  }),
 };
 const resultModule = load("app/dashboard/_components/PublishExecutionResultModal.tsx", resultDependencies);
 const Component = resultModule.default;
@@ -47,7 +54,7 @@ const render = (summary: Record<string, unknown> | null, options: Record<string,
 
 test("result renders real published channels, their logos and external destination without duplicating the CTA", () => {
   const html = render({ successCount: 1, entries: [{ channel: "facebook", label: "Facebook", ok: true, status: "published" }], channelLinks: { facebook: "https://www.facebook.com/example/posts/1" } }, { wizardSteps: ["channels", "content", "publication"] });
-  assert.match(html, /Votre publication est en ligne/);
+  assert.match(html, /1 publication en ligne/);
   assert.match(html, /data-result-tone="published"/);
   assert.match(html, /src="\/icons\/facebook.png"/);
   assert.match(html, /Facebook — Publié/);
@@ -58,11 +65,11 @@ test("result renders real published channels, their logos and external destinati
 
 test("pending jobs with ok=true are never rendered as published", () => {
   const html = render({ successCount: 1, pendingCount: 1, entries: [{ channel: "tiktok", label: "TikTok", ok: true, status: "processing", warning_kind: "pending" }] });
-  assert.match(html, /Publication en cours/);
+  assert.match(html, /Bilan de publication/);
   assert.match(html, /data-result-tone="pending"/);
   assert.match(html, /TikTok — En attente/);
   assert.match(html, /Suivi en direct/);
-  assert.doesNotMatch(html, /Votre publication est en ligne|TikTok — Publié|Tout est en ligne/);
+  assert.doesNotMatch(html, /publication[s]? en ligne|TikTok — Publié|Tout est en ligne/);
 });
 
 test("mixed outcomes preserve each status, expandable failure details and the targeted retry action", () => {
@@ -71,7 +78,7 @@ test("mixed outcomes preserve each status, expandable failure details and the ta
     { channel: "tiktok", label: "TikTok", ok: true, status: "queued" },
     { channel: "gmb", label: "Google Business", ok: false, status: "failed", error: "Une erreur empêche la publication." },
   ] }, { onRetryFailed() {}, retrying: true });
-  assert.match(html, /Publication avec résultats mixtes/);
+  assert.match(html, /1 publication en ligne/);
   assert.match(html, /Facebook — Publié/);
   assert.match(html, /TikTok — En attente/);
   assert.match(html, /Google Business — Échec/);
@@ -82,32 +89,94 @@ test("mixed outcomes preserve each status, expandable failure details and the ta
 
 test("failed, skipped and warning outcomes remain distinct and an absent summary never announces success", () => {
   const failed = render({ allFailed: true, failureCount: 1, entries: [{ channel: "x", label: "X", status: "failed", ok: false }] });
-  assert.match(failed, /Publication échouée/);
+  assert.match(failed, /Bilan de publication/);
   assert.match(failed, /data-result-tone="failed"/);
-  assert.doesNotMatch(failed, /Votre publication est en ligne/);
+  assert.doesNotMatch(failed, /publication[s]? en ligne/);
   const skipped = render({ skippedCount: 1, entries: [{ channel: "youtube", label: "YouTube", status: "skipped", ok: false, blockers: ["Vidéo obligatoire"] }] });
   assert.match(skipped, /Non envoyé/);
   assert.match(skipped, /YouTube — Ignoré avant envoi/);
   assert.match(skipped, /Vidéo obligatoire/);
   const warning = render({ successCount: 1, warningCount: 1, entries: [{ channel: "pinterest", label: "Pinterest", status: "published_with_warning", ok: true, warning_message: "Un média n’a pas été publié." }] });
-  assert.match(warning, /Publication publiée avec avertissement/);
+  assert.match(warning, /1 publication en ligne/);
   assert.match(warning, /Publié avec avertissement/);
   assert.doesNotMatch(warning, /Tout est en ligne/);
   const empty = render(null);
   assert.match(empty, /Bilan de publication/);
-  assert.doesNotMatch(empty, /avec succès|Votre publication est en ligne|Tout est en ligne/);
+  assert.doesNotMatch(empty, /avec succès|publication[s]? en ligne|Tout est en ligne/);
 });
 
 test("embedded results render the balance once without creating another dialog, wizard or action bar", () => {
   const html = render({ successCount: 1, retryableFailureCount: 1, entries: [
     { channel: "site_web", label: "Site Web", ok: true, status: "published" },
   ] }, { embedded: true, wizardSteps: ["channels", "content", "results"], onRetryFailed() {} });
-  assert.match(html, /class="resultBody" data-result-tone="published"/);
-  assert.equal((html.match(/Votre publication est en ligne/g) || []).length, 1);
+  assert.match(html, /class="resultBody immersive" data-result-tone="published"/);
+  assert.equal((html.match(/1\/1 publié/g) || []).length, 1);
   assert.match(html, /Site Web — Publié/);
+  assert.equal((html.match(/data-publication-visual-hub/g) || []).length, 1);
+  assert.doesNotMatch(html, /class="channelGrid"|class="channelCard"/);
   assert.doesNotMatch(html, /role="dialog"|aria-modal=|data-publish-wizard|data-wizard-screen|publish-result-close/);
   assert.doesNotMatch(html, /class="(?:overlay|shell|scrollSurface|standaloneFooter|inrSendButton|retryButton)"|data-publish-result-actions/);
   assert.doesNotMatch(html, /BOOSTER|🚀|Tout est en ligne/);
+});
+
+test("the shared result hub keeps all eleven destinations in their initial order and separates completed processing from ten successful publications", () => {
+  const destinations = [
+    ["site_web", "Site Web"], ["gmb", "Google Business"], ["inr_search", "iNr’Search"],
+    ["facebook", "Facebook"], ["instagram", "Instagram"], ["threads", "Threads"],
+    ["linkedin", "LinkedIn"], ["tiktok", "TikTok"], ["youtube_shorts", "YouTube"],
+    ["pinterest", "Pinterest"], ["x", "X"],
+  ].map(([key, label]) => ({ key, label }));
+  const entries = destinations.map(({ key, label }, index) => ({ channel: key, label, ok: index !== 1, status: index === 1 ? "failed" : "published", error: index === 1 ? "Une erreur empêche la publication." : null })).reverse();
+  const html = render({ successCount: 10, failureCount: 1, entries, channelLinks: { facebook: "https://www.facebook.com/example/posts/1" } }, { embedded: true, publicationDestinations: destinations });
+  assert.match(html, /10\/11 publiés/);
+  assert.match(html, /Bilan prêt/);
+  assert.equal((html.match(/<li\b/g) || []).length, 11);
+  const renderedOrder = [...html.matchAll(/<summary[^>]+aria-label="([^—"]+) — /g)].map((match) => match[1]);
+  assert.deepEqual(renderedOrder, destinations.map(({ label }) => label));
+  assert.equal((html.match(/<li\b[^>]+data-status="published"/g) || []).length, 10);
+  assert.equal((html.match(/<li\b[^>]+data-status="failed"/g) || []).length, 1);
+  assert.match(html, /Google Business — Échec/);
+  assert.match(html, /Une erreur empêche la publication/);
+  assert.match(html, /aria-label="Voir Facebook"/);
+  assert.match(html, /class="corePercent">100<span>%/);
+  assert.doesNotMatch(html, /11\/11 publiés|Tout est en ligne/);
+});
+
+test("result aliases reuse their original destination and pending or missing channels never count as published", () => {
+  const html = render({ successCount: 2, pendingCount: 1, entries: [
+    { channel: "youtube", label: "YouTube", ok: true, status: "published" },
+    { channel: "google_business", label: "Google Business", ok: true, status: "processing" },
+  ] }, { embedded: true, publicationDestinations: [
+    { key: "gmb", label: "Google Business" }, { key: "youtube_shorts", label: "YouTube" }, { key: "x", label: "X" },
+  ] });
+  assert.equal((html.match(/<li\b/g) || []).length, 3);
+  assert.match(html, /1\/3 publié/);
+  assert.match(html, /Bilan prêt/);
+  assert.match(html, /data-complete="false"/);
+  assert.match(html, /Google Business — En attente/);
+  assert.doesNotMatch(html, /Google Business — Publié|X — Publié/);
+  assert.equal((html.match(/<li\b[^>]+data-status="published"/g) || []).length, 1);
+  assert.equal((html.match(/<li\b[^>]+data-status="pending"/g) || []).length, 2);
+  assert.match(html, /X — En attente/);
+  assert.match(html, /<strong>2<\/strong><span>en traitement/);
+});
+
+test("unknown results stay pending while confirmed technical outcomes retain their real state", () => {
+  const summary = { successCount: 4, entries: [
+    { channel: "facebook", label: "Facebook", ok: true },
+    { channel: "tiktok", label: "TikTok", ok: true, status: "awaiting_platform" },
+    { channel: "gmb", label: "Google Business", ok: true, technicalStatus: "published" },
+    { channel: "pinterest", label: "Pinterest", ok: true, technicalStatus: "failed" },
+  ] };
+  for (const embedded of [true, false]) {
+    const html = render(summary, { embedded });
+    assert.match(html, /Facebook — En attente/);
+    assert.match(html, /TikTok — En attente/);
+    assert.match(html, /Google Business — Publié/);
+    assert.match(html, /Pinterest — Échec/);
+    assert.doesNotMatch(html, /Facebook — Publié|TikTok — Publié|Pinterest — Publié/);
+    assert.match(html, embedded ? /1\/4 publié/ : /1 publication en ligne/);
+  }
 });
 
 test("exported result actions preserve retry eligibility, busy state and the iNrSend callback", () => {
@@ -133,6 +202,16 @@ test("exported result actions preserve retry eligibility, busy state and the iNr
   buttons.find((button: any) => button.props.className === "inrSendButton").props.onClick();
   assert.equal(retries, 1);
   assert.equal(navigations, 1);
+});
+
+test("compact result actions retain full accessible retry wording and expose a short mobile label", () => {
+  const html = renderToStaticMarkup(createElement(Actions, {
+    summary: { retryableFailureCount: 1 }, compact: true, onRetryFailed() {}, onOpenInrSend() {},
+  }));
+  assert.match(html, /data-compact="true"/);
+  assert.match(html, /aria-label="Retenter 1 canal en échec"/);
+  assert.match(html, /class="actionCompactLabel" aria-hidden="true">1 échec/);
+  assert.match(html, /Voir dans iNr’Send/);
 });
 
 test("mounting an embedded completed result never takes focus or changes document scrolling", () => {

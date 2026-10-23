@@ -19,17 +19,14 @@ test("queued and processing channels are displayed as pending before the ok flag
     publicationStatuses,
     /"queued"[\s\S]*"preparing"[\s\S]*"dispatching"[\s\S]*"processing"[\s\S]*"finalizing"[\s\S]*"pending"/,
   );
+  assert.match(resultModal, /return getPublicationDestinationStatus\(entry\) === "pending"/);
   assert.match(
     resultModal,
-    /isBoosterPublicationPendingStatus\(technicalStatus\)/,
+    /const semanticStatusIcon = entryIsSkipped[\s\S]*?: entryIsPending[\s\S]*?\? "⏳"[\s\S]*?: entryIsFailed/,
   );
   assert.match(
     resultModal,
-    /entry\.status === "skipped"[\s\S]*?: entryIsPending[\s\S]*?\? "⏳"[\s\S]*?: entry\.ok/,
-  );
-  assert.match(
-    resultModal,
-    /entryIsPending[\s\S]*?\? "En attente"[\s\S]*?: entry\.ok/,
+    /const accessibleStatusLabel = entryIsSkipped[\s\S]*?: entryIsPending[\s\S]*?\? "En attente"[\s\S]*?: entryIsFailed/,
   );
   assert.match(resultModal, /const visibleError = !entryIsPending && entry\.error/);
 });
