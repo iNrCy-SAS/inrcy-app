@@ -58,8 +58,9 @@ function runtime(path: string, overrides: Props = {}) {
   const code = ts.transpileModule(read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const fixtureModule = { exports: {} as Props };
   const fetch = overrides.fetch || (() => { throw Error("Unexpected request"); });
-  new Function("module", "exports", "require", "fetch", "window", code)(fixtureModule, fixtureModule.exports, localRequire, fetch, { setTimeout() {}, clearTimeout() {}, requestAnimationFrame(callback: () => void) { callback(); }, dispatchEvent() {}, location: { href: "", search: "" } });
-  return { exports: fixtureModule.exports, render: (name: string, props: RuntimeValue) => { cursor = 0; return fixtureModule.exports[name](props); }, flushEffects: async () => { await Promise.all(effects.splice(0).map(effect => effect())); } };
+  const browser = { setTimeout() {}, clearTimeout() {}, requestAnimationFrame(callback: () => void) { callback(); }, dispatchEvent() {}, location: { href: "", search: "" } };
+  new Function("module", "exports", "require", "fetch", "window", code)(fixtureModule, fixtureModule.exports, localRequire, fetch, browser);
+  return { browser, exports: fixtureModule.exports, render: (name: string, props: RuntimeValue) => { cursor = 0; return fixtureModule.exports[name](props); }, flushEffects: async () => { await Promise.all(effects.splice(0).map(effect => effect())); } };
 }
 
 function nodes(tree: React.ReactNode): React.ReactElement<Props>[] {
@@ -510,6 +511,14 @@ test("Mails exposes three OAuth slots and one IMAP slot with account-specific ac
   assert.deepEqual(model.mailboxes[2].connectOptions.map((option: Props) => option.label), ["Gmail", "Microsoft"]);
   assert.equal(model.mailboxes[1].needsUpdate, true);
   assert.ok(model.mailboxes[3].onConfigure);
+  model.mailboxes[1].onReconnect();
+  const reconnectUrl = new URL(h.browser.location.href, "http://localhost:3000");
+  assert.equal(reconnectUrl.pathname, "/api/integrations/microsoft/start");
+  assert.equal(reconnectUrl.searchParams.get("loginHint"), "second@example.test");
+  assert.equal(reconnectUrl.searchParams.get("returnTo"), "/dashboard?panel=mails");
+  model.mailboxes[3].onConfigure();
+  const imapDialog = h.render("default", props);
+  assert.ok(nodes(imapDialog).some(node => node.type === "input" && node.props.value === "imap@example.test"), "An existing IMAP mailbox opens its own prefilled settings");
   assert.equal(model.onDisconnect, undefined, "A global mailbox X must not disconnect the wrong account");
   const signature = nodes(model.parameters).find(node => node.props["data-mail-signature"] !== undefined)!;
   assert.ok(signature);

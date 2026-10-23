@@ -9,9 +9,11 @@ const read = (relativePath: string) =>
 
 test("une boîte IMAP connectée garde un accès permanent à ses paramètres", () => {
   const ui = read("app/dashboard/settings/_components/MailsSettingsContent.tsx");
+  const mailbox = read("app/dashboard/_components/ChannelMailboxConnections.tsx");
   const status = read("app/api/integrations/status/route.ts");
 
-  assert.match(ui, /acc\.provider === "imap"[\s\S]*imap_settings_button[\s\S]*openImapModal\(acc\)/);
+  assert.match(ui, /onConfigure: account\?\.provider === "imap" \? \(\) => openImapModal\(account\)/);
+  assert.match(mailbox, /slot\.onConfigure[\s\S]*action: slot\.onConfigure/);
   assert.match(ui, /account\?\.imap_settings/);
   assert.match(ui, /accountId: imapEditingAccountId/);
   assert.match(ui, /!imapEditingAccountId && !imapPassword/);
@@ -33,12 +35,14 @@ test("une modification IMAP conserve le secret et l'identifiant existants", () =
 test("les boîtes conservées mais invalides proposent une reconnexion OAuth", () => {
   const status = read("app/api/integrations/status/route.ts");
   const ui = read("app/dashboard/settings/_components/MailsSettingsContent.tsx");
+  const mailbox = read("app/dashboard/_components/ChannelMailboxConnections.tsx");
   const googleStart = read("app/api/integrations/google/start/route.ts");
   const microsoftStart = read("app/api/integrations/microsoft/start/route.ts");
 
   assert.match(status, /computedConnectionStatus === "disconnected"[\s\S]*\? "needs_update"/);
-  assert.match(ui, /acc\.provider !== "imap" && acc\.connection_status === "needs_update"/);
-  assert.match(ui, /reconnect_mailbox/);
+  assert.match(ui, /needsUpdate: account \? account\.connection_status === "needs_update"/);
+  assert.match(ui, /onReconnect: refreshUrl \? \(\) => \{ window\.location\.href = refreshUrl;/);
+  assert.match(mailbox, /slot\.needsUpdate && slot\.onReconnect[\s\S]*action: slot\.onReconnect/);
   assert.match(ui, /loginHint: acc\.email_address/);
   for (const start of [googleStart, microsoftStart]) {
     assert.match(start, /searchParams\.get\("loginHint"\)/);
