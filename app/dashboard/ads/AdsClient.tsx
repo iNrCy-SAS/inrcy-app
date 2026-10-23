@@ -309,14 +309,14 @@ const EXTERNAL_DISCONNECT_CHANNELS: readonly ExternalChannelId[] = ["linkedin", 
 
 // Every channel can be prepared here. Publication is enabled only for the
 // deliberately supported connector paths and the readiness returned by each platform.
-const CHANNEL_CATALOG: { id: AdsChannelId; label: string; format: string; logo: string; provider?: AdsProvider }[] = [
-  { id: "meta", label: "Meta Ads", format: "Facebook · Instagram", logo: "/ads-logos/meta.svg", provider: "meta" },
-  { id: "google", label: "Google Ads", format: "Recherche · annonces textuelles", logo: "/ads-logos/google-ads.svg", provider: "google" },
-  { id: "linkedin", label: "LinkedIn Ads", format: "Votre audience professionnelle", logo: "/ads-logos/linkedin.svg" },
-  { id: "tiktok", label: "TikTok Ads", format: "De nouvelles communautés", logo: "/ads-logos/tiktok.svg" },
-  { id: "pinterest", label: "Pinterest Ads", format: "Inspirez vos futurs clients", logo: "/ads-logos/pinterest.svg" },
-  { id: "x", label: "X Ads", format: "Rejoignez les conversations", logo: "/ads-logos/x.svg" },
-  { id: "openai", label: "ChatGPT Ads", format: "Découverte dans ChatGPT", logo: "/ads-logos/chatgpt-ads.svg" },
+const CHANNEL_CATALOG: { id: AdsChannelId; label: string; slogan: string; logo: string; provider?: AdsProvider }[] = [
+  { id: "meta", slogan: "Votre audience vous attend 🎯", label: "Meta Ads", logo: "/ads-logos/meta.svg", provider: "meta" },
+  { id: "google", slogan: "Soyez trouvé au bon moment 🔎", label: "Google Ads", logo: "/ads-logos/google-ads.svg", provider: "google" },
+  { id: "linkedin", slogan: "Touchez les bons décideurs 🤝", label: "LinkedIn Ads", logo: "/ads-logos/linkedin.svg" },
+  { id: "tiktok", slogan: "Captez l’attention en vidéo ⚡", label: "TikTok Ads", logo: "/ads-logos/tiktok.svg" },
+  { id: "pinterest", slogan: "Inspirez la prochaine envie 📌", label: "Pinterest Ads", logo: "/ads-logos/pinterest.svg" },
+  { id: "x", slogan: "Faites parler de votre marque 💬", label: "X Ads", logo: "/ads-logos/x.svg" },
+  { id: "openai", slogan: "Au cœur des bonnes réponses 💡", label: "ChatGPT Ads", logo: "/ads-logos/chatgpt-ads.svg" },
 ];
 
 const CAMPAIGN_CHANNEL_NAMES: Record<AdsChannelId, string> = {
@@ -1233,8 +1233,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     linkedin: externalStatusFromSnapshot(initialConnections.linkedin), tiktok: externalStatusFromSnapshot(initialConnections.tiktok),
     pinterest: externalStatusFromSnapshot(initialConnections.pinterest), x: externalStatusFromSnapshot(initialConnections.x),
   });
-  const [externalConfiguring, setExternalConfiguring] = useState(initialConnection !== null && isExternalChannel(initialChannel));
-  const [openaiConfiguring, setOpenaiConfiguring] = useState(false);
   const [openaiAccountReady, setOpenaiAccountReady] = useState(false);
   const [openaiLiveReady, setOpenaiLiveReady] = useState(false);
   const [openaiReadinessMessage, setOpenaiReadinessMessage] = useState("");
@@ -1307,7 +1305,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const [openaiResourcesRevision, setOpenaiResourcesRevision] = useState(0);
   const [openaiGeoQuery, setOpenaiGeoQuery] = useState("");
   const [confirmedDestinationUrl, setConfirmedDestinationUrl] = useState("");
-  const [configuring, setConfiguring] = useState(initialConnection !== null && isAdsProvider(initialChannel));
   const [creating, setCreating] = useState(false);
   const [linkedInAudienceSuggestions, setLinkedInAudienceSuggestions] = useState<LinkedInAudienceSuggestion[]>([]);
   const [linkedInAudiencePending, setLinkedInAudiencePending] = useState(0);
@@ -1786,11 +1783,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     : undefined;
   const channelMeta = CHANNEL_CATALOG.find((channel) => channel.id === channelId) || CHANNEL_CATALOG[0];
   const campaignCreationTitle = `Créer une campagne ${CAMPAIGN_CHANNEL_NAMES[channelId]}`;
-  // Configuration arrows follow only the channels this account can use.
-  const accessibleChannels = CHANNEL_CATALOG.filter((channel) => pilotChannelsEnabled || isAdsPublicChannel(channel.id));
-  const connectionChannelIndex = Math.max(0, accessibleChannels.findIndex((channel) => channel.id === channelId));
-  const previousConnectionChannel = accessibleChannels[(connectionChannelIndex - 1 + accessibleChannels.length) % accessibleChannels.length];
-  const nextConnectionChannel = accessibleChannels[(connectionChannelIndex + 1) % accessibleChannels.length];
   const externalSettingsChannel: ExternalChannelId = isExternalChannel(channelId) ? channelId : "linkedin";
   const activeExternalStatus = isExternalChannel(channelId) ? externalStatuses[channelId] : null;
   // LinkedIn has its own rollout gate. A durable account snapshot is not a
@@ -1936,7 +1928,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setChannelId(callbackChannel);
     setDraft((current) => current.provider === callbackChannel ? current : newDraft(callbackChannel));
     setConfirmedDestinationUrl("");
-    setConfiguring(false);
     setNotice("");
     if (params.has("connection")) {
       externalAccountsCache.current[callbackChannel] = {
@@ -1945,7 +1936,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         loaded: false,
         failed: false,
       };
-      setExternalConfiguring(true);
       void refreshExternalStatus(callbackChannel);
       if (params.get("connection") === "error") {
         const reason = params.get("reason");
@@ -2021,15 +2011,11 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   }, [refreshExternalStatus]);
 
   useEffect(() => {
-    if (!externalConfiguring || !isExternalChannel(channelId) || (!pilotChannelsEnabled && !isAdsPublicChannel(channelId))) return;
+    if (!isExternalChannel(channelId) || (!pilotChannelsEnabled && !isAdsPublicChannel(channelId))) return;
     if (!externalStatuses[channelId].connected) { setExternalAccountsLoading(false); return; }
     void loadExternalAccounts(channelId, externalStatuses[channelId].selectedAccountId);
     return () => { externalAccountsRequest.current += 1; };
-  }, [externalConfiguring, channelId, pilotChannelsEnabled, externalStatuses.linkedin.connected, externalStatuses.linkedin.selectedAccountId, externalStatuses.pinterest.connected, externalStatuses.pinterest.selectedAccountId, externalStatuses.tiktok.connected, externalStatuses.tiktok.selectedAccountId, externalStatuses.x.connected, externalStatuses.x.selectedAccountId, loadExternalAccounts]);
-
-  function openExternalConfiguration(channel: ExternalChannelId) {
-    openChannelConfiguration(channel);
-  }
+  }, [channelId, pilotChannelsEnabled, externalStatuses.linkedin.connected, externalStatuses.linkedin.selectedAccountId, externalStatuses.pinterest.connected, externalStatuses.pinterest.selectedAccountId, externalStatuses.tiktok.connected, externalStatuses.tiktok.selectedAccountId, externalStatuses.x.connected, externalStatuses.x.selectedAccountId, loadExternalAccounts]);
 
   async function associateExternalAccount() {
     if (!isExternalChannel(channelId) || !externalAccountChoice || externalAction) return;
@@ -2073,6 +2059,16 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setChannelIndex(nextIndex);
     const next = CHANNEL_CATALOG[nextIndex].id;
     if (next === channelId) return;
+    externalAccountsRequest.current += 1;
+    if (isExternalChannel(next)) {
+      const cached = externalAccountsCache.current[next];
+      const locked = !pilotChannelsEnabled && !isAdsPublicChannel(next);
+      setExternalAccounts(locked ? [] : cached.accounts);
+      setExternalAccountChoice(locked ? "" : cached.choice || externalStatuses[next].selectedAccountId);
+      setExternalAccountsLoadFailed(!locked && cached.failed);
+      setExternalAccountsLoading(!locked && externalStatuses[next].connected && !cached.loaded);
+      setExternalError("");
+    }
     setLinkedInAudienceSuggestions([]); setLinkedInAudiencePending(0);
     linkedInPreflightContext.current++;
     if (isAdsProvider(next)) {
@@ -2098,37 +2094,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setConfirmedSpend(false); linkedInLaunchConsent.current = null;
     setConfirmedDestinationUrl("");
     setNotice("");
-  }
-
-  function openChannelConfiguration(channel: AdsChannelId) {
-    if (!pilotChannelsEnabled && !isAdsPublicChannel(channel)) return;
-    const nextIndex = CHANNEL_CATALOG.findIndex((candidate) => candidate.id === channel);
-    if (nextIndex >= 0 && channel !== channelId) selectChannel(nextIndex);
-
-    if (isAdsProvider(channel)) {
-      setOpenaiConfiguring(false);
-      setExternalConfiguring(false);
-      setConfiguring(true);
-      return;
-    }
-
-    if (channel === "openai") {
-      setConfiguring(false);
-      setExternalConfiguring(false);
-      setOpenaiConfiguring(true);
-      return;
-    }
-
-    setOpenaiConfiguring(false);
-    setConfiguring(false);
-    setExternalError("");
-    const cached = externalAccountsCache.current[channel];
-    const locked = !pilotChannelsEnabled && !isAdsPublicChannel(channel);
-    setExternalAccounts(locked ? [] : cached.accounts);
-    setExternalAccountsLoadFailed(!locked && cached.failed);
-    setExternalAccountChoice(locked ? "" : cached.choice || externalStatuses[channel].selectedAccountId);
-    setExternalAccountsLoading(!locked && externalStatuses[channel].connected && !cached.loaded);
-    setExternalConfiguring(true);
   }
 
   useEffect(() => {
@@ -2215,10 +2180,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setNotice("");
   }
 
-  function openConfiguration(channel: AdsProvider) {
-    openChannelConfiguration(channel);
-  }
-
   function updateDraft(next: Partial<AdsCampaignInput>) {
     if (Object.hasOwn(next, "linkedinCampaignGroupId")) linkedInManualGroupId.current = next.linkedinCampaignGroupId || null;
     if (Object.hasOwn(next, "endDate") || (next.linkedinDeliverySettings && next.linkedinDeliverySettings.budget.endAt !== draft.linkedinDeliverySettings?.budget.endAt)) linkedInPlanEndIsExplicit.current = true;
@@ -2255,7 +2216,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     const context = linkedInPreflightContext.current;
     const selectedAccountId = accountIdOverride || externalStatuses.linkedin.selectedAccountId || preflightDraft.adAccountId;
     if (!selectedAccountId) {
-      throw new Error("Associez d’abord un compte LinkedIn Ads dans la configuration du canal.");
+      throw new Error("Associez d’abord un compte LinkedIn Ads dans la carte du canal.");
     }
     const settings = preflightDraft.channelSettings?.channel === "linkedin" ? preflightDraft.channelSettings : null;
     const { queries: geoQueries, manualOnly } = buildLinkedInGeoQueries(preflightDraft.targetLocations, geoQueryOverride);
@@ -3476,7 +3437,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         if (!connection.connected || !accountId || !account) {
           throw new Error(accountId
             ? "Le compte annonceur associé est momentanément inaccessible. Actualisez la connexion sans dissocier ce compte, puis réessayez."
-            : "Aucun compte annonceur n’est associé à ce canal. Associez-en un une seule fois dans la configuration.");
+            : "Aucun compte annonceur n’est associé à ce canal. Associez-en un dans la carte du canal.");
         }
         pageId = channelId === "meta" ? String(connection.selectedPageId || "") : "";
         const connectionNeedsInstagramIdentity = channelId === "meta"
@@ -4166,7 +4127,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         </div>
       </header>
 
-      {notice && !creating && !configuring && !externalConfiguring && <p className={`${styles.notice} ${styles.cockpitNotice}`} role="alert">{notice}</p>}
+      {notice && !creating && <p className={`${styles.notice} ${styles.cockpitNotice}`} role="alert">{notice}</p>}
       <section id="ads-channels" className={styles.channelCard} aria-label="Canaux publicitaires">
         <div className={styles.channelAtmosphere} aria-hidden="true">
           <span className={styles.channelCreativeStack}><i /><i /><i /></span>
@@ -4197,29 +4158,83 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         })}</nav>
         <div className={styles.channelCarousel} data-testid="ads-channel-carousel">
           <button type="button" onClick={() => selectChannel(channelIndex - 1)} aria-label="Canal précédent">‹</button>
-          <div className={styles.cubeStage} tabIndex={0} role="group" aria-label="Carrousel des canaux : flèches gauche et droite pour naviguer" onKeyDown={(event) => { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); selectChannel(channelIndex + (event.key === "ArrowRight" ? 1 : -1)); } }} onPointerDown={(event) => { if (!(event.target as HTMLElement).closest("button,a")) channelPointerStart.current = { x: event.clientX, y: event.clientY }; }} onPointerUp={(event) => { const start = channelPointerStart.current; channelPointerStart.current = null; if (!start) return; const dx = event.clientX - start.x; if (Math.abs(dx) >= 58 && Math.abs(dx) > Math.abs(event.clientY - start.y) * 1.5) selectChannel(channelIndex + (dx < 0 ? 1 : -1)); }} onPointerCancel={() => { channelPointerStart.current = null; }}>
+          <div className={styles.cubeStage} tabIndex={0} role="group" aria-label="Carrousel des canaux : flèches gauche et droite pour naviguer" onKeyDown={(event) => { if ((event.target as HTMLElement).closest("input,select,textarea,form")) return; if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); selectChannel(channelIndex + (event.key === "ArrowRight" ? 1 : -1)); } }} onPointerDown={(event) => { if (!(event.target as HTMLElement).closest("button,a,input,select,textarea,form")) channelPointerStart.current = { x: event.clientX, y: event.clientY }; }} onPointerUp={(event) => { const start = channelPointerStart.current; channelPointerStart.current = null; if (!start) return; const dx = event.clientX - start.x; if (Math.abs(dx) >= 58 && Math.abs(dx) > Math.abs(event.clientY - start.y) * 1.5) selectChannel(channelIndex + (dx < 0 ? 1 : -1)); }} onPointerCancel={() => { channelPointerStart.current = null; }}>
           {[-1, 0, 1].map((offset) => {
             const index = (channelIndex + offset + CHANNEL_CATALOG.length) % CHANNEL_CATALOG.length;
             const channel = CHANNEL_CATALOG[index];
             const externalChannel = isExternalChannel(channel.id) ? channel.id : null;
             const locked = !pilotChannelsEnabled && !isAdsPublicChannel(channel.id);
-            const externalAdvertiserAccountUrl = externalChannel
-              ? getAdsAdvertiserAccountUrl(externalChannel, externalStatuses[externalChannel].selectedAccountId)
-              : null;
-            return <div key={`${offset}-${channel.id}`} data-provider={channel.id} data-locked={locked || undefined} className={`${styles.channel} ${offset === 0 ? styles.channelActive : styles.channelMini}`}>
+            const display = locked ? { tone: "locked", label: comingSoonLabel }
+              : channel.provider ? adsConnectionDisplay(connectionSnapshots[channel.provider])
+                : channel.id === "openai" ? adsConnectionDisplay(connectionSnapshots.openai)
+                  : externalStatusDisplay(externalStatuses[externalChannel!]);
+            return <div key={offset} data-provider={channel.id} data-locked={locked || undefined} className={`${styles.channel} ${offset === 0 ? styles.channelActive : styles.channelMini}`}>
               {offset !== 0 && <button className={styles.miniSelect} type="button" disabled={locked} aria-label={`Afficher ${channel.label}${locked ? ` · ${comingSoonLabel}` : ""}`} onClick={() => selectChannel(index)} />}
               <span className={styles.channelLogo}><Image src={channel.logo} width={56} height={56} alt="" draggable={false} /></span>
-              <div className={styles.channelIdentity}><strong>{channel.label}</strong><small>{channel.format}</small>{locked ? <span className={styles.channelStatus}>{comingSoonLabel}</span> : channel.provider ? <span className={styles.channelStatus} data-status={adsConnectionDisplay(connectionSnapshots[channel.provider]).tone}>{adsConnectionDisplay(connectionSnapshots[channel.provider]).label}</span> : channel.id === "openai" ? <span className={styles.channelStatus} data-status={adsConnectionDisplay(connectionSnapshots.openai).tone}>{adsConnectionDisplay(connectionSnapshots.openai).label}</span> : externalChannel ? <span className={styles.channelStatus} data-status={externalStatusDisplay(externalStatuses[externalChannel]).tone}>{externalStatusDisplay(externalStatuses[externalChannel]).label}</span> : null}</div>
-              {offset === 0 && (channel.provider ? <div className={styles.channelActions}>
-                {!locked && configuredAdvertiserAccountUrl ? <a className={styles.channelViewAccount} href={configuredAdvertiserAccountUrl} target="_blank" rel="noreferrer">Voir le compte</a> : null}
-                <button type="button" className={styles.channelConfigure} disabled={locked} onClick={() => openConfiguration(channel.provider!)}>{locked ? comingSoonLabel : <><span aria-hidden="true">⚙</span> Configurer</>}</button>
-              </div> : externalChannel ? <div className={styles.channelActions}>
-                {!locked && externalAdvertiserAccountUrl ? <a className={styles.channelViewAccount} href={externalAdvertiserAccountUrl} target="_blank" rel="noreferrer">Voir le compte</a> : null}
-                <button type="button" className={styles.channelConfigure} disabled={locked} onClick={() => openExternalConfiguration(externalChannel)}>{locked ? comingSoonLabel : <><span aria-hidden="true">⚙</span> Configurer</>}</button>
-              </div> : channel.id === "openai" ? <div className={styles.channelActions}>
-                {!locked && connectionSnapshots.openai.accountId ? <a className={styles.channelViewAccount} href={getAdsAdvertiserAccountUrl("openai", connectionSnapshots.openai.accountId) || "https://ads.openai.com/"} target="_blank" rel="noreferrer">Voir le compte</a> : null}
-                <button type="button" className={styles.channelConfigure} disabled={locked} onClick={() => openChannelConfiguration("openai")}>{locked ? comingSoonLabel : <><span aria-hidden="true">⚙</span> Configurer</>}</button>
-              </div> : null)}
+              <div className={styles.channelIdentity}><strong>{channel.label}</strong><small>{channel.slogan}</small></div>
+              <span className={styles.channelConnectionDot} data-status={display.tone} role="img" aria-label={display.label} title={display.label} />
+              {offset === 0 && <div className={styles.connectionWorkspace} data-testid="ads-inline-connection">
+    <AdsConnectionSettings
+      active={isAdsProvider(channelId)}
+      provider={provider}
+      locked={!pilotChannelsEnabled && !isAdsPublicChannel(channelId)}
+      connected={connected}
+      connectionStatus={connectionStatus}
+      connectionAccount={connectionAccount}
+      loading={loadingAccounts}
+      configAction={configAction}
+      accounts={accounts}
+      pages={pages}
+      selectedAccountId={draft.adAccountId}
+      selectedPageId={draft.pageId}
+      configuredAccountId={configuredAccountId}
+      configuredAccountLabel={configuredAccountLabel}
+      configuredPageId={configuredPageId}
+      configuredAccountAvailable={connectionSnapshots[provider].accountAvailable}
+      configuredPageAvailable={connectionSnapshots[provider].pageAvailable}
+      metaNeedsInstagramIdentity={metaNeedsInstagramIdentity}
+      onSelectAccount={(id) => updateDraft({ adAccountId: id, accountCurrency: "EUR" })}
+      onSelectPage={(id) => updateDraft({ pageId: id })}
+      onRefreshAccounts={() => setAccountsRefreshRevisions((current) => ({
+        ...current,
+        [provider]: current[provider] + 1,
+      }))}
+      onSaveAccount={() => void saveAccountSelection()}
+      onClearAccount={() => void clearSavedSelection("account")}
+      onSavePage={() => void savePageSelection()}
+      onClearPage={() => void clearSavedSelection("identity")}
+      onDisconnect={() => void disconnectAdsConnection()}
+    />
+    <ExternalAdsConnectionSettings
+      active={isExternalChannel(channelId)}
+      channel={externalSettingsChannel}
+      locked={!pilotChannelsEnabled && !isAdsPublicChannel(channelId)}
+      status={!pilotChannelsEnabled && !isAdsPublicChannel(externalSettingsChannel)
+        ? { ...externalStatuses[externalSettingsChannel], load: "ready", connected: false, status: "locked", selectedAccountId: "", selectedAccountName: "", error: "" }
+        : externalStatuses[externalSettingsChannel]}
+      accounts={externalAccounts}
+      accountChoice={externalAccountChoice}
+      accountsLoading={externalAccountsLoading}
+      accountsLoaded={externalAccountsCache.current[externalSettingsChannel].loaded}
+      accountsLoadFailed={externalAccountsLoadFailed}
+      action={externalAction}
+      error={externalError}
+      onSelectAccount={(id) => {
+        externalAccountsCache.current[externalSettingsChannel].choice = id;
+        setExternalAccountChoice(id);
+      }}
+      onRefreshStatus={() => void refreshExternalStatus(externalSettingsChannel)}
+      onRefreshAccounts={() => void loadExternalAccounts(externalSettingsChannel, externalStatuses[externalSettingsChannel].selectedAccountId, true)}
+      onAssociateAccount={() => void associateExternalAccount()}
+      onDisconnect={() => void disconnectExternalChannel()}
+    />
+    <OpenaiAdsConnectionSettings
+      active={channelId === "openai"}
+      locked={!pilotChannelsEnabled && !isAdsPublicChannel("openai")}
+      onConnectionChange={() => void refreshOpenaiStatus()}
+      initialConnection={connectionSnapshots.openai}
+    />
+              </div>}
             </div>;
           })}
           </div>
@@ -4850,76 +4865,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     />}
 
     </div>
-    <AdsConnectionSettings
-      isOpen={configuring && isAdsProvider(channelId)}
-      provider={provider}
-      locked={!pilotChannelsEnabled && !isAdsPublicChannel(channelId)}
-      previous={{ name: previousConnectionChannel.label, onSelect: () => openChannelConfiguration(previousConnectionChannel.id) }}
-      next={{ name: nextConnectionChannel.label, onSelect: () => openChannelConfiguration(nextConnectionChannel.id) }}
-      onClose={() => { setConfiguring(false); setNotice(""); }}
-      connected={connected}
-      connectionStatus={connectionStatus}
-      connectionAccount={connectionAccount}
-      loading={loadingAccounts}
-      error={notice}
-      configAction={configAction}
-      accounts={accounts}
-      pages={pages}
-      selectedAccountId={draft.adAccountId}
-      selectedPageId={draft.pageId}
-      configuredAccountId={configuredAccountId}
-      configuredAccountLabel={configuredAccountLabel}
-      configuredPageId={configuredPageId}
-      configuredAccountAvailable={connectionSnapshots[provider].accountAvailable}
-      configuredPageAvailable={connectionSnapshots[provider].pageAvailable}
-      metaNeedsInstagramIdentity={metaNeedsInstagramIdentity}
-      onSelectAccount={(id) => updateDraft({ adAccountId: id, accountCurrency: "EUR" })}
-      onSelectPage={(id) => updateDraft({ pageId: id })}
-      onRefreshAccounts={() => setAccountsRefreshRevisions((current) => ({
-        ...current,
-        [provider]: current[provider] + 1,
-      }))}
-      onSaveAccount={() => void saveAccountSelection()}
-      onClearAccount={() => void clearSavedSelection("account")}
-      onSavePage={() => void savePageSelection()}
-      onClearPage={() => void clearSavedSelection("identity")}
-      onDisconnect={() => void disconnectAdsConnection()}
-    />
-    <ExternalAdsConnectionSettings
-      isOpen={externalConfiguring && isExternalChannel(channelId)}
-      channel={externalSettingsChannel}
-      locked={!pilotChannelsEnabled && !isAdsPublicChannel(channelId)}
-      previous={{ name: previousConnectionChannel.label, onSelect: () => openChannelConfiguration(previousConnectionChannel.id) }}
-      next={{ name: nextConnectionChannel.label, onSelect: () => openChannelConfiguration(nextConnectionChannel.id) }}
-      onClose={() => { setExternalConfiguring(false); setExternalError(""); }}
-      status={!pilotChannelsEnabled && !isAdsPublicChannel(externalSettingsChannel)
-        ? { ...externalStatuses[externalSettingsChannel], load: "ready", connected: false, status: "locked", selectedAccountId: "", selectedAccountName: "", error: "" }
-        : externalStatuses[externalSettingsChannel]}
-      accounts={externalAccounts}
-      accountChoice={externalAccountChoice}
-      accountsLoading={externalAccountsLoading}
-      accountsLoaded={externalAccountsCache.current[externalSettingsChannel].loaded}
-      accountsLoadFailed={externalAccountsLoadFailed}
-      action={externalAction}
-      error={externalError}
-      onSelectAccount={(id) => {
-        externalAccountsCache.current[externalSettingsChannel].choice = id;
-        setExternalAccountChoice(id);
-      }}
-      onRefreshStatus={() => void refreshExternalStatus(externalSettingsChannel)}
-      onRefreshAccounts={() => void loadExternalAccounts(externalSettingsChannel, externalStatuses[externalSettingsChannel].selectedAccountId, true)}
-      onAssociateAccount={() => void associateExternalAccount()}
-      onDisconnect={() => void disconnectExternalChannel()}
-    />
-    <OpenaiAdsConnectionSettings
-      isOpen={openaiConfiguring && channelId === "openai"}
-      locked={!pilotChannelsEnabled && !isAdsPublicChannel("openai")}
-      previous={{ name: previousConnectionChannel.label, onSelect: () => openChannelConfiguration(previousConnectionChannel.id) }}
-      next={{ name: nextConnectionChannel.label, onSelect: () => openChannelConfiguration(nextConnectionChannel.id) }}
-      onClose={() => { setOpenaiConfiguring(false); void refreshOpenaiStatus(); }}
-      onConnectionChange={() => void refreshOpenaiStatus()}
-      initialConnection={connectionSnapshots.openai}
-    />
     {creating && autoMediaPlan && (
       <AdsCampaignAutoMediaGenerator
         key={`${autoMediaPlan.campaignType}-${autoMediaPlan.name}-${autoMediaPlan.mediaBrief}`}

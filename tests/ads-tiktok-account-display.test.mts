@@ -20,7 +20,7 @@ function settingsComponent(): Component {
   const container = ({ children }: { children?: React.ReactNode }) => React.createElement("div", null, children);
   const css = new Proxy({}, { get: (_target, key) => String(key) });
   const stubbed: Record<string, unknown> = {
-    "@/app/dashboard/SettingsDrawer": { default: container },
+    "./AdsConnectionIcon": { default: container },
     "@/app/dashboard/_components/ChannelSettingsHeader": { default: () => null },
     "@/app/dashboard/_components/ConnectionPill": { default: ({ label }: { label?: string }) => React.createElement("span", null, label) },
     "@/app/dashboard/channel-settings": { getChannelSettingsHeaderStyle: () => ({}) },
@@ -41,8 +41,8 @@ function settingsComponent(): Component {
 function render(channel: Props["channel"], account: Props["accounts"][number]) {
   const noop = () => {};
   const props: Props = {
-    isOpen: true, channel, previous: { name: "Précédent", onSelect: noop }, next: { name: "Suivant", onSelect: noop },
-    onClose: noop, status: { load: "ready", configured: true, connected: true, status: "connected", selectedAccountId: "", selectedAccountName: "", error: "" },
+    active: true, channel,
+    status: { load: "ready", configured: true, connected: true, status: "connected", selectedAccountId: "", selectedAccountName: "", error: "" },
     accounts: [account], accountChoice: "", accountsLoading: false, accountsLoaded: true, accountsLoadFailed: false,
     action: null, error: "", onSelectAccount: noop, onRefreshStatus: noop, onRefreshAccounts: noop,
     onAssociateAccount: noop, onDisconnect: noop,

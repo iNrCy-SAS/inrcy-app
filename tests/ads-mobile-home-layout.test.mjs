@@ -5,9 +5,12 @@ import { chromium } from "playwright";
 
 const css = await readFile(new URL("../app/dashboard/ads/ads.module.css", import.meta.url), "utf8");
 
+const connectionCss = await readFile(new URL("../app/dashboard/ads/AdsConnectionSettings.module.css", import.meta.url), "utf8");
+
 const home = `<!doctype html><html lang="fr"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
   *,*::before,*::after{box-sizing:border-box}html,body{margin:0;font-family:Arial,sans-serif}
   ${css}
+  ${connectionCss}
   </style></head><body>
   <main class="page"><div class="shell">
     <header class="header"><div class="headerTop">
@@ -17,14 +20,18 @@ const home = `<!doctype html><html lang="fr"><head><meta name="viewport" content
     <section class="channelCard"><div class="sectionHeading"><div><span>AMPLIFIEZ VOTRE PORTÉE</span><h2>Choisissez votre terrain de jeu.</h2></div></div>
       <nav class="channelRail">${["Meta", "Google", "LinkedIn", "TikTok", "Pinterest", "X"].map((name) => `<button data-near="true" aria-label="${name}"><span class="channelRailLogo">✦</span><span class="channelRailLabel">${name}</span></button>`).join("")}</nav>
       <div class="channelCarousel"><button aria-label="Canal précédent">‹</button><div class="cubeStage">
-        <div class="channel channelMini"></div><div class="channel channelActive" data-provider="google"><span class="channelLogo"><span>◭</span></span><div class="channelIdentity"><strong>Google Ads</strong><small>Recherche · annonces textuelles</small><span class="channelStatus">Compte connecté</span></div><div class="channelActions"><a class="channelViewAccount">Voir le compte</a><button class="channelConfigure">Configurer</button></div></div><div class="channel channelMini"></div>
+        <div class="channel channelMini"></div><div class="channel channelActive" data-provider="google"><span class="channelLogo"><span>◭</span></span><div class="channelIdentity"><strong>Google Ads</strong><small>Soyez trouvé au bon moment 🔎</small></div><div class="connectionWorkspace"><div class="content google">
+ <div class="controlRow"><input aria-label="Compte connecté" readonly value="contact@entreprise.fr"><button data-ads-icon-action="disconnect" aria-label="Déconnexion"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" /></svg></button></div>
+ <div class="resourceControls"><select aria-label="Compte publicitaire"><option>Entreprise · 6547075545 · EUR</option></select><button data-ads-icon-action="unlink" aria-label="Dissocier le compte"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" /></svg></button></div>
+ <div class="actionBar"><a class="actionItem" aria-label="Voir le compte"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" /></svg></a><button class="actionItem" aria-label="Charger mes comptes"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" /></svg></button><details class="identityMenu"><summary class="actionItem" aria-label="Identité Facebook et Instagram"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" /></svg></summary></details></div>
+ </div></div></div><div class="channel channelMini"></div>
       </div><button aria-label="Canal suivant">›</button></div>
     </section>
     <div class="launchArea"><button class="headerCta launchButton"><span>✦</span> Lancer une campagne <span>↗</span></button></div>
   </div></main><div style="position:fixed;inset:auto 0 0;height:50px;background:#071126"></div>
   </body></html>`;
 
-test("iNrADS mobile home keeps a square card, both arrows and the launch button visible", async () => {
+test("iNrADS keeps the original fixed square with two fields, icon actions and no page scrolling", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
     for (const [width, height] of [[280, 568], [320, 480], [320, 568], [360, 640], [375, 667], [390, 844], [412, 915], [650, 800]]) {
@@ -40,8 +47,10 @@ test("iNrADS mobile home keeps a square card, both arrows and the launch button 
             previous: rect(previous),
             next: rect(next),
             active: rect(active),
-            action: rect(active.querySelector(".channelActions")),
+            action: rect(active.querySelector(".connectionWorkspace")),
             launch: rect(document.querySelector(".launchButton")),
+            bodyWidth: document.documentElement.scrollWidth,
+            fields: [...active.querySelectorAll("input,select,button,a")].map(rect),
           };
           function rect(element) {
             const { x, y, width, height, right, bottom } = element.getBoundingClientRect();
@@ -49,11 +58,14 @@ test("iNrADS mobile home keeps a square card, both arrows and the launch button 
           }
         });
         const label = `${width}×${height}: ${JSON.stringify(layout)}`;
-        assert.ok(Math.abs(layout.active.width - layout.active.height) <= 1, `card must stay square — ${label}`);
+        assert.ok(Math.abs(layout.active.width - layout.active.height) <= 1, `original card must stay square — ${label}`);
+        assert.ok(layout.bodyWidth <= width, `page must not scroll horizontally — ${label}`);
+        for (const field of layout.fields) assert.ok(field.x >= layout.active.x && field.right <= layout.active.right + 1, `field or button must remain inside the card — ${label}`);
         assert.ok(layout.previous.x >= layout.card.x && layout.next.right <= layout.card.right, `arrows must fit inside the panel — ${label}`);
         assert.ok(layout.previous.right <= layout.active.x && layout.active.right <= layout.next.x, `arrows must not be covered by the card — ${label}`);
         assert.ok(layout.action.bottom <= layout.active.bottom && layout.action.y >= layout.active.y, `card controls must fit — ${label}`);
-        assert.ok(layout.launch.bottom <= height - 50 && layout.launch.y >= layout.card.bottom, `launch button must remain visible without scrolling — ${label}`);
+        assert.ok(layout.launch.y >= layout.card.bottom, `launch remains below the complete account card — ${label}`);
+        assert.ok(layout.launch.bottom <= height - 45, `launch stays above the footer without scrolling — ${label}`);
       } finally {
         await page.close();
       }

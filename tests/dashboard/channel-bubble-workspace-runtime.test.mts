@@ -897,6 +897,11 @@ test("iNrBadge displays the QR for the same tracked badge URL used by its existi
   assert.ok(nodes(code).some(node => node.type === "path" && node.props.d.length > 100));
   assert.ok(nodes(tree).some(node => node.props.popover === "auto"));
   assert.equal(nodes(tree).find(node => node.props.className === "badgeQrCompany")!.props.children, "Fixture");
+  const link = nodes(tree).find(node => node.type === "a" && node.props.className === "badgeQrLink")!;
+  assert.ok(link, "The QR preview must expose its public page URL below the code");
+  assert.equal(link.props.href, url);
+  assert.equal(link.props.children, url);
+  assert.equal(link.props.target, "_blank");
 });
 
 test("iNrBadge PNG and PDF buttons call the original export with the same profile and public URL", async () => {

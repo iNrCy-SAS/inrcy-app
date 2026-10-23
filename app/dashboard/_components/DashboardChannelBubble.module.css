@@ -725,6 +725,9 @@
 .badgeQrCompany { min-width: 0; color: #f3f8ff; font-size: 17px; font-weight: 800; text-align: center; overflow-wrap: anywhere; }
 .badgeQrPaper { margin: 12px 0 0; padding: 4px; border-radius: 12px; background: #fff; }
 .badgeQrCode { display: block; width: 100%; height: auto; margin: 0; border-radius: 8px; }
+.badgeQrLink { display: block; min-width: 0; max-width: 100%; margin: 12px 2px 2px; color: #c9e7ff; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; text-underline-offset: 3px; }
+.badgeQrLink:hover { color: #fff; }
+.badgeQrLink:focus-visible { outline: 2px solid #b9f7ff; outline-offset: 3px; border-radius: 3px; }
 .badgeDownloadChoices { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
 .badgeDownloadChoices button { min-height: 44px; border: 1px solid #b3cbff70; border-radius: 12px; background: #5576b550; color: #eff7ff; font: inherit; font-weight: 750; cursor: pointer; }
 .badgeDownloadChoices button:disabled { opacity: .45; cursor: default; }

@@ -49,9 +49,9 @@ function clientFunctionBody(name: string): string {
 }
 
 test("un canal Ads connecté propose une déconnexion, pas une reconnexion systématique", () => {
-  assert.match(settingsSource, /\{locked \? <button[^>]*disabled[\s\S]*? : connected \? <button[\s\S]*?Déconnexion/);
-  assert.match(settingsSource, /needsReconnect \? <>/);
-  assert.match(settingsSource, /oauthLabel\(provider, "reconnect"\)/);
+  assert.match(settingsSource, /connected \|\| needsReconnect/);
+  assert.match(settingsSource, /onClick=\{onDisconnect\}[\s\S]*?aria-label=\{`Déconnexion/);
+  assert.match(settingsSource, /oauthLabel\(provider, needsReconnect \? "reconnect" : "connect"\)/);
 });
 
 test("Meta Ads et Google Ads partagent le choix et le changement persistants du compte annonceur", () => {
@@ -76,7 +76,7 @@ test("la configuration Meta conserve aussi la sélection de l’identité Facebo
 test("Instagram n’est requis que pour les placements Meta qui l’utilisent", () => {
   assert.match(settingsSource, /metaNeedsInstagramIdentity: boolean/);
   assert.match(settingsSource, /!metaNeedsInstagramIdentity \|\| Boolean\(savedPage\?\.instagramUserId\)/);
-  assert.match(settingsSource, /Une Page Facebook suffit pour les placements sélectionnés/);
+  assert.match(settingsSource, /Cette Page Facebook suffit pour les placements actuellement sélectionnés/);
   assert.match(settingsSource, /Instagram requis pour ces placements/);
   assert.match(clientSource, /metaNeedsInstagramIdentity=\{metaNeedsInstagramIdentity\}/);
   assert.match(clientSource, /Compte et Page Facebook associés/);
@@ -94,7 +94,8 @@ test("un compte unique est seulement proposé avant une association explicite et
 });
 
 test("le panneau affiche l’identité OAuth et respecte une dissociation explicite du compte annonceur", () => {
-  assert.match(settingsSource, /Compte Google.*connecté/);
+  assert.match(settingsSource, /value=\{connectedAccountLabel\}/);
+  assert.match(settingsSource, /\[name, email\]\.filter\(Boolean\)\.join/);
   assert.match(settingsSource, /Compte Facebook/);
   assert.match(accountsRouteSource, /connectionAccount/);
   assert.match(accountsRouteSource, /wasAccountExplicitlyCleared/);

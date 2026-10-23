@@ -248,7 +248,8 @@ test("LinkedIn UI uses the complete Ads management consent and reports the dedic
   assert.match(settings, /channel === "linkedin"[\s\S]*Boolean\(status\.missingScopes\?\.length\)/);
   assert.match(settings, /linkedinManagementMissing[\s\S]*\? "needs_update"/);
   assert.match(settings, /reconnexion requise pour la gestion complète/);
-  assert.match(settings, /href=\{oauthHref\(channel, "manage"\)\}>Compléter les autorisations Ads/);
+  assert.match(settings, /href=\{oauthHref\(channel, linkedinRefreshAccess\)\}/);
+  assert.match(settings, /linkedinManagementMissing \? "Compléter les autorisations Ads"/);
   assert.match(settings, /linkedinRefreshAccess = channel === "linkedin" \? "manage" : "read"/);
   assert.match(client, /scopes = Array\.isArray\(data\.scopes\)/);
   assert.match(client, /missingScopes = Array\.isArray\(data\.missingScopes\)/);

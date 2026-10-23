@@ -39,6 +39,7 @@ export function InrBadgeQrButton({ publicUrl, companyName }: { publicUrl: string
     <div ref={menu} id={id} popover="auto" role="group" aria-label={t("qr_code_44742187")} className={`${styles.typesMenu} ${styles.badgeQrFrame}`} style={position} onBeforeToggle={place} onToggle={place}>
       <header className={`${styles.popoverHeader} ${styles.badgeQrHeader}`}><strong>{t("qr_code_44742187")}</strong><span className={styles.badgeQrCompany} title={companyName}>{companyName}</span><button type="button" popoverTarget={id} popoverTargetAction="hide" aria-label={bubble("close")}>×</button></header>
       <figure className={styles.badgeQrPaper}><svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${t("qr_code_44742187")} — ${companyName || "iNrCy"}`} className={styles.badgeQrCode} shapeRendering="crispEdges"><rect width={size} height={size} fill="white" /><path fill="#111827" d={matrix.flatMap((row, y) => row.flatMap((dark, x) => dark ? [`M${x + 4} ${y + 4}h1v1h-1z`] : [])).join("")} /></svg></figure>
+      {publicUrl ? <a className={styles.badgeQrLink} href={publicUrl} target="_blank" rel="noopener noreferrer">{publicUrl}</a> : null}
     </div>
   </div>;
 }

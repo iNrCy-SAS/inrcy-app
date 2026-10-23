@@ -37,7 +37,7 @@ type BuildFluxBubbleItemsArgs = {
   inrBadgeLogoUrl?: string | null;
   inrBadgeProfileReady: boolean;
   inrBadgeProfileCheckReady: boolean;
-  onOpenInrBadgeModal: () => void;
+  inrBadgePublicUrl: string;
   onOpenInrAgent: () => void;
   linkedinConnected: boolean;
   linkedinConnectionStatus: ConnectionDisplayStatus;
@@ -91,7 +91,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
     inrBadgeLogoUrl,
     inrBadgeProfileReady,
     inrBadgeProfileCheckReady,
-    onOpenInrBadgeModal,
+    inrBadgePublicUrl,
     onOpenInrAgent,
     linkedinConnected,
     linkedinConnectionStatus,
@@ -220,7 +220,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
           text: copy.status.disabled,
         };
 
-    const specialViewHref = m.key === "threads" ? (normalizeExternalHref(threadsUrl) || "#") : m.key === "site_web"
+    const specialViewHref = m.key === "inrbadge" ? (normalizeExternalHref(inrBadgePublicUrl) || "#") : m.key === "threads" ? (normalizeExternalHref(threadsUrl) || "#") : m.key === "site_web"
           ? (normalizeExternalHref(siteWebSavedUrl) || blockDrivenViewHref || "#")
           : m.key === "instagram"
           ? (normalizeExternalHref(instagramUrl) || "#")
@@ -249,7 +249,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
         : undefined;
 
     const canViewSpecial = m.key === "inrbadge"
-      ? inrBadgeProfileReady
+      ? inrBadgeProfileReady && Boolean(inrBadgePublicUrl)
       : m.key === "threads" ? Boolean(threadsUrl) : m.key === "site_web"
           ? Boolean(blockDrivenViewHref || savedSiteWebUrlMeta)
         : m.key === "instagram"
@@ -337,7 +337,6 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       specialViewHref,
       specialViewLabel,
       canViewSpecial: accessEnabled ? canViewSpecial : false,
-      onSpecialView: accessEnabled && m.key === "inrbadge" ? onOpenInrBadgeModal : undefined,
       viewAction: accessEnabled && !(specialViewHref || m.key === "inrbadge") ? viewAction : undefined,
       createHref,
       // « Créer » est réservé aux réseaux traditionnels disposant d'une page

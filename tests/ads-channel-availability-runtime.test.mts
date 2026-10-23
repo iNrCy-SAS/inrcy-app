@@ -54,15 +54,21 @@ function controls(channelId: AdsChannelId, pilotChannelsEnabled = false) {
     isExternalChannel: (channel: string) => ["linkedin", "pinterest", "tiktok", "x"].includes(channel),
     externalStatuses: Object.fromEntries(ADS_CHANNELS.map(({ id }) => [id, { selectedAccountId: "" }])),
     connectionSnapshots: Object.fromEntries(ADS_CHANNELS.map(({ id }) => [id, { accountId: "" }])),
+    isAdsProvider,
+    AdsConnectionSettings: "provider-connection", ExternalAdsConnectionSettings: "external-connection", OpenaiAdsConnectionSettings: "openai-connection",
+    provider: isAdsProvider(channelId) ? channelId : "google",
+    connected: false, connectionStatus: "disconnected", connectionAccount: undefined, loadingAccounts: false,
+    configAction: null, accounts: [], pages: [], draft: { adAccountId: "", pageId: "" },
+    configuredAccountId: "", configuredAccountLabel: "", configuredPageId: "", metaNeedsInstagramIdentity: false,
+    externalSettingsChannel: ["linkedin", "pinterest", "tiktok", "x"].includes(channelId) ? channelId : "linkedin",
+    externalAccounts: [], externalAccountChoice: "", externalAccountsLoading: false, externalAccountsLoadFailed: false,
+    externalAction: null, externalError: "", externalAccountsCache: { current: Object.fromEntries(ADS_CHANNELS.map(({ id }) => [id, { loaded: false }])) },
     getAdsAdvertiserAccountUrl: () => null,
     configuredAdvertiserAccountUrl: null,
     adsConnectionDisplay: () => ({ tone: "disconnected", label: "Non connecté" }),
     externalStatusDisplay: () => ({ tone: "disconnected", label: "Non connecté" }),
     Image: "img", launchButtonRef: { current: null }, channelPointerStart: { current: null },
     selectChannel: () => actions.push("select"),
-    openConfiguration: () => actions.push("configure"),
-    openExternalConfiguration: () => actions.push("configure"),
-    openChannelConfiguration: () => actions.push("configure"),
     startNewCampaign: () => actions.push("launch"),
   };
   const exports: { renderControls?: () => unknown } = {};
@@ -89,74 +95,43 @@ function textOf(value: unknown): string {
   return "";
 }
 
-test("public Ads controls configure and create on all four released channels", () => {
+test("released Ads channels expose their account controls directly and can start creation", () => {
   for (const channel of ["meta", "google", "linkedin", "pinterest", "openai"] as const) {
     const view = controls(channel);
-    const configure = view.elements.find((element) => element.type === "button" && element.props.className === "channelConfigure");
+    const connection = view.elements.find((element) => String(element.type).endsWith("-connection") && element.props.active);
     const launch = view.elements.find((element) => element.type === "button" && element.props.className?.includes("launchButton"));
-    assert.equal(configure.props.disabled, false, channel);
-    assert.match(textOf(configure), /Configurer/);
+    assert.ok(connection, channel);
+    assert.equal(connection.props.locked, false, channel);
     assert.equal(launch.props.disabled, false, channel);
-    configure.props.onClick();
+    assert.equal(view.elements.some((element) => element.type === "button" && /Configurer/.test(textOf(element))), false);
     launch.props.onClick();
-    assert.deepEqual(view.actions, ["configure", "launch"], channel);
+    assert.deepEqual(view.actions, ["launch"], channel);
   }
 });
 
-test("ordinary users see disabled À venir controls on TikTok and X", () => {
+test("ordinary users cannot connect or launch unreleased TikTok and X channels", () => {
   for (const channel of ["tiktok", "x"] as const) {
     const view = controls(channel);
-    const configure = view.elements.find((element) => element.type === "button" && element.props.className === "channelConfigure");
+    const connection = view.elements.find((element) => String(element.type).endsWith("-connection") && element.props.active);
     const launch = view.elements.find((element) => element.type === "button" && element.props.className?.includes("launchButton"));
-    const channelTab = view.elements.find((element) => element.type === "button" && element.props["data-channel"] === channel);
-    assert.equal(configure.props.disabled, true, channel);
-    assert.equal(textOf(configure), "À venir", channel);
+    const tab = view.elements.find((element) => element.type === "button" && element.props["data-channel"] === channel);
+    assert.equal(connection.props.locked, true, channel);
+    assert.equal(connection.props.status.connected, false, channel);
+    assert.equal(connection.props.status.selectedAccountId, "", channel);
     assert.equal(launch.props.disabled, true, channel);
-    assert.match(textOf(launch), /À venir/);
-    assert.equal(channelTab.props.disabled, true, channel);
-    assert.equal(channelTab.props["data-locked"], true, channel);
+    assert.equal(tab.props.disabled, true, channel);
     assert.deepEqual(view.actions, []);
   }
 });
 
-test("validation accounts keep enabled configuration controls on every channel", () => {
+test("validation accounts keep inline controls on every Ads channel", () => {
   for (const { id: channel } of ADS_CHANNELS) {
     const view = controls(channel, true);
-    assert.equal(view.elements.find((element) => element.type === "button" && element.props.className === "channelConfigure").props.disabled, false, channel);
+    const connection = view.elements.find((element) => String(element.type).endsWith("-connection") && element.props.active);
+    assert.equal(connection.props.locked, false, channel);
     assert.equal(view.elements.find((element) => element.type === "button" && element.props["data-channel"] === channel).props.disabled, false, channel);
+    assert.deepEqual(view.actions, [], "rendering account fields must not initiate OAuth or mutate an account");
   }
-});
-
-test("direct configuration calls cannot open an unreleased channel for a user", () => {
-  const configure = actualFunction("app/dashboard/ads/AdsClient.tsx", "openChannelConfiguration", { pilotChannelsEnabled: false, isAdsPublicChannel });
-  for (const channel of ["tiktok", "x"]) assert.doesNotThrow(() => configure(channel));
-});
-
-test("Meta configuration still opens its existing account and Page journey", () => {
-  const calls: unknown[] = [];
-  const configure = actualFunction("app/dashboard/ads/AdsClient.tsx", "openChannelConfiguration", {
-    pilotChannelsEnabled: false, isAdsPublicChannel, CHANNEL_CATALOG: catalog, channelId: "meta", isAdsProvider,
-    setOpenaiConfiguring: (value: unknown) => calls.push(["openai", value]),
-    setExternalConfiguring: (value: unknown) => calls.push(["external", value]),
-    setConfiguring: (value: unknown) => calls.push(["provider", value]),
-  });
-  configure("meta");
-  assert.deepEqual(calls, [["openai", false], ["external", false], ["provider", true]]);
-});
-
-test("ordinary users can open LinkedIn configuration without initiating OAuth or mutating an account", () => {
-  const calls: unknown[] = [];
-  const configure = actualFunction("app/dashboard/ads/AdsClient.tsx", "openChannelConfiguration", {
-    pilotChannelsEnabled: false, isAdsPublicChannel, CHANNEL_CATALOG: catalog, channelId: "linkedin", isAdsProvider,
-    setOpenaiConfiguring: () => {}, setConfiguring: () => {}, setExternalError: () => {},
-    setExternalConfiguring: (value: unknown) => calls.push(["modal", value]),
-    externalAccountsCache: { current: { linkedin: { accounts: [], choice: "", loaded: false, failed: false } } },
-    externalStatuses: { linkedin: { connected: false, selectedAccountId: "" } },
-    setExternalAccounts: () => {}, setExternalAccountsLoadFailed: () => {}, setExternalAccountChoice: () => {},
-    setExternalAccountsLoading: (value: unknown) => calls.push(["loading", value]),
-  });
-  configure("linkedin");
-  assert.deepEqual(calls, [["loading", false], ["modal", true]]);
 });
 
 function authorization(role: string, actor = FULL_PRODUCT_REVIEWER_ACCOUNT_ID, edition = "premium", roleReadError = false) {

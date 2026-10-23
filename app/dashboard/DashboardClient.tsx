@@ -21,7 +21,6 @@ import { useDashboardUnsavedNavigation } from "./_components/DashboardUnsavedNav
 import DashboardChannelsSection from "./_components/DashboardChannelsSection";
 import DashboardBoosterModalLayer from "./_components/DashboardBoosterModalLayer";
 import DashboardSettingsDrawerContent from "./_components/DashboardSettingsDrawerContent";
-import InrBadgePreviewModal from "./_components/InrBadgePreviewModal";
 import { useDrawerMutationGuard } from "./_hooks/useDrawerMutationGuard";
 import { useUnsavedExitGuard } from "./_hooks/useUnsavedExitGuard";
 import { useDashboardNotifications } from "./_hooks/useDashboardNotifications";
@@ -294,7 +293,6 @@ export default function DashboardClient({
       ? initialDashboardChannelState.inrBadgeProfileReady
       : readCachedDashboardOptionalBoolean("inrBadgeProfileReady"),
   );
-  const [inrBadgeModalOpen, setInrBadgeModalOpen] = useState(false);
   const [displayedGeneratorPower, setDisplayedGeneratorPower] = useState<number | null>(
     () => readCachedGeneratorPowerPercent(initialBrowserCacheAccountId)
       ?? readCachedGeneratorPowerSnapshot(initialBrowserCacheAccountId)?.power
@@ -3729,10 +3727,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     return createInrBadgePublicUrl(inrBadgeProfile);
   }, [inrBadgeProfile, inrBadgeProfileReady]);
 
-  const openInrBadgeModal = useCallback(() => {
-    setInrBadgeModalOpen(true);
-  }, []);
-
   const fluxBubbleItems = useMemo(() => buildFluxBubbleItems({
     bubbleAccessMap,
     standardMode: isStandardEdition,
@@ -3753,7 +3747,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     inrBadgeLogoUrl: inrBadgeProfile.logoUrl,
     inrBadgeProfileReady,
     inrBadgeProfileCheckReady,
-    onOpenInrBadgeModal: openInrBadgeModal,
+    inrBadgePublicUrl,
     onOpenInrAgent: () => goToModule("/dashboard/agent"),
     linkedinConnected,
     linkedinConnectionStatus,
@@ -3807,7 +3801,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     inrBadgeProfileCheckReady,
     inrBadgeProfileReady,
     isStandardEdition,
-    openInrBadgeModal,
+    inrBadgePublicUrl,
     linkedinConnected,
     linkedinConnectionStatus,
     linkedinPreferredUrl,
@@ -4131,18 +4125,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
           }
         }}
       />
-
-      {inrBadgeModalOpen ? (
-        <InrBadgePreviewModal
-          profile={inrBadgeProfile}
-          publicUrl={inrBadgePublicUrl}
-          onClose={() => setInrBadgeModalOpen(false)}
-          onConfigure={() => {
-            setInrBadgeModalOpen(false);
-            openPanel("inrbadge");
-          }}
-        />
-      ) : null}
 
       <SettingsDrawer
         title={getDrawerTitle(panel, dashboardCopy)}

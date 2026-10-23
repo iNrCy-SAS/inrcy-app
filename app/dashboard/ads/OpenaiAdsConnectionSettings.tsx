@@ -1,12 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import SettingsDrawer from "@/app/dashboard/SettingsDrawer";
-import ChannelSettingsHeader from "@/app/dashboard/_components/ChannelSettingsHeader";
-import ConnectionPill from "@/app/dashboard/_components/ConnectionPill";
-import socialStyles from "@/app/dashboard/_components/SocialSettingsSteps.module.css";
-import dashboardStyles from "@/app/dashboard/dashboard.module.css";
-import { getChannelSettingsHeaderStyle } from "@/app/dashboard/channel-settings";
+import AdsConnectionIcon from "./AdsConnectionIcon";
 import type { AdsConnectionSnapshot } from "@/lib/adsConnectionSnapshot";
 import adsStyles from "./AdsConnectionSettings.module.css";
 import styles from "./OpenaiAdsConnectionSettings.module.css";
@@ -29,11 +24,8 @@ type Status = {
 };
 
 type Props = {
-  isOpen: boolean;
+  active: boolean;
   locked?: boolean;
-  previous: { name: string; onSelect: () => void };
-  next: { name: string; onSelect: () => void };
-  onClose: () => void;
   onConnectionChange?: () => void;
   initialConnection?: AdsConnectionSnapshot;
 };
@@ -59,14 +51,13 @@ async function readResponse(response: Response): Promise<Status> {
   return result;
 }
 
-export default function OpenaiAdsConnectionSettings({ isOpen, locked = false, previous, next, onClose, onConnectionChange, initialConnection }: Props) {
+export default function OpenaiAdsConnectionSettings({ active, locked = false, onConnectionChange, initialConnection }: Props) {
   const [status, setStatus] = useState<Status>(() => fromSnapshot(initialConnection));
   const [busy, setBusy] = useState<"connect" | "disconnect" | null>(null);
   const [error, setError] = useState("");
   const [refreshed, setRefreshed] = useState(false);
+  const [keyFormOpen, setKeyFormOpen] = useState(false);
   const keyInput = useRef<HTMLInputElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const openerRef = useRef<HTMLElement | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -81,39 +72,14 @@ export default function OpenaiAdsConnectionSettings({ isOpen, locked = false, pr
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
+    if (active) {
       if (locked) {
         setStatus(fromSnapshot());
+        setKeyFormOpen(false);
         setRefreshed(true);
       } else void refresh();
     }
-  }, [isOpen, locked, refresh]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const frame = requestAnimationFrame(() => {
-      contentRef.current?.closest("[data-dashboard-settings-drawer]")
-        ?.querySelector<HTMLButtonElement>("[data-dashboard-settings-drawer-header] > div:last-child > button:last-child")
-        ?.focus({ preventScroll: true });
-    });
-    return () => {
-      cancelAnimationFrame(frame);
-      restoreFocus();
-    };
-  }, [isOpen]);
-
-  function restoreFocus() {
-    const panel = contentRef.current?.closest("[data-dashboard-settings-drawer]");
-    if (!(document.activeElement instanceof HTMLElement) || !panel?.contains(document.activeElement)) return;
-    if (openerRef.current?.isConnected) openerRef.current.focus({ preventScroll: true });
-    else document.activeElement.blur();
-  }
-
-  function closePanel() {
-    restoreFocus();
-    onClose();
-  }
+  }, [active, locked, refresh]);
 
   async function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -161,75 +127,38 @@ export default function OpenaiAdsConnectionSettings({ isOpen, locked = false, pr
   const accountUrl = /^adacct_[A-Za-z0-9_-]+$/.test(status.accountId)
     ? `https://ads.openai.com/settings?act=${encodeURIComponent(status.accountId)}`
     : "https://ads.openai.com/";
-  return <SettingsDrawer
-    title="Configurer ChatGPT Ads"
-    isOpen={isOpen}
-    onClose={closePanel}
-    presentation="centered"
-    keepMounted
-    headerContent={<ChannelSettingsHeader
-      name="ChatGPT Ads"
-      logoSrc="/ads-logos/chatgpt-ads.svg"
-      previous={{ name: previous.name, onSelect: () => { restoreFocus(); previous.onSelect(); } }}
-      next={{ name: next.name, onSelect: () => { restoreFocus(); next.onSelect(); } }}
-    />}
-    headerLead="Votre espace publicitaire ChatGPT."
-    headerStyle={getChannelSettingsHeaderStyle("inr_search")}
-    headerActions={<button type="button" className={dashboardStyles.channelSettingsAllChannelsButton} onClick={closePanel} aria-label="Tous les canaux" title="Tous les canaux"><span className={dashboardStyles.channelSettingsAllChannelsIcon} aria-hidden="true">☷</span><span className={dashboardStyles.channelSettingsAllChannelsLabel}>Tous les canaux</span></button>}
-  >
-    <div ref={contentRef} className={`${adsStyles.content} ${socialStyles.journey} ${styles.openai}`}>
-      <section data-step-index="0" className={`${socialStyles.stepCard} ${adsStyles.step}`} aria-label="Étape 1 : Votre connexion">
-        <div className={`${socialStyles.stepHeader} ${adsStyles.stepHeader}`}>
-          <span className={socialStyles.stepNumber} aria-hidden="true">01</span>
-          <div className={socialStyles.stepCopy}><div>Votre connexion</div><div>{locked ? "Canal en validation : connexion réservée à l’administration." : "La clé Ads Manager de chaque entreprise autorise l’accès à son compte publicitaire ChatGPT."}</div></div>
-          <div className={socialStyles.stepStatus}>{locked ? <span className={adsStyles.lockedPill}>Verrouillé</span> : <ConnectionPill connected={connected} status={connectionDisplayStatus} label={busy === "connect" ? "Vérification…" : undefined} />}</div>
-        </div>
-        <div className={`${socialStyles.stepBody} ${adsStyles.stepBody}`}>
-          <div className={adsStyles.controlRow}>
-            <input readOnly aria-label="Compte connecté à ChatGPT Ads" value={locked ? "Connexion réservée à l’administration" : connected ? `Compte connecté : ${status.accountName || status.accountId}` : status.status === "needs_update" ? "Connexion à actualiser" : "Aucun compte connecté"} />
-            {connected && <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} onClick={() => void disconnect()} disabled={busy !== null}>{busy === "disconnect" ? "Déconnexion…" : "Déconnexion"}</button>}
-          </div>
-          <form className={styles.keyForm} onSubmit={(event) => void connect(event)}>
-            <label htmlFor="openai-ads-key">{connected ? "Actualiser la clé Ads Manager" : "Clé Ads Manager"}<small>La clé OpenAI API habituelle ne donne pas accès aux publicités.</small></label>
-            <div className={`${adsStyles.controlRow} ${styles.keyRow}`}>
-              <input ref={keyInput} id="openai-ads-key" type="password" autoComplete="off" spellCheck={false} placeholder="Collez la clé publicitaire" maxLength={2048} required disabled={locked} />
-              <button type="submit" className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${adsStyles.channelPrimary} ${locked ? adsStyles.lockedAction : ""}`} disabled={locked || busy !== null}>{busy === "connect" ? "Vérification…" : connected ? "Actualiser" : "Connecter"} <span aria-hidden="true">→</span></button>
-            </div>
-          </form>
-          {!refreshed && !connected && <p className={adsStyles.detail} role="status">Vérification de la connexion…</p>}
-        </div>
-      </section>
+  if (!connected && !keyFormOpen) return <div hidden={!active} data-ads-connection-controls="openai" className={`${adsStyles.content} ${adsStyles.connectionPrompt} ${styles.openai}`}>
+    <button type="button" className={adsStyles.initialConnect} disabled={locked} onClick={() => setKeyFormOpen(true)}>Connecter</button>
+    {!locked && error ? <p className={adsStyles.inlineError} role="alert">{error} <button type="button" className={styles.retry} onClick={() => void refresh()}>Réessayer</button></p> : null}
+  </div>;
 
-      <section data-step-index="1" className={`${socialStyles.stepCard} ${adsStyles.step}`} aria-label="Étape 2 : Compte annonceur">
-        <div className={`${socialStyles.stepHeader} ${adsStyles.stepHeader}`}>
-          <span className={socialStyles.stepNumber} aria-hidden="true">02</span>
-          <div className={socialStyles.stepCopy}><div>Compte annonceur</div><div>Vérifiez le compte et son droit de créer des campagnes dans Ads Manager.</div></div>
-          <div className={socialStyles.stepStatus}>{locked ? <span className={adsStyles.lockedPill}>Verrouillé</span> : <ConnectionPill connected={connected && Boolean(status.accountId)} label={connected ? "Compte reconnu" : undefined} />}</div>
-        </div>
-        <div className={`${socialStyles.stepBody} ${adsStyles.stepBody}`}>
-          <div className={adsStyles.resourceControls}>
-            <div className={styles.accountIdentity}>
-              <strong>{connected ? status.accountName || status.accountId : "Aucun compte associé"}</strong>
-              {connected && <small>{status.accountId}{status.currency ? ` · ${status.currency}` : ""}</small>}
-            </div>
-            <div className={adsStyles.resourceActions}>{locked ? <button type="button" className={`${dashboardStyles.actionBtn} ${adsStyles.lockedAction}`} disabled>Ouvrir Ads Manager</button> : <a className={`${dashboardStyles.actionBtn} ${adsStyles.viewAccount}`} href={accountUrl} target="_blank" rel="noopener noreferrer">Ouvrir Ads Manager <span aria-hidden="true">↗</span></a>}</div>
-          </div>
-          <p className={adsStyles.detail}>{locked ? "La configuration ChatGPT Ads sera disponible après validation de ce canal." : connected
-            ? liveDeliveryEnabled
-              ? "Compte prêt : vous pourrez choisir Active ou En pause lors de la validation finale. Une campagne Active ne diffuse qu’après la revue de l’annonce par ChatGPT Ads."
-              : pausedCreationEnabled
-                ? `Création de campagnes en pause disponible. ${status.liveReadinessMessage || status.readinessMessage || "Le lancement Active n’est pas encore autorisé pour ce compte."}`
-                : status.readinessMessage || "Connexion reconnue. La création de campagne n’est pas disponible pour le moment."
-            : status.status === "needs_update" && status.readinessMessage
-              ? status.readinessMessage
-              : "Créez d’abord un compte annonceur dans Ads Manager, puis collez sa clé publicitaire dans le panneau de connexion ci-dessus."}</p>
-        </div>
-      </section>
-
-      {!locked && error && <p className={adsStyles.inlineError} role="alert">{error} <button type="button" className={styles.retry} onClick={() => void refresh()}>Réessayer</button></p>}
-      {!locked && <p className={adsStyles.footnote}>{liveDeliveryEnabled
-        ? <>Le statut <strong>Active</strong> ou <strong>En pause</strong> est choisi à la validation finale. En statut Active, une dépense peut démarrer uniquement après votre confirmation explicite et la revue de l’annonce par ChatGPT Ads.</>
-        : <>La création <strong>en pause</strong> reste disponible sans diffusion ni dépense. Le statut Active sera proposé dès que le compte remplira toutes les conditions de lancement.</>}</p>}
+  return <div hidden={!active} data-ads-connection-controls="openai" data-connection-status={connectionDisplayStatus} aria-busy={!refreshed || busy !== null} className={`${adsStyles.content} ${styles.openai}`}>
+    <div className={adsStyles.controlRow}>
+      <input readOnly aria-label="Compte connecté à ChatGPT Ads" title={connected ? `${status.accountId}${status.currency ? ` · ${status.currency}` : ""}` : "Compte annonceur ChatGPT Ads"} value={locked ? "Connexion réservée à l’administration" : connected ? status.accountName || status.accountId : status.status === "needs_update" ? "Connexion à actualiser" : "Aucun compte associé"} />
+    {connected ? <button type="button" data-ads-icon-action="disconnect" onClick={() => void disconnect()} disabled={busy !== null} title="Déconnexion ChatGPT Ads" aria-label="Déconnexion ChatGPT Ads"><AdsConnectionIcon name="disconnect" /></button> : null}
     </div>
-  </SettingsDrawer>;
+    <form className={adsStyles.resourceControls} onSubmit={(event) => void connect(event)}>
+      <input ref={keyInput} id="openai-ads-key" type="password" aria-label={connected ? "Actualiser la clé Ads Manager" : "Clé Ads Manager"} title="La clé OpenAI API habituelle ne donne pas accès aux publicités." autoComplete="off" spellCheck={false} placeholder="Clé Ads Manager" maxLength={2048} required disabled={locked || busy !== null} />
+      <button type="submit" disabled={locked || busy !== null} data-ads-icon-action="save" title={connected ? "Actualiser la clé" : "Connecter le compte"} aria-label={connected ? "Actualiser la clé Ads Manager" : "Connecter ChatGPT Ads"}><AdsConnectionIcon name="save" /></button>
+    </form>
+    <div className={adsStyles.actionBar} role="group" aria-label="Actions ChatGPT Ads">
+      {!locked ? <a className={adsStyles.actionItem} href={accountUrl} target="_blank" rel="noopener noreferrer" title="Ouvrir Ads Manager" aria-label="Ouvrir Ads Manager"><AdsConnectionIcon name="view" /></a> : null}
+
+      <button type="button" className={adsStyles.actionItem} onClick={() => void refresh()} disabled={locked || busy !== null} title="Actualiser la connexion" aria-label="Actualiser la connexion ChatGPT Ads"><AdsConnectionIcon name="refresh" /></button>
+      <details className={adsStyles.identityMenu}>
+        <summary className={adsStyles.actionItem} title="Informations du compte" aria-label="Informations du compte"><AdsConnectionIcon name="info" /></summary>
+        <div className={adsStyles.identityPopover}>
+          <strong>Clé Ads Manager</strong>
+          <p className={adsStyles.detail}>La clé OpenAI API habituelle ne donne pas accès aux publicités.</p>
+          <p className={adsStyles.detail}>{locked ? "La configuration ChatGPT Ads sera disponible après validation de ce canal." : connected ? liveDeliveryEnabled
+            ? "Compte prêt : vous pourrez choisir Active ou En pause lors de la validation finale. Une campagne Active ne diffuse qu’après la revue de l’annonce par ChatGPT Ads."
+            : pausedCreationEnabled ? `Création de campagnes en pause disponible. ${status.liveReadinessMessage || status.readinessMessage || "Le lancement Active n’est pas encore autorisé pour ce compte."}`
+              : status.readinessMessage || "Connexion reconnue. La création de campagne n’est pas disponible pour le moment."
+            : status.readinessMessage || "Créez un compte annonceur dans Ads Manager, puis collez sa clé publicitaire dans le champ prévu."}</p>
+          {!locked ? <p className={adsStyles.detail}>{liveDeliveryEnabled ? <>Le statut <strong>Active</strong> ou <strong>En pause</strong> est choisi à la validation finale. En statut Active, une dépense peut démarrer uniquement après votre confirmation explicite et la revue de l’annonce par ChatGPT Ads.</> : <>La création <strong>en pause</strong> reste disponible sans diffusion ni dépense. Le statut Active sera proposé dès que le compte remplira toutes les conditions de lancement.</>}</p> : null}
+        </div>
+      </details>
+    </div>
+    {!locked && error ? <p className={adsStyles.inlineError} role="alert">{error} <button type="button" className={styles.retry} onClick={() => void refresh()}>Réessayer</button></p> : null}
+  </div>;
 }

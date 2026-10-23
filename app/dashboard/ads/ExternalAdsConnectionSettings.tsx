@@ -1,12 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import SettingsDrawer from "@/app/dashboard/SettingsDrawer";
-import ChannelSettingsHeader from "@/app/dashboard/_components/ChannelSettingsHeader";
-import ConnectionPill from "@/app/dashboard/_components/ConnectionPill";
-import socialStyles from "@/app/dashboard/_components/SocialSettingsSteps.module.css";
-import dashboardStyles from "@/app/dashboard/dashboard.module.css";
-import { getChannelSettingsHeaderStyle } from "@/app/dashboard/channel-settings";
+import AdsConnectionIcon from "./AdsConnectionIcon";
 import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import { adsAssociationDisplayReady } from "@/lib/adsConnectionSnapshot";
@@ -43,18 +38,10 @@ export type ExternalAdsSettingsAccount = {
   test?: boolean;
 };
 
-type NavigationTarget = {
-  name: string;
-  onSelect: () => void;
-};
-
 type Props = {
-  isOpen: boolean;
+  active: boolean;
   channel: ExternalAdsSettingsChannel;
   locked?: boolean;
-  previous: NavigationTarget;
-  next: NavigationTarget;
-  onClose: () => void;
   status: ExternalAdsSettingsStatus;
   accounts: ExternalAdsSettingsAccount[];
   accountChoice: string;
@@ -72,46 +59,31 @@ type Props = {
 
 const CHANNEL_UI: Record<ExternalAdsSettingsChannel, {
   label: string;
-  logo: string;
-  lead: string;
   connectionCopy: string;
-  accountCopy: string;
   accountLabel: string;
   requiresEuro: boolean;
 }> = {
   linkedin: {
     label: "LinkedIn Ads",
-    logo: "/ads-logos/linkedin.svg",
-    lead: "Votre espace publicitaire LinkedIn.",
     connectionCopy: "Autorisez la gestion des campagnes, le Sponsored Content et les statistiques Ads. Cette connexion reste indépendante de vos publications LinkedIn organiques.",
-    accountCopy: "Sélectionnez le compte annonceur qui prendra en charge vos campagnes LinkedIn.",
     accountLabel: "Compte publicitaire",
     requiresEuro: false,
   },
   tiktok: {
     label: "TikTok Ads",
-    logo: "/ads-logos/tiktok.svg",
-    lead: "Votre espace publicitaire TikTok.",
     connectionCopy: "Connectez-vous à TikTok for Business avec les autorisations Ads. Cette connexion est indépendante de vos publications organiques.",
-    accountCopy: "Sélectionnez le compte en euros qui prendra en charge les frais publicitaires.",
     accountLabel: "Compte publicitaire en euros",
     requiresEuro: true,
   },
   pinterest: {
     label: "Pinterest Ads",
-    logo: "/ads-logos/pinterest.svg",
-    lead: "Votre espace publicitaire Pinterest.",
     connectionCopy: "Connectez-vous à Pinterest avec les autorisations Ads. Cette connexion est indépendante des publications gratuites du dashboard.",
-    accountCopy: "Sélectionnez le compte en euros qui prendra en charge les frais publicitaires.",
     accountLabel: "Compte publicitaire en euros",
     requiresEuro: true,
   },
   x: {
     label: "X Ads",
-    logo: "/ads-logos/x.svg",
-    lead: "Votre espace publicitaire X.",
     connectionCopy: "Connectez-vous à X avec les autorisations publicitaires. Cette connexion est indépendante de vos publications organiques.",
-    accountCopy: "Sélectionnez le compte en euros qui prendra en charge vos campagnes X.",
     accountLabel: "Compte publicitaire en euros",
     requiresEuro: true,
   },
@@ -128,12 +100,9 @@ function accountLabel(account: ExternalAdsSettingsAccount) {
 }
 
 export default function ExternalAdsConnectionSettings({
-  isOpen,
+  active,
   channel,
   locked = false,
-  previous,
-  next,
-  onClose,
   status,
   accounts,
   accountChoice,
@@ -217,77 +186,43 @@ export default function ExternalAdsConnectionSettings({
     return { account, unavailable, reason, tiktokStatus };
   }), [accounts, channel, current.requiresEuro]);
 
-  return <SettingsDrawer
-    title={`Configurer ${current.label}`}
-    isOpen={isOpen}
-    onClose={onClose}
-    presentation="centered"
-    keepMounted
-    headerContent={<ChannelSettingsHeader
-      name={current.label}
-      logoSrc={current.logo}
-      previous={previous}
-      next={next}
-    />}
-    headerLead={current.lead}
-    headerStyle={getChannelSettingsHeaderStyle(channel)}
-    headerActions={<button type="button" className={dashboardStyles.channelSettingsAllChannelsButton} onClick={onClose} aria-label="Tous les canaux" title="Tous les canaux"><span className={dashboardStyles.channelSettingsAllChannelsIcon} aria-hidden="true">☷</span><span className={dashboardStyles.channelSettingsAllChannelsLabel}>Tous les canaux</span></button>}
-  >
-    <div className={`${styles.content} ${socialStyles.journey} ${styles[channel]}`}>
-      <section data-step-index="0" className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 1 : Votre connexion">
-        <div className={`${socialStyles.stepHeader} ${styles.stepHeader}`}>
-          <span className={socialStyles.stepNumber} aria-hidden="true">01</span>
-          <div className={`${socialStyles.stepCopy} ${styles.stepCopy}`}><div>Votre connexion</div><div>{locked ? "Canal en validation : connexion réservée à l’administration." : current.connectionCopy}</div></div>
-          <div className={socialStyles.stepStatus}>{locked ? <span className={styles.lockedPill}>Verrouillé</span> : <ConnectionPill connected={status.connected} status={connectionDisplayStatus} label={connectionStatusLabel} />}</div>
-        </div>
-        <div className={`${socialStyles.stepBody} ${styles.stepBody}`}>
-          <div className={styles.controlRow}>
-            <input readOnly aria-label={`Compte connecté à ${current.label}`} value={connectionValue} />
-            {locked ? <button type="button" className={`${dashboardStyles.actionBtn} ${styles.lockedAction}`} disabled>Connecter {current.label}</button> : status.load === "error" ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.secondaryBtn}`} disabled={busy} onClick={onRefreshStatus}>Réessayer</button> : null}
-            {!locked && status.configured && status.connected ? <>
-              {linkedinManagementMissing ? <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel, "manage")}>Compléter les autorisations Ads <span aria-hidden="true">→</span></a> : null}
-              {needsReconnect && !linkedinManagementMissing ? <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel, linkedinRefreshAccess)}>Actualiser la connexion <span aria-hidden="true">→</span></a> : null}
-              <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onDisconnect}>{action === "disconnect" ? "Déconnexion…" : "Déconnexion"}</button>
-            </> : !locked && status.configured && needsReconnect ? <>
-              <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel, linkedinRefreshAccess)}>Reconnecter {current.label} <span aria-hidden="true">→</span></a>
-              <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onDisconnect}>{action === "disconnect" ? "Déconnexion…" : "Déconnexion"}</button>
-            </> : !locked && status.configured && status.load !== "loading" && status.load !== "idle" ? <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel)}>Connecter {current.label} <span aria-hidden="true">→</span></a> : !locked ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.secondaryBtn}`} disabled>{status.configured ? "Vérification…" : "Connexion indisponible"}</button> : null}
-          </div>
-        </div>
-      </section>
+  if (!status.connected && !needsReconnect) return <div hidden={!active} data-ads-connection-controls={channel} className={`${styles.content} ${styles.connectionPrompt} ${styles[channel]}`}>
+    {locked || !status.configured || status.load === "loading" || status.load === "idle" ? <button type="button" className={styles.initialConnect} disabled>{!locked && status.configured ? "Vérification…" : "Connecter"}</button> : <a className={styles.initialConnect} href={oauthHref(channel)} aria-label={`Connecter ${current.label}`}>Connecter</a>}
+    {effectiveError ? <p className={styles.inlineError} role="alert">{effectiveError} <button type="button" onClick={onRefreshStatus}>Réessayer</button></p> : null}
+  </div>;
 
-      <section data-step-index="1" className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 2 : Compte annonceur">
-        <div className={`${socialStyles.stepHeader} ${styles.stepHeader}`}>
-          <span className={socialStyles.stepNumber} aria-hidden="true">02</span>
-          <div className={`${socialStyles.stepCopy} ${styles.stepCopy}`}><div>Compte annonceur</div><div>{current.accountCopy}</div></div>
-          <div className={socialStyles.stepStatus}>{locked ? <span className={styles.lockedPill}>Verrouillé</span> : <ConnectionPill connected={accountConfigured} label={accountStatusLabel} />}</div>
-        </div>
-        <div className={`${socialStyles.stepBody} ${styles.stepBody}`}>
-          <div className={styles.resourceControls}>
-            <label className={styles.field}>{current.accountLabel}
-              <select aria-label={accountConfigured ? "Changer de compte" : "Choisir un compte"} value={locked ? "" : accountChoice} disabled={!status.connected || busy} onChange={(event) => onSelectAccount(event.target.value)}>
-                <option value="">Sélectionnez un compte</option>
-                {hasConfiguredAccount && !configuredAccount ? <option value={status.selectedAccountId}>{status.selectedAccountName || `Compte ${status.selectedAccountId}`}{accountsLoaded ? " · accès à vérifier" : ""}</option> : null}
-                {accountOptions.map(({ account, unavailable, reason, tiktokStatus }) => <option key={account.id} value={account.id} disabled={unavailable}>{accountLabel(account)}{tiktokStatus ? ` · ${tiktokStatus.statusLabel}` : ""}{reason ? ` (${reason})` : ""}</option>)}
-              </select>
-            </label>
-            <div className={styles.resourceActions}>
-              <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.secondaryBtn}`} disabled={!status.connected || action !== null || accountsLoading} onClick={onRefreshAccounts}>{accountsLoading ? "Actualisation…" : "Charger mes comptes"}</button>
-              {accountCandidateReady && !accountConfigured ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} disabled={action !== null} onClick={onAssociateAccount}>{action === "associate" ? "Association…" : "Associer ce compte"}</button> : null}
-              {configuredAccountUrl ? <a className={`${dashboardStyles.actionBtn} ${styles.viewAccount}`} href={configuredAccountUrl} target="_blank" rel="noreferrer" aria-label={`Voir le compte ${status.selectedAccountName || status.selectedAccountId} dans ${current.label}`}>Voir le compte</a> : null}
-            </div>
-          </div>
-          {!locked && status.connected && channel === "tiktok" ? accountOptions.filter(({ unavailable, tiktokStatus }) => unavailable && tiktokStatus?.help).map(({ account, tiktokStatus }) => <p key={account.id} className={styles.detail}>{account.name.trim() || `Compte ${account.id}`} : {tiktokStatus?.help}</p>) : null}
-          {selectedAccount ? <p className={styles.detail}>{channel === "linkedin"
-            ? `${accountConfigured ? "Compte sélectionné" : "Compte à confirmer"} : ${accountLabel(selectedAccount)}. Rôle LinkedIn : ${selectedAccount.permissions?.[0] || "non vérifié"}. Gestion : ${selectedAccount.canManageCampaigns === true ? "autorisée" : "non autorisée avec cette connexion"}. Servabilité : ${selectedAccount.canServeCampaigns === true ? "RUNNABLE" : selectedAccount.servingStatuses?.includes("RUNNABLE") && selectedAccount.test !== true ? "RUNNABLE, accès de gestion requis" : "non vérifiée"}.`
-            : accountConfigured ? `Compte sélectionné : ${accountLabel(selectedAccount)}. Les frais sont gérés directement par ${current.label}.` : "Ce compte sera utilisé après confirmation."}</p> : null}
-          {accountsLoadFailed ? <p className={styles.inlineError}>La liste des comptes n’a pas pu être chargée. Réessayez avec « Charger mes comptes ».</p> : null}
-        </div>
-      </section>
-
-      {effectiveError ? <p role="alert" className={styles.inlineError}>{effectiveError}</p> : null}
-      {!locked && channel !== "pinterest" ? <p className={styles.footnote}>{channel === "linkedin" ? "Cette connexion permet de créer et gérer vos campagnes LinkedIn Ads et de consulter leurs statistiques, selon vos autorisations sur le compte publicitaire." : `La préparation et l’enregistrement des campagnes sont disponibles. La publication sur ${current.label} n’est pas encore activée : aucune annonce n’est diffusée depuis cet écran.`}</p> : null}
-
+  return <div hidden={!active} data-ads-connection-controls={channel} data-connection-status={connectionDisplayStatus} className={`${styles.content} ${styles[channel]}`}>
+    <div className={styles.controlRow}>
+      {locked || !status.configured ? <input readOnly aria-label={`Connexion ${current.label}`} value={connectionValue} />
+        : status.connected && !needsReconnect && !linkedinManagementMissing ? <input readOnly aria-label={`Compte connecté à ${current.label}`} title={connectionStatusLabel || current.connectionCopy} value="Compte autorisé" />
+          : status.load === "error" && !needsReconnect ? <button type="button" className={styles.connectField} disabled={busy} onClick={onRefreshStatus}>Réessayer la connexion</button>
+            : status.load === "loading" || status.load === "idle" ? <input readOnly aria-label={`Connexion ${current.label}`} value="Vérification de la connexion…" />
+              : <a className={styles.connectField} href={oauthHref(channel, linkedinRefreshAccess)}>{linkedinManagementMissing ? "Compléter les autorisations Ads" : needsReconnect ? `Reconnecter ${current.label}` : `Connecter ${current.label}`}</a>}
+    {!locked && status.configured && (status.connected || needsReconnect) ? <button type="button" data-ads-icon-action="disconnect" disabled={busy} onClick={onDisconnect} title={`Déconnexion ${current.label}`} aria-label={`Déconnexion ${current.label}`}><AdsConnectionIcon name="disconnect" /></button> : null}
     </div>
-  </SettingsDrawer>;
+    <div className={styles.resourceControls}>
+      <select aria-label={accountConfigured ? "Changer de compte" : "Choisir un compte"} title={`${current.accountLabel} · ${accountStatusLabel || "À associer"}`} value={locked ? "" : accountChoice} disabled={!status.connected || busy} onChange={(event) => onSelectAccount(event.target.value)}>
+        <option value="">Choisir un compte publicitaire</option>
+        {hasConfiguredAccount && !configuredAccount ? <option value={status.selectedAccountId}>{status.selectedAccountName || `Compte ${status.selectedAccountId}`}{accountsLoaded ? " · accès à vérifier" : ""}</option> : null}
+        {accountOptions.map(({ account, unavailable, reason, tiktokStatus }) => <option key={account.id} value={account.id} disabled={unavailable}>{accountLabel(account)}{tiktokStatus ? ` · ${tiktokStatus.statusLabel}` : ""}{reason ? ` (${reason})` : ""}</option>)}
+      </select>
+      {accountCandidateReady && !accountConfigured ? <button type="button" disabled={action !== null} onClick={onAssociateAccount} data-ads-icon-action="save" title="Associer ce compte" aria-label="Associer ce compte"><AdsConnectionIcon name="save" /></button> : null}
+    </div>
+    <div className={styles.actionBar} role="group" aria-label={`Actions ${current.label}`}>
+      {configuredAccountUrl ? <a className={styles.actionItem} href={configuredAccountUrl} target="_blank" rel="noreferrer" title="Voir le compte" aria-label={`Voir le compte ${status.selectedAccountName || status.selectedAccountId} dans ${current.label}`}><AdsConnectionIcon name="view" /></a> : null}
+
+      <button type="button" className={styles.actionItem} disabled={!status.connected || action !== null || accountsLoading} onClick={onRefreshAccounts} title="Charger mes comptes" aria-label="Charger mes comptes"><AdsConnectionIcon name="refresh" /></button>
+      <details className={styles.identityMenu}>
+        <summary className={styles.actionItem} title="Informations du compte" aria-label="Informations du compte"><AdsConnectionIcon name="info" /></summary>
+        <div className={styles.identityPopover}>
+          <strong>{current.label}</strong>
+          <p className={styles.detail}>{current.connectionCopy}</p>
+          {!locked && status.connected && channel === "tiktok" ? accountOptions.filter(({ unavailable, tiktokStatus }) => unavailable && tiktokStatus?.help).map(({ account, tiktokStatus }) => <p key={account.id} className={styles.detail}>{account.name.trim() || `Compte ${account.id}`} : {tiktokStatus?.help}</p>) : null}
+          {selectedAccount ? <p className={styles.detail}>{channel === "linkedin" ? `${accountLabel(selectedAccount)}. Rôle LinkedIn : ${selectedAccount.permissions?.[0] || "non vérifié"}. Gestion : ${selectedAccount.canManageCampaigns === true ? "autorisée" : "non autorisée avec cette connexion"}. Servabilité : ${selectedAccount.canServeCampaigns === true ? "RUNNABLE" : selectedAccount.servingStatuses?.includes("RUNNABLE") && selectedAccount.test !== true ? "RUNNABLE, accès de gestion requis" : "non vérifiée"}.` : accountConfigured ? `${accountLabel(selectedAccount)}. Les frais sont gérés directement par ${current.label}.` : "Ce compte sera utilisé après confirmation."}</p> : null}
+          {!locked && channel !== "pinterest" ? <p className={styles.detail}>{channel === "linkedin" ? "Cette connexion permet de créer et gérer vos campagnes LinkedIn Ads et de consulter leurs statistiques, selon vos autorisations sur le compte publicitaire." : `La préparation et l’enregistrement des campagnes sont disponibles. La publication sur ${current.label} n’est pas encore activée : aucune annonce n’est diffusée depuis cet écran.`}</p> : null}
+        </div>
+      </details>
+    </div>
+    {accountsLoadFailed ? <p className={styles.inlineError} role="alert">Comptes indisponibles. Réessayez avec « Charger mes comptes ».</p> : effectiveError ? <p role="alert" className={styles.inlineError}>{effectiveError}</p> : null}
+  </div>;
 }

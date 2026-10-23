@@ -51,7 +51,7 @@ function bubbleArgs(enabled: boolean) {
     xConnected: false, xConnectionStatus: "disconnected", xUrl: "", mailAccountsConnectedCount: 0,
     tiktokConnected: false, youtubeShortsConnected: false, inrBadgeProfileReady: false, inrBadgeProfileCheckReady: true,
     getSiteBubbleProgress: () => ({ status: "available", text: "À connecter" }),
-    onOpenInrBadgeModal() {}, onOpenInrAgent() {}, openPanel(name: string) { void name; }, setHelpSiteWebOpen() {}, siteWebSavedUrl: "", copy };
+    inrBadgePublicUrl: "", onOpenInrAgent() {}, openPanel(name: string) { void name; }, setHelpSiteWebOpen() {}, siteWebSavedUrl: "", copy };
 }
 
 test("manual Bubble Access and cached connected state cannot expose Threads to USER", () => {
@@ -70,6 +70,21 @@ test("the ADMIN pilot bubble retains the normal status, profile and settings act
   assert.equal(row.bubbleStatus, "connected"); assert.equal(row.specialViewHref, args.threadsUrl);
   assert.equal(row.canViewSpecial, true); assert.equal(row.configureDisabled, false);
   row.onConfigure(); assert.equal(opened, "threads");
+});
+
+test("iNrBadge's view action opens the public badge page instead of the QR preview", () => {
+  const args = bubbleArgs(false);
+  args.inrBadgeProfileReady = true;
+  args.inrBadgePublicUrl = "https://app.inrcy.com/badge/fixture";
+  const row = buildFluxBubbleItems(args).find(item => item.key === "inrbadge");
+  assert.ok(row);
+  assert.equal(row.specialViewHref, args.inrBadgePublicUrl);
+  assert.equal(row.canViewSpecial, true);
+  assert.equal(row.onSpecialView, undefined, "Viewing the public page must not open the QR modal");
+  const bubble = channelRuntime("app/dashboard/_components/DashboardFluxBubble.tsx");
+  const view = channelNodes(bubble.render({ item: row })).find(node => node.type === "a" && node.props.href === args.inrBadgePublicUrl);
+  assert.ok(view, "The visible View action must link to the same public page as the QR code");
+  assert.equal(view.props.target, "_blank");
 });
 
 test("USER snapshots discard Threads-only publications and strip mixed channel data without changing Facebook", () => {
