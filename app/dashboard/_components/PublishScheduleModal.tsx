@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
+import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import type { ChannelKey } from "../booster/publier/publishModal.shared";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
 import PublishExecutionProgress from "./PublishExecutionProgress";
+import { PUBLISH_CHANNEL_IDENTITY } from "../booster/publier/components/publishChannelIdentity";
+import css from "./PublishScheduleModal.module.css";
 
 export type PublishScheduleSelection = {
   channel: ChannelKey;
@@ -42,6 +46,8 @@ type PublishScheduleModalProps = {
     immediateChannels: ChannelKey[],
   ) => void | Promise<void>;
   onSuccess?: () => void | Promise<void>;
+  confirmLabel?: string;
+  showReviewSummary?: boolean;
 };
 
 function pad2(value: number) {
@@ -101,6 +107,43 @@ function ClockMiniIcon() {
   );
 }
 
+function ScheduleDateTimeField({
+  type, label, pickerLabel, value, disabled, onChange,
+}: {
+  type: "date" | "time";
+  label: string;
+  pickerLabel: string;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = useId();
+  return (
+    <div className={css.field} data-disabled={disabled || undefined}>
+      <label htmlFor={inputId}>{label}</label>
+      <div className={css.control}>
+        <input
+          id={inputId}
+          ref={inputRef}
+          type={type}
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <button
+          type="button"
+          aria-label={pickerLabel}
+          disabled={disabled}
+          onClick={() => openNativeDateTimePicker(inputRef.current)}
+        >
+          {type === "date" ? <CalendarMiniIcon /> : <ClockMiniIcon />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function PublishScheduleModal({
   open,
   styles,
@@ -117,6 +160,8 @@ export default function PublishScheduleModal({
   onClose,
   onConfirm,
   onSuccess,
+  confirmLabel,
+  showReviewSummary = true,
 }: PublishScheduleModalProps) {
   const i18nT = useTranslations("booster");
   const resolvedProgressLabel = progressLabel || i18nT("programmation_en_cours_33f59055");
@@ -141,14 +186,10 @@ export default function PublishScheduleModal({
   const [localError, setLocalError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [doneMessage, setDoneMessage] = useState("");
-  const generalDateInputRef = useRef<HTMLInputElement | null>(null);
-  const generalTimeInputRef = useRef<HTMLInputElement | null>(null);
-  const dateInputRefs = useRef<
-    Partial<Record<ChannelKey, HTMLInputElement | null>>
-  >({});
-  const timeInputRefs = useRef<
-    Partial<Record<ChannelKey, HTMLInputElement | null>>
-  >({});
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const channelDetailsId = titleId + "-channels";
+  const busy = saving || submitting;
   const [baseline, setBaseline] = useState("");
 
   useEffect(() => {
@@ -250,6 +291,46 @@ export default function PublishScheduleModal({
     variant: "warning",
   });
 
+  useEffect(() => {
+    if (!open) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus({ preventScroll: true });
+    return () => { previousFocus?.focus({ preventScroll: true }); };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const activeDialog = document.activeElement?.closest('[aria-modal="true"]');
+      if (activeDialog && activeDialog !== dialog) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!busy) void confirmExit();
+      }
+      if (event.key !== "Tab") return;
+      const elements = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), input:not(:disabled), summary, [tabindex="0"]',
+      )).filter((element) => element.getClientRects().length > 0);
+      const first = elements[0];
+      const last = elements.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        dialog.focus();
+      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [open, busy, confirmExit]);
+
   if (!open) return null;
 
   const isSelected = (channel: ChannelKey) =>
@@ -258,7 +339,6 @@ export default function PublishScheduleModal({
     dateByChannel[channel] || defaultDateTime.date;
   const getTime = (channel: ChannelKey) =>
     timeByChannel[channel] || defaultDateTime.time;
-  const busy = saving || submitting;
   const blockedItems = items.filter((item) => item.blockers.length > 0);
   const reviewDetails = Array.from(
     new Set(items.flatMap((item) => item.details || [])),
@@ -376,547 +456,99 @@ export default function PublishScheduleModal({
     }
   };
 
-  return (
-    <div data-inrcy-tool-overlay
-      className={styles.fullscreenModalOverlay}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 10013,
-        background: "rgba(4, 8, 18, 0.74)",
-        backdropFilter: "blur(8px)",
-        display: "grid",
-        placeItems: "center",
-        padding: 16,
-        overflowY: "auto",
-        overscrollBehavior: "contain",
-      }}
-    >
-      <div data-inrcy-tool-dialog
-        className={styles.blockCard}
-        style={{
-          width: isMobile ? "min(780px, 100%)" : "min(1080px, 100%)",
-          maxHeight:
-            "calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) - 32px)",
-          overflowY: "auto",
-          display: "grid",
-          gap: isMobile ? 14 : 20,
-          padding: isMobile ? 14 : 24,
-          background: "#111827",
-          backgroundImage: "none",
-          border: "1px solid rgba(148, 163, 184, 0.28)",
-          boxShadow: "0 30px 90px rgba(0,0,0,0.62)",
-          backdropFilter: "none",
-        }}
+  const scheduledCount = scheduleMode === "general"
+    ? publishableItems.length
+    : publishableItems.filter((item) => isSelected(item.channel)).length;
+
+  return createPortal(
+    <div className={css.overlay} onMouseDown={(event) => {
+      if (event.target === event.currentTarget && !busy) void confirmExit();
+    }}>
+      <div
+        ref={dialogRef}
+        className={css.dialog}
+        data-mode={scheduleMode}
+        data-mobile={isMobile || undefined}
+        data-publish-schedule-dialog
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            alignItems: "flex-start",
-          }}
-        >
-          <div style={{ display: "grid", gap: 6, minWidth: 0 }}>
-            <div style={{ fontSize: 22 }}>🕒</div>
-            <div className={styles.blockTitle} style={{ marginBottom: 0 }}>
-              {i18nT("schedule_title")}
-            </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: "rgba(255,255,255,0.72)",
-                lineHeight: 1.45,
-              }}
-            >
-              {i18nT("schedule_description")}
-            </div>
-          </div>
-          <button
-            type="button"
-            className={styles.secondaryBtn}
-            onClick={() => void confirmExit()}
-            disabled={busy}
-          >
-            {i18nT("schedule_close")}
-          </button>
-        </div>
-
-        {reviewDetails.length || reviewWarnings.length ? (
-          <div style={{ display: "grid", gap: 8 }}>
-            {reviewDetails.map((detail) => (
-              <div
-                key={detail}
-                style={{
-                  borderRadius: 14,
-                  padding: "11px 13px",
-                  background: "rgba(56,189,248,0.09)",
-                  border: "1px solid rgba(56,189,248,0.24)",
-                  color: "#bae6fd",
-                  fontSize: 13,
-                  lineHeight: 1.45,
-                }}
-              >
-                <span
-                  style={{ display: "flex", alignItems: "flex-start", gap: 6 }}
-                >
-                  <span aria-hidden>{String.fromCodePoint(0x2139, 0xfe0f)}</span>
-                  <span>{detail}</span>
-                </span>
-              </div>
-            ))}
-            {reviewWarnings.map((warning) => (
-              <div
-                key={warning}
-                style={{
-                  borderRadius: 14,
-                  padding: "11px 13px",
-                  background: "rgba(251,191,36,0.10)",
-                  border: "1px solid rgba(251,191,36,0.30)",
-                  color: "#fde68a",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  lineHeight: 1.45,
-                }}
-              >
-                ⚠️ {warning}
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        <div style={{ display: "grid", gap: 10 }}>
-          <section
-            style={{
-              display: "grid",
-              gap: 12,
-              borderRadius: 18,
-              padding: 14,
-              background:
-                scheduleMode === "general"
-                  ? "rgba(34,197,94,0.10)"
-                  : "rgba(255,255,255,0.04)",
-              border:
-                scheduleMode === "general"
-                  ? "1px solid rgba(34,197,94,0.34)"
-                  : "1px solid rgba(255,255,255,0.08)",
-            }}
-          >
-            <label
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 10,
-                cursor: busy ? "wait" : "pointer",
-              }}
-            >
-              <input
-                type="radio"
-                name="publish-schedule-mode"
-                checked={scheduleMode === "general"}
-                onChange={activateGeneralMode}
-                disabled={busy || !publishableItems.length}
-                style={{ marginTop: 3 }}
-              />
-              <span style={{ display: "grid", gap: 4 }}>
-                <strong style={{ color: "#fff", fontSize: 15 }}>
-                  {i18nT("schedule_general_title")}
-                </strong>
-                <span
-                  style={{
-                    fontSize: 12,
-                    lineHeight: 1.4,
-                    color: "rgba(255,255,255,0.66)",
-                  }}
-                >
-                  {i18nT("schedule_general_description")}
-                </span>
-              </span>
+        <header className={css.header}>
+          <span className={css.headerIcon}><CalendarMiniIcon /></span>
+          <h2 id={titleId}>{i18nT("schedule_title")}</h2>
+          <button type="button" className={css.close} aria-label={i18nT("schedule_close")} disabled={busy} onClick={() => void confirmExit()}>×</button>
+        </header>
+        <div className={css.body}>
+          <div className={css.modes} role="radiogroup" aria-label={i18nT("schedule_eyebrow")}>
+            <label className={css.mode} data-active={scheduleMode === "general"}>
+              <input type="radio" name={titleId + "-mode"} checked={scheduleMode === "general"} onChange={activateGeneralMode} disabled={busy || !publishableItems.length} />
+              <span><strong>{i18nT("schedule_general_title")}</strong><small>{i18nT("schedule_general_description")}</small></span>
             </label>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : "minmax(0,1fr) minmax(162px,170px) minmax(136px,145px)",
-                gap: 10,
-                alignItems: "center",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 12,
-                  lineHeight: 1.4,
-                  color: "rgba(255,255,255,0.68)",
-                }}
-              >
-                {i18nT("schedule_channels_summary", {
-                  count: publishableItems.length,
-                  blocked: blockedItems.length,
-                })}
-              </div>
-              <div
-                className={styles.scheduleDateTimeField}
-                data-disabled={
-                  scheduleMode !== "general" || busy ? "true" : "false"
-                }
-                onClick={() =>
-                  openNativeDateTimePicker(generalDateInputRef.current)
-                }
-              >
-                <input
-                  ref={generalDateInputRef}
-                  className={styles.scheduleDateTimeInput}
-                  type="date"
-                  value={generalDate || defaultDateTime.date}
-                  disabled={scheduleMode !== "general" || busy}
-                  onChange={(event) => setGeneralDate(event.target.value)}
-                />
-                <button
-                  type="button"
-                  className={styles.scheduleDateTimePickerButton}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    openNativeDateTimePicker(generalDateInputRef.current);
-                  }}
-                  disabled={scheduleMode !== "general" || busy}
-                  aria-label={i18nT("schedule_open_general_calendar")}
-                >
-                  <CalendarMiniIcon />
-                </button>
-              </div>
-              <div
-                className={styles.scheduleDateTimeField}
-                data-disabled={
-                  scheduleMode !== "general" || busy ? "true" : "false"
-                }
-                onClick={() =>
-                  openNativeDateTimePicker(generalTimeInputRef.current)
-                }
-              >
-                <input
-                  ref={generalTimeInputRef}
-                  className={styles.scheduleDateTimeInput}
-                  type="time"
-                  value={generalTime || defaultDateTime.time}
-                  disabled={scheduleMode !== "general" || busy}
-                  onChange={(event) => setGeneralTime(event.target.value)}
-                />
-                <button
-                  type="button"
-                  className={styles.scheduleDateTimePickerButton}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    openNativeDateTimePicker(generalTimeInputRef.current);
-                  }}
-                  disabled={scheduleMode !== "general" || busy}
-                  aria-label={i18nT("schedule_open_general_time")}
-                >
-                  <ClockMiniIcon />
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <section
-            style={{
-              display: "grid",
-              gap: scheduleMode === "channel" ? 10 : 0,
-              borderRadius: 18,
-              padding: 14,
-              background:
-                scheduleMode === "channel"
-                  ? "rgba(59,130,246,0.10)"
-                  : "rgba(255,255,255,0.04)",
-              border:
-                scheduleMode === "channel"
-                  ? "1px solid rgba(96,165,250,0.34)"
-                  : "1px solid rgba(255,255,255,0.08)",
-            }}
-          >
-            <label
-              aria-expanded={scheduleMode === "channel"}
-              aria-controls="publish-schedule-channel-details"
-              style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "flex-start",
-                justifyContent: "space-between",
-                gap: 12,
-                border: 0,
-                padding: 0,
-                background: "transparent",
-                color: "inherit",
-                textAlign: "left",
-                cursor:
-                  busy || !publishableItems.length ? "not-allowed" : "pointer",
-              }}
-            >
-              <span style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                <input
-                  type="radio"
-                  name="publish-schedule-mode"
-                  checked={scheduleMode === "channel"}
-                  onChange={activateChannelMode}
-                  disabled={busy || !publishableItems.length}
-                  style={{ marginTop: 3 }}
-                />
-                <span style={{ display: "grid", gap: 4 }}>
-                  <strong style={{ color: "#fff", fontSize: 15 }}>
-                    {i18nT("schedule_per_channel_title")}
-                  </strong>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      lineHeight: 1.4,
-                      color: "rgba(255,255,255,0.66)",
-                    }}
-                  >
-                    {i18nT("schedule_per_channel_description")}
-                  </span>
-                </span>
-              </span>
-              <span
-                aria-hidden="true"
-                style={{
-                  fontSize: 18,
-                  lineHeight: 1,
-                  transform:
-                    scheduleMode === "channel"
-                      ? "rotate(180deg)"
-                      : "rotate(0deg)",
-                  transition: "transform 160ms ease",
-                }}
-              >
-                ⌄
-              </span>
+            <label className={css.mode} data-active={scheduleMode === "channel"}>
+              <input type="radio" name={titleId + "-mode"} checked={scheduleMode === "channel"} onChange={activateChannelMode} disabled={busy || !publishableItems.length} aria-controls={channelDetailsId} />
+              <span><strong>{i18nT("schedule_per_channel_title")}</strong><small>{i18nT("schedule_per_channel_description")}</small></span>
             </label>
-
-            {scheduleMode === "channel" ? (
-              <div
-                id="publish-schedule-channel-details"
-                style={{ display: "grid", gap: 10, paddingTop: 2 }}
-              >
-                {items.map((item) => {
-                  const disabled = item.blockers.length > 0;
-                  const checked = !disabled && isSelected(item.channel);
-                  return (
-                    <div
-                      key={item.channel}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: isMobile
-                          ? "1fr"
-                          : "minmax(0,1fr) minmax(162px,170px) minmax(136px,145px)",
-                        gap: 10,
-                        alignItems: "center",
-                        borderRadius: 16,
-                        padding: 12,
-                        background: disabled
-                          ? "rgba(248,113,113,0.08)"
-                          : "rgba(255,255,255,0.045)",
-                        border: disabled
-                          ? "1px solid rgba(248,113,113,0.24)"
-                          : "1px solid rgba(255,255,255,0.08)",
-                        opacity: disabled ? 0.78 : 1,
-                      }}
-                    >
-                      <label
-                        style={{
-                          display: "flex",
-                          gap: 10,
-                          alignItems: "flex-start",
-                          minWidth: 0,
-                          cursor: disabled ? "not-allowed" : "pointer",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={disabled || busy}
-                          onChange={(event) =>
-                            setSelected((current) => ({
-                              ...current,
-                              [item.channel]: event.target.checked,
-                            }))
-                          }
-                          style={{ marginTop: 3 }}
-                        />
-                        <span
-                          style={{ display: "grid", gap: 4, minWidth: 0 }}
-                        >
-                          <strong style={{ color: "#fff", fontSize: 14 }}>
-                            {item.label}
-                          </strong>
-                          <span
-                            style={{
-                              fontSize: 12,
-                              color: disabled
-                                ? "#fecaca"
-                                : "rgba(255,255,255,0.62)",
-                              lineHeight: 1.35,
-                            }}
-                          >
-                            {disabled
-                              ? item.blockers.join(" · ")
-                              : checked
-                                ? i18nT("schedule_item_scheduled", { media: item.mediaLabel })
-                                : i18nT("schedule_item_now", { media: item.mediaLabel })}
-                          </span>
-                        </span>
-                      </label>
-                      <div
-                        className={styles.scheduleDateTimeField}
-                        data-disabled={
-                          disabled || !checked || busy ? "true" : "false"
-                        }
-                        onClick={() =>
-                          openNativeDateTimePicker(
-                            dateInputRefs.current[item.channel] || null,
-                          )
-                        }
-                      >
-                        <input
-                          ref={(node) => {
-                            dateInputRefs.current[item.channel] = node;
-                          }}
-                          className={styles.scheduleDateTimeInput}
-                          type="date"
-                          value={getDate(item.channel)}
-                          disabled={disabled || !checked || busy}
-                          onChange={(event) =>
-                            setDateByChannel((current) => ({
-                              ...current,
-                              [item.channel]: event.target.value,
-                            }))
-                          }
-                        />
-                        <button
-                          type="button"
-                          className={styles.scheduleDateTimePickerButton}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openNativeDateTimePicker(
-                              dateInputRefs.current[item.channel] || null,
-                            );
-                          }}
-                          disabled={disabled || !checked || busy}
-                          aria-label={i18nT("schedule_open_channel_calendar", { channel: item.label })}
-                        >
-                          <CalendarMiniIcon />
-                        </button>
-                      </div>
-                      <div
-                        className={styles.scheduleDateTimeField}
-                        data-disabled={
-                          disabled || !checked || busy ? "true" : "false"
-                        }
-                        onClick={() =>
-                          openNativeDateTimePicker(
-                            timeInputRefs.current[item.channel] || null,
-                          )
-                        }
-                      >
-                        <input
-                          ref={(node) => {
-                            timeInputRefs.current[item.channel] = node;
-                          }}
-                          className={styles.scheduleDateTimeInput}
-                          type="time"
-                          value={getTime(item.channel)}
-                          disabled={disabled || !checked || busy}
-                          onChange={(event) =>
-                            setTimeByChannel((current) => ({
-                              ...current,
-                              [item.channel]: event.target.value,
-                            }))
-                          }
-                        />
-                        <button
-                          type="button"
-                          className={styles.scheduleDateTimePickerButton}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openNativeDateTimePicker(
-                              timeInputRefs.current[item.channel] || null,
-                            );
-                          }}
-                          disabled={disabled || !checked || busy}
-                          aria-label={i18nT("schedule_open_channel_time", { channel: item.label })}
-                        >
-                          <ClockMiniIcon />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+          </div>
+          <div className={css.summary}>
+            <span>{i18nT("schedule_channels_summary", { count: scheduledCount, blocked: blockedItems.length })}</span>
+            {blockedItems.length ? (
+              <details className={css.blocked}>
+                <summary>{i18nT("wizard_to_complete")} <span aria-hidden>⌄</span></summary>
+                <div>{blockedItems.map((item) => <p key={item.channel}><strong>{item.label}</strong> · {item.blockers.join(" · ")}</p>)}</div>
+              </details>
             ) : null}
-          </section>
-        </div>
-
-        {busy ? (
-          <PublishExecutionProgress
-            styles={styles}
-            scheduling
-            publishProgress={progress}
-            publishProgressLabel={resolvedProgressLabel}
-          />
-        ) : null}
-
-        {localError || error ? (
-          <div style={{ color: "#fecaca", fontSize: 13, lineHeight: 1.45 }}>
-            {localError || error}
           </div>
-        ) : null}
-        {doneMessage ? (
-          <div
-            style={{
-              color: "#bbf7d0",
-              fontSize: 13,
-              fontWeight: 800,
-              lineHeight: 1.45,
-            }}
-          >
-            {doneMessage}
-          </div>
-        ) : null}
-
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 10,
-            flexWrap: "wrap",
-            position: "sticky",
-            bottom: -1,
-            paddingTop: 4,
-            background: "#111827",
-          }}
-        >
-          <button
-            type="button"
-            className={styles.secondaryBtn}
-            onClick={() => void confirmExit()}
-            disabled={busy}
-          >
-            {i18nT("schedule_cancel")}
-          </button>
-          <button
-            type="button"
-            className={styles.primaryBtn}
-            onClick={submit}
-            disabled={busy || Boolean(doneMessage) || !publishableItems.length}
-            style={{
-              opacity:
-                busy || doneMessage || !publishableItems.length ? 0.58 : 1,
-            }}
-          >
-            {busy ? resolvedSavingLabel : i18nT("schedule_assign_agent")}
-          </button>
+          {showReviewSummary && (reviewDetails.length || reviewWarnings.length) ? (
+            <div className={css.review}>
+              {reviewDetails.map((detail) => <p key={detail}>{detail}</p>)}
+              {reviewWarnings.map((warning) => <p key={warning} className={css.warning}><span aria-hidden>⚠</span> {warning}</p>)}
+            </div>
+          ) : null}
+          {scheduleMode === "general" ? (
+            <div className={css.generalFields}>
+              <ScheduleDateTimeField type="date" label={i18nT("date_eb9a4bc1")} pickerLabel={i18nT("schedule_open_general_calendar")} value={generalDate || defaultDateTime.date} disabled={busy || !publishableItems.length} onChange={setGeneralDate} />
+              <ScheduleDateTimeField type="time" label={i18nT("heure_5073129f")} pickerLabel={i18nT("schedule_open_general_time")} value={generalTime || defaultDateTime.time} disabled={busy || !publishableItems.length} onChange={setGeneralTime} />
+            </div>
+          ) : null}
+          {scheduleMode === "channel" ? (
+            <div id={channelDetailsId} className={css.channelList}>
+              {items.map((item) => {
+                const unavailable = item.blockers.length > 0;
+                const checked = !unavailable && isSelected(item.channel);
+                const identity = PUBLISH_CHANNEL_IDENTITY[item.channel];
+                return (
+                  <section key={item.channel} className={css.channel} data-disabled={unavailable || undefined} data-selected={checked} style={{ "--channel-color": identity.color, "--channel-rgb": identity.rgb, "--channel-gradient": identity.gradient } as CSSProperties}>
+                    <label className={css.channelLabel}>
+                      <input type="checkbox" checked={checked} disabled={busy || unavailable} onChange={(event) => setSelected((current) => ({ ...current, [item.channel]: event.target.checked }))} />
+                      <Image src={identity.icon} width={24} height={24} alt="" />
+                      <span>
+                        <strong>{item.label}</strong>
+                        <small title={unavailable ? item.blockers.join(" · ") : undefined}>{unavailable ? item.blockers[0] : i18nT(checked ? "schedule_item_scheduled" : "schedule_item_now", { media: item.mediaLabel })}</small>
+                      </span>
+                    </label>
+                    <div className={css.channelFields}>
+                      <ScheduleDateTimeField type="date" label={i18nT("date_eb9a4bc1")} pickerLabel={i18nT("schedule_open_channel_calendar", { channel: item.label })} value={getDate(item.channel)} disabled={busy || !checked} onChange={(value) => setDateByChannel((current) => ({ ...current, [item.channel]: value }))} />
+                      <ScheduleDateTimeField type="time" label={i18nT("heure_5073129f")} pickerLabel={i18nT("schedule_open_channel_time", { channel: item.label })} value={getTime(item.channel)} disabled={busy || !checked} onChange={(value) => setTimeByChannel((current) => ({ ...current, [item.channel]: value }))} />
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          ) : null}
+          {busy ? <PublishExecutionProgress styles={styles} scheduling publishProgress={progress} publishProgressLabel={resolvedProgressLabel} /> : null}
+          {localError || error ? <p className={css.error} role="alert">{localError || error}</p> : null}
+          {doneMessage ? <p className={css.success} role="status">{doneMessage}</p> : null}
         </div>
+        <footer className={css.footer}>
+          <button type="button" className={css.cancel} onClick={() => void confirmExit()} disabled={busy}>{i18nT("schedule_cancel")}</button>
+          <button type="button" className={css.confirm} onClick={() => void submit()} disabled={busy || Boolean(doneMessage) || !publishableItems.length}>
+            {busy ? resolvedSavingLabel : confirmLabel || i18nT("schedule_assign_agent")}
+          </button>
+        </footer>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

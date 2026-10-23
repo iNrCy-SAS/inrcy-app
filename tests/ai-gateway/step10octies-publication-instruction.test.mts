@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 const ROOT = resolve(import.meta.dirname, "../..");
 const read = (rel: string) => readFileSync(resolve(ROOT, rel), "utf8");
 
-test("Step 10 octies adds a separate 50/50 desktop publication instruction field", () => {
+test("the desktop brief keeps separate subject and instruction fields with more room for the subject", () => {
   const panel = read(
     "app/dashboard/booster/publier/components/PublishIntentPanel.tsx",
   );
@@ -14,23 +14,27 @@ test("Step 10 octies adds a separate 50/50 desktop publication instruction field
   assert.match(panel, /publicationInstruction:\s*string/);
   assert.match(panel, /setPublicationInstruction/);
   assert.match(
-    panel,
-    /"minmax\(0, 1fr\) minmax\(0, 1fr\)"/,
+    read("app/dashboard/booster/publier/components/PublishIntentPanel.module.css"),
+    /\.writing\s*\{[^}]*grid-template-columns: minmax\(0, 1\.2fr\) minmax\(0, 1fr\)/,
   );
   assert.match(panel, /i18nT\("sujet_de_la_publication_obligatoire_pour_62d82326"\)/);
   assert.match(panel, /i18nT\("consigne_ponctuelle_a_l_ia_facultatif_cf850551"\)/);
   assert.match(panel, /i18nT\("prioritaire_sur_votre_configuration_ia_pour_5278e325"\)/);
 });
 
-test("Step 10 octies keeps mobile compact with a collapsible instruction", () => {
+test("the mobile brief keeps both fields available in one scrollable column", () => {
   const panel = read(
     "app/dashboard/booster/publier/components/PublishIntentPanel.tsx",
   );
 
-  assert.match(panel, /mobileInstructionExpanded/);
-  assert.match(panel, /i18nT\("ajouter_une_consigne_a_l_ia_d2a6adfb"\)/);
-  assert.match(panel, /i18nT\("consigne_ajoutee_modifier_ee9b29d7"\)/);
-  assert.match(panel, /aria-expanded=\{mobileInstructionExpanded\}/);
+  assert.match(panel, /target: "idea"/);
+  assert.match(panel, /target: "instruction"/);
+  assert.match(panel, /wizard_brief_instruction/);
+  const styles = read("app/dashboard/booster/publier/components/PublishIntentPanel.module.css");
+  assert.match(styles, /@media \(max-width: 700px\)/);
+  assert.match(styles, /grid-template-rows: repeat\(2, minmax\(155px, auto\)\)/);
+  const wizardStyles = read("app/dashboard/booster/publier/components/publishWizard.module.css");
+  assert.match(wizardStyles, /data-current-step="intention"[^\n]*overflow-y: auto/);
 });
 
 test("Step 10 octies gives both subject and publication instruction their own microphone target", () => {

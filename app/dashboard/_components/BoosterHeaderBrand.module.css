@@ -1,0 +1,72 @@
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding-right: 14px;
+  color: #ecfcff;
+}
+
+.rocket {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  color: #b8f7ff;
+}
+
+.rocket::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 70%, #ff3b9224, #aa31ef14 45%, transparent 70%);
+  pointer-events: none;
+}
+
+.rocket svg {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 4px #aa31ef55);
+}
+
+.wordmark {
+  margin: 0;
+  color: #ff6f93;
+  background: linear-gradient(100deg, #ff9d00 0%, #ff3b92 34%, #aa31ef 64%, #00b9ef 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 25px;
+  font-weight: 900;
+  font-style: italic;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 768px) {
+  .brand { gap: 4px; padding-right: 0; }
+  .rocket { width: 26px; height: 32px; }
+  .wordmark { font-size: 13px; letter-spacing: 0.04em; }
+  .actions { gap: 5px !important; }
+  .actions > button, .actions > div > button { width: 30px !important; min-width: 30px !important; max-width: 30px; height: 30px !important; min-height: 30px !important; padding: 0 !important; font-size: 14px !important; flex-shrink: 0; }
+  .actions img { max-width: 23px; max-height: 23px; }
+  .actions > button > span { font-size: 13px !important; }
+  .actions > button:last-child { display: grid; place-items: center; }
+  .actions > button:last-child > span:first-child { display: none !important; }
+  .actions > button:last-child > span:last-child { display: inline !important; font-size: 20px !important; }
+}
+
+@media (max-width: 360px) {
+  .wordmark {
+    font-size: 11px;
+    letter-spacing: .02em;
+  }
+  .rocket { width: 22px; }
+  .actions { gap: 4px !important; }
+  .actions > button, .actions > div > button { width: 28px !important; min-width: 28px !important; max-width: 28px; height: 28px !important; min-height: 28px !important; }
+}

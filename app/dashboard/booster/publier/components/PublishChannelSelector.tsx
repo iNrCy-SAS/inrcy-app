@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
-import { useEffect, type Dispatch, type SetStateAction } from "react";
+import { createPortal } from "react-dom";
+import { useEffect, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import {
   BOOSTER_CHANNEL_ORDER,
   getLocalizedChannelLabel,
@@ -10,7 +11,8 @@ import {
   channelBtnDisabled,
 } from "../publishModal.styles";
 import { useDashboardViewerAccess } from "../../../_components/DashboardViewerAccessProvider";
-import PublishStepTitle from "./PublishStepTitle";
+import css from "./PublishChannelSelector.module.css";
+import { PUBLISH_CHANNEL_IDENTITY } from "./publishChannelIdentity";
 
 type PublishModalStyles = Readonly<Record<string, string>>;
 
@@ -30,9 +32,22 @@ type ChannelDetailInfo = {
   connectionStatus?: string | null;
 };
 
+function getChannelAccountName(info: ChannelDetailInfo | null, isConnected: boolean, channelLabel: string, companyName?: string) {
+  if (!isConnected || info?.requiresReconnect) return "";
+  const companyLabel = String(companyName || "").trim();
+  if (companyLabel) return companyLabel;
+  const label = String(info?.fullLabel || "").trim();
+  if (!label || label.toLocaleLowerCase() === channelLabel.toLocaleLowerCase()) return "";
+  // Connection fallbacks describe a state, not the destination account.
+  if (/^(?:compte|page|fiche|cha[iî]ne|site web)\b.*\b(?:connect[eé]e?|publi[eé]e?|indisponible)$/i.test(label)) return "";
+  return label;
+}
+
 type PublishChannelSelectorProps = {
+  actionsContainer?: HTMLElement | null;
   styles: PublishModalStyles;
   isMobile: boolean;
+  companyName?: string;
   connected: Record<ChannelKey, boolean>;
   channels: Record<ChannelKey, boolean>;
   channelReadiness?: Partial<Record<ChannelKey, ChannelReadiness>>;
@@ -98,12 +113,12 @@ function LinkIcon() {
 }
 
 export default function PublishChannelSelector({
+  actionsContainer,
   styles,
   isMobile,
+  companyName,
   connected,
   channels,
-  channelInfoOpen,
-  setChannelInfoOpen,
   toggle,
   setAllChannelsSelected,
   getChannelDetailInfo,
@@ -139,103 +154,60 @@ export default function PublishChannelSelector({
     });
   }, []);
 
+  const bulkControl = (
+    <label className={css.bulkControl} title={bulkLabel}>
+      <input type="checkbox" checked={allConnectedSelected}
+        ref={(input) => { if (input) input.indeterminate = selectedConnectedCount > 0 && !allConnectedSelected; }}
+        disabled={!hasConnectedChannels} aria-label={bulkLabel}
+        onChange={(event) => setAllChannelsSelected(event.target.checked)} />
+      <span>{bulkLabel}</span>
+    </label>
+  );
+
   return (
     <div
-      className={styles.blockCard}
+      className={css.selector}
       style={{
         minWidth: 0,
         maxWidth: "100%",
         boxSizing: "border-box",
         overflow: "visible",
-        zIndex: channelInfoOpen ? 1 : undefined,
       }}
     >
+      {actionsContainer ? createPortal(bulkControl, actionsContainer) : bulkControl}
       <div
+        className={css.channelGrid}
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 10,
-          marginBottom: 8,
-        }}
-      >
-        <PublishStepTitle styles={styles} step={1}>
-          {i18nT("canaux_27cb4473")}{" "}</PublishStepTitle>
-        <button
-          type="button"
-          aria-label={bulkLabel}
-          title={bulkLabel}
-          disabled={!hasConnectedChannels}
-          onClick={() => setAllChannelsSelected(!allConnectedSelected)}
-          style={{
-            minWidth: isMobile ? 34 : undefined,
-            width: isMobile ? 34 : undefined,
-            height: isMobile ? 34 : 32,
-            padding: isMobile ? 0 : "0 13px",
-            borderRadius: isMobile ? 11 : 999,
-            border: "1px solid rgba(255,255,255,0.18)",
-            background:
-              "linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.045))",
-            color: "rgba(255,255,255,0.88)",
-            fontSize: 12.5,
-            fontWeight: 900,
-            lineHeight: 1,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 7,
-            whiteSpace: "nowrap",
-            cursor: hasConnectedChannels ? "pointer" : "not-allowed",
-            opacity: hasConnectedChannels ? 1 : 0.45,
-          }}
-        >
-          {isMobile ? (
-            <span
-              aria-hidden="true"
-              style={{
-                width: 15,
-                height: 15,
-                borderRadius: 4,
-                border: "2px solid currentColor",
-                display: "inline-grid",
-                placeItems: "center",
-                fontSize: 10,
-                fontWeight: 950,
-                lineHeight: 1,
-              }}
-            >
-              {allConnectedSelected ? "✓" : ""}
-            </span>
-          ) : (
-            bulkLabel
-          )}
-        </button>
-      </div>
-      <div className={styles.subtitle} style={{ marginBottom: isMobile ? 10 : 8 }}>
-        {i18nT("inrcy_publie_une_version_adaptee_sur_ede47961")}{" "}</div>
-      <div
-        style={{
-          display: "grid",
+          display: isMobile ? "grid" : "flex",
           gridTemplateColumns: isMobile
             ? "repeat(2, minmax(0, 1fr))"
-            : `repeat(${visibleChannelKeys.length}, minmax(0, 1fr))`,
-          gap: isMobile ? 8 : 6,
+            : "repeat(auto-fit, minmax(160px, 1fr))",
+          gap: isMobile ? 8 : 14,
           alignItems: "stretch",
+          flexWrap: "wrap",
+          justifyContent: "center",
         }}
       >
         {visibleChannelKeys.map((key, index) => {
+          const identity = PUBLISH_CHANNEL_IDENTITY[key];
+          const channelStyle = {
+            "--channel-accent": identity.color,
+            "--channel-rgb": identity.rgb,
+          } as CSSProperties;
           const info = getChannelDetailInfo(key);
           const isConnected = connected[key];
           const requiresReconnect = Boolean(info?.requiresReconnect);
           const isSelected = channels[key] && isConnected;
-          const isInfoVisible = channelInfoOpen === key && !!info;
           const isLastOddMobileItem = isMobile && index === visibleChannelKeys.length - 1 && visibleChannelKeys.length % 2 === 1;
           const channelLabel = getLocalizedChannelLabel(key, (messageKey) => i18nT(messageKey as never));
+          const accountName = getChannelAccountName(info, isConnected, channelLabel, key === "inr_search" ? companyName : undefined);
 
           if (isMobile) {
             return (
               <div
                 key={key}
+                className={`${css.channelCard} ${css.mobileCard}`}
+                data-reconnect={requiresReconnect}
                 onClick={() => toggle(key)}
                 role="button"
                 tabIndex={isConnected ? 0 : -1}
@@ -249,6 +221,7 @@ export default function PublishChannelSelector({
                   }
                 }}
                 style={{
+                  ...channelStyle,
                   ...channelBtn,
                   ...(!isConnected ? channelBtnDisabled : {}),
                   minHeight: 43,
@@ -285,46 +258,27 @@ export default function PublishChannelSelector({
                     : {}),
                 }}
               >
-                <span
-                  style={{
-                    minWidth: 0,
-                    flex: 1,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    fontWeight: 850,
-                    fontSize: 12.4,
-                    lineHeight: 1.1,
-                    letterSpacing: "-0.025em",
-                    color: isConnected
-                      ? "rgba(255,255,255,0.97)"
-                      : requiresReconnect
-                        ? "rgba(255,255,255,0.78)"
-                        : "rgba(255,255,255,0.48)",
-                  }}
-                >
-                  {channelLabel}
+                <span className={css.mobileIdentity} aria-hidden="true">
+                  <img className={css.mobileLogo} src={CHANNEL_ICON_SRC[key]} alt="" loading="eager" />
                 </span>
-                <button
-                  type="button"
+                <span className={css.channelCopy}>
+                  <span className={css.mobileName}>{channelLabel}</span>
+                  {accountName ? <span className={css.accountName} title={accountName}>{accountName}</span> : null}
+                </span>
+                <span
+                  role="img"
+                  className={css.connectionButton}
+                  data-connected={isConnected}
+                  title={accountName || undefined}
                   aria-label={
                     requiresReconnect
                       ? i18nT("channel_reconnect_aria", { channel: channelLabel })
-                      : info
-                        ? i18nT("channel_details_aria", { channel: channelLabel })
-                        : isConnected
+                      : isConnected
                           ? i18nT("channel_connected_aria", { channel: channelLabel })
                           : i18nT("channel_disconnected_aria", { channel: channelLabel })
                   }
-                  disabled={!info}
                   onPointerDown={(event) => event.stopPropagation()}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (!info) return;
-                    setChannelInfoOpen((prev) =>
-                      prev === key ? null : key,
-                    );
-                  }}
+                  onClick={(event) => event.stopPropagation()}
                   style={{
                     width: 28,
                     height: 28,
@@ -344,7 +298,7 @@ export default function PublishChannelSelector({
                     alignItems: "center",
                     justifyContent: "center",
                     flexShrink: 0,
-                    cursor: info ? "pointer" : "default",
+                    cursor: "default",
                     opacity: requiresReconnect ? 1 : isConnected ? 1 : 0.6,
                     boxShadow: requiresReconnect
                       ? "0 0 14px rgba(251,146,60,0.18)"
@@ -354,40 +308,8 @@ export default function PublishChannelSelector({
                   }}
                 >
                   {requiresReconnect ? <WarningTriangle size={17} /> : <LinkIcon />}
-                </button>
-                {isInfoVisible && info ? (
-                  <div
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => event.stopPropagation()}
-                    style={{
-                      position: "absolute",
-                      top: "50%",
-                      right: 36,
-                      transform: "translateY(-50%)",
-                      zIndex: 20,
-                      maxWidth: "min(200px, calc(100% - 54px))",
-                      borderRadius: 999,
-                      padding: "8px 12px",
-                      background: "rgba(9,16,31,0.96)",
-                      border: "1px solid rgba(148,163,184,0.22)",
-                      boxShadow: "0 18px 40px rgba(0,0,0,0.34)",
-                      textAlign: "left",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        lineHeight: 1.35,
-                        color: "rgba(255,255,255,0.92)",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {info.mobileLabel}
-                    </div>
-                  </div>
-                ) : null}
+                </span>
+                <span className={css.selectionMark} aria-hidden="true">{isSelected ? "✓" : ""}</span>
               </div>
             );
           }
@@ -395,6 +317,8 @@ export default function PublishChannelSelector({
           return (
             <div
               key={key}
+              className={css.channelCard}
+              data-reconnect={requiresReconnect}
               onClick={() => toggle(key)}
               role="button"
               tabIndex={isConnected ? 0 : -1}
@@ -402,23 +326,11 @@ export default function PublishChannelSelector({
               aria-pressed={isSelected}
               aria-label={requiresReconnect
                 ? i18nT("channel_reconnect_title", { channel: channelLabel })
-                : info
-                  ? `${channelLabel} — ${info.fullLabel}`
+                : accountName
+                  ? `${channelLabel} — ${accountName}`
                   : isConnected
                     ? i18nT("channel_connected_aria", { channel: channelLabel })
                     : i18nT("channel_disconnected_aria", { channel: channelLabel })}
-              onMouseEnter={() => {
-                if (info) setChannelInfoOpen(key);
-              }}
-              onMouseLeave={() => {
-                if (info) setChannelInfoOpen((prev) => (prev === key ? null : prev));
-              }}
-              onFocus={() => {
-                if (info) setChannelInfoOpen(key);
-              }}
-              onBlur={() => {
-                if (info) setChannelInfoOpen((prev) => (prev === key ? null : prev));
-              }}
               onKeyDown={(event) => {
                 if (!isConnected) return;
                 if (event.key === "Enter" || event.key === " ") {
@@ -427,8 +339,9 @@ export default function PublishChannelSelector({
                 }
               }}
               style={{
+                ...channelStyle,
                 ...(!isConnected ? channelBtnDisabled : {}),
-                minHeight: 45,
+                minHeight: 130,
                 minWidth: 0,
                 padding: "5px 4px",
                 position: "relative",
@@ -465,43 +378,16 @@ export default function PublishChannelSelector({
               ) : (
                 <span
                   aria-hidden
-                  style={{
-                    position: "absolute",
-                    top: 8,
-                    right: 8,
-                    width: 9,
-                    height: 9,
-                    borderRadius: 999,
-                    background: isConnected ? "#43d17d" : "#ff6b7d",
-                    boxShadow: isConnected
-                      ? "0 0 12px rgba(67,209,125,0.45)"
-                      : "0 0 12px rgba(255,107,125,0.25)",
-                  }}
-                />
+                  className={css.desktopConnection}
+                  data-connected={isConnected}
+                  title={accountName || undefined}
+                ><LinkIcon /></span>
               )}
-              {isSelected ? (
-                <span
-                  aria-hidden
-                  style={{
-                    position: "absolute",
-                    top: 7,
-                    left: 7,
-                    width: 18,
-                    height: 18,
-                    borderRadius: 999,
-                    display: "inline-grid",
-                    placeItems: "center",
-                    background: "rgba(76,195,255,0.92)",
-                    color: "#07111f",
-                    fontSize: 12,
-                    fontWeight: 950,
-                    lineHeight: 1,
-                  }}
-                >
-                  ✓
-                </span>
-              ) : null}
+              <span aria-hidden className={css.selectionMark}>
+                {isSelected ? "✓" : ""}
+              </span>
               <img
+                className={css.channelLogo}
                 src={CHANNEL_ICON_SRC[key]}
                 alt=""
                 aria-hidden="true"
@@ -509,8 +395,8 @@ export default function PublishChannelSelector({
                 decoding="sync"
                 fetchPriority="high"
                 style={{
-                  width: key === "site_web" ? 25 : 27,
-                  height: key === "site_web" ? 25 : 27,
+                  width: 48,
+                  height: 48,
                   borderRadius: 999,
                   objectFit: "cover",
                   opacity: isConnected ? 1 : requiresReconnect ? 0.72 : 0.48,
@@ -518,45 +404,10 @@ export default function PublishChannelSelector({
                   boxShadow: isSelected ? "0 0 18px rgba(76,195,255,0.24)" : undefined,
                 }}
               />
-              {isInfoVisible && info ? (
-                <div
-                  aria-hidden="true"
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={(event) => event.stopPropagation()}
-                  style={{
-                    position: "absolute",
-                    top: "calc(100% + 8px)",
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    zIndex: 40,
-                    width: 230,
-                    maxWidth: "min(230px, 80vw)",
-                    borderRadius: 14,
-                    padding: "9px 11px",
-                    background: "rgba(9,16,31,0.98)",
-                    border: "1px solid rgba(148,163,184,0.24)",
-                    boxShadow: "0 18px 44px rgba(0,0,0,0.40)",
-                    textAlign: "center",
-                    pointerEvents: "none",
-                  }}
-                >
-                  <div style={{ fontSize: 12.5, fontWeight: 950, color: "rgba(255,255,255,0.96)", marginBottom: 2 }}>
-                    {channelLabel}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      lineHeight: 1.35,
-                      color: "rgba(255,255,255,0.76)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {info.desktopLabel}
-                  </div>
-                </div>
-              ) : null}
+              <span className={`${css.channelCopy} ${css.desktopCopy}`}>
+                <span className={css.channelName}>{channelLabel}</span>
+                {accountName ? <span className={css.accountName} title={accountName}>{accountName}</span> : null}
+              </span>
             </div>
           );
         })}

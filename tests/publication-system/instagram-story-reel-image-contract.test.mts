@@ -319,7 +319,7 @@ test("publish-now enforces account Instagram preferences only for Reel and Story
   );
 });
 
-test("final and scheduled reviews warn only on Story media-only formats and name Pinterest board", () => {
+test("validation and scheduled review keep Story warnings and Pinterest board details before a compact confirmation", () => {
   assert.match(
     modal,
     /const instagramStoryAlsoPublished =[\s\S]*?channel === "instagram" && instagramStoryEnabled;/,
@@ -331,10 +331,14 @@ test("final and scheduled reviews warn only on Story media-only formats and name
   assert.match(modal, /instagram_review_media_only_warning/);
   assert.match(modal, /pinterest_review_board/);
   assert.match(finalReview, /details\?: string\[\]/);
-  assert.match(finalReview, /min\(1080px, 100%\)/);
+  assert.match(finalReview, /role="alertdialog"/);
+  assert.match(finalReview, /wizard_confirm_publication/);
+  assert.doesNotMatch(finalReview, /<table|\.blockers\.map|\.warnings\.map/);
   assert.match(scheduleReview, /reviewWarnings/);
   assert.match(scheduleReview, /reviewDetails/);
-  assert.match(scheduleReview, /min\(1080px, 100%\)/);
+  assert.match(scheduleReview, /showReviewSummary/);
+  assert.match(scheduleReview, /createPortal\(/);
+  assert.match(scheduleReview, /data-publish-schedule-dialog/);
 });
 
 test("new Instagram format settings survive immediate and scheduled durable dispatch", () => {

@@ -251,7 +251,7 @@ test("generation library is exclusive while publication keeps the 5 + 1 path", (
   assert.match(selection, /await addVideoFile\(selectedVideo,[\s\S]*hasImages:/);
   assert.match(
     publishModal,
-    /mediaLibraryPickerScope === "generation"[\s\S]{0,180}generationMediaSelectionPolicy\.libraryMaxSelection[\s\S]{0,100}BOOSTER_MAX_IMAGE_COUNT \+ 1/,
+    /mediaLibraryPickerScope === "generation"[\s\S]{0,180}generationMediaSelectionPolicy\.libraryMaxSelection[\s\S]{0,250}BOOSTER_MAX_IMAGE_COUNT \+ 1/,
   );
 
   assert.match(readiness, /mediaType:\s*"image" as const/);

@@ -880,5 +880,8 @@
     "agentButton": "Agente IA",
     "automation": "Automatização",
     "manual": "Ações manuais"
-  }
+  },
+  "regenerate_media_scope_title": "Regenerar os conteúdos multimédia",
+  "regenerate_media_scope_message": "Regenerar para todos os canais ou apenas para {channel}? Os textos e as datas mantêm-se. Uma publicação aprovada precisará de nova aprovação.",
+  "regenerate_media_channel_success": "Os conteúdos multimédia de {channel} foram regenerados. A data mantém-se; a publicação precisa de aprovação."
 }

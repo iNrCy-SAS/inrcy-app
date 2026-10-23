@@ -465,7 +465,7 @@ export default function MediaGeneratorStudioClient({
           initialPreview={initialPreview}
           initialSourceLoading={initialSourceLoading}
           initialSourceAvailable={Boolean(handoff?.source)}
-          initialMediaType={handoff?.source?.mediaType || "image"}
+          initialMediaType={handoff?.source?.mediaType || (handoff?.context.mediaType === "video" ? "video" : "image")}
           initialVideoContext={getInitialVideoContext(handoff)}
           publicationBrief={handoff?.publicationBrief || ""}
           acceptMode={handoff ? "insert" : "library"}

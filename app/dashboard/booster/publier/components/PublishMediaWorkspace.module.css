@@ -1,0 +1,23 @@
+.media { display: flex; flex-direction: column; gap: 10px; min-height: 0; min-width: 0; height: 100%; }
+.mediaWorkspace { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; min-width: 0; }
+.mediaControls { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.mediaActions { margin-bottom: 0 !important; gap: 8px !important; }
+.mediaActions > div:last-child { display: none; }
+.mediaActions button { min-height: 35px !important; padding: 7px 12px !important; border-radius: 11px !important; font-size: 12px !important; }
+.mediaModes { width: auto !important; }
+.mediaModes button { min-height: 35px !important; font-size: 12px !important; border-radius: 11px !important; }
+.allocation { border: 0 !important; padding: 0 !important; background: transparent !important; font-size: 11px !important; color: #829dbd !important; }
+.allocation strong { font-weight: 500; }
+.mediaBulk { margin-top: 0 !important; }
+.mediaBulk > div { margin-bottom: 0 !important; }
+.mediaWorkspace > div[role="note"] { padding: 6px 10px !important; font-size: 11px !important; }
+.mediaWorkspace :global([data-publish-media-gallery]) { height: auto; }
+.mediaWorkspace :global([aria-pressed]) { transition: border-color .16s, background .16s; }
+@media (max-width: 700px) {
+ .media, .mediaWorkspace { height: auto; }
+ .mediaControls { gap: 10px; }
+ .mediaActions { flex-wrap: wrap; }
+ .mediaModes { width: 100% !important; }
+ .mediaBulk { gap: 8px !important; }
+ .mediaBulk button { font-size: 11px !important; min-height: 32px; }
+}

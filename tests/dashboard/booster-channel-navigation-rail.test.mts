@@ -16,12 +16,12 @@ const contentPanel = read(
 const mediaPanel = read(
   "app/dashboard/booster/publier/components/PublishImagesPanel.tsx",
 );
-const previewPanel = read(
-  "app/dashboard/booster/publier/components/PublishPreviewPanel.tsx",
+const validationBoard = read(
+  "app/dashboard/booster/publier/components/PublishValidationBoard.tsx",
 );
 
-test("les trois étapes Booster partagent une seule navigation de canaux", () => {
-  for (const source of [contentPanel, mediaPanel, previewPanel]) {
+test("les éditeurs partagent le rail, puis Validation affiche directement chaque canal", () => {
+  for (const source of [contentPanel, mediaPanel]) {
     assert.match(source, /import ChannelNavigationRail from "\.\/ChannelNavigationRail"/);
     assert.match(source, /<ChannelNavigationRail/);
     assert.match(source, /setSynchronizedActiveChannel/);
@@ -29,12 +29,11 @@ test("les trois étapes Booster partagent une seule navigation de canaux", () =>
 
   assert.match(contentPanel, /items=\{displayCards\}/);
   assert.match(mediaPanel, /items=\{selectedChannels\}/);
-  assert.match(
-    previewPanel,
-    /items=\{previewReadinessTabs\.map\(\(tab\) => tab\.key\)\}/,
-  );
-  assert.match(previewPanel, /data-preview-channel-rail="full-width"/);
-  assert.match(previewPanel, /gridColumn: "1 \/ -1"/);
+  assert.match(validationBoard, /items\.map\(\(item\) =>/);
+  assert.match(validationBoard, /data-channel=\{item\.channel\}/);
+  assert.match(validationBoard, /onSelectChannel\(channel\)/);
+  assert.match(validationBoard, /<ChannelPublicationPreview preview=\{activePreview\}/);
+  assert.doesNotMatch(validationBoard, /ChannelNavigationRail/);
 });
 
 test("les flèches sont accessibles, bornées et centrent le canal actif", () => {
@@ -59,15 +58,16 @@ test("le nouveau rendu est strictement réservé au desktop", () => {
   assert.match(railStyles, /justify-content:\s*center/);
   assert.match(railStyles, /scroll-snap-align:\s*center/);
 
-  // La grille historique mobile/tablette reste fournie telle quelle aux trois rails.
-  for (const source of [contentPanel, mediaPanel, previewPanel]) {
+  // Les deux éditeurs conservent leur navigation mobile/tablette.
+  for (const source of [contentPanel, mediaPanel]) {
     assert.match(source, /isMobile\s*\?\s*"repeat\(2, minmax\(0, 1fr\)\)"/);
   }
   // Le fallback hors mobile suit le nombre réel de canaux ; il reste donc juste
   // quand X ou de futurs canaux portent le rail à 10, 11 ou 12 éléments.
   assert.match(contentPanel, /displayCards\.length/);
   assert.match(mediaPanel, /selectedChannels\.length/);
-  assert.match(previewPanel, /previewReadinessTabs\.length/);
+  const boardStyles = read("app/dashboard/booster/publier/components/PublishValidationBoard.module.css");
+  assert.match(boardStyles, /@media\(max-width:600px\)/);
 });
 
 test("le rail adapte sa densité jusqu'à douze canaux sans colonnes figées", () => {

@@ -15,6 +15,9 @@ type RichSiteContentEditorProps = {
   editorRef: MutableRefObject<HTMLDivElement | null>;
   style: CSSProperties;
   className?: string;
+  ariaLabel?: string;
+  multiline?: boolean;
+  readOnly?: boolean;
 };
 
 export default function RichSiteContentEditor({
@@ -24,6 +27,9 @@ export default function RichSiteContentEditor({
   editorRef,
   style,
   className,
+  ariaLabel,
+  multiline = true,
+  readOnly = false,
 }: RichSiteContentEditorProps) {
   const localRef = useRef<HTMLDivElement | null>(null);
   const lastSyncedValueRef = useRef<string>("");
@@ -64,17 +70,23 @@ export default function RichSiteContentEditor({
   return (
     <div
       ref={localRef}
-      contentEditable
+      contentEditable={!readOnly}
       suppressContentEditableWarning
       role="textbox"
-      aria-multiline="true"
+      aria-label={ariaLabel}
+      aria-multiline={multiline}
+      aria-readonly={readOnly}
       className={className}
       onInput={sync}
       onBlur={sync}
-      onKeyDown={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (!multiline && event.key === "Enter" && !event.nativeEvent.isComposing) event.preventDefault();
+      }}
       onPaste={(event) => {
         if (event.cancelable) event.preventDefault();
-        const text = event.clipboardData.getData("text/plain");
+        const pastedText = event.clipboardData.getData("text/plain");
+        const text = multiline ? pastedText : pastedText.replace(/[\r\n]+/g, " ");
         document.execCommand("insertText", false, text);
         sync();
       }}

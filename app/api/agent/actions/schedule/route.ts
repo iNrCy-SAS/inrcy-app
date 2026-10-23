@@ -38,6 +38,7 @@ import {
 import { normalizeTiktokPublicationSettings } from "@/app/api/booster/publish-now/publishNow.foundations";
 import type { BoosterCtaMode } from "@/lib/boosterCta";
 import { normalizeCtaPhone, normalizeCtaWebsiteUrl } from "@/lib/boosterCtaPreferences";
+import { inrAgentPublicationNeedsRevisionReview, inrAgentPublicationRevisionSchedule } from "@/lib/inrAgentPublicationRevision";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -1301,9 +1302,11 @@ async function scheduleAgentActionHandler(request: Request) {
   if (standardMode && !isStandardAgentActionDescriptor(action)) {
     return premiumRequiredApiResponse();
   }
+  const confirmingRevisionPlan = Boolean(action.scheduledFor) && inrAgentPublicationNeedsRevisionReview(action.payload)
+    && action.automationKey === "publish" && action.actionType === "publication" && action.targetTool === "booster";
   const confirmingEditorialPlan =
-    confirmExistingPlan && isManualEditorialPublicationAction(action);
-  if (confirmExistingPlan && !confirmingEditorialPlan) {
+    confirmExistingPlan && isManualEditorialPublicationAction(action) && !confirmingRevisionPlan;
+  if (confirmExistingPlan && !confirmingEditorialPlan && !confirmingRevisionPlan) {
     return NextResponse.json(
       {
         error:
@@ -1357,6 +1360,29 @@ async function scheduleAgentActionHandler(request: Request) {
     // par le navigateur sont volontairement ignorés.
     scheduledAt = plannedDate.toISOString();
     scheduleSelections = [];
+  }
+  if (confirmingRevisionPlan) {
+    const retainedSelections = inrAgentPublicationRevisionSchedule(action.payload);
+    const retainedDate = String(action.scheduledFor || "");
+    if (action.status !== "pending_validation" || !retainedDate || !Number.isFinite(Date.parse(retainedDate))
+      || Date.parse(retainedDate) <= Date.now()
+      || retainedSelections.some(selection => !Number.isFinite(Date.parse(selection.scheduledAt)) || Date.parse(selection.scheduledAt) <= Date.now())) {
+      return NextResponse.json({ error: "La date prévue est dépassée ou la publication n’attend plus de validation.", code: "INR_AGENT_REVISION_DATE_EXPIRED" }, { status: 409 });
+    }
+    // A revision confirms the server's original per-channel dates. Browser
+    // dates cannot silently move the publication while approving its content.
+    scheduledAt = retainedDate;
+    scheduleSelections = normalizeScheduleSelections(retainedSelections);
+    if (retainedSelections.length && scheduleSelections.length !== retainedSelections.length) {
+      return NextResponse.json({ error: "Vérifiez les dates de la publication avant de la valider." }, { status: 409 });
+    }
+    const selectedChannels = filterInrAgentPublicationChannels(action.payload,
+      normalizeBoosterChannels(action.payload.selectedChannels || action.payload.channels || action.targetChannels));
+    for (const channel of selectedChannels) {
+      if (!scheduleSelections.some(selection => selection.channel === channel)) {
+        scheduleSelections.push({ channel, scheduledAt: retainedDate });
+      }
+    }
   }
   if (automaticExecution) {
     const isAutomaticEditorialPublication =
@@ -1501,7 +1527,8 @@ async function scheduleAgentActionHandler(request: Request) {
       body?.tiktokPublicationSettings,
       context.authUserId,
     );
-    const timezone = cleanText(body?.timezone, 80) || "Europe/Paris";
+    const revisionReview = asRecord(action.payload.publicationRevisionReview);
+    const timezone = cleanText(confirmingRevisionPlan ? revisionReview?.timezone : body?.timezone, 80) || "Europe/Paris";
     if (scheduledPayload.actionType !== "publication" && !scheduledAt) {
       return NextResponse.json(
         { error: "Choisissez une date et une heure dans le futur." },
@@ -2019,6 +2046,7 @@ async function scheduleAgentActionHandler(request: Request) {
         last_error: null,
         payload: {
           ...(action.payload || {}),
+          ...(inrAgentPublicationNeedsRevisionReview(action.payload) ? { publicationRevisionReview: { ...revisionReview, required: false, validatedAt: now } } : {}),
           scheduledExecution: {
             scheduledActionIds: createdScheduledRows.map((row) => row.id),
             scheduledAt: scheduledFor,

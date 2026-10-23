@@ -880,5 +880,8 @@
     "agentButton": "AI-agent",
     "automation": "Automatisering",
     "manual": "Handmatige acties"
-  }
+  },
+  "regenerate_media_scope_title": "Media opnieuw genereren",
+  "regenerate_media_scope_message": "Media voor alle kanalen of alleen {channel} opnieuw genereren? Teksten en datums blijven behouden. Een goedgekeurde publicatie moet opnieuw worden goedgekeurd.",
+  "regenerate_media_channel_success": "De media voor {channel} zijn opnieuw gegenereerd. De datum blijft behouden; de publicatie moet worden goedgekeurd."
 }

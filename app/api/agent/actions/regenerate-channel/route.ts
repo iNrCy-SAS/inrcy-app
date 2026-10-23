@@ -45,19 +45,14 @@ import { INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT } from "@/lib/mediaRules";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { selectedInrAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelection";
 import { preparedAgentChannelUsingExistingMedia } from "@/lib/inrAgentNewPublicationChannel";
+import { canReviseInrAgentPublication } from "@/lib/inrAgentPublicationRevision";
+import { saveInrAgentPublicationRevision } from "@/lib/inrAgentPublicationRevisionServer";
 
 export const runtime = "nodejs";
 export const maxDuration = 800;
 
 const ACTION_SELECT =
   "id, automation_key, action_type, target_tool, title, summary, preview_text, target_channels, target_themes, recipients, image_assets, payload, validation_required, execution_policy, status, scheduled_for, prepared_at, validated_at, refused_at, completed_at, last_error, created_at, updated_at";
-const REVIEWABLE_STATUSES = new Set([
-  "prepared",
-  "pending_validation",
-  "pending",
-  "draft",
-  "failed",
-]);
 const uiChannelAliases: Record<string, PublishChannelKey> = {
   siteWeb: "site_web",
   inrSearch: "inr_search",
@@ -150,11 +145,12 @@ function currentChannelsForAction(action: ReturnType<typeof rowToInrAgentAction>
   ]);
 }
 
-function currentPublicationImageCount(action: ReturnType<typeof rowToInrAgentAction>) {
+function currentPublicationImageCount(action: ReturnType<typeof rowToInrAgentAction>, channel?: PublishChannelKey) {
   const payload = action.payload || {};
   const nested = asRecord(payload.publishPayload) || {};
   const imageMaps = [asRecord(payload.imagesByChannel), asRecord(nested.imagesByChannel)];
-  const candidates = [
+  const channelImages = channel ? imageMaps.map(map => readPublishChannelValue(map || {}, channel)).find(Array.isArray) : null;
+  const candidates = channelImages ? [channelImages] : [
     action.imageAssets,
     payload.images, payload.image_assets, payload.mediaAssets,
     nested.images, nested.image_assets, nested.mediaAssets,
@@ -203,15 +199,17 @@ function regeneratedIdea(args: {
 function regeneratedMediaIdea(args: {
   payload: Record<string, unknown>;
   actionSummary: string;
+  channel?: PublishChannelKey;
 }) {
   return [
     cleanText(args.payload.idea || args.actionSummary, 1_500),
-    "RÉGÉNÉRATION GLOBALE DU MÉDIA DEMANDÉE POUR TOUTE LA PUBLICATION.",
-    "Crée un média vraiment différent, fidèle aux informations vérifiées de l’entreprise et utilisable comme source commune sur tous les canaux. Le texte, la date et les contenus éditoriaux existants ne doivent pas être modifiés.",
+    args.channel ? `RÉGÉNÉRATION DU MÉDIA POUR LE CANAL ${args.channel} UNIQUEMENT.` : "RÉGÉNÉRATION GLOBALE DU MÉDIA DEMANDÉE POUR TOUTE LA PUBLICATION.",
+    `Crée un média vraiment différent, fidèle aux informations vérifiées de l’entreprise ${args.channel ? "et adapté au canal demandé" : "et utilisable comme source commune sur tous les canaux"}. Le texte, la date et les contenus éditoriaux existants ne doivent pas être modifiés.`,
   ].filter(Boolean).join("\n\n");
 }
 
 async function persistAction(args: {
+  action: ReturnType<typeof rowToInrAgentAction>;
   actionId: string;
   accountId: string;
   payload: Record<string, unknown>;
@@ -222,7 +220,7 @@ async function persistAction(args: {
   imageAssets?: unknown[];
 }) {
   const now = new Date().toISOString();
-  const updateValues: Record<string, unknown> = {
+  const updateValues = {
     payload: {
       ...args.payload,
       lastManualEdit: {
@@ -242,15 +240,11 @@ async function persistAction(args: {
       ? { image_assets: args.imageAssets }
       : {}),
   };
-  const { data, error } = await supabaseAdmin
-    .from("inr_agent_actions")
-    .update(updateValues)
-    .eq("id", args.actionId)
-    .eq("user_id", args.accountId)
-    .select(ACTION_SELECT)
-    .single();
-  if (error) throw error;
-  return rowToInrAgentAction(data);
+  return saveInrAgentPublicationRevision({
+    accountId: args.accountId, action: args.action,
+    payload: updateValues.payload, previewText: args.previewText,
+    ...(args.imageAssets ? { imageAssets: args.imageAssets } : {}),
+  });
 }
 
 export async function POST(request: Request) {
@@ -290,13 +284,16 @@ export async function POST(request: Request) {
   }
 
   const action = rowToInrAgentAction(actionRow);
+  if (body?.expectedUpdatedAt && body.expectedUpdatedAt !== action.updatedAt) {
+    return NextResponse.json({ error: "La publication a changé. Actualisez avant de la régénérer." }, { status: 409 });
+  }
   if (prepareMissingChannel && !["prepared", "pending_validation", "pending", "draft", "validated", "scheduled"].includes(action.status)) return NextResponse.json({ error: "Cette publication ne peut plus recevoir de nouveau canal." }, { status: 409 });
   if (!isPublishAction(action)) {
     return NextResponse.json({ error: "Cette action n’est pas une publication iNrAgent." }, { status: 400 });
   }
-  if (!REVIEWABLE_STATUSES.has(action.status) && !(prepareMissingChannel && ["validated", "scheduled"].includes(action.status))) {
+  if (!canReviseInrAgentPublication(action)) {
     return NextResponse.json(
-      { error: "Cette publication est déjà validée ou programmée. Elle ne peut plus être régénérée ici." },
+      { error: "La diffusion de cette publication a commencé. Elle ne peut plus être régénérée." },
       { status: 409 },
     );
   }
@@ -447,6 +444,7 @@ export async function POST(request: Request) {
         nextAction = rowToInrAgentAction(saved.data.action);
         preparedScheduledActions = (saved.data.scheduledActions || []).map(rowToInrAgentScheduledAction);
       } else nextAction = await persistAction({
+        action,
         actionId,
         accountId: activeUserId,
         payload: nextPayload,
@@ -477,11 +475,13 @@ export async function POST(request: Request) {
       });
       return NextResponse.json(
         { error: error instanceof Error ? error.message : "Régénération du contenu impossible." },
-        { status: 503 },
+        { status: error && typeof error === "object" && "status" in error && error.status === 409 ? 409 : 503 },
       );
     }
   }
 
+  const mediaTargetChannels = (requestedScope === "publication" ? actionChannels : [channel])
+    .filter(targetChannel => targetChannel !== "threads" || readInrAgentThreadsPublicationSettings(payload).mode !== "ghost");
   const mediaModeByChannel = { ...(asRecord(payload.mediaModeByChannel) || asRecord(nested.mediaModeByChannel) || {}) };
   const videoByChannel = { ...(asRecord(payload.videoByChannel) || asRecord(nested.videoByChannel) || {}) };
   const currentMode = cleanText(
@@ -503,19 +503,20 @@ export async function POST(request: Request) {
       nested.media ||
       nested.mediaAsset,
   );
-  const hasVideoMode = actionChannels.some(
+  const hasVideoMode = mediaTargetChannels.some(
     (targetChannel) =>
       cleanText(
         readPublishChannelValue(mediaModeByChannel, targetChannel),
         20,
       ).toLowerCase() === "video",
   );
-  const hasChannelVideo = actionChannels.some(
+  const hasChannelVideo = mediaTargetChannels.some(
     (targetChannel) =>
       cleanPublishMedia(readPublishChannelValue(videoByChannel, targetChannel))?.kind === "video",
   );
   const mediaKind: "image" | "video" =
-    actionChannels.includes("youtube_shorts") ||
+    requestedScope === "channel" && currentMode === "images" ? "image" :
+    mediaTargetChannels.includes("youtube_shorts") ||
     currentMode === "video" ||
     currentVideo?.kind === "video" ||
     globalMediaType === "video" ||
@@ -525,7 +526,7 @@ export async function POST(request: Request) {
       ? "video"
       : "image";
   const expectedCount =
-    mediaKind === "image" ? currentPublicationImageCount(action) : 1;
+    mediaKind === "image" ? currentPublicationImageCount(action, requestedScope === "channel" ? channel : undefined) : 1;
   if (expectedCount > INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT) {
     return NextResponse.json({
       error: "Cette série contient trop d’images pour être régénérée. Les médias existants ont été conservés.",
@@ -542,7 +543,9 @@ export async function POST(request: Request) {
   const mediaIdea = regeneratedMediaIdea({
     payload,
     actionSummary: action.summary,
+    ...(requestedScope === "channel" ? { channel } : {}),
   });
+  const mediaScopeKey = requestedScope === "publication" ? "global" : channel;
 
   try {
     const [isAdmin, studioPreferences] = await Promise.all([
@@ -550,9 +553,9 @@ export async function POST(request: Request) {
       loadInrAgentStudioMediaPreferences({ supabase: supabaseAdmin, accountId: activeUserId }),
     ]);
     const generationIntent = createHash("sha256").update(JSON.stringify([
-      mediaIdea, theme, studioPreferences, expectedCount, videoDurationSeconds, "shared-formats-v1",
+      mediaIdea, theme, studioPreferences, expectedCount, videoDurationSeconds, "shared-formats-v1", mediaTargetChannels,
     ])).digest("hex").slice(0, 16);
-    const formatPlan = buildInrAgentMediaFormatPlan({ kind: mediaKind, channels: actionChannels, payload });
+    const formatPlan = buildInrAgentMediaFormatPlan({ kind: mediaKind, channels: mediaTargetChannels, payload });
     const results: Array<Awaited<ReturnType<typeof generateInrAgentMedia>>> = [];
     const generatedByFormat: Partial<Record<typeof formatPlan.defaultFormat, NonNullable<ReturnType<typeof cleanPublishMedia>>[]>> = {};
     const formatAttempts = await Promise.allSettled(formatPlan.formats.map(async (outputFormat) => {
@@ -575,8 +578,8 @@ export async function POST(request: Request) {
         studioMediaPreferencePercent: 100,
         studioPreferences,
         videoDurationSeconds,
-        variantSeed: `${actionId}:global:${mediaKind}:${generationRevision}:${generationIntent}:${index}`,
-        generationRequestId: `${actionId}:global:${mediaKind}:${generationRevision}:${generationIntent}:format:${outputFormat}:${index}`,
+        variantSeed: `${actionId}:${mediaScopeKey}:${mediaKind}:${generationRevision}:${generationIntent}:${index}`,
+        generationRequestId: `${actionId}:${mediaScopeKey}:${mediaKind}:${generationRevision}:${generationIntent}:format:${outputFormat}:${index}`,
         outputFormat,
       });
       results.push(result);
@@ -615,14 +618,14 @@ export async function POST(request: Request) {
     const effectiveMedia = generatedMedia[0];
     const formatBindings = bindInrAgentMediaFormatVariants<NonNullable<ReturnType<typeof cleanPublishMedia>>>({ variants: {
       version: 1, kind: mediaKind, defaultFormat: formatPlan.defaultFormat, byFormat: generatedByFormat,
-    }, channels: actionChannels, payload });
-    const nextImagesByChannel = { ...setChannelsValue(imagesByChannel, actionChannels, nextImages), ...formatBindings.imagesByChannel };
-    const nextVideoByChannel = { ...setChannelsValue(videoByChannel, actionChannels, nextVideo), ...formatBindings.videoByChannel };
-    const nextMediaModeByChannel = setChannelsValue(mediaModeByChannel, actionChannels, nextMode);
+    }, channels: mediaTargetChannels, payload });
+    const nextImagesByChannel = { ...setChannelsValue(imagesByChannel, mediaTargetChannels, nextImages), ...formatBindings.imagesByChannel };
+    const nextVideoByChannel = { ...setChannelsValue(videoByChannel, mediaTargetChannels, nextVideo), ...formatBindings.videoByChannel };
+    const nextMediaModeByChannel = setChannelsValue(mediaModeByChannel, mediaTargetChannels, nextMode);
     const nextReadiness = { ...readinessByChannel };
     const nextAdaptation = { ...adaptationByChannel };
     const nextPostByChannel = { ...postByChannel };
-    for (const targetChannel of actionChannels) {
+    for (const targetChannel of mediaTargetChannels) {
       const channelMedia = formatBindings.imagesByChannel[targetChannel]?.[0] || formatBindings.videoByChannel[targetChannel] || effectiveMedia;
       nextReadiness[targetChannel] = buildPublishMediaReadiness(
         targetChannel,
@@ -658,11 +661,15 @@ export async function POST(request: Request) {
       image_assets: generatedMedia,
     };
     const mapPatch = {
-      mediaFormatVariants: formatBindings.mediaFormatVariants,
-      imagesByPlacement: formatBindings.imagesByPlacement,
+      ...(requestedScope === "publication" ? { mediaFormatVariants: formatBindings.mediaFormatVariants } : {}),
+      mediaFormatVariantsByChannel: requestedScope === "publication" ? null : {
+        ...(asRecord(payload.mediaFormatVariantsByChannel) || asRecord(nested.mediaFormatVariantsByChannel) || {}),
+        [channel]: formatBindings.mediaFormatVariants,
+      },
+      imagesByPlacement: { ...(asRecord(payload.imagesByPlacement) || asRecord(nested.imagesByPlacement) || {}), ...formatBindings.imagesByPlacement },
       ...(mediaKind === "video" ? { videoSettingsByChannel: setChannelsValue(
         asRecord(payload.videoSettingsByChannel) || asRecord(nested.videoSettingsByChannel) || {},
-        actionChannels, { format: "original", adaptationMode: "safe_frame" },
+        mediaTargetChannels, { format: "original", adaptationMode: "safe_frame" },
       ) } : {}),
       postByChannel: nextPostByChannel,
       imagesByChannel: nextImagesByChannel,
@@ -673,36 +680,37 @@ export async function POST(request: Request) {
     };
     const nextPayload = {
       ...payload,
-      ...globalMediaPatch,
+      ...(requestedScope === "publication" ? globalMediaPatch : {}),
       ...mapPatch,
       ...(Object.keys(nested).length
         ? {
             publishPayload: {
               ...nested,
-              ...globalMediaPatch,
+              ...(requestedScope === "publication" ? globalMediaPatch : {}),
               ...mapPatch,
             },
           }
         : {}),
     };
     const nextAction = await persistAction({
+      action,
       actionId,
       accountId: activeUserId,
       payload: nextPayload,
       previewText: action.previewText,
-      editType: "regenerate_publish_global_media",
+      editType: requestedScope === "publication" ? "regenerate_publish_global_media" : "regenerate_publish_channel_media",
       channel,
-      appliedToChannels: actionChannels,
-      imageAssets: generatedMedia,
+      appliedToChannels: mediaTargetChannels,
+      ...(requestedScope === "publication" ? { imageAssets: generatedMedia } : {}),
     });
     return NextResponse.json({
       ok: true,
       regenerated: "media",
-      scope: "publication",
+      scope: requestedScope,
       mediaKind,
       mediaCount: expectedCount,
       channel,
-      channels: actionChannels,
+      channels: mediaTargetChannels,
       action: nextAction,
     });
   } catch (error) {
@@ -712,8 +720,8 @@ export async function POST(request: Request) {
       message: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json(
-      { error: "Régénération du média impossible. Réessayez dans un instant." },
-      { status: 503 },
+      { error: error instanceof Error ? error.message : "Régénération du média impossible. Réessayez dans un instant." },
+      { status: error && typeof error === "object" && "status" in error && error.status === 409 ? 409 : 503 },
     );
   }
 }

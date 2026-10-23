@@ -539,12 +539,12 @@ test("Booster Générer expose exactement deux champs vocaux via le composant pa
   );
   assert.equal(
     (publishIntentPanel.match(/target: "instruction"/g) || []).length,
-    2,
-    "les deux branches responsive représentent un seul champ consigne à l'écran",
+    1,
+    "le champ consigne commun reste unique sur mobile et ordinateur",
   );
   assert.match(
     publishIntentPanel,
-    /\{isMobile \? \([\s\S]*?target: "instruction"[\s\S]*?\) : \([\s\S]*?target: "instruction"/,
+    /value: publicationInstruction, onChange: setPublicationInstruction/,
   );
 
   assert.doesNotMatch(publishIntentPanel, /\bMediaRecorder\b/);
@@ -552,32 +552,24 @@ test("Booster Générer expose exactement deux champs vocaux via le composant pa
   assert.doesNotMatch(publishIntentPanel, /fetch\([\s\S]*?\/api\/booster\/transcribe/);
 });
 
-test("Booster manuel équipe les champs longs sans dupliquer le micro sur le CTA", () => {
+test("Booster manuel partage le micro entre titre et contenu et garde les hashtags dédiés", () => {
   assert.match(
     contentEditor,
     /import MediaSubjectVoiceButton from "@\/app\/dashboard\/_components\/MediaSubjectVoiceButton"/,
   );
   const voiceButtons = jsxElements(contentEditor, "MediaSubjectVoiceButton");
-  assert.equal(voiceButtons.length, 4);
+  assert.equal(voiceButtons.length, 3);
 
-  const titleButton = elementWithValue(voiceButtons, "activePost.title");
-  assert.match(titleButton, /purpose="title"/);
-  assert.match(titleButton, /placement="inline"/);
-  assert.match(titleButton, /mergeMode="space"/);
-  assert.match(titleButton, /maxLength=\{titleVoiceMaxLength\}/);
-  assert.match(titleButton, /handleVoiceBusyChange\(activeCard, "title", busy\)/);
-  assert.match(
-    titleButton,
-    /updatePost\(activeCard, \{ title \}, \{ sanitize: false \}\)/,
-  );
-
-  const contentButton = elementWithValue(voiceButtons, "activePost.content");
-  assert.match(contentButton, /purpose="content"/);
-  assert.match(contentButton, /placement="inline"/);
-  assert.match(contentButton, /mergeMode="paragraph"/);
-  assert.match(contentButton, /maxLength=\{contentVoiceMaxLength\}/);
-  assert.match(contentButton, /handleVoiceBusyChange\(activeCard, "content", busy\)/);
-  assert.match(contentButton, /isSiteDisplayKey\(activeCard\)/);
+  const sharedButton = elementWithValue(voiceButtons, "activePost[activeTextField]");
+  assert.match(sharedButton, /purpose=\{activeTextField\}/);
+  assert.match(sharedButton, /placement="inline"/);
+  assert.match(sharedButton, /mergeMode=\{activeTextField === "title" \? "space" : "paragraph"\}/);
+  assert.match(sharedButton, /maxLength=\{activeTextField === "title" \? titleVoiceMaxLength : contentVoiceMaxLength\}/);
+  assert.match(sharedButton, /handleVoiceBusyChange\(activeCard, activeTextField, busy\)/);
+  assert.match(sharedButton, /isSiteDisplayKey\(activeCard\)/);
+  assert.match(sharedButton, /\{ \[activeTextField\]: value \}/);
+  assert.match(contentEditor, /if \(!voiceBusy\) setActiveTextField\("title"\)/);
+  assert.match(contentEditor, /if \(!voiceBusy\) setActiveTextField\("content"\)/);
 
   assert.doesNotMatch(contentEditor, /manual-voice:[^\n]*:cta/);
   assert.doesNotMatch(contentEditor, /purpose="cta"/);

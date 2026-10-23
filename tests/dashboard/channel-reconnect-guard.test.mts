@@ -16,7 +16,7 @@ test("dashboard exposes a dedicated reconnect state with orange warning UI", () 
   assert.match(types, /"connected"\s*\|\s*"available"\s*\|\s*"reconnect"\s*\|\s*"coming"/);
   assert.match(sync, /requiresUpdate\s*\?\s*"reconnect"/);
   assert.match(bubble, /item\.bubbleStatus === "reconnect"/);
-  assert.match(bubble, /WarningTriangle/);
+  assert.match(bubble, /bubbleStyles\.actionMainReconnect/);
   assert.match(bubbleCss, /\.reconnectCard\s*\{/);
   assert.match(bubbleCss, /\.statusReconnect\s*\{/);
   assert.match(bubbleCss, /#fb923c/i);

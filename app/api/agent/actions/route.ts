@@ -3,7 +3,9 @@ import { normalizeThreadsPublicationMode, normalizeThreadsPublicationPreferences
 import { applyInrAgentThreadsPublicationSettings, readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
 import { NextResponse } from "next/server";
 import { saveAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelectionServer";
-import { filterInrAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelection";
+import { saveInrAgentPublicationRevision } from "@/lib/inrAgentPublicationRevisionServer";
+import { inrAgentPublicationNeedsRevisionReview } from "@/lib/inrAgentPublicationRevision";
+import { filterInrAgentPublicationChannels, selectedInrAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelection";
 import { ensureInrAgentMediaFormats } from "@/lib/inrAgentMediaFormatGeneration";
 import { readInrAgentMediaFormatVariants } from "@/lib/inrAgentMediaFormats";
 import {
@@ -1521,7 +1523,7 @@ export async function PATCH(request: Request) {
     const currentAction = rowToInrAgentAction(currentRow as any);
     const currentPayload = currentAction.payload || {};
     const currentEditorialPlan = asRecord(currentPayload.editorialPlan);
-    if (!isPublishAction(currentAction) || !currentEditorialPlan) {
+    if (!isPublishAction(currentAction) || (!currentEditorialPlan && !inrAgentPublicationNeedsRevisionReview(currentPayload))) {
       return NextResponse.json(
         {
           error:
@@ -1551,17 +1553,22 @@ export async function PATCH(request: Request) {
     const updatedAt = new Date().toISOString();
     const nextPayload = {
       ...currentPayload,
-      editorialPlan: {
+      ...(currentEditorialPlan ? { editorialPlan: {
         ...currentEditorialPlan,
         scheduledFor,
         manuallyRescheduledAt: updatedAt,
-      },
+      } } : {}),
+      ...(inrAgentPublicationNeedsRevisionReview(currentPayload) ? { publicationRevisionReview: {
+        ...(asRecord(currentPayload.publicationRevisionReview) || {}), scheduledFor,
+        scheduleSelections: normalizePublishChannels(selectedInrAgentPublicationChannels(currentPayload, currentAction.targetChannels))
+          .map(channel => ({ channel, scheduledAt: scheduledFor })),
+      } } : {}),
       lastManualEdit: {
         editType: "reschedule_editorial",
         editedAt: updatedAt,
         previousScheduledFor:
           currentAction.scheduledFor ||
-          cleanText(currentEditorialPlan.scheduledFor, 80) ||
+          cleanText(currentEditorialPlan?.scheduledFor, 80) ||
           null,
         scheduledFor,
       },
@@ -2336,37 +2343,21 @@ export async function PATCH(request: Request) {
       ),
     );
 
-    const { data, error } = await supabaseAdmin
-      .from("inr_agent_actions")
-      .update({
-        payload: nextPayload,
-        preview_text: nextPreviewText,
-        updated_at: new Date().toISOString(),
-        last_error: null,
-      })
-      .eq("id", actionId)
-      .eq("user_id", activeUserId)
-      .select(ACTION_SELECT)
-      .single();
-
-    if (error) {
-      if (isMissingTableError(error)) {
-        return NextResponse.json(
-          {
-            error: "La table inr_agent_actions doit être créée dans Supabase.",
-            tableMissing: true,
-          },
-          { status: 500 },
-        );
-      }
+    let savedAction;
+    try {
+      savedAction = await saveInrAgentPublicationRevision({
+        accountId: activeUserId, action: currentAction,
+        payload: nextPayload, previewText: nextPreviewText,
+      });
+    } catch (error) {
       console.warn("[inr-agent-actions] publish text update failed", error);
       return NextResponse.json(
-        { error: "Modification de la publication impossible." },
-        { status: 500 },
+        { error: error instanceof Error ? error.message : "Modification de la publication impossible." },
+        { status: error && typeof error === "object" && "status" in error && error.status === 409 ? 409 : 500 },
       );
     }
 
-    const action = await refreshActionImageUrls(rowToInrAgentAction(data));
+    const action = await refreshActionImageUrls(savedAction);
     return NextResponse.json({ action, saved: true });
   }
 
@@ -2753,7 +2744,11 @@ export async function PATCH(request: Request) {
           ? [primaryMedia]
           : [];
 
-    const manualFormatPatch = { mediaFormatVariants: null, imagesByPlacement: Object.fromEntries(Object.entries(
+    const manualFormatPatch = { mediaFormatVariants: null,
+      mediaFormatVariantsByChannel: Object.fromEntries(Object.entries(
+        asRecord(currentPayload.mediaFormatVariantsByChannel) || asRecord(currentPublishPayload.mediaFormatVariantsByChannel) || {},
+      ).filter(([key]) => !targetChannels.includes(key as PublishChannelKey))),
+      imagesByPlacement: Object.fromEntries(Object.entries(
       asRecord(currentPayload.imagesByPlacement) || asRecord(currentPublishPayload.imagesByPlacement) || {},
     ).filter(([key]) => !targetChannels.includes(key as PublishChannelKey))) };
     const nextPublishPayload = {
@@ -2808,37 +2803,21 @@ export async function PATCH(request: Request) {
       },
     };
 
-    const { data, error } = await supabaseAdmin
-      .from("inr_agent_actions")
-      .update({
-        payload: nextPayload,
-        image_assets: actionImageAssets,
-        updated_at: editedAt,
-        last_error: null,
-      })
-      .eq("id", actionId)
-      .eq("user_id", activeUserId)
-      .select(ACTION_SELECT)
-      .single();
-
-    if (error) {
-      if (isMissingTableError(error)) {
-        return NextResponse.json(
-          {
-            error: "La table inr_agent_actions doit être créée dans Supabase.",
-            tableMissing: true,
-          },
-          { status: 500 },
-        );
-      }
+    let savedAction;
+    try {
+      savedAction = await saveInrAgentPublicationRevision({
+        accountId: activeUserId, action: currentAction,
+        payload: nextPayload, imageAssets: actionImageAssets,
+      });
+    } catch (error) {
       console.warn("[inr-agent-actions] publish media update failed", error);
       return NextResponse.json(
-        { error: "Modification du média impossible." },
-        { status: 500 },
+        { error: error instanceof Error ? error.message : "Modification du média impossible." },
+        { status: error && typeof error === "object" && "status" in error && error.status === 409 ? 409 : 500 },
       );
     }
 
-    const action = await refreshActionImageUrls(rowToInrAgentAction(data));
+    const action = await refreshActionImageUrls(savedAction);
     return NextResponse.json({ action, saved: true });
   }
 

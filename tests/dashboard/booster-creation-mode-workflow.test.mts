@@ -58,10 +58,9 @@ test("workflow numbering stays explicit for AI and manual creation", () => {
   });
 });
 
-test("Booster displays a permanent block 2 before either creation path", () => {
-  assert.match(modePanel, /step=\{2\}/);
-  assert.match(modePanel, /titleKey: "creer_avec_inrcy_6abf3922"/);
-  assert.match(modePanel, /titleKey: "creer_manuellement_89b2d47e"/);
+test("Booster combines channels and creation mode in preparation and keeps both creation paths", () => {
+  assert.match(modePanel, /titleKey: "wizard_automatic"/);
+  assert.match(modePanel, /titleKey: "wizard_manual"/);
   assert.match(modePanel, /role="radiogroup"/);
   assert.match(modal, /<PublishChannelSelector[\s\S]*<PublishCreationModePanel/);
   assert.match(

@@ -124,6 +124,23 @@ test("le lien inverse conserve la publication source lorsque sourceActionId manq
   assert.equal(rows[0].approvalState, "approved");
 });
 
+test("une publication ponctuelle modifiée reste dans le planning en attente de validation", () => {
+  const source = editorial("revised-publication", {
+    status: "pending_validation", validatedAt: null,
+    payload: {
+      publicationRevisionReview: { required: true, scheduledFor: SCHEDULED_AT },
+      scheduledExecution: { scheduledActionIds: [] },
+      postByChannel: { site_web: { title: "Version à relire", content: "Nouveau texte" } },
+    },
+  });
+  const rows = build([source], []);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].preparedActionId, source.id);
+  assert.equal(rows[0].scheduledAtIso, SCHEDULED_AT);
+  assert.equal(rows[0].approvalState, "pending");
+  assert.equal(rows[0].contentTitle, "Version à relire");
+});
+
 test("les programmations par canal gardent leur date, leur état et leur contenu réels", () => {
   const source = editorial();
   source.payload.scheduledExecution.scheduledActionIds.push("execution-two");

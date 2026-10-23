@@ -8,6 +8,7 @@ import { useViewportWidth } from "./hooks";
 import { FinalImageFrame, PublicationPreviewLightbox, VideoPreviewFrame } from "./frames";
 
 import { clampNumber, cleanNetworkText, cleanText, renderSafeSiteInlineHtml } from "./utils";
+import NativePublicationPreview, { type PublicationPreviewDevice } from "./native-publication-preview";
 
 function PreviewBlockShell({
   eyebrow,
@@ -40,7 +41,7 @@ function PreviewBlockShell({
         overflow: "hidden",
       }}
     >
-      <div
+      <div data-preview-heading
         style={{
           display: "flex",
           gap: 8,
@@ -76,7 +77,7 @@ function PreviewBlockShell({
         ) : null}
       </div>
       {children}
-      {note && !isMobile ? <div style={{ fontSize: 11, opacity: 0.62 }}>{note}</div> : null}
+      {note && !isMobile ? <div data-preview-note style={{ fontSize: 11, opacity: 0.62 }}>{note}</div> : null}
     </section>
   );
 }
@@ -498,7 +499,7 @@ function FeedPreviewCard({ mode, channel, title, content, cta, hashtags = [], im
   );
 }
 
-export function ChannelPublicationPreview({ preview }: { preview: PublicationPreview }) {
+export function ChannelPublicationPreview({ preview, presentation = "standard", device = "desktop", panelId = "publication-preview" }: { preview: PublicationPreview; presentation?: "standard" | "native"; device?: PublicationPreviewDevice; panelId?: string }) {
   const key = String(preview.channelKey || "");
   const isSite = key === "site_web" || key === "site";
   const isInstagram = key === "instagram";
@@ -526,6 +527,13 @@ export function ChannelPublicationPreview({ preview }: { preview: PublicationPre
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const openLightbox = (index: number) => setLightboxIndex(index);
   const closeLightbox = () => setLightboxIndex(null);
+
+  if (presentation === "native") {
+    return <>
+      <NativePublicationPreview key={key} preview={preview} title={titleValue} content={contentValue} cta={cta} hashtags={hashtags} images={images} video={video} device={device} panelId={panelId} onOpen={openLightbox} />
+      {!hasVideo ? <PublicationPreviewLightbox open={lightboxIndex !== null} images={images} initialIndex={lightboxIndex || 0} aspectRatio={isTiktok || isYoutubeShorts ? "9 / 16" : isInstagram ? "4 / 5" : "1 / 1"} fallbackMode="black" onClose={closeLightbox} /> : null}
+    </>;
+  }
 
   if (isSite) {
     return (

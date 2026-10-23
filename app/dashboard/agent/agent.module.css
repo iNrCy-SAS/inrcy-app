@@ -12109,24 +12109,9 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   font-size: 28px;
 }
 
-.publishMediaEmpty strong,
-.publishMediaCurrentText strong {
+.publishMediaEmpty strong {
   color: #ffffff;
   font-weight: 900;
-}
-
-.publishMediaCurrentText {
-  min-width: 0;
-  display: grid;
-  align-content: center;
-  gap: 8px;
-}
-
-.publishMediaCurrentText small {
-  color: rgba(226, 242, 255, 0.72);
-  font-size: 13px;
-  line-height: 1.45;
-  font-weight: 650;
 }
 
 @media (max-width: 760px) {
@@ -12144,43 +12129,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 /* Étape 26 — iNrAgent média : adaptation automatique par canal */
-.publishMediaAdaptationBox {
-  display: grid;
-  gap: 8px;
-  margin: 12px 0;
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(105, 239, 255, 0.2);
-  background: radial-gradient(
-      circle at 0% 0%,
-      rgba(105, 239, 255, 0.12),
-      transparent 38%
-    ),
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.055),
-      rgba(255, 255, 255, 0.03)
-    );
-  color: #eef6ff;
-}
-
-.publishMediaAdaptationBox > div {
-  display: grid;
-  gap: 4px;
-}
-
-.publishMediaAdaptationBox strong {
-  color: #69efff;
-  font-weight: 950;
-}
-
-.publishMediaAdaptationBox span,
-.publishMediaAdaptationBox small {
-  color: #b8c6e8;
-  font-size: 12px;
-  line-height: 1.42;
-  font-weight: 760;
-}
 
 /* Étape 29 — iNrAgent média : fenêtre plus courte + choix direct comme Booster */
 .publishMediaModal {
@@ -12313,9 +12261,13 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 /* iNrAgent média : modale de gestion et accès directs à iNrStudio */
 .publishMediaModal {
-  max-width: min(94vw, 820px) !important;
-  max-height: min(86dvh, 780px);
-  overflow: auto;
+  width: min(96vw, 1120px);
+  max-width: min(96vw, 1120px) !important;
+  max-height: 90dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 18px;
+  overflow: hidden;
 }
 
 .publishMediaModal .modalClose {
@@ -12324,15 +12276,17 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 .publishMediaModalHeader {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin: 0 0 14px;
+  margin: 0;
   padding-right: 58px;
 }
 
-.publishMediaModalHeader h2 {
-  margin-bottom: 4px;
+.publishMediaModal .publishMediaModalHeader h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.25;
 }
 
 .publishMediaModalHeader span {
@@ -12345,7 +12299,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 .publishMediaStatusPill {
   flex: 0 0 auto;
-  margin-top: 10px;
+  margin-top: 0;
   padding: 8px 12px;
   border-radius: 999px;
   color: rgba(226, 242, 255, 0.9);
@@ -12373,72 +12327,106 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   border-color: rgba(251, 113, 133, 0.34);
 }
 
-.publishMediaHero {
+.publishMediaWorkspace {
   display: grid;
-  grid-template-columns: minmax(190px, 0.42fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
+  min-height: 0;
+  height: min(68dvh, 640px);
+}
+
+.publishMediaPreviewColumn {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.publishMediaControls {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-  align-items: stretch;
-  margin: 12px 0;
-  padding: 14px;
-  border-radius: 24px;
-  background: radial-gradient(
-      circle at 0% 0%,
-      rgba(34, 211, 238, 0.12),
-      transparent 40%
-    ),
-    linear-gradient(135deg, rgba(8, 20, 48, 0.9), rgba(20, 15, 52, 0.72));
-  border: 1px solid rgba(148, 163, 255, 0.18);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 2px 3px;
+}
+
+.publishMediaFilename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #b8c6e8;
+  font-size: 13px;
+}
+
+.publishMediaCarouselControls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  color: #eef6ff;
+}
+
+.publishMediaCarouselControls button {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 255, 0.4);
+  border-radius: 50%;
+  color: #eef6ff;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.7), rgba(124, 58, 237, 0.65));
+  cursor: pointer;
+}
+
+.publishMediaCarouselControls button svg {
+  width: 18px;
+  height: 18px;
 }
 
 .publishMediaVisual {
   min-width: 0;
-}
-
-.publishMediaVisual img,
-.publishMediaVisual video,
-.publishMediaVisual .publishMediaEmpty {
-  width: 100%;
-  min-height: 178px;
-  max-height: 238px;
-  display: block;
-  object-fit: cover;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
   border-radius: 18px;
   background: rgba(2, 6, 23, 0.66);
   border: 1px solid rgba(96, 165, 250, 0.2);
 }
 
-.publishMediaVisual .publishMediaEmpty {
+.publishMediaModal .publishMediaVisual img,
+.publishMediaModal .publishMediaVisual video,
+.publishMediaModal .publishMediaVisual .publishMediaEmpty {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  display: block;
+  object-fit: contain;
+  object-position: center;
+}
+
+.publishMediaModal .publishMediaVisual .publishMediaEmpty {
   display: grid;
   place-items: center;
   align-content: center;
 }
 
-.publishMediaTypeChip {
-  justify-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  color: #dff8ff;
-  font-size: 12px;
-  font-weight: 950;
-  background: rgba(14, 165, 233, 0.16);
-  border: 1px solid rgba(125, 211, 252, 0.28);
-}
-
 .publishMediaImageActions {
   justify-self: stretch;
-  width: min(100%, 360px);
+  width: 100%;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 4px;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 0;
 }
 
 .publishMediaRetouchButton,
-.publishMediaModifyButton {
+.publishMediaModifyButton,
+.publishMediaRegenerateButton {
   justify-self: flex-start;
   min-height: 42px;
   display: inline-flex;
@@ -12448,6 +12436,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   padding: 0 16px;
   border-radius: 999px;
   font: inherit;
+  font-size: 14px;
   font-weight: 950;
   cursor: pointer;
   transition: transform 0.16s ease, filter 0.16s ease, box-shadow 0.16s ease;
@@ -12466,11 +12455,18 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 .publishMediaImageActions .publishMediaRetouchButton,
-.publishMediaImageActions .publishMediaModifyButton {
+.publishMediaImageActions .publishMediaModifyButton,
+.publishMediaImageActions .publishMediaRegenerateButton {
   width: 100%;
   min-width: 0;
   margin-top: 0;
   padding-inline: 12px;
+}
+
+.publishMediaRegenerateButton {
+  color: #edf5ff;
+  border: 1px solid rgba(129, 140, 248, 0.55);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.8), rgba(124, 58, 237, 0.85));
 }
 
 .publishMediaModifyButton {
@@ -12515,39 +12511,18 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 .publishMediaRetouchButton:disabled,
-.publishMediaModifyButton:disabled {
+.publishMediaModifyButton:disabled,
+.publishMediaRegenerateButton:disabled {
   opacity: 0.55;
   cursor: wait;
-}
-
-.publishMediaRetouchHint {
-  justify-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 0 12px;
-  border-radius: 999px;
-  color: rgba(226, 242, 255, 0.72);
-  font-size: 12px;
-  font-weight: 850;
-  background: rgba(255, 255, 255, 0.055);
-  border: 1px dashed rgba(148, 163, 255, 0.2);
 }
 
 .publishMediaSourcePanel {
   display: grid;
   gap: 12px;
-  margin: 12px 0 14px;
-  padding: 14px;
-  border-radius: 22px;
-  background: radial-gradient(
-      circle at 100% 0%,
-      rgba(217, 70, 239, 0.14),
-      transparent 42%
-    ),
-    rgba(6, 15, 38, 0.5);
-  border: 1px dashed rgba(148, 163, 255, 0.22);
+  margin: 0;
+  padding: 14px 0;
+  border-top: 1px solid rgba(148, 163, 255, 0.18);
 }
 
 .publishMediaSourcePanel input {
@@ -12576,38 +12551,46 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 .publishMediaSourcePanel .publishMediaActionButtons {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
 .publishMediaSourcePanel .publishMediaActionButtons label,
 .publishMediaSourcePanel .publishMediaActionButtons button {
   min-width: 0;
-  min-height: 96px;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 5px;
-  padding: 12px 10px;
-  border-radius: 18px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 10px;
+  border-radius: 12px;
   text-align: center;
-  background: radial-gradient(
-      circle at 50% 0%,
-      rgba(255, 255, 255, 0.16),
-      transparent 42%
-    ),
-    linear-gradient(
-      135deg,
-      rgba(37, 99, 235, 0.95),
-      rgba(124, 58, 237, 0.88) 58%,
-      rgba(217, 70, 239, 0.82)
-    );
+  background: rgba(99, 102, 241, 0.16);
   border: 1px solid rgba(125, 211, 252, 0.3);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .publishMediaSourcePanel .publishMediaActionButtons span[aria-hidden] {
-  font-size: 22px;
+  font-size: 18px;
+}
+
+.publishMediaSourcePanel .publishMediaActionButtons svg {
+  width: 18px;
+  height: 18px;
+}
+
+.publishMediaControls .modalActions {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.publishMediaControls .modalActions button {
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 13px;
 }
 
 .publishMediaSourcePanel .publishMediaActionButtons strong {
@@ -12640,9 +12623,22 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     margin-top: 2px;
   }
 
-  .publishMediaHero {
+  .publishMediaModal {
+    overflow-y: auto;
+  }
+
+  .publishMediaWorkspace {
     grid-template-columns: 1fr;
-    overflow: hidden;
+    height: auto;
+    gap: 18px;
+  }
+
+  .publishMediaPreviewColumn {
+    height: min(48dvh, 440px);
+  }
+
+  .publishMediaControls {
+    overflow: visible;
   }
 
   .publishMediaVisual {
@@ -12651,12 +12647,12 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     overflow: hidden;
   }
 
-  .publishMediaVisual img,
-  .publishMediaVisual video {
+  .publishMediaModal .publishMediaVisual img,
+  .publishMediaModal .publishMediaVisual video {
     width: 100% !important;
     max-width: 100% !important;
-    height: auto !important;
-    max-height: 220px;
+    height: 100% !important;
+    max-height: 100%;
     object-fit: contain;
   }
 
@@ -12666,7 +12662,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
   .publishMediaSourcePanel .publishMediaActionButtons label,
   .publishMediaSourcePanel .publishMediaActionButtons button {
-    min-height: 86px;
+    min-height: 44px;
   }
 }
 
@@ -14878,78 +14874,10 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 /* Galerie des médias réellement enregistrés canal par canal. */
-.publishMediaGallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(72px, 92px));
-  gap: 10px;
-  margin: 0 0 12px;
-  padding: 10px;
-  border-radius: 18px;
-  background: rgba(5, 14, 34, 0.56);
-  border: 1px solid rgba(148, 163, 255, 0.16);
-}
-
-.publishMediaGalleryItem {
-  position: relative;
-  min-width: 0;
-  aspect-ratio: 1 / 1;
-  padding: 3px;
-  overflow: hidden;
-  border-radius: 14px;
-  cursor: pointer;
-  background: rgba(2, 6, 23, 0.72);
-  border: 1px solid rgba(148, 163, 255, 0.22);
-  box-shadow: none;
-}
-
-.publishMediaGalleryItem img,
-.publishMediaGalleryItem video {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-  border-radius: 10px;
-}
-
-.publishMediaGalleryItem span {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  min-width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  padding: 0 5px;
-  border-radius: 999px;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 950;
-  background: rgba(2, 6, 23, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-}
-
-.publishMediaGalleryItemActive {
-  border-color: rgba(34, 211, 238, 0.9);
-  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.18),
-    0 0 18px rgba(34, 211, 238, 0.28);
-}
-
-.publishMediaGalleryItem:disabled {
-  cursor: wait;
-  opacity: 0.7;
-}
 
 @media (max-width: 1100px) {
   .confirmModalBackdrop {
     z-index: 10090;
-  }
-}
-
-@media (max-width: 760px) {
-  .publishMediaGallery {
-    grid-template-columns: repeat(5, minmax(52px, 1fr));
-    gap: 7px;
-    overflow-x: auto;
   }
 }
 

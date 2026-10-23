@@ -11,7 +11,7 @@ export default function BusinessDnaIcon({ size = 24, className }: Props) {
       aria-hidden="true"
       alt=""
       className={className}
-      src="/icons/business-dna.svg"
+      src="/icons/business-dna.svg?v=2"
       width={size}
       height={size}
       style={{

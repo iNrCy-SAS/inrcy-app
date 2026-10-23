@@ -24,7 +24,10 @@ test("explicit per-channel media removal wins for TikTok and YouTube", () => {
 });
 
 test("creation mode helper is concise", () => {
-  assert.match(creationPanel, /i18nT\("choisissez_votre_mode_de_creation_vous_4d39fb96"\)/);
+  assert.match(creationPanel, /descriptionKey: "wizard_automatic_help"/);
+  assert.match(creationPanel, /descriptionKey: "wizard_manual_help"/);
+  const messages = JSON.parse(readFileSync("messages/fr-FR/booster.json", "utf8"));
+  assert.match(messages.wizard_automatic_help, /iNrCy génère/);
   assert.doesNotMatch(creationPanel, /travail propre au mode actuel/);
 });
 

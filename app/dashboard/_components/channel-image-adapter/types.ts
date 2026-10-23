@@ -40,6 +40,7 @@ export type PreviewVideo = {
 
 export type PublicationPreview = {
   channelKey: string;
+  accountName?: string;
   mediaType?: "images" | "video";
   channelLabel: string;
   title?: string | null;
@@ -93,6 +94,7 @@ export type SidebarItem = {
 };
 
 export type CardsPanelProps = {
+  presentation?: "cards" | "workspace";
   tabs: ChannelTab[];
   activeChannel: string;
   onActiveChannelChange: (key: string) => void;

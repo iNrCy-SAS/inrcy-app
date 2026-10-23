@@ -24,5 +24,6 @@ test("le lecteur desktop recharge le canal actif et affiche sa vignette", () => 
     client,
     /key=\{publishMediaPreview\.url\}[\s\S]*?poster=\{publishMediaPreview\.posterUrl \|\| undefined\}[\s\S]*?playsInline[\s\S]*?preload="auto"/,
   );
-  assert.match(client, /poster=\{item\.posterUrl \|\| undefined\}/);
+  assert.match(client, /publishMediaCarouselControls/);
+  assert.doesNotMatch(client, /className=\{styles\.publishMediaGallery\}/);
 });

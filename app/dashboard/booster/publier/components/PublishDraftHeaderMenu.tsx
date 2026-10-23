@@ -26,6 +26,7 @@ type MenuPosition = Pick<CSSProperties, "top" | "left" | "width">;
 
 type Props = {
   activeDraftId?: string;
+  statusMessage?: string;
   buttonClassName: string;
   disabled?: boolean;
   emptyScopeLabel?: string;
@@ -140,6 +141,7 @@ function RefreshIcon() {
 
 export default function PublishDraftHeaderMenu({
   activeDraftId = "",
+  statusMessage = "",
   buttonClassName,
   disabled = false,
   emptyScopeLabel,
@@ -449,13 +451,16 @@ export default function PublishDraftHeaderMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        title={mailsT("brouillons_a55f3cd9")}
+        title={statusMessage ? mailsT("brouillons_a55f3cd9") + " · " + statusMessage : mailsT("brouillons_a55f3cd9")}
+        aria-label={statusMessage ? mailsT("brouillons_a55f3cd9") + " · " + statusMessage : mailsT("brouillons_a55f3cd9")}
       >
         <span className={menuStyles.triggerIcon}>
           <DraftsIcon />
+          {statusMessage ? <span className={menuStyles.noticeIndicator} aria-hidden="true">✓</span> : null}
         </span>
-        <span className={menuStyles.triggerLabel}>
-          {mailsT("brouillons_a55f3cd9")}
+        <span className={menuStyles.triggerCopy}>
+          <span className={menuStyles.triggerLabel}>{mailsT("brouillons_a55f3cd9")}</span>
+          {statusMessage ? <span className={menuStyles.triggerStatus} role="status">{statusMessage}</span> : null}
         </span>
         {visibleDrafts.length > 0 ? (
           <span className={menuStyles.count}>{visibleDrafts.length}</span>

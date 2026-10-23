@@ -68,7 +68,8 @@ test("the publication balance highlights successes and keeps independent process
     "app/dashboard/_components/PublishExecutionResultModal.tsx",
   );
 
-  assert.match(modal, /width: "min\(660px, 100%\)"/);
+  assert.match(modal, /width: wizardSteps \? "min\(980px, 100%\)" : "min\(660px, 100%\)"/);
+  assert.match(modal, /<PublishWizardFrame step="results"/);
   assert.match(modal, /const hasPublishedChannels = publishedCount > 0/);
   assert.match(modal, /Publication avec résultats mixtes/);
   assert.match(modal, /publishedCount[\s\S]*?publié/);

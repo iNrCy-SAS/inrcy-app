@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
@@ -22,20 +22,41 @@ export default function AiContentReportButton({ surface, content = "", className
   const [comment, setComment] = useState("");
   const [status, setStatus] = useState<ReportState>("idle");
   const [error, setError] = useState("");
+  const dialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setOpen(false);
+      } else if (event.key === "Tab") {
+        const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex="0"]',
+        ) || []);
+        const first = focusable[0];
+        const last = focusable.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
     };
     document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown, true);
     return () => {
       document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keydown", onKeyDown, true);
+      previousFocus?.focus({ preventScroll: true });
     };
   }, [open]);
 
@@ -77,7 +98,7 @@ export default function AiContentReportButton({ surface, content = "", className
     <div className={styles.backdrop} role="presentation" onMouseDown={(event) => {
       if (event.currentTarget === event.target) setOpen(false);
     }}>
-      <section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="ai-report-title">
+      <section ref={dialogRef} className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="ai-report-title">
         <button className={styles.closeButton} type="button" onClick={() => setOpen(false)} aria-label={t("ai_report_close")}>×</button>
         {status === "sent" ? (
           <div className={styles.success} role="status">

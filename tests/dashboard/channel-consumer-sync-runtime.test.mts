@@ -148,6 +148,113 @@ for (const consumer of ["Booster", "iNrAgent"] as const) {
   });
 }
 
+test("Booster: Pinterest refresh commits one enriched detail snapshot while connectivity updates immediately", async () => {
+  const b = browser();
+  const identities: Array<ReturnType<typeof deferred<Dict>>> = [];
+  const applied: Dict[] = [];
+  const writes: Dict[] = [];
+  const serverDetails = { pinterest: { type: "account", label: "Compte Pinterest connecté", href: null } };
+  let details: Dict = { pinterest: { label: "Compte déjà chargé", href: "https://www.pinterest.fr/previous/" } };
+  const cleanup = runEffect("app/dashboard/booster/publier/PublishModal.tsx", "const refreshConnectedChannels", {
+    window: b.window,
+    getActiveBrowserUserId: b.account,
+    subscribeToChannelConnectionUpdates: b.subscribe,
+    fetch: async (url: string) => {
+      if (url.includes("/pinterest/")) {
+        const identity = deferred<Dict>();
+        identities.push(identity);
+        return identity.promise;
+      }
+      return { ok: true, json: async () => ({ channels: { pinterest: true }, channelDetails: serverDetails }) };
+    },
+    CHANNEL_KEYS: ["pinterest"],
+    EMPTY_CHANNEL_DETAILS: {},
+    applyConnectedChannels: (next: Dict) => applied.push(next),
+    normalizeExternalHref: (href: string) => href,
+    setChannelDetails: (update: any) => { details = typeof update === "function" ? update(details) : update; writes.push(details); },
+  });
+  await tick();
+  assert.equal(applied[0].pinterest, true, "Connectivity must not wait for the live profile");
+  assert.equal(identities.length, 1);
+  assert.equal(writes.length, 0, "The generic server label must not be emitted while enrichment is pending");
+  assert.equal(details.pinterest.label, "Compte déjà chargé");
+  identities[0].resolve({ ok: true, json: async () => ({ ok: true, connected: true, username: "@fresh-account", accountName: "Compte Pinterest précis" }) });
+  await tick();
+  assert.equal(writes.length, 1);
+  assert.equal(details.pinterest.label, "Compte Pinterest précis");
+  assert.equal(details.pinterest.href, "https://www.pinterest.fr/fresh-account/");
+  assert.equal(details.pinterest.availabilityError, false);
+  assert.equal(serverDetails.pinterest.label, "Compte Pinterest connecté", "The response snapshot must not be mutated");
+  b.window.dispatchEvent(new Event("focus"));
+  await tick();
+  assert.equal(applied.length, 2);
+  assert.equal(writes.length, 1, "Focus refresh must keep the complete label until its new snapshot is ready");
+  identities[1].resolve({ ok: true, json: async () => ({ ok: true, connected: true, username: "new-account" }) });
+  await tick();
+  assert.equal(writes.length, 2);
+  assert.equal(details.pinterest.label, "new-account", "A fresh identity must replace the old one instead of hiding it behind a display cache");
+  assert.ok(writes.every((snapshot) => snapshot.pinterest.label !== "Compte Pinterest connecté"));
+  cleanup();
+});
+
+for (const failure of ["http", "network", "json"] as const) {
+  test(`Booster: Pinterest ${failure} failure commits the server fallback once after enrichment settles`, async () => {
+    const b = browser();
+    const identity = deferred<Dict>();
+    const writes: Dict[] = [];
+    let details: Dict = { pinterest: { label: "Ancien compte" } };
+    const cleanup = runEffect("app/dashboard/booster/publier/PublishModal.tsx", "const refreshConnectedChannels", {
+      window: b.window,
+      getActiveBrowserUserId: b.account,
+      subscribeToChannelConnectionUpdates: b.subscribe,
+      fetch: async (url: string) => {
+        if (url.includes("/pinterest/")) {
+          const response = await identity.promise;
+          if (failure === "network") throw new Error("Network unavailable");
+          return response;
+        }
+        return { ok: true, json: async () => ({ channels: { pinterest: true }, channelDetails: { pinterest: { label: "Compte Pinterest connecté" } } }) };
+      },
+      CHANNEL_KEYS: ["pinterest"],
+      EMPTY_CHANNEL_DETAILS: {},
+      applyConnectedChannels() {},
+      normalizeExternalHref: (href: string) => href,
+      setChannelDetails: (update: any) => { details = typeof update === "function" ? update(details) : update; writes.push(details); },
+    });
+    await tick();
+    assert.equal(writes.length, 0);
+    identity.resolve({ ok: failure !== "http", json: async () => { throw new Error("Invalid JSON"); } });
+    await tick();
+    assert.equal(writes.length, 1);
+    assert.equal(details.pinterest.label, "Compte Pinterest connecté");
+    cleanup();
+  });
+}
+
+test("Booster: a pending Pinterest identity is ignored after an account switch", async () => {
+  const b = browser();
+  const identity = deferred<Dict>();
+  let detailWrites = 0;
+  const cleanup = runEffect("app/dashboard/booster/publier/PublishModal.tsx", "const refreshConnectedChannels", {
+    window: b.window,
+    getActiveBrowserUserId: b.account,
+    subscribeToChannelConnectionUpdates: b.subscribe,
+    fetch: async (url: string) => url.includes("/pinterest/") ? identity.promise : { ok: true, json: async () => ({ channels: { pinterest: true }, channelDetails: { pinterest: { label: "Compte Pinterest connecté" } } }) },
+    CHANNEL_KEYS: ["pinterest"],
+    EMPTY_CHANNEL_DETAILS: {},
+    applyConnectedChannels() {},
+    normalizeExternalHref: (href: string) => href,
+    setChannelDetails: () => { detailWrites++; },
+  });
+  await tick();
+  assert.equal(detailWrites, 0);
+  b.changeAccount("account-b");
+  identity.resolve({ ok: true, json: async () => ({ ok: true, connected: true, username: "stale-account" }) });
+  await tick();
+  assert.equal(detailWrites, 0);
+  cleanup();
+});
+
 test("Booster: a late Pinterest profile request cannot restore details after disconnect", async () => {
   const b = browser();
   const identity = deferred<Dict>();

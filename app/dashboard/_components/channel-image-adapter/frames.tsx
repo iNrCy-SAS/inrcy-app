@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   getImageOverlayItems,
   resolveImageOverlayCoordinates,
@@ -140,11 +141,13 @@ export function VideoPreviewFrame({
   aspectRatio,
   badge = "Vidéo",
   dark = false,
+  showMetadata = true,
 }: {
   video?: PreviewVideo | null;
   aspectRatio: string;
   badge?: string;
   dark?: boolean;
+  showMetadata?: boolean;
 }) {
   const i18nT = useTranslations("shell");
   const src = String(video?.previewUrl || "").trim();
@@ -187,7 +190,7 @@ export function VideoPreviewFrame({
           {badge}
         </div>
       ) : null}
-      {meta ? (
+      {showMetadata && meta ? (
         <div style={{ position: "absolute", right: 8, bottom: 8, fontSize: 11, padding: "5px 8px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff", pointerEvents: "none" }}>
           {meta}
         </div>
@@ -213,6 +216,16 @@ export function PublicationPreviewLightbox({
 }) {
   const i18nT = useTranslations("shell");
   const [index, setIndex] = useState(initialIndex);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const hasImages = images.length > 0;
+
+  useEffect(() => {
+    if (!open || !hasImages) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus({ preventScroll: true });
+    return () => { previous?.focus({ preventScroll: true }); };
+  }, [open, hasImages]);
 
   useEffect(() => {
     if (!open) return;
@@ -220,40 +233,60 @@ export function PublicationPreviewLightbox({
   }, [initialIndex, images.length, open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !images.length) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-      if (!images.length) return;
-      if (event.key === "ArrowLeft") setIndex((prev) => (prev - 1 + images.length) % images.length);
-      if (event.key === "ArrowRight") setIndex((prev) => (prev + 1) % images.length);
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const activeDialog = document.activeElement?.closest('[aria-modal="true"]');
+      if (activeDialog && activeDialog !== dialog) return;
+      if (["Escape", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (event.key === "Escape") onClose();
+        else setIndex((prev) => (prev + (event.key === "ArrowLeft" ? -1 : 1) + images.length) % images.length);
+      }
+      if (event.key !== "Tab") return;
+      const buttons = Array.from(dialog.querySelectorAll<HTMLButtonElement>('button:not([disabled])'));
+      const first = buttons[0], last = buttons.at(-1);
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog)) {
+        event.preventDefault();
+        first?.focus();
+      }
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
   }, [images.length, onClose, open]);
 
   if (!open || !images.length) return null;
   const safeIndex = clampNumber(index, 0, images.length - 1);
   const current = images[safeIndex] || images[0];
+  const currentDimensions = current.preset || current.imageMeta;
+  const currentAspectRatio = currentDimensions?.width && currentDimensions.height ? `${currentDimensions.width} / ${currentDimensions.height}` : aspectRatio;
+  const [ratioWidth, ratioHeight] = currentAspectRatio.split("/").map(Number);
+  const numericRatio = ratioWidth > 0 && ratioHeight > 0 ? ratioWidth / ratioHeight : 1;
 
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 20000, background: "rgba(2,6,23,0.86)", overflowY: "auto", overflowX: "hidden", padding: "18px 14px", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}>
+  return createPortal(
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} data-publication-lightbox style={{ position: "fixed", inset: 0, zIndex: 20000, background: "rgba(2,6,23,0.92)", overflowY: "auto", overflowX: "hidden", padding: "18px 14px", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", outline: "none" }}>
       <div style={{ minHeight: "100%", display: "grid", alignItems: "center", justifyItems: "center", gap: 12 }}>
         <div style={{ width: "min(980px, 100%)", display: "grid", gap: 12 }}>
           <div style={{ position: "sticky", top: 8, zIndex: 3, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, color: "#fff", flexWrap: "wrap", padding: "8px 0" }}>
             <div>
-              <div style={{ fontSize: 13, opacity: 0.9 }}>{i18nT("carousel_image_95458801")}{" "}{safeIndex + 1} / {images.length}</div>
+              <div id={titleId} style={{ fontSize: 13, opacity: 0.9 }}>{i18nT("carousel_image_95458801")}{" "}{safeIndex + 1} / {images.length}</div>
               <div style={{ fontSize: 11, opacity: 0.65 }}>{i18nT("fleches_clavier_boutons_ou_miniatures_f491f09e")}</div>
             </div>
             <button type="button" onClick={onClose} style={{ border: "1px solid rgba(255,255,255,0.18)", background: "rgba(15,23,42,0.86)", color: "#fff", borderRadius: 999, padding: "9px 14px", cursor: "pointer" }}>{i18nT("fermer_5ab4ec64")}</button>
           </div>
 
           <div style={{ display: "grid", justifyItems: "center" }}>
-            <div style={{ position: "relative", width: "100%", maxWidth: aspectRatio === "4 / 5" ? 620 : aspectRatio === "4 / 3" ? 860 : 760, borderRadius: 22, overflow: "hidden", border: "1px solid rgba(255,255,255,0.10)", boxShadow: "0 22px 60px rgba(0,0,0,0.36)", background: "#020617" }}>
-              <FinalImageFrame image={current} aspectRatio={aspectRatio} fallbackMode={fallbackMode} />
+            <div style={{ position: "relative", width: "100%", maxWidth: `min(980px, calc((100dvh - 184px) * ${numericRatio}))`, borderRadius: 18, overflow: "hidden", border: "1px solid rgba(255,255,255,0.10)", boxShadow: "0 22px 60px rgba(0,0,0,0.36)", background: "#020617" }}>
+              <FinalImageFrame image={current} aspectRatio={currentAspectRatio} fallbackMode={fallbackMode} />
               {images.length > 1 ? (
                 <>
-                  <button type="button" onClick={() => setIndex((prev) => (prev - 1 + images.length) % images.length)} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 42, height: 42, borderRadius: 999, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(2,6,23,0.62)", color: "#fff", cursor: "pointer" }}>‹</button>
-                  <button type="button" onClick={() => setIndex((prev) => (prev + 1) % images.length)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", width: 42, height: 42, borderRadius: 999, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(2,6,23,0.62)", color: "#fff", cursor: "pointer" }}>›</button>
+                  <button type="button" aria-label={i18nT("apercu_precedent_32003d48")} onClick={() => setIndex((prev) => (prev - 1 + images.length) % images.length)} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 42, height: 42, borderRadius: 999, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(2,6,23,0.62)", color: "#fff", cursor: "pointer" }}>‹</button>
+                  <button type="button" aria-label={i18nT("apercu_suivant_6a2b57ef")} onClick={() => setIndex((prev) => (prev + 1) % images.length)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", width: 42, height: 42, borderRadius: 999, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(2,6,23,0.62)", color: "#fff", cursor: "pointer" }}>›</button>
                 </>
               ) : null}
             </div>
@@ -270,6 +303,6 @@ export function PublicationPreviewLightbox({
           ) : null}
         </div>
       </div>
-    </div>
+    </div>, document.body,
   );
 }

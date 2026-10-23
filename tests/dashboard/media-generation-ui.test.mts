@@ -464,12 +464,12 @@ test("Booster garde le même ordre d'actions en haut et dans Médias", () => {
   const topActions = sourceSection(
     intentPanel,
     "<LocalMediaUploadChoice",
-    "{videoPreviewUrl && videoFile ? ("
+    "<div className={css.referenceThumbnails}"
   );
   const lowerActions = sourceSection(
     mediaPanel,
     "<LocalMediaUploadChoice",
-    "{imgError ? ("
+    "<div className={css.mediaModes}"
   );
   const sharedOrderedTokens = [
     "onSelect: onPickImagesClick",

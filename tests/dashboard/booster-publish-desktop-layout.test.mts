@@ -43,7 +43,7 @@ test("the AI engine selector and generation CTA share a right-aligned responsive
     'data-testid="booster-ai-generation-actions"',
   );
   const actionsEnd = intentPanel.indexOf(
-    "{generationMediaWarning ? (",
+    "  const referenceSummary",
     actionsStart,
   );
   const actions = intentPanel.slice(actionsStart, actionsEnd);
@@ -51,7 +51,7 @@ test("the AI engine selector and generation CTA share a right-aligned responsive
   assert.ok(actionsStart >= 0 && actionsEnd > actionsStart);
   assert.match(actions, /justifyContent: "flex-end"/);
   assert.match(actions, /flexWrap: "wrap"/);
-  assert.match(actions, /flex: isMobile \? "1 1 100%" : "0 1 280px"/);
+  assert.match(actions, /flex: isMobile \? "1 1 100%" : "1 1 420px"/);
   assert.match(actions, /width: isMobile \? "100%" : "auto"/);
   assert.ok(actions.indexOf("<select") < actions.indexOf("styles.aiGenerateBtn"));
 });
@@ -60,7 +60,7 @@ test("the intention introduction no longer duplicates the media policy in every 
   assert.doesNotMatch(intentPanel, /getLocalizedBoosterMediaOptimization/);
   assert.match(
     intentPanel,
-    /\{i18nT\("decrivez_le_sujet_de_cette_publication_d6313015"\)\}/,
+    /label: i18nT\("sujet_de_la_publication_obligatoire_pour_62d82326"\)/,
   );
 
   const expectedByLocale: Record<string, string> = {

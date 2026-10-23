@@ -7,7 +7,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "../dashboard.module.css";
 import b from "../booster/booster.module.css";
 import BaseModal from "./WorkflowBaseModal";
-import StatusMessage from "./StatusMessage";
 import HelpButton from "./HelpButton";
 import { WEEKLY_GOALS, clampProgress, getGoalCopy } from "@/lib/weeklyGoals";
 import { getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
@@ -27,7 +26,11 @@ import PublishModal from "../booster/publier/PublishModal";
 import PublishExecutionResultModal from "./PublishExecutionResultModal";
 import AiConfigurationIcon from "./AiConfigurationIcon";
 import BusinessDnaIcon from "./BusinessDnaIcon";
+import BoosterHeaderBrand from "./BoosterHeaderBrand";
+import boosterBrandStyles from "./BoosterHeaderBrand.module.css";
 import PublishDraftHeaderMenu from "../booster/publier/components/PublishDraftHeaderMenu";
+import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
+import { getPublishWizardSteps } from "../booster/publier/components/publishWizard";
 
 type DashboardBoosterModalMode = "publish" | "stats" | null;
 
@@ -51,9 +54,11 @@ export default function DashboardBoosterModalLayer({
   mode,
   onClose,
   initialConnectedChannels,
+  companyName,
 }: {
   mode: DashboardBoosterModalMode;
   onClose: () => void;
+  companyName?: string;
   initialConnectedChannels?: Partial<Record<"site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "threads" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest", boolean>>;
 }) {
   const i18nT = useTranslations("booster");
@@ -62,6 +67,7 @@ export default function DashboardBoosterModalLayer({
   const searchParams = useSearchParams();
   const activePublishDraftId = String(searchParams?.get("draftId") || "").trim();
   const [publishSuccessOpen, setPublishSuccessOpen] = useState(false);
+  const [publishCreationMode, setPublishCreationMode] = useState<BoosterCreationMode | null>(null);
   const [publishSummary, setPublishSummary] = useState<any>(null);
   const [publishEditorOverlayOpen, setPublishEditorOverlayOpen] = useState(false);
   const [publishHasUnsavedChanges, setPublishHasUnsavedChanges] = useState(false);
@@ -75,7 +81,6 @@ export default function DashboardBoosterModalLayer({
     generating: false,
     draftMessage: "",
   });
-  const [publishDraftMobileToast, setPublishDraftMobileToast] = useState("");
   const [metrics, setMetrics] = useState<any>(null);
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const metricsRefreshPromiseRef = useRef<Promise<void> | null>(null);
@@ -251,22 +256,7 @@ export default function DashboardBoosterModalLayer({
     if (mode === "publish") return;
     publishSaveDraftRef.current = null;
     setPublishDraftHeaderState({ saving: false, draftSaving: false, generating: false, draftMessage: "" });
-    setPublishDraftMobileToast("");
   }, [mode]);
-
-  useEffect(() => {
-    if (mode !== "publish") return;
-    const message = publishDraftHeaderState.draftMessage;
-    const isFinalDraftNotice = message === "Brouillon enregistré" || message === "Brouillon chargé";
-    if (!isFinalDraftNotice) return;
-
-    setPublishDraftMobileToast(message);
-    const timer = window.setTimeout(() => {
-      setPublishDraftMobileToast((current) => (current === message ? "" : current));
-    }, 2000);
-
-    return () => window.clearTimeout(timer);
-  }, [mode, publishDraftHeaderState.draftMessage]);
 
   const { confirmExit: confirmPublishExit } = useUnsavedExitGuard({
     active: mode === "publish" && !publishEditorOverlayOpen,
@@ -286,11 +276,6 @@ export default function DashboardBoosterModalLayer({
   const openBusinessDna = useCallback(async () => {
     if (!(await confirmPublishExit())) return;
     router.push("/dashboard/adn-entreprise");
-  }, [confirmPublishExit, router]);
-
-  const openInrAgent = useCallback(async () => {
-    if (!(await confirmPublishExit())) return;
-    router.push("/dashboard/agent");
   }, [confirmPublishExit, router]);
 
   const trackEvent = useCallback(
@@ -499,33 +484,12 @@ export default function DashboardBoosterModalLayer({
       {mode === "publish" ? (
         <BaseModal
           title={i18nT("publier_34e6b19e")}
-          moduleLabel={i18nT("module_booster_0eb9581c")}
-          titleOnLeftOnMobile
-          hideModuleLabelOnMobile
+          headerBrand={<BoosterHeaderBrand label={i18nT("booster_8e4caec0")} />}
+          headerActionsClassName={boosterBrandStyles.actions}
           wideOnDesktop
+          stepWorkspace
           onClose={requestClosePublishModal}
           headerHidden={publishEditorOverlayOpen}
-          headerStatus={
-            publishDraftHeaderState.draftMessage ? (
-              <StatusMessage
-                variant="success"
-                className={styles.publishDraftHeaderStatus}
-                style={{
-                  marginTop: 0,
-                  minHeight: 34,
-                  padding: "6px 10px",
-                  fontSize: 12,
-                  whiteSpace: "normal",
-                  maxWidth: "min(320px, calc(100vw - 120px))",
-                  minWidth: 0,
-                  overflowWrap: "anywhere",
-                }}
-              >
-                {publishDraftHeaderState.draftMessage}
-              </StatusMessage>
-            ) : null
-          }
-          headerStatusMobileHidden
           headerActions={
             <>
               <HelpButton
@@ -550,26 +514,11 @@ export default function DashboardBoosterModalLayer({
                 title={dashboardT("aiMemory.openTitle")}
                 aria-label={dashboardT("aiMemory.openTitle")}
               >
-                <BusinessDnaIcon size={26} />
-              </button>
-              <button
-                type="button"
-                className={`${styles.secondaryBtn} ${styles.aiHeaderBtn} ${styles.agentHeaderBtn}`}
-                onClick={() => void openInrAgent()}
-                title={dashboardT("topbar.inrAgentOpen")}
-                aria-label={dashboardT("topbar.inrAgentOpen")}
-              >
-                <img
-                  data-inr-agent-header-shortcut
-                  src="/icons/inr-agent-header.png"
-                  alt=""
-                  aria-hidden="true"
-                  width={26}
-                  height={26}
-                />
+                <BusinessDnaIcon size={32} />
               </button>
               <PublishDraftHeaderMenu
                 activeDraftId={activePublishDraftId}
+                statusMessage={publishDraftHeaderState.draftMessage}
                 buttonClassName={styles.secondaryBtn}
                 disabled={
                   publishDraftHeaderState.saving ||
@@ -618,6 +567,8 @@ export default function DashboardBoosterModalLayer({
           }
         >
           <PublishModal
+            onWizardModeChange={setPublishCreationMode}
+            companyName={companyName}
             styles={styles}
             onClose={closePublishModal}
             trackEvent={trackEvent}
@@ -666,16 +617,9 @@ export default function DashboardBoosterModalLayer({
         </BaseModal>
       ) : null}
 
-      {mode === "publish" && publishDraftMobileToast ? (
-        <div className={styles.publishDraftMobileToast} aria-live="polite">
-          <StatusMessage variant="success" className={styles.publishDraftMobileToastMessage}>
-            {publishDraftMobileToast}
-          </StatusMessage>
-        </div>
-      ) : null}
-
       {publishSuccessOpen ? (
         <PublishExecutionResultModal
+          wizardSteps={getPublishWizardSteps(publishCreationMode)}
           styles={styles}
           summary={publishSummary}
           onClose={closePublishSuccess}

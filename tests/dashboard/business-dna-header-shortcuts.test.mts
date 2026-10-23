@@ -13,22 +13,22 @@ const icon = read("app/dashboard/_components/BusinessDnaIcon.tsx");
 test("Booster Publier exposes an accessible guarded ADN shortcut beside IA", () => {
   const ai = booster.indexOf("<AiConfigurationIcon");
   const dna = booster.indexOf("<BusinessDnaIcon");
-  const agentShortcut = booster.indexOf("data-inr-agent-header-shortcut", dna);
-  const save = booster.indexOf("publishSaveDraftRef.current?.()", agentShortcut);
+  const drafts = booster.indexOf("<PublishDraftHeaderMenu", dna);
+  const save = booster.indexOf("publishSaveDraftRef.current?.()", drafts);
 
-  assert.ok(ai >= 0 && dna > ai && agentShortcut > dna && save > agentShortcut);
+  assert.ok(ai >= 0 && dna > ai && drafts > dna && save > drafts);
   assert.match(booster, /const openBusinessDna = useCallback\(async \(\) => \{[\s\S]*await confirmPublishExit\(\)[\s\S]*router\.push\("\/dashboard\/adn-entreprise"\)/);
   assert.match(booster, /title=\{dashboardT\("aiMemory\.openTitle"\)\}/);
   assert.match(booster, /aria-label=\{dashboardT\("aiMemory\.openTitle"\)\}/);
   assert.match(booster, /styles\.aiHeaderBtn[\s\S]*styles\.dnaHeaderBtn/);
 });
 
-test("Booster Publier exposes the existing iNrAgent mark with the same draft guard", () => {
-  assert.match(booster, /const openInrAgent = useCallback\(async \(\) => \{[\s\S]*await confirmPublishExit\(\)[\s\S]*router\.push\("\/dashboard\/agent"\)/);
-  assert.match(booster, /src="\/icons\/inr-agent-header\.png"/);
-  assert.match(booster, /title=\{dashboardT\("topbar\.inrAgentOpen"\)\}/);
-  assert.match(booster, /aria-label=\{dashboardT\("topbar\.inrAgentOpen"\)\}/);
-  assert.match(booster, /styles\.aiHeaderBtn[\s\S]*styles\.agentHeaderBtn/);
+test("Booster keeps the publication flow focused and uses an unframed DNA mark inside its round button", () => {
+  assert.doesNotMatch(booster, /data-inr-agent-header-shortcut|openInrAgent|\/icons\/inr-agent-header\.png/);
+  const svg = read("public/icons/business-dna.svg");
+  assert.doesNotMatch(svg, /<rect/);
+  assert.match(svg, /id="helixA"/);
+  assert.match(svg, /id="helixB"/);
 });
 
 test("specialist headers expose their own controls while ADN remains accessible in manual Booster", () => {
@@ -42,7 +42,7 @@ test("specialist headers expose their own controls while ADN remains accessible 
 });
 
 test("the manual Booster header keeps the existing business DNA asset", () => {
-  assert.match(icon, /src="\/icons\/business-dna\.svg"/);
+  assert.match(icon, /src="\/icons\/business-dna\.svg\?v=2"/);
   assert.match(icon, /data-business-dna-icon/);
   assert.match(booster, /import BusinessDnaIcon from "\.\/BusinessDnaIcon"/);
 });

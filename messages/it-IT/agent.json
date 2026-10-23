@@ -880,5 +880,8 @@
     "agentButton": "Agente IA",
     "automation": "Automazione",
     "manual": "Azioni manuali"
-  }
+  },
+  "regenerate_media_scope_title": "Rigenera i media",
+  "regenerate_media_scope_message": "Rigenerare i media per tutti i canali o solo per {channel}? Testi e date restano invariati. Una pubblicazione approvata richiederà una nuova approvazione.",
+  "regenerate_media_channel_success": "I media di {channel} sono stati rigenerati. La data è mantenuta; la pubblicazione deve essere approvata."
 }
