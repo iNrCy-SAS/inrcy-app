@@ -1,8 +1,9 @@
 "use client";
 
-import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { getActiveBrowserUserId, readAccountCacheValue, resolveActiveBrowserUserId, writeAccountCacheValue } from "@/lib/browserAccountCache";
+import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { createClient } from "@/lib/supabaseClient";
@@ -34,6 +35,26 @@ const removeGoogleProductFromSettings = (settingsObj: any, product: GoogleProduc
   return next;
 };
 
+function cacheGoogleDisconnect(product: "ga4" | "gsc", connections: { ga4: boolean; gsc: boolean }, accountId: string | null) {
+  try {
+    const raw = readAccountCacheValue(DASHBOARD_CACHE_KEYS.channelState, accountId);
+    const stored = raw ? JSON.parse(raw) : {};
+    const current = stored?.state ?? stored;
+    const state = {
+      ...current,
+      siteWebGa4Connected: connections.ga4,
+      siteWebGscConnected: connections.gsc,
+      ...(product === "ga4" ? { siteWebGa4MeasurementId: "", siteWebGa4PropertyId: "" } : { siteWebGscProperty: "" }),
+    };
+    if (typeof state.siteWebSettingsText === "string") {
+      state.siteWebSettingsText = JSON.stringify(removeGoogleProductFromSettings(JSON.parse(state.siteWebSettingsText || "{}"), product), null, 2);
+    }
+    writeAccountCacheValue(DASHBOARD_CACHE_KEYS.channelState, JSON.stringify({ cachedAt: Date.now(), state }), accountId);
+  } catch {
+    // Storage is optional; the route remains the connection authority.
+  }
+}
+
 const resetGoogleStats = async () => {
   await Promise.all([
     fetch("/api/integrations/google-stats/disconnect", {
@@ -61,6 +82,8 @@ export function useSiteWebChannel({
   patchChannelConnectionLocally,
   triggerChannelRefresh,
 }: UseSiteWebChannelOptions) {
+  const googleDisconnectsRef = useRef(new Map<string, Promise<void>>());
+  const googleDisconnectQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [siteWebUrl, setSiteWebUrl] = useState<string>("");
   const [siteWebSavedUrl, setSiteWebSavedUrl] = useState<string>("");
   const [siteWebSettingsText, setSiteWebSettingsText] = useState<string>("{}");
@@ -79,8 +102,17 @@ export function useSiteWebChannel({
   const [siteWebActusFont, setSiteWebActusFont] = useState<ActusFont>("site");
   const [siteWebActusTheme, setSiteWebActusTheme] = useState<ActusTheme>("nature");
   const [showSiteWebWidgetCode, setShowSiteWebWidgetCode] = useState(false);
-  const [siteWebGa4Connected, setSiteWebGa4Connected] = useState(false);
-  const [siteWebGscConnected, setSiteWebGscConnected] = useState(false);
+  const [siteWebGa4Connected, setSiteWebGa4ConnectedState] = useState(false);
+  const [siteWebGscConnected, setSiteWebGscConnectedState] = useState(false);
+  const googleConnectionStateRef = useRef({ ga4: false, gsc: false });
+  const setSiteWebGa4Connected = useCallback((connected: boolean) => {
+    googleConnectionStateRef.current.ga4 = connected;
+    setSiteWebGa4ConnectedState(connected);
+  }, []);
+  const setSiteWebGscConnected = useCallback((connected: boolean) => {
+    googleConnectionStateRef.current.gsc = connected;
+    setSiteWebGscConnectedState(connected);
+  }, []);
 
   const requestSiteWebWidgetToken = useCallback(async () => {
     const d = extractDomain(siteWebSavedUrl || siteWebUrl);
@@ -137,65 +169,79 @@ export function useSiteWebChannel({
   );
 
   const disconnectGoogleStats = useCallback(
-    async (product: "ga4" | "gsc") => {
-      const res = await fetch("/api/integrations/google-stats/disconnect", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ source: "site_web", product }),
-      }).catch(() => null);
+    (product: "ga4" | "gsc") => {
+      const accountId = getActiveBrowserUserId();
+      const key = `${accountId}:${product}`;
+      const existing = googleDisconnectsRef.current.get(key);
+      if (existing) return existing;
+      const task = googleDisconnectQueueRef.current.catch(() => {}).then(async () => {
+        if (getActiveBrowserUserId() !== accountId) return;
+        const res = await fetch("/api/integrations/google-stats/disconnect", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ source: "site_web", product }),
+        }).catch(() => null);
+        const payload = await res?.json().catch(() => null);
+        if (getActiveBrowserUserId() !== accountId) return;
 
-      if (!res || !res.ok) {
-        const msg = !res
-          ? "Connexion au serveur impossible pour le moment. Merci de réessayer."
-          : getSimpleFrenchErrorMessage(String(res.status));
-        setSiteWebSettingsError(getSimpleFrenchErrorMessage(msg));
-        return;
-      }
+        if (!res || !res.ok || payload?.ok !== true) {
+          const msg = !res
+            ? "Connexion au serveur impossible pour le moment. Merci de réessayer."
+            : getSimpleFrenchErrorMessage(String(res.status));
+          setSiteWebSettingsError(getSimpleFrenchErrorMessage(msg));
+          throw new Error(msg);
+        }
 
-      let nextSettings: any = {};
-      try {
-        const parsed = siteWebSettingsText?.trim() ? JSON.parse(siteWebSettingsText) : {};
-        nextSettings = removeGoogleProductFromSettings(parsed, product);
-      } catch {
-        nextSettings = removeGoogleProductFromSettings({}, product);
-      }
-      await updateSiteWebSettings(nextSettings);
-      setSiteWebSettingsError(null);
-      if (product === "ga4") {
-        setSiteWebGa4MeasurementId("");
-        setSiteWebGa4PropertyId("");
-        setSiteWebGa4Connected(false);
-        setSiteWebGa4Notice("Google Analytics déconnecté.");
-      } else {
-        setSiteWebGscProperty("");
-        setSiteWebGscConnected(false);
-        setSiteWebGscNotice("Search Console déconnecté.");
-      }
+        // The route already persists removal of this product. Rewriting the
+        // whole settings object here is both slower and can restore stale data.
+        setSiteWebSettingsText((currentText) => {
+          try { return JSON.stringify(removeGoogleProductFromSettings(JSON.parse(currentText || "{}"), product), null, 2); }
+          catch { return "{}"; }
+        });
+        setSiteWebSettingsError(null);
+        googleConnectionStateRef.current[product] = false;
+        cacheGoogleDisconnect(product, googleConnectionStateRef.current, accountId);
+        if (product === "ga4") {
+          setSiteWebGa4MeasurementId("");
+          setSiteWebGa4PropertyId("");
+          setSiteWebGa4Connected(false);
+          setSiteWebGa4Notice("Google Analytics déconnecté.");
+        } else {
+          setSiteWebGscProperty("");
+          setSiteWebGscConnected(false);
+          setSiteWebGscNotice("Search Console déconnecté.");
+        }
 
-      const remainingStatsConnected = product === "ga4"
-        ? Boolean(siteWebGscConnected)
-        : Boolean(siteWebGa4Connected);
-      patchChannelConnectionLocally("site_web", {
-        connected: remainingStatsConnected,
-        accountConnected: Boolean(siteWebSavedUrl.trim()),
-        configured: Boolean(siteWebSavedUrl.trim()),
-        statsConnected: remainingStatsConnected,
-        connectionStatus: remainingStatsConnected ? "connected" : "disconnected",
-        resourceId: siteWebSavedUrl || null,
-        resourceLabel: siteWebSavedUrl || null,
-        resourceUrl: siteWebSavedUrl || null,
+        const remainingStatsConnected = product === "ga4"
+          ? googleConnectionStateRef.current.gsc
+          : googleConnectionStateRef.current.ga4;
+        patchChannelConnectionLocally("site_web", {
+          connected: remainingStatsConnected,
+          accountConnected: Boolean(siteWebSavedUrl.trim()),
+          configured: Boolean(siteWebSavedUrl.trim()),
+          statsConnected: remainingStatsConnected,
+          connectionStatus: remainingStatsConnected ? "connected" : "disconnected",
+          resourceId: siteWebSavedUrl || null,
+          resourceLabel: siteWebSavedUrl || null,
+          resourceUrl: siteWebSavedUrl || null,
+        });
+
+        void triggerChannelRefresh("site_web").catch(() => {});
       });
-
-      void triggerChannelRefresh("site_web");
+      googleDisconnectQueueRef.current = task;
+      googleDisconnectsRef.current.set(key, task);
+      void task.finally(() => {
+        if (googleDisconnectsRef.current.get(key) === task) googleDisconnectsRef.current.delete(key);
+      }).catch(() => {});
+      return task;
     },
     [
       patchChannelConnectionLocally,
-      siteWebGa4Connected,
-      siteWebGscConnected,
       siteWebSavedUrl,
-      siteWebSettingsText,
+      setSiteWebGa4Connected,
+      setSiteWebGscConnected,
       triggerChannelRefresh,
-      updateSiteWebSettings,
     ]
   );
 
@@ -222,7 +268,7 @@ export function useSiteWebChannel({
       setSiteWebGa4Notice(null);
       setSiteWebGscNotice(null);
     }, 2500);
-  }, [siteWebSettingsText, updateSiteWebSettings]);
+  }, [setSiteWebGa4Connected, setSiteWebGscConnected, siteWebSettingsText, updateSiteWebSettings]);
 
   const applySiteWebPublicUrlSaved = useCallback((url: string) => {
     setSiteWebUrl(url);
@@ -357,7 +403,7 @@ export function useSiteWebChannel({
       resourceUrl: null,
     }, { clearData: true });
     triggerChannelRefresh("site_web");
-  }, [patchChannelConnectionLocally, updateSiteWebSettings, triggerChannelRefresh]);
+  }, [patchChannelConnectionLocally, setSiteWebGa4Connected, setSiteWebGscConnected, updateSiteWebSettings, triggerChannelRefresh]);
 
   const saveSiteWebActusWidgetSettings = useCallback(async () => {
     if (!siteWebSavedUrl.trim()) {
@@ -491,11 +537,11 @@ export function useSiteWebChannel({
   }, [siteWebUrl]);
 
   const disconnectSiteWebGa4 = useCallback(() => {
-    void disconnectGoogleStats("ga4");
+    return disconnectGoogleStats("ga4");
   }, [disconnectGoogleStats]);
 
   const disconnectSiteWebGsc = useCallback(() => {
-    void disconnectGoogleStats("gsc");
+    return disconnectGoogleStats("gsc");
   }, [disconnectGoogleStats]);
 
   return {

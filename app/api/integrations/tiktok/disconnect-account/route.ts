@@ -22,6 +22,7 @@ async function revokeTiktokToken(token: string) {
       token,
     }).toString(),
     cache: "no-store",
+    signal: AbortSignal.timeout(1_500),
   }).catch(() => null);
 }
 

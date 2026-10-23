@@ -45,7 +45,7 @@ type ChannelSceneSlot = { x: number; y: number; size: number };
  * The 24px edge inset leaves >=16px at the extreme vertical phase.
  */
 export function getChannelSceneLayout(width: number, height: number) {
-  const centerSize = Math.min(380, width * 0.275, height - 96);
+  const centerSize = Math.min(440, width * (width >= 1300 ? 0.30 : 0.275), height - 96);
   const centerY = height / 2;
   const arrowSize = 44;
   const arrowGap = 20;

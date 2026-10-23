@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
+import { channelItem, channelNodes, workspaceConnection } from "../helpers/channel-bubble-runtime.mts";
 
 import { normalizeChannelPublicUrl } from "../../lib/channelPublicUrl.ts";
 
@@ -124,12 +125,8 @@ test("channel links are normalized and never accept embedded credentials", () =>
 
 test("every editable channel surface uses the shared protected field", () => {
   const surfaces = [
-    "app/dashboard/_components/SiteWebPanel.tsx",
-    "app/dashboard/_components/GoogleBusinessPanel.tsx",
-    "app/dashboard/_components/FacebookPanel.tsx",
-    "app/dashboard/_components/InstagramPanel.tsx",
-    "app/dashboard/_components/LinkedinPanel.tsx",
-    "app/dashboard/_components/TiktokPanel.tsx",
+    "app/dashboard/_components/DashboardChannelWorkspace.tsx",
+    "app/dashboard/_components/SiteWebBubbleControls.tsx",
     "app/dashboard/settings/_components/YoutubeShortsSettingsContent.tsx",
     "app/dashboard/settings/_components/PinterestSettingsContent.tsx",
     "app/dashboard/settings/_components/XSettingsContent.tsx",
@@ -147,20 +144,46 @@ test("every editable channel surface uses the shared protected field", () => {
   assert.match(field, /method: "PATCH"/);
   assert.match(field, /channel_url_change_required/);
 
-  const drawer = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
-  assert.match(drawer, /XSettingsContent onUnsavedChange=\{panel === "x" \? onUnsavedChange : undefined\}/);
-  for (const channel of ["site_web", "instagram", "linkedin", "gmb", "facebook", "tiktok"]) {
-    assert.match(
-      drawer,
-      new RegExp(`onUrlDirtyChange: panel === "${channel}" \\? onUnsavedChange : undefined`),
-      channel,
-    );
-  }
+  const workspace = read("app/dashboard/_components/DashboardChannelWorkspace.tsx");
+  assert.match(workspace, /XSettingsContent[^>]*onUnsavedChange=\{setDirty\}/);
+  assert.match(workspace, /SiteWebBubbleControls[^>]*onDirtyChange=\{setDirty\}/);
+  assert.match(workspace, /EditableChannelUrlField/);
+  assert.match(workspace, /profileLinkDirty \|\| organizationLinkDirty/);
+  assert.match(workspace, /useUnsavedExitGuard/);
 
   for (const surface of surfaces) {
     if (surface.includes("Youtube") || surface.includes("Pinterest")) continue;
     assert.match(read(surface), /onDirtyChange=/, surface);
   }
+});
+
+test("resource bubble link editors keep channel, target, edit permission and saved callback", () => {
+  for (const example of [
+    { key: "gmb", prop: "gmbPanelProps", base: { gmbLocations: [] }, permission: "gmbConfigured", url: "gmbUrl", setter: "setGmbUrl" },
+    { key: "facebook", prop: "facebookPanelProps", base: { fbPages: [] }, permission: "facebookPageConnected", url: "facebookUrl", setter: "setFacebookUrl" },
+    { key: "instagram", prop: "instagramPanelProps", base: { igAccounts: [] }, permission: "instagramConnected", url: "instagramUrl", setter: "setInstagramUrl" },
+    { key: "tiktok", prop: "tiktokPanelProps", base: {}, permission: "tiktokConnected", url: "tiktokProfileUrl", setter: "setTiktokProfileUrl" },
+  ]) {
+    for (const canEdit of [false, true]) {
+      const saved: string[] = [];
+      const connection = workspaceConnection({ item: { ...channelItem, key: example.key }, [example.prop]: { ...example.base, [example.permission]: canEdit, [example.url]: "https://example.test/saved", [example.setter]: (url: string) => saved.push(url) } });
+      const field = connection.publicLinks;
+      assert.equal(field.props.channel, example.key);
+      assert.equal(field.props.value, "https://example.test/saved");
+      assert.equal(field.props.disabled, !canEdit);
+      assert.equal(field.props.editorOnly, true);
+      assert.equal(typeof field.props.onDirtyChange, "function");
+      field.props.onSaved("https://example.test/updated");
+      assert.deepEqual(saved, ["https://example.test/updated"]);
+    }
+  }
+  const saved: string[] = [];
+  const connection = workspaceConnection({ item: { ...channelItem, key: "linkedin" }, linkedinPanelProps: { linkedinAccountConnected: true, linkedinOrganizations: [], linkedinSelectedOrganizationId: "org-1", linkedinProfileUrl: "https://linkedin.com/in/me", linkedinOrganizationUrl: "https://linkedin.com/company/us", setLinkedinProfileUrl: (url: string) => saved.push(`profile:${url}`), setLinkedinOrganizationUrl: (url: string) => saved.push(`organization:${url}`) } });
+  const fields = channelNodes(connection.publicLinks).filter(node => node.props.channel === "linkedin");
+  assert.deepEqual(fields.map(field => field.props.target), ["profile", "organization"]);
+  assert.notEqual(fields[0].props.onDirtyChange, fields[1].props.onDirtyChange, "Two independent drafts must keep two guards");
+  for (const field of fields) { assert.equal(field.props.disabled, false); field.props.onSaved("https://linkedin.com/new"); }
+  assert.deepEqual(saved, ["profile:https://linkedin.com/new", "organization:https://linkedin.com/new"]);
 });
 
 test("YouTube URL saves preserve the baseline of unrelated unsaved preferences", () => {

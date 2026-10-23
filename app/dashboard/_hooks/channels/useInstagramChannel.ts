@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { getClientUserFacingApiError as getSimpleFrenchApiError, getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import type { DashboardChannelKey } from "@/lib/dashboardChannels";
@@ -50,7 +51,6 @@ export function useInstagramChannel({
   searchParams,
   patchChannelConnectionLocally,
   triggerChannelRefresh,
-  updateRootSettingsKey,
 }: UseInstagramChannelOptions) {
   const { metaPilotEnabled } = useDashboardViewerAccess();
   const [instagramAuthMode, setInstagramAuthMode] = useState<"instagram_login" | "facebook_login">(initialState?.instagramAuthMode === "instagram_login" ? "instagram_login" : "facebook_login");
@@ -89,6 +89,8 @@ export function useInstagramChannel({
   const [igSelectedPageId, setIgSelectedPageId] = useState<string>("");
   const [igAccountsError, setIgAccountsError] = useState<string | null>(null);
   const igAccountsAutoLoadRef = useRef(false);
+
+  const connectionRevisionRef = useRef(0);
 
   const clearPanelNotices = useCallback(() => {
     setInstagramUrlNotice(null);
@@ -157,8 +159,11 @@ export function useInstagramChannel({
     [],
   );
 
-  const saveInstagramPublicationPreferences = useCallback(async () => {
+  const saveInstagramPublicationPreferences = useCallback(async (patch?: Partial<InstagramPublicationPreferences>) => {
     if (instagramPublicationPreferencesSaving) return false;
+    const previous = instagramPublicationPreferences;
+    const nextPreferences = normalizeInstagramPublicationPreferences({ ...previous, ...patch });
+    if (patch) setInstagramPublicationPreferences(nextPreferences);
     setInstagramPublicationPreferencesSaving(true);
     setInstagramPublicationPreferencesNotice(null);
     setInstagramPublicationPreferencesError(null);
@@ -169,7 +174,7 @@ export function useInstagramChannel({
           method: "PATCH",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(instagramPublicationPreferences),
+          body: JSON.stringify(nextPreferences),
         },
       );
       if (!response.ok) {
@@ -187,6 +192,7 @@ export function useInstagramChannel({
       setInstagramPublicationPreferencesNotice("Formats Instagram enregistrés.");
       return true;
     } catch (error) {
+      if (patch) setInstagramPublicationPreferences(previous);
       setInstagramPublicationPreferencesError(
         getSimpleFrenchErrorMessage(
           error,
@@ -200,6 +206,8 @@ export function useInstagramChannel({
   }, [instagramPublicationPreferences, instagramPublicationPreferencesSaving]);
 
   const syncInstagramStateFromServer = useCallback(async (options?: { preserveSelection?: boolean }) => {
+    const revision = connectionRevisionRef.current;
+    const accountScope = getActiveBrowserUserId();
     try {
       const res = await fetch("/api/integrations/instagram/status", {
         cache: "no-store",
@@ -217,7 +225,7 @@ export function useInstagramChannel({
         requiresUpdate?: boolean;
         connection_status?: ConnectionDisplayStatus;
       } | null;
-      if (!json) return null;
+      if (!json || revision !== connectionRevisionRef.current || accountScope !== getActiveBrowserUserId()) return null;
 
       const nextAccountConnected = !!json.accountConnected;
       const nextConnected = !!json.connected;
@@ -271,13 +279,20 @@ export function useInstagramChannel({
   }, [metaPilotEnabled]);
 
   const disconnectInstagramAccount = useCallback(async () => {
+    const accountScope = getActiveBrowserUserId();
+    connectionRevisionRef.current += 1;
+    setIgAccountsLoading(false);
+    setIgAccountsPhase("idle");
     const response = await fetch(instagramAuthMode === "instagram_login" ? "/api/integrations/instagram-direct/disconnect" : "/api/integrations/instagram/disconnect-account", { method: "POST" }).catch(() => null);
     const payload = response ? await response.json().catch(() => null) : null;
-    if (!response || !response.ok || payload?.ok === false) {
+    if (accountScope !== getActiveBrowserUserId()) return false;
+    if (!response || !response.ok || payload?.ok !== true) {
       setPanelError(payload?.error, "Impossible de déconnecter le compte Instagram.");
-      return;
+      return false;
     }
     setInstagramAccountConnected(false);
+    connectionRevisionRef.current += 1;
+    setInstagramConnectionStatus("disconnected");
     setInstagramConnected(false);
     setInstagramUsername("");
     setInstagramUrl("");
@@ -293,26 +308,25 @@ export function useInstagramChannel({
       resourceLabel: null,
       resourceUrl: null,
     }, { clearData: true });
-    await updateRootSettingsKey("instagram", {
-      accountConnected: false,
-      connected: false,
-      username: "",
-      url: "",
-      pageId: "",
-      igId: "",
-    });
-    await triggerChannelRefresh("instagram");
-    await syncInstagramStateFromServer();
+    void triggerChannelRefresh("instagram").catch(() => {});
     setPanelSuccess("Compte Instagram déconnecté.");
-  }, [instagramAuthMode, patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelError, setPanelSuccess, syncInstagramStateFromServer]);
+    return true;
+  }, [instagramAuthMode, patchChannelConnectionLocally, triggerChannelRefresh, setPanelError, setPanelSuccess]);
 
   const disconnectInstagramProfile = useCallback(async () => {
+    const accountScope = getActiveBrowserUserId();
+    connectionRevisionRef.current += 1;
+    setIgAccountsLoading(false);
+    setIgAccountsPhase("idle");
     const response = await fetch("/api/integrations/instagram/disconnect-profile", { method: "POST" }).catch(() => null);
     const payload = response ? await response.json().catch(() => null) : null;
-    if (!response || !response.ok || payload?.ok === false) {
+    if (accountScope !== getActiveBrowserUserId()) return false;
+    if (!response || !response.ok || payload?.ok !== true) {
       setPanelError(payload?.error, "Impossible de déconnecter le profil Instagram.");
-      return;
+      return false;
     }
+    connectionRevisionRef.current += 1;
+    setInstagramConnectionStatus("disconnected");
     setInstagramConnected(false);
     setInstagramUsername("");
     setInstagramUrl("");
@@ -326,30 +340,26 @@ export function useInstagramChannel({
       resourceLabel: null,
       resourceUrl: null,
     }, { clearData: true });
-    await updateRootSettingsKey("instagram", {
-      accountConnected: true,
-      connected: false,
-      username: "",
-      url: "",
-      pageId: "",
-      igId: "",
-    });
-    await triggerChannelRefresh("instagram");
-    await syncInstagramStateFromServer();
+    void triggerChannelRefresh("instagram").catch(() => {});
     setPanelSuccess("Profil Instagram déconnecté.");
-  }, [instagramAuthMode, patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelError, setPanelSuccess, syncInstagramStateFromServer]);
+    return true;
+  }, [instagramAuthMode, patchChannelConnectionLocally, triggerChannelRefresh, setPanelError, setPanelSuccess]);
 
-  const loadInstagramAccounts = useCallback(async () => {
+  const loadInstagramAccounts = useCallback(async (options?: { autoSelect?: boolean }) => {
     if (!instagramAccountConnected || instagramAuthMode === "instagram_login") return;
     setIgAccountsLoading(true);
     setIgAccountsPhase("searching");
     setIgAccountsError(null);
+    const revision = connectionRevisionRef.current;
+    const accountScope = getActiveBrowserUserId();
     try {
       const r = await fetch("/api/integrations/instagram/accounts", { cache: "no-store" });
       if (!r.ok) throw new Error(await getSimpleFrenchApiError(r, "Impossible de charger vos comptes Instagram."));
       const j = await r.json().catch(() => ({}));
+      if (revision !== connectionRevisionRef.current || accountScope !== getActiveBrowserUserId()) return;
       const accounts = Array.isArray(j.accounts) ? j.accounts.map((account: Record<string, unknown>) => ({ page_id: String(account.page_id || ""), page_name: String(account.page_name || ""), ig_id: String(account.ig_id || ""), username: String(account.username || "") })) : [];
       setIgAccounts(accounts);
+      if (options?.autoSelect === false) return;
       if (!accounts.length) {
         setIgAccountsError(
           `Aucun profil Instagram compatible n’a été trouvé. ${INSTAGRAM_SETUP_HELP}`,
@@ -368,6 +378,7 @@ export function useInstagramChannel({
         });
         const autoJson = await autoRes.json().catch(() => ({}));
         if (!autoRes.ok) throw new Error(autoJson?.error || "Impossible d’enregistrer Instagram.");
+        if (revision !== connectionRevisionRef.current || accountScope !== getActiveBrowserUserId()) return;
         setInstagramConnected(true);
         const nextUsername = autoJson?.username ? String(autoJson.username) : String(only.username || "");
         if (nextUsername) setInstagramUsername(nextUsername);
@@ -381,27 +392,22 @@ export function useInstagramChannel({
           resourceLabel: nextUsername || null,
           resourceUrl: nextInstagramUrl || null,
         });
-        await updateRootSettingsKey("instagram", {
-          accountConnected: true,
-          connected: true,
-          username: nextUsername,
-          url: nextInstagramUrl,
-          pageId: String(only.page_id || ""),
-          igId: String(only.ig_id || only.page_id || ""),
-        });
-        void triggerChannelRefresh("instagram");
+        void triggerChannelRefresh("instagram").catch(() => {});
         setPanelSuccess("Compte Instagram enregistré.");
-      return true;
+        return true;
       }
     } catch (e: unknown) {
+      if (revision !== connectionRevisionRef.current || accountScope !== getActiveBrowserUserId()) return;
       setIgAccountsError(
         withInstagramSetupHelp(e, "Impossible de charger vos comptes Instagram."),
       );
     } finally {
-      setIgAccountsLoading(false);
-      setIgAccountsPhase("idle");
+      if (revision === connectionRevisionRef.current && accountScope === getActiveBrowserUserId()) {
+        setIgAccountsLoading(false);
+        setIgAccountsPhase("idle");
+      }
     }
-  }, [instagramAccountConnected, instagramAuthMode, igSelectedPageId, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh, updateRootSettingsKey, syncInstagramStateFromServer]);
+  }, [instagramAccountConnected, instagramAuthMode, igSelectedPageId, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh, syncInstagramStateFromServer]);
 
   useEffect(() => {
     const linked = searchParams.get("linked");
@@ -426,8 +432,10 @@ export function useInstagramChannel({
     loadInstagramAccounts,
   ]);
 
-  const saveInstagramProfile = useCallback(async () => {
-    const picked = igAccounts.find((a) => a.page_id === igSelectedPageId);
+  const saveInstagramProfile = useCallback(async (selectedPageId = igSelectedPageId) => {
+    const revision = connectionRevisionRef.current;
+    const accountScope = getActiveBrowserUserId();
+    const picked = igAccounts.find((a) => a.page_id === selectedPageId);
     if (!picked?.page_id) return false;
 
     const r = await fetch("/api/integrations/instagram/select-profile", {
@@ -436,6 +444,7 @@ export function useInstagramChannel({
       body: JSON.stringify({ pageId: picked.page_id }),
     });
     const j = await r.json().catch(() => ({}));
+    if (revision !== connectionRevisionRef.current || accountScope !== getActiveBrowserUserId()) return false;
     if (r.ok) {
       setInstagramConnected(true);
       const nextUsername = j?.username ? String(j.username) : String(picked.username || "");
@@ -450,16 +459,9 @@ export function useInstagramChannel({
         resourceLabel: nextUsername || null,
         resourceUrl: nextProfileUrl || null,
       });
-      await updateRootSettingsKey("instagram", {
-        accountConnected: true,
-        connected: true,
-        username: nextUsername,
-        url: nextProfileUrl,
-        pageId: String(picked.page_id || ""),
-        igId: String(picked.ig_id || picked.page_id || ""),
-      });
-      void triggerChannelRefresh("instagram");
+      void triggerChannelRefresh("instagram").catch(() => {});
       setPanelSuccess("Compte Instagram enregistré.");
+      setIgSelectedPageId(selectedPageId);
       return true;
     } else {
       const setupError = withInstagramSetupHelp(
@@ -469,7 +471,7 @@ export function useInstagramChannel({
       setPanelError(setupError, setupError, 6000);
       return false;
     }
-  }, [igAccounts, igSelectedPageId, patchChannelConnectionLocally, triggerChannelRefresh, updateRootSettingsKey, setPanelSuccess, setPanelError, syncInstagramStateFromServer]);
+  }, [igAccounts, igSelectedPageId, patchChannelConnectionLocally, triggerChannelRefresh, setPanelSuccess, setPanelError, syncInstagramStateFromServer]);
 
   return {
     instagramAuthMode,
@@ -494,6 +496,7 @@ export function useInstagramChannel({
     instagramPublicationPreferencesError,
     updateInstagramPublicationPreferences,
     saveInstagramPublicationPreferences,
+    loadInstagramPublicationPreferences,
     igAccounts,
     setIgAccounts,
     igAccountsLoading,

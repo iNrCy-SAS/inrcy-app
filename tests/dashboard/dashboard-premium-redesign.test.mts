@@ -34,10 +34,11 @@ test("le dashboard compact conserve le cockpit et remplace les sauts haut/bas pa
   assert.doesNotMatch(channels, /<DashboardFluxBubble\b|fluxCarousel|carouselTrack/);
   assertOrdered(channels, "styles.hubRow", "styles.toolsAnchor");
   assert.match(channels, /data-testid="dashboard-channels-hub"/);
-  assert.match(channels, /onClick=\{\(\) => setChannelsOpen\(true\)\}/);
+  assert.match(channels, /onClick=\{onOpenChannels\}/);
   assert.match(channels, /aria-haspopup="dialog"[\s\S]*aria-expanded=\{channelsOpen\}/);
   assert.match(channels, /channelsOpen \? <DashboardChannelsModal/);
-  assert.match(channels, /dynamic\(\(\) => import\("\.\/DashboardChannelsModal"\), \{ ssr: false \}\)/);
+  assert.match(channels, /import DashboardChannelsModal from "\.\/DashboardChannelsModal"/);
+  assert.match(dashboard, /import DashboardChannelWorkspace from "\.\/_components\/DashboardChannelWorkspace"/);
 });
 
 test("Booster, ADS et Emailings communiquent à gauche ; Studio et les outils de pilotage restent à droite", () => {
@@ -164,7 +165,8 @@ test("la grande fenêtre réutilise les actions et protections des bulles exista
   assert.doesNotMatch(modal, /(?:configureDisabled|createDisabled|premiumLocked):\s*false/);
   assert.match(bubble, /item\.configureDisabled/);
   assert.match(bubble, /item\.premiumLocked/);
-  assert.match(modal, /target\.getAttribute\("aria-disabled"\) !== "true"/);
+  assert.doesNotMatch(modal, /onClickCapture/);
+  assert.match(modal, /renderSelected\(selectedItem!\)/);
   assert.match(modal, /aria-label="Aide sur les canaux" onClick=\{onOpenHelp\}/);
   assert.doesNotMatch(modal, /closeDialog\(\); onOpenHelp\(\)/);
 });
@@ -175,7 +177,7 @@ test("la fenêtre native gère le clavier, le retour du focus et le verrouillage
   assert.match(modal, /closeButtonRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
   assert.match(modal, /const previousOverflow = document\.body\.style\.overflow/);
   assert.match(modal, /document\.body\.style\.overflow = "hidden"/);
-  assert.match(modal, /return \(\) => \{\s*dialog\?\.close\(\);\s*document\.body\.style\.overflow = previousOverflow;\s*if \(opener\?\.isConnected\) opener\.focus\(\{ preventScroll: true \}\);/);
+  assert.match(modal, /return \(\) => \{\s*dialog\?\.close\(\);\s*document\.body\.style\.overflow = previousOverflow;\s*document\.documentElement\.style\.overflow = previousHtmlOverflow;\s*if \(opener\?\.isConnected\) opener\.focus\(\{ preventScroll: true \}\);/);
   assert.match(modal, /onCancel=\{\(event\) => \{ event\.preventDefault\(\); closeDialog\(\); \}\}/);
   assert.match(modal, /event\.target !== event\.currentTarget/);
   assert.match(modal, /event\.clientX < bounds\.left[\s\S]*?closeDialog\(\)/);
@@ -195,9 +197,10 @@ test("les bulles flottent sans hasard de rendu et proposent une pause ainsi que 
   assert.match(heroCss, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
-test("le bandeau reste quasi plein écran, floute le fond et se réorganise sur mobile", () => {
-  assert.match(modalCss, /width: min\(96vw, 1920px\)/);
-  assert.match(modalCss, /height: min\(91dvh, 1120px\)/);
+test("les canaux occupent tout l’écran sans marges et se réorganisent sur mobile", () => {
+  assert.match(modalCss, /width: 100vw/);
+  assert.match(modalCss, /height: 100dvh/);
+  assert.match(modalCss, /max-height: none/);
   assert.match(modalCss, /\.dialog::backdrop\s*\{[^}]*backdrop-filter: blur\(13px\)/);
   assert.match(modalCss, /@media \(max-width: 720px\)[\s\S]*?grid-template-columns: repeat\(3,minmax\(0,1fr\)\)/);
   assert.match(modalCss, /\.surface\s*\{[^}]*overflow-y: auto/);

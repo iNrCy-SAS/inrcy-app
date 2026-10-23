@@ -1,0 +1,44 @@
+.panel { min-width: 0; container-type: inline-size; }
+.heading { display: flex; align-items: center; gap: 13px; margin-bottom: 20px; }
+.heading h3 { margin: 0 0 5px; color: #f4f8ff; font-size: 19px; line-height: 1.2; }
+.heading p { margin: 0; color: #b8cce8; font-size: 12px; line-height: 1.5; }
+.step { display: grid; place-items: center; flex-shrink: 0; width: 40px; height: 40px; border: 1px solid #ac9cff80; border-radius: 13px; background: linear-gradient(140deg,#1a77b969,#8543c373); color: #ddc9ff; font-size: 17px; font-weight: 850; box-shadow: inset 0 1px 0 #e7e9ff24; }
+.signatureShell { display: grid; gap: 18px; }
+.toggleCard { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid #8696c24d; border-radius: 16px; background: #6d8bb00c; cursor: pointer; }
+.toggleCardSelected { border-color: #62c4e780; background: linear-gradient(100deg,#0c83ad24,#8851cf24); }
+.toggleCard:focus-within { outline: 2px solid #b0e8ff; outline-offset: 3px; }
+.visuallyHidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.checkIndicator { position: relative; flex-shrink: 0; width: 40px; height: 23px; border: 1px solid #9eb5dc70; border-radius: 16px; background: #283953; }
+.checkIndicator::after { content: ""; position: absolute; top: 3px; left: 3px; width: 15px; height: 15px; border-radius: 50%; background: #b3c1d5; transition: transform .15s,background .15s; }
+.toggleCardSelected .checkIndicator { background: linear-gradient(100deg,#00b9e8,#7655e9); border-color: #b4d3ff80; }
+.toggleCardSelected .checkIndicator::after { transform: translateX(17px); background: #fff; }
+.toggleCopy { display: grid; gap: 4px; }
+.toggleCopy strong { font-size: 13px; color: #f1f7ff; }
+.toggleCopy small { font-size: 11px; color: #a9bfdc; line-height: 1.4; }
+.signatureGrid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; align-items: stretch; }
+.editorPanel,.previewPanel { display: grid; align-content: start; gap: 11px; min-width: 0; padding: 15px; border: 1px solid #859bc33b; border-radius: 17px; background: #020c214a; }
+.fieldLabel { color: #dce9fb; font-size: 12px; font-weight: 750; }
+.signatureTextarea { box-sizing: border-box; width: 100%; min-height: 145px; padding: 12px; border: 1px solid #819fd25c; border-radius: 12px; background: #07152fe0; color: #f3f7ff; font: inherit; font-size: 12px; line-height: 1.6; resize: vertical; }
+.signatureTextarea:focus-visible,.signatureSelect:focus-visible { outline: 2px solid #7be5ff; outline-offset: 2px; }
+.variablesHelp { margin: 0; color: #93accb; font-size: 10px; line-height: 1.8; overflow-wrap: anywhere; }
+.variablesHelp code { display: inline-block; margin: 2px 3px 2px 0; padding: 1px 5px; border-radius: 5px; background: #728cdf17; color: #c3d9ff; font: inherit; }
+.mediaTools { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 2px; }
+.pillButton { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; gap: 6px; min-height: 34px; padding: 7px 12px; border: 1px solid #a1baf65c; border-radius: 18px; color: #edf6ff; background: #7181bd20; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.fileButton { position: relative; border-color: #6fcceb70; background: linear-gradient(110deg,#0984b842,#704bd34d); }
+.pillButton:hover { border-color: #c7e4ff; }
+.pillButton:disabled,.pillButton[aria-disabled="true"] { opacity: .5; cursor: default; }
+.widthControl { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 9px; width: 100%; margin-top: 4px; color: #a9c0dd; font-size: 10px; line-height: 1.4; }
+.signatureSelect { box-sizing: border-box; max-width: 100%; min-height: 34px; padding: 6px 8px; border: 1px solid #9cafff5c; border-radius: 9px; background: #0f2140; color: #edf4ff; font: inherit; font-size: 10px; }
+.previewPanel { border-color: #aa87dc52; background: linear-gradient(145deg,#12264a40,#37205b38); }
+.previewBox { min-height: 215px; padding: 14px; border: 1px dashed #a9bce347; border-radius: 12px; background: #050f2466; overflow-wrap: anywhere; }
+.signaturePreview { margin: 0; color: #dfebff; font: inherit; font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.signatureImageWrap { margin-top: 14px; }
+.signatureImageWrap img { display: block; max-width: 100%; height: auto; max-height: 180px; border-radius: 8px; object-fit: contain; }
+.saveRow { display: flex; justify-content: flex-end; padding-top: 14px; border-top: 1px solid #a9bde42b; }
+.saveButton { display: inline-flex; justify-content: center; align-items: center; min-height: 42px; padding: 10px 22px; border: 1px solid #a6b9ff80; border-radius: 22px; background: linear-gradient(105deg,#048acb,#6250e5 65%,#a032cd); color: #fff; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: inset 0 1px 0 #e3edff40,0 6px 18px #3646cd26; }
+.saveButton:hover { border-color: #d4ebff; }
+.saveButton:disabled { opacity: .55; cursor: default; }
+.notice { padding: 10px 12px; border: 1px solid #70ddc966; border-radius: 11px; background: #1d8f7330; color: #c4fae9; font-size: 12px; line-height: 1.45; }
+.noticeWarning { border-color: #ffc28580; background: #a45c2630; color: #ffe0bb; }
+@container (max-width: 560px) { .signatureGrid { grid-template-columns: 1fr; } .heading { align-items: flex-start; } .previewBox { min-height: 130px; } }
+@media(max-width:420px) { .editorPanel,.previewPanel { padding: 12px; } .toggleCard { padding: 12px; } .widthControl { grid-template-columns: 1fr; } .saveButton { width: 100%; } }

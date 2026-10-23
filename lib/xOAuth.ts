@@ -170,13 +170,18 @@ export async function revokeXTokensBestEffort(input: {
     headers.Authorization = `Basic ${Buffer.from(`${clientId}:${clientSecret}`, "utf8").toString("base64")}`;
   }
 
+  // Share a deadline across both credentials so an unavailable provider cannot
+  // hold the local disconnection open indefinitely.
+  const signal = AbortSignal.timeout(1_500);
   for (const token of tokens) {
+    if (signal.aborted) break;
     try {
       const response = await fetch(X_REVOKE_URL, {
         method: "POST",
         headers,
         body: new URLSearchParams({ token, client_id: clientId }).toString(),
         cache: "no-store",
+        signal,
       });
       if (!response.ok) {
         log.warn("x_oauth_revoke_non_ok", {

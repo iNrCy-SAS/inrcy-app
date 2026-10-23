@@ -74,7 +74,10 @@ test("desktop dashboard channels use a fluid modal with safe spacing and a wrapp
   const hover = css.match(/^\.satellite:hover\s*\{[\s\S]*?\}/m)?.[0] ?? "";
 
   assert.match(section, /<DashboardChannelsModal items=\{fluxBubbleItems\}/);
-  assert.match(dialog, /width:\s*min\(96vw, 1920px\)/);
+  assert.match(dialog, /width:\s*100vw/);
+  assert.match(dialog, /height:\s*100dvh/);
+  assert.match(dialog, /inset:\s*0/);
+  assert.match(dialog, /margin:\s*0/);
   assert.match(surface, /padding:\s*clamp\(18px, 1\.5vw, 26px\)/);
   assert.match(surface, /overflow-y:\s*auto/);
   assert.match(surface, /overflow-x:\s*hidden/);
@@ -93,7 +96,7 @@ test("desktop dashboard channels use a fluid modal with safe spacing and a wrapp
   }
 });
 
-test("mobile channel selection keeps both arrows around the bubble inside narrow viewports", () => {
+test("mobile channel selection keeps both arrows below the bubble with a clear gap", () => {
   const modal = read("app/dashboard/_components/DashboardChannelsModal.tsx");
   const css = read("app/dashboard/_components/DashboardChannelsModal.module.css");
 
@@ -101,11 +104,12 @@ test("mobile channel selection keeps both arrows around the bubble inside narrow
   assert.match(modal, /aria-label="Canal suivant"[^\n]*selectAdjacentChannel\(1\)/);
   assert.match(modal, /disabled=\{filteredItems\.length < 2\}/);
   assert.doesNotMatch(modal + css, /channelDetails|channelExplanation/);
-  assert.match(css, /@media \(max-width: 720px\)[\s\S]*?\.selectedArea\s*\{[^}]*width:\s*min\(296px,calc\(100% - 92px\)\)/);
+  assert.match(css, /@media \(max-width: 720px\)[\s\S]*?\.selectedArea\s*\{[^}]*width:\s*min\(320px,100%\)/);
   assert.match(css, /@media \(max-width: 720px\)[\s\S]*?\.channelArrow\s*\{[^}]*width:\s*36px; height:\s*36px/);
-  assert.match(css, /@media \(max-width: 420px\)[\s\S]*?\.arrowPrevious\s*\{ left: -12px/);
-  assert.match(css, /@media \(max-width: 420px\)[\s\S]*?\.arrowNext\s*\{ right: -12px/);
-  assert.match(css, /@media \(max-width: 720px\)[\s\S]*?\.dialog\s*\{[^}]*width:\s*calc\(100vw - 20px\)/);
+  assert.match(css, /@media \(max-width: 720px\)[\s\S]*?\.channelArrow\s*\{[^}]*top:\s*calc\(100% \+ 16px\)/);
+  assert.match(css, /\.arrowPrevious\s*\{ left: calc\(50% - 46px\)/);
+  assert.match(css, /\.arrowNext\s*\{ right: calc\(50% - 46px\)/);
+  assert.doesNotMatch(css, /\.dialog\s*\{[^}]*(?:95vw|92dvh|100vw - 20px|100dvh - 24px)/);
   assert.match(css, /@media \(max-width: 720px\)[\s\S]*?\.satellites\s*\{[^}]*grid-template-columns:\s*repeat\(3,minmax\(0,1fr\)\)/);
   assert.match(css, /@media \(max-width: 420px\)[\s\S]*?\.satellites\s*\{[^}]*grid-template-columns:\s*repeat\(2,minmax\(0,1fr\)\)/);
   assert.match(css, /\.satellitePosition\s*\{[^}]*width:\s*min\(100%,125px\)/);
@@ -114,10 +118,10 @@ test("mobile channel selection keeps both arrows around the bubble inside narrow
   const satellitesPosition = modal.indexOf('className={styles.satellites}');
   assert.ok(selectedPosition >= 0 && selectedPosition < arrowsPosition && arrowsPosition < satellitesPosition);
   for (const viewport of [320, 360, 390, 420, 480, 600, 720]) {
-    const available = viewport - 20 - 2 - 32;
-    const bubble = viewport <= 420 ? Math.min(.75 * viewport, 296) : Math.min(296, available - 92);
-    const outerArrows = viewport <= 420 ? 24 : 92;
-    assert.ok(bubble + outerArrows <= available, `${viewport}px: arrows must fit the scene`);
+    const available = viewport - 32 - 17;
+    const bubble = Math.min(320, available);
+    assert.ok(bubble <= available, `${viewport}px: bubble must fit the scrollable scene`);
+    assert.ok(92 <= bubble, `${viewport}px: the two arrows must fit their separate row`);
   }
 });
 
@@ -134,7 +138,7 @@ test("mobile dashboard channel logos fill their circular controls without spilli
   assert.match(image, /width:\s*100%; height:\s*100%/);
   assert.match(image, /border-radius:\s*50%/);
   assert.match(image, /object-fit:\s*contain/);
-  assert.match(css, /\.selectedBubble img\s*\{[^}]*border-radius:\s*50%/);
+  assert.match(css, /\.selectedBubble > article img\s*\{[^}]*border-radius:\s*50%/);
   assert.match(css, /\.channelName\s*\{[^}]*max-width:\s*100%;[^}]*text-wrap:\s*balance/);
 });
 

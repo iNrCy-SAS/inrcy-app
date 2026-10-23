@@ -13,6 +13,7 @@ import { getDashboardChannelPowerSetup, getDashboardChannelSetup } from "../../a
 import { DASHBOARD_CACHE_KEYS } from "../../lib/dashboardCacheKeys.ts";
 import type { DashboardFluxBubbleData } from "../../app/dashboard/_components/DashboardFluxBubble.tsx";
 import { getBoosterImageDecision } from "../../lib/boosterImageDecision.ts";
+import { channelItem, channelNodes, channelRuntime, workspaceConnection } from "../helpers/channel-bubble-runtime.mts";
 
 const require = createRequire(import.meta.url);
 const loaded = new Map<string, Record<string, unknown>>();
@@ -140,44 +141,38 @@ test("fixed scoring reaches ADMIN 100 and USER 96 without compensating for unava
   assert.equal(computeDashboardChannelPower([{ weight: 80, completed: true }, { weight: 40, completed: true }, { weight: 99, completed: false }]), 100);
 });
 
+type RenderNode = { type: unknown; props: Record<string, unknown> };
+function renderNodes(value: unknown): RenderNode[] {
+  if (Array.isArray(value)) return value.flatMap(renderNodes);
+  if (!value || typeof value !== "object") return [];
+  const node = value as RenderNode;
+  return [node, ...renderNodes(node.props?.children)];
+}
 function renderChannelConnections(pilot: boolean): RenderNode {
-  let stateIndex = 0;
   const jsx = (type: unknown, props: Record<string, unknown>): RenderNode => ({ type, props });
-  const output = ts.transpileModule(fs.readFileSync("app/dashboard/_components/ChannelConnectionsModal.tsx", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
-  const modalModule = { exports: {} as Record<string, unknown> };
-  const modalRequire = (id: string) => {
+  const output = ts.transpileModule(fs.readFileSync("app/dashboard/_components/DashboardChannelsSection.tsx", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
+  const sectionModule = { exports: {} as Record<string, unknown> };
+  const sectionRequire = (id: string) => {
     if (id === "react/jsx-runtime") return { jsx, jsxs: jsx };
-    if (id === "react") return { useState: () => [stateIndex++ === 0, () => undefined], useEffect: () => undefined, useId: () => "channel-power", useRef: () => ({ current: null }) };
-    if (id === "react-dom") return { createPortal: (node: RenderNode) => node };
-    if (id === "next-intl") return { useTranslations: () => (key: string) => key };
-    if (id.endsWith(".css")) return { channelConnectionsRow: "channelConnectionsRow", channelConnectionsForce: "channelConnectionsForce" };
-    if (id === "../dashboard.channel-setup") return load("app/dashboard/dashboard.channel-setup.ts");
-    throw new Error("unexpected modal dependency " + id);
+    if (id === "next-intl") return { useLocale: () => "fr-FR" };
+    if (id.endsWith(".css")) return {};
+    if (id === "./dashboard-channel-presentation") return load("app/dashboard/_components/dashboard-channel-presentation.ts");
+    if (id === "../dashboard.scroll") return { DASHBOARD_TOOLS_ANCHOR_ID: "tools" };
+    return { __esModule: true, default: id };
   };
-  new Function("require", "module", "exports", output)(modalRequire, modalModule, modalModule.exports);
-  const Modal = modalModule.exports.default as (props: Record<string, unknown>) => RenderNode;
-  const priorDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
-  Object.defineProperty(globalThis, "document", { configurable: true, value: { body: {} } });
-  try {
-    return Modal({ isOpen: true, items: getDashboardChannelSetup(pilot).map(({ key }) => ({ key, name: key, logoSrc: "/test.svg", bubbleStatus: "connected", bubbleStatusText: "Connected", onConfigure() {} })), businessEssentialsReady: true, onClose() {} });
-  } finally {
-    if (priorDocument) Object.defineProperty(globalThis, "document", priorDocument); else Reflect.deleteProperty(globalThis, "document");
-  }
+  new Function("require", "module", "exports", output)(sectionRequire, sectionModule, sectionModule.exports);
+  const Section = sectionModule.exports.default as (props: Record<string, unknown>) => RenderNode;
+  return Section({ channelsOpen: true, fluxBubbleItems: getDashboardChannelSetup(pilot).map(({ key }) => ({ key, name: key, logoSrc: "/test.svg", bubbleStatus: "connected", bubbleStatusText: "Connected", onConfigure() {} })), onOpenChannels() {}, onCloseChannels() {}, goToModule() {}, openPanel() {}, onOpenChannelsHelp() {} });
 }
 
-test("the actual channel modal displays the same fixed percentage for shared USER and ADMIN channels", () => {
+test("the shared bubble hub counts only the channels available to USER and ADMIN", () => {
   for (const pilot of [false, true]) {
-    const rows = renderNodes(renderChannelConnections(pilot)).filter((node) => node.type === "div" && node.props?.className === "channelConnectionsRow");
-    const percentages = Object.fromEntries(rows.map((row) => {
-      const children = row.props.children as RenderNode[];
-      const force = renderNodes(row).find((node) => node.type === "strong" && node.props?.className === "channelConnectionsForce");
-      assert.ok(force);
-      return [renderedText(children[0]), renderedText(force)];
-    }));
-    for (const channel of getDashboardChannelSetup(pilot)) assert.equal(percentages[channel.key], channel.weight ? "+" + channel.weight + "%" : "—");
-    assert.equal(percentages.site_web, "+15%");
-    assert.equal(percentages.tiktok, "+7%");
-    assert.equal(percentages.threads, pilot ? "+4%" : undefined);
+    const modal = renderNodes(renderChannelConnections(pilot)).find(node => node.type === "./DashboardChannelsModal");
+    assert.ok(modal);
+    const summary = modal.props.summary as { connected: number; total: number };
+    assert.deepEqual(summary, { connected: pilot ? 13 : 12, total: pilot ? 13 : 12 });
+    const items = modal.props.items as Array<{ key: string }>;
+    assert.equal(items.some(item => item.key === "threads"), pilot);
   }
 });
 
@@ -255,66 +250,38 @@ test("the fixed-weight gauge ignores previous normalized caches and purges both 
 });
 
 
-type RenderNode = { type: unknown; props: Record<string, unknown> };
-function renderInstagramPanel(pilot: boolean, connected: boolean, authMode: string, calls: string[]): RenderNode {
-  let stateIndex = 0;
-  const jsx = (type: unknown, props: Record<string, unknown>): RenderNode => ({ type, props });
-  const shell = load("messages/fr-FR/shell.json");
-  const source = fs.readFileSync("app/dashboard/_components/InstagramPanel.tsx", "utf8");
-  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
-  const panelModule = { exports: {} as Record<string, unknown> };
-  const panelRequire = (id: string) => {
-    if (id === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "fragment" };
-    if (id === "react") return {
-      useState: (initial: unknown) => [stateIndex++ === 0 ? true : initial, () => undefined],
-      useEffect: () => undefined, useId: () => "facebook-menu", useRef: () => ({ current: null }),
-    };
-    if (id === "next-intl") return { useTranslations: () => (key: string) => shell[key] || key };
-    if (id === "./DashboardViewerAccessProvider") return { useDashboardViewerAccess: () => ({ metaPilotEnabled: pilot }) };
-    if (id.endsWith(".css")) return {};
-    if (id.startsWith("./")) return { default: "component" };
-    if (id.startsWith("@/")) return load(id.slice(2) + ".ts");
-    return require(id);
-  };
-  new Function("require", "module", "exports", output)(panelRequire, panelModule, panelModule.exports);
-  const Panel = panelModule.exports.default as (props: Record<string, unknown>) => RenderNode;
-  return Panel({ instagramAuthMode: authMode, instagramAccountConnected: connected, instagramConnected: connected, instagramConnectionStatus: connected ? "connected" : "disconnected", instagramUsername: connected ? "inrcy" : "", instagramUrl: "", igAccounts: [], connectInstagramAccount: () => calls.push("standard"), connectInstagramBusinessAccount: () => calls.push("business"), connectInstagramDirectAccount: () => calls.push("direct"), disconnectInstagramAccount: () => calls.push("disconnect") });
-}
-function renderNodes(value: unknown): RenderNode[] {
-  if (Array.isArray(value)) return value.flatMap(renderNodes);
-  if (!value || typeof value !== "object") return [];
-  const node = value as RenderNode;
-  return [node, ...renderNodes(node.props?.children)];
-}
-function renderedText(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) return value.map(renderedText).join("");
-  if (value && typeof value === "object") return renderedText((value as RenderNode).props?.children);
-  return "";
+function instagramConnection(pilot: boolean, connected: boolean, authMode: string, calls: string[]) {
+  return workspaceConnection({ item: { ...channelItem, key: "instagram", name: "Instagram", bubbleStatus: connected ? "connected" : "available" }, instagramPanelProps: { instagramAuthMode: authMode, instagramAccountConnected: connected, instagramConnected: connected, instagramUsername: connected ? "inrcy" : "", instagramUrl: "", igAccounts: [], connectInstagramAccount: () => calls.push("standard"), connectInstagramBusinessAccount: () => calls.push("business"), connectInstagramDirectAccount: () => calls.push("direct"), disconnectInstagramAccount: () => calls.push("disconnect"), saveInstagramProfile() {}, loadInstagramAccounts() {} } }, { "./DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ metaPilotEnabled: pilot }) } });
 }
 
-test("the Facebook dropdown keeps Standard and Business callbacks for USER and ADMIN", () => {
+test("the Instagram bubble offers Standard and Business connection choices to USER and ADMIN; direct remains pilot-only", async () => {
   for (const pilot of [false, true]) {
     const calls: string[] = [];
-    const nodes = renderNodes(renderInstagramPanel(pilot, false, "facebook_login", calls));
-    const menu = nodes.find((node) => node.props?.role === "menu");
-    assert.ok(menu);
-    const choices = renderNodes(menu).filter((node) => node.props?.role === "menuitem");
-    assert.deepEqual(choices.map((node) => renderedText(node)), ["Connexion standard", "Connexion business"]);
-    for (const choice of choices) (choice.props.onClick as () => void)();
-    assert.deepEqual(calls, ["standard", "business"]);
-    const direct = nodes.find((node) => node.type === "button" && renderedText(node) === "Connexion directe Instagram");
-    assert.equal(Boolean(direct), pilot);
+    const connection = instagramConnection(pilot, false, "facebook_login", calls);
+    const runtime = channelRuntime("app/dashboard/_components/DashboardFluxBubble.tsx");
+    const props = { item: { ...channelItem, key: "instagram", name: "Instagram", bubbleStatus: "available", connection } };
+    const connect = channelNodes(runtime.render(props)).find(node => node.props["aria-label"] === "Connecter — Instagram")!;
+    connect.props.onClick();
+    const choices = channelNodes(runtime.render(props)).find(node => node.props.className === "connectChoices")!;
+    const buttons = channelNodes(choices).filter(node => node.type === "button");
+    assert.deepEqual(buttons.map(node => node.props.children[1]), pilot ? ["Connexion Instagram", "Via Facebook", "Connexion Business"] : ["Via Facebook", "Connexion Business"]);
+    for (const button of buttons) { button.props.onClick(); await Promise.resolve(); await Promise.resolve(); }
+    assert.deepEqual(calls, pilot ? ["direct", "standard", "business"] : ["standard", "business"]);
   }
 });
 
-test("a directly connected Instagram account keeps Disconnect and has no Facebook profile picker", () => {
+test("a directly connected Instagram account keeps Disconnect and has no Facebook profile picker", async () => {
   const calls: string[] = [];
-  const nodes = renderNodes(renderInstagramPanel(true, true, "instagram_login", calls));
-  const disconnect = nodes.find((node) => node.type === "button" && renderedText(node) === "Déconnexion");
+  const connection = instagramConnection(true, true, "instagram_login", calls);
+  assert.equal(connection.onSelect, undefined);
+  assert.equal(connection.onLoad, undefined);
+  const runtime = channelRuntime("app/dashboard/_components/DashboardFluxBubble.tsx");
+  const nodes = channelNodes(runtime.render({ item: { ...channelItem, key: "instagram", name: "Instagram", connection } }));
+  const disconnect = nodes.find(node => node.props["aria-label"] === "Déconnecter — @inrcy");
   assert.ok(disconnect);
-  (disconnect.props.onClick as () => void)();
+  disconnect.props.onClick(); await Promise.resolve();
   assert.deepEqual(calls, ["disconnect"]);
-  assert.equal(nodes.some((node) => node.props?.role === "menuitem"), false);
-  assert.equal(nodes.some((node) => renderedText(node) === "Sélectionner un compte"), false);
+  assert.equal(nodes.some(node => node.type === "select"), false);
+  assert.equal(nodes.some(node => String(node.props["aria-label"]).startsWith("Connecter —")), false);
+  assert.equal(nodes.some(node => node.props.className === "connectChoices"), false);
 });

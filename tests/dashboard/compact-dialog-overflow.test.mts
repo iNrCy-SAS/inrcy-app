@@ -23,7 +23,7 @@ const sharedDialog = read("app/_components/InrcyDialogProvider.tsx");
 const agentStyles = read("app/dashboard/agent/agent.module.css");
 const badgeStyles = read("app/badge/[slug]/badge.module.css");
 const inrSearchSettings = read("app/dashboard/settings/_components/InrSearchSettingsContent.tsx");
-const inrSearchStyles = read("app/dashboard/settings/_components/InrSearchSettingsContent.module.css");
+const channelDialogStyles = read("app/dashboard/_components/ChannelParametersDialog.module.css");
 const aiEngineModal = read("app/dashboard/_components/AiEngineInfoModal.tsx");
 const boosterLayer = read("app/dashboard/_components/DashboardBoosterModalLayer.tsx");
 
@@ -69,15 +69,11 @@ test("public badge mini-sheets delegate emergency scrolling to their overlay", (
 });
 
 test("informational mini-modals remain bounded and usable on short screens", () => {
-  const overlay = cssRule(inrSearchStyles, ".dialogOverlay");
-  const dialogs = inrSearchStyles.match(/\.helperDialog,\s*\.confirmDialog \{[\s\S]*?\n\}/);
-
-  assert.match(inrSearchSettings, /aria-labelledby="inrsearch-helper-title"/);
-  assert.ok(dialogs, "Règles des mini-modales iNrSearch introuvables");
-  assert.match(overlay, /overflow-y: auto/);
-  assert.match(dialogs[0], /margin: auto/);
-  assert.match(dialogs[0], /overflow: hidden/);
-  assert.doesNotMatch(dialogs[0], /max-height|overflow-y: auto/);
+  assert.match(inrSearchSettings, /<details[\s\S]*?<summary[\s\S]*?<\/details>/);
+  assert.match(inrSearchSettings, /<ChannelParametersDialog name="iNr’Search"/);
+  assert.doesNotMatch(inrSearchSettings, /inrsearch-helper-title|helperDialog|confirmDialog/);
+  assert.match(channelDialogStyles, /\.dialog \{[^}]*max-height: calc\(100dvh - 48px\)[^}]*overflow: hidden/);
+  assert.match(channelDialogStyles, /\.content \{[^}]*min-height: 0[^}]*overflow-y: auto[^}]*overscroll-behavior: contain/);
 
   assert.match(aiEngineModal, /overflowX: "hidden",\s*overflowY: "auto"/);
   assert.match(

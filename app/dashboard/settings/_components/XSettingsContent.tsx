@@ -1,13 +1,12 @@
 "use client";
 
-import Image from "next/image";
+import type { ChannelBubbleRenderer } from "../../_components/channel-bubble.types";
+import { readChannelWorkspaceSnapshot, writeChannelWorkspaceSnapshot } from "../../_components/channel-workspace-snapshot";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import ConnectionPill from "../../_components/ConnectionPill";
 import EditableChannelUrlField from "../../_components/EditableChannelUrlField";
-import StatusMessage from "../../_components/StatusMessage";
-import styles from "../../dashboard.module.css";
-import ChannelSettingsStep from "./ChannelSettingsStep";
 import guideStyles from "./ChannelSettingsSteps.module.css";
 
 type XConnectionStatus = "connected" | "disconnected" | "needs_update";
@@ -59,26 +58,34 @@ function normalizeStatus(value: unknown): XSettingsState {
   };
 }
 
-function emitDashboardUpdate(state: XSettingsState) {
+function emitDashboardUpdate(state: XSettingsState, refresh = false) {
   if (typeof window === "undefined") return;
+  writeChannelWorkspaceSnapshot("x", state);
   window.dispatchEvent(new CustomEvent("inrcy:x-settings-updated", {
-    detail: state,
+    detail: { ...state, refresh },
   }));
 }
 
 export default function XSettingsContent({
-  onUnsavedChange,
+  onUnsavedChange, renderBubble,
 }: {
+  renderBubble: ChannelBubbleRenderer;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
 }) {
   const mountedRef = useRef(true);
-  const [connection, setConnection] = useState<XSettingsState>(EMPTY_STATE);
+  const connectionRevisionRef = useRef(0);
+  const disconnectInFlightRef = useRef(false);
+  const [connection, setConnection] = useState<XSettingsState>(() => normalizeStatus(readChannelWorkspaceSnapshot("x", EMPTY_STATE)));
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadStatus = useCallback(async () => {
+    if (disconnectInFlightRef.current) return;
+    const revision = ++connectionRevisionRef.current;
+    const accountId = getActiveBrowserUserId();
+    const isCurrent = () => mountedRef.current && revision === connectionRevisionRef.current && accountId === getActiveBrowserUserId();
     setLoading(true);
     setError(null);
     try {
@@ -88,15 +95,15 @@ export default function XSettingsContent({
         throw new Error(String(payload?.error || "Impossible de charger la connexion X."));
       }
       const next = normalizeStatus(payload);
-      if (!mountedRef.current) return;
+      if (!isCurrent()) return;
       setConnection(next);
       emitDashboardUpdate(next);
     } catch (caught) {
-      if (mountedRef.current) {
+      if (isCurrent()) {
         setError(caught instanceof Error ? caught.message : "Impossible de charger la connexion X.");
       }
     } finally {
-      if (mountedRef.current) setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, []);
 
@@ -104,6 +111,7 @@ export default function XSettingsContent({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      connectionRevisionRef.current++;
     };
   }, []);
 
@@ -133,6 +141,11 @@ export default function XSettingsContent({
   }, []);
 
   const disconnectX = useCallback(async () => {
+    if (disconnectInFlightRef.current) return false;
+    disconnectInFlightRef.current = true;
+    // An older status response must not restore a connection after this mutation.
+    connectionRevisionRef.current++;
+    const accountId = getActiveBrowserUserId();
     setBusy(true);
     setNotice(null);
     setError(null);
@@ -142,16 +155,18 @@ export default function XSettingsContent({
       if (!response.ok || payload?.ok === false) {
         throw new Error(String(payload?.error || "Impossible de déconnecter X."));
       }
+      if (accountId !== getActiveBrowserUserId()) return;
+      emitDashboardUpdate(EMPTY_STATE, true);
       if (!mountedRef.current) return;
       setConnection(EMPTY_STATE);
-      emitDashboardUpdate(EMPTY_STATE);
       setNotice("Compte X déconnecté.");
     } catch (caught) {
       if (mountedRef.current) {
         setError(caught instanceof Error ? caught.message : "Impossible de déconnecter X.");
       }
     } finally {
-      if (mountedRef.current) setBusy(false);
+      disconnectInFlightRef.current = false;
+      if (mountedRef.current) { setBusy(false); setLoading(false); }
     }
   }, []);
 
@@ -161,118 +176,48 @@ export default function XSettingsContent({
     return connection.displayName || handle || "Compte X connecté";
   }, [connection.displayName, connection.username]);
 
-  return (
-    <div className={guideStyles.steps}>
-      <ChannelSettingsStep
-        step={1}
-        accent="x"
-        title="Connecter le compte X"
-        description="Autorisez iNrCy à publier avec le compte professionnel, via la connexion officielle et sécurisée de X."
-        status={
-          <ConnectionPill
-            connected={connection.connected}
-            status={connection.connectionStatus}
-            label={loading ? "Vérification…" : undefined}
-          />
-        }
-      >
-        <div className={guideStyles.compactActionLine}>
-          <div className={guideStyles.accountSurface}>
-            <Image
-              className={guideStyles.channelIcon}
-              src="/icons/x.svg"
-              width={46}
-              height={46}
-              alt=""
-              aria-hidden="true"
-            />
-            <div className={guideStyles.accountCopy}>
-              <strong>
-                {connection.connected ? accountLabel : "Aucun compte connecté"}
-              </strong>
-              <span>
-                {connection.requiresUpdate
-                  ? "Autorisation à renouveler"
-                  : connection.connected
-                    ? "Compte prêt à publier"
-                    : "Autorisez le compte professionnel"}
-              </span>
-            </div>
-          </div>
+  const publicLinks = connection.connected ? (
+    <EditableChannelUrlField
+      editorOnly
+      id="x-profile-url"
+      channel="x"
+      value={connection.profileUrl}
+      onSaved={(url) => {
+        const next = { ...connection, profileUrl: url };
+        setConnection(next);
+        emitDashboardUpdate(next, true);
+        setNotice("Lien public X enregistré.");
+        setError(null);
+      }}
+      onDirtyChange={onUnsavedChange}
+      ariaLabel="Lien public du profil X"
+      placeholder="https://x.com/moncompte"
+      viewLabel="Voir le profil"
+      disabled={loading || busy}
+      inputClassName={guideStyles.control}
+      inputStyle={{
+        width: "100%",
+        minWidth: 0,
+        borderRadius: 12,
+        border: "1px solid rgba(255,255,255,0.14)",
+        background: "rgba(15,23,42,0.65)",
+        colorScheme: "dark",
+        padding: "10px 12px",
+        color: "white",
+        outline: "none",
+      }}
+    />
+  ) : undefined;
 
-          <div className={guideStyles.actionRow}>
-            {!connection.connected || connection.requiresUpdate ? (
-              <button
-                type="button"
-                className={`${styles.actionBtn} ${styles.connectBtn}`}
-                onClick={connectX}
-                disabled={loading || busy}
-              >
-                {connection.requiresUpdate ? "Reconnecter X" : "Connecter X"}
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className={`${styles.actionBtn} ${styles.secondaryBtn}`}
-                  onClick={connectX}
-                  disabled={busy}
-                >
-                  Renouveler
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.actionBtn} ${styles.disconnectBtn}`}
-                  onClick={() => void disconnectX()}
-                  disabled={busy}
-                >
-                  {busy ? "Déconnexion…" : "Déconnecter"}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {connection.connected ? (
-          <div className={guideStyles.inlineSection}>
-            <label className={guideStyles.fieldLabel} htmlFor="x-profile-url">
-              Lien public du profil X
-            </label>
-            <EditableChannelUrlField
-              id="x-profile-url"
-              channel="x"
-              value={connection.profileUrl}
-              onSaved={(url) => {
-                const next = { ...connection, profileUrl: url };
-                setConnection(next);
-                emitDashboardUpdate(next);
-                setNotice("Lien public X enregistré.");
-                setError(null);
-              }}
-              onDirtyChange={onUnsavedChange}
-              ariaLabel="Lien public du profil X"
-              placeholder="https://x.com/moncompte"
-              viewLabel="Voir le profil"
-              disabled={loading || busy}
-              inputClassName={guideStyles.control}
-              inputStyle={{
-                width: "100%",
-                minWidth: 0,
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.14)",
-                background: "rgba(15,23,42,0.65)",
-                colorScheme: "dark",
-                padding: "10px 12px",
-                color: "white",
-                outline: "none",
-              }}
-            />
-          </div>
-        ) : null}
-      </ChannelSettingsStep>
-
-      {error ? <StatusMessage variant="error">{error}</StatusMessage> : null}
-      {notice ? <StatusMessage variant="success">{notice}</StatusMessage> : null}
-    </div>
-  );
+  return renderBubble({
+    accountConnected: connection.connected || connection.requiresUpdate,
+    resourceLabel: connection.connected || connection.requiresUpdate ? accountLabel : "",
+    onConnect: connectX,
+    onDisconnect: disconnectX,
+    loading,
+    busy,
+    error,
+    notice,
+    publicLinks,
+  });
 }

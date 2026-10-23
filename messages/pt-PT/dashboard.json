@@ -375,7 +375,7 @@
     },
     "threads": {
       "name": "Threads",
-      "description": "Converse com a sua comunidade",
+      "description": "Converse com a sua comunidade 💬",
       "view": "Ver conta",
       "connect": "Ligar Instagram"
     }
@@ -762,5 +762,54 @@
     "studioLine1": "Crie, edite e retoque",
     "studioLine2": "os seus conteúdos.",
     "studioCta": "Estúdio de média"
+  },
+  "channelBubble": {
+    "parameters": "Definições",
+    "close": "Fechar",
+    "failed": "Não foi possível atualizar a ligação.",
+    "view": "Ver página",
+    "connect": "Ligar",
+    "reconnect": "Voltar a ligar",
+    "selected": "Página selecionada",
+    "account": "Conta associada",
+    "loading": "A carregar…",
+    "choose": "Escolher uma página",
+    "notConnected": "Nenhuma conta ligada",
+    "disconnect": "Desligar",
+    "create": "Criar uma conta",
+    "selectedPage": "Página selecionada",
+    "selectedAccount": "Conta selecionada",
+    "selectedBoard": "Quadro selecionado",
+    "selectedMailbox": "Caixa de correio selecionada",
+    "publicationTypes": "Tipos de publicação",
+    "addMailbox": "Adicionar caixa de correio",
+    "connectedAccount": "Conta ligada",
+    "createBoard": "Criar um quadro",
+    "boardName": "Nome do novo quadro",
+    "createBoardFailed": "Não foi possível criar o quadro.",
+    "chooseBoard": "Escolher um quadro",
+    "choosePage": "Escolher uma página",
+    "chooseAccount": "Escolher uma conta",
+    "chooseMailbox": "Escolher uma caixa de correio",
+    "refreshChoices": "Atualizar a lista",
+    "publicLink": "Ligação pública",
+    "mailboxSlot": "Caixa {number}",
+    "mailboxes": "As minhas caixas de correio",
+    "editPublicLink": "Editar ligação pública",
+    "viewShort": "Ver",
+    "formatsShort": "Formatos",
+    "linkShort": "Ligação",
+    "settingsShort": "Definições",
+    "signatureShort": "Assinatura",
+    "boardsShort": "Álbuns",
+    "widget": "Widget",
+    "connectedShort": "Ligado",
+    "saveSiteFirst": "Guarde a ligação do site antes de ligar GA4 ou GSC."
+  },
+  "channelHelp": {
+    "inrSearch": "Cria a sua página pública iNrCy a partir do seu perfil e publicações. Escolha se aparece no diretório iNrCy.",
+    "threads": "Partilhe novidades e converse com a sua comunidade. Escolha os formatos de publicação disponíveis e o formato predefinido.",
+    "pinterest": "Publica as suas imagens nos painéis da sua conta. Selecione um painel ou crie um novo a partir da bolha.",
+    "x": "Partilha as suas novidades e publicações na sua conta X para manter a sua presença ativa."
   }
 }

@@ -24,7 +24,9 @@ const foundations = read(
 const provider = read("lib/facebookPublish.ts");
 const ingress = read("lib/boosterPublicationIngress.ts");
 const dedupe = read("lib/scheduledPublicationDedupe.ts");
-const panel = read("app/dashboard/_components/FacebookPanel.tsx");
+const channelWorkspace = read("app/dashboard/_components/DashboardChannelWorkspace.tsx");
+const channelBubble = read("app/dashboard/_components/DashboardFluxBubble.tsx");
+const publicationTypes = read("app/dashboard/_components/ChannelPublicationTypes.tsx");
 const hook = read("app/dashboard/_hooks/channels/useFacebookChannel.ts");
 const api = read(
   "app/api/integrations/facebook/publication-preferences/route.ts",
@@ -45,11 +47,25 @@ test("Facebook keeps Classic available and safely coerces disabled optional mode
   );
 });
 
-test("Configurer Facebook exposes Classic, Reel, Story and an account default", () => {
-  assert.match(panel, /type="checkbox" checked disabled/);
-  assert.match(panel, /facebookPublicationPreferences\.reelsEnabled/);
-  assert.match(panel, /facebookPublicationPreferences\.storiesEnabled/);
-  assert.match(panel, /facebookPublicationPreferences\.defaultMode/);
+test("the Facebook bubble exposes Classic, Reel, Story and an account default", () => {
+  const facebookBubble = channelWorkspace.slice(
+    channelWorkspace.indexOf('case "facebook":'),
+    channelWorkspace.indexOf('case "instagram":'),
+  );
+  assert.match(facebookBubble, /publicationTypes: \{ value: fb\.facebookPublicationPreferences/);
+  assert.match(facebookBubble, /onLoad: fb\.loadFacebookPublicationPreferences/);
+  assert.match(facebookBubble, /onChange: fb\.saveFacebookPublicationPreferences/);
+  assert.match(channelBubble, /connection\?\.publicationTypes && hasResource \? <ChannelPublicationTypes name=\{item\.name\} settings=\{connection\.publicationTypes\}/);
+  assert.match(publicationTypes, /mode: "classic", label: "instagram_classic_mode", checked: true/);
+  assert.match(publicationTypes, /type="checkbox" checked=\{option\.checked\} disabled=\{busy \|\| option\.mode === "classic"\}/);
+  assert.match(publicationTypes, /checked: settings\.value\.reelsEnabled, key: "reelsEnabled"/);
+  assert.match(publicationTypes, /checked: settings\.value\.storiesEnabled, key: "storiesEnabled"/);
+  assert.match(publicationTypes, /then\(settings\.onLoad\)/);
+  assert.match(publicationTypes, /await settings\.onChange\(patch\)/);
+  assert.match(publicationTypes, /change\(\{ \[option\.key\]: event\.target\.checked \}\)/);
+  assert.match(publicationTypes, /change\(\{ defaultMode: option\.mode \}\)/);
+  assert.match(hook, /const loadFacebookPublicationPreferences = useCallback/);
+  assert.match(hook, /const saveFacebookPublicationPreferences = useCallback/);
   assert.match(hook, /\/api\/integrations\/facebook\/publication-preferences/);
   assert.match(api, /requireUser\(\)/);
   assert.match(api, /inrcy_set_facebook_publication_preferences/);

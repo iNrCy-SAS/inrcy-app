@@ -14,6 +14,7 @@ import { PROFILE_VERSION_EVENT, type ProfileVersionChangeDetail } from "@/lib/pr
 import { fetchSharedDashboardRefreshJson } from "@/lib/dashboardRefreshOrchestrator";
 import { type DashboardChannelKey, isDashboardChannelKey } from "@/lib/dashboardChannels";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { subscribeToChannelConnectionUpdates } from "@/lib/channelConnectionUpdates";
 import {
   markDailyStatsRefreshBootstrapChecked,
   markServerCacheSyncChecked,
@@ -197,6 +198,7 @@ export function useStatsChannelIdentitySync({
 
     const intervalId = window.setInterval(refreshOfficialChannelStates, CHANNEL_CONNECTION_STATE_POLL_MS);
     const onFocus = () => refreshOfficialChannelStates();
+    const unsubscribeConnectionUpdates = subscribeToChannelConnectionUpdates(onFocus);
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") refreshOfficialChannelStates();
     };
@@ -209,6 +211,7 @@ export function useStatsChannelIdentitySync({
       window.clearInterval(intervalId);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      unsubscribeConnectionUpdates();
     };
   }, [refreshNonce]);
 }
@@ -778,6 +781,23 @@ export function useStatsDataController({
       if (document.hidden) return;
       void refreshInrSearchStats();
     };
+    const settingsHandler = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail?.refresh === false) return;
+      // A confirmed settings mutation makes any earlier analytics response
+      // obsolete. The next fetch must not reuse that in-flight request.
+      inrSearchStatsRequestSeqRef.current += 1;
+      inrSearchStatsRequestRef.current = null;
+      if (typeof detail?.connected === "boolean") {
+        setInrSearchStats((previous) => ({
+          ...previous,
+          enabled: detail.connected,
+          publicUrl: typeof detail.profileUrl === "string" ? detail.profileUrl : previous.publicUrl,
+          loading: false,
+        }));
+      }
+      handler();
+    };
     const stopPolling = () => {
       if (intervalId == null) return;
       window.clearInterval(intervalId);
@@ -800,15 +820,15 @@ export function useStatsDataController({
       startPolling();
     }
     window.addEventListener("focus", handler);
-    window.addEventListener("inrcy:inr-search-settings-updated", handler);
+    window.addEventListener("inrcy:inr-search-settings-updated", settingsHandler);
     document.addEventListener("visibilitychange", visibilityHandler);
     return () => {
       stopPolling();
       window.removeEventListener("focus", handler);
-      window.removeEventListener("inrcy:inr-search-settings-updated", handler);
+      window.removeEventListener("inrcy:inr-search-settings-updated", settingsHandler);
       document.removeEventListener("visibilitychange", visibilityHandler);
     };
-  }, [refreshInrSearchStats, refreshNonce]);
+  }, [refreshInrSearchStats, refreshNonce, setInrSearchStats]);
 
   const hydrateFromSessionCache = useCallback((targetPeriod: Period) => {
     const lastChannelSyncAt = getStatsLastChannelSyncAt();

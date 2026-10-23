@@ -4,7 +4,7 @@ import Image from "next/image";
 import SettingsDrawer from "../../SettingsDrawer";
 import HelpButton from "../../_components/HelpButton";
 import HelpModal from "../../_components/HelpModal";
-import MailsSettingsContent from "../../settings/_components/MailsSettingsContent";
+import { MailSignatureSettingsContent } from "../../settings/_components/MailsSettingsContent";
 import { useUnsavedExitGuard } from "../../_hooks/useUnsavedExitGuard";
 import ResponsiveActionButton from "../../_components/ResponsiveActionButton";
 import { getInrSendRetentionLabel } from "@/lib/inrsendRetention";
@@ -107,7 +107,8 @@ export default function MailboxHeader({
                 closeOnBackdrop={false}
                 closeOnEscape={false}
               >
-                <MailsSettingsContent onUnsavedChange={setSettingsHasUnsavedChanges} />
+                <a href="/dashboard?panel=mails" className={styles.ghostBtn}>Gérer mes boîtes mail dans Mes canaux</a>
+                <MailSignatureSettingsContent onUnsavedChange={setSettingsHasUnsavedChanges} />
               </SettingsDrawer>
             </>
           ) : null}

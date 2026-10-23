@@ -61,6 +61,7 @@ export default function DashboardHelpModals({
   onCloseInstagram,
 }: DashboardHelpModalsProps) {
   const i18nT = useTranslations("shell");
+  const channelHelp = useTranslations("dashboard.channelHelp");
   const standardMode = edition === "standard";
 
   return (
@@ -224,6 +225,7 @@ export default function DashboardHelpModals({
               >
                 {[
                   {
+                    key: "inrbadge",
                     icon: "🪪",
                     name: "iNr'Badge",
                     color: "#b7ff8a",
@@ -232,48 +234,84 @@ export default function DashboardHelpModals({
                       : "Diffuse votre carte de visite digitale en QR Code. Il donne accès à vos coordonnées, vos liens, vos demandes de contact et vos prises de rendez-vous.",
                   },
                   {
+                    key: "site_web",
                     icon: "🖥️",
                     name: "Site web",
                     color: "#ff9ad5",
                     text: i18nT("relie_votre_site_actuel_a_inrcy_19e0b1ac"),
                   },
                   {
+                    key: "gmb",
                     icon: "📍",
                     name: "Google Business",
                     color: "#7df7c4",
                     text: i18nT("developpe_votre_visibilite_locale_avec_les_a4382f02"),
                   },
                   {
+                    key: "inr_search",
+                    icon: "🔎",
+                    name: "iNr’Search",
+                    color: "#72dcff",
+                    text: channelHelp("inrSearch"),
+                  },
+                  {
+                    key: "facebook",
                     icon: "📘",
                     name: "Facebook",
                     color: "#ffd36f",
                     text: i18nT("diffuse_votre_activite_developpe_l_engagement_e2d135e3"),
                   },
                   {
+                    key: "instagram",
                     icon: "📸",
                     name: "Instagram",
                     color: "#d6a4ff",
                     text: i18nT("renforce_votre_image_de_marque_avec_3a9094b4"),
                   },
                   {
+                    key: "threads",
+                    icon: "💬",
+                    name: "Threads",
+                    color: "#b8d9ff",
+                    text: channelHelp("threads"),
+                  },
+                  {
+                    key: "linkedin",
                     icon: "💼",
                     name: "LinkedIn",
                     color: "#89c6ff",
                     text: i18nT("developpe_votre_visibilite_professionnelle_et_vo_03493360"),
                   },
                   {
+                    key: "tiktok",
                     icon: "🎵",
                     name: "TikTok",
                     color: "#ff8bbd",
                     text: i18nT("diffuse_vos_contenus_courts_et_videos_e7119e4a"),
                   },
                   {
+                    key: "youtube_shorts",
                     icon: "▶️",
                     name: "YouTube",
                     color: "#ff6b6b",
                     text: i18nT("diffuse_vos_videos_courtes_ou_longues_0795ce8f"),
                   },
                   {
+                    key: "pinterest",
+                    icon: "📌",
+                    name: "Pinterest",
+                    color: "#ffa7b8",
+                    text: channelHelp("pinterest"),
+                  },
+                  {
+                    key: "x",
+                    icon: "𝕏",
+                    name: "X",
+                    color: "#e2e8f0",
+                    text: channelHelp("x"),
+                  },
+                  {
+                    key: "mails",
                     icon: "✉️",
                     name: "Mails",
                     color: "#9ee7ff",
@@ -286,7 +324,8 @@ export default function DashboardHelpModals({
 
                   return (
                     <div
-                      key={channel.name}
+                      key={channel.key}
+                      data-channel-help={channel.key}
                       aria-disabled={channelDisabled || undefined}
                       style={{
                         minWidth: 0,

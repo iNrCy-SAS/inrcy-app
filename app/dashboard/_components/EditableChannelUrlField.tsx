@@ -18,6 +18,7 @@ import {
 } from "@/lib/channelPublicUrl";
 import styles from "../dashboard.module.css";
 import fieldStyles from "./EditableChannelUrlField.module.css";
+import SaveIcon from "./SaveIcon";
 
 type EditableChannelUrlFieldProps = {
   channel: EditableChannelPublicUrlChannel;
@@ -30,6 +31,8 @@ type EditableChannelUrlFieldProps = {
   placeholder?: string;
   viewLabel: string;
   disabled?: boolean;
+  editorOnly?: boolean;
+  saveAsIcon?: boolean;
   inputClassName?: string;
   inputStyle?: CSSProperties;
   actionClassName?: string;
@@ -55,6 +58,8 @@ export default function EditableChannelUrlField({
   placeholder,
   viewLabel,
   disabled = false,
+  editorOnly = false,
+  saveAsIcon = false,
   inputClassName = "",
   inputStyle,
   actionClassName = "",
@@ -64,14 +69,16 @@ export default function EditableChannelUrlField({
   const inputRef = useRef<HTMLInputElement>(null);
   const messageId = useId();
   const [draft, setDraft] = useState(value);
-  const [editing, setEditing] = useState(false);
+  const [draftChangedByUser, setDraftChangedByUser] = useState(false);
+  const [editingMode, setEditing] = useState(false);
+  const editing = editorOnly || editingMode;
   const [saving, setSaving] = useState(false);
   const [errorCode, setErrorCode] = useState<ChannelPublicUrlErrorCode | "save_failed" | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
 
   useEffect(() => {
-    if (!editing) setDraft(value);
-  }, [editing, value]);
+    if (!editing || !draftChangedByUser) setDraft(value);
+  }, [draftChangedByUser, editing, value]);
 
   useEffect(() => {
     if (!savedNotice) return;
@@ -87,10 +94,11 @@ export default function EditableChannelUrlField({
     () => normalizeChannelPublicUrl(channel, value, target),
     [channel, target, value],
   );
-  const hasDraftChange = draft !== value;
-  const hasNormalizedChange = normalizedDraft.ok && (
+  const hasDraftChange = draftChangedByUser && draft !== value;
+  const hasNormalizedChange = hasDraftChange && normalizedDraft.ok && (
     !normalizedSaved.ok || normalizedDraft.comparisonKey !== normalizedSaved.comparisonKey
   );
+  const canSave = saveAsIcon ? normalizedDraft.ok : hasNormalizedChange;
   const savedHref = normalizedSaved.ok ? normalizedSaved.url : "";
 
   useEffect(() => {
@@ -104,6 +112,7 @@ export default function EditableChannelUrlField({
   const startEditing = () => {
     if (disabled || saving) return;
     setDraft(value);
+    setDraftChangedByUser(false);
     setErrorCode(null);
     setSavedNotice(false);
     setEditing(true);
@@ -116,6 +125,7 @@ export default function EditableChannelUrlField({
   const cancelEditing = () => {
     if (saving) return;
     setDraft(value);
+    setDraftChangedByUser(false);
     setErrorCode(null);
     setEditing(false);
   };
@@ -126,7 +136,18 @@ export default function EditableChannelUrlField({
       setErrorCode(normalizedDraft.code);
       return;
     }
-    if (!hasNormalizedChange) return;
+    if (!hasNormalizedChange) {
+      // The floppy also confirms an already-saved address, including a URL
+      // entered without https:// or its trailing slash.
+      if (saveAsIcon && normalizedSaved.ok) {
+        setDraft(normalizedSaved.url);
+        setDraftChangedByUser(false);
+        setErrorCode(null);
+        setEditing(false);
+        setSavedNotice(true);
+      }
+      return;
+    }
 
     setSaving(true);
     setErrorCode(null);
@@ -151,6 +172,7 @@ export default function EditableChannelUrlField({
       const savedUrl = String(payload?.url || normalizedDraft.url);
       await onSaved(savedUrl);
       setDraft(savedUrl);
+      setDraftChangedByUser(false);
       setEditing(false);
       setSavedNotice(true);
     } catch {
@@ -170,13 +192,14 @@ export default function EditableChannelUrlField({
     : null;
 
   return (
-    <div className={fieldStyles.field} data-channel-url-field={channel} data-editing={editing ? "true" : "false"}>
+    <div className={fieldStyles.field} data-channel-url-field={channel} data-save-as-icon={saveAsIcon || undefined} data-editing={editing ? "true" : "false"}>
       <input
         id={id}
         ref={inputRef}
         value={draft}
         onChange={(event) => {
           setDraft(event.target.value);
+          setDraftChangedByUser(true);
           setErrorCode(null);
           setSavedNotice(false);
         }}
@@ -204,7 +227,7 @@ export default function EditableChannelUrlField({
         data-editing={editing ? "true" : "false"}
       />
 
-      <a
+      {!editorOnly && !saveAsIcon ? <a
         href={savedHref || "#"}
         target="_blank"
         rel="noreferrer"
@@ -214,24 +237,25 @@ export default function EditableChannelUrlField({
         style={{ pointerEvents: savedHref ? "auto" : "none", opacity: savedHref ? 1 : 0.5 }}
       >
         {viewLabel}
-      </a>
+      </a> : null}
 
       <button
         type="button"
-        className={`${styles.actionBtn} ${editing && hasNormalizedChange ? styles.connectBtn : styles.secondaryBtn} ${actionClassName}`.trim()}
+        className={`${styles.actionBtn} ${editing && canSave ? styles.connectBtn : styles.secondaryBtn} ${actionClassName}`.trim()}
         onClick={editing ? () => void save() : startEditing}
-        disabled={disabled || saving || (editing && !hasNormalizedChange)}
+        disabled={disabled || saving || (editing && !canSave)}
         aria-busy={saving}
-        title={editing && !hasNormalizedChange ? t("channel_url_change_required") : undefined}
+        aria-label={saveAsIcon ? editing ? t("enregistrer_f7c8bcd8") : t("channel_url_edit") : undefined}
+        title={!saveAsIcon && editing && !canSave ? t("channel_url_change_required") : saveAsIcon ? editing ? t("enregistrer_f7c8bcd8") : t("channel_url_edit") : undefined}
       >
-        {saving
+        {saveAsIcon ? editing ? <SaveIcon /> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m14 4 2-2a3 3 0 0 1 4 4l-9 9-5 1 1-5 7-7Zm1-1 4 4M5 21h14" /></svg> : saving
           ? t("enregistrement_9bf1058a")
-          : editing && hasNormalizedChange
+          : editorOnly || (editing && hasNormalizedChange)
             ? t("enregistrer_f7c8bcd8")
             : t("channel_url_edit")}
       </button>
 
-      {editing ? (
+      {editing && !saveAsIcon ? (
         <button
           type="button"
           className={`${styles.actionBtn} ${styles.secondaryBtn} ${actionClassName}`.trim()}

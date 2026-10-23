@@ -375,7 +375,7 @@
     },
     "threads": {
       "name": "Threads",
-      "description": "Converse con su comunidad",
+      "description": "Converse con su comunidad 💬",
       "view": "Ver cuenta",
       "connect": "Vincular Instagram"
     }
@@ -762,5 +762,54 @@
     "studioLine1": "Crea, edita y retoca",
     "studioLine2": "tus contenidos.",
     "studioCta": "Estudio de medios"
+  },
+  "channelBubble": {
+    "parameters": "Ajustes",
+    "close": "Cerrar",
+    "failed": "No se pudo actualizar la conexión.",
+    "view": "Ver página",
+    "connect": "Conectar",
+    "reconnect": "Volver a conectar",
+    "selected": "Página seleccionada",
+    "account": "Cuenta vinculada",
+    "loading": "Cargando…",
+    "choose": "Elegir una página",
+    "notConnected": "Ninguna cuenta conectada",
+    "disconnect": "Desconectar",
+    "create": "Crear una cuenta",
+    "selectedPage": "Página seleccionada",
+    "selectedAccount": "Cuenta seleccionada",
+    "selectedBoard": "Tablero seleccionado",
+    "selectedMailbox": "Buzón seleccionado",
+    "publicationTypes": "Tipos de publicación",
+    "addMailbox": "Añadir un buzón",
+    "connectedAccount": "Cuenta conectada",
+    "createBoard": "Crear un tablero",
+    "boardName": "Nombre del nuevo tablero",
+    "createBoardFailed": "No se ha podido crear el tablero.",
+    "chooseBoard": "Elegir un tablero",
+    "choosePage": "Elegir una página",
+    "chooseAccount": "Elegir una cuenta",
+    "chooseMailbox": "Elegir un buzón",
+    "refreshChoices": "Actualizar la lista",
+    "publicLink": "Enlace público",
+    "mailboxSlot": "Buzón {number}",
+    "mailboxes": "Mis buzones",
+    "editPublicLink": "Editar enlace público",
+    "viewShort": "Ver",
+    "formatsShort": "Formatos",
+    "linkShort": "Enlace",
+    "settingsShort": "Ajustes",
+    "signatureShort": "Firma",
+    "boardsShort": "Tableros",
+    "widget": "Widget",
+    "connectedShort": "Conectado",
+    "saveSiteFirst": "Guarde el enlace del sitio antes de conectar GA4 o GSC."
+  },
+  "channelHelp": {
+    "inrSearch": "Crea su página pública iNrCy a partir de su perfil y publicaciones. Elija si aparece en el directorio iNrCy.",
+    "threads": "Comparta novedades y converse con su comunidad. Elija los formatos de publicación disponibles y el formato predeterminado.",
+    "pinterest": "Publica sus imágenes en los tableros de su cuenta. Seleccione un tablero o cree uno nuevo desde la burbuja.",
+    "x": "Comparte sus novedades y publicaciones en su cuenta de X para mantener activa su presencia."
   }
 }

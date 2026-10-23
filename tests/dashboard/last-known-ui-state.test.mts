@@ -92,21 +92,13 @@ test("ADN and IA scores hydrate from a strictly account-scoped cache before sile
   assert.match(accountCache, /"inrcy_dashboard_preparation_scores_v1"/);
 });
 
-test("visited channel settings stay mounted and restore their scroll position", () => {
+test("channel controllers load only for the selected bubble and protect unsaved drafts", () => {
   assert.match(settingsDrawer, /keepMounted = false/);
-  assert.match(settingsDrawer, /const \[hasBeenOpened, setHasBeenOpened\] = useState\(keepMounted \|\| isOpen\)/);
-  assert.match(settingsDrawer, /if \(isOpen \|\| keepMounted\) setHasBeenOpened\(true\)/);
-  assert.doesNotMatch(settingsDrawer, /setHasBeenOpened\(false\)/);
-  assert.match(settingsDrawer, /if \(!hasBeenOpened \|\| !portalReady\) return null/);
-  assert.match(settingsDrawer, /display: isOpen \? "flex" : "none"/);
-  assert.match(settingsDrawerContent, /const MEMORIZED_CHANNEL_PANELS = new Set\(/);
-  assert.match(settingsDrawerContent, /const \[visitedChannelPanels, setVisitedChannelPanels\]/);
-  assert.match(settingsDrawerContent, /data-memorized-channel-panel="true"/);
-  assert.match(settingsDrawerContent, /panelScrollPositionsRef\.current\.set\(previousPanel, scrollContainer\.scrollTop\)/);
-  assert.match(settingsDrawerContent, /scrollContainer\.scrollTop = panelScrollPositionsRef\.current\.get\(panel\) \?\? 0/);
-  assert.match(settingsDrawerContent, /key=\{`youtube_shorts:\$\{discardRevisions\.youtube_shorts \?\? 0\}`\}/);
-  assert.match(settingsDrawerContent, /key=\{`pinterest:\$\{discardRevisions\.pinterest \?\? 0\}`\}/);
-  assert.match(settingsDrawerContent, /active=\{panel === "inr_search"\}/);
-  assert.match(dashboardClient, /settingsPanelDiscardRevisions/);
-  assert.match(dashboardClient, /key=\{completionAccountId \|\| "dashboard-channel-settings"\}/);
+  assert.doesNotMatch(settingsDrawerContent, /MEMORIZED_CHANNEL_PANELS|visitedChannelPanels|MemorizedPanel/);
+  assert.match(dashboardClient, /import DashboardChannelWorkspace from "\.\/_components\/DashboardChannelWorkspace"/);
+  const workspace = read("app/dashboard/_components/DashboardChannelWorkspace.tsx");
+  assert.match(workspace, /key=\{revision\} renderBubble=\{renderBubble\}/);
+  assert.match(workspace, /useUnsavedExitGuard/);
+  assert.match(dashboardClient, /key=\{completionAccountId \+ ":" \+ item\.key\}/);
+
 });

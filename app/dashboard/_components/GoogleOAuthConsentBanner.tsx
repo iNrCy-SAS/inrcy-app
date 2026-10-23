@@ -9,6 +9,7 @@ type Props = {
   panel: string | null;
   variant?: "banner" | "inline";
   product?: "ga4" | "gsc";
+  errorsOnly?: boolean;
 };
 
 const GOOGLE_PANELS = new Set([
@@ -45,7 +46,7 @@ function buildRetryHref(panel: string, linked: string | null): string | null {
   return null;
 }
 
-export default function GoogleOAuthConsentBanner({ panel, variant = "banner", product }: Props) {
+export default function GoogleOAuthConsentBanner({ panel, variant = "banner", product, errorsOnly = false }: Props) {
   const i18nT = useTranslations("shell");
   const searchParams = useSearchParams();
 
@@ -56,6 +57,7 @@ export default function GoogleOAuthConsentBanner({ panel, variant = "banner", pr
   const hasPermissionError =
     error === GOOGLE_OAUTH_PERMISSION_ERROR_CODE || error === "access_denied";
   const permissionsIncomplete = hasPermissionError && (!product || !linked || linked === product);
+  if (errorsOnly && !permissionsIncomplete) return null;
   const retryHref = permissionsIncomplete ? buildRetryHref(panel, product ?? linked) : null;
   const inline = variant === "inline";
 

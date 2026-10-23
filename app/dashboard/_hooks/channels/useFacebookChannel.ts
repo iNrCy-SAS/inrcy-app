@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { getClientUserFacingApiError as getSimpleFrenchApiError, getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import type { DashboardChannelKey } from "@/lib/dashboardChannels";
 import type { InrstatsChannelBlock } from "@/lib/inrstats/channelBlocks";
@@ -36,7 +37,6 @@ export function useFacebookChannel({
   searchParams,
   patchChannelConnectionLocally,
   triggerChannelRefresh,
-  updateRootSettingsKey,
 }: UseFacebookChannelOptions) {
   const initialConnected = initialState?.facebookPageConnected === true;
   const initialStatus = initialState?.facebookConnectionStatus;
@@ -74,6 +74,8 @@ export function useFacebookChannel({
   const [fbSelectedPageName, setFbSelectedPageName] = useState<string>(() => typeof initialState?.fbSelectedPageName === "string" ? initialState.fbSelectedPageName : "");
   const [fbPagesError, setFbPagesError] = useState<string | null>(null);
   const fbPagesAutoLoadRef = useRef(false);
+
+  const connectionRevisionRef = useRef(0);
 
   const clearPanelNotices = useCallback(() => {
     setFacebookUrlNotice(null);
@@ -142,8 +144,11 @@ export function useFacebookChannel({
     [],
   );
 
-  const saveFacebookPublicationPreferences = useCallback(async () => {
+  const saveFacebookPublicationPreferences = useCallback(async (patch?: Partial<FacebookPublicationPreferences>) => {
     if (facebookPublicationPreferencesSaving) return false;
+    const previous = facebookPublicationPreferences;
+    const nextPreferences = normalizeFacebookPublicationPreferences({ ...previous, ...patch });
+    if (patch) setFacebookPublicationPreferences(nextPreferences);
     setFacebookPublicationPreferencesSaving(true);
     setFacebookPublicationPreferencesNotice(null);
     setFacebookPublicationPreferencesError(null);
@@ -154,7 +159,7 @@ export function useFacebookChannel({
           method: "PATCH",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(facebookPublicationPreferences),
+          body: JSON.stringify(nextPreferences),
         },
       );
       if (!response.ok) {
@@ -172,6 +177,7 @@ export function useFacebookChannel({
       setFacebookPublicationPreferencesNotice("Formats Facebook enregistrés.");
       return true;
     } catch (error) {
+      if (patch) setFacebookPublicationPreferences(previous);
       setFacebookPublicationPreferencesError(
         getSimpleFrenchErrorMessage(
           error,
@@ -195,13 +201,20 @@ export function useFacebookChannel({
   }, []);
 
   const disconnectFacebookAccount = useCallback(async () => {
+    const accountScope = getActiveBrowserUserId();
+    connectionRevisionRef.current += 1;
+    setFbPagesLoading(false);
+    setFbPagesPhase("idle");
     const response = await fetch("/api/integrations/facebook/disconnect-account", { method: "POST" }).catch(() => null);
     const payload = response ? await response.json().catch(() => null) : null;
-    if (!response || !response.ok || payload?.ok === false) {
+    if (accountScope !== getActiveBrowserUserId()) return false;
+    if (!response || !response.ok || payload?.ok !== true) {
       setPanelError(payload?.error, "Impossible de déconnecter le compte Facebook.");
-      return;
+      return false;
     }
     setFacebookAccountConnected(false);
+    connectionRevisionRef.current += 1;
+    setFacebookConnectionStatus("disconnected");
     setFacebookPageConnected(false);
     patchChannelConnectionLocally("facebook", {
       connected: false,
@@ -213,30 +226,30 @@ export function useFacebookChannel({
       resourceUrl: null,
     }, { clearData: true });
     setFacebookAccountEmail("");
-    await updateRootSettingsKey("facebook", {
-      accountConnected: false,
-      pageConnected: false,
-      userEmail: "",
-      url: "",
-      pageId: "",
-      pageName: "",
-    });
-    await triggerChannelRefresh("facebook");
+    void triggerChannelRefresh("facebook").catch(() => {});
     setFacebookUrl("");
     setFbPages([]);
     setFbSelectedPageId("");
     setFbSelectedPageName("");
     setFbPagesPhase("idle");
     setPanelSuccess("Compte Facebook déconnecté.");
-  }, [patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelError, setPanelSuccess]);
+    return true;
+  }, [patchChannelConnectionLocally, triggerChannelRefresh, setPanelError, setPanelSuccess]);
 
   const disconnectFacebookPage = useCallback(async () => {
+    const accountScope = getActiveBrowserUserId();
+    connectionRevisionRef.current += 1;
+    setFbPagesLoading(false);
+    setFbPagesPhase("idle");
     const response = await fetch("/api/integrations/facebook/disconnect-page", { method: "POST" }).catch(() => null);
     const payload = response ? await response.json().catch(() => null) : null;
-    if (!response || !response.ok || payload?.ok === false) {
+    if (accountScope !== getActiveBrowserUserId()) return false;
+    if (!response || !response.ok || payload?.ok !== true) {
       setPanelError(payload?.error, "Impossible de déconnecter la page Facebook.");
-      return;
+      return false;
     }
+    connectionRevisionRef.current += 1;
+    setFacebookConnectionStatus("disconnected");
     setFacebookPageConnected(false);
     patchChannelConnectionLocally("facebook", {
       connected: false,
@@ -247,32 +260,30 @@ export function useFacebookChannel({
       resourceLabel: null,
       resourceUrl: null,
     }, { clearData: true });
-    await updateRootSettingsKey("facebook", {
-      accountConnected: true,
-      pageConnected: false,
-      url: "",
-      pageId: "",
-      pageName: "",
-    });
-    await triggerChannelRefresh("facebook");
+    void triggerChannelRefresh("facebook").catch(() => {});
     setFacebookUrl("");
     setFbSelectedPageId("");
     setFbSelectedPageName("");
     setFbPagesPhase("idle");
     setPanelSuccess("Page Facebook déconnectée.");
-  }, [patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelError, setPanelSuccess]);
+    return true;
+  }, [patchChannelConnectionLocally, triggerChannelRefresh, setPanelError, setPanelSuccess]);
 
-  const loadFacebookPages = useCallback(async () => {
+  const loadFacebookPages = useCallback(async (options?: { autoSelect?: boolean }) => {
     if (!facebookAccountConnected) return;
     setFbPagesLoading(true);
     setFbPagesPhase("searching");
     setFbPagesError(null);
+    const revision = connectionRevisionRef.current;
+    const accountScope = getActiveBrowserUserId();
     try {
       const r = await fetch("/api/integrations/facebook/pages", { cache: "no-store" });
       if (!r.ok) throw new Error(await getSimpleFrenchApiError(r, "Impossible de charger vos pages Facebook."));
       const j = await r.json().catch(() => ({}));
+      if (revision !== connectionRevisionRef.current || accountScope !== getActiveBrowserUserId()) return;
       const pages = Array.isArray(j.pages) ? j.pages : [];
       setFbPages(pages);
+      if (options?.autoSelect === false) return;
 
       const matchedSelected = pages.find((p: { id: string; name?: string | null }) => p.id === fbSelectedPageId);
       if (matchedSelected?.name) setFbSelectedPageName(String(matchedSelected.name));
@@ -297,6 +308,7 @@ export function useFacebookChannel({
           const autoJson = await autoRes.json().catch(() => ({}));
           if (!autoRes.ok) throw new Error(autoJson?.error || "Impossible d’enregistrer la page Facebook.");
           const nextFacebookUrl = String(autoJson?.pageUrl || `https://www.facebook.com/${only.id}`);
+          if (revision !== connectionRevisionRef.current || accountScope !== getActiveBrowserUserId()) return;
           setFbSelectedPageId(only.id);
           setFbSelectedPageName(String(only.name || ""));
           setFacebookPageConnected(true);
@@ -309,26 +321,21 @@ export function useFacebookChannel({
             resourceLabel: only.name || null,
             resourceUrl: nextFacebookUrl,
           });
-          await updateRootSettingsKey("facebook", {
-            accountConnected: true,
-            pageConnected: true,
-            userEmail: facebookAccountEmail,
-            url: nextFacebookUrl,
-            pageId: only.id,
-            pageName: String(only.name || ""),
-          });
-          void triggerChannelRefresh("facebook");
+          void triggerChannelRefresh("facebook").catch(() => {});
           setPanelSuccess("Page Facebook enregistrée.");
-      return true;
+          return true;
         }
       }
     } catch (e: any) {
+      if (revision !== connectionRevisionRef.current || accountScope !== getActiveBrowserUserId()) return;
       setFbPagesError(getSimpleFrenchErrorMessage(e, "Impossible de charger vos pages Facebook."));
     } finally {
-      setFbPagesLoading(false);
-      setFbPagesPhase("idle");
+      if (revision === connectionRevisionRef.current && accountScope === getActiveBrowserUserId()) {
+        setFbPagesLoading(false);
+        setFbPagesPhase("idle");
+      }
     }
-  }, [facebookAccountConnected, fbSelectedPageId, facebookAccountEmail, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh, updateRootSettingsKey]);
+  }, [facebookAccountConnected, fbSelectedPageId, facebookAccountEmail, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh]);
 
   useEffect(() => {
     const linked = searchParams.get("linked");
@@ -353,8 +360,10 @@ export function useFacebookChannel({
     loadFacebookPages,
   ]);
 
-  const saveFacebookPage = useCallback(async () => {
-    const picked = fbPages.find((p) => p.id === fbSelectedPageId);
+  const saveFacebookPage = useCallback(async (selectedPageId = fbSelectedPageId) => {
+    const revision = connectionRevisionRef.current;
+    const accountScope = getActiveBrowserUserId();
+    const picked = fbPages.find((p) => p.id === selectedPageId);
     if (!picked?.id) return false;
 
     const r = await fetch("/api/integrations/facebook/select-page", {
@@ -367,6 +376,7 @@ export function useFacebookChannel({
     });
 
     const j = await r.json().catch(() => ({}));
+    if (revision !== connectionRevisionRef.current || accountScope !== getActiveBrowserUserId()) return false;
     if (r.ok) {
       const nextFacebookUrl = String(j?.pageUrl || `https://www.facebook.com/${picked.id}`);
       setFacebookUrl(nextFacebookUrl);
@@ -380,22 +390,15 @@ export function useFacebookChannel({
         resourceLabel: picked.name || null,
         resourceUrl: nextFacebookUrl,
       });
-      await updateRootSettingsKey("facebook", {
-        accountConnected: true,
-        pageConnected: true,
-        userEmail: facebookAccountEmail,
-        url: nextFacebookUrl,
-        pageId: picked.id,
-        pageName: String(picked.name || ""),
-      });
-      void triggerChannelRefresh("facebook");
+      void triggerChannelRefresh("facebook").catch(() => {});
       setPanelSuccess("Page Facebook enregistrée.");
+      setFbSelectedPageId(selectedPageId);
       return true;
     } else {
       setPanelError(j?.error, "Impossible d'enregistrer la page Facebook.");
       return false;
     }
-  }, [fbPages, fbSelectedPageId, facebookAccountEmail, patchChannelConnectionLocally, triggerChannelRefresh, updateRootSettingsKey, setPanelSuccess, setPanelError]);
+  }, [fbPages, fbSelectedPageId, facebookAccountEmail, patchChannelConnectionLocally, triggerChannelRefresh, setPanelSuccess, setPanelError]);
 
   return {
     facebookUrl,
@@ -417,6 +420,7 @@ export function useFacebookChannel({
     facebookPublicationPreferencesError,
     updateFacebookPublicationPreferences,
     saveFacebookPublicationPreferences,
+    loadFacebookPublicationPreferences,
     fbPages,
     setFbPages,
     fbPagesLoading,

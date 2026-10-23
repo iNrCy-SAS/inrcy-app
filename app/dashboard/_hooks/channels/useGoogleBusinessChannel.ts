@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { getClientUserFacingApiError as getSimpleFrenchApiError, getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import type { DashboardChannelKey } from "@/lib/dashboardChannels";
@@ -28,11 +29,9 @@ type UseGoogleBusinessChannelOptions = {
 
 export function useGoogleBusinessChannel({
   initialState,
-  panel,
   searchParams,
   patchChannelConnectionLocally,
   triggerChannelRefresh,
-  updateRootSettingsKey,
 }: UseGoogleBusinessChannelOptions) {
   const initialConnected = initialState?.gmbConnected === true;
   const initialStatus = initialState?.gmbConnectionStatus;
@@ -59,6 +58,23 @@ export function useGoogleBusinessChannel({
   const [gmbListError, setGmbListError] = useState<string | null>(null);
   const gmbLocationsAutoLoadRef = useRef(false);
 
+  const connectionRevisionRef = useRef(0);
+  const selectionIntentRef = useRef(0);
+  const configuredRef = useRef(gmbConfigured);
+  configuredRef.current = gmbConfigured;
+  const locationsInFlightRef = useRef<{
+    accountScope: string | null;
+    revision: number;
+    autoSelect: boolean;
+    promise: Promise<void>;
+  } | null>(null);
+  const selectionInFlightRef = useRef<{
+    accountScope: string | null;
+    revision: number;
+    locationName: string;
+    promise: Promise<boolean>;
+  } | null>(null);
+
   const clearPanelNotices = useCallback(() => {
     setGmbUrlNotice(null);
     setGmbUrlError(null);
@@ -84,12 +100,20 @@ export function useGoogleBusinessChannel({
   }, []);
 
   const disconnectGmbAccount = useCallback(async () => {
+    const accountScope = getActiveBrowserUserId();
+    gmbLocationsAutoLoadRef.current = true;
+    connectionRevisionRef.current += 1;
+    setGmbLoadingList(false);
+    setGmbLocationsPhase("idle");
     const response = await fetch("/api/integrations/google-business/disconnect-account", { method: "POST" }).catch(() => null);
     const payload = response ? await response.json().catch(() => null) : null;
-    if (!response || !response.ok || payload?.ok === false) {
+    if (accountScope !== getActiveBrowserUserId()) return false;
+    if (!response || !response.ok || payload?.ok !== true) {
       setPanelError(payload?.error, "Impossible de déconnecter le compte Google Business.");
-      return;
+      return false;
     }
+    connectionRevisionRef.current += 1;
+    setGmbConnectionStatus("disconnected");
     setGmbConnected(false);
     setGmbAccountConnected(false);
     setGmbConfigured(false);
@@ -101,7 +125,6 @@ export function useGoogleBusinessChannel({
     setGmbLocationName("");
     setGmbLocationLabel("");
     setGmbLocationsPhase("idle");
-    await updateRootSettingsKey("gmb", { url: "", connected: false, configured: false, accountEmail: "", accountName: "", locationName: "", locationTitle: "", resource_id: "" });
     patchChannelConnectionLocally("gmb", {
       connected: false,
       accountConnected: false,
@@ -111,24 +134,32 @@ export function useGoogleBusinessChannel({
       resourceLabel: null,
       resourceUrl: null,
     }, { clearData: true });
-    await triggerChannelRefresh("gmb");
+    void triggerChannelRefresh("gmb").catch(() => {});
     setPanelSuccess("Compte Google déconnecté.");
-  }, [patchChannelConnectionLocally, setPanelError, setPanelSuccess, triggerChannelRefresh, updateRootSettingsKey]);
+    return true;
+  }, [patchChannelConnectionLocally, setPanelError, setPanelSuccess, triggerChannelRefresh]);
 
   const disconnectGmbBusiness = useCallback(async () => {
+    const accountScope = getActiveBrowserUserId();
+    gmbLocationsAutoLoadRef.current = true;
+    connectionRevisionRef.current += 1;
+    setGmbLoadingList(false);
+    setGmbLocationsPhase("idle");
     const res = await fetch("/api/integrations/google-business/disconnect-location", { method: "POST" }).catch(() => null);
     const js = res ? await res.json().catch(() => ({})) : {};
-    if (!res || !res.ok) {
+    if (accountScope !== getActiveBrowserUserId()) return false;
+    if (!res || !res.ok || js?.ok !== true) {
       setPanelError(js?.error, "Impossible de déconnecter l'établissement Google Business.");
-      return;
+      return false;
     }
+    connectionRevisionRef.current += 1;
+    setGmbConnectionStatus("disconnected");
     setGmbConnected(false);
     setGmbConfigured(false);
     setGmbUrl("");
     setGmbLocationName("");
     setGmbLocationLabel("");
     setGmbLocationsPhase("idle");
-    await updateRootSettingsKey("gmb", { url: "", resource_id: "", locationName: "", locationTitle: "", configured: false, connected: true });
     patchChannelConnectionLocally("gmb", {
       connected: false,
       accountConnected: true,
@@ -137,132 +168,142 @@ export function useGoogleBusinessChannel({
       resourceLabel: null,
       resourceUrl: null,
     }, { clearData: true });
-    await triggerChannelRefresh("gmb");
+    void triggerChannelRefresh("gmb").catch(() => {});
     setPanelSuccess("Établissement Google Business déconnecté.");
-  }, [patchChannelConnectionLocally, setPanelError, setPanelSuccess, triggerChannelRefresh, updateRootSettingsKey]);
+    return true;
+  }, [patchChannelConnectionLocally, setPanelError, setPanelSuccess, triggerChannelRefresh]);
 
-  const loadGmbAccountsAndLocations = useCallback(async () => {
-    if (!gmbAccountConnected) return;
-    setGmbLoadingList(true);
-    setGmbLocationsPhase("searching");
-    setGmbListError(null);
-    try {
-      const r = await fetch(`/api/integrations/google-business/locations`, { cache: "no-store" });
-      if (!r.ok) throw new Error(await getSimpleFrenchApiError(r, "Impossible de charger les établissements Google Business."));
-      const j = await r.json().catch(() => ({}));
-      const accounts = Array.isArray(j.accounts) ? j.accounts : [];
-      const locations = Array.isArray(j.locations) ? j.locations : [];
-      setGmbAccounts(accounts);
-      setGmbAccountName(j.accountName || "");
-      setGmbLocations(locations);
-      if (j.locationsError) setGmbListError(j.locationsError);
-
-      const currentLocationName = (gmbLocationName || "").trim();
-      const hasCurrentSelection = Boolean(currentLocationName && locations.some((l: { name: string; title?: string | null }) => l.name === currentLocationName));
-      const nextLocationName = hasCurrentSelection ? currentLocationName : String(locations?.[0]?.name || "");
-      if (nextLocationName) {
-        setGmbLocationName(nextLocationName);
-        const matched = locations.find((l: { name: string; title?: string | null }) => l.name === nextLocationName);
-        if (matched?.title) setGmbLocationLabel(String(matched.title));
-      }
-
-      if (locations.length === 1 && j.accountName) {
-        const only = locations[0];
-        setGmbLocationsPhase("connecting");
-        const autoRes = await fetch("/api/integrations/google-business/select-location", {
+  const persistGmbLocation = useCallback((
+    accountName: string,
+    locationName: string,
+    locationTitle: string | null,
+  ): Promise<boolean> => {
+    const revision = connectionRevisionRef.current;
+    const accountScope = getActiveBrowserUserId();
+    const existing = selectionInFlightRef.current;
+    if (existing?.accountScope === accountScope && existing.revision === revision && existing.locationName === locationName) {
+      return existing.promise;
+    }
+    const selectionIntent = ++selectionIntentRef.current;
+    const isCurrent = () => revision === connectionRevisionRef.current && accountScope === getActiveBrowserUserId() && selectionIntent === selectionIntentRef.current;
+    const operation = { accountScope, revision, locationName, promise: Promise.resolve(false) };
+    operation.promise = (async () => {
+      try {
+        // A later user choice must also be the last write on the server.
+        if (existing?.accountScope === accountScope && existing.revision === revision) await existing.promise;
+        if (!isCurrent()) return false;
+        const res = await fetch("/api/integrations/google-business/select-location", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            accountName: j.accountName,
-            locationName: only.name,
-            locationTitle: only.title || null,
-          }),
+          body: JSON.stringify({ accountName, locationName, locationTitle }),
         });
-        const autoJson = await autoRes.json().catch(() => ({}));
-        if (!autoRes.ok) throw new Error(autoJson?.error || "Impossible d’enregistrer l’établissement Google Business.");
-        setGmbLocationName(String(only.name || ""));
-        setGmbLocationLabel(String(only.title || ""));
+        const payload = await res.json().catch(() => ({}));
+        if (!isCurrent()) return false;
+        if (!res.ok || payload?.ok !== true) throw new Error(payload?.error || "Impossible d’enregistrer l’établissement Google Business.");
+
+        setGmbAccountConnected(true);
         setGmbConfigured(true);
         setGmbConnected(true);
-        if (autoJson?.url) setGmbUrl(String(autoJson.url));
+        setGmbConnectionStatus("connected");
+        setGmbLocationName(locationName);
+        setGmbLocationLabel(locationTitle || "");
+        if (payload?.url) setGmbUrl(String(payload.url));
         patchChannelConnectionLocally("gmb", {
           connected: true,
           accountConnected: true,
           configured: true,
-          resourceId: only.name || null,
-          resourceLabel: only.title || null,
-          resourceUrl: autoJson?.url ? String(autoJson.url) : null,
+          expired: false,
+          resourceId: locationName,
+          resourceLabel: locationTitle,
+          resourceUrl: payload?.url ? String(payload.url) : null,
         });
-        await triggerChannelRefresh("gmb");
+        void triggerChannelRefresh("gmb").catch(() => {});
         setPanelSuccess("Établissement Google Business enregistré.");
+        return true;
+      } catch (error) {
+        if (isCurrent()) setPanelError(error, "Impossible d'enregistrer l'établissement Google Business.");
+        return false;
+      } finally {
+        if (selectionInFlightRef.current === operation) selectionInFlightRef.current = null;
       }
-    } catch (e: any) {
-      setGmbListError(getSimpleFrenchErrorMessage(e, "Impossible de charger les établissements Google Business."));
-    } finally {
-      setGmbLoadingList(false);
-      setGmbLocationsPhase("idle");
+    })();
+    selectionInFlightRef.current = operation;
+    return operation.promise;
+  }, [patchChannelConnectionLocally, setPanelError, setPanelSuccess, triggerChannelRefresh]);
+
+  const loadGmbAccountsAndLocations = useCallback((options?: { autoSelect?: boolean; afterOAuth?: boolean }): Promise<void> => {
+    // The locations route validates the Google connection. After an OAuth
+    // return, start discovery without waiting for dashboard hydration.
+    if (!gmbAccountConnected && !options?.afterOAuth) return Promise.resolve();
+    const revision = connectionRevisionRef.current;
+    const selectionIntent = selectionIntentRef.current;
+    const accountScope = getActiveBrowserUserId();
+    const autoSelect = options?.autoSelect !== false;
+    const existing = locationsInFlightRef.current;
+    if (existing?.accountScope === accountScope && existing.revision === revision) {
+      existing.autoSelect ||= autoSelect;
+      return existing.promise;
     }
-  }, [gmbAccountConnected, gmbLocationName, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh]);
+    setGmbLoadingList(true);
+    setGmbLocationsPhase("searching");
+    setGmbListError(null);
+    const isCurrent = () => revision === connectionRevisionRef.current && accountScope === getActiveBrowserUserId();
+    const operation = { accountScope, revision, autoSelect, promise: Promise.resolve() };
+    operation.promise = (async () => {
+      try {
+        const response = await fetch("/api/integrations/google-business/locations", { cache: "no-store" });
+        if (!response.ok) throw new Error(await getSimpleFrenchApiError(response, "Impossible de charger les établissements Google Business."));
+        const payload = await response.json().catch(() => ({}));
+        if (!isCurrent()) return;
+        const accounts = Array.isArray(payload.accounts) ? payload.accounts : [];
+        const locations = Array.isArray(payload.locations) ? payload.locations : [];
+        setGmbAccounts(accounts);
+        setGmbAccountName(payload.accountName || "");
+        setGmbLocations(locations);
+        if (payload.locationsError) setGmbListError(payload.locationsError);
+        if (!operation.autoSelect || configuredRef.current || selectionIntent !== selectionIntentRef.current) return;
 
+        // One location can be confirmed directly after OAuth. With several
+        // locations, retain the user's choice rather than choosing the first.
+        if (locations.length === 1 && payload.accountName) {
+          const only = locations[0];
+          setGmbLocationsPhase("connecting");
+          await persistGmbLocation(String(payload.accountName), String(only.name), only.title ? String(only.title) : null);
+        }
+      } catch (error) {
+        if (isCurrent()) setGmbListError(getSimpleFrenchErrorMessage(error, "Impossible de charger les établissements Google Business."));
+      } finally {
+        if (locationsInFlightRef.current === operation) locationsInFlightRef.current = null;
+        if (isCurrent()) {
+          setGmbLoadingList(false);
+          setGmbLocationsPhase("idle");
+        }
+      }
+    })();
+    locationsInFlightRef.current = operation;
+    return operation.promise;
+  }, [gmbAccountConnected, persistGmbLocation]);
+
+  const oauthAccountScope = getActiveBrowserUserId();
   useEffect(() => {
-    const linked = searchParams.get("linked");
-    const ok = searchParams.get("ok");
-    const shouldAutoLoad = panel === "gmb" && linked === "gmb" && ok === "1";
-
+    const shouldAutoLoad = searchParams.get("linked") === "gmb" && searchParams.get("ok") === "1";
     if (!shouldAutoLoad) {
       gmbLocationsAutoLoadRef.current = false;
       return;
     }
+    if (!oauthAccountScope || gmbLocationsAutoLoadRef.current) return;
 
-    if (!gmbAccountConnected || gmbConfigured || gmbLoadingList || gmbLocationsAutoLoadRef.current) return;
-
+    // Consume this callback before starting I/O. Subsequent hydration, opening
+    // the selector, or disconnecting must never replay the OAuth selection.
     gmbLocationsAutoLoadRef.current = true;
-    void loadGmbAccountsAndLocations();
-  }, [
-    panel,
-    searchParams,
-    gmbAccountConnected,
-    gmbConfigured,
-    gmbLoadingList,
-    loadGmbAccountsAndLocations,
-  ]);
+    if (!gmbConfigured) void loadGmbAccountsAndLocations({ afterOAuth: true });
+  }, [searchParams, oauthAccountScope, gmbConfigured, loadGmbAccountsAndLocations]);
 
-  const saveGmbLocation = useCallback(async () => {
-    if (!gmbAccountName || !gmbLocationName) return false;
-    try {
-      const picked = gmbLocations.find((l) => l.name === gmbLocationName);
-      const res = await fetch("/api/integrations/google-business/select-location", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          accountName: gmbAccountName,
-          locationName: gmbLocationName,
-          locationTitle: picked?.title || null,
-        }),
-      });
-      const js = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(js?.error || "Impossible d’enregistrer l’établissement");
-
-      setGmbConfigured(true);
-      setGmbConnected(true);
-      setGmbLocationLabel(String(picked?.title || ""));
-      if (js?.url) setGmbUrl(String(js.url));
-      patchChannelConnectionLocally("gmb", {
-        connected: true,
-        accountConnected: true,
-        configured: true,
-        resourceId: gmbLocationName || null,
-        resourceLabel: picked?.title || null,
-        resourceUrl: js?.url ? String(js.url) : null,
-      });
-      triggerChannelRefresh("gmb");
-      setPanelSuccess("Établissement Google Business enregistré.", 1800);
-      return true;
-    } catch (error) {
-      setPanelError(error, "Impossible d'enregistrer l'établissement Google Business.");
-      return false;
-    }
-  }, [gmbAccountName, gmbLocationName, gmbLocations, patchChannelConnectionLocally, triggerChannelRefresh, setPanelError, setPanelSuccess]);
+  const saveGmbLocation = useCallback((selectedLocationName = gmbLocationName) => {
+    if (!gmbAccountName || !selectedLocationName) return Promise.resolve(false);
+    const picked = gmbLocations.find(location => location.name === selectedLocationName);
+    return persistGmbLocation(gmbAccountName, selectedLocationName, picked?.title || null);
+  }, [gmbAccountName, gmbLocationName, gmbLocations, persistGmbLocation]);
 
   return {
     gmbUrl,

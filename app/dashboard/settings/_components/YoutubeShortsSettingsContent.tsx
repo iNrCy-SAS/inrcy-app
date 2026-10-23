@@ -1,18 +1,17 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import Image from "next/image";
+import type { ChannelBubbleRenderer } from "../../_components/channel-bubble.types";
+import { readChannelWorkspaceSnapshot, writeChannelWorkspaceSnapshot } from "../../_components/channel-workspace-snapshot";
 
 
-import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import styles from "../../dashboard.module.css";
 import { createClient } from "@/lib/supabaseClient";
-import ConnectionPill from "../../_components/ConnectionPill";
 import EditableChannelUrlField from "../../_components/EditableChannelUrlField";
-import GoogleOAuthConsentBanner from "../../_components/GoogleOAuthConsentBanner";
 import StatusMessage from "../../_components/StatusMessage";
 import ChannelSettingsStep from "./ChannelSettingsStep";
 import guideStyles from "./ChannelSettingsSteps.module.css";
@@ -183,10 +182,12 @@ function serializeSettings(settings: YoutubeShortsSettings) {
   };
 }
 
-function emitDashboardUpdate(settings: YoutubeShortsSettings) {
+function emitDashboardUpdate(settings: YoutubeShortsSettings, refresh = false) {
   if (typeof window === "undefined") return;
+  writeChannelWorkspaceSnapshot("youtube_shorts", settings);
   window.dispatchEvent(new CustomEvent("inrcy:youtube-shorts-settings-updated", {
     detail: {
+      refresh,
       connected: settings.connected,
       requiresUpdate: settings.requiresUpdate,
       connectionStatus: settings.connectionStatus,
@@ -198,10 +199,12 @@ function emitDashboardUpdate(settings: YoutubeShortsSettings) {
   }));
 }
 
-export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUnsavedChange?: (hasUnsavedChanges: boolean) => void }) {
+export default function YoutubeShortsSettingsContent({ onUnsavedChange, renderBubble }: { renderBubble: ChannelBubbleRenderer; onUnsavedChange?: (hasUnsavedChanges: boolean) => void }) {
   const i18nT = useTranslations("settings");
   const mountedRef = useRef(true);
-  const [settings, setSettings] = useState<YoutubeShortsSettings>(DEFAULT_SETTINGS);
+  const connectionRevisionRef = useRef(0);
+  const disconnectInFlightRef = useRef(false);
+  const [settings, setSettings] = useState<YoutubeShortsSettings>(() => normalizeSettings(readChannelWorkspaceSnapshot("youtube_shorts", DEFAULT_SETTINGS)));
   const settingsBaselineRef = useRef("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -213,6 +216,10 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
   }, []);
 
   const loadSettings = useCallback(async () => {
+    if (disconnectInFlightRef.current) return;
+    const revision = ++connectionRevisionRef.current;
+    const accountId = getActiveBrowserUserId();
+    const isCurrent = () => mountedRef.current && revision === connectionRevisionRef.current && accountId === getActiveBrowserUserId();
     setLoading(true);
     setError(null);
 
@@ -222,17 +229,17 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
       if (!res.ok || json?.ok === false) throw new Error(String(json?.error || "status_failed"));
 
       const nextSettings = normalizeSettings(json?.youtube_shorts);
-      if (!mountedRef.current) return;
+      if (!isCurrent()) return;
       setSettings(nextSettings);
       settingsBaselineRef.current = JSON.stringify(nextSettings);
       emitDashboardUpdate(nextSettings);
     } catch (err) {
       console.warn("[youtube-shorts-settings] status failed", err);
-      if (mountedRef.current) {
+      if (isCurrent()) {
         setError(i18nT("chargement_de_la_connexion_youtube_impossible_c09a1176"));
       }
     } finally {
-      if (mountedRef.current) setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, []);
 
@@ -240,6 +247,7 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      connectionRevisionRef.current++;
     };
   }, []);
 
@@ -301,7 +309,7 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
       setSettings(nextSettings);
       settingsBaselineRef.current = JSON.stringify(nextSettings);
       onUnsavedChange?.(false);
-      emitDashboardUpdate(nextSettings);
+      emitDashboardUpdate(nextSettings, true);
       setNotice(i18nT("reglages_youtube_enregistres_f74dc0ab"));
     } catch (err) {
       console.warn("[youtube-shorts-settings] save failed", err);
@@ -319,6 +327,10 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
   }, []);
 
   const disconnectYoutube = useCallback(async () => {
+    if (disconnectInFlightRef.current) return false;
+    disconnectInFlightRef.current = true;
+    connectionRevisionRef.current++;
+    const accountId = getActiveBrowserUserId();
     setSaving(true);
     setNotice(null);
     setError(null);
@@ -328,11 +340,12 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json?.ok === false) throw new Error(String(json?.error || "disconnect_failed"));
       const nextSettings = normalizeSettings(json?.youtube_shorts);
+      if (accountId !== getActiveBrowserUserId()) return;
+      emitDashboardUpdate(nextSettings, true);
       if (!mountedRef.current) return;
       setSettings(nextSettings);
       settingsBaselineRef.current = JSON.stringify(nextSettings);
       onUnsavedChange?.(false);
-      emitDashboardUpdate(nextSettings);
       setNotice(i18nT("chaine_youtube_deconnectee_2b548afe"));
     } catch (err) {
       console.warn("[youtube-shorts-settings] disconnect failed", err);
@@ -340,102 +353,46 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
         setError(i18nT("deconnexion_youtube_impossible_76706752"));
       }
     } finally {
-      if (mountedRef.current) setSaving(false);
+      disconnectInFlightRef.current = false;
+      if (mountedRef.current) { setSaving(false); setLoading(false); }
     }
   }, []);
 
 
 
   const connected = Boolean(settings.connected && !settings.requiresUpdate);
-  const statusLabel = settings.requiresUpdate ? "À reconnecter" : connected ? "Connecté" : "À connecter";
 
-  return (
+  const publicLinks = (
+    <EditableChannelUrlField
+      editorOnly
+      id="youtube-channel-url"
+      channel="youtube_shorts"
+      value={settings.channelUrl}
+      onSaved={(url) => {
+        const nextSettings = { ...settings, channelUrl: url };
+        try {
+          const savedBaseline = JSON.parse(settingsBaselineRef.current) as YoutubeShortsSettings;
+          settingsBaselineRef.current = JSON.stringify({ ...savedBaseline, channelUrl: url });
+        } catch {
+          // Keep the existing baseline fail-closed: unrelated settings
+          // must never be considered saved by a URL-only mutation.
+        }
+        setSettings(nextSettings);
+        emitDashboardUpdate(nextSettings, true);
+      }}
+      onDirtyChange={setChannelUrlDraftDirty}
+      ariaLabel={i18nT("lien_de_la_chaine_815204fe")}
+      placeholder="https://www.youtube.com/@monentreprise"
+      viewLabel={i18nT("voir_la_chaine_3c999e92")}
+      disabled={!connected || saving || loading}
+      inputClassName={guideStyles.control}
+      inputStyle={inputStyle}
+    />
+  );
+
+  const parameters = (
     <div className={guideStyles.steps}>
       <ChannelSettingsStep
-        step={1}
-        accent="youtube"
-        title={i18nT("compte_youtube_dad8e6eb")}
-        description={i18nT("le_professionnel_autorise_inrcy_a_publier_70c0c2bc")}
-        status={<ConnectionPill connected={connected} />}
-      >
-        <div className={guideStyles.compactActionLine}>
-          <div className={guideStyles.accountSurface}>
-            <Image
-              className={guideStyles.channelIcon}
-              src="/icons/youtube-shorts.png"
-              width={46}
-              height={46}
-              alt=""
-              aria-hidden="true"
-            />
-            <div className={guideStyles.accountCopy}>
-              <strong>
-                {connected
-                  ? settings.channelName || settings.channelHandle || "Chaîne YouTube connectée"
-                  : "Aucune chaîne connectée"}
-              </strong>
-              <span>
-                {i18nT("statut_b20e7fc2")} <b>{statusLabel}</b>
-                {connected
-                  ? ` · ${settings.accountEmail || i18nT("compte_google_connecte_38f3b9c6")}`
-                  : ""}
-              </span>
-            </div>
-          </div>
-
-          <div className={`${guideStyles.actionRow} ${guideStyles.accountActions}`}>
-            <GoogleOAuthConsentBanner panel="youtube_shorts" variant="inline" />
-            {!connected ? (
-              <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={connectYoutube} disabled={saving || loading}>
-                {saving ? i18nT("connexion_7adf849f") : i18nT("connecter_youtube_b64d7544")}
-              </button>
-            ) : (
-              <>
-                <button type="button" className={`${styles.actionBtn} ${styles.secondaryBtn}`} onClick={connectYoutube} disabled={saving || loading}>
-                  {i18nT("reconnecter_youtube_c66fd70d")}{" "}</button>
-                <button type="button" className={`${styles.actionBtn} ${styles.disconnectBtn}`} onClick={() => void disconnectYoutube()} disabled={saving || loading}>
-                  {saving ? i18nT("deconnexion_f5a5666d") : i18nT("deconnecter_9c1ef392")}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className={guideStyles.inlineSection}>
-          <label className={guideStyles.fieldLabel} htmlFor="youtube-channel-url">
-            {i18nT("lien_de_la_chaine_815204fe")}
-          </label>
-          <div className={guideStyles.actionRow}>
-            <EditableChannelUrlField
-              id="youtube-channel-url"
-              channel="youtube_shorts"
-              value={settings.channelUrl}
-              onSaved={(url) => {
-                const nextSettings = { ...settings, channelUrl: url };
-                try {
-                  const savedBaseline = JSON.parse(settingsBaselineRef.current) as YoutubeShortsSettings;
-                  settingsBaselineRef.current = JSON.stringify({ ...savedBaseline, channelUrl: url });
-                } catch {
-                  // Keep the existing baseline fail-closed: unrelated settings
-                  // must never be considered saved by a URL-only mutation.
-                }
-                setSettings(nextSettings);
-                emitDashboardUpdate(nextSettings);
-              }}
-              onDirtyChange={setChannelUrlDraftDirty}
-              ariaLabel={i18nT("lien_de_la_chaine_815204fe")}
-              placeholder="https://www.youtube.com/@monentreprise"
-              viewLabel={i18nT("voir_la_chaine_3c999e92")}
-              disabled={!connected || saving || loading}
-              inputClassName={guideStyles.control}
-              inputStyle={inputStyle}
-            />
-          </div>
-        </div>
-      </ChannelSettingsStep>
-
-      <ChannelSettingsStep
-        step={2}
         accent="youtube"
         title={i18nT("reglages_youtube_par_defaut_1426d0d1")}
         description={i18nT("ces_preferences_serviront_dans_booster_pour_2d5a6e2f")}
@@ -467,4 +424,19 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
       {error ? <StatusMessage variant="error">{error}</StatusMessage> : null}
     </div>
   );
+
+  return renderBubble({
+    accountConnected: settings.accountConnected,
+    accountLabel: settings.accountEmail || undefined,
+    resourceLabel: settings.channelName || settings.channelHandle || settings.accountEmail,
+    onConnect: connectYoutube,
+    onDisconnect: disconnectYoutube,
+    loading,
+    busy: saving,
+    error,
+    notice,
+    publicLinks,
+    parameters,
+    parametersOwnHeading: true,
+  });
 }

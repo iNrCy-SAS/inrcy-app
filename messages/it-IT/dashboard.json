@@ -375,7 +375,7 @@
     },
     "threads": {
       "name": "Threads",
-      "description": "Dialoga con la tua comunità",
+      "description": "Dialoga con la tua comunità 💬",
       "view": "Vedi account",
       "connect": "Collega Instagram"
     }
@@ -762,5 +762,54 @@
     "studioLine1": "Crea, modifica e ritocca",
     "studioLine2": "i tuoi contenuti.",
     "studioCta": "Studio multimediale"
+  },
+  "channelBubble": {
+    "parameters": "Impostazioni",
+    "close": "Chiudi",
+    "failed": "Impossibile aggiornare la connessione.",
+    "view": "Visualizza pagina",
+    "connect": "Connetti",
+    "reconnect": "Riconnetti",
+    "selected": "Pagina selezionata",
+    "account": "Account collegato",
+    "loading": "Caricamento…",
+    "choose": "Scegli una pagina",
+    "notConnected": "Nessun account connesso",
+    "disconnect": "Disconnetti",
+    "create": "Crea un account",
+    "selectedPage": "Pagina selezionata",
+    "selectedAccount": "Account selezionato",
+    "selectedBoard": "Bacheca selezionata",
+    "selectedMailbox": "Casella selezionata",
+    "publicationTypes": "Tipi di pubblicazione",
+    "addMailbox": "Aggiungi una casella email",
+    "connectedAccount": "Account collegato",
+    "createBoard": "Crea una bacheca",
+    "boardName": "Nome della nuova bacheca",
+    "createBoardFailed": "Impossibile creare la bacheca.",
+    "chooseBoard": "Scegli una bacheca",
+    "choosePage": "Scegli una pagina",
+    "chooseAccount": "Scegli un account",
+    "chooseMailbox": "Scegli una casella email",
+    "refreshChoices": "Aggiorna elenco",
+    "publicLink": "Link pubblico",
+    "mailboxSlot": "Casella {number}",
+    "mailboxes": "Le mie caselle email",
+    "editPublicLink": "Modifica link pubblico",
+    "viewShort": "Visualizza",
+    "formatsShort": "Formati",
+    "linkShort": "Link",
+    "settingsShort": "Opzioni",
+    "signatureShort": "Firma",
+    "boardsShort": "Bacheche",
+    "widget": "Widget",
+    "connectedShort": "Connesso",
+    "saveSiteFirst": "Salva il link del sito prima di collegare GA4 o GSC."
+  },
+  "channelHelp": {
+    "inrSearch": "Crea la sua pagina pubblica iNrCy dal profilo e dai post. Scelga se mostrarla nella directory iNrCy.",
+    "threads": "Condivida novità e dialoghi con la sua community. Scelga i formati di pubblicazione disponibili e quello predefinito.",
+    "pinterest": "Pubblica le sue immagini nelle bacheche del suo account. Scelga una bacheca o ne crei una nuova dalla bolla.",
+    "x": "Condivide novità e post sul suo account X per mantenere attiva la sua presenza."
   }
 }

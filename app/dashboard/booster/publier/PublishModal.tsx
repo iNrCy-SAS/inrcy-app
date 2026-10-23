@@ -11,7 +11,8 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
 import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
-import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { subscribeToChannelConnectionUpdates } from "@/lib/channelConnectionUpdates";
 import { createClient } from "@/lib/supabaseClient";
 import { prewarmBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 import { buildBoosterGenerationRequest } from "@/lib/boosterGenerationTransportClient";
@@ -1409,17 +1410,19 @@ export default function PublishModal({
     };
     const refreshConnectedChannels = async () => {
       const requestSeq = ++connectedChannelsRequestSeq;
+      const accountScope = getActiveBrowserUserId();
+      const isCurrent = () => alive && requestSeq === connectedChannelsRequestSeq && accountScope === getActiveBrowserUserId();
       try {
         const res = await fetch("/api/booster/connected-channels", {
           cache: "no-store" as any,
         });
-        if (!alive || requestSeq !== connectedChannelsRequestSeq) return;
+        if (!isCurrent()) return;
         if (!res.ok) {
           failClosedConnectedChannels();
           return;
         }
         const json = await res.json();
-        if (!alive || requestSeq !== connectedChannelsRequestSeq) return;
+        if (!isCurrent()) return;
         if (json?.channels && typeof json.channels === "object") {
           const nextConnected = CHANNEL_KEYS.reduce(
             (result, key) => {
@@ -1447,7 +1450,7 @@ export default function PublishModal({
                 return pinterestResponse.json().catch(() => null);
               })
               .then((pinterestStatus) => {
-                if (!alive || !pinterestStatus?.ok || !pinterestStatus?.connected)
+                if (!isCurrent() || !pinterestStatus?.ok || !pinterestStatus?.connected)
                   return;
                 const username = String(pinterestStatus.username || "")
                   .replace(/^@+/, "")
@@ -1484,7 +1487,7 @@ export default function PublishModal({
                 return tiktokResponse.json().catch(() => null);
               })
               .then((tiktokStatus) => {
-                if (!alive || !tiktokStatus?.ok || !tiktokStatus?.tiktok?.connected)
+                if (!isCurrent() || !tiktokStatus?.ok || !tiktokStatus?.tiktok?.connected)
                   return;
                 const username = String(tiktokStatus.tiktok.username || "")
                   .replace(/^@+/, "")
@@ -1511,19 +1514,21 @@ export default function PublishModal({
           failClosedConnectedChannels();
         }
       } catch {
-        if (!alive || requestSeq !== connectedChannelsRequestSeq) return;
+        if (!isCurrent()) return;
         failClosedConnectedChannels();
       }
     };
     void refreshConnectedChannels();
     const intervalId = window.setInterval(refreshConnectedChannels, 60_000);
     const onFocus = () => void refreshConnectedChannels();
+    const unsubscribeConnectionUpdates = subscribeToChannelConnectionUpdates(onFocus);
     window.addEventListener("focus", onFocus);
     return () => {
       alive = false;
       connectedChannelsRequestSeq += 1;
       window.clearInterval(intervalId);
       window.removeEventListener("focus", onFocus);
+      unsubscribeConnectionUpdates();
     };
   }, [applyConnectedChannels]);
 

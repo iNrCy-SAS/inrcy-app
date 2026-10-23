@@ -124,7 +124,7 @@ test("Dashboard and iNrStats continuously reconcile canonical state without stal
   assert.match(dashboard, /accountScope !== getActiveBrowserUserId\(\)/);
   assert.match(dashboard, /window\.setInterval\(refreshCanonicalState, 30_000\)/);
   assert.match(dashboard, /mergeCachedDashboardChannelState\(officialState\)/);
-  assert.match(dashboard, /if \(Object\.keys\(cachePatch\)\.length\) mergeCachedDashboardChannelState\(cachePatch\)/);
+  assert.match(dashboard, /if \(Object\.keys\(cachePatch\)\.length\) \{[\s\S]*?mergeCachedDashboardChannelState\(cachePatch\)/);
   assert.match(dashboard, /resetAccountScopedDashboardState\(\)[\s\S]*void loadSiteWebSettings\(\)/);
 
   assert.match(statsHooks, /channelStatesRequestSeq/);

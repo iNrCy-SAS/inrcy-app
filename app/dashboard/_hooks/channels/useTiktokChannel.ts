@@ -3,11 +3,12 @@
 import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
 
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import {
   readAccountCacheValue,
   writeAccountCacheValue,
+  getActiveBrowserUserId,
 } from "@/lib/browserAccountCache";
 
 import type { DashboardChannelKey } from "@/lib/dashboardChannels";
@@ -101,6 +102,14 @@ async function readJson(res: Response) {
 }
 
 export function useTiktokChannel({ initialState, panel, patchChannelConnectionLocally, triggerChannelRefresh }: UseTiktokChannelArgs) {
+  const statusSequenceRef = useRef(0);
+  const statusRequestRef = useRef<Promise<void> | null>(null);
+  const mutationRef = useRef<{ accountId: string | null } | null>(null);
+  useEffect(() => () => {
+    statusSequenceRef.current += 1;
+    statusRequestRef.current = null;
+    mutationRef.current = null;
+  }, []);
   const [cachedTiktokState] = useState<CachedTiktokState>(() => {
     const cached = readCachedTiktokState();
     return {
@@ -196,6 +205,13 @@ export function useTiktokChannel({ initialState, panel, patchChannelConnectionLo
   // connexion pour éviter le flash "à connecter" sans réinitialiser les
   // réglages TikTok ni lancer un refresh statistiques coûteux.
   const applyTiktokConnectionState = useCallback((payload: unknown) => {
+    // A canonical refresh supersedes an older detail request. During a local
+    // write, only the write's confirmed response may change this connection.
+    if (mutationRef.current && mutationRef.current.accountId === getActiveBrowserUserId()) return;
+    mutationRef.current = null;
+    statusSequenceRef.current += 1;
+    statusRequestRef.current = null;
+    setTiktokLoading(false);
     const source = payload && typeof payload === "object" && !Array.isArray(payload)
       ? payload as Record<string, unknown>
       : {};
@@ -226,16 +242,27 @@ export function useTiktokChannel({ initialState, panel, patchChannelConnectionLo
     }, { clearData: false, clearError: true });
   }, [patchChannelConnectionLocally]);
 
-  const loadTiktokStatus = useCallback(async () => {
+  const loadTiktokStatus = useCallback(() => {
+    if (mutationRef.current && mutationRef.current.accountId === getActiveBrowserUserId()) return Promise.resolve();
+    if (statusRequestRef.current) return statusRequestRef.current;
+    const sequence = ++statusSequenceRef.current;
+    const accountId = getActiveBrowserUserId();
+    const isCurrent = () => sequence === statusSequenceRef.current && accountId === getActiveBrowserUserId();
     setTiktokLoading(true);
-    try {
-      const json = await readJson(await fetch("/api/integrations/tiktok/status", { credentials: "include" }));
-      applyTiktok(json.tiktok);
-    } catch (error) {
-      setTiktokSettingsError(getClientUserFacingErrorMessage(error, "Impossible de charger TikTok."));
-    } finally {
-      setTiktokLoading(false);
-    }
+    const task = (async () => {
+      try {
+        const json = await readJson(await fetch("/api/integrations/tiktok/status", { credentials: "include", cache: "no-store" }));
+        if (!isCurrent()) return;
+        applyTiktok(json.tiktok, { refresh: false });
+      } catch (error) {
+        if (isCurrent()) setTiktokSettingsError(getClientUserFacingErrorMessage(error, "Impossible de charger TikTok."));
+      } finally {
+        if (isCurrent()) setTiktokLoading(false);
+      }
+    })();
+    statusRequestRef.current = task;
+    void task.finally(() => { if (statusRequestRef.current === task) statusRequestRef.current = null; });
+    return task;
   }, [applyTiktok]);
 
   useEffect(() => {
@@ -256,24 +283,38 @@ export function useTiktokChannel({ initialState, panel, patchChannelConnectionLo
   }, []);
 
   const disconnectTiktok = useCallback(async () => {
+    if (mutationRef.current && mutationRef.current.accountId === getActiveBrowserUserId()) return;
+    const mutation = { accountId: getActiveBrowserUserId() };
+    mutationRef.current = mutation;
+    statusSequenceRef.current += 1;
+    statusRequestRef.current = null;
+    const isCurrent = () => mutationRef.current === mutation && mutation.accountId === getActiveBrowserUserId();
     setTiktokLoading(true);
     try {
       const json = await readJson(await fetch("/api/integrations/tiktok/disconnect-account", {
         method: "POST",
         credentials: "include",
       }));
+      if (!isCurrent()) return;
       applyTiktok(json.tiktok);
       setTiktokProfileUrlNotice("Compte TikTok déconnecté.");
       setTiktokProfileUrlError(null);
       setTiktokSettingsError(null);
     } catch (error) {
-      setTiktokProfileUrlError(getClientUserFacingErrorMessage(error, "Déconnexion TikTok impossible."));
+      if (isCurrent()) setTiktokProfileUrlError(getClientUserFacingErrorMessage(error, "Déconnexion TikTok impossible."));
     } finally {
-      setTiktokLoading(false);
+      if (isCurrent()) setTiktokLoading(false);
+      if (mutationRef.current === mutation) mutationRef.current = null;
     }
   }, [applyTiktok]);
 
   const saveTiktokProfileUrl = useCallback(async () => {
+    if (mutationRef.current && mutationRef.current.accountId === getActiveBrowserUserId()) return;
+    const mutation = { accountId: getActiveBrowserUserId() };
+    mutationRef.current = mutation;
+    statusSequenceRef.current += 1;
+    statusRequestRef.current = null;
+    const isCurrent = () => mutationRef.current === mutation && mutation.accountId === getActiveBrowserUserId();
     setTiktokLoading(true);
     try {
       const json = await readJson(await fetch("/api/integrations/tiktok/settings", {
@@ -282,18 +323,27 @@ export function useTiktokChannel({ initialState, panel, patchChannelConnectionLo
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profileUrl: tiktokProfileUrl }),
       }));
+      if (!isCurrent()) return;
       applyTiktok(json.tiktok);
       setTiktokProfileUrlNotice("Lien TikTok enregistré.");
       setTiktokProfileUrlError(null);
     } catch (error) {
+      if (!isCurrent()) return;
       setTiktokProfileUrlError(getClientUserFacingErrorMessage(error, "Lien TikTok invalide."));
       setTiktokProfileUrlNotice(null);
     } finally {
-      setTiktokLoading(false);
+      if (isCurrent()) setTiktokLoading(false);
+      if (mutationRef.current === mutation) mutationRef.current = null;
     }
   }, [applyTiktok, tiktokProfileUrl]);
 
   const saveTiktokDefaults = useCallback(async () => {
+    if (mutationRef.current && mutationRef.current.accountId === getActiveBrowserUserId()) return;
+    const mutation = { accountId: getActiveBrowserUserId() };
+    mutationRef.current = mutation;
+    statusSequenceRef.current += 1;
+    statusRequestRef.current = null;
+    const isCurrent = () => mutationRef.current === mutation && mutation.accountId === getActiveBrowserUserId();
     setTiktokLoading(true);
     try {
       const json = await readJson(await fetch("/api/integrations/tiktok/settings", {
@@ -312,14 +362,17 @@ export function useTiktokChannel({ initialState, panel, patchChannelConnectionLo
           },
         }),
       }));
+      if (!isCurrent()) return;
       applyTiktok(json.tiktok);
       setTiktokSettingsNotice("Réglages TikTok enregistrés.");
       setTiktokSettingsError(null);
     } catch (error) {
+      if (!isCurrent()) return;
       setTiktokSettingsError(getClientUserFacingErrorMessage(error, "Réglages TikTok impossibles à enregistrer."));
       setTiktokSettingsNotice(null);
     } finally {
-      setTiktokLoading(false);
+      if (isCurrent()) setTiktokLoading(false);
+      if (mutationRef.current === mutation) mutationRef.current = null;
     }
   }, [applyTiktok, tiktokAiContent, tiktokAllowComments, tiktokAllowDuo, tiktokAllowStitch, tiktokCommercialContent, tiktokPhotoAutoMusic, tiktokPreferredMedia]);
 

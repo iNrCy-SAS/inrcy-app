@@ -68,7 +68,7 @@
 
 .stepHeader {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
   padding: clamp(12px, 1.2vw, 16px);
@@ -98,6 +98,10 @@
   font-weight: 900;
   letter-spacing: 0.08em;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.stepHeader:has(.stepNumber) {
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 .stepCopy {
@@ -366,10 +370,14 @@
 
 .compactSettings {
   display: grid;
-  grid-template-columns: minmax(200px, 0.7fr) minmax(380px, 1.5fr) auto;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr);
   gap: 10px;
   align-items: end;
 }
+
+.compactSettings > .actionRow { grid-column: 1 / -1; justify-content: flex-end; min-width: 0; }
+.compactSettings > * { min-width: 0; }
+.compactSettings button { max-width: 100%; white-space: normal; }
 
 .boardList {
   display: grid;
@@ -390,7 +398,7 @@
   }
 
   .stepHeader {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 11px;
     padding: 15px;
   }
@@ -398,7 +406,7 @@
   .stepStatus {
     grid-column: 1 / -1;
     justify-content: flex-start;
-    padding-left: 55px;
+    padding-left: 0;
   }
 
   .stepBody {
@@ -456,7 +464,7 @@
   }
 
   .compactSettings {
-    grid-template-columns: minmax(200px, 0.8fr) minmax(360px, 1.4fr);
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr);
   }
 
   .compactSettings > .actionRow {

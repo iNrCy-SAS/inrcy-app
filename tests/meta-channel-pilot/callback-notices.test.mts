@@ -26,12 +26,13 @@ function load(relative: string): RecordLike {
   modules.set(file, loaded.exports);
   const localRequire = (id: string): unknown => {
     if (id === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "fragment" };
-    if (id === "react") return { useEffect: () => undefined, useId: () => "callback-test", useRef: (initial: unknown) => ({ current: initial }), useCallback: (fn: unknown) => fn, useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, () => undefined] };
+    if (id === "react") return { useEffect: () => undefined, useId: () => "callback-test", useRef: (initial: unknown) => ({ current: initial }), useCallback: (fn: unknown) => fn, useMemo: (fn: () => unknown) => fn(), useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, () => undefined] };
     if (id === "next/navigation") return { useSearchParams: () => query, useRouter: () => ({ replace: (url: string) => { replacements.push(url); }, push: () => undefined }) };
     if (id === "next-intl") return { useLocale: () => locale, useTranslations: () => (key: string) => (JSON.parse(fs.readFileSync("messages/" + locale + "/shell.json", "utf8")) as Record<string, string>)[key] || key };
     if (id === "next/image") return { __esModule: true, default: "img" };
     if (id.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: pilot }) };
     if (id.endsWith("DashboardUnsavedNavigationProvider")) return { useDashboardUnsavedNavigation: () => ({ requestNavigation: (callback: () => void) => callback() }) };
+    if (id.endsWith("DashboardFluxBubble") || id.endsWith("GoogleOAuthConsentBanner")) return { __esModule: true, default: "channel-component" };
     if (id.endsWith(".css")) return {};
     if (id === "server-only") return {};
     if (!id.startsWith(".") && !id.startsWith("@/")) return require(id);
@@ -45,9 +46,12 @@ function load(relative: string): RecordLike {
   return loaded.exports;
 }
 const getNotice = load("app/dashboard/_hooks/channels/metaOAuthCallbackNotice.ts").getMetaOAuthCallbackNotice as (params: URLSearchParams, provider: string, language: string, fallback: string) => string | null;
-const InstagramPanel = load("app/dashboard/_components/InstagramPanel.tsx").default as (props: RecordLike) => RenderNode;
-const ThreadsPanel = load("app/dashboard/_components/ThreadsPanel.tsx").default as (props: RecordLike) => RenderNode | null;
+const ChannelsModal = load("app/dashboard/_components/DashboardChannelsModal.tsx").default as (props: RecordLike) => RenderNode;
+const ThreadsSettings = load("app/dashboard/_components/ThreadsPublicationSettings.tsx").default as (props: RecordLike) => RenderNode | null;
 const Notice = load("app/dashboard/_components/MetaOAuthCallbackNotice.tsx").default as (props: RecordLike) => RenderNode | null;
+function scene(provider: string, connection: RecordLike) {
+  return ChannelsModal({ items: [{ key: provider, name: provider, bubbleStatus: connection.connected ? "connected" : "available", bubbleStatusText: connection.connected ? "Connecté" : "À connecter", connection, onConfigure() {} }], initialSelectedKey: provider, onClose() {} });
+}
 function nodes(value: unknown): RenderNode[] {
   if (Array.isArray(value)) return value.flatMap(nodes);
   if (!value || typeof value !== "object") return [];
@@ -66,15 +70,15 @@ function alerts(value: unknown): string[] {
 }
 const instagramFailure = "La connexion Instagram n’a pas pu être finalisée. Réessayez.";
 const threadsFailure = "La connexion Threads n’a pas pu être finalisée. Réessayez.";
-const instagramProps = { instagramAuthMode: "facebook_login", instagramConnected: false, instagramAccountConnected: false, instagramConnectionStatus: "disconnected", instagramUsername: "", igAccounts: [] };
+const instagramConnection = { connected: false, accountConnected: false, instagramAuthMode: "facebook_login" };
 const threadsConnection = { connected: false, requiresUpdate: false, connectionStatus: "disconnected", username: "", profileUrl: "" };
 
 test("Instagram direct callback failures are visible while the account and Facebook profile step are disconnected", () => {
   pilot = true; locale = "fr-FR";
   query = new URLSearchParams({ panel: "instagram", linked: "instagram", ok: "0", ig_login: "direct", error: "meta_save_rpc_failed", message: "save_meta_direct_connection RPC failed" });
-  const before = structuredClone(instagramProps);
-  assert.deepEqual(alerts(InstagramPanel(instagramProps)), [instagramFailure]);
-  assert.deepEqual(instagramProps, before, "feedback never changes account or profile state");
+  const before = structuredClone(instagramConnection);
+  assert.deepEqual(alerts(scene("instagram", instagramConnection)), [instagramFailure]);
+  assert.deepEqual(instagramConnection, before, "feedback never changes account or profile state");
 });
 
 test("Threads callback failure remains visible during and after an independent status check", () => {
@@ -89,15 +93,15 @@ test("Threads callback failure remains visible during and after an independent s
     updatePublicationPreferences() {}, savePublicationPreferences() {}, loadPublicationPreferences() {},
   };
   const before = structuredClone(channel.connection);
-  assert.deepEqual(alerts(ThreadsPanel({ channel })), [threadsFailure]);
+  assert.deepEqual(alerts(scene("threads", { ...channel.connection, loading: channel.loading })), [threadsFailure]);
   channel.loading = false;
-  assert.deepEqual(alerts(ThreadsPanel({ channel })), [threadsFailure]);
+  assert.deepEqual(alerts(scene("threads", { ...channel.connection, loading: channel.loading })), [threadsFailure]);
   channel.preferencesLoading = false;
   channel.publicationPreferences = DEFAULT_THREADS_PUBLICATION_PREFERENCES;
-  assert.deepEqual(alerts(ThreadsPanel({ channel })), [threadsFailure], "a successful formats check cannot clear OAuth feedback");
+  assert.deepEqual(alerts([scene("threads", channel.connection), ThreadsSettings({ channel })]), [threadsFailure], "a successful formats check cannot clear OAuth feedback");
   channel.publicationPreferences = CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES;
   channel.preferencesError = "Impossible de charger les formats Threads. Ghost reste indisponible.";
-  assert.deepEqual(alerts(ThreadsPanel({ channel })), [threadsFailure, channel.preferencesError], "the formats error is separate from the persistent OAuth error");
+  assert.deepEqual(alerts([scene("threads", channel.connection), ThreadsSettings({ channel })]), [threadsFailure, channel.preferencesError], "the formats error is separate from the persistent OAuth error");
   assert.deepEqual(channel.connection, before);
 });
 
@@ -142,11 +146,11 @@ test("direct-provider callback feedback stays hidden after pilot access is remov
     query = new URLSearchParams({ panel: provider, linked: provider, ok: "0", ig_login: "direct", message: "Meta request failed" });
     assert.equal(Notice({ provider }), null);
   }
-  assert.equal(ThreadsPanel({ channel: { connection: threadsConnection } }), null);
+  assert.equal(ThreadsSettings({ channel: { connection: threadsConnection } }), null);
   pilot = true;
 });
 
-test("closing the drawer removes callback failure and direct-login markers while preserving unrelated URL settings", () => {
+test("closing channel bubbles removes callback failure and direct-login markers while preserving unrelated URL settings", () => {
   pilot = true;
   query = new URLSearchParams({ panel: "instagram", linked: "instagram", ok: "0", ig_login: "direct", error: "meta_save_rpc_failed", message: "Meta request failed", lang: "fr" });
   replacements.length = 0;

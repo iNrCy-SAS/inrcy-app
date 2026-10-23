@@ -375,7 +375,7 @@
     },
     "threads": {
       "name": "Threads",
-      "description": "พูดคุยกับชุมชนของคุณ",
+      "description": "พูดคุยกับชุมชนของคุณ 💬",
       "view": "ดูบัญชี",
       "connect": "เชื่อมต่อ Instagram"
     }
@@ -762,5 +762,54 @@
     "studioLine1": "สร้าง แก้ไข และตกแต่ง",
     "studioLine2": "สื่อของคุณ",
     "studioCta": "สตูดิโอสื่อ"
+  },
+  "channelBubble": {
+    "parameters": "การตั้งค่า",
+    "close": "ปิด",
+    "failed": "ไม่สามารถอัปเดตการเชื่อมต่อได้",
+    "view": "ดูหน้า",
+    "connect": "เชื่อมต่อ",
+    "reconnect": "เชื่อมต่อใหม่",
+    "selected": "หน้าที่เลือก",
+    "account": "บัญชีที่เชื่อมโยง",
+    "loading": "กำลังโหลด…",
+    "choose": "เลือกหน้า",
+    "notConnected": "ยังไม่ได้เชื่อมต่อบัญชี",
+    "disconnect": "ยกเลิกการเชื่อมต่อ",
+    "create": "สร้างบัญชี",
+    "selectedPage": "เพจที่เลือก",
+    "selectedAccount": "บัญชีที่เลือก",
+    "selectedBoard": "บอร์ดที่เลือก",
+    "selectedMailbox": "กล่องจดหมายที่เลือก",
+    "publicationTypes": "ประเภทการเผยแพร่",
+    "addMailbox": "เพิ่มกล่องจดหมาย",
+    "connectedAccount": "บัญชีที่เชื่อมต่อ",
+    "createBoard": "สร้างบอร์ด",
+    "boardName": "ชื่อบอร์ดใหม่",
+    "createBoardFailed": "ไม่สามารถสร้างบอร์ดได้",
+    "chooseBoard": "เลือกบอร์ด",
+    "choosePage": "เลือกเพจ",
+    "chooseAccount": "เลือกบัญชี",
+    "chooseMailbox": "เลือกกล่องจดหมาย",
+    "refreshChoices": "รีเฟรชรายการ",
+    "publicLink": "ลิงก์สาธารณะ",
+    "mailboxSlot": "กล่องจดหมาย {number}",
+    "mailboxes": "กล่องจดหมายของฉัน",
+    "editPublicLink": "แก้ไขลิงก์สาธารณะ",
+    "viewShort": "ดู",
+    "formatsShort": "รูปแบบ",
+    "linkShort": "ลิงก์",
+    "settingsShort": "ตั้งค่า",
+    "signatureShort": "ลายเซ็น",
+    "boardsShort": "บอร์ด",
+    "widget": "วิดเจ็ต",
+    "connectedShort": "เชื่อมต่อแล้ว",
+    "saveSiteFirst": "บันทึกลิงก์เว็บไซต์ก่อนเชื่อมต่อ GA4 หรือ GSC"
+  },
+  "channelHelp": {
+    "inrSearch": "สร้างหน้า iNrCy สาธารณะจากโปรไฟล์และโพสต์ของคุณ เลือกได้ว่าจะแสดงในไดเรกทอรี iNrCy หรือไม่",
+    "threads": "แชร์ข่าวสารและพูดคุยกับชุมชนของคุณ เลือกรูปแบบโพสต์ที่ใช้ได้และรูปแบบเริ่มต้น",
+    "pinterest": "เผยแพร่ภาพไปยังบอร์ดในบัญชีของคุณ เลือกบอร์ดหรือสร้างบอร์ดใหม่จากบับเบิล",
+    "x": "แชร์ข่าวสารและโพสต์บนบัญชี X เพื่อให้ตัวตนออนไลน์ของคุณเคลื่อนไหวอยู่เสมอ"
   }
 }

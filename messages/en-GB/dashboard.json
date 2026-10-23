@@ -375,7 +375,7 @@
     },
     "threads": {
       "name": "Threads",
-      "description": "Connect with your community",
+      "description": "Connect with your community 💬",
       "view": "View account",
       "connect": "Link Instagram"
     }
@@ -762,5 +762,54 @@
     "studioLine1": "Create, edit and retouch",
     "studioLine2": "your media.",
     "studioCta": "Media Studio"
+  },
+  "channelBubble": {
+    "parameters": "Settings",
+    "close": "Close",
+    "failed": "The connection could not be updated.",
+    "view": "View page",
+    "connect": "Connect",
+    "reconnect": "Reconnect",
+    "selected": "Selected page",
+    "account": "Linked account",
+    "loading": "Loading…",
+    "choose": "Choose a page",
+    "notConnected": "No account connected",
+    "disconnect": "Disconnect",
+    "create": "Create an account",
+    "selectedPage": "Selected page",
+    "selectedAccount": "Selected account",
+    "selectedBoard": "Selected board",
+    "selectedMailbox": "Selected mailbox",
+    "publicationTypes": "Publication types",
+    "addMailbox": "Add a mailbox",
+    "connectedAccount": "Connected account",
+    "createBoard": "Create a board",
+    "boardName": "New board name",
+    "createBoardFailed": "The board could not be created.",
+    "chooseBoard": "Choose a board",
+    "choosePage": "Choose a page",
+    "chooseAccount": "Choose an account",
+    "chooseMailbox": "Choose a mailbox",
+    "refreshChoices": "Refresh the list",
+    "publicLink": "Public link",
+    "mailboxSlot": "Mailbox {number}",
+    "mailboxes": "My mailboxes",
+    "editPublicLink": "Edit public link",
+    "viewShort": "View",
+    "formatsShort": "Formats",
+    "linkShort": "Link",
+    "settingsShort": "Settings",
+    "signatureShort": "Signature",
+    "boardsShort": "Boards",
+    "widget": "Widget",
+    "connectedShort": "Connected",
+    "saveSiteFirst": "Save the website link before connecting GA4 or GSC."
+  },
+  "channelHelp": {
+    "inrSearch": "Creates your public iNrCy page from your profile and posts. Choose whether it appears in the iNrCy directory.",
+    "threads": "Share news and talk with your community. Choose the available post formats and the default format.",
+    "pinterest": "Publishes your visuals to your account’s boards. Select a board or create a new one from the bubble.",
+    "x": "Shares your news and posts on your X account to keep your presence active."
   }
 }

@@ -25,7 +25,10 @@ const motion = read("lib/instagramImageMotionVideo.ts");
 const preferencesRoute = read(
   "app/api/integrations/instagram/publication-preferences/route.ts",
 );
-const instagramPanel = read("app/dashboard/_components/InstagramPanel.tsx");
+const channelWorkspace = read("app/dashboard/_components/DashboardChannelWorkspace.tsx");
+const channelBubble = read("app/dashboard/_components/DashboardFluxBubble.tsx");
+const publicationTypes = read("app/dashboard/_components/ChannelPublicationTypes.tsx");
+const instagramHook = read("app/dashboard/_hooks/channels/useInstagramChannel.ts");
 const dashboardClient = read("app/dashboard/DashboardClient.tsx");
 const finalReview = read(
   "app/dashboard/booster/publier/components/PublishFinalReviewModal.tsx",
@@ -99,10 +102,31 @@ test("Classique is always enabled and remains the safe default", () => {
     }),
     "classic",
   );
-  assert.match(instagramPanel, /type="checkbox" checked disabled/);
-  assert.match(instagramPanel, /instagram_default_publication_mode/);
+  assert.match(publicationTypes, /mode: "classic", label: "instagram_classic_mode", checked: true/);
+  assert.match(publicationTypes, /type="checkbox" checked=\{option\.checked\} disabled=\{busy \|\| option\.mode === "classic"\}/);
+  assert.match(publicationTypes, /instagram_default_publication_mode/);
   assert.match(modal, /buildMetaPublicationSelection\(/);
   assert.match(foundations, /\["classic", "classique", "normal", "feed"\]/);
+});
+
+test("the Instagram bubble preserves format preferences and their load/save handlers", () => {
+  const instagramBubble = channelWorkspace.slice(
+    channelWorkspace.indexOf('case "instagram":'),
+    channelWorkspace.indexOf('case "linkedin":'),
+  );
+  assert.match(instagramBubble, /publicationTypes: \{ value: ig\.instagramPublicationPreferences/);
+  assert.match(instagramBubble, /onLoad: ig\.loadInstagramPublicationPreferences/);
+  assert.match(instagramBubble, /onChange: ig\.saveInstagramPublicationPreferences/);
+  assert.match(channelBubble, /connection\?\.publicationTypes && hasResource \? <ChannelPublicationTypes name=\{item\.name\} settings=\{connection\.publicationTypes\}/);
+  assert.match(publicationTypes, /then\(settings\.onLoad\)/);
+  assert.match(publicationTypes, /await settings\.onChange\(patch\)/);
+  assert.match(publicationTypes, /checked: settings\.value\.reelsEnabled, key: "reelsEnabled"/);
+  assert.match(publicationTypes, /checked: settings\.value\.storiesEnabled, key: "storiesEnabled"/);
+  assert.match(publicationTypes, /change\(\{ \[option\.key\]: event\.target\.checked \}\)/);
+  assert.match(publicationTypes, /change\(\{ defaultMode: option\.mode \}\)/);
+  assert.match(instagramHook, /const loadInstagramPublicationPreferences = useCallback/);
+  assert.match(instagramHook, /const saveInstagramPublicationPreferences = useCallback/);
+  assert.match(instagramHook, /\/api\/integrations\/instagram\/publication-preferences/);
 });
 
 test("Instagram mode preferences are account-scoped, preserved and atomic", () => {

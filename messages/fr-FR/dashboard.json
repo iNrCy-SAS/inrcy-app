@@ -375,7 +375,7 @@
     },
     "threads": {
       "name": "Threads",
-      "description": "Échangez avec votre communauté",
+      "description": "Échangez avec votre communauté 💬",
       "view": "Voir le compte",
       "connect": "Connecter Instagram"
     }
@@ -762,5 +762,54 @@
     "studioLine1": "Créez, modifiez et retouchez",
     "studioLine2": "vos médias.",
     "studioCta": "Studio Médias"
+  },
+  "channelBubble": {
+    "parameters": "Paramètres",
+    "close": "Fermer",
+    "failed": "La connexion n’a pas pu être mise à jour.",
+    "view": "Voir la page",
+    "connect": "Connecter",
+    "reconnect": "Reconnecter",
+    "selected": "Fiche sélectionnée",
+    "account": "Compte associé",
+    "loading": "Chargement…",
+    "choose": "Choisir une fiche",
+    "notConnected": "Aucun compte connecté",
+    "disconnect": "Déconnecter",
+    "create": "Créer un compte",
+    "selectedPage": "Page sélectionnée",
+    "selectedAccount": "Compte sélectionné",
+    "selectedBoard": "Tableau sélectionné",
+    "selectedMailbox": "Boîte mail sélectionnée",
+    "publicationTypes": "Types de publication",
+    "addMailbox": "Ajouter une boîte mail",
+    "connectedAccount": "Compte connecté",
+    "createBoard": "Créer un tableau",
+    "boardName": "Nom du nouveau tableau",
+    "createBoardFailed": "Le tableau n’a pas pu être créé.",
+    "chooseBoard": "Choisir un tableau",
+    "choosePage": "Choisir une page",
+    "chooseAccount": "Choisir un compte",
+    "chooseMailbox": "Choisir une boîte mail",
+    "refreshChoices": "Actualiser la liste",
+    "publicLink": "Lien public",
+    "mailboxSlot": "Boîte {number}",
+    "mailboxes": "Mes boîtes mails",
+    "editPublicLink": "Modifier le lien public",
+    "viewShort": "Voir",
+    "formatsShort": "Formats",
+    "linkShort": "Lien",
+    "settingsShort": "Réglages",
+    "signatureShort": "Signature",
+    "boardsShort": "Tableaux",
+    "widget": "Widget",
+    "connectedShort": "Connecté",
+    "saveSiteFirst": "Enregistrez le lien avant de connecter GA4 ou GSC."
+  },
+  "channelHelp": {
+    "inrSearch": "Crée votre page publique iNrCy à partir de votre profil et de vos publications. Choisissez aussi sa présence dans l’annuaire iNrCy.",
+    "threads": "Partagez vos actualités et échangez avec votre communauté. Choisissez les formats de publication disponibles et celui proposé par défaut.",
+    "pinterest": "Diffuse vos visuels dans les tableaux de votre compte. Choisissez un tableau ou créez-en un nouveau depuis la bulle.",
+    "x": "Partage vos actualités et vos publications sur votre compte X pour faire vivre votre présence."
   }
 }

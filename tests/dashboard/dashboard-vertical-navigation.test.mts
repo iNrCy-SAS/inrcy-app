@@ -24,13 +24,13 @@ test("le cockpit compact remplace les deux commandes verticales par un hub de ca
   assert.doesNotMatch(channels, /quickNavigation\.goToTop|scrollToDashboardAnchor/);
 
   assert.match(channels, /data-testid="dashboard-channels-hub"/);
-  assert.match(channels, /onClick=\{\(\) => setChannelsOpen\(true\)\}/);
+  assert.match(channels, /onClick=\{onOpenChannels\}/);
   assert.match(channels, /aria-haspopup="dialog"/);
   assert.match(channels, /aria-expanded=\{channelsOpen\}/);
   assert.match(channels, /getChannelTone\(item\) === "connected"/);
   assert.match(channels, /<small>\/\{total\}<\/small>/);
   assert.match(channels, /channelsOpen \? <DashboardChannelsModal items=\{fluxBubbleItems\}/);
-  assert.match(channels, /onClose=\{\(\) => setChannelsOpen\(false\)\}/);
+  assert.match(channels, /onClose=\{onCloseChannels\}/);
 });
 
 test("la hauteur du dashboard est mémorisée universellement, sans rustine par outil", () => {

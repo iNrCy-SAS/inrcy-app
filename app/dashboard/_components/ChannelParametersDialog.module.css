@@ -1,0 +1,20 @@
+.dialog { box-sizing: border-box; position: fixed; inset: 0; margin: auto; width: min(720px, calc(100vw - 40px)); max-width: none; height: fit-content; max-height: calc(100dvh - 48px); padding: 0; overflow: hidden; color: #edf4ff; color-scheme: dark; border: 1px solid #8585dc70; border-radius: 24px; background: radial-gradient(ellipse at 0 0,#12457875,transparent 55%),linear-gradient(125deg,#08162e,#151634 70%,#281748); box-shadow: 0 20px 90px #0008; }
+.dialog[open] { display: flex; flex-direction: column; }
+.dialog::backdrop { background: #02071d94; backdrop-filter: blur(8px); }
+.header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 20px; border-bottom: 1px solid #b9b9fa20; }
+.header h2 { margin: 0; font-size: 20px; }
+.header button { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 1px solid #b6bcff45; color: white; background: #8c8cc51f; font: inherit; font-size: 25px; cursor: pointer; }
+.content { flex: 1 1 auto; min-height: 0; padding: 20px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.fullScreen { inset: 12px; width: calc(100vw - 24px); height: calc(100dvh - 24px); max-height: none; }
+.fullScreen .header { padding: 20px 26px; }
+.fullScreen .header h2 { font-size: clamp(19px,2vw,28px); }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.floatingClose { position: absolute; top: 14px; right: 14px; z-index: 5; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid #b6bcff55; border-radius: 50%; background: #24304bd9; color: #f3f7ff; font: inherit; font-size: 23px; cursor: pointer; }
+.floatingClose:focus-visible { outline: 2px solid #b9f7ff; outline-offset: 2px; }
+.contentOnly:has([data-channel-settings-step]) { border: 0; background: transparent; }
+.contentOnly:has([data-channel-settings-step]) .content { padding: 0; }
+.contentOnly [data-channel-settings-header] { padding-right: 58px; }
+.contentOnly [data-mail-signature] > header { padding-right: 38px; }
+.contentOnly .content { container-type: inline-size; }
+.content button,.content select,.content input,.content textarea { max-width: 100%; box-sizing: border-box; }
+@media(max-width:720px) { .dialog { width: calc(100vw - 20px); max-height: calc(100dvh - 28px); border-radius: 18px; } .header { padding: 12px 14px; } .header h2 { font-size: 18px; } .content { padding: 14px; } .fullScreen { inset: 6px; width: calc(100vw - 12px); height: calc(100dvh - 12px); max-height: none; } }

@@ -26,13 +26,19 @@ export async function revokeGoogleTokensBestEffort(input: {
     tryDecryptToken(item.refreshTokenEnc || null),
   ]));
 
+  if (!tokens.length) return;
+  // One deadline for the entire best-effort cleanup, not one per token.
+  // A slow provider must not prevent the local disconnection from persisting.
+  const signal = AbortSignal.timeout(1_500);
   for (const token of tokens) {
+    if (signal.aborted) break;
     try {
       const res = await fetch("https://oauth2.googleapis.com/revoke", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({ token }),
         cache: "no-store",
+        signal,
       });
 
       if (!res.ok) {

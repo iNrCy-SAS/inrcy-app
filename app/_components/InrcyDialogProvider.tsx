@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import styles from "../dashboard/dashboard.module.css";
 import { INRCY_DIALOG_EVENT, type InrcyDialogRequest } from "@/lib/inrcyDialog";
 
@@ -39,12 +40,15 @@ export default function InrcyDialogProvider() {
   const queueRef = useRef<DialogState[]>([]);
   const activeRef = useRef<DialogState | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [nativeHost, setNativeHost] = useState<HTMLDialogElement | null>(null);
 
   const openNext = useCallback(() => {
     if (activeRef.current) return;
     const next = queueRef.current.shift() || null;
     if (!next) return;
     activeRef.current = next;
+    // Confirmations must remain interactive when requested by a native tool dialog.
+    setNativeHost(Array.from(document.querySelectorAll<HTMLDialogElement>("dialog[open]")).at(-1) ?? null);
     setPromptValue(next.type === "prompt" ? next.options.defaultValue || "" : "");
     setPromptError("");
     setDialog(next);
@@ -73,12 +77,14 @@ export default function InrcyDialogProvider() {
     const body = document.body;
     const prevHtmlOverflow = html.style.overflow;
     const prevBodyOverflow = body.style.overflow;
+    const ownsHtmlLock = prevHtmlOverflow !== "hidden";
+    const ownsBodyLock = prevBodyOverflow !== "hidden";
     const bodyStyle = body.style as CSSStyleDeclaration & { overscrollBehavior?: string };
     const prevBodyTouchAction = bodyStyle.touchAction;
     const prevBodyOverscroll = bodyStyle.overscrollBehavior;
 
-    html.style.overflow = "hidden";
-    bodyStyle.overflow = "hidden";
+    if (ownsHtmlLock) html.style.overflow = "hidden";
+    if (ownsBodyLock) bodyStyle.overflow = "hidden";
     bodyStyle.touchAction = "none";
     bodyStyle.overscrollBehavior = "none";
 
@@ -110,8 +116,8 @@ export default function InrcyDialogProvider() {
 
     return () => {
       window.removeEventListener("keydown", onKeyDown);
-      html.style.overflow = prevHtmlOverflow;
-      bodyStyle.overflow = prevBodyOverflow;
+      if (ownsHtmlLock) html.style.overflow = prevHtmlOverflow;
+      if (ownsBodyLock) bodyStyle.overflow = prevBodyOverflow;
       bodyStyle.touchAction = prevBodyTouchAction;
       bodyStyle.overscrollBehavior = prevBodyOverscroll;
     };
@@ -158,7 +164,7 @@ export default function InrcyDialogProvider() {
     finish(value);
   };
 
-  return (
+  const content = (
     <div role="dialog" aria-modal="true" aria-labelledby="inrcy-dialog-title" style={overlayStyle} onMouseDown={() => finish(null)}>
       <div
         className={styles.blockCard}
@@ -258,6 +264,7 @@ export default function InrcyDialogProvider() {
       </div>
     </div>
   );
+  return nativeHost?.isConnected ? createPortal(content, nativeHost) : content;
 }
 
 const overlayStyle: CSSProperties = {

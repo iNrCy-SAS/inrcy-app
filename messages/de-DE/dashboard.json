@@ -375,7 +375,7 @@
     },
     "threads": {
       "name": "Threads",
-      "description": "Tauschen Sie sich mit Ihrer Community aus",
+      "description": "Tauschen Sie sich mit Ihrer Community aus 💬",
       "view": "Konto ansehen",
       "connect": "Instagram verbinden"
     }
@@ -762,5 +762,54 @@
     "studioLine1": "Erstellen, bearbeiten und retuschieren Sie",
     "studioLine2": "Ihre Medien.",
     "studioCta": "Medienstudio"
+  },
+  "channelBubble": {
+    "parameters": "Einstellungen",
+    "close": "Schließen",
+    "failed": "Die Verbindung konnte nicht aktualisiert werden.",
+    "view": "Seite anzeigen",
+    "connect": "Verbinden",
+    "reconnect": "Erneut verbinden",
+    "selected": "Ausgewählte Seite",
+    "account": "Verknüpftes Konto",
+    "loading": "Laden…",
+    "choose": "Seite auswählen",
+    "notConnected": "Kein Konto verbunden",
+    "disconnect": "Trennen",
+    "create": "Konto erstellen",
+    "selectedPage": "Ausgewählte Seite",
+    "selectedAccount": "Ausgewähltes Konto",
+    "selectedBoard": "Ausgewählte Pinnwand",
+    "selectedMailbox": "Ausgewähltes Postfach",
+    "publicationTypes": "Beitragstypen",
+    "addMailbox": "Postfach hinzufügen",
+    "connectedAccount": "Verbundenes Konto",
+    "createBoard": "Pinnwand erstellen",
+    "boardName": "Name der neuen Pinnwand",
+    "createBoardFailed": "Die Pinnwand konnte nicht erstellt werden.",
+    "chooseBoard": "Pinnwand auswählen",
+    "choosePage": "Seite auswählen",
+    "chooseAccount": "Konto auswählen",
+    "chooseMailbox": "Postfach auswählen",
+    "refreshChoices": "Liste aktualisieren",
+    "publicLink": "Öffentlicher Link",
+    "mailboxSlot": "Postfach {number}",
+    "mailboxes": "Meine Postfächer",
+    "editPublicLink": "Öffentlichen Link bearbeiten",
+    "viewShort": "Ansehen",
+    "formatsShort": "Formate",
+    "linkShort": "Link",
+    "settingsShort": "Optionen",
+    "signatureShort": "Signatur",
+    "boardsShort": "Pinnwände",
+    "widget": "Widget",
+    "connectedShort": "Verbunden",
+    "saveSiteFirst": "Speichern Sie den Website-Link, bevor Sie GA4 oder GSC verbinden."
+  },
+  "channelHelp": {
+    "inrSearch": "Erstellt Ihre öffentliche iNrCy-Seite aus Ihrem Profil und Ihren Beiträgen. Wählen Sie, ob sie im iNrCy-Verzeichnis erscheint.",
+    "threads": "Teilen Sie Neuigkeiten und tauschen Sie sich mit Ihrer Community aus. Wählen Sie die verfügbaren Beitragsformate und das Standardformat.",
+    "pinterest": "Veröffentlicht Ihre Bilder auf den Pinnwänden Ihres Kontos. Wählen Sie eine Pinnwand oder erstellen Sie eine neue direkt in der Blase.",
+    "x": "Teilt Neuigkeiten und Beiträge auf Ihrem X-Konto, um Ihre Präsenz aktiv zu halten."
   }
 }

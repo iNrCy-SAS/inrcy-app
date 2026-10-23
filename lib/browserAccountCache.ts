@@ -48,6 +48,7 @@ const ACCOUNT_CACHE_PREFIXES = [
   "inrcy_stats_mail_snapshot_v2:",
   "inrcy_stats_mail_snapshot_v3:",
   "inrcy_module_snapshot_v1:",
+  "inrcy_channel_workspace_ui_v1:",
   "inrcy_ai_configuration:uid:",
   "inrcy_ai_language_custom_v1:uid:",
 ] as const;
@@ -139,17 +140,34 @@ export function readAccountCacheValue(baseKey: string, userId = getActiveBrowser
   const scopedKey = accountScopedStorageKey(baseKey, userId);
   if (!scopedKey) return null;
 
+  let sessionValue: string | null = null;
   try {
-    const sessionValue = window.sessionStorage.getItem(scopedKey);
-    if (sessionValue !== null) return sessionValue;
+    sessionValue = window.sessionStorage.getItem(scopedKey);
   } catch {
     // ignore
   }
 
   try {
-    return window.localStorage.getItem(scopedKey);
+    const localValue = window.localStorage.getItem(scopedKey);
+    // A tab's session storage does not receive updates from other tabs. For
+    // connection snapshots, restore the newest confirmed state instead of an
+    // older green/yellow state when returning to a previously opened tab.
+    const timestampField = baseKey === DASHBOARD_CACHE_KEYS.channelState
+      ? "cachedAt"
+      : baseKey.startsWith("inrcy_channel_workspace_ui_v1:") ? "updatedAt" : null;
+    if (timestampField && localValue !== null && sessionValue !== null && localValue !== sessionValue) {
+      const timestamp = (raw: string) => {
+        try {
+          const value = JSON.parse(raw)?.[timestampField];
+          return typeof value === "number" && Number.isFinite(value) ? value : 0;
+        } catch { return 0; }
+      };
+      const localTimestamp = timestamp(localValue);
+      if (localTimestamp > 0 && localTimestamp >= timestamp(sessionValue)) return localValue;
+    }
+    return sessionValue ?? localValue;
   } catch {
-    return null;
+    return sessionValue;
   }
 }
 

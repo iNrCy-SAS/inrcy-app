@@ -75,7 +75,8 @@ test("les deux offres montrent douze canaux, Mails restant verrouillé en Standa
   assert.match(channelsSectionSource, /\{connected\}<small>\/\{total\}<\/small>/);
   assert.match(channelsSectionSource, /items=\{fluxBubbleItems\} summary=\{\{ connected, total \}\}/);
   assert.match(dashboardClientSource, /const dashboardChannelItems = useMemo\(\(\) => \{[\s\S]*collapseDashboardWebsiteChannels\(fluxBubbleItems, \{/);
-  assert.match(dashboardClientSource, /<ChannelConnectionsModal[\s\S]*items=\{dashboardChannelItems\}/);
+  assert.doesNotMatch(dashboardClientSource, /<ChannelConnectionsModal/);
+  assert.match(dashboardClientSource, /channelsOpen=\{channelConnectionsOpen \|\| isChannelSettingsPanel\(panel\)\}/);
   assert.match(dashboardClientSource, /<DashboardChannelsSection[\s\S]*fluxBubbleItems=\{dashboardChannelItems\}/);
 
   const buildItems = (standardMode: boolean, metaPilotEnabled = false): DashboardFluxBubbleData[] => getDashboardChannelSetup(metaPilotEnabled).map(({ key }) => ({

@@ -1,251 +1,135 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-
-import { useEffect } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
 import styles from "../dashboard.module.css";
 import bubbleStyles from "./DashboardChannelBubble.module.css";
-import DashboardActionButton from "./DashboardActionButton";
+import ChannelParametersDialog from "./ChannelParametersDialog";
 import { DashboardPremiumLockIcon } from "./DashboardPremiumLockIcon";
 import type { ModuleAction, ModuleStatus } from "../dashboard.types";
-import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
+import type { ChannelBubbleConnection } from "./channel-bubble.types";
+import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvider";
+import Image from "next/image";
+import ChannelPublicationTypes from "./ChannelPublicationTypes";
+import ChannelBoardCreator from "./ChannelBoardCreator";
+import ChannelPublicLinkEditor from "./ChannelPublicLinkEditor";
+import ChannelMailboxConnections from "./ChannelMailboxConnections";
 
-export type DashboardConfigureDestination =
-  | { kind: "panel"; value: string }
-  | { kind: "path"; value: string };
-
+export type DashboardConfigureDestination = { kind: "panel"; value: string } | { kind: "path"; value: string };
 export type DashboardFluxBubbleData = {
-  key: string;
-  name: string;
-  description: string;
-  accent: string;
-  logoSrc: string;
-  logoAlt: string;
-  bubbleStatus: ModuleStatus;
-  bubbleStatusText: string;
-  helpKind?: "site_web";
-  onHelpSiteWeb?: () => void;
-  specialViewHref?: string;
-  specialViewLabel?: string;
-  canViewSpecial?: boolean;
-  onSpecialView?: () => void;
-  viewAction?: ModuleAction;
-  createHref?: string | null;
-  onCreate?: () => void;
-  createLabel?: string;
-  createDisabled?: boolean;
-  onConfigure: () => void;
-  configureDestination?: DashboardConfigureDestination;
-  configureDisabled?: boolean;
-  configureTitle?: string;
-  configureLabel?: string;
-  viewFallbackLabel?: string;
-  emphasizeDisabledReason?: boolean;
-  premiumLocked?: boolean;
-  premiumLabel?: string;
+  key: string; name: string; description: string; accent: string; logoSrc: string; logoAlt: string;
+  bubbleStatus: ModuleStatus; bubbleStatusText: string;
+  specialViewHref?: string; specialViewLabel?: string; canViewSpecial?: boolean; onSpecialView?: () => void;
+  viewAction?: ModuleAction; createHref?: string | null; onCreate?: () => void; createLabel?: string; createDisabled?: boolean;
+  onConfigure: () => void; configureDestination?: DashboardConfigureDestination;
+  configureDisabled?: boolean; configureTitle?: string; configureLabel?: string; viewFallbackLabel?: string;
+  emphasizeDisabledReason?: boolean; premiumLocked?: boolean; premiumLabel?: string;
+  connection?: ChannelBubbleConnection;
 };
 
-type Props = {
-  item: DashboardFluxBubbleData;
-  itemKey?: string;
-};
-
-function WarningTriangle({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={className}
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path
-        d="M12 3.5 21 20H3L12 3.5Z"
-        fill="currentColor"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <path d="M12 8.5v5.7" stroke="#241204" strokeWidth="2.1" strokeLinecap="round" />
-      <circle cx="12" cy="17.2" r="1.15" fill="#241204" />
-    </svg>
-  );
+export function ChannelBubbleIcon({ kind }: { kind: "eye" | "plug" | "disconnect" | "settings" | "create" | "widget" }) {
+  if (kind === "disconnect") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>;
+  if (kind === "widget") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="18" rx="3" /><path d="M2 8h20M9 12l-3 3 3 3m6-6 3 3-3 3" /></svg>;
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {kind === "eye" ? <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></> : kind === "plug" ? <><path d="M7 3v5m6-5v5M5 8h10v4a5 5 0 0 1-10 0V8Zm5 9v5m7-8h6m-3-3v6" /></> : kind === "settings" ? <><path d="m9 3-.6 2.3-2 .9-2.1-.6-1.6 2.8 1.5 1.7-.2 2.2-1.5 1.6 1.6 2.8 2.2-.5 1.9 1 .6 2.3h3.2l.7-2.3 1.9-1 2.2.5 1.6-2.8-1.5-1.6.1-2.2 1.4-1.7-1.6-2.8-2.1.6-2-.9L13 3H9Z" /><circle cx="11" cy="11.5" r="3" /></> : <path d="M12 5v14M5 12h14" />}
+  </svg>;
 }
 
-export default function DashboardFluxBubble({ item, itemKey }: Props) {
-  const i18nT = useTranslations("shell");
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const {
-    pendingKey,
-    beginAction,
-    completeAction,
-    isVisible,
-  } = useDelayedPendingAction<string>();
-  const isComingSoon = item.bubbleStatus === "coming";
-  const isReconnect = item.bubbleStatus === "reconnect";
-  const isAvailableToConnect = item.bubbleStatus === "available";
-  const emphasizeDisabledReason = isComingSoon && item.emphasizeDisabledReason === true;
-  const shouldHighlightConfigure = (isAvailableToConnect || isReconnect) && !item.configureDisabled;
-  const configureActionKey = `configure:${item.key}`;
-  const configurePending = pendingKey === configureActionKey;
-  const configureLoadingVisible = isVisible(configureActionKey);
-  const showCreateAction = isAvailableToConnect && Boolean(item.createHref || item.onCreate);
+function WarningTriangle({ size }: { size: number }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ display: "inline", verticalAlign: "middle", marginRight: 5, color: "#fb923c" }}><path d="M12 3.5 21 20H3L12 3.5Z" fill="currentColor" /><path d="M12 8.5v5.7" stroke="#241204" strokeWidth="2.1" strokeLinecap="round" /><circle cx="12" cy="17.2" r="1.15" fill="#241204" /></svg>;
+}
 
-  useEffect(() => {
-    if (!configurePending || !item.configureDestination) return;
-    const destinationReached = item.configureDestination.kind === "panel"
-      ? searchParams.get("panel") === item.configureDestination.value
-      : pathname === item.configureDestination.value;
+export default function DashboardFluxBubble({ item, itemKey }: { item: DashboardFluxBubbleData; itemKey?: string }) {
+  const t = useTranslations("dashboard.channelBubble");
+  const connection = item.connection;
+  const { requestNavigation } = useDashboardUnsavedNavigation();
+  const [parametersOpen, setParametersOpen] = useState(false);
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+  const actionRef = useRef(false);
+  const mounted = useRef(true);
+  const loaded = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const busy = pending || connection?.busy;
+  const disabled = item.configureDisabled || item.bubbleStatus === "coming";
+  const run = async (action?: () => unknown | Promise<unknown>) => {
+    if (!action || actionRef.current || busy || disabled) return;
+    actionRef.current = true;
+    setPending(true); setError("");
+    try { const result = await action(); if (result === false && mounted.current) setError(t("failed")); } catch (caught) { if (mounted.current) setError(caught instanceof Error ? caught.message : t("failed")); }
+    finally { actionRef.current = false; if (mounted.current) setPending(false); }
+  };
+  const viewLabel = item.specialViewLabel || item.viewAction?.label || t("view");
+  const viewHref = item.specialViewHref || item.viewAction?.href;
+  const viewCallback = item.onSpecialView || item.viewAction?.onClick;
+  const canView = item.canViewSpecial ?? Boolean(viewCallback || (viewHref && viewHref !== "#"));
+  const connectLabel = item.bubbleStatus === "reconnect" || connection?.accountConnected ? t("reconnect") : t("connect");
+  const selectionCaption = t(item.key === "gmb" ? "selected" : item.key === "facebook" ? "selectedPage" : item.key === "pinterest" ? "selectedBoard" : item.key === "mails" ? "selectedMailbox" : "selectedAccount");
+  const chooseLabel = t(item.key === "pinterest" ? "chooseBoard" : item.key === "facebook" ? "choosePage" : item.key === "mails" ? "chooseMailbox" : item.key === "gmb" ? "choose" : "chooseAccount");
+  const options = connection?.options ?? [];
+  const value = connection?.value || "";
+  const selectedMissing = Boolean(value && !options.some(option => option.value === value));
+  const hasResource = Boolean(connection?.accountConnected || (connection?.resourceLabel && value));
+  const canConnect = Boolean(connection?.onConnect || connection?.connectOptions?.length);
+  const disconnect = connection?.onDisconnectAccount || connection?.onDisconnect;
+  const showDisconnect = Boolean(disconnect && (connection?.accountConnected ?? Boolean(value)) && !(item.bubbleStatus === "reconnect" && canConnect));
+  const showConnect = canConnect && !showDisconnect;
+  const hasParameters = Boolean(connection?.parameters);
+  const showParameters = hasParameters && (!canConnect || hasResource);
+  const parametersLabel = connection?.parametersLabel || t(item.key === "mails" ? "signatureShort" : item.key === "pinterest" ? "boardsShort" : "parameters");
+  const loadResourceChoices = () => {
+    if (loaded.current || !connection?.onLoad || busy || connection.loading || disabled) return;
+    loaded.current = true;
+    void Promise.resolve().then(connection.onLoad).catch(() => {
+      loaded.current = false;
+      if (mounted.current) setError(t("failed"));
+    });
+  };
+  const feedback = error || connection?.error;
+  const loadingInResource = Boolean(!item.premiumLocked && !connection?.mailboxes && !connection?.resourceContent && !showConnect && (
+    connection?.onSelect ? !value && (busy || connection.loading) : !hasResource && !disabled && connection?.loading
+  ));
+  const statusText = loadingInResource ? "" : busy || (connection?.loading && !hasResource) ? t("loading") : connection?.notice || (item.bubbleStatus === "reconnect" ? item.bubbleStatusText : "");
 
-    if (destinationReached) completeAction(configureActionKey);
-  }, [completeAction, configureActionKey, configurePending, item.configureDestination, pathname, searchParams]);
-
-  return (
-    <article
-      key={itemKey ?? item.key}
-      className={`${bubbleStyles.card} ${styles[`accent_${item.accent}`]} ${isComingSoon ? bubbleStyles.comingSoon : ""} ${isReconnect ? bubbleStyles.reconnectCard : ""}`}
-      title={isComingSoon ? item.configureTitle || item.configureLabel || "Option désactivée" : undefined}
-    >
-      <div className={bubbleStyles.stack}>
-        <div className={bubbleStyles.logo} aria-hidden>
-          <img
-            className={bubbleStyles.logoImage}
-            src={item.logoSrc}
-            alt={item.logoAlt}
-            width={96}
-            height={96}
-            loading="eager"
-            decoding="sync"
-            fetchPriority="high"
-          />
-        </div>
-
-        <div className={bubbleStyles.title}>{item.name}</div>
-
-        <div className={`${bubbleStyles.status} ${isAvailableToConnect ? bubbleStyles.statusAvailable : ""} ${isReconnect ? bubbleStyles.statusReconnect : ""} ${emphasizeDisabledReason ? bubbleStyles.statusDisabledReason : ""}`}>
-          {isReconnect ? (
-            <WarningTriangle className={bubbleStyles.warningTriangle} />
-          ) : (
-            <span
-              className={[
-                bubbleStyles.dot,
-                item.bubbleStatus === "connected"
-                  ? bubbleStyles.connected
-                  : item.bubbleStatus === "available"
-                    ? bubbleStyles.available
-                    : bubbleStyles.coming,
-              ].join(" ")}
-              aria-hidden
-            />
-          )}
-          <span className={bubbleStyles.statusText}>{item.bubbleStatusText}</span>
-        </div>
-
-        <div className={bubbleStyles.tagline} title={item.description}>{item.description}</div>
-
-        <div className={bubbleStyles.actions}>
-          {item.premiumLocked ? (
-            <button
-              className={`${bubbleStyles.action} ${bubbleStyles.actionMain}`}
-              type="button"
-              onClick={() => {
-                if (!beginAction(configureActionKey)) return;
-                item.onConfigure();
-              }}
-              disabled={configureLoadingVisible}
-              aria-busy={configureLoadingVisible || undefined}
-              title={item.configureTitle}
-              aria-label={`${item.name} — ${item.premiumLabel || "Premium"}`}
-            >
-              {configureLoadingVisible ? (
-                i18nT("chargement_01cba1df")
-              ) : (
-                <>
-                  <DashboardPremiumLockIcon className={bubbleStyles.actionPremiumLock} />
-                  {item.premiumLabel || "Premium"}
-                </>
-              )}
-            </button>
-          ) : null}
-
-          {!item.premiumLocked ? (
-            <>
-          {showCreateAction ? (
-            item.createHref ? (
-              <a
-                href={item.createHref}
-                className={bubbleStyles.action}
-                target={/^https?:\/\//.test(item.createHref) ? "_blank" : undefined}
-                rel={/^https?:\/\//.test(item.createHref) ? "noreferrer" : undefined}
-                aria-disabled={item.createDisabled}
-                onClick={(event) => {
-                  if (item.createDisabled) event.preventDefault();
-                }}
-              >
-                {item.createLabel || "Créer"}
-              </a>
-            ) : (
-              <button
-                type="button"
-                className={bubbleStyles.action}
-                onClick={item.createDisabled ? undefined : item.onCreate}
-                disabled={item.createDisabled}
-              >
-                {item.createLabel || "Créer"}
-              </button>
-            )
-          ) : item.onSpecialView && item.specialViewLabel ? (
-            <button
-              type="button"
-              className={bubbleStyles.action}
-              onClick={item.onSpecialView}
-              disabled={!item.canViewSpecial}
-              aria-disabled={!item.canViewSpecial}
-              style={{ opacity: !item.canViewSpecial ? 0.5 : 1, pointerEvents: !item.canViewSpecial ? "none" : "auto" }}
-            >
-              {item.specialViewLabel}
-            </button>
-          ) : item.specialViewHref && item.specialViewLabel ? (
-            <a
-              href={item.canViewSpecial ? item.specialViewHref : "#"}
-              className={bubbleStyles.action}
-              target={item.canViewSpecial && /^https?:\/\//.test(item.specialViewHref) ? "_blank" : undefined}
-              rel={item.canViewSpecial && /^https?:\/\//.test(item.specialViewHref) ? "noreferrer" : undefined}
-              aria-disabled={!item.canViewSpecial}
-              onClick={(event) => {
-                if (!item.canViewSpecial) event.preventDefault();
-              }}
-              style={{ opacity: !item.canViewSpecial ? 0.5 : 1, pointerEvents: !item.canViewSpecial ? "none" : "auto" }}
-            >
-              {item.specialViewLabel}
-            </a>
-          ) : item.viewAction ? (
-            <DashboardActionButton action={item.viewAction} className={bubbleStyles.action} />
-          ) : (
-            <button className={bubbleStyles.action} type="button" disabled>
-              {item.viewFallbackLabel || i18nT("voir_8a754f1f")}
-            </button>
-          )}
-
-          <button
-            className={`${bubbleStyles.action} ${bubbleStyles.actionMain} ${shouldHighlightConfigure ? bubbleStyles.actionMainAvailable : ""} ${isReconnect ? bubbleStyles.actionMainReconnect : ""}`}
-            type="button"
-            data-dashboard-prefetch={item.configureDestination?.kind === "path" ? item.configureDestination.value : undefined}
-            onClick={() => {
-              if (!beginAction(configureActionKey)) return;
-              item.onConfigure();
-            }}
-            disabled={item.configureDisabled || configureLoadingVisible}
-            aria-busy={configureLoadingVisible || undefined}
-            title={item.configureTitle}
-          >
-            {configureLoadingVisible ? i18nT("chargement_01cba1df") : item.configureLabel || i18nT("configurer_382efbe9")}
-          </button>
-            </>
-          ) : null}
-        </div>
+  return <>
+    <article key={itemKey ?? item.key} data-channel-bubble={item.key} aria-label={`${item.name} — ${item.bubbleStatusText}`} className={`${bubbleStyles.card} ${bubbleStyles.workspaceCard} ${styles[`accent_${item.accent}`]} ${item.bubbleStatus === "coming" ? bubbleStyles.comingSoon : ""} ${item.bubbleStatus === "reconnect" ? bubbleStyles.reconnectCard : ""}`}>
+      <span className={bubbleStyles.centralConnectionDot} data-status={item.bubbleStatus} role="img" aria-label={item.bubbleStatusText} title={item.bubbleStatusText} />
+      <div className={`${bubbleStyles.stack} ${bubbleStyles.workspaceStack} ${connection?.mailboxes ? bubbleStyles.mailboxStack : ""}`}>
+        <div className={bubbleStyles.logo} aria-hidden="true"><Image className={bubbleStyles.logoImage} src={item.logoSrc} alt="" width={72} height={72} loading="eager" fetchPriority="high" unoptimized decoding="sync" /><span className={bubbleStyles.connectionDot} data-status={item.bubbleStatus} /></div>
+        <div className={bubbleStyles.identity}><h3 className={bubbleStyles.title}>{item.name}</h3><p className={bubbleStyles.tagline}>{item.description}</p></div>
+        {item.premiumLocked ? <button type="button" className={bubbleStyles.action} onClick={item.onConfigure}><DashboardPremiumLockIcon className={bubbleStyles.actionPremiumLock} />{item.premiumLabel || "Premium"}</button> : <>
+          {connection?.accountConnected && connection.accountLabel ? <div className={bubbleStyles.resourceGroup}>
+            <span className={bubbleStyles.accountValue} aria-label={t("connectedAccount")} title={connection.accountLabel}>{connection.accountLabel}</span>
+          </div> : null}
+          {connection?.mailboxes ? <ChannelMailboxConnections slots={connection.mailboxes} disabled={Boolean(busy || disabled)} onAction={action => void run(action)} /> : connection?.resourceContent ? connection.resourceContent : <div className={bubbleStyles.resourceGroup}>
+            {showConnect ? <>
+              {hasResource && connection?.resourceLabel ? <span className={bubbleStyles.accountValue} title={connection.resourceLabel}>{connection.resourceLabel}</span> : null}
+              <button type="button" className={`${bubbleStyles.action} ${bubbleStyles.connectAction} ${item.bubbleStatus === "reconnect" ? bubbleStyles.actionMainReconnect : ""}`} aria-label={`${connectLabel} — ${item.name}`} disabled={Boolean(busy || disabled)} aria-busy={Boolean(busy)} onClick={() => connection?.connectOptions?.length ? setConnectOpen(true) : void run(connection?.onConnect)}><ChannelBubbleIcon kind="plug" /><span>{connectLabel}</span></button>
+            </> : <div className={`${bubbleStyles.resourceLine} ${connection?.onCreateResource ? bubbleStyles.resourceLineWithCreate : ""}`}><div className={bubbleStyles.resourcePill}>
+              {connection?.onSelect ? <>
+                <select id={`channel-resource-${item.key}`} aria-label={`${selectionCaption} — ${item.name}`} value={value} disabled={Boolean(busy || disabled)} aria-busy={Boolean(connection.loading)} onFocus={loadResourceChoices} onPointerDown={loadResourceChoices} onBlur={() => { loaded.current = false; }} onChange={event => { const next = event.target.value; if (next) void run(() => connection.onSelect?.(next)); }}>
+                  <option value="" disabled>{loadingInResource ? t("loading") : chooseLabel}</option>
+                  {selectedMissing ? <option value={value}>{connection.resourceLabel || chooseLabel}</option> : null}
+                  {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select><span className={bubbleStyles.resourceChevron} aria-hidden="true">⌄</span>
+              </> : <span id={`channel-resource-${item.key}`} className={bubbleStyles.resourceValue} title={connection?.resourceLabel}>{hasResource ? connection?.resourceLabel || t("connectedAccount") : disabled ? item.bubbleStatusText : connection?.loading ? t("loading") : t("notConnected")}</span>}
+            </div>{connection?.onCreateResource ? <ChannelBoardCreator onCreate={connection.onCreateResource} disabled={Boolean(busy || disabled || (connection.loading && !connection.accountConnected))} /> : null}</div>}
+          </div>}
+          <div className={bubbleStyles.iconActions}>
+            {canView ? viewCallback ? <button type="button" className={bubbleStyles.iconAction} title={viewLabel} aria-label={viewLabel} onClick={viewCallback}><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></button> : <a className={bubbleStyles.iconAction} href={viewHref} aria-label={viewLabel} title={viewLabel} target={/^https?:/.test(viewHref || "") ? "_blank" : undefined} rel="noreferrer"><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></a> : null}
+            {showDisconnect ? <button type="button" className={`${bubbleStyles.iconAction} ${bubbleStyles.disconnectIcon}`} aria-label={`${t("disconnect")} — ${connection?.accountLabel || connection?.resourceLabel || item.name}`} title={t("disconnect")} disabled={Boolean(busy || disabled)} aria-busy={Boolean(busy)} onClick={() => void run(disconnect)}><ChannelBubbleIcon kind="disconnect" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("disconnect")}</span></button> : null}
+            {connection?.publicationTypes && hasResource ? <ChannelPublicationTypes name={item.name} settings={connection.publicationTypes} disabled={Boolean(disabled || busy)} /> : null}
+            {connection?.extraActions}
+            {showParameters ? <button type="button" className={bubbleStyles.iconAction} title={parametersLabel} aria-label={`${parametersLabel} — ${item.name}`} disabled={disabled || pending} onClick={() => setParametersOpen(true)}><ChannelBubbleIcon kind={connection?.parametersIcon || "settings"} /><span className={bubbleStyles.actionText} aria-hidden="true">{connection?.parametersLabel || item.key === "mails" || item.key === "pinterest" ? parametersLabel : t("settingsShort")}</span></button> : null}
+            {connection?.publicLinks && (connection.accountConnected || value) ? <ChannelPublicLinkEditor name={item.name} disabled={Boolean(busy || disabled)}>{connection.publicLinks}</ChannelPublicLinkEditor> : null}
+            {item.bubbleStatus === "available" && !connection?.accountConnected && item.createHref && !item.createDisabled ? <a href={item.createHref} target="_blank" rel="noreferrer" className={bubbleStyles.iconAction} title={item.createLabel || t("create")} aria-label={`${item.createLabel || t("create")} — ${item.name}`}><ChannelBubbleIcon kind="create" /></a> : null}
+          </div>
+        </>}
+        {feedback ? <p className={bubbleStyles.connectionFeedback} role="alert" title={feedback}>{feedback}</p> : <span hidden={!statusText} className={bubbleStyles.connectionStatus} role="status">{item.bubbleStatus === "reconnect" ? <WarningTriangle size={12} /> : null}{statusText}</span>}
       </div>
     </article>
-  );
+    {parametersOpen && hasParameters ? <ChannelParametersDialog name={item.name} title={`${parametersLabel} — ${item.name}`} contentOnly={connection?.parametersOwnHeading} fullScreen={connection?.parametersFullScreen} onClose={() => { void requestNavigation(() => setParametersOpen(false)); }}>{connection?.parameters}</ChannelParametersDialog> : null}
+    {connectOpen ? <ChannelParametersDialog name={item.name} title={`${connectLabel} — ${item.name}`} onClose={() => setConnectOpen(false)}><div className={bubbleStyles.connectChoices}>{connection?.connectOptions?.map(option => <button key={option.label} type="button" className={styles.actionBtn + " " + styles.connectBtn} disabled={Boolean(busy)} onClick={() => void run(async () => { await option.onConnect(); setConnectOpen(false); })}><ChannelBubbleIcon kind="plug" />{option.label}</button>)}</div></ChannelParametersDialog> : null}
+  </>;
 }

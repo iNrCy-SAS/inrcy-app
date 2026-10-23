@@ -3,13 +3,21 @@
 import { useTranslations } from "next-intl";
 
 import React from "react";
+import type { ChannelBubbleRenderer } from "../../_components/channel-bubble.types";
+import { readChannelWorkspaceSnapshot, writeChannelWorkspaceSnapshot } from "../../_components/channel-workspace-snapshot";
+import ChannelParametersDialog from "../../_components/ChannelParametersDialog";
 import { getSimpleFrenchApiError, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { confirmInrcy } from "@/lib/inrcyDialog";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import styles from "./MailsSettingsContent.module.css";
+import signatureStyles from "./MailsSignaturePanel.module.css";
 
 type Props = {
+  renderBubble: ChannelBubbleRenderer;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
 };
+
+type SignatureSettingsProps = Pick<Props, "onUnsavedChange">;
 
 type ImapPublicSettings = {
   imap_host: string;
@@ -44,65 +52,9 @@ type MessengerAccount = {
 
 const MAIL_ACCOUNTS_UPDATED_EVENT = "inrsend:mail-accounts-updated";
 
-function dispatchMailAccountsUpdated() {
+function dispatchMailAccountsUpdated(mailAccounts: MailAccount[], refresh = false) {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(MAIL_ACCOUNTS_UPDATED_EVENT));
-}
-
-function GlassCard({
-  step,
-  tone,
-  title,
-  subtitle,
-  children,
-}: {
-  step: number;
-  tone: "cyan" | "violet";
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className={`${styles.stepCard} ${tone === "cyan" ? styles.stepCyan : styles.stepViolet}`}>
-      <div className={styles.stepHeader}>
-        <span className={styles.stepNumber}>{step}</span>
-        <div className={styles.stepCopy}>
-          <h3>{title}</h3>
-          <p>{subtitle}</p>
-        </div>
-      </div>
-
-      <div className={styles.stepBody}>{children}</div>
-    </section>
-  );
-}
-
-function Btn({
-  label,
-  onClick,
-  disabled,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      className={styles.pillButton}
-      type="button"
-      onClick={onClick}
-      disabled={!!disabled}
-    >
-      {label}
-    </button>
-  );
-}
-
-function MailConnectionStatusColor(acc: MailAccount) {
-  const status = acc.connection_status || (acc.status === "connected" ? "connected" : "disconnected");
-  if (status === "needs_update") return "#fbbf24";
-  if (status === "connected") return "#34d399";
-  return "rgba(255,255,255,0.72)";
+  window.dispatchEvent(new CustomEvent(MAIL_ACCOUNTS_UPDATED_EVENT, { detail: { mailAccounts, refresh } }));
 }
 
 function mailAccountRefreshUrl(acc: MailAccount) {
@@ -186,7 +138,7 @@ const SIGNATURE_WIDTH_OPTIONS = [
   { value: 600, label: "Très grand (600 px)" },
 ];
 
-export default function MailsSettingsContent({ onUnsavedChange }: Props) {
+function useMailsSettingsController({ onUnsavedChange }: SignatureSettingsProps) {
   const i18nT = useTranslations("mails");
 
   function ProviderLabel(p: MailAccount["provider"]) {
@@ -201,17 +153,42 @@ export default function MailsSettingsContent({ onUnsavedChange }: Props) {
   }
 
   const [loading, setLoading] = React.useState(true);
-  const [mailAccounts, setMailAccounts] = React.useState<MailAccount[]>([]);
+  const [mailAccounts, setMailAccounts] = React.useState<MailAccount[]>(() => readChannelWorkspaceSnapshot("mails", []));
   const [error, setError] = React.useState<string | null>(null);
   const [toast, setToast] = React.useState<string | null>(null);
   const [busyDisconnect, setBusyDisconnect] = React.useState<string | null>(null);
+  const mailAccountsRef = React.useRef(mailAccounts);
+  const mailAccountsRevisionRef = React.useRef(0);
+  const disconnectInFlightRef = React.useRef(false);
+  const mountedRef = React.useRef(true);
+  const applyMailAccounts = React.useCallback((accounts: MailAccount[], snapshotAccountId: string | null) => {
+    mailAccountsRef.current = accounts;
+    if (mountedRef.current) setMailAccounts(accounts);
+    // Only public mailbox metadata belongs in a display snapshot.
+    writeChannelWorkspaceSnapshot("mails", accounts.map((account: MailAccount) => ({
+      id: account.id, provider: account.provider, email_address: account.email_address,
+      display_name: account.display_name, status: account.status,
+      connection_status: account.connection_status, requires_update: account.requires_update,
+      connection_version: account.connection_version, imap_settings: account.imap_settings,
+      created_at: account.created_at,
+    })), snapshotAccountId);
+  }, []);
   const refreshMailAccounts = React.useCallback(async (notify = false) => {
+    if (disconnectInFlightRef.current) return mailAccountsRef.current;
+    const revision = ++mailAccountsRevisionRef.current;
+    const snapshotAccountId = getActiveBrowserUserId();
     const res = await fetch("/api/integrations/status", { cache: "no-store" });
     const data = await res.json().catch(() => ({}));
+    if (!mountedRef.current || revision !== mailAccountsRevisionRef.current || snapshotAccountId !== getActiveBrowserUserId()) return mailAccountsRef.current;
     if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible de charger les boîtes mail."));
-    setMailAccounts(data.mailAccounts || []);
-    if (notify) dispatchMailAccountsUpdated();
+    applyMailAccounts(data.mailAccounts || [], snapshotAccountId);
+    if (notify) dispatchMailAccountsUpdated(data.mailAccounts || [], true);
     return data.mailAccounts || [];
+  }, [applyMailAccounts]);
+
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; mailAccountsRevisionRef.current++; };
   }, []);
 
   const [signatureEnabled, setSignatureEnabled] = React.useState(true);
@@ -456,12 +433,11 @@ React.useEffect(() => {
     (async () => {
       try {
         setLoading(true);
-        const data = { mailAccounts: await refreshMailAccounts(false) };
+        await refreshMailAccounts(false);
         const sigRes = await fetch("/api/inrsend/signature", { cache: "no-store" }).catch(() => null);
         const sigData = sigRes ? await sigRes.json().catch(() => ({})) : {};
         if (!alive) return;
 
-        setMailAccounts(data.mailAccounts || []);
         if (sigRes?.ok) {
           setSignatureEnabled(sigData?.enabled !== false);
           setSignatureTemplate(String(sigData?.template || `{{nom_complet}}
@@ -493,143 +469,15 @@ Email : {{email}}`));
   const imapAccount = mailAccounts.find((a) => a.provider === "imap") || null;
   const maxReached = oauthAccounts.length >= 3; // slots 1-3
 
-  return (
-    <div className={styles.settings}>
-      <GlassCard
-        step={1}
-        tone="cyan"
-        title="Boîtes d’envoi"
-        subtitle="Connectez jusqu’à trois comptes Gmail ou Microsoft et une boîte IMAP."
-      >
-        <div className={styles.stepStack}>
-          {loading || error ? (
-            <div className={`${styles.notice} ${error ? styles.noticeWarning : ""}`} role="status">
-              {loading ? i18nT("chargement_01cba1df") : error}
-            </div>
-          ) : null}
-
-          {toast === "already_connected" && (
-            <div className={`${styles.notice} ${styles.noticeWarning}`} role="status">
-              {i18nT("cette_boite_mail_est_deja_connectee_a0c7c8ce")}
-            </div>
-          )}
-          {toast === "connected" && (
-            <div className={styles.notice} role="status">
-              {i18nT("boite_mail_connectee_vous_pouvez_maintenant_6d472d63")}
-            </div>
-          )}
-          {toast === "gmail_disconnected" && (
-            <div className={styles.notice} role="status">
-              {i18nT("boite_gmail_deconnectee_3d83ef35")}
-            </div>
-          )}
-          {toast === "outlook_disconnected" && (
-            <div className={styles.notice} role="status">
-              {i18nT("boite_outlook_deconnectee_0544620c")}
-            </div>
-          )}
-          {toast === "imap_disconnected" && (
-            <div className={styles.notice} role="status">
-              {i18nT("boite_imap_deconnectee_392ad047")}
-            </div>
-          )}
-          {toast === "imap_test_ok" && (
-            <div className={styles.notice} role="status">
-              {i18nT("test_de_connexion_reussi_vous_pouvez_b896dce1")}
-            </div>
-          )}
-          {toast === "imap_connected" && (
-            <div className={styles.notice} role="status">
-              {i18nT("boite_imap_connectee_vous_pouvez_maintenant_4d98651e")}
-            </div>
-          )}
-          {toast === "imap_updated" && (
-            <div className={styles.notice} role="status">
-              {i18nT("imap_settings_saved")}
-            </div>
-          )}
-
-          <div className={styles.accountList}>
-        {slots.map((i) => {
-          const isImapSlot = i === 3;
-          const acc = isImapSlot ? imapAccount : oauthAccounts[i];
-
-          return (
-            <div className={`${styles.accountRow} ${acc ? styles.accountRowConnected : ""}`} key={i}>
-              <div className={styles.accountIdentity}>
-                <span className={styles.slotNumber}>{i + 1}</span>
-                <div className={styles.accountCopy}>
-                  <strong>{acc ? acc.email_address : i18nT("boite_mail_value_d30aaf7d", { value0: i + 1 })}</strong>
-                  <span>{acc ? ProviderLabel(acc.provider) : isImapSlot ? "IMAP · OVH, IONOS, Orange, SFR…" : "Gmail ou Microsoft"}</span>
-                </div>
-              </div>
-
-              {acc ? (
-                <span
-                  className={styles.statusPill}
-                  style={{ color: MailConnectionStatusColor(acc) }}
-                  aria-label={i18nT("statut_value_b14864f1", { value0: MailConnectionStatusLabel(acc) })}
-                >
-                  <span className={styles.statusDot} style={{ background: MailConnectionStatusColor(acc) }} />
-                  {MailConnectionStatusLabel(acc)}
-                </span>
-              ) : null}
-
-              <div className={styles.accountActions}>
-              {!acc ? (
-                <>
-                  {!isImapSlot && (
-                    <Btn
-                      label={i18nT("connecter_gmail_45c39b69")}
-                      disabled={loading || maxReached}
-                   onClick={() => {
-  window.location.href = "/api/integrations/google/start";
-}}
-                    />
-                  )}
-                  {!isImapSlot && (
-                    <Btn
-                      label={i18nT("connecter_microsoft_5ad49548")}
-                      disabled={loading || maxReached}
-                      onClick={() => {
-                        window.location.href = "/api/integrations/microsoft/start";
-                      }}
-                    />
-                  )}
-
-                  {isImapSlot && (
-                    <Btn
-                      label={i18nT("connecter_imap_ovh_ionos_orange_sfr_9346ccf0")}
-                      disabled={loading}
-                      onClick={() => openImapModal(null)}
-                    />
-                  )}
-                </>
-              ) : (
-                <>
-                  {acc.provider === "imap" ? (
-                    <Btn
-                      label={i18nT("imap_settings_button")}
-                      disabled={loading}
-                      onClick={() => openImapModal(acc)}
-                    />
-                  ) : null}
-                  {acc.provider !== "imap" && acc.connection_status === "needs_update" && mailAccountRefreshUrl(acc) ? (
-                    <Btn
-                      label={i18nT("reconnect_mailbox")}
-                      disabled={loading}
-                      onClick={() => {
-                        const url = mailAccountRefreshUrl(acc);
-                        if (url) window.location.href = url;
-                      }}
-                    />
-                  ) : null}
-                  <Btn
-  label={busyDisconnect === acc.id ? "Déconnexion…" : "Déconnecter"}
-  disabled={loading || busyDisconnect === acc.id}
-  onClick={async () => {
+  const disconnectMailAccount = async (acc: MailAccount) => {
+    if (disconnectInFlightRef.current) return false;
+    disconnectInFlightRef.current = true;
+    mailAccountsRevisionRef.current++;
+    const snapshotAccountId = getActiveBrowserUserId();
     try {
       setBusyDisconnect(acc.id);
+      setError(null);
+      setToast(null);
       const endpoint = acc.provider === "gmail"
         ? "/api/integrations/google/disconnect"
         : acc.provider === "microsoft"
@@ -642,271 +490,63 @@ Email : {{email}}`));
         body: JSON.stringify({ accountId: acc.id }),
       });
       if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
         throw new Error(await getSimpleFrenchApiError(r, "Impossible de déconnecter cette boîte mail."));
       }
+      if (snapshotAccountId !== getActiveBrowserUserId()) return;
+      applyMailAccounts(mailAccountsRef.current.filter(account => account.id !== acc.id), snapshotAccountId);
+      dispatchMailAccountsUpdated(mailAccountsRef.current, true);
+      if (!mountedRef.current) return;
+      setLoading(false);
       setToast(acc.provider === "gmail" ? "gmail_disconnected" : acc.provider === "microsoft" ? "outlook_disconnected" : "imap_disconnected");
-      await refreshMailAccounts(true);
     } catch (e: any) {
-      setToast(getSimpleFrenchErrorMessage(e, "Impossible de déconnecter cette boîte mail."));
+      if (mountedRef.current && snapshotAccountId === getActiveBrowserUserId()) setError(getSimpleFrenchErrorMessage(e, "Impossible de déconnecter cette boîte mail."));
     } finally {
-      setBusyDisconnect(null);
+      disconnectInFlightRef.current = false;
+      if (mountedRef.current) setBusyDisconnect(null);
     }
-  }}
-/>
-                </>
-              )}
-              </div>
-            </div>
-          );
-        })}
-          </div>
-        </div>
-      </GlassCard>
-
-      <GlassCard
-        step={2}
-        tone="violet"
-        title={i18nT("signature_automatique_77745712")}
-        subtitle="Personnalisez le texte et l’image ajoutés à la fin de vos mails iNr’Send."
-      >
-        <div className={styles.signatureShell}>
-          <label className={`${styles.toggleCard} ${signatureEnabled ? styles.toggleCardSelected : ""}`}>
-            <input
-              className={styles.visuallyHidden}
-              type="checkbox"
-              checked={signatureEnabled}
-              onChange={(e) => setSignatureEnabled(e.target.checked)}
-            />
-            <span className={styles.checkIndicator} aria-hidden="true" />
-            <span className={styles.toggleCopy}>
-              <strong>{i18nT("activer_la_signature_automatique_d826254a")}</strong>
-              <small>Ajoutée automatiquement à chaque message envoyé.</small>
-            </span>
-          </label>
-
-          {signatureToast ? (
-            <div className={`${styles.notice} ${signatureToast.startsWith("✅") ? "" : styles.noticeWarning}`} role="status">
-              {signatureToast}
-            </div>
-          ) : null}
-
-          <div className={styles.signatureGrid}>
-            <div className={styles.editorPanel}>
-              <label className={styles.fieldLabel} htmlFor="mails-signature-template">Texte de la signature</label>
-              <textarea
-                id="mails-signature-template"
-                className={styles.signatureTextarea}
-                value={signatureTemplate}
-                onChange={(e) => setSignatureTemplate(e.target.value)}
-                rows={4}
-              />
-              <p className={styles.variablesHelp}>
-                Variables : {"{{nom_complet}}"}, {"{{nom_entreprise}}"}, {"{{telephone}}"}, {"{{email}}"}, {"{{ville}}"}…
-              </p>
-
-              <div className={styles.mediaTools}>
-              <label
-                className={`${styles.pillButton} ${styles.fileButton}`}
-                aria-disabled={signatureBusy}
-              >
-                {i18nT("importer_une_image_fcd9d38d")}{" "}<input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-                  disabled={signatureBusy}
-                  className={styles.visuallyHidden}
-                  ref={signatureFileInputRef}
-                  onChange={async (e) => {
-                    const input = e.currentTarget;
-                    const file = input.files?.[0];
-                    if (!file) return;
-                    try {
-                      setSignatureBusy(true);
-                      setSignatureToast(null);
-                      const prepared = await prepareSignatureImage(file);
-                      const preparedFile = await dataUrlToFile(prepared, file.name.replace(/\.[^.]+$/, "") || "signature");
-                      const formData = new FormData();
-                      formData.append("file", preparedFile);
-                      const res = await fetch("/api/inrsend/signature-image", { method: "POST", body: formData });
-                      const data = await res.json().catch(() => ({}));
-                      if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible d’importer cette image."));
-                      setSignatureImagePath(String(data?.imagePath || ""));
-                      setSignatureImageUrl(String(data?.imageUrl || ""));
-                      setSignatureToast(i18nT("image_inseree_pensez_a_sauvegarder_la_77ab6eef"));
-                    } catch (err: any) {
-                      setSignatureToast(`⚠️ ${getSimpleFrenchErrorMessage(err, "Impossible d’importer cette image.")}`);
-                    } finally {
-                      if (input) input.value = "";
-                      setSignatureBusy(false);
-                    }
-                  }}
-                />
-              </label>
-              {signatureImageUrl ? (
-                <button
-                  className={styles.pillButton}
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      setSignatureBusy(true);
-                      if (signatureImagePath) {
-                        const res = await fetch("/api/inrsend/signature-image", {
-                          method: "DELETE",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ imagePath: signatureImagePath }),
-                        });
-                        if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible de retirer cette image."));
-                      }
-                      setSignatureImagePath("");
-                      setSignatureImageUrl("");
-                      setSignatureToast(i18nT("image_retiree_99769015"));
-                    } catch (err: any) {
-                      setSignatureToast(`⚠️ ${getSimpleFrenchErrorMessage(err, "Impossible de retirer cette image.")}`);
-                    } finally {
-                      setSignatureBusy(false);
-                    }
-                  }}
-                  disabled={signatureBusy}
-                >
-                  {i18nT("retirer_l_image_aae9b371")}
-                </button>
-              ) : null}
-
-              <label className={styles.widthControl}>
-                <span>{i18nT("taille_de_l_image_de_signature_6277a860")}</span>
-              <select
-                className={styles.signatureSelect}
-                value={String(signatureImageWidth)}
-                onChange={(e) => setSignatureImageWidth(Number(e.target.value || 400))}
-              >
-                {SIGNATURE_WIDTH_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value} style={{ background: "#ffffff", color: "#111111" }}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              </label>
-              </div>
-            </div>
-
-            <div className={styles.previewPanel}>
-              <span className={styles.fieldLabel}>{i18nT("apercu_actuel_8cb7a75c")}</span>
-              <div className={styles.previewBox}>
-                <pre className={styles.signaturePreview}>
-              {signatureEnabled ? (signaturePreview || i18nT("apercu_indisponible_pour_le_moment_9ceb14a7")) : i18nT("signature_automatique_desactivee_9b6bd821")}
-                </pre>
-                {signatureEnabled && signatureImageUrl ? (
-                  <div className={styles.signatureImageWrap}>
-                    <img
-                      src={signatureImageUrl}
-                      alt={i18nT("apercu_image_de_signature_2631aa60")}
-                      style={{ width: `${signatureImageWidth}px` }}
-                    />
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          <div className={styles.saveRow}>
-            <Btn
-              label={signatureBusy ? "Enregistrement…" : "Sauvegarder la signature"}
-              disabled={signatureBusy}
-              onClick={async () => {
-                try {
-                  setSignatureBusy(true);
-                  const res = await fetch("/api/inrsend/signature", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ enabled: signatureEnabled, template: signatureTemplate, imagePath: signatureImagePath, imageUrl: signatureImageUrl, imageWidth: signatureImageWidth }),
-                  });
-                  const data = await res.json().catch(() => ({}));
-                  if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible d’enregistrer la signature."));
-                  const nextSignatureEnabled = data?.enabled !== false;
-                  const nextSignatureTemplate = String(data?.template || signatureTemplate);
-                  const nextSignatureImagePath = String(data?.imagePath || signatureImagePath);
-                  const nextSignatureImageUrl = String(data?.imageUrl || "");
-                  const nextSignatureImageWidth = Number(data?.imageWidth || signatureImageWidth) || 400;
-                  setSignatureEnabled(nextSignatureEnabled);
-                  setSignatureTemplate(nextSignatureTemplate);
-                  setSignatureImagePath(nextSignatureImagePath);
-                  setSignatureImageUrl(nextSignatureImageUrl);
-                  setSignaturePreview(String(data?.preview || ""));
-                  setSignatureImageWidth(nextSignatureImageWidth);
-                  savedSignatureSignatureRef.current = JSON.stringify({
-                    signatureEnabled: nextSignatureEnabled,
-                    signatureTemplate: nextSignatureTemplate,
-                    signatureImageUrl: nextSignatureImageUrl,
-                    signatureImagePath: nextSignatureImagePath,
-                    signatureImageWidth: nextSignatureImageWidth,
-                  });
-                  onUnsavedChange?.(false);
-                  setSignatureToast(i18nT("signature_enregistree_a0d7c464"));
-                  if (typeof window !== "undefined") {
-                    window.dispatchEvent(new CustomEvent("inrsend:signature-updated"));
-                  }
-                } catch (e: any) {
-                  setSignatureToast(`⚠️ ${getSimpleFrenchErrorMessage(e, "Impossible d’enregistrer la signature.")}`);
-                } finally {
-                  setSignatureBusy(false);
-                }
-              }}
-            />
-          </div>
-        </div>
-      </GlassCard>
-
-      {imapModalOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.55)",
-            display: "grid",
-            placeItems: "center",
-            padding: 16,
-            zIndex: 1000,
-          }}
-        >
-          <div
+  };
+  const mailboxSlots = slots.map(index => {
+    const isImapSlot = index === 3;
+    const account = isImapSlot ? imapAccount : oauthAccounts[index];
+    const refreshUrl = account ? mailAccountRefreshUrl(account) : null;
+    return {
+      number: index + 1,
+      address: account?.email_address,
+      provider: account ? ProviderLabel(account.provider) : isImapSlot ? "IMAP" : "Gmail / Microsoft",
+      statusLabel: account ? MailConnectionStatusLabel(account) : undefined,
+      needsUpdate: account ? account.connection_status === "needs_update" || account.requires_update || account.status === "expired" || account.status === "error" : false,
+      disabled: !account && (isImapSlot ? Boolean(imapAccount) : maxReached),
+      connectOptions: account ? [] : isImapSlot ? [{ label: "IMAP", onConnect: () => openImapModal(null) }] : !maxReached ? [
+        { label: "Gmail", onConnect: () => { window.location.href = "/api/integrations/google/start"; } },
+        { label: "Microsoft", onConnect: () => { window.location.href = "/api/integrations/microsoft/start"; } },
+      ] : [],
+      onReconnect: refreshUrl ? () => { window.location.href = refreshUrl; } : undefined,
+      onConfigure: account?.provider === "imap" ? () => openImapModal(account) : undefined,
+      onDisconnect: account ? () => disconnectMailAccount(account) : undefined,
+    };
+  });
+  const bubbleNoticeKeys: Record<string, string> = {
+    already_connected: "cette_boite_mail_est_deja_connectee_a0c7c8ce",
+    connected: "boite_mail_connectee_vous_pouvez_maintenant_6d472d63",
+    gmail_disconnected: "boite_gmail_deconnectee_3d83ef35",
+    outlook_disconnected: "boite_outlook_deconnectee_0544620c",
+    imap_disconnected: "boite_imap_deconnectee_392ad047",
+    imap_test_ok: "test_de_connexion_reussi_vous_pouvez_b896dce1",
+    imap_connected: "boite_imap_connectee_vous_pouvez_maintenant_4d98651e",
+    imap_updated: "imap_settings_saved",
+  };
+  const bubbleNotice = toast && bubbleNoticeKeys[toast] ? i18nT(bubbleNoticeKeys[toast]) : toast;
+  const imapDialog = imapModalOpen ? <ChannelParametersDialog name="IMAP" title={imapEditingAccountId ? i18nT("imap_settings_title") : i18nT("connexion_imap_boite_4_6d4e6ca3")} onClose={() => void requestCloseImapModal()}><div
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: "min(720px, 100%)",
-              borderRadius: 18,
-              border: "1px solid rgba(255,255,255,0.14)",
-              background: "rgba(20,20,24,0.95)",
-              boxShadow: "0 18px 50px rgba(0,0,0,0.38)",
-              padding: 16,
+              minWidth: 0,
               color: "rgba(255,255,255,0.92)",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 950 }}>
-                  {imapEditingAccountId ? i18nT("imap_settings_title") : i18nT("connexion_imap_boite_4_6d4e6ca3")}
-                </div>
-                <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>
+            <div style={{ fontSize: 12, opacity: 0.75, lineHeight: 1.5 }}>
                   {imapEditingAccountId
                     ? i18nT("imap_settings_intro")
                     : <>{i18nT("choisissez_un_fournisseur_prerempli_saisissez_vo_9888b1f7")}{" "}<b>identifiant</b> {" "}{i18nT("et_votre_1db8b8ca")}{" "}<b>{i18nT("mot_de_passe_b47ea832")}</b>{i18nT("puis_cliquez_sur_cfcbb581")}{" "}<b>{i18nT("connecter_ca28e250")}</b>.</>}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => void requestCloseImapModal()}
-                disabled={imapTestBusy || imapConnectBusy}
-                style={{
-                  borderRadius: 12,
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  background: "rgba(255,255,255,0.06)",
-                  padding: "8px 10px",
-                  color: "rgba(255,255,255,0.9)",
-                  cursor: "pointer",
-                }}
-              >
-                {i18nT("fermer_5ab4ec64")}{" "}</button>
             </div>
 
             <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
@@ -1198,9 +838,220 @@ Email : {{email}}`));
                 {i18nT("astuce_si_votre_boite_a_la_167d4379")}{" "}<b>{i18nT("mot_de_passe_d_application_f6940e53")}</b>.
               </div>
             </div>
+          </div></ChannelParametersDialog> : null;
+  const parameters = (
+    <div className={styles.settings}>
+      <section className={signatureStyles.panel} data-mail-signature>
+        <header className={signatureStyles.heading}><div><h3>{i18nT("signature_automatique_77745712")}</h3><p>Personnalisez le texte et l’image ajoutés à la fin de vos mails iNr’Send.</p></div></header>
+        <div className={signatureStyles.signatureShell}>
+          <label className={`${signatureStyles.toggleCard} ${signatureEnabled ? signatureStyles.toggleCardSelected : ""}`}>
+            <input
+              className={signatureStyles.visuallyHidden}
+              type="checkbox"
+              checked={signatureEnabled}
+              disabled={signatureBusy}
+              onChange={(e) => setSignatureEnabled(e.target.checked)}
+            />
+            <span className={signatureStyles.checkIndicator} aria-hidden="true" />
+            <span className={signatureStyles.toggleCopy}>
+              <strong>{i18nT("activer_la_signature_automatique_d826254a")}</strong>
+              <small>Ajoutée automatiquement à chaque message envoyé.</small>
+            </span>
+          </label>
+
+          {signatureToast ? (
+            <div className={`${signatureStyles.notice} ${signatureToast.startsWith("⚠️") ? signatureStyles.noticeWarning : ""}`} role="status">
+              {signatureToast}
+            </div>
+          ) : null}
+
+          <div className={signatureStyles.signatureGrid}>
+            <div className={signatureStyles.editorPanel}>
+              <label className={signatureStyles.fieldLabel} htmlFor="mails-signature-template">Texte de la signature</label>
+              <textarea
+                id="mails-signature-template"
+                className={signatureStyles.signatureTextarea}
+                value={signatureTemplate}
+                onChange={(e) => setSignatureTemplate(e.target.value)}
+                rows={4}
+                disabled={signatureBusy}
+              />
+              <p className={signatureStyles.variablesHelp}>
+                Variables : {"{{nom_complet}}"}, {"{{nom_entreprise}}"}, {"{{telephone}}"}, {"{{email}}"}, {"{{ville}}"}…
+              </p>
+
+              <div className={signatureStyles.mediaTools}>
+              <label
+                className={`${signatureStyles.pillButton} ${signatureStyles.fileButton}`}
+                aria-disabled={signatureBusy}
+              >
+                {i18nT("importer_une_image_fcd9d38d")}{" "}<input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                  disabled={signatureBusy}
+                  className={signatureStyles.visuallyHidden}
+                  ref={signatureFileInputRef}
+                  onChange={async (e) => {
+                    const input = e.currentTarget;
+                    const file = input.files?.[0];
+                    if (!file) return;
+                    try {
+                      setSignatureBusy(true);
+                      setSignatureToast(null);
+                      const prepared = await prepareSignatureImage(file);
+                      const preparedFile = await dataUrlToFile(prepared, file.name.replace(/\.[^.]+$/, "") || "signature");
+                      const formData = new FormData();
+                      formData.append("file", preparedFile);
+                      const res = await fetch("/api/inrsend/signature-image", { method: "POST", body: formData });
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible d’importer cette image."));
+                      setSignatureImagePath(String(data?.imagePath || ""));
+                      setSignatureImageUrl(String(data?.imageUrl || ""));
+                      setSignatureToast(i18nT("image_inseree_pensez_a_sauvegarder_la_77ab6eef"));
+                    } catch (err: any) {
+                      setSignatureToast(`⚠️ ${getSimpleFrenchErrorMessage(err, "Impossible d’importer cette image.")}`);
+                    } finally {
+                      if (input) input.value = "";
+                      setSignatureBusy(false);
+                    }
+                  }}
+                />
+              </label>
+              {signatureImageUrl ? (
+                <button
+                  className={signatureStyles.pillButton}
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      setSignatureBusy(true);
+                      if (signatureImagePath) {
+                        const res = await fetch("/api/inrsend/signature-image", {
+                          method: "DELETE",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ imagePath: signatureImagePath }),
+                        });
+                        if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible de retirer cette image."));
+                      }
+                      setSignatureImagePath("");
+                      setSignatureImageUrl("");
+                      setSignatureToast(i18nT("image_retiree_99769015"));
+                    } catch (err: any) {
+                      setSignatureToast(`⚠️ ${getSimpleFrenchErrorMessage(err, "Impossible de retirer cette image.")}`);
+                    } finally {
+                      setSignatureBusy(false);
+                    }
+                  }}
+                  disabled={signatureBusy}
+                >
+                  {i18nT("retirer_l_image_aae9b371")}
+                </button>
+              ) : null}
+
+              <label className={signatureStyles.widthControl}>
+                <span>{i18nT("taille_de_l_image_de_signature_6277a860")}</span>
+              <select
+                className={signatureStyles.signatureSelect}
+                value={String(signatureImageWidth)}
+                disabled={signatureBusy}
+                onChange={(e) => setSignatureImageWidth(Number(e.target.value || 400))}
+              >
+                {SIGNATURE_WIDTH_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value} style={{ background: "#10213f", color: "#f4f8ff" }}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              </label>
+              </div>
+            </div>
+
+            <div className={signatureStyles.previewPanel}>
+              <span className={signatureStyles.fieldLabel}>{i18nT("apercu_actuel_8cb7a75c")}</span>
+              <div className={signatureStyles.previewBox}>
+                <pre className={signatureStyles.signaturePreview}>
+              {signatureEnabled ? (signaturePreview || i18nT("apercu_indisponible_pour_le_moment_9ceb14a7")) : i18nT("signature_automatique_desactivee_9b6bd821")}
+                </pre>
+                {signatureEnabled && signatureImageUrl ? (
+                  <div className={signatureStyles.signatureImageWrap}>
+                    <img
+                      src={signatureImageUrl}
+                      alt={i18nT("apercu_image_de_signature_2631aa60")}
+                      style={{ width: `${signatureImageWidth}px` }}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className={signatureStyles.saveRow}>
+            <button type="button" className={signatureStyles.saveButton}
+              disabled={signatureBusy}
+              onClick={async () => {
+                try {
+                  setSignatureBusy(true);
+                  const res = await fetch("/api/inrsend/signature", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ enabled: signatureEnabled, template: signatureTemplate, imagePath: signatureImagePath, imageUrl: signatureImageUrl, imageWidth: signatureImageWidth }),
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible d’enregistrer la signature."));
+                  const nextSignatureEnabled = data?.enabled !== false;
+                  const nextSignatureTemplate = String(data?.template || signatureTemplate);
+                  const nextSignatureImagePath = String(data?.imagePath || signatureImagePath);
+                  const nextSignatureImageUrl = String(data?.imageUrl || "");
+                  const nextSignatureImageWidth = Number(data?.imageWidth || signatureImageWidth) || 400;
+                  setSignatureEnabled(nextSignatureEnabled);
+                  setSignatureTemplate(nextSignatureTemplate);
+                  setSignatureImagePath(nextSignatureImagePath);
+                  setSignatureImageUrl(nextSignatureImageUrl);
+                  setSignaturePreview(String(data?.preview || ""));
+                  setSignatureImageWidth(nextSignatureImageWidth);
+                  savedSignatureSignatureRef.current = JSON.stringify({
+                    signatureEnabled: nextSignatureEnabled,
+                    signatureTemplate: nextSignatureTemplate,
+                    signatureImageUrl: nextSignatureImageUrl,
+                    signatureImagePath: nextSignatureImagePath,
+                    signatureImageWidth: nextSignatureImageWidth,
+                  });
+                  onUnsavedChange?.(false);
+                  setSignatureToast(i18nT("signature_enregistree_a0d7c464"));
+                  if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("inrsend:signature-updated"));
+                  }
+                } catch (e: any) {
+                  setSignatureToast(`⚠️ ${getSimpleFrenchErrorMessage(e, "Impossible d’enregistrer la signature.")}`);
+                } finally {
+                  setSignatureBusy(false);
+                }
+              }}
+            >{signatureBusy ? "Enregistrement…" : "Sauvegarder la signature"}</button>
           </div>
         </div>
-      )}
-      </div>
+      </section>
+
+    </div>
   );
+  return {
+    parameters,
+    imapDialog,
+    connection: {
+      accountConnected: mailAccounts.length > 0,
+      resourceLabel: "",
+      mailboxes: mailboxSlots,
+      loading, busy: Boolean(busyDisconnect), error, notice: bubbleNotice,
+      parameters, parametersOwnHeading: true,
+    },
+  };
+}
+
+export function MailSignatureSettingsContent(props: SignatureSettingsProps) {
+  const { parameters } = useMailsSettingsController(props);
+  return parameters;
+}
+
+export default function MailsSettingsContent({ renderBubble, onUnsavedChange }: Props) {
+  const { connection, imapDialog } = useMailsSettingsController({ onUnsavedChange });
+  return <>{renderBubble(connection)}{imapDialog}</>;
 }

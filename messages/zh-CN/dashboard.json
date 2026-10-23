@@ -375,7 +375,7 @@
     },
     "threads": {
       "name": "Threads",
-      "description": "与您的社群交流",
+      "description": "与您的社群交流 💬",
       "view": "查看账户",
       "connect": "连接 Instagram"
     }
@@ -762,5 +762,54 @@
     "studioLine1": "创建、编辑和润饰",
     "studioLine2": "您的媒体内容。",
     "studioCta": "媒体工作室"
+  },
+  "channelBubble": {
+    "parameters": "设置",
+    "close": "关闭",
+    "failed": "无法更新连接。",
+    "view": "查看页面",
+    "connect": "连接",
+    "reconnect": "重新连接",
+    "selected": "已选页面",
+    "account": "关联账户",
+    "loading": "加载中…",
+    "choose": "选择页面",
+    "notConnected": "未连接账户",
+    "disconnect": "断开连接",
+    "create": "创建账户",
+    "selectedPage": "所选主页",
+    "selectedAccount": "所选账号",
+    "selectedBoard": "所选画板",
+    "selectedMailbox": "所选邮箱",
+    "publicationTypes": "发布类型",
+    "addMailbox": "添加邮箱",
+    "connectedAccount": "已连接的账号",
+    "createBoard": "创建画板",
+    "boardName": "新画板名称",
+    "createBoardFailed": "无法创建画板。",
+    "chooseBoard": "选择画板",
+    "choosePage": "选择主页",
+    "chooseAccount": "选择账号",
+    "chooseMailbox": "选择邮箱",
+    "refreshChoices": "刷新列表",
+    "publicLink": "公开链接",
+    "mailboxSlot": "邮箱 {number}",
+    "mailboxes": "我的邮箱",
+    "editPublicLink": "编辑公开链接",
+    "viewShort": "查看",
+    "formatsShort": "格式",
+    "linkShort": "链接",
+    "settingsShort": "设置",
+    "signatureShort": "签名",
+    "boardsShort": "画板",
+    "widget": "组件",
+    "connectedShort": "已连接",
+    "saveSiteFirst": "请先保存网站链接，再连接 GA4 或 GSC。"
+  },
+  "channelHelp": {
+    "inrSearch": "根据您的个人资料和帖子创建公开的 iNrCy 页面，并可选择是否将其显示在 iNrCy 目录中。",
+    "threads": "分享动态并与社区交流。选择可用的发布格式和默认格式。",
+    "pinterest": "将图片发布到您账号的画板。可在气泡中选择画板或创建新画板。",
+    "x": "将动态和帖子分享到您的 X 账号，让您的线上形象保持活跃。"
   }
 }

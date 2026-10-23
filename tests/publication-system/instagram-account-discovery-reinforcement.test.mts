@@ -42,13 +42,19 @@ test("une liste vide n'est plus renvoyée silencieusement", () => {
 test("la réparation OAuth est explicite et ne modifie pas la connexion normale", () => {
   const start = read("app/api/integrations/instagram/start/route.ts");
   const hook = read("app/dashboard/_hooks/channels/useInstagramChannel.ts");
-  const panel = read("app/dashboard/_components/InstagramPanel.tsx");
+  const workspace = read("app/dashboard/_components/DashboardChannelWorkspace.tsx");
+  const bubble = read("app/dashboard/_components/DashboardFluxBubble.tsx");
 
   assert.match(start, /repair/);
   assert.match(start, /auth_type/);
   assert.match(start, /rerequest/);
   assert.match(hook, /repairParam/);
-  assert.match(panel, /i18nT\("actualiser_les_autorisations_meta_85e7f589"\)/);
+  assert.match(hook, /const repairParam = options\?\.repair \? "&repair=1" : ""/);
+  assert.match(workspace, /label: "Via Facebook", onConnect: item\.bubbleStatus === "reconnect" \? \(\) => ig\.connectInstagramAccount\(\{ repair: true \}\) : ig\.connectInstagramAccount/);
+  assert.match(bubble, /const connectLabel = item\.bubbleStatus === "reconnect" \|\| connection\?\.accountConnected \? t\("reconnect"\) : t\("connect"\)/);
+  assert.match(bubble, /const showConnect = canConnect && !showDisconnect/);
+  assert.match(bubble, /showConnect \? <[\s\S]*?connection\?\.connectOptions\?\.length \? setConnectOpen\(true\)/);
+  assert.match(bubble, /connection\?\.connectOptions\?\.map[\s\S]*?await option\.onConnect\(\)/);
 });
 
 

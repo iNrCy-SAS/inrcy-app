@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { channelNodes, channelRuntime } from "../helpers/channel-bubble-runtime.mts";
 
 import {
   findExplicitlyMissingGoogleScopes,
@@ -49,47 +50,37 @@ test("every active Google OAuth callback rejects partial consent before persiste
 });
 
 test("the dashboard explains Google consent and offers product-specific retries", () => {
-  const drawer = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
-  const banner = read("app/dashboard/_components/GoogleOAuthConsentBanner.tsx");
-  const googleBusiness = read("app/dashboard/_components/GoogleBusinessPanel.tsx");
-  const siteWeb = read("app/dashboard/_components/SiteWebPanel.tsx");
-  const youtube = read("app/dashboard/settings/_components/YoutubeShortsSettingsContent.tsx");
-
-  const localPanelSet = drawer.match(
-    /const PANELS_WITH_LOCAL_GOOGLE_NOTICE = new Set\(\[([\s\S]*?)\]\);/,
-  )?.[1] ?? "";
-  assert.deepEqual(
-    [...localPanelSet.matchAll(/"([^"]+)"/g)].map((match) => match[1]),
-    ["gmb", "site_web", "youtube_shorts"],
-  );
-  assert.match(
-    drawer,
-    /<GoogleOAuthConsentBanner panel=\{panel && !PANELS_WITH_LOCAL_GOOGLE_NOTICE\.has\(panel\) \? panel : null\} \/>/,
-  );
-  assert.match(googleBusiness, /<GoogleOAuthConsentBanner panel="gmb" variant="inline" \/>/);
-  assert.match(youtube, /<GoogleOAuthConsentBanner panel="youtube_shorts" variant="inline" \/>/);
-  for (const [source, panel] of [
-    [siteWeb, "site_web"],
-  ] as const) {
-    assert.ok(
-      source.includes(`<GoogleOAuthConsentBanner panel="${panel}" product="ga4" variant="inline" />`),
-      `missing inline GA4 consent notice for ${panel}`,
-    );
-    assert.ok(
-      source.includes(`<GoogleOAuthConsentBanner panel="${panel}" product="gsc" variant="inline" />`),
-      `missing inline GSC consent notice for ${panel}`,
-    );
-  }
-  for (const endpoint of [
-    "google-business/start",
-    "google/start",
-    "google-stats/start",
-    "youtube-shorts/start",
+  const modal = read("app/dashboard/_components/DashboardChannelsModal.tsx");
+  assert.match(modal, /<GoogleOAuthConsentBanner panel=\{selected\?\.key \?\? null\} errorsOnly/);
+  for (const [panel, product, endpoint] of [
+    ["gmb", "gmb", "google-business/start"],
+    ["mails", "google", "google/start"],
+    ["youtube_shorts", "youtube_shorts", "youtube-shorts/start"],
+    ["site_web", "ga4", "google-stats/start"],
+    ["site_web", "gsc", "google-stats/start"],
   ]) {
-    assert.ok(banner.includes(endpoint), `missing retry route ${endpoint}`);
+    const query = new URLSearchParams({ panel, linked: product, error: GOOGLE_OAUTH_PERMISSION_ERROR_CODE });
+    const runtime = channelRuntime("app/dashboard/_components/GoogleOAuthConsentBanner.tsx", {
+      "next/navigation": { useSearchParams: () => query },
+      "@/lib/googleOAuthConsent": { GOOGLE_OAUTH_PERMISSION_ERROR_CODE },
+    });
+    const props = { panel, errorsOnly: true };
+    for (const error of [GOOGLE_OAUTH_PERMISSION_ERROR_CODE, "access_denied"]) {
+      query.set("error", error);
+      const tree = runtime.render(props);
+      assert.equal(tree.props.role, "alert");
+      channelNodes(tree).find(node => node.type === "button")!.props.onClick();
+      const destination = new URL(runtime.browser.location.href, "https://app.example");
+      assert.equal(destination.pathname, `/api/integrations/${endpoint}`);
+      assert.equal(destination.searchParams.get("returnTo"), `/dashboard?panel=${panel}`);
+      if (panel === "site_web") {
+        assert.equal(destination.searchParams.get("product"), product);
+        assert.equal(destination.searchParams.get("source"), panel);
+        const unrelated = runtime.render({ ...props, product: product === "ga4" ? "gsc" : "ga4" });
+        assert.equal(unrelated, null, "A product-specific notice cannot display another product's consent error");
+      }
+    }
+    query.delete("error");
+    assert.equal(runtime.render(props), null, "Healthy connected bubbles do not repeat a consent notice");
   }
-  assert.match(banner, /error === GOOGLE_OAUTH_PERMISSION_ERROR_CODE/);
-  assert.match(banner, /error === "access_denied"/);
-  assert.match(banner, /!product \|\| !linked \|\| linked === product/);
-  assert.match(banner, /buildRetryHref\(panel, product \?\? linked\)/);
 });

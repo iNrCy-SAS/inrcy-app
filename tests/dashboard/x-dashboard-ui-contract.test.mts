@@ -17,7 +17,7 @@ test("X is a first-class Dashboard bubble gated by Bubble Access", () => {
   assert.match(bubbles, /isBubbleEnabled\(bubbleAccessMap, bubbleKey\)/);
   assert.match(bubbles, /m\.key === "x"[\s\S]*?xConnected/);
   assert.match(client, /const canAccessX = isBubbleEnabled\(bubbleAccessMap, "x"\)/);
-  assert.match(client, /xAccessEnabled=\{canAccessX\}/);
+  assert.match(client, /x: Boolean\(canAccessX && xConnected/);
 });
 
 test("X configuration owns status, OAuth start and disconnect actions", () => {
@@ -26,11 +26,11 @@ test("X configuration owns status, OAuth start and disconnect actions", () => {
   const panel = read("app/dashboard/settings/_components/XSettingsContent.tsx");
 
   assert.match(routing, /\| "x"/);
-  assert.match(drawer, /shouldKeepPanel\("x"\) && xAccessEnabled/);
-  assert.match(
-    drawer,
-    /<MemorizedPanel active=\{panel === "x"\}>[\s\S]*?<XSettingsContent onUnsavedChange=\{panel === "x" \? onUnsavedChange : undefined\} \/>/,
-  );
+  const workspace = read("app/dashboard/_components/DashboardChannelWorkspace.tsx");
+  assert.doesNotMatch(drawer, /XSettingsContent/);
+  assert.match(workspace, /if \(item\.configureDisabled \|\| item\.premiumLocked/);
+  assert.match(workspace, /case "x": return <XSettingsContent/);
+  assert.match(panel, /onConnect: connectX,\s+onDisconnect: disconnectX/);
   assert.match(panel, /fetch\("\/api\/integrations\/x\/status"/);
   assert.match(panel, /\/api\/integrations\/x\/start\?returnTo=/);
   assert.match(panel, /fetch\("\/api\/integrations\/x\/disconnect", \{ method: "POST" \}\)/);

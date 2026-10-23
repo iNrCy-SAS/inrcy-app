@@ -39,12 +39,12 @@ test("a complete account-scoped snapshot is rendered before the first dashboard 
   assert.doesNotMatch(dashboard, /fetch\("\/api\/integrations\/x\/status"/);
 });
 
-test("account cache restoration preserves the matching server snapshot", () => {
+test("account cache restoration preserves the latest confirmed snapshot for the matching account", () => {
   const dashboard = read("app/dashboard/DashboardClient.tsx");
 
   assert.match(
     dashboard,
-    /initialOfficialChannelStatesUserId === activeAccountId[\s\S]*mergeDashboardHydrationState\(cachedChannelState, scopedInitialServerState\)/,
+    /confirmedChannelAccountRef\.current === activeAccountId[\s\S]*mergeDashboardHydrationState\(cachedChannelState, scopedInitialServerState\)/,
   );
   assert.match(dashboard, /writeCachedDashboardChannelState\(hydrationState\)/);
   assert.doesNotMatch(

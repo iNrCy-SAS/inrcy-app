@@ -356,20 +356,17 @@ test("Standard et Premium partagent le même dashboard, avec un adaptateur Stand
   assert.match(sharedModulesSource, /const standardMode = standardModeOverride \|\| dashboardEdition === "standard"/);
 });
 
-test("Standard conserve les vraies bulles de connexion avec Voir et Configurer", () => {
+test("Standard conserve les bulles et leurs commandes accessibles en icônes", () => {
   assert.match(channelsSectionSource, /<DashboardChannelsModal items=\{fluxBubbleItems\}/);
-  assert.match(channelsModalSource, /<DashboardFluxBubble key=\{selected\.key\} item=\{selectedItem!\}/);
-  assert.match(channelsModalSource, /const selectedItem = selected \? \{\s*\.\.\.selected,/);
-  assert.match(channelsModalSource, /onConfigure: \(\) => \{ closeDialog\(\); selected\.onConfigure\(\); \}/);
+  assert.match(channelsModalSource, /renderSelected\(selectedItem!\)/);
   assert.doesNotMatch(channelsModalSource, /(?:configureDisabled|createDisabled|premiumLocked):\s*false/);
   assert.match(dashboardClientSource, /STANDARD_DASHBOARD_BUBBLE_KEYS/);
-  assert.match(dashboardClientSource, /STANDARD_BONUS_CHANNEL_KEYS/);
-  assert.match(connectionBubbleSource, /item\.viewFallbackLabel \|\| i18nT\("voir_8a754f1f"\)/);
-  assert.match(connectionBubbleSource, /item\.configureLabel \|\| i18nT\("configurer_382efbe9"\)/);
-  assert.match(connectionBubbleSource, /disabled=\{item\.configureDisabled \|\| configureLoadingVisible\}/);
-  assert.match(channelsSectionSource, /fluxBubbleItems\.filter\(\(item\) => getChannelTone\(item\) === "connected"\)\.length/);
+  assert.match(connectionBubbleSource, /kind="eye"/);
+  assert.match(connectionBubbleSource, /kind="plug"/);
+  assert.match(connectionBubbleSource, /kind=\{connection\?\.parametersIcon \|\| "settings"\}/);
+  assert.match(connectionBubbleSource, /item\.configureDisabled/);
   assert.match(channelsSectionSource, /const total = fluxBubbleItems\.length/);
-  assert.match(channelsSectionSource, /summary=\{\{ connected, total \}\}/);
+
 });
 
 test("un canal desactive reste gris tandis qu'un canal a connecter garde son etat disponible", () => {
@@ -526,8 +523,8 @@ test("le tableau Standard montre tous les outils Premium, mais verrouille ceux q
   assert.match(channelsModalSource, /const selectedItem = selected \? \{\s*\.\.\.selected,/);
   assert.match(channelsModalSource, /<DashboardFluxBubble key=\{selected\.key\} item=\{selectedItem!\}/);
   assert.doesNotMatch(channelsModalSource, /premiumLocked:\s*false/);
-  assert.match(fluxBubbleSource, /\{item\.premiumLocked \? \([\s\S]*?DashboardPremiumLockIcon/);
-  assert.match(fluxBubbleSource, /\{!item\.premiumLocked \? \(/);
+  assert.match(fluxBubbleSource, /item\.premiumLocked \? <button[\s\S]*DashboardPremiumLockIcon/);
+  assert.match(fluxBubbleSource, /const disabled = item\.configureDisabled/);
 });
 
 test("le Bilan Booster reste distinct de iNrStats et ouvre la modale historique Booster", () => {

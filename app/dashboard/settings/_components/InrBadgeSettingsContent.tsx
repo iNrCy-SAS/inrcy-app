@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { createInrBadgeQrMatrix } from "@/lib/inrBadgeQr";
 import { createInrBadgeQrTrackingUrl, type InrBadgeProfileSummary } from "@/lib/inrBadge";
 import { effectiveInrBadgeShareSettings } from "@/lib/inrBadgeEditionPolicy";
@@ -95,21 +95,9 @@ type InrBadgeStepHeaderProps = {
   trailing?: ReactNode;
 };
 
-function InrBadgeStepHeader({ step, title, description, accent, trailing }: InrBadgeStepHeaderProps) {
+function InrBadgeStepHeader({ title, description, trailing }: InrBadgeStepHeaderProps) {
   return (
     <div style={stepHeaderStyle}>
-      <span
-        style={{
-          ...stepNumberStyle,
-          color: accent,
-          borderColor: `${accent}99`,
-          background: `${accent}1f`,
-          boxShadow: `0 0 22px ${accent}24`,
-        }}
-        aria-hidden="true"
-      >
-        {step}
-      </span>
       <div style={stepHeaderCopyStyle}>
         <div style={stepTitleRowStyle}>
           <h3 style={{ ...sectionTitleStyle, margin: 0 }}>{title}</h3>
@@ -330,6 +318,13 @@ async function downloadQrPng(publicUrl: string, profile: InrBadgeProfileSummary)
   downloadBlob(blob, `${safeFilename(trim(profile.companyLegalName) || getDisplayName(profile))}-inrbadge.png`);
 }
 
+export async function downloadInrBadgeQr(publicUrl: string, profile: InrBadgeProfileSummary, format: "png" | "pdf") {
+  if (!publicUrl) return;
+  const trackingUrl = createInrBadgeQrTrackingUrl(publicUrl);
+  if (format === "png") return downloadQrPng(trackingUrl, profile);
+  downloadBlob(createPdfBlob(trackingUrl, profile), `${safeFilename(trim(profile.companyLegalName) || getDisplayName(profile))}-inrbadge.pdf`);
+}
+
 function escapePdfText(value: string) {
   return trim(value)
     .normalize("NFD")
@@ -534,8 +529,6 @@ export default function InrBadgeSettingsContent({
   const [mailAccounts, setMailAccounts] = useState<MailAccountOption[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [extractingLogoTheme, setExtractingLogoTheme] = useState(false);
-  const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
-  const downloadMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -591,25 +584,6 @@ export default function InrBadgeSettingsContent({
       cancelled = true;
     };
   }, [dashboardEdition, standardMode, storageKey]);
-
-  useEffect(() => {
-    if (!downloadMenuOpen) return;
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (downloadMenuRef.current && target && !downloadMenuRef.current.contains(target)) {
-        setDownloadMenuOpen(false);
-      }
-    };
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDownloadMenuOpen(false);
-    };
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [downloadMenuOpen]);
 
   const updateSetting = (key: ShareKey, value: boolean) => {
     const next = normalizeInrBadgeShareSettings({ ...settings, [key]: value });
@@ -689,40 +663,6 @@ export default function InrBadgeSettingsContent({
     }
   };
 
-  const copyLink = async () => {
-    if (!publicUrl) return;
-    try {
-      await navigator.clipboard.writeText(publicUrl);
-      setNotice(i18nT("lien_copie_8f514dc0"));
-    } catch {
-      setNotice(i18nT("impossible_de_copier_automatiquement_selectionne_df13c396"));
-    }
-    window.setTimeout(() => setNotice(null), 1800);
-  };
-
-  const openPreview = () => {
-    if (!publicUrl) return;
-    window.open(publicUrl, "_blank", "noopener,noreferrer");
-  };
-
-  const toggleDownloadMenu = () => {
-    if (!publicUrl) return;
-    setDownloadMenuOpen((current) => !current);
-  };
-
-  const downloadPdf = () => {
-    if (!publicUrl) return;
-    setDownloadMenuOpen(false);
-    const blob = createPdfBlob(createInrBadgeQrTrackingUrl(publicUrl), profile);
-    downloadBlob(blob, `${safeFilename(company)}-inrbadge.pdf`);
-  };
-
-  const downloadPng = () => {
-    if (!publicUrl) return;
-    setDownloadMenuOpen(false);
-    void downloadQrPng(createInrBadgeQrTrackingUrl(publicUrl), profile);
-  };
-
   const channelItems: Array<{ key: ShareKey; label: string; connected: boolean; helper: string }> = [
     { key: "inrSearch", label: i18nT("inr_search_ce47ed45"), connected: canShareChannel(channels.inrSearch), helper: i18nT("disponible_des_que_votre_page_inr_dfa63b10") },
 
@@ -786,6 +726,7 @@ export default function InrBadgeSettingsContent({
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
+      <InrBadgeAutoSaveStatus />
       {!profileReady ? (
         <div style={warningCardStyle}>
           <strong>{i18nT("profil_incomplet_8a8f765c")}</strong>
@@ -793,39 +734,6 @@ export default function InrBadgeSettingsContent({
           <button type="button" onClick={onOpenProfile} style={primarySmallButtonStyle}>{i18nT("completer_mon_profil_0a56fe88")}</button>
         </div>
       ) : null}
-
-      <div style={stepCardStyle("#38bdf8")}>
-        <InrBadgeStepHeader
-          step={1}
-          title={i18nT("qr_code_44742187")}
-          description="Prévisualisez, partagez ou téléchargez votre QR Code permanent."
-          accent="#38bdf8"
-        />
-        <p style={mutedStyle}>{publicUrl || i18nT("le_lien_sera_genere_des_que_25e0b814")}</p>
-        <div style={buttonGridStyle}>
-          <button type="button" style={smallButtonStyle} onClick={openPreview} disabled={!publicUrl}>{i18nT("apercu_fiche_c431fffe")}</button>
-          <button type="button" style={smallButtonStyle} onClick={copyLink} disabled={!publicUrl}>{i18nT("copier_le_lien_2b135d8c")}</button>
-          <div style={downloadDropdownWrapStyle} ref={downloadMenuRef}>
-            <button
-              type="button"
-              style={smallButtonStyle}
-              onClick={toggleDownloadMenu}
-              disabled={!publicUrl}
-              aria-haspopup="menu"
-              aria-expanded={downloadMenuOpen}
-            >
-              <span>{i18nT("telecharger_b332d06d")}</span>
-              <span aria-hidden="true" style={downloadChevronStyle}>▾</span>
-            </button>
-            {downloadMenuOpen ? (
-              <div style={downloadDropdownMenuStyle} role="menu" aria-label={i18nT("choisir_un_format_de_telechargement_42324b61")}>
-                <button type="button" style={downloadDropdownItemStyle} onClick={downloadPng} role="menuitem">PNG</button>
-                <button type="button" style={downloadDropdownItemStyle} onClick={downloadPdf} role="menuitem">PDF</button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
 
       <div style={stepCardStyle("#8b5cf6")}>
         <InrBadgeStepHeader
@@ -1032,18 +940,6 @@ const stepHeaderStyle: CSSProperties = {
   marginBottom: 14,
 };
 
-const stepNumberStyle: CSSProperties = {
-  width: 34,
-  height: 34,
-  flex: "0 0 34px",
-  display: "grid",
-  placeItems: "center",
-  border: "1px solid",
-  borderRadius: 11,
-  fontSize: 14,
-  fontWeight: 950,
-};
-
 const stepHeaderCopyStyle: CSSProperties = {
   minWidth: 0,
   flex: 1,
@@ -1191,35 +1087,6 @@ const sectionTitleStyle: CSSProperties = { margin: "0 0 10px", color: "#fff", fo
 const mutedStyle: CSSProperties = { margin: "0 0 12px", color: "rgba(226,232,240,0.70)", fontSize: 12, overflowWrap: "anywhere" };
 const twoColumnsGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 };
 const fullWidthGridItemStyle: CSSProperties = { gridColumn: "1 / -1" };
-const buttonGridStyle: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8 };
-const downloadDropdownWrapStyle: CSSProperties = { position: "relative", display: "inline-flex" };
-const downloadChevronStyle: CSSProperties = { fontSize: 10, opacity: 0.8 };
-const downloadDropdownMenuStyle: CSSProperties = {
-  position: "absolute",
-  top: "calc(100% + 8px)",
-  right: 0,
-  minWidth: 150,
-  display: "grid",
-  gap: 6,
-  padding: 8,
-  borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(15,23,42,0.96)",
-  boxShadow: "0 18px 40px rgba(0,0,0,0.28)",
-  zIndex: 20,
-};
-const downloadDropdownItemStyle: CSSProperties = {
-  border: "1px solid rgba(255,255,255,0.10)",
-  background: "rgba(255,255,255,0.05)",
-  color: "#fff",
-  borderRadius: 12,
-  padding: "10px 12px",
-  fontSize: 12,
-  fontWeight: 800,
-  textAlign: "left",
-  cursor: "pointer",
-};
-
 const smallButtonStyle: CSSProperties = {
   border: "1px solid rgba(125,211,252,0.34)",
   background: "linear-gradient(135deg, rgba(14,165,233,0.20), rgba(139,92,246,0.22))",

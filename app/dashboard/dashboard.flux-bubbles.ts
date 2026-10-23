@@ -61,7 +61,6 @@ type BuildFluxBubbleItemsArgs = {
   youtubeShortsUrl: string | null | undefined;
   openPanel: (panel: any) => void;
   savedSiteWebUrlMeta: unknown;
-  setHelpSiteWebOpen: (open: boolean) => void;
   siteWebSavedUrl: string | null | undefined;
   copy: DashboardCopy;
 };
@@ -117,7 +116,6 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
     openPanel,
     savedSiteWebUrlMeta,
 
-    setHelpSiteWebOpen,
 
     siteWebSavedUrl,
     copy,
@@ -336,9 +334,6 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       logoAlt: moduleIcon.alt,
       bubbleStatus,
       bubbleStatusText,
-      helpKind: m.key === "site_web" ? "site_web" : undefined,
-
-      onHelpSiteWeb: () => setHelpSiteWebOpen(true),
       specialViewHref,
       specialViewLabel,
       canViewSpecial: accessEnabled ? canViewSpecial : false,

@@ -5,9 +5,11 @@ import { filterMetaPilotPayload, filterMetaPilotItems } from "@/lib/metaChannelU
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  getActiveBrowserUserId,
   readAccountCacheValue,
   writeAccountCacheValue,
 } from "@/lib/browserAccountCache";
+import { subscribeToChannelConnectionUpdates } from "@/lib/channelConnectionUpdates";
 import {
   INR_AGENT_DEFAULT_SETTINGS,
   sanitizeInrAgentSettings,
@@ -420,6 +422,9 @@ export function useAgentRuntimeData({
     let alive = true;
 
     async function loadConnectedChannels() {
+      const requestSeq = ++connectedChannelsRequestSeq;
+      const accountScope = getActiveBrowserUserId();
+      const isCurrent = () => alive && requestSeq === connectedChannelsRequestSeq && accountScope === getActiveBrowserUserId();
       setConnectedChannelsLoadState((current) =>
         current === "ready" ? current : "loading",
       );
@@ -428,7 +433,7 @@ export function useAgentRuntimeData({
           cache: "no-store",
         });
         const payload = await response.json().catch(() => null);
-        if (!alive) return;
+        if (!isCurrent()) return;
         if (!response.ok) {
           throw new Error(i18nT("agent_channels_unavailable"));
         }
@@ -440,7 +445,7 @@ export function useAgentRuntimeData({
           connectedChannels: nextConnectedChannels,
         });
       } catch {
-        if (!alive) return;
+        if (!isCurrent()) return;
         setAgentConnectedChannels((current) => current ?? null);
         setConnectedChannelsLoadState((current) =>
           current === "ready" ? current : "error",
@@ -448,6 +453,7 @@ export function useAgentRuntimeData({
       }
     }
 
+    let connectedChannelsRequestSeq = 0;
     loadConnectedChannels();
     let lastConnectionRefresh = Date.now();
     const refreshWhenVisible = () => {
@@ -455,13 +461,19 @@ export function useAgentRuntimeData({
       lastConnectionRefresh = Date.now();
       void loadConnectedChannels();
     };
+    const unsubscribeConnectionUpdates = subscribeToChannelConnectionUpdates(() => {
+      lastConnectionRefresh = Date.now();
+      void loadConnectedChannels();
+    });
     window.addEventListener("focus", refreshWhenVisible);
     document.addEventListener("visibilitychange", refreshWhenVisible);
 
     return () => {
       alive = false;
+      connectedChannelsRequestSeq += 1;
       window.removeEventListener("focus", refreshWhenVisible);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
+      unsubscribeConnectionUpdates();
     };
   }, []);
 

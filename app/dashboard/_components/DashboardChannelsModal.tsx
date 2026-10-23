@@ -1,10 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import DashboardFluxBubble, { type DashboardFluxBubbleData } from "./DashboardFluxBubble";
 import { getChannelSceneLayout, getChannelTone } from "./dashboard-channel-presentation";
 import styles from "./DashboardChannelsModal.module.css";
+import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvider";
+import GoogleOAuthConsentBanner from "./GoogleOAuthConsentBanner";
+import MetaOAuthCallbackNotice from "./MetaOAuthCallbackNotice";
 
 type Props = {
   items: DashboardFluxBubbleData[];
@@ -12,6 +15,8 @@ type Props = {
   onOpenHelp?: () => void;
   /** Same plan-aware count displayed by the dashboard hub. */
   summary?: { connected: number; total: number };
+  initialSelectedKey?: string;
+  renderSelected?: (item: DashboardFluxBubbleData) => ReactNode;
 };
 
 type ChannelFilter = "all" | "connected" | "configure";
@@ -20,7 +25,7 @@ function ChannelsIcon() {
   return <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="4" y="4" width="10" height="10" rx="3" fill="currentColor" /><rect x="18" y="4" width="10" height="10" rx="3" fill="currentColor" opacity=".65" /><rect x="4" y="18" width="10" height="10" rx="3" fill="currentColor" opacity=".65" /><rect x="18" y="18" width="10" height="10" rx="3" fill="currentColor" /></svg>;
 }
 
-export default function DashboardChannelsModal({ items, onClose, onOpenHelp, summary }: Props) {
+export default function DashboardChannelsModal({ items, onClose, onOpenHelp, summary, initialSelectedKey = "inrbadge", renderSelected }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const selectedAreaRef = useRef<HTMLDivElement>(null);
@@ -28,25 +33,29 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
   const titleId = useId();
   const descriptionId = useId();
   const [filter, setFilter] = useState<ChannelFilter>("all");
-  const [selectedKey, setSelectedKey] = useState("inrbadge");
+  const [selectedKey, setSelectedKey] = useState(initialSelectedKey);
   const [motionPaused, setMotionPaused] = useState(false);
   const [sceneLayout, setSceneLayout] = useState(() => getChannelSceneLayout(1200, 520));
+  const { requestNavigation } = useDashboardUnsavedNavigation();
+  useEffect(() => { setSelectedKey(initialSelectedKey); }, [initialSelectedKey]);
 
   const closeDialog = useCallback(() => {
-    dialogRef.current?.close();
-    onClose();
-  }, [onClose]);
+    void requestNavigation(() => { dialogRef.current?.close(); onClose(); });
+  }, [onClose, requestNavigation]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
     dialog?.showModal();
     document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
     closeButtonRef.current?.focus({ preventScroll: true });
     return () => {
       dialog?.close();
       document.body.style.overflow = previousOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
       if (opener?.isConnected) opener.focus({ preventScroll: true });
     };
   }, []);
@@ -75,7 +84,7 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
   const selectAdjacentChannel = (direction: -1 | 1) => {
     if (!selected || filteredItems.length < 2) return;
     const index = filteredItems.findIndex((item) => item.key === selected.key);
-    setSelectedKey(filteredItems[(index + direction + filteredItems.length) % filteredItems.length].key);
+    void requestNavigation(() => setSelectedKey(filteredItems[(index + direction + filteredItems.length) % filteredItems.length].key));
   };
 
   // Only wrap presentation-level actions: their original destination and guards remain unchanged.
@@ -116,7 +125,7 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
             <span className={styles.connectionCount}><span aria-hidden="true" /><strong>{connectedCount} connectés</strong><span className={styles.countTotal}>/ {totalCount}</span></span>
           <div className={styles.filters} role="group" aria-label="Filtrer les canaux">
             {([{ value: "all", label: "Tous" }, { value: "connected", label: "Connectés" }, { value: "configure", label: "À configurer" }] as const).map(({ value, label }) => (
-              <button key={value} type="button" aria-pressed={filter === value} className={`${styles.filter} ${filter === value ? styles.filterActive : ""}`} onClick={() => setFilter(value)}>
+              <button key={value} type="button" aria-pressed={filter === value} className={`${styles.filter} ${filter === value ? styles.filterActive : ""}`} onClick={() => { void requestNavigation(() => setFilter(value)); }}>
                 {value !== "all" ? <span className={value === "connected" ? styles.greenDot : styles.amberDot} aria-hidden="true" /> : null}{label}
               </button>
             ))}
@@ -130,6 +139,8 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
             <button ref={closeButtonRef} type="button" className={styles.close} onClick={closeDialog} aria-label="Fermer les canaux">Fermer</button>
           </div>
         </header>
+        <GoogleOAuthConsentBanner panel={selected?.key ?? null} errorsOnly />
+        {selected?.key === "instagram" || selected?.key === "threads" ? <MetaOAuthCallbackNotice provider={selected.key} /> : null}
 
         <div ref={sceneRef} className={styles.scene} data-channel-count={filteredItems.length} style={{ "--center-size": `${sceneLayout.centerSize}px`, "--center-y": `${sceneLayout.centerY}px`, "--satellite-size": `${sceneLayout.satelliteSize}px` } as CSSProperties}>
           <div className={styles.nebula} aria-hidden="true" />
@@ -140,17 +151,14 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
               <div
                 className={styles.selectedBubble}
                 data-tone={getChannelTone(selected)}
-                onClickCapture={(event) => {
-                  const target = event.target instanceof Element ? event.target.closest("a") : null;
-                  if (target && target.getAttribute("aria-disabled") !== "true" && target.getAttribute("href") !== "#") closeDialog();
-                }}
               >
-                <DashboardFluxBubble key={selected.key} item={selectedItem!} />
+                {/* The action closures access refs only when clicked, never while rendering this slot. */}
+                {/* eslint-disable-next-line react-hooks/refs */}
+                {renderSelected ? renderSelected(selectedItem!) : <DashboardFluxBubble key={selected.key} item={selectedItem!} />}
               </div>
               <button type="button" className={`${styles.channelArrow} ${styles.arrowPrevious}`} aria-label="Canal précédent" disabled={filteredItems.length < 2} onClick={() => selectAdjacentChannel(-1)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg></button>
               <button type="button" className={`${styles.channelArrow} ${styles.arrowNext}`} aria-label="Canal suivant" disabled={filteredItems.length < 2} onClick={() => selectAdjacentChannel(1)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg></button>
               <span className={styles.srOnly} aria-live="polite" aria-atomic="true">{selected.name} — {selected.bubbleStatusText}</span>
-              {selected.helpKind && selected.onHelpSiteWeb ? <button type="button" className={styles.siteHelp} aria-label={`Comprendre le canal ${selected.name}`} title={`Comprendre le canal ${selected.name}`} onClick={() => (selected.onHelpSiteWeb)?.()}>?</button> : null}
             </div>
           ) : <div className={styles.empty}><ChannelsIcon /><h3>{filter === "configure" ? "Tout est prêt à rayonner." : "Aucun canal dans cette vue."}</h3><p>{filter === "configure" ? "Aucun canal disponible ne nécessite de configuration." : "Retrouvez l’ensemble de vos canaux dans la vue Tous."}</p><button type="button" onClick={() => setFilter("all")}>Voir tous les canaux</button></div>}
 
@@ -161,9 +169,11 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
               return (
                 <div key={item.key} className={styles.satellitePosition} style={{ "--bubble-x": `${x}px`, "--bubble-y": `${y}px`, "--bubble-size": `${size}px`, "--bubble-delay": `${index * -0.83}s`, "--bubble-duration": `${7 + index % 4}s`, "--bubble-hue": `${[194, 259, 202, 285, 216, 321][index % 6]}` } as CSSProperties}>
                   <button type="button" className={`${styles.satellite} ${styles[tone]}`} onClick={() => {
-                    setSelectedKey(item.key);
-                    // The chosen satellite leaves the ring; retain a useful keyboard focus.
-                    requestAnimationFrame(() => selectedAreaRef.current?.focus());
+                    void requestNavigation(() => {
+                      setSelectedKey(item.key);
+                      // The chosen satellite leaves the ring; retain a useful keyboard focus.
+                      requestAnimationFrame(() => selectedAreaRef.current?.focus());
+                    });
                   }} aria-label={`${item.name} — ${item.bubbleStatusText}. Sélectionner ce canal.`} title={`${item.name} · ${item.bubbleStatusText}`}>
                     <span className={styles.satelliteStatus} aria-hidden="true" />
                     <span className={styles.channelLogoMedallion}><Image src={item.logoSrc} alt="" width={58} height={58} unoptimized loading="eager" decoding="sync" className={styles.channelLogo} /></span>

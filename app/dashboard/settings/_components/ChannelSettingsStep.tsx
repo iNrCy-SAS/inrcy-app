@@ -8,7 +8,7 @@ import styles from "./ChannelSettingsSteps.module.css";
 type ChannelAccent = "pinterest" | "x" | "youtube";
 
 type ChannelSettingsStepProps = {
-  step: number;
+  step?: number;
   title: string;
   description: string;
   accent: ChannelAccent;
@@ -28,13 +28,14 @@ export default function ChannelSettingsStep({
 
   return (
     <section
+      data-channel-settings-step
       className={`${styles.stepCard} ${styles[accent]}`}
       aria-labelledby={titleId}
     >
-      <div className={styles.stepHeader}>
-        <span className={styles.stepNumber} aria-hidden="true">
+      <div className={styles.stepHeader} data-channel-settings-header>
+        {typeof step === "number" ? <span className={styles.stepNumber} aria-hidden="true">
           {String(step).padStart(2, "0")}
-        </span>
+        </span> : null}
         <div className={styles.stepCopy}>
           <h3 id={titleId} className={styles.stepTitle}>
             {title}

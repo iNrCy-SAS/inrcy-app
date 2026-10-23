@@ -139,7 +139,7 @@ export const fluxModules: Module[] = [
   {
     key: "threads",
     name: "Threads",
-    description: "Échangez avec votre communauté",
+    description: "Échangez avec votre communauté 💬",
     status: "available",
     accent: "cyan",
     actions: [

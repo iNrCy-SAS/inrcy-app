@@ -1,35 +1,31 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { channelItem, channelNodes, channelRuntime } from "../helpers/channel-bubble-runtime.mts";
 
 const read = (path: string) =>
   readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 
-test("le panneau Facebook reste contenu dans le tiroir, y compris sur petit écran", () => {
-  const panel = read("app/dashboard/_components/FacebookPanel.tsx");
-  const css = read("app/dashboard/dashboard.module.css");
-  const socialCss = read("app/dashboard/_components/SocialSettingsSteps.module.css");
-
-  assert.match(panel, /className=\{`\$\{styles\.facebookConfigPanel\} \$\{socialStyles\.journey\} \$\{socialStyles\.facebook\}`\}/);
-  assert.match(panel, /className=\{`\$\{socialStyles\.stepCard\} \$\{socialStyles\.facebook\}`\}/);
-  assert.match(panel, /className=\{styles\.facebookConfigButtonRow\}/);
-  assert.match(panel, /className=\{styles\.facebookConfigResourceRow\}/);
-  assert.match(css, /\.facebookConfigPanel\s*\{[\s\S]*?max-width:\s*100%;[\s\S]*?min-width:\s*0;/);
-  assert.match(socialCss, /\.stepCard\s*\{[\s\S]*?overflow:\s*hidden;/);
-  assert.match(socialCss, /@media \(max-width: 720px\)[\s\S]*?\.stepHeader/);
+test("les réglages des bulles restent contenus dans la fenêtre, y compris sur petit écran", () => {
+  const css = read("app/dashboard/_components/ChannelParametersDialog.module.css");
+  assert.match(css, /width:\s*min\(720px, calc\(100vw - 40px\)\)/);
+  assert.match(css, /max-height:\s*calc\(100dvh - 48px\)/);
+  assert.match(css, /box-sizing:\s*border-box/);
+  assert.match(css, /\.content button,\.content select,\.content input,\.content textarea\s*\{[^}]*max-width:\s*100%/);
+  assert.match(css, /@media\s*\(max-width:\s*720px\)/);
 });
 
 test("le bouton du widget Site web peut redemander son jeton au clic", () => {
   const component = read("app/dashboard/_components/SiteActusWidgetCode.tsx");
   const hook = read("app/dashboard/_hooks/channels/useSiteWebChannel.ts");
-  const panel = read("app/dashboard/_components/SiteWebPanel.tsx");
+  const panel = read("app/dashboard/_components/SiteWebWidgetSettings.tsx");
 
   assert.match(component, /onRequestToken\?:\s*\(\)\s*=>\s*Promise<string>/);
   assert.match(component, /effectiveToken\s*=\s*\(await onRequestToken\(\)\)\.trim\(\)/);
   assert.match(component, /!hasToken\s*&&\s*!onRequestToken/);
   assert.match(hook, /const requestSiteWebWidgetToken\s*=\s*useCallback/);
   assert.match(hook, /extractDomain\(siteWebSavedUrl\s*\|\|\s*siteWebUrl\)/);
-  assert.match(panel, /onRequestToken=\{requestSiteWebWidgetToken\}/);
+  assert.match(panel, /onRequestToken=\{site\.requestSiteWebWidgetToken\}/);
 });
 
 test("le widget Actus propose un composant React et Next.js auto-redimensionné", () => {
@@ -131,16 +127,16 @@ test("les sélections de ressources deviennent vertes sans attendre le rafraîch
 });
 
 test("les pastilles privilégient la connexion confirmée sur un ancien état de chargement", () => {
-  const facebook = read("app/dashboard/_components/FacebookPanel.tsx");
-  const instagram = read("app/dashboard/_components/InstagramPanel.tsx");
-  const linkedin = read("app/dashboard/_components/LinkedinPanel.tsx");
-
-  assert.match(facebook, /facebookPageConnected\s*\?\s*undefined/);
-  assert.match(instagram, /instagramConnected\s*\?\s*undefined/);
-  assert.match(linkedin, /hasCompanyPage\s*\?\s*undefined/);
+  for (const key of ["facebook", "instagram", "linkedin"]) {
+    const tree = channelRuntime("app/dashboard/_components/DashboardFluxBubble.tsx").render({ item: { ...channelItem, key, connection: { accountConnected: true, resourceLabel: "Mon entreprise", value: "saved", loading: true } } });
+    const nodes = channelNodes(tree);
+    assert.equal(nodes.find(node => node.props.className === "centralConnectionDot")!.props["data-status"], "connected");
+    assert.equal(nodes.find(node => node.props.role === "status")!.props.hidden, true);
+    assert.equal(nodes.find(node => node.props.className === "resourceValue")!.props.children, "Mon entreprise");
+  }
 });
 
-test("les panneaux Facebook et Instagram reçoivent leurs contrôles de formats", () => {
+test("les bulles Facebook et Instagram reçoivent leurs contrôles de formats", () => {
   const dashboard = read("app/dashboard/DashboardClient.tsx");
   const localsStart = dashboard.indexOf("const locals = {");
   const localsEnd = dashboard.indexOf(
@@ -182,18 +178,22 @@ test("les panneaux Facebook et Instagram reçoivent leurs contrôles de formats"
   }
 });
 
-test("une connexion en cours grise et neutralise le bouton sans seconde animation", () => {
-  const css = read("app/dashboard/dashboard.module.css");
-
-  assert.match(
-    css,
-    /\.connectingActionBtn,[\s\S]*?\.connectingActionBtn:disabled\s*\{[\s\S]*?opacity:\s*0\.48;[\s\S]*?cursor:\s*not-allowed;[\s\S]*?pointer-events:\s*none;[\s\S]*?box-shadow:\s*none;/,
-  );
-  assert.match(css, /\.connectingActionBtn::before\s*\{\s*content:\s*none;/);
-  assert.doesNotMatch(
-    css,
-    /\.connectingActionBtn::before\s*\{[\s\S]*?animation:\s*connectionPillPulse/,
-  );
+test("une connexion en cours neutralise le bouton et ignore les doubles clics", async () => {
+  let calls = 0;
+  let finish!: () => void;
+  const request = new Promise<void>(resolve => { finish = resolve; });
+  const runtime = channelRuntime("app/dashboard/_components/DashboardFluxBubble.tsx");
+  const props = { item: { ...channelItem, bubbleStatus: "available", connection: { onConnect: () => { calls++; return request; } } } };
+  const button = channelNodes(runtime.render(props)).find(node => node.props["aria-label"] === "Connecter — Google Business")!;
+  button.props.onClick(); button.props.onClick();
+  assert.equal(calls, 1);
+  const pending = channelNodes(runtime.render(props)).find(node => node.props["aria-label"] === "Connecter — Google Business")!;
+  assert.equal(pending.props.disabled, true);
+  assert.equal(pending.props["aria-busy"], true);
+  pending.props.onClick();
+  assert.equal(calls, 1);
+  finish(); await request; await Promise.resolve();
+  assert.equal(channelNodes(runtime.render(props)).find(node => node.props["aria-label"] === "Connecter — Google Business")!.props.disabled, false);
 });
 
 test("YouTube recharge l'état serveur au retour OAuth", () => {

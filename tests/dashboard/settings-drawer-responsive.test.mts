@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { channelItem, channelNodes, channelRuntime, workspaceConnection } from "../helpers/channel-bubble-runtime.mts";
 
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 
@@ -60,41 +61,29 @@ test("configuration headers keep the close action compact and accessible on resp
 });
 
 test("Google Business stacks controls on phones instead of clipping its establishment selector", () => {
-  const panel = read("app/dashboard/_components/GoogleBusinessPanel.tsx");
-  const stepCss = read("app/dashboard/_components/ChannelPanelSteps.module.css");
+  const css = read("app/dashboard/_components/DashboardChannelBubble.module.css");
   const editableFieldCss = read("app/dashboard/_components/EditableChannelUrlField.module.css");
-
-  assert.match(panel, /className=\{`\$\{stepStyles\.panel\} \$\{stepStyles\.googlePanel\}`\}/);
-  assert.ok((panel.match(/className=\{stepStyles\.actionRow\}/g) || []).length >= 2);
-  assert.match(panel, /<EditableChannelUrlField[\s\S]*?channel="gmb"/);
-  assert.match(panel, /styles\.selectReadable[\s\S]*?stepStyles\.control[\s\S]*?stepStyles\.wideControl/);
-  assert.match(stepCss, /@media \(max-width: 720px\)[\s\S]*?\.actionRow[\s\S]*?flex-wrap: wrap;/);
-  assert.match(stepCss, /\.wideControl[\s\S]*?flex: 1 1 320px;/);
+  const connection = workspaceConnection({ item: channelItem, gmbPanelProps: { gmbAccountConnected: true, gmbConfigured: true, gmbLocations: [], gmbLocationName: "locations/1", gmbLocationLabel: "Une entreprise avec un nom très long", saveGmbLocation() {} } });
+  const tree = channelRuntime("app/dashboard/_components/DashboardFluxBubble.tsx").render({ item: { ...channelItem, connection } });
+  assert.equal(channelNodes(tree).find(node => node.type === "select")!.props.value, "locations/1");
+  assert.equal(connection.publicLinks.props.channel, "gmb");
+  assert.match(css, /\.resourceGroup\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/);
+  assert.match(css, /\.resourcePill select\s*\{[^}]*box-sizing:\s*border-box;[^}]*width:\s*100%;[^}]*min-width:\s*0;/);
+  assert.match(css, /\.resourcePill select\s*\{[^}]*text-overflow:\s*ellipsis;/);
   assert.match(editableFieldCss, /@media \(max-width: 720px\)[\s\S]*?grid-template-columns: 1fr 1fr;[\s\S]*?grid-column: 1 \/ -1;/);
 });
 
-test("Pinterest keeps reconnect and disconnect balanced on a 393px viewport", () => {
-  const panel = read("app/dashboard/settings/_components/PinterestSettingsContent.tsx");
-  const stepCss = read("app/dashboard/settings/_components/ChannelSettingsSteps.module.css");
-
-  assert.match(
-    panel,
-    /className=\{`\$\{guideStyles\.actionRow\} \$\{guideStyles\.pinterestConnectionActions\}`\}/,
-  );
-  assert.match(
-    panel,
-    /className=\{`\$\{styles\.actionBtn\} \$\{styles\.pinterestConfigActionBtn\} \$\{styles\.secondaryBtn\}`\}[\s\S]*?onClick=\{connectPinterest\}[\s\S]*?disabled=\{loading \|\| syncing\}/,
-  );
-  assert.match(
-    panel,
-    /className=\{`\$\{styles\.actionBtn\} \$\{styles\.pinterestConfigActionBtn\} \$\{styles\.disconnectBtn\}`\}[\s\S]*?onClick=\{disconnectPinterest\}[\s\S]*?disabled=\{syncing\}/,
-  );
-  assert.match(
-    stepCss,
-    /@media \(max-width: 720px\)[\s\S]*?\.pinterestConnectionActions \{[\s\S]*?width: 100%;[\s\S]*?flex-wrap: nowrap;[\s\S]*?\.pinterestConnectionActions > :is\(button, a\) \{[\s\S]*?min-width: 0;[\s\S]*?flex: 1 1 0;[\s\S]*?white-space: nowrap;/,
-  );
-  assert.match(
-    stepCss,
-    /@media \(max-width: 320px\)[\s\S]*?\.pinterestConnectionActions \{[\s\S]*?flex-wrap: wrap;/,
-  );
+test("Pinterest exposes one connection action at a time and keeps controls inside the responsive bubble", () => {
+  const runtime = channelRuntime("app/dashboard/_components/DashboardFluxBubble.tsx");
+  const css = read("app/dashboard/_components/DashboardChannelBubble.module.css");
+  const connection = { onConnect() {}, onDisconnect() {}, onSelect() {} };
+  for (const connected of [false, true]) {
+    const tree = runtime.render({ item: { ...channelItem, key: "pinterest", name: "Pinterest", bubbleStatus: connected ? "connected" : "available", connection: { ...connection, accountConnected: connected } } });
+    const actions = channelNodes(tree).filter(node => node.type === "button");
+    assert.equal(actions.some(node => node.props["aria-label"] === "Connecter — Pinterest"), !connected);
+    assert.equal(actions.some(node => node.props["aria-label"] === "Déconnecter — Pinterest"), connected);
+  }
+  assert.match(css, /\.workspaceStack\s*\{[^}]*inset:\s*9% 12% max\(15%,\s*54px\)/);
+  assert.match(css, /\.connectAction\s*\{[^}]*width:\s*min\(100%,\s*196px\)/);
+  assert.match(css, /\.iconAction\s*\{[^}]*flex-shrink:\s*0;[^}]*width:\s*clamp\(/);
 });

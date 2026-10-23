@@ -149,6 +149,7 @@ export function buildDashboardPanelProps(a: any) {
       a.instagramPublicationPreferencesError,
     updateInstagramPublicationPreferences:
       a.updateInstagramPublicationPreferences,
+    loadInstagramPublicationPreferences: a.loadInstagramPublicationPreferences,
     saveInstagramPublicationPreferences:
       a.saveInstagramPublicationPreferences,
     disconnectInstagramProfile: a.disconnectInstagramProfileFromDrawer,
@@ -189,6 +190,7 @@ export function buildDashboardPanelProps(a: any) {
       a.facebookPublicationPreferencesError,
     updateFacebookPublicationPreferences:
       a.updateFacebookPublicationPreferences,
+    loadFacebookPublicationPreferences: a.loadFacebookPublicationPreferences,
     saveFacebookPublicationPreferences:
       a.saveFacebookPublicationPreferences,
     disconnectFacebookPage: a.disconnectFacebookPageFromDrawer,

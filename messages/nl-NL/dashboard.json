@@ -375,7 +375,7 @@
     },
     "threads": {
       "name": "Threads",
-      "description": "Ga in gesprek met uw community",
+      "description": "Ga in gesprek met uw community 💬",
       "view": "Account bekijken",
       "connect": "Instagram koppelen"
     }
@@ -762,5 +762,54 @@
     "studioLine1": "Maak, bewerk en retoucheer",
     "studioLine2": "uw media.",
     "studioCta": "Mediastudio"
+  },
+  "channelBubble": {
+    "parameters": "Instellingen",
+    "close": "Sluiten",
+    "failed": "De verbinding kon niet worden bijgewerkt.",
+    "view": "Pagina bekijken",
+    "connect": "Verbinden",
+    "reconnect": "Opnieuw verbinden",
+    "selected": "Geselecteerde pagina",
+    "account": "Gekoppeld account",
+    "loading": "Laden…",
+    "choose": "Kies een pagina",
+    "notConnected": "Geen account verbonden",
+    "disconnect": "Verbinding verbreken",
+    "create": "Account maken",
+    "selectedPage": "Geselecteerde pagina",
+    "selectedAccount": "Geselecteerd account",
+    "selectedBoard": "Geselecteerd bord",
+    "selectedMailbox": "Geselecteerd postvak",
+    "publicationTypes": "Publicatietypen",
+    "addMailbox": "Mailbox toevoegen",
+    "connectedAccount": "Verbonden account",
+    "createBoard": "Bord maken",
+    "boardName": "Naam van het nieuwe bord",
+    "createBoardFailed": "Het bord kon niet worden gemaakt.",
+    "chooseBoard": "Kies een bord",
+    "choosePage": "Kies een pagina",
+    "chooseAccount": "Kies een account",
+    "chooseMailbox": "Kies een postvak",
+    "refreshChoices": "Lijst vernieuwen",
+    "publicLink": "Openbare link",
+    "mailboxSlot": "Mailbox {number}",
+    "mailboxes": "Mijn mailboxen",
+    "editPublicLink": "Openbare link wijzigen",
+    "viewShort": "Bekijken",
+    "formatsShort": "Formaten",
+    "linkShort": "Link",
+    "settingsShort": "Instellen",
+    "signatureShort": "Handtekening",
+    "boardsShort": "Borden",
+    "widget": "Widget",
+    "connectedShort": "Verbonden",
+    "saveSiteFirst": "Sla de websitelink op voordat u GA4 of GSC koppelt."
+  },
+  "channelHelp": {
+    "inrSearch": "Maakt uw openbare iNrCy-pagina op basis van uw profiel en berichten. Kies of deze in de iNrCy-gids verschijnt.",
+    "threads": "Deel nieuws en ga in gesprek met uw community. Kies de beschikbare berichtformaten en het standaardformaat.",
+    "pinterest": "Publiceert uw beelden op de borden van uw account. Kies een bord of maak vanuit de bubbel een nieuw bord aan.",
+    "x": "Deelt uw nieuws en berichten op uw X-account om uw aanwezigheid actief te houden."
   }
 }

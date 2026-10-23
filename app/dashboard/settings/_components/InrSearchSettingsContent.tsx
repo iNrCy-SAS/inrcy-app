@@ -1,7 +1,10 @@
 "use client";
+import type { ChannelBubbleRenderer } from "../../_components/channel-bubble.types";
+import ChannelParametersDialog from "../../_components/ChannelParametersDialog";
 
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import styles from "../../dashboard.module.css";
 import localStyles from "./InrSearchSettingsContent.module.css";
 import StatusMessage from "../../_components/StatusMessage";
@@ -85,6 +88,18 @@ function normalizeSettings(value: unknown): InrSearchSettings {
   };
 }
 
+function normalizePublication(value: unknown): InrSearchPublicationState {
+  const source = asRecord(value);
+  const reason = String(source.reason);
+  return {
+    allowed: Boolean(source.allowed),
+    reason: ["published", "slug_missing", "config_missing", "page_disabled", "bubble_disabled", "subscription_inactive", "profile_missing", "data_unavailable"].includes(reason)
+      ? reason as InrSearchPublicationState["reason"]
+      : "data_unavailable",
+    subscriptionStatus: typeof source.subscriptionStatus === "string" ? source.subscriptionStatus : undefined,
+  };
+}
+
 function slugFromPublicUrl(value: string) {
   const match = value.match(/\/entreprises\/([^/?#]+)/i);
   return match?.[1] || "";
@@ -94,52 +109,43 @@ function readPanelSnapshot(publicUrl: string, initialConnected: boolean | null, 
   if (typeof window === "undefined") return null;
   const slug = slugFromPublicUrl(publicUrl);
   if (!slug) return null;
-  if (initialConnected === false) return null;
 
   try {
     const raw = window.sessionStorage.getItem(`${INR_SEARCH_PANEL_CACHE_PREFIX}${slug}`);
     if (raw) {
       const parsed = asRecord(JSON.parse(raw));
-      const publicationValue = asRecord(parsed.publication);
-      const reason = String(publicationValue.reason);
-      const validReasons = [
-        "published",
-        "slug_missing",
-        "config_missing",
-        "page_disabled",
-        "bubble_disabled",
-        "subscription_inactive",
-        "profile_missing",
-        "data_unavailable",
-      ];
       const cachedSettings = normalizeSettings(parsed.settings);
+      const cachedPublication = normalizePublication(parsed.publication);
+      // The dashboard's confirmed connection state takes precedence over an
+      // older detail cache, including immediately after an OAuth/account return.
+      if (typeof initialConnected === "boolean") {
+        cachedSettings.enabled = initialConnected;
+        cachedPublication.allowed = initialConnected;
+        cachedPublication.reason = initialConnected ? "published" : "page_disabled";
+      }
       if (typeof initialDirectoryEnabled === "boolean") {
         cachedSettings.directoryEnabled = initialDirectoryEnabled;
       }
       return {
         settings: cachedSettings,
-        publication: {
-          allowed: Boolean(publicationValue.allowed),
-          reason: (validReasons.includes(reason) ? reason : "data_unavailable") as InrSearchPublicationState["reason"],
-          subscriptionStatus: typeof publicationValue.subscriptionStatus === "string" ? publicationValue.subscriptionStatus : undefined,
-        },
+        publication: cachedPublication,
       } satisfies InrSearchPanelSnapshot;
     }
   } catch {
     // sessionStorage is only an optimization; the live request remains the source of truth.
   }
 
-  if (initialConnected === true) {
+  if (typeof initialConnected === "boolean") {
     return {
       settings: {
         ...EMPTY_SETTINGS,
-        enabled: true,
+        enabled: initialConnected,
         directoryEnabled: initialDirectoryEnabled === true,
         slug,
         publishedSlug: slug,
         slugLocked: true,
       },
-      publication: { allowed: true, reason: "published" },
+      publication: { allowed: initialConnected, reason: initialConnected ? "published" : "page_disabled" },
     } satisfies InrSearchPanelSnapshot;
   }
 
@@ -157,7 +163,7 @@ function writePanelSnapshot(publicUrl: string, snapshot: InrSearchPanelSnapshot)
   }
 }
 
-function emitDashboardUpdate(settings: InrSearchSettings, publicationAllowed: boolean) {
+function emitDashboardUpdate(settings: InrSearchSettings, publicationAllowed: boolean, refresh: boolean) {
   if (typeof window === "undefined") return;
   const pageUrl = settings.slug ? `${getRuntimeInrSearchOrigin()}/entreprises/${settings.slug}` : "";
   window.dispatchEvent(new CustomEvent("inrcy:inr-search-settings-updated", {
@@ -165,11 +171,13 @@ function emitDashboardUpdate(settings: InrSearchSettings, publicationAllowed: bo
       connected: Boolean(settings.enabled && settings.slug && publicationAllowed),
       directoryEnabled: Boolean(settings.enabled && settings.directoryEnabled && publicationAllowed),
       profileUrl: pageUrl,
+      refresh,
     },
   }));
 }
 
 type InrSearchSettingsContentProps = {
+  renderBubble: ChannelBubbleRenderer;
   active?: boolean;
   initialConnected?: boolean | null;
   initialPublicUrl?: string;
@@ -177,6 +185,7 @@ type InrSearchSettingsContentProps = {
 };
 
 export default function InrSearchSettingsContent({
+  renderBubble,
   active = true,
   initialConnected = null,
   initialPublicUrl = "",
@@ -192,11 +201,12 @@ export default function InrSearchSettingsContent({
   const [loading, setLoading] = useState(() => !initialSnapshot && initialConnected === null);
   const [actionLoading, setActionLoading] = useState(false);
   const [feedbackAction, setFeedbackAction] = useState<InrSearchAction | null>(null);
-  const [helperOpen, setHelperOpen] = useState(false);
   const [disconnectConfirmOpen, setDisconnectConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const loadInFlightRef = useRef<Promise<void> | null>(null);
+  const requestSeqRef = useRef(0);
+  const mutationRef = useRef<object | null>(null);
   const lastLoadStartedAtRef = useRef(0);
   const mountedRef = useRef(true);
   const [initialLoadBlocking] = useState(() => !initialSnapshot && initialConnected === null);
@@ -205,14 +215,26 @@ export default function InrSearchSettingsContent({
     () => settings.slug ? `${INR_SEARCH_PUBLIC_ORIGIN}/entreprises/${settings.slug}` : "",
     [settings.slug],
   );
-  const previewUrl = useMemo(
-    () => settings.slug ? `/entreprises/${settings.slug}` : "",
-    [settings.slug],
-  );
+
+  const applySnapshot = useCallback((payload: Record<string, unknown>, refresh: boolean) => {
+    const next = normalizeSettings(payload.inrSearch);
+    const nextPublication = normalizePublication(payload.publication);
+    setSettings(next);
+    setPublication(nextPublication);
+    writePanelSnapshot(
+      next.slug ? `${INR_SEARCH_PUBLIC_ORIGIN}/entreprises/${next.slug}` : "",
+      { settings: next, publication: nextPublication },
+    );
+    emitDashboardUpdate(next, nextPublication.allowed, refresh);
+  }, []);
 
   const load = useCallback(({ blocking = false }: { blocking?: boolean } = {}) => {
+    if (mutationRef.current) return Promise.resolve();
     if (loadInFlightRef.current) return loadInFlightRef.current;
 
+    const requestSeq = ++requestSeqRef.current;
+    const accountId = getActiveBrowserUserId();
+    const isCurrent = () => mountedRef.current && requestSeq === requestSeqRef.current && accountId === getActiveBrowserUserId();
     lastLoadStartedAtRef.current = Date.now();
     const request = (async () => {
       if (blocking && mountedRef.current) setLoading(true);
@@ -222,39 +244,14 @@ export default function InrSearchSettingsContent({
         const payload = await response.json().catch(() => null);
         if (!response.ok || !payload?.ok) throw new Error(payload?.error || "Chargement impossible.");
 
-        const next = normalizeSettings(payload.inrSearch);
-        const publicationValue = asRecord(payload.publication);
-        const nextPublication: InrSearchPublicationState = {
-          allowed: Boolean(publicationValue.allowed),
-          reason: [
-            "published",
-            "slug_missing",
-            "config_missing",
-            "page_disabled",
-            "bubble_disabled",
-            "subscription_inactive",
-            "profile_missing",
-            "data_unavailable",
-          ].includes(String(publicationValue.reason))
-            ? publicationValue.reason as InrSearchPublicationState["reason"]
-            : "data_unavailable",
-          subscriptionStatus: typeof publicationValue.subscriptionStatus === "string" ? publicationValue.subscriptionStatus : undefined,
-        };
-
-        if (!mountedRef.current) return;
-        setSettings(next);
-        setPublication(nextPublication);
-        writePanelSnapshot(
-          next.slug ? `${INR_SEARCH_PUBLIC_ORIGIN}/entreprises/${next.slug}` : "",
-          { settings: next, publication: nextPublication },
-        );
-        emitDashboardUpdate(next, nextPublication.allowed);
+        if (!isCurrent()) return;
+        applySnapshot(payload, false);
       } catch (err) {
-        if (mountedRef.current) {
+        if (isCurrent()) {
           setError(err instanceof Error ? err.message : "Chargement de la page iNr'Search impossible.");
         }
       } finally {
-        if (mountedRef.current) setLoading(false);
+        if (isCurrent()) setLoading(false);
       }
     })();
 
@@ -263,13 +260,16 @@ export default function InrSearchSettingsContent({
       if (loadInFlightRef.current === request) loadInFlightRef.current = null;
     });
     return request;
-  }, []);
+  }, [applySnapshot]);
 
   useEffect(() => {
     mountedRef.current = true;
     void load({ blocking: initialLoadBlocking });
     return () => {
       mountedRef.current = false;
+      requestSeqRef.current++;
+      loadInFlightRef.current = null;
+      mutationRef.current = null;
     };
   }, [initialLoadBlocking, load]);
 
@@ -295,6 +295,13 @@ export default function InrSearchSettingsContent({
   const hasPage = Boolean(settings.slug);
 
   const performAction = useCallback(async (action: InrSearchAction, enabled?: boolean) => {
+    if (!mountedRef.current || mutationRef.current) return;
+    const mutation = {};
+    const accountId = getActiveBrowserUserId();
+    mutationRef.current = mutation;
+    requestSeqRef.current++;
+    loadInFlightRef.current = null;
+    const isCurrent = () => mountedRef.current && mutationRef.current === mutation && accountId === getActiveBrowserUserId();
     setActionLoading(true);
     setFeedbackAction(action);
     setError(null);
@@ -308,6 +315,10 @@ export default function InrSearchSettingsContent({
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload?.ok) throw new Error(payload?.error || "Mise à jour impossible.");
+      if (!isCurrent()) return;
+      // POST returns the persisted state; reusing a GET started before this
+      // action would restore the previous connection or directory setting.
+      applySnapshot(payload, true);
       const directoryWarning = payload?.directoryCache?.ok === false
         ? String(payload.directoryCache.warning || "L’annuaire public n’a pas pu être actualisé immédiatement.")
         : "";
@@ -320,14 +331,17 @@ export default function InrSearchSettingsContent({
               ? "Votre page est maintenant visible dans l’annuaire iNrCy."
               : "Votre page reste publique, mais elle n’est plus proposée dans l’annuaire.",
       );
-      await load();
       if (directoryWarning) setError(directoryWarning);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Mise à jour iNr’Search impossible.");
+      if (isCurrent()) setError(err instanceof Error ? err.message : "Mise à jour iNr’Search impossible.");
     } finally {
-      setActionLoading(false);
+      if (isCurrent()) {
+        setActionLoading(false);
+        setLoading(false);
+      }
+      if (mutationRef.current === mutation) mutationRef.current = null;
     }
-  }, [load]);
+  }, [applySnapshot]);
 
   const publicationLabel = loading
     ? "Synchronisation…"
@@ -352,64 +366,17 @@ export default function InrSearchSettingsContent({
               ? "La page est publiée, mise à jour automatiquement et signalée aux moteurs lors des nouvelles publications."
               : "La page est en cours de synchronisation automatique.";
 
-  return (
+  const parameters = (
     <div className={localStyles.root}>
       <div className={localStyles.feedbackStack}>
         {error && feedbackAction !== "directory" ? <StatusMessage variant="error">{error}</StatusMessage> : null}
         {success && feedbackAction !== "directory" ? <StatusMessage variant="success">{success}</StatusMessage> : null}
       </div>
 
-      <section className={`${localStyles.stepCard} ${localStyles.stepPublication}`} aria-labelledby="inrsearch-publication-title">
+      <section data-channel-settings-step className={`${localStyles.stepCard} ${localStyles.stepDirectory}`} aria-labelledby="inrsearch-directory-title">
         <span className={localStyles.stepAccent} aria-hidden="true" />
-        <header className={localStyles.stepHeader}>
+        <header className={localStyles.stepHeader} data-channel-settings-header>
           <div className={localStyles.stepIdentity}>
-            <span className={localStyles.stepNumber} aria-hidden="true">1</span>
-            <div className={localStyles.stepCopy}>
-              <div className={localStyles.titleRow}>
-                <h2 id="inrsearch-publication-title" className={localStyles.stepTitle}>{i18nT("page_publique_inr_apos_search_31dc348f")}</h2>
-                <button className={localStyles.infoButton} type="button" aria-label={i18nT("comprendre_inr_search_a9cbbbdf")} onClick={() => setHelperOpen(true)}>?</button>
-              </div>
-              <p className={`${localStyles.stepDescription} ${localStyles.muted}`}>{i18nT("inrcy_transforme_les_informations_du_professionn_1428bd4f")}</p>
-            </div>
-          </div>
-        </header>
-
-        <div className={localStyles.actionPanel}>
-          <p className={localStyles.actionHint}>{isPublished ? i18nT("votre_page_est_publique_et_peut_010782c6") : i18nT("connectez_la_page_pour_activer_sa_032f8d6b")}</p>
-          <button
-            className={isPublished ? `${styles.actionBtn} ${styles.disconnectBtn} ${localStyles.actionButton}` : `${styles.primaryBtn} ${localStyles.actionButton} ${localStyles.primaryAction}`}
-            type="button"
-            disabled={loading || actionLoading || !hasPage}
-            onClick={() => { if (isPublished) setDisconnectConfirmOpen(true); else void performAction("connect"); }}
-          >
-            {actionLoading && feedbackAction !== "directory" ? i18nT("mise_a_jour_e75ccbf3") : isPublished ? i18nT("deconnecter_9c1ef392") : i18nT("connecter_ca28e250")}
-          </button>
-        </div>
-
-        <div className={localStyles.statusSummary} data-active={isPublished ? "true" : "false"}>
-          <span className={localStyles.statusOrb} aria-hidden="true" />
-          <div className={localStyles.statusCopy}>
-            <strong>{publicationLabel}</strong>
-            <p>{loading ? i18nT("creation_et_synchronisation_en_cours_c4b272b0") : publicationMessage}</p>
-          </div>
-        </div>
-
-        {publicUrl ? (
-          <div className={localStyles.linkRow}>
-            <div className={localStyles.publicUrl}>{publicUrl}</div>
-            <div className={localStyles.addressActions}>
-              <button className={`${styles.ghostBtn} ${localStyles.secondaryAction}`} type="button" onClick={() => void load()} disabled={loading || actionLoading}>{loading ? i18nT("synchronisation_cc8ad3ae") : i18nT("actualiser_9d3b2a7d")}</button>
-              {isPublished ? <a className={`${styles.primaryBtn} ${localStyles.primaryAction}`} href={previewUrl} target="_blank" rel="noreferrer">{i18nT("voir_ma_page_60fa96b6")}</a> : null}
-            </div>
-          </div>
-        ) : null}
-      </section>
-
-      <section className={`${localStyles.stepCard} ${localStyles.stepDirectory}`} aria-labelledby="inrsearch-directory-title">
-        <span className={localStyles.stepAccent} aria-hidden="true" />
-        <header className={localStyles.stepHeader}>
-          <div className={localStyles.stepIdentity}>
-            <span className={localStyles.stepNumber} aria-hidden="true">2</span>
             <div className={localStyles.stepCopy}>
               <h2 id="inrsearch-directory-title" className={localStyles.stepTitle}>{i18nT("annuaire_public_inrcy_8ec958c2")}</h2>
               <p className={`${localStyles.stepDescription} ${localStyles.muted}`}>{i18nT("choisissez_si_votre_page_publique_doit_d0eb00aa")}</p>
@@ -446,38 +413,41 @@ export default function InrSearchSettingsContent({
           <span>Annuaire public iNrCy</span>
           <a className={`${styles.ghostBtn} ${localStyles.secondaryAction}`} href={INR_SEARCH_DIRECTORY_URL} target="_blank" rel="noreferrer">Voir l’annuaire</a>
         </div>
+        <details style={{ marginTop: 16 }}>
+          <summary style={{ cursor: "pointer", color: "#c4d9ff" }}>{i18nT("a_quoi_sert_inr_apos_search_c32318a6")}</summary>
+          <p>{publicationLabel} — {publicationMessage}</p>
+          <p>{i18nT("inr_apos_search_transforme_automatiquement_les_99deb0af")}</p>
+          <div className={localStyles.helperGrid}>
+            {[["Référencement", "Titre, description, adresse et données structurées."], ["Moteurs IA", "Synthèse factuelle et source publique dédiée."], ["Activité", "Métier, prestations, clientèle et zones d’intervention."], ["Preuves", "Logo, photos, réalisations et publications disponibles."], ["iNr’Guide", "Réponses générées à partir des informations confirmées."], ["Conversion", "Téléphone, email, site, réseaux et formulaire de contact."]].map(([title, text]) => <div className={localStyles.helperItem} key={title}><strong>{title}</strong><span>{text}</span></div>)}
+          </div>
+          <p>{i18nT("aucune_rubrique_n_est_a_recopier_76e710d2")}</p>
+          {publicUrl ? <p style={{ overflowWrap: "anywhere" }}>{publicUrl}</p> : null}
+          <button className={`${styles.ghostBtn} ${localStyles.secondaryAction}`} type="button" onClick={() => void load()} disabled={loading || actionLoading}>{loading ? i18nT("synchronisation_cc8ad3ae") : i18nT("actualiser_9d3b2a7d")}</button>
+        </details>
       </section>
-
-      {helperOpen ? (
-        <div className={localStyles.dialogOverlay} role="dialog" aria-modal="true" aria-labelledby="inrsearch-helper-title">
-          <div className={localStyles.helperDialog}>
-            <div className={localStyles.dialogHeader}>
-              <div id="inrsearch-helper-title" className={styles.blockTitle}>{i18nT("a_quoi_sert_inr_apos_search_c32318a6")}</div>
-              <button className={`${styles.ghostBtn} ${localStyles.secondaryAction}`} type="button" onClick={() => setHelperOpen(false)}>{i18nT("fermer_5ab4ec64")}</button>
-            </div>
-            <p className={localStyles.dialogIntro}>{i18nT("inr_apos_search_transforme_automatiquement_les_99deb0af")}</p>
-            <div className={localStyles.helperGrid}>
-              {[["Référencement", "Titre, description, adresse et données structurées."], ["Moteurs IA", "Synthèse factuelle et source publique dédiée."], ["Activité", "Métier, prestations, clientèle et zones d’intervention."], ["Preuves", "Logo, photos, réalisations et publications disponibles."], ["iNr’Guide", "Réponses générées à partir des informations confirmées."], ["Conversion", "Téléphone, email, site, réseaux et formulaire de contact."]].map(([title, text]) => (
-                <div className={localStyles.helperItem} key={title}><strong>{title}</strong><span>{text}</span></div>
-              ))}
-            </div>
-            <p className={localStyles.dialogFooter}>{i18nT("aucune_rubrique_n_est_a_recopier_76e710d2")}</p>
-          </div>
-        </div>
-      ) : null}
-
-      {disconnectConfirmOpen ? (
-        <div className={localStyles.dialogOverlay} role="dialog" aria-modal="true" aria-labelledby="inrsearch-disconnect-title">
-          <div className={`${localStyles.confirmDialog} ${localStyles.dangerDialog}`}>
-            <div id="inrsearch-disconnect-title" className={styles.blockTitle}>{i18nT("deconnecter_votre_page_inr_apos_search_c5a16ef8")}</div>
-            <p className={localStyles.dialogIntro}>{i18nT("votre_page_sera_retiree_de_l_f8ed5e53")}</p>
-            <div className={localStyles.confirmActions}>
-              <button className={`${styles.ghostBtn} ${localStyles.secondaryAction}`} type="button" onClick={() => setDisconnectConfirmOpen(false)}>{i18nT("annuler_49ba3292")}</button>
-              <button className={`${styles.actionBtn} ${styles.disconnectBtn} ${localStyles.actionButton}`} type="button" onClick={() => { setDisconnectConfirmOpen(false); void performAction("disconnect"); }}>{i18nT("deconnecter_quand_meme_dcf686d8")}</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
+  return <>
+    {renderBubble({
+      accountConnected: isPublished,
+      resourceLabel: settings.slug,
+      onConnect: () => performAction("connect"),
+      onDisconnect: () => setDisconnectConfirmOpen(true),
+      loading,
+      busy: actionLoading,
+      error,
+      notice: success,
+      parameters,
+      parametersOwnHeading: true,
+    })}
+    {disconnectConfirmOpen ? (
+      <ChannelParametersDialog name="iNr’Search" onClose={() => setDisconnectConfirmOpen(false)}>
+        <p>{i18nT("votre_page_sera_retiree_de_l_f8ed5e53")}</p>
+        <button type="button" className={styles.actionBtn} onClick={() => {
+          setDisconnectConfirmOpen(false);
+          void performAction("disconnect");
+        }}>{i18nT("deconnecter_quand_meme_dcf686d8")}</button>
+      </ChannelParametersDialog>
+    ) : null}
+  </>;
 }

@@ -9,7 +9,7 @@ const read = (file: string) => readFileSync(resolve(ROOT, file), "utf8");
 test("iNrSearch remains provisionable before the profile or iNrADN are filled", () => {
   const provisioning = read("lib/inrSearchProvisioning.ts");
   const settingsRoute = read("app/api/inr-search/settings/route.ts");
-  const overview = read("app/dashboard/_components/ChannelConnectionsModal.tsx");
+  const workspace = read("app/dashboard/_components/DashboardChannelWorkspace.tsx");
 
   assert.match(provisioning, /const PROVISIONAL_PAGE_TITLE = "Votre entreprise";/);
   assert.match(provisioning, /fallbackSlugSeed\(activeUserId\)/);
@@ -17,5 +17,6 @@ test("iNrSearch remains provisionable before the profile or iNrADN are filled", 
   assert.doesNotMatch(provisioning, /const canPublish = Boolean\(companyName && slug\);/);
   assert.match(settingsRoute, /ensureSystemManagedInrSearch\(supabase, activeUserId\)/);
   assert.doesNotMatch(settingsRoute, /profil est incomplet/);
-  assert.match(overview, /const usesBusinessEssentials = item\.key === "inrbadge";/);
+  assert.match(workspace, /case "inr_search": return <InrSearchSettingsContent/);
+  assert.doesNotMatch(workspace, /if \(!props\.inrBadgeSettingsProps\.profileReady\)/);
 });

@@ -35,6 +35,6 @@ test("the relocated channel shortcut continues targeting the shared connections 
   const shortcuts = readFileSync(new URL("../../lib/mobileShortcutPolicy.ts", import.meta.url), "utf8");
   assert.match(shortcuts, /id: "channels", href: "\/dashboard\?action=channels"/);
   assert.match(dashboardClientSource, /if \(action === "channels"\)/);
-  assert.match(dashboardClientSource, /<ChannelConnectionsModal/);
-  assert.match(dashboardClientSource, /onClose=\{closeChannelConnections\}/);
+  assert.match(dashboardClientSource, /<DashboardChannelsSection/);
+  assert.match(dashboardClientSource, /onCloseChannels=\{closeChannelConnections\}/);
 });

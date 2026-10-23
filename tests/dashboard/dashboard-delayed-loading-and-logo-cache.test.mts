@@ -30,7 +30,7 @@ test("dashboard tool, modal and configure buttons share the delayed loading beha
   const bubble = read("app/dashboard/_components/DashboardFluxBubble.tsx");
   const mobileNavigation = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
 
-  for (const source of [actionButton, modules, bubble, mobileNavigation]) {
+  for (const source of [actionButton, modules, mobileNavigation]) {
     assert.match(source, /useDelayedPendingAction/);
     assert.match(source, /aria-busy=/);
     assert.match(source, /i18nT\("chargement_01cba1df"\)/);
@@ -44,8 +44,9 @@ test("dashboard tool, modal and configure buttons share the delayed loading beha
   assert.match(standardModules, /<DashboardModulesCard \{\.\.\.props\} standardMode openPanel=\{onOpenPremium\}/);
   assert.doesNotMatch(standardModules, /useDelayedPendingAction|useState|setTimeout/);
   assert.match(modules, /searchParams\.get\("action"\) === "publish" \|\| \(standardMode && searchParams\.get\("panel"\)\)/);
-  assert.match(bubble, /configureLoadingVisible \? i18nT\("chargement_01cba1df"\)/);
-  assert.match(bubble, /data-dashboard-prefetch=/);
+  assert.match(bubble, /actionRef\.current \|\| busy \|\| disabled/);
+  assert.match(bubble, /aria-busy=\{Boolean\(busy\)\}/);
+  assert.match(bubble, /t\("loading"\)/);
   assert.match(mobileNavigation, /modal:publish/);
   assert.match(mobileNavigation, /shortcutLoadingVisible/);
 });

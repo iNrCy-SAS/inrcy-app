@@ -1,7 +1,6 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useState } from "react";
+import DashboardChannelsModal from "./DashboardChannelsModal";
 import { useLocale } from "next-intl";
 import type { DashboardFluxBubbleData } from "./DashboardFluxBubble";
 import DashboardModulesCard from "./DashboardModulesCard";
@@ -9,8 +8,6 @@ import DashboardStandardModulesCard from "./DashboardStandardModulesCard";
 import { getChannelTone } from "./dashboard-channel-presentation";
 import { DASHBOARD_TOOLS_ANCHOR_ID } from "../dashboard.scroll";
 import styles from "./DashboardExperience.module.css";
-
-const DashboardChannelsModal = dynamic(() => import("./DashboardChannelsModal"), { ssr: false });
 
 type DashboardPanelName = Parameters<typeof DashboardModulesCard>[0]["openPanel"] extends (panel: infer P) => void ? P : never;
 
@@ -25,10 +22,14 @@ type Props = {
   standardMode?: boolean;
   isAdmin?: boolean;
   inrAgentEnabled?: boolean;
+  channelsOpen: boolean;
+  onOpenChannels: () => void;
+  onCloseChannels: () => void;
+  initialSelectedKey?: string;
+  renderSelected?: Parameters<typeof import("./DashboardChannelsModal").default>[0]["renderSelected"];
 };
 
-export default function DashboardChannelsSection({ fluxBubbleItems, goToModule, openPanel, onOpenChannelsHelp, onOpenStats, onOpenBoosterPublish, onOpenBoosterStats, standardMode = false, inrAgentEnabled = true }: Props) {
-  const [channelsOpen, setChannelsOpen] = useState(false);
+export default function DashboardChannelsSection({ fluxBubbleItems, goToModule, openPanel, onOpenChannelsHelp, onOpenStats, onOpenBoosterPublish, onOpenBoosterStats, standardMode = false, inrAgentEnabled = true, channelsOpen, onOpenChannels, onCloseChannels, initialSelectedKey, renderSelected }: Props) {
   const locale = useLocale();
   const isFrench = locale.startsWith("fr");
   const connected = fluxBubbleItems.filter((item) => getChannelTone(item) === "connected").length;
@@ -41,7 +42,7 @@ export default function DashboardChannelsSection({ fluxBubbleItems, goToModule, 
         <button
           className={styles.channelsHub}
           type="button"
-          onClick={() => setChannelsOpen(true)}
+          onClick={onOpenChannels}
           aria-haspopup="dialog"
           aria-expanded={channelsOpen}
           aria-label={`${isFrench ? "Mes canaux" : "My channels"}, ${connected}/${total} ${isFrench ? "connectés" : "connected"}`}
@@ -59,7 +60,7 @@ export default function DashboardChannelsSection({ fluxBubbleItems, goToModule, 
           <DashboardModulesCard goToModule={goToModule} openPanel={openPanel} onOpenStats={onOpenStats} onOpenBoosterPublish={onOpenBoosterPublish} onOpenBoosterStats={onOpenBoosterStats} adsPilotEnabled inrAgentEnabled={inrAgentEnabled} />
         )}
       </div>
-      {channelsOpen ? <DashboardChannelsModal items={fluxBubbleItems} summary={{ connected, total }} onClose={() => setChannelsOpen(false)} onOpenHelp={onOpenChannelsHelp} /> : null}
+      {channelsOpen ? <DashboardChannelsModal items={fluxBubbleItems} summary={{ connected, total }} onClose={onCloseChannels} initialSelectedKey={initialSelectedKey} renderSelected={renderSelected} onOpenHelp={onOpenChannelsHelp} /> : null}
     </section>
   );
 }
