@@ -23,14 +23,11 @@ import {
 import { mergePreflightFailuresIntoPublicationSummary } from "@/lib/boosterPublicationOutcome";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
 import PublishModal from "../booster/publier/PublishModal";
-import PublishExecutionResultModal from "./PublishExecutionResultModal";
 import AiConfigurationIcon from "./AiConfigurationIcon";
 import BusinessDnaIcon from "./BusinessDnaIcon";
 import BoosterHeaderBrand from "./BoosterHeaderBrand";
 import boosterBrandStyles from "./BoosterHeaderBrand.module.css";
 import PublishDraftHeaderMenu from "../booster/publier/components/PublishDraftHeaderMenu";
-import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
-import { getPublishWizardSteps } from "../booster/publier/components/publishWizard";
 
 type DashboardBoosterModalMode = "publish" | "stats" | null;
 
@@ -67,11 +64,11 @@ export default function DashboardBoosterModalLayer({
   const searchParams = useSearchParams();
   const activePublishDraftId = String(searchParams?.get("draftId") || "").trim();
   const [publishSuccessOpen, setPublishSuccessOpen] = useState(false);
-  const [publishCreationMode, setPublishCreationMode] = useState<BoosterCreationMode | null>(null);
   const [publishSummary, setPublishSummary] = useState<any>(null);
   const [publishEditorOverlayOpen, setPublishEditorOverlayOpen] = useState(false);
   const [publishHasUnsavedChanges, setPublishHasUnsavedChanges] = useState(false);
   const [publishRetrying, setPublishRetrying] = useState(false);
+  const [publishRetryError, setPublishRetryError] = useState("");
   const publishRetryFailedRef = useRef<(() => Promise<void>) | null>(null);
   const publishSaveDraftRef = useRef<(() => void) | null>(null);
   const publishOpenHelpRef = useRef<(() => void) | null>(null);
@@ -181,28 +178,15 @@ export default function DashboardBoosterModalLayer({
   }, [mode, scheduleMetricsRefresh]);
 
   const closePublishModal = useCallback(() => {
+    setPublishSuccessOpen(false);
+    setPublishSummary(null);
+    setPublishRetryError("");
     setPublishEditorOverlayOpen(false);
     setPublishHasUnsavedChanges(false);
     publishRetryFailedRef.current = null;
     setPublishRetrying(false);
     onClose();
   }, [onClose]);
-
-  const closePublishSuccess = useCallback(() => {
-    // The result modal can be shown while the publish editor is still mounted
-    // (for example after a partial/failed publication). Clear both layers so
-    // the close button always dismisses the complete Booster / Publier flow.
-    setPublishSuccessOpen(false);
-    setPublishSummary(null);
-    setPublishEditorOverlayOpen(false);
-    setPublishHasUnsavedChanges(false);
-    publishRetryFailedRef.current = null;
-    setPublishRetrying(false);
-    // Always close the parent layer as well. The result overlay can outlive a
-    // mode transition, and leaving the parent mounted makes the X appear to do
-    // nothing even though its own state was cleared.
-    closePublishModal();
-  }, [closePublishModal]);
 
   const requestClosePublishModal = useCallback(async () => {
     if (publishHasUnsavedChanges) {
@@ -238,6 +222,8 @@ export default function DashboardBoosterModalLayer({
     const params = new URLSearchParams(searchParams?.toString() || "");
     params.set("action", "publish");
     params.set("draftId", nextDraftId);
+    setPublishSuccessOpen(false);
+    setPublishSummary(null);
     router.replace(`/dashboard?${params.toString()}`, { scroll: false });
   }, [activePublishDraftId, i18nT, publishHasUnsavedChanges, router, searchParams]);
 
@@ -521,6 +507,7 @@ export default function DashboardBoosterModalLayer({
                 statusMessage={publishDraftHeaderState.draftMessage}
                 buttonClassName={styles.secondaryBtn}
                 disabled={
+                  publishSuccessOpen ||
                   publishDraftHeaderState.saving ||
                   publishDraftHeaderState.draftSaving ||
                   publishDraftHeaderState.generating
@@ -532,6 +519,7 @@ export default function DashboardBoosterModalLayer({
                 className={styles.secondaryBtn}
                 onClick={() => publishSaveDraftRef.current?.()}
                 disabled={
+                  publishSuccessOpen ||
                   publishDraftHeaderState.saving ||
                   publishDraftHeaderState.draftSaving ||
                   publishDraftHeaderState.generating
@@ -567,7 +555,6 @@ export default function DashboardBoosterModalLayer({
           }
         >
           <PublishModal
-            onWizardModeChange={setPublishCreationMode}
             companyName={companyName}
             styles={styles}
             onClose={closePublishModal}
@@ -578,6 +565,33 @@ export default function DashboardBoosterModalLayer({
             openHelpActionRef={publishOpenHelpRef}
             onDraftHeaderStateChange={handlePublishDraftHeaderStateChange}
             initialConnectedChannels={initialConnectedChannels}
+            publicationResult={publishSuccessOpen ? {
+              summary: publishSummary,
+              retrying: publishRetrying,
+              error: publishRetryError,
+              onRetryFailed: publishRetryFailedRef.current ? async () => {
+                if (publishRetrying) return;
+                setPublishRetryError("");
+                setPublishRetrying(true);
+                try {
+                  await publishRetryFailedRef.current?.();
+                } catch (error) {
+                  setPublishRetryError(getSimpleFrenchErrorMessage(error, "La relance a échoué. Vérifiez le bilan avant de réessayer."));
+                } finally {
+                  setPublishRetrying(false);
+                }
+              } : undefined,
+              onOpenInrSend: () => {
+                // Keep navigation separate from onClose, which restores /dashboard.
+                setPublishSuccessOpen(false);
+                setPublishSummary(null);
+                setPublishEditorOverlayOpen(false);
+                setPublishHasUnsavedChanges(false);
+                publishRetryFailedRef.current = null;
+                setPublishRetrying(false);
+                router.push("/dashboard/mails?folder=publications");
+              },
+            } : undefined}
             onPublishSuccess={(result) => {
               publishRetryFailedRef.current =
                 typeof result?.retryFailed === "function"
@@ -611,46 +625,13 @@ export default function DashboardBoosterModalLayer({
               // iNrSend must read the accepted publication from the server.
               invalidateModuleSnapshot(MODULE_SNAPSHOT_KEYS.inrSendDefault);
               setPublishSummary(summary);
+              setPublishRetryError("");
               setPublishSuccessOpen(true);
             }}
           />
         </BaseModal>
       ) : null}
 
-      {publishSuccessOpen ? (
-        <PublishExecutionResultModal
-          wizardSteps={getPublishWizardSteps(publishCreationMode)}
-          styles={styles}
-          summary={publishSummary}
-          onClose={closePublishSuccess}
-          retrying={publishRetrying}
-          onRetryFailed={
-            publishRetryFailedRef.current
-              ? async () => {
-                  if (publishRetrying) return;
-                  setPublishSuccessOpen(false);
-                  setPublishRetrying(true);
-                  try {
-                    await publishRetryFailedRef.current?.();
-                  } finally {
-                    setPublishRetrying(false);
-                  }
-                }
-              : undefined
-          }
-          onOpenInrSend={() => {
-            // Ne pas appeler closePublishModal ici : son onClose remet l'URL sur
-            // /dashboard et peut écraser la navigation vers iNrSend.
-            setPublishSuccessOpen(false);
-            setPublishSummary(null);
-            setPublishEditorOverlayOpen(false);
-            setPublishHasUnsavedChanges(false);
-            publishRetryFailedRef.current = null;
-            setPublishRetrying(false);
-            router.push("/dashboard/mails?folder=publications");
-          }}
-        />
-      ) : null}
     </>
   );
 }

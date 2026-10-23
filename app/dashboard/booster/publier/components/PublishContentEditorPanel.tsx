@@ -315,6 +315,7 @@ export default function PublishContentEditorPanel({
   const [activeVoiceTarget, setActiveVoiceTarget] =
     useState<ManualVoiceTarget | null>(null);
   const voiceBusy = activeVoiceTarget !== null;
+  const TitleControl = isMobile ? "textarea" : "input";
 
   useEffect(() => {
     titleEmojiRangeRef.current = null;
@@ -997,16 +998,20 @@ export default function PublishContentEditorPanel({
                     minHeight={42} editorRef={titleEditorRef} multiline={false} readOnly={voiceBusy}
                     ariaLabel={i18nT("titre_eb97899a")} className={css.titleRichField} style={inputStyle} />
                 ) : (
-                  <input
-                    ref={(element) => { titleInputRef.current = element; }}
+                  <TitleControl
+                    ref={(element: HTMLInputElement | HTMLTextAreaElement | null) => { titleInputRef.current = element; }}
+                    rows={isMobile ? 2 : undefined}
                     aria-label={i18nT("titre_eb97899a")}
                     value={activePost.title}
                     readOnly={voiceBusy}
-                    onKeyDown={keepEditorTypingInsideField}
+                    onKeyDown={(event) => {
+                      keepEditorTypingInsideField(event);
+                      if (event.key === "Enter" && !event.nativeEvent.isComposing) event.preventDefault();
+                    }}
                     onChange={(e) =>
                       updatePost(
                         activeCard,
-                        { title: e.target.value },
+                        { title: e.target.value.replace(/[\r\n]+/g, " ") },
                         { sanitize: false },
                       )
                     }

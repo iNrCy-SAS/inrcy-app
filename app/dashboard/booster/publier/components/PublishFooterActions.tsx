@@ -65,6 +65,9 @@ export default function PublishFooterActions({
             <button
               type="button"
               className={`${styles.secondaryBtn} ${styles.publishScheduleButton}`}
+              data-publish-schedule-action
+              aria-label={i18nT("programmer_ad97007f")}
+              title={i18nT("programmer_ad97007f")}
               onClick={onSchedule}
               disabled={draftSaving || voiceBusy || Boolean(mediaPreparationIssue)}
               style={{
@@ -72,7 +75,8 @@ export default function PublishFooterActions({
                 cursor: draftSaving || voiceBusy || mediaPreparationIssue ? "wait" : "pointer",
               }}
             >
-              <span>{i18nT("programmer_ad97007f")}</span>
+              <span data-publish-schedule-icon aria-hidden="true">🕒</span>
+              <span data-publish-schedule-label>{i18nT("programmer_ad97007f")}</span>
             </button>
             <button
               type="button"

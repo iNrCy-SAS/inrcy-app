@@ -36,7 +36,7 @@ test("queued and processing channels are displayed as pending before the ok flag
 
 test("opening iNrSend does not call the dashboard close handler that resets the URL", () => {
   const handler = boosterLayer.match(
-    /onOpenInrSend=\{\(\) => \{([\s\S]*?)router\.push\("\/dashboard\/mails\?folder=publications"\);([\s\S]*?)\}\}/,
+    /onOpenInrSend: \(\) => \{([\s\S]*?)router\.push\("\/dashboard\/mails\?folder=publications"\);([\s\S]*?)\},/,
   );
 
   assert.ok(handler, "the iNrSend navigation handler must exist");
@@ -45,19 +45,20 @@ test("opening iNrSend does not call the dashboard close handler that resets the 
   assert.match(handler[1], /publishRetryFailedRef\.current = null/);
 });
 
-test("closing the publication result also clears the Booster publish layer", () => {
+test("the integrated publication result shares the Booster close handler and clears result state", () => {
   assert.match(
     boosterLayer,
-    /const closePublishSuccess = useCallback\(\(\) => \{[\s\S]*?setPublishSuccessOpen\(false\);[\s\S]*?setPublishSummary\(null\);[\s\S]*?setPublishEditorOverlayOpen\(false\);[\s\S]*?setPublishHasUnsavedChanges\(false\);[\s\S]*?closePublishModal\(\);/,
+    /const closePublishModal = useCallback\(\(\) => \{[\s\S]*?setPublishSuccessOpen\(false\);[\s\S]*?setPublishSummary\(null\);[\s\S]*?setPublishEditorOverlayOpen\(false\);[\s\S]*?setPublishHasUnsavedChanges\(false\);[\s\S]*?publishRetryFailedRef\.current = null;[\s\S]*?onClose\(\);/,
   );
-  assert.match(boosterLayer, /summary=\{publishSummary\}[\s\S]*?onClose=\{closePublishSuccess\}/);
+  assert.match(boosterLayer, /<PublishModal[\s\S]*?onClose=\{closePublishModal\}[\s\S]*?publicationResult=\{publishSuccessOpen \? \{\s*summary: publishSummary/);
+  assert.doesNotMatch(boosterLayer, /<PublishExecutionResultModal\b/);
 });
 
-test("the result X stays outside the scroll surface and handles pointer-down plus keyboard click", () => {
-  assert.match(resultModal, /className=\{styles\.publishResultDialogShell\}/);
+test("the standalone result X stays outside the scroll surface and handles pointer-down plus keyboard click", () => {
+  assert.match(resultModal, /className=\{resultCss\.shell\}[^>]*>\s*\{closeButton\}/);
   assert.match(resultModal, /onPointerDown=\{handleClosePointerDown\}/);
   assert.match(resultModal, /onClick=\{handleCloseClick\}/);
   assert.match(resultModal, /data-testid="publish-result-close"/);
-  assert.match(resultModal, /publishResultCloseButton/);
-  assert.match(resultModal, /publishResultScrollCard/);
+  assert.match(resultModal, /className=\{resultCss\.closeButton\}/);
+  assert.match(resultModal, /className=\{resultCss\.scrollSurface\}/);
 });

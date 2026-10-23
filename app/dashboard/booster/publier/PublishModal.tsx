@@ -19,6 +19,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
 import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
+import PublishExecutionResultModal, { PublishExecutionResultActions, type PublishExecutionSummary } from "../../_components/PublishExecutionResultModal";
 import { subscribeToChannelConnectionUpdates } from "@/lib/channelConnectionUpdates";
 import { createClient } from "@/lib/supabaseClient";
 import { prewarmBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
@@ -454,6 +456,7 @@ export default function PublishModal({
   onClose,
   trackEvent,
   onPublishSuccess,
+  publicationResult,
   onOverlayOpenChange,
   onUnsavedChange,
   saveDraftActionRef,
@@ -467,6 +470,13 @@ export default function PublishModal({
   onClose: () => void;
   trackEvent: (type: "publish", payload: Record<string, any>) => Promise<any>;
   onPublishSuccess?: (result?: any) => void;
+  publicationResult?: {
+    summary: PublishExecutionSummary | null;
+    retrying: boolean;
+    error?: string;
+    onRetryFailed?: () => void | Promise<void>;
+    onOpenInrSend: () => void;
+  };
   onOverlayOpenChange?: (open: boolean) => void;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
   onWizardModeChange?: (mode: BoosterCreationMode | null) => void;
@@ -1104,6 +1114,9 @@ export default function PublishModal({
   const [channelDetails, setChannelDetails] = useState<
     Record<ChannelKey, ChannelConnectionDetail>
   >(EMPTY_CHANNEL_DETAILS);
+  const [connectedChannelsLoadState, setConnectedChannelsLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const connectedChannelsScopeRef = useRef<string | null | undefined>(undefined);
+  const authoritativeChannelsRef = useRef(false);
   const [channelInfoOpen, setChannelInfoOpen] = useState<ChannelKey | null>(
     null,
   );
@@ -1393,6 +1406,7 @@ export default function PublishModal({
     let connectedChannelsRequestSeq = 0;
     const failClosedConnectedChannels = () => {
       if (!alive) return;
+      setConnectedChannelsLoadState("error");
       const unavailable = CHANNEL_KEYS.reduce(
         (result, key) => {
           result[key] = false;
@@ -1420,9 +1434,17 @@ export default function PublishModal({
       const requestSeq = ++connectedChannelsRequestSeq;
       const accountScope = getActiveBrowserUserId();
       const isCurrent = () => alive && requestSeq === connectedChannelsRequestSeq && accountScope === getActiveBrowserUserId();
+      if (connectedChannelsScopeRef.current !== accountScope) {
+        connectedChannelsScopeRef.current = accountScope;
+        authoritativeChannelsRef.current = false;
+        setChannelDetails(EMPTY_CHANNEL_DETAILS);
+        setConnected(CHANNEL_KEYS.reduce((next, key) => ({ ...next, [key]: false }), {} as Record<ChannelKey, boolean>));
+      }
+      if (!authoritativeChannelsRef.current) setConnectedChannelsLoadState("loading");
       try {
         const res = await fetch("/api/booster/connected-channels", {
           cache: "no-store" as any,
+          signal: AbortSignal.timeout(15_000),
         });
         if (!isCurrent()) return;
         if (!res.ok) {
@@ -1439,57 +1461,73 @@ export default function PublishModal({
             },
             {} as Record<ChannelKey, boolean>,
           );
+          authoritativeChannelsRef.current = true;
           applyConnectedChannels(nextConnected);
           const nextChannelDetails: Partial<Record<ChannelKey, ChannelConnectionDetail>> = {
             ...json?.channelDetails,
           };
-          let hasChannelDetails = Boolean(json?.channelDetails);
-          if (json.channels.pinterest) {
-            try {
-              const pinterestResponse = await fetch("/api/integrations/pinterest/status?live=1", {
-                cache: "no-store" as any,
-              });
-              if (!isCurrent()) return;
-              const pinterestStatus = pinterestResponse.ok
-                ? await pinterestResponse.json().catch(() => null)
-                : null;
-              if (!isCurrent()) return;
-              if (pinterestStatus?.ok && pinterestStatus?.connected) {
-                const username = String(pinterestStatus.username || "")
-                  .replace(/^@+/, "")
-                  .trim();
-                const profileHref = normalizeExternalHref(
-                  pinterestStatus.profileUrl ||
-                    pinterestStatus.publicProfileUrl ||
-                    (username
-                      ? `https://www.pinterest.fr/${encodeURIComponent(username)}/`
-                      : ""),
-                );
-                const accountLabel = String(
-                  pinterestStatus.accountName || username || profileHref,
-                ).trim();
-                nextChannelDetails.pinterest = {
-                  ...(nextChannelDetails.pinterest || EMPTY_CHANNEL_DETAILS.pinterest),
-                  type: "account",
-                  label: accountLabel || "Compte Pinterest connecté",
-                  href: profileHref || null,
-                };
-                hasChannelDetails = true;
-              }
-            } catch {
-              // The connected-channels snapshot remains authoritative when live identity is unavailable.
+          // Commit the server snapshot immediately. A slow social profile must
+          // never hide the other accounts or hold up channel selection.
+          setChannelDetails((prev) => {
+            if (!isCurrent()) return prev;
+            const next = { ...EMPTY_CHANNEL_DETAILS, ...nextChannelDetails };
+            const pinterest = next.pinterest;
+            const previousPinterest = prev.pinterest;
+            if (nextConnected.pinterest && previousPinterest?.label &&
+              (!pinterest?.href || previousPinterest.href === pinterest.href) &&
+              (!pinterest?.label || pinterest.label === "Compte Pinterest connecté")) {
+              next.pinterest = { ...pinterest, label: previousPinterest.label };
             }
-          }
-          if (!isCurrent()) return;
-          if (hasChannelDetails) {
-            setChannelDetails((prev) => {
-              if (!isCurrent()) return prev;
-              const next = { ...prev, ...nextChannelDetails };
-              CHANNEL_KEYS.forEach((key) => {
-                next[key] = { ...next[key], availabilityError: false };
-              });
-              return next;
+            CHANNEL_KEYS.forEach((key) => {
+              next[key] = { ...next[key], availabilityError: false };
             });
+            return next;
+          });
+          setConnectedChannelsLoadState("ready");
+          if (json.channels.pinterest) {
+            void (async () => {
+              try {
+                const pinterestResponse = await fetch("/api/integrations/pinterest/status?live=1", {
+                  cache: "no-store" as any,
+                  signal: AbortSignal.timeout(8_000),
+                });
+                if (!isCurrent()) return;
+                const pinterestStatus = pinterestResponse.ok
+                  ? await pinterestResponse.json().catch(() => null)
+                  : null;
+                if (!isCurrent()) return;
+                if (pinterestStatus?.ok && pinterestStatus?.connected) {
+                  const username = String(pinterestStatus.username || "")
+                    .replace(/^@+/, "")
+                    .trim();
+                  const profileHref = normalizeExternalHref(
+                    pinterestStatus.profileUrl ||
+                      pinterestStatus.publicProfileUrl ||
+                      (username
+                        ? `https://www.pinterest.fr/${encodeURIComponent(username)}/`
+                        : ""),
+                  );
+                  const accountLabel = String(
+                    pinterestStatus.accountName || username || profileHref,
+                  ).trim();
+                  if (!accountLabel) return;
+                  setChannelDetails((current) => {
+                    if (!isCurrent()) return current;
+                    return {
+                      ...current,
+                      pinterest: {
+                        ...(current.pinterest || EMPTY_CHANNEL_DETAILS.pinterest),
+                        type: "account",
+                        label: accountLabel,
+                        href: profileHref || null,
+                      },
+                    };
+                  });
+                }
+              } catch {
+                // The connected-channels snapshot remains authoritative when live identity is unavailable.
+              }
+            })();
           }
           if (json.channels.tiktok) {
             void fetch("/api/integrations/tiktok/status", {
@@ -1537,20 +1575,25 @@ export default function PublishModal({
     const onFocus = () => void refreshConnectedChannels();
     const unsubscribeConnectionUpdates = subscribeToChannelConnectionUpdates(onFocus);
     window.addEventListener("focus", onFocus);
+    window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, onFocus);
     return () => {
       alive = false;
       connectedChannelsRequestSeq += 1;
       window.clearInterval(intervalId);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, onFocus);
       unsubscribeConnectionUpdates();
     };
-  }, [applyConnectedChannels]);
+  }, [applyConnectedChannels, activeAccountId]);
 
   useEffect(() => {
     if (!initialConnectedChannels) return;
     const nextConnected = getInitialConnectedChannels();
     const previousConnected = lastInitialConnectedChannelsRef.current;
     lastInitialConnectedChannelsRef.current = nextConnected;
+    // Dashboard hydration can finish after the authoritative Booster request.
+    // Its older booleans must not overwrite the snapshot already displayed.
+    if (authoritativeChannelsRef.current) return;
 
     // Les valeurs initiales sont déjà utilisées par les state initializers.
     // On ne resynchronise ensuite que les clés qui changent réellement, afin
@@ -3485,10 +3528,11 @@ export default function PublishModal({
 
   const hasUnsavedChanges = useMemo(
     () =>
-      Boolean(pdfFile) ||
+      !publicationResult && (Boolean(pdfFile) ||
       (hasDraftablePublicationContent &&
-        currentPublicationDraftSnapshot !== lastPublicationDraftSnapshot),
+        currentPublicationDraftSnapshot !== lastPublicationDraftSnapshot)),
     [
+      publicationResult,
       pdfFile,
       hasDraftablePublicationContent,
       currentPublicationDraftSnapshot,
@@ -6390,7 +6434,9 @@ export default function PublishModal({
           retryFailed,
         });
       }
-      if (options?.closeOnSuccess !== false && publicationAccepted) {
+      // The acknowledged result stays in this wizard, beneath the same header.
+      // Standalone callers without a result handler retain their close behavior.
+      if (options?.closeOnSuccess !== false && publicationAccepted && (!onPublishSuccess || options?.suppressPublishSuccess)) {
         onClose();
       }
     } catch (e) {
@@ -7964,10 +8010,10 @@ export default function PublishModal({
   const wizardBusy = generating || saving || draftSaving || scheduleSaving || voiceInputBusy;
   const activeWizardStep: PublishWizardStep = saving || scheduleSaving
     ? "publication"
-    : wizardStep;
-  const canOpenWizardStep = (step: PublishWizardStep) => canOpenPublishWizardStep(step, {
+    : publicationResult ? "results" : wizardStep;
+  const canOpenWizardStep = (step: PublishWizardStep) => !publicationResult && canOpenPublishWizardStep(step, {
     mode: creationMode,
-    channelCount: selectedChannels.length,
+    channelCount: connectedChannelsLoadState === "ready" ? selectedChannels.length : 0,
     contentReady: showContentWorkspace,
     busy: wizardBusy,
   });
@@ -8218,10 +8264,11 @@ export default function PublishModal({
         nextDisabled={nextWizardStep ? !canOpenWizardStep(nextWizardStep) : false}
         footer={activeWizardStep === "intention" ? (
           <div ref={setIntentActionsContainer} className={wizardStyles.intentActions} />
-        ) : activeWizardStep === "content" ? <div ref={setContentActionsContainer} /> : activeWizardStep === "control" ? publicationActions : undefined}
+        ) : activeWizardStep === "content" ? <div ref={setContentActionsContainer} /> : activeWizardStep === "control" ? publicationActions : activeWizardStep === "results" && publicationResult ? <PublishExecutionResultActions {...publicationResult} /> : undefined}
       >
         <PublishWizardScreen active={activeWizardStep === "mode" || activeWizardStep === "channels"} step="channels">
           <div className={wizardStyles.preparation}>
+            {connectedChannelsLoadState === "loading" ? <div role="status" aria-live="polite">{i18nT("chargement_01cba1df")}</div> : null}
             <div ref={setChannelActionsContainer} className={wizardStyles.selectionActions} />
       <PublishChannelSelector
         actionsContainer={channelActionsContainer}
@@ -8386,6 +8433,10 @@ export default function PublishModal({
         </PublishWizardScreen>
         <PublishWizardScreen active={activeWizardStep === "publication"} step="publication">
           <div className={wizardStyles.execution}>{activeWizardStep === "publication" ? publicationActions : null}</div>
+        </PublishWizardScreen>
+        <PublishWizardScreen active={activeWizardStep === "results"} step="results">
+          {publicationResult?.error ? <p role="alert" className={wizardStyles.resultError}>{publicationResult.error}</p> : null}
+          {activeWizardStep === "results" && publicationResult ? <PublishExecutionResultModal embedded styles={styles} {...publicationResult} onClose={onClose} /> : null}
         </PublishWizardScreen>
       {showContentWorkspace && workflowSteps ? (
         <>

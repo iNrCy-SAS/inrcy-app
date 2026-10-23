@@ -8,6 +8,7 @@ import type { PublishWizardStep } from "../booster/publier/components/publishWiz
 
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
@@ -19,10 +20,11 @@ import {
   getFrenchPublicationErrorMessage,
 } from "@/lib/publicationErrorFrench";
 import { isBoosterPublicationPendingStatus } from "@/lib/boosterPublicationStatus";
+import resultCss from "./PublishExecutionResultModal.module.css";
 
 type DashboardStyles = Readonly<Record<string, string>>;
 
-type PublishExecutionSummary = {
+export type PublishExecutionSummary = {
   publicationId?: string | null;
   publication_id?: string | null;
   allFailed?: boolean;
@@ -86,14 +88,53 @@ function isPendingPublicationEntry(entry: PublishExecutionEntry) {
   );
 }
 
+export function PublishExecutionResultActions({
+  summary,
+  onOpenInrSend,
+  onRetryFailed,
+  retrying = false,
+}: {
+  summary: PublishExecutionSummary | null | undefined;
+  onOpenInrSend: () => void;
+  onRetryFailed?: () => void | Promise<void>;
+  retrying?: boolean;
+}) {
+  const i18nT = useTranslations("booster");
+  const retryableFailureCount = Math.max(0, Number(summary?.retryableFailureCount || 0));
+
+  return (
+    <div className={resultCss.actions} data-publish-result-actions>
+      {onRetryFailed && retryableFailureCount > 0 ? (
+        <button
+          type="button"
+          className={resultCss.retryButton}
+          onClick={() => void onRetryFailed()}
+          disabled={retrying}
+          aria-busy={retrying}
+        >
+          <span aria-hidden="true">↻</span>
+          {retrying
+            ? i18nT("relance_en_cours_82dfaae8")
+            : i18nT("retenter_value_value_en_echec_b7d1f934", { value0: retryableFailureCount, value1: retryableFailureCount > 1 ? "canaux" : "canal" })}
+        </button>
+      ) : null}
+      <button type="button" onClick={onOpenInrSend} className={resultCss.inrSendButton}>
+        <img src="/inrsend-logo-seul.png" alt="" aria-hidden="true" width={23} height={23} />
+        <span>{i18nT("voir_dans_inr_send_a74cc9ea")}</span>
+        <span aria-hidden="true">→</span>
+      </button>
+    </div>
+  );
+}
+
 export default function PublishExecutionResultModal({
-  styles,
   summary,
   onClose,
   onOpenInrSend,
   onRetryFailed,
   retrying = false,
   wizardSteps,
+  embedded = false,
 }: {
   styles: DashboardStyles;
   summary: PublishExecutionSummary | null | undefined;
@@ -102,9 +143,31 @@ export default function PublishExecutionResultModal({
   onRetryFailed?: () => void | Promise<void>;
   retrying?: boolean;
   wizardSteps?: readonly PublishWizardStep[];
+  embedded?: boolean;
 }) {
   const { metaPilotEnabled } = useDashboardViewerAccess();
   const i18nT = useTranslations("booster");
+  const titleId = useId();
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (embedded) return;
+    const previouslyFocused = document.activeElement;
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousBodyOverflow = body.style.overflow;
+    const ownsHtmlLock = previousHtmlOverflow !== "hidden";
+    const ownsBodyLock = previousBodyOverflow !== "hidden";
+    if (ownsHtmlLock) html.style.overflow = "hidden";
+    if (ownsBodyLock) body.style.overflow = "hidden";
+    closeButtonRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (ownsHtmlLock) html.style.overflow = previousHtmlOverflow;
+      if (ownsBodyLock) body.style.overflow = previousBodyOverflow;
+      if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected) previouslyFocused.focus({ preventScroll: true });
+    };
+  }, [embedded]);
   const [liveSummary, setLiveSummary] = useState<PublishExecutionSummary | null>(summary || null);
   const [expandedEntryDetails, setExpandedEntryDetails] = useState<Record<string, boolean>>({});
   const tiktokPollInFlightRef = useRef(false);
@@ -415,10 +478,6 @@ export default function PublishExecutionResultModal({
     Number(effectiveSummary?.skippedCount || 0),
     entries.filter((entry) => entry.status === "skipped").length,
   );
-  const retryableFailureCount = Math.max(
-    0,
-    Number(effectiveSummary?.retryableFailureCount || 0),
-  );
   const publishedEntryCount = entries.filter(
     (entry) =>
       entry.status !== "skipped" &&
@@ -462,242 +521,84 @@ export default function PublishExecutionResultModal({
       : hasPublishedWarnings
         ? "Publication publiée avec avertissement"
       : hasPublishedChannels
-        ? "Publication bien lancée !"
+        ? "Votre publication est en ligne"
         : pendingCount
           ? "Publication en cours"
           : failureCount
             ? "Publication envoyée partiellement"
-            : "Publication envoyée avec succès";
-  const overallSubtitle = allFailed
-    ? "Aucun canal n’a pu publier. Les erreurs sont détaillées ci-dessous."
-    : hasMixedResults
-      ? `${totalCount}/${totalCount} ${totalCount > 1 ? "canaux traités" : "canal traité"} avec détails ci-dessous.`
-      : hasPublishedChannels && pendingCount
-        ? `${publishedCount} ${publishedCount > 1 ? "canaux sont déjà publiés" : "canal est déjà publié"} sur ${totalCount}. iNrCy poursuit automatiquement le traitement.`
-        : hasPublishedChannels && hasPublishedWarnings
-          ? `${publishedCount}/${totalCount} ${totalCount > 1 ? "canaux publiés" : "canal publié"} · ${warningCount} avertissement${warningCount > 1 ? "s" : ""} à consulter.`
-        : hasPublishedChannels
-          ? `${publishedCount}/${totalCount} ${totalCount > 1 ? "canaux publiés" : "canal publié"} avec succès.`
-          : `${pendingCount || totalCount} ${(pendingCount || totalCount) > 1 ? "canaux sont" : "canal est"} encore en traitement. iNrCy actualise ce bilan automatiquement.`;
+            : "Bilan de publication";
+  const resultTone = allFailed || (!hasPublishedChannels && failedOrSkippedCount > 0 && !pendingCount)
+    ? "failed"
+    : pendingCount > 0
+      ? "pending"
+      : hasPublishedWarnings || failedOrSkippedCount > 0
+        ? "warning"
+        : hasPublishedChannels ? "published" : "neutral";
+
+  const resultActions = (
+    <PublishExecutionResultActions summary={effectiveSummary} onOpenInrSend={onOpenInrSend} onRetryFailed={onRetryFailed} retrying={retrying} />
+  );
+
+  const closeButton = (
+    <button
+      ref={closeButtonRef}
+      type="button"
+      onPointerDown={handleClosePointerDown}
+      onClick={handleCloseClick}
+      data-testid="publish-result-close"
+      aria-label={i18nT("fermer_5ab4ec64")}
+      title={i18nT("fermer_5ab4ec64")}
+      className={resultCss.closeButton}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+    </button>
+  );
 
   const resultCard = (
-      <div
-        className={styles.publishResultDialogShell}
-        style={{
-          width: wizardSteps ? "min(980px, 100%)" : "min(660px, 100%)",
-          maxHeight:
-            wizardSteps ? "none" : "calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) - 32px)",
-          position: "relative",
-          minWidth: 0,
-        }}
-      >
-        <button
-          type="button"
-          onPointerDown={handleClosePointerDown}
-          onClick={handleCloseClick}
-          data-testid="publish-result-close"
-          aria-label={i18nT("fermer_5ab4ec64")}
-          title={i18nT("fermer_5ab4ec64")}
-          className={`${styles.secondaryBtn} ${styles.publishResultCloseButton}`}
-        >
-          ✕
-        </button>
+    <div className={resultCss.resultBody} data-result-tone={resultTone}>
+      <header className={resultCss.hero}>
+        <div className={resultCss.headline} role="status" aria-live="polite" aria-atomic="true">
+          <h2 id={titleId}>{overallTitle}</h2>
+        </div>
+      </header>
 
-        <div
-          role="document"
-          className={`${styles.blockCard} ${styles.publishResultScrollCard}`}
-          style={{
-            width: "100%",
-            maxHeight:
-              wizardSteps ? "none" : "calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) - 32px)",
-            overflowY: "auto",
-            textAlign: "left",
-            position: "relative",
-            padding: "22px clamp(14px, 3vw, 24px) 20px",
-            boxShadow: hasPublishedChannels
-              ? "0 32px 90px rgba(0,0,0,0.50), 0 0 48px rgba(99,102,241,0.10)"
-              : allFailed
-                ? "0 32px 90px rgba(0,0,0,0.50), 0 0 42px rgba(248,113,113,0.10)"
-                : "0 32px 90px rgba(0,0,0,0.50), 0 0 42px rgba(251,191,36,0.08)",
-            border: `1px solid ${
-              hasPublishedChannels
-                ? "rgba(96,165,250,0.28)"
-                : allFailed
-                  ? "rgba(248,113,113,0.34)"
-                  : "rgba(251,191,36,0.28)"
-            }`,
-            background:
-              "radial-gradient(circle at 50% 0%, rgba(59,130,246,0.09), transparent 30%), linear-gradient(180deg, rgba(12,18,34,0.99), rgba(8,13,25,0.99))",
-          }}
-        >
-          <header
-          style={{
-            minHeight: 66,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 13,
-            padding: "3px 48px 0",
-            marginBottom: 15,
-          }}
-        >
-          <div
-            aria-hidden
-            style={{
-              width: 62,
-              flex: "0 0 62px",
-              display: "grid",
-              placeItems: "center",
-              fontSize: hasPublishedChannels ? 49 : 41,
-              lineHeight: 1,
-              filter: "drop-shadow(0 12px 24px rgba(99,102,241,0.28))",
-            }}
-          >
-            {hasPublishedChannels ? "🎉" : allFailed ? "❌" : "⏳"}
-          </div>
-          <div style={{ minWidth: 0, textAlign: "left" }}>
-            <div className={styles.blockTitle} style={{ marginBottom: 5, fontSize: 23 }}>
-              {overallTitle}
-            </div>
-            <div
-              className={styles.subtitle}
-              style={{ maxWidth: 500, margin: 0, lineHeight: 1.38 }}
-            >
-              {overallSubtitle}
-            </div>
-          </div>
-        </header>
-
-        <div
-          style={{
-            minHeight: 56,
-            padding: "8px 10px",
-            display: "grid",
-            gridTemplateColumns: `repeat(${Math.max(
-              1,
-              Number(publishedCount > 0) + Number(pendingCount > 0) + Number(failedOrSkippedCount > 0),
-            )}, minmax(0, 1fr))`,
-            alignItems: "center",
-            borderRadius: 20,
-            border: "1px solid rgba(168,85,247,0.55)",
-            background:
-              "linear-gradient(90deg, rgba(6,182,212,0.08), rgba(124,58,237,0.10), rgba(236,72,153,0.08))",
-            boxShadow: "inset 0 0 24px rgba(59,130,246,0.04)",
-          }}
-        >
+      <div className={resultCss.summary} aria-label="État des publications">
+        <div className={resultCss.summaryCounts}>
           {publishedCount > 0 ? (
-            <div
-              style={{
-                minWidth: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: publishedCount === totalCount ? "space-between" : "center",
-                gap: 9,
-                padding: "0 10px",
-              }}
-            >
-              <strong style={{ display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
-                <span
-                  aria-hidden
-                  style={{
-                    width: 26,
-                    height: 26,
-                    display: "grid",
-                    placeItems: "center",
-                    borderRadius: 999,
-                    border: "2px solid #34d399",
-                    color: "#34d399",
-                    boxShadow: "0 0 15px rgba(52,211,153,0.24)",
-                  }}
-                >
-                  ✓
-                </span>
-                {publishedCount} {" "}{i18nT("publie_bf504032")}{publishedCount > 1 ? "s" : ""}
-              </strong>
-              {publishedCount === totalCount ? (
-                <strong style={{ color: "#c084fc", fontSize: 13, textAlign: "right" }}>
-                  {i18nT("tout_est_en_ligne_94126b3c")}{" "}</strong>
-              ) : null}
+            <div className={resultCss.metric} data-tone="published">
+              <span className={resultCss.metricIcon} aria-hidden="true">✓</span>
+              <strong>{publishedCount}</strong>
+              <span>{i18nT("publie_bf504032")}{publishedCount > 1 ? "s" : ""}</span>
             </div>
           ) : null}
           {pendingCount > 0 ? (
-            <div
-              style={{
-                minWidth: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                padding: "0 10px",
-                borderLeft: publishedCount > 0 ? "1px solid rgba(148,163,184,0.16)" : undefined,
-              }}
-            >
-              <span
-                aria-hidden
-                style={{
-                  width: 26,
-                  height: 26,
-                  display: "grid",
-                  placeItems: "center",
-                  borderRadius: 999,
-                  border: "2px solid #fbbf24",
-                  color: "#fbbf24",
-                  boxShadow: "0 0 15px rgba(251,191,36,0.20)",
-                }}
-              >
-                ◷
-              </span>
-              <strong style={{ color: "#fbbf24", whiteSpace: "nowrap" }}>
-                {i18nT("value_en_traitement_cf234a8a", { value0: pendingCount })}</strong>
+            <div className={resultCss.metric} data-tone="pending">
+              <span className={resultCss.metricIcon} aria-hidden="true">◷</span>
+              <strong>{pendingCount}</strong><span>en traitement</span>
             </div>
           ) : null}
           {failedOrSkippedCount > 0 ? (
-            <div
-              style={{
-                minWidth: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                padding: "0 10px",
-                borderLeft:
-                  publishedCount > 0 || pendingCount > 0
-                    ? "1px solid rgba(148,163,184,0.16)"
-                    : undefined,
-              }}
-            >
-              <span
-                aria-hidden
-                style={{
-                  width: 26,
-                  height: 26,
-                  display: "grid",
-                  placeItems: "center",
-                  borderRadius: 999,
-                  border: "2px solid #fb7185",
-                  color: "#fb7185",
-                  boxShadow: "0 0 15px rgba(251,113,133,0.20)",
-                }}
-              >
-                ×
-              </span>
-              <strong style={{ color: "#fb7185", whiteSpace: "nowrap" }}>
-                {failedOrSkippedCount} {" "}{i18nT("echec_f2da5369")}{failedOrSkippedCount > 1 ? "s" : ""}
-              </strong>
+            <div className={resultCss.metric} data-tone="failed">
+              <span className={resultCss.metricIcon} aria-hidden="true">!</span>
+              <strong>{failedOrSkippedCount}</strong><span>à revoir</span>
             </div>
           ) : null}
+          {!publishedCount && !pendingCount && !failedOrSkippedCount ? <p className={resultCss.emptySummary}>Consultez le suivi détaillé dans iNrSend.</p> : null}
         </div>
+        <div className={resultCss.progressTrack} aria-hidden="true">
+          <span data-tone="published" style={{ width: (publishedCount / totalCount * 100) + "%" }} />
+          <span data-tone="pending" style={{ width: (pendingCount / totalCount * 100) + "%" }} />
+          <span data-tone="failed" style={{ width: (failedOrSkippedCount / totalCount * 100) + "%" }} />
+        </div>
+      </div>
 
-        {entries.length ? (
-          <div
-            style={{
-              marginTop: 13,
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr)",
-              gap: 7,
-              textAlign: "left",
-            }}
-          >
+      {entries.length ? (
+        <section className={resultCss.channelsSection} aria-label="Résultat par canal">
+          <div className={resultCss.sectionHeading}>
+            <h3>Vos canaux</h3>
+            {pendingCount > 0 ? <span className={resultCss.liveIndicator}><span aria-hidden="true" />Suivi en direct</span> : null}
+          </div>
+          <div className={resultCss.channelGrid}>
             {orderedEntries.map((entry) => {
               const entryIsPending = isPendingPublicationEntry(entry);
               const entryIsSkipped = entry.status === "skipped";
@@ -707,18 +608,15 @@ export default function PublishExecutionResultModal({
               const entryHasWarning = entry.status === "published_with_warning";
               const channelHref = String(effectiveSummary?.channelLinks?.[entry.channel] || "").trim();
               const channelLogo = CHANNEL_LOGO_BY_KEY[entry.channel];
-              const channelLogoSize = entry.channel === "site_web" ? 25 : 27;
               const visibleError = !entryIsPending && entry.error
                 ? getFrenchPublicationErrorMessage(
-                    entry.channel,
-                    entry.error,
-                    `${entry.label} n'a pas pu publier. Merci de réessayer.`,
+                    entry.channel, entry.error,
+                    entry.label + " n'a pas pu publier. Merci de réessayer.",
                   )
                 : entryIsFailed
                   ? getFrenchPublicationErrorMessage(
-                      entry.channel,
-                      "publication_failed",
-                      `${entry.label} n'a pas pu publier. Merci de réessayer.`,
+                      entry.channel, "publication_failed",
+                      entry.label + " n'a pas pu publier. Merci de réessayer.",
                     )
                   : "";
               const rawWarning = String(
@@ -728,369 +626,127 @@ export default function PublishExecutionResultModal({
                 ? ensureFrenchPublicationErrorMessage(
                     rawWarning,
                     entryIsPending
-                      ? `${entry.label} est encore en attente de finalisation.`
-                      : `${entry.label} a publié avec un avertissement.`,
+                      ? entry.label + " est encore en attente de finalisation."
+                      : entry.label + " a publié avec un avertissement.",
                   )
                 : "";
               const visibleBlockers = (entry.blockers || []).map((blocker) =>
-                ensureFrenchPublicationErrorMessage(
-                  blocker,
-                  `${entry.label} n'est pas prêt pour la publication.`,
-                ),
+                ensureFrenchPublicationErrorMessage(blocker, entry.label + " n'est pas prêt pour la publication."),
               );
-              const tone = entryIsPending || entryHasWarning
-                ? {
-                    border: "rgba(251,191,36,0.22)",
-                    background: "linear-gradient(90deg, rgba(245,158,11,0.07), rgba(20,27,45,0.86))",
-                    statusColor: "#fbbf24",
-                  }
-                : entryIsFailed || entryIsSkipped
-                  ? {
-                      border: "rgba(248,113,113,0.24)",
-                      background: "linear-gradient(90deg, rgba(239,68,68,0.07), rgba(20,27,45,0.86))",
-                      statusColor: "#fb7185",
-                    }
-                  : {
-                      border: "rgba(96,165,250,0.16)",
-                      background: "linear-gradient(90deg, rgba(30,58,138,0.10), rgba(30,27,75,0.08), rgba(20,27,45,0.88))",
-                      statusColor: "#34d399",
-                    };
-              const statusLabel = entryIsSkipped
-                ? "Non envoyé"
-                : entryIsPending
-                  ? "En traitement"
-                  : entryIsFailed
-                    ? "Échec"
-                    : entryHasWarning
-                      ? "Publié avec avertissement"
-                      : "Publié";
-              // Conserve une description sémantique explicite pour les lecteurs d’écran :
-              // un canal en file d’attente ne doit jamais être annoncé comme publié à cause de `ok`.
+              const tone = entryIsPending ? "pending"
+                : entryIsFailed || entryIsSkipped ? "failed"
+                  : entryHasWarning ? "warning" : "published";
+              const statusLabel = entryIsSkipped ? "Non envoyé"
+                : entryIsPending ? "En traitement"
+                  : entryIsFailed ? "Échec"
+                    : entryHasWarning ? "Publié avec avertissement" : "Publié";
+              // Pending is evaluated before ok: an accepted job is not a published post.
               const semanticStatusIcon = entry.status === "skipped"
                 ? "⏭"
                 : entryIsPending
                   ? "⏳"
                   : entry.ok
-                    ? entryHasWarning
-                      ? "!"
-                      : "✓"
+                    ? entryHasWarning ? "!" : "✓"
                     : "×";
               const accessibleStatusLabel = entry.status === "skipped"
                 ? "Ignoré avant envoi"
                 : entryIsPending
                   ? "En attente"
                   : entry.ok
-                    ? entryHasWarning
-                      ? "Publié avec avertissement"
-                      : "Publié"
+                    ? entryHasWarning ? "Publié avec avertissement" : "Publié"
                     : "Échec";
-              const hasFailureDetails =
-                (entryIsFailed || entryIsSkipped) &&
-                Boolean(visibleError || visibleBlockers.length);
-              const failureDetailsOpen = Boolean(
-                expandedEntryDetails[entry.channel],
-              );
+              const hasFailureDetails = (entryIsFailed || entryIsSkipped) && Boolean(visibleError || visibleBlockers.length);
+              const failureDetailsOpen = Boolean(expandedEntryDetails[entry.channel]);
+              const detailsId = titleId + "-details-" + entry.channel;
 
               return (
-                <div
-                  key={entry.channel}
-                  style={{
-                    borderRadius: 13,
-                    padding: "8px 10px",
-                    border: `1px solid ${tone.border}`,
-                    background: tone.background,
-                  }}
-                >
-                  <div
-                    style={{
-                      minHeight: 32,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 10,
-                      alignItems: "center",
-                    }}
-                  >
-                    <strong
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 10,
-                        minWidth: 0,
-                      }}
-                    >
-                      <span
-                        aria-hidden
-                        style={{
-                          width: 31,
-                          height: 31,
-                          flex: "0 0 31px",
-                          borderRadius: 999,
-                          overflow: "hidden",
-                          display: "grid",
-                          placeItems: "center",
-                          background: "transparent",
-                        }}
-                      >
-                        {channelLogo ? (
-                          <img
-                            src={channelLogo}
-                            alt=""
-                            aria-hidden="true"
-                            loading="eager"
-                            decoding="sync"
-                            fetchPriority="high"
-                            style={{
-                              width: channelLogoSize,
-                              height: channelLogoSize,
-                              borderRadius: 999,
-                              objectFit: "cover",
-                              boxShadow: "0 0 18px rgba(76,195,255,0.24)",
-                            }}
-                          />
-                        ) : (
-                          <span style={{ fontSize: 13 }}>{entry.label.slice(0, 1)}</span>
-                        )}
-                      </span>
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{entry.label}</span>
-                    </strong>
-
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "flex-end",
-                        gap: 9,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <span
-                        aria-label={`${entry.label} — ${accessibleStatusLabel}`}
-                        data-status-icon={semanticStatusIcon}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          color: tone.statusColor,
-                          fontSize: 12,
-                          fontWeight: 750,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        <span
-                          aria-hidden
-                          style={{
-                            width: 18,
-                            height: 18,
-                            display: "grid",
-                            placeItems: "center",
-                            borderRadius: 999,
-                            border: `1.5px solid ${tone.statusColor}`,
-                            boxShadow: `0 0 11px ${tone.statusColor}55`,
-                            fontSize: 12,
-                            lineHeight: 1,
-                          }}
-                        >
-                          {entryIsPending
-                            ? "◷"
-                            : entryIsFailed || entryIsSkipped
-                              ? "×"
-                              : entryHasWarning
-                                ? "!"
-                                : "✓"}
-                        </span>
+                <article key={entry.channel} className={resultCss.channelCard} data-tone={tone}>
+                  <div className={resultCss.channelMain}>
+                    <span className={resultCss.channelLogo} aria-hidden="true">
+                      {channelLogo ? <img src={channelLogo} alt="" width={34} height={34} loading="eager" decoding="sync" /> : <span>{entry.label.slice(0, 1)}</span>}
+                    </span>
+                    <div className={resultCss.channelIdentity}>
+                      <strong title={entry.label}>{entry.label}</strong>
+                      <span className={resultCss.channelStatus} aria-label={entry.label + " — " + accessibleStatusLabel} data-status-icon={semanticStatusIcon}>
+                        <span aria-hidden="true">{entryIsPending ? "◷" : entryIsFailed || entryIsSkipped ? "!" : entryHasWarning ? "!" : "✓"}</span>
                         {statusLabel}
                       </span>
+                    </div>
+                    <div className={resultCss.channelActions}>
                       {hasFailureDetails ? (
                         <button
                           type="button"
-                          aria-label={
-                            failureDetailsOpen
-                              ? `Masquer le détail de l’échec ${entry.label}`
-                              : `Afficher le détail de l’échec ${entry.label}`
-                          }
+                          className={resultCss.detailsButton}
+                          aria-label={(failureDetailsOpen ? "Masquer le détail de l’échec " : "Afficher le détail de l’échec ") + entry.label}
                           aria-expanded={failureDetailsOpen}
-                          onClick={() =>
-                            setExpandedEntryDetails((current) => ({
-                              ...current,
-                              [entry.channel]: !current[entry.channel],
-                            }))
-                          }
-                          style={{
-                            width: 25,
-                            height: 25,
-                            flex: "0 0 25px",
-                            display: "grid",
-                            placeItems: "center",
-                            borderRadius: 999,
-                            border: "1px solid rgba(248,113,113,0.45)",
-                            background: failureDetailsOpen
-                              ? "rgba(239,68,68,0.20)"
-                              : "rgba(239,68,68,0.08)",
-                            color: "#fecaca",
-                            fontSize: 13,
-                            fontWeight: 900,
-                            cursor: "pointer",
-                          }}
-                        >
-                          i
-                        </button>
+                          aria-controls={detailsId}
+                          onClick={() => setExpandedEntryDetails((current) => ({ ...current, [entry.channel]: !current[entry.channel] }))}
+                        ><span aria-hidden="true">i</span></button>
                       ) : null}
                       {channelHref ? (
-                        <a
-                          href={channelHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={styles.secondaryBtn}
-                          style={{
-                            minHeight: 28,
-                            minWidth: 0,
-                            padding: "3px 11px",
-                            borderRadius: 999,
-                            fontSize: 12,
-                            textDecoration: "none",
-                          }}
-                        >
-                          {i18nT("voir_8a754f1f")}{" "}</a>
+                        <a href={channelHref} target="_blank" rel="noopener noreferrer" className={resultCss.channelLink} aria-label={i18nT("voir_8a754f1f") + " · " + entry.label}>
+                          {i18nT("voir_8a754f1f")}<span aria-hidden="true">↗</span>
+                        </a>
                       ) : null}
-                    </span>
+                    </div>
                   </div>
-
-                  {visibleError && (!hasFailureDetails || failureDetailsOpen) ? (
-                    <div
-                      style={{
-                        marginTop: 7,
-                        padding: "7px 9px",
-                        borderRadius: 9,
-                        borderLeft: "3px solid #fb7185",
-                        background: "rgba(239,68,68,0.08)",
-                        fontSize: 12.5,
-                        lineHeight: 1.4,
-                        color: "#fecaca",
-                      }}
-                    >
-                      {visibleError}
+                  {hasFailureDetails ? (
+                    <div id={detailsId} hidden={!failureDetailsOpen}>
+                      {visibleError ? <p className={resultCss.entryMessage} data-tone="failed">{visibleError}</p> : null}
+                      {entryIsSkipped && visibleBlockers.length ? <p className={resultCss.entryMessage} data-tone="failed">{visibleBlockers.join(" · ")}</p> : null}
                     </div>
-                  ) : null}
-                  {entryIsSkipped && visibleBlockers.length && failureDetailsOpen ? (
-                    <div
-                      style={{
-                        marginTop: 7,
-                        padding: "7px 9px",
-                        borderRadius: 9,
-                        borderLeft: "3px solid #fb7185",
-                        background: "rgba(239,68,68,0.08)",
-                        fontSize: 12.5,
-                        lineHeight: 1.4,
-                        color: "#fecaca",
-                      }}
-                    >
-                      {visibleBlockers.join(" · ")}
-                    </div>
-                  ) : null}
-                  {visibleWarning ? (
-                    <div
-                      style={{
-                        marginTop: 7,
-                        padding: "7px 9px",
-                        borderRadius: 9,
-                        borderLeft: "3px solid #fbbf24",
-                        background: "rgba(245,158,11,0.08)",
-                        fontSize: 12.5,
-                        lineHeight: 1.4,
-                        color: "#fde68a",
-                      }}
-                    >
-                      {visibleWarning}
-                    </div>
-                  ) : null}
-                </div>
+                  ) : visibleError ? <p className={resultCss.entryMessage} data-tone="failed">{visibleError}</p> : null}
+                  {visibleWarning ? <p className={resultCss.entryMessage} data-tone={entryIsPending ? "pending" : "warning"}>{visibleWarning}</p> : null}
+                </article>
               );
             })}
           </div>
-        ) : null}
-
-        <div
-          style={{
-            marginTop: 16,
-            paddingTop: 14,
-            borderTop: "1px solid rgba(148,163,184,0.12)",
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr)",
-            gap: 9,
-          }}
-        >
-          {onRetryFailed && retryableFailureCount > 0 ? (
-            <button
-              type="button"
-              className={styles.primaryBtn}
-              onClick={() => void onRetryFailed()}
-              disabled={retrying}
-              style={{ width: "100%" }}
-            >
-              {retrying
-                ? i18nT("relance_en_cours_82dfaae8")
-                : i18nT("retenter_value_value_en_echec_b7d1f934", { value0: retryableFailureCount, value1: retryableFailureCount > 1 ? "canaux" : "canal" })}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={onOpenInrSend}
-            style={{
-              width: "100%",
-              minHeight: 46,
-              border: 0,
-              borderRadius: 999,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 10,
-              color: "#fff",
-              fontWeight: 850,
-              cursor: "pointer",
-              background: "linear-gradient(90deg, #ec4899 0%, #8b5cf6 52%, #2563eb 100%)",
-              boxShadow: "0 12px 28px rgba(124,58,237,0.27)",
-            }}
-          >
-            <img
-              src="/inrsend-logo-seul.png"
-              alt=""
-              aria-hidden="true"
-              width={23}
-              height={23}
-              style={{ width: 23, height: 23, objectFit: "contain" }}
-            />
-            {i18nT("voir_dans_inr_send_a74cc9ea")}{" "}</button>
-        </div>
-        </div>
-      </div>
+        </section>
+      ) : null}
+    </div>
   );
+
+  if (embedded) return resultCard;
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={overallTitle}
-      className={styles.fullscreenModalOverlay}
-      style={{
-        position: "fixed",
-        inset: 0,
-        display: wizardSteps ? "flex" : "grid",
-        flexDirection: "column",
-        height: wizardSteps ? "100dvh" : undefined,
-        boxSizing: "border-box",
-        placeItems: "center",
-        background: wizardSteps ? "radial-gradient(circle at 12% 0%, #193f624d, transparent 40%), linear-gradient(135deg, #090e20, #17112b)" : "rgba(3, 8, 20, 0.64)",
-        zIndex: 150,
-        padding: 16,
-        overflowY: "auto",
-        overscrollBehavior: "contain",
+      aria-labelledby={titleId}
+      className={resultCss.overlay}
+      data-wizard={Boolean(wizardSteps)}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          requestClose();
+        } else if (event.key === "Tab") {
+          const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], [tabindex="0"]')).filter(element => !element.closest("[hidden]"));
+          const first = focusable[0];
+          const last = focusable.at(-1);
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last?.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+          }
+        }
       }}
     >
-      {wizardSteps ? (
-        <PublishWizardFrame step="results" steps={wizardSteps} canOpenStep={() => false} onOpenStep={() => {}}>
-          <PublishWizardScreen active step="results">{resultCard}</PublishWizardScreen>
-        </PublishWizardFrame>
-      ) : resultCard}
+      <div className={resultCss.shell} data-wizard={Boolean(wizardSteps)}>
+        {closeButton}
+        {wizardSteps ? (
+          <PublishWizardFrame step="results" steps={wizardSteps} canOpenStep={() => false} onOpenStep={() => {}} footer={resultActions}>
+            <PublishWizardScreen active step="results">{resultCard}</PublishWizardScreen>
+          </PublishWizardFrame>
+        ) : (
+          <>
+            <div role="document" className={resultCss.scrollSurface}>{resultCard}</div>
+            <footer className={resultCss.standaloneFooter}>{resultActions}</footer>
+          </>
+        )}
+      </div>
     </div>
   );
 }

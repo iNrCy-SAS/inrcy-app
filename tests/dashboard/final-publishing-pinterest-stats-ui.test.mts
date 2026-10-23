@@ -68,18 +68,20 @@ test("the publication balance highlights successes and keeps independent process
     "app/dashboard/_components/PublishExecutionResultModal.tsx",
   );
 
-  assert.match(modal, /width: wizardSteps \? "min\(980px, 100%\)" : "min\(660px, 100%\)"/);
+  const resultCss = read("app/dashboard/_components/PublishExecutionResultModal.module.css");
+  assert.match(resultCss, /\.shell\[data-wizard="true"\] \{\s*width: 100%/);
   assert.match(modal, /<PublishWizardFrame step="results"/);
+  assert.match(modal, /if \(embedded\) return resultCard/);
+  assert.match(modal, /export function PublishExecutionResultActions\(/);
   assert.match(modal, /const hasPublishedChannels = publishedCount > 0/);
   assert.match(modal, /Publication avec résultats mixtes/);
   assert.match(modal, /publishedCount[\s\S]*?publié/);
   assert.match(modal, /pendingCount[\s\S]*?en traitement/);
-  assert.match(modal, /failedOrSkippedCount[\s\S]*?échec/);
-  assert.match(modal, /gridTemplateColumns: "minmax\(0, 1fr\)"/);
+  assert.match(modal, /failedOrSkippedCount[\s\S]*?à revoir/);
+  assert.match(resultCss, /\.channelGrid \{ grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(modal, /CHANNEL_LOGO_BY_KEY/);
-  assert.match(modal, /const channelLogoSize = entry\.channel === "site_web" \? 25 : 27/);
-  assert.match(modal, /borderRadius: 999,[\s\S]*?objectFit: "cover"/);
-  assert.match(modal, /loading="eager"[\s\S]*?decoding="sync"[\s\S]*?fetchPriority="high"/);
+  assert.match(resultCss, /\.channelLogo img \{[^}]*border-radius: 50%[^}]*object-fit: cover/);
+  assert.match(modal, /loading="eager" decoding="sync"/);
   assert.match(modal, /Afficher le détail de l’échec/);
   assert.match(modal, /expandedEntryDetails/);
   assert.match(modal, /const orderedEntries = \[\.\.\.entries\]\.sort/);
