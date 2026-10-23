@@ -9,30 +9,33 @@ import { getChannelPopoverPosition } from "../../app/dashboard/_components/chann
 
 const require = createRequire(import.meta.url);
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
-type Props = Record<string, any>;
+// Transpiled modules and mocked React slots have heterogeneous runtime shapes.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RuntimeValue = any;
+type Props = Record<string, RuntimeValue>;
 const labels = JSON.parse(read("messages/fr-FR/dashboard.json")).channelBubble;
 const css = { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
 const stub = (props: Props) => React.createElement("div", {}, props.children);
 const urlFieldStub = (props: Props) => React.createElement("div", {}, props.children);
 
 function runtime(path: string, overrides: Props = {}) {
-  const slots: any[] = [];
+  const slots: RuntimeValue[] = [];
   const effects: Array<() => unknown> = [];
   let cursor = 0;
   const hooks = {
     ...React,
-    useState(initial: any) {
+    useState(initial: RuntimeValue) {
       const index = cursor++;
       if (!(index in slots)) slots[index] = typeof initial === "function" ? initial() : initial;
-      return [slots[index], (next: any) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
+      return [slots[index], (next: RuntimeValue) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
     },
-    useRef(initial: any) { const index = cursor++; return slots[index] ??= { current: initial }; },
+    useRef(initial: RuntimeValue) { const index = cursor++; return slots[index] ??= { current: initial }; },
     useId: () => "test-publication-types",
-    useCallback: (fn: any) => fn,
-    useMemo: (fn: any) => fn(),
+    useCallback: (fn: RuntimeValue) => fn,
+    useMemo: (fn: RuntimeValue) => fn(),
     useEffect(effect: () => unknown) { effects.push(effect); },
   };
-  const localRequire = (specifier: string): any => {
+  const localRequire = (specifier: string): RuntimeValue => {
     if (specifier in overrides) return overrides[specifier];
     if (specifier === "react") return hooks;
     if (specifier === "react/jsx-runtime") return require(specifier);
@@ -49,14 +52,14 @@ function runtime(path: string, overrides: Props = {}) {
     if (specifier === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => "fixture", resolveActiveBrowserUserId: (id: string) => id };
     if (specifier === "@/lib/facebookPublicationPreferences") return require("../../lib/facebookPublicationPreferences.ts");
     if (specifier === "@/lib/instagramPublicationPreferences") return require("../../lib/instagramPublicationPreferences.ts");
-    if (specifier.endsWith("PublicationPreferences")) return new Proxy({}, { get: (_, key) => String(key).startsWith("normalize") ? (value: any) => value || {} : {} });
+    if (specifier.endsWith("PublicationPreferences")) return new Proxy({}, { get: (_, key) => String(key).startsWith("normalize") ? (value: RuntimeValue) => value || {} : {} });
     return { __esModule: true, default: stub, DashboardPremiumLockIcon: stub };
   };
   const code = ts.transpileModule(read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
-  const module = { exports: {} as Props };
+  const fixtureModule = { exports: {} as Props };
   const fetch = overrides.fetch || (() => { throw Error("Unexpected request"); });
-  new Function("module", "exports", "require", "fetch", "window", code)(module, module.exports, localRequire, fetch, { setTimeout() {}, clearTimeout() {}, requestAnimationFrame(callback: () => void) { callback(); }, dispatchEvent() {}, location: { href: "", search: "" } });
-  return { exports: module.exports, render: (name: string, props: any) => { cursor = 0; return module.exports[name](props); }, flushEffects: async () => { await Promise.all(effects.splice(0).map(effect => effect())); } };
+  new Function("module", "exports", "require", "fetch", "window", code)(fixtureModule, fixtureModule.exports, localRequire, fetch, { setTimeout() {}, clearTimeout() {}, requestAnimationFrame(callback: () => void) { callback(); }, dispatchEvent() {}, location: { href: "", search: "" } });
+  return { exports: fixtureModule.exports, render: (name: string, props: RuntimeValue) => { cursor = 0; return fixtureModule.exports[name](props); }, flushEffects: async () => { await Promise.all(effects.splice(0).map(effect => effect())); } };
 }
 
 function nodes(tree: React.ReactNode): React.ReactElement<Props>[] {

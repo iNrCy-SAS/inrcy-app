@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 
-type Model = Record<string, any>;
+// Transpiled modules and mocked React slots have heterogeneous runtime shapes.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RuntimeValue = any;
+type Model = Record<string, RuntimeValue>;
 type Reply = { ok: boolean; json(): Promise<unknown> };
 const response = (payload: unknown, ok = true): Reply => ({ ok, json: async () => payload });
 const settle = () => new Promise(setImmediate);
@@ -63,14 +66,14 @@ function runtime(channel: Channel, options: {
   initial?: Model;
   pilot?: boolean;
 } = {}) {
-  const slots: any[] = [];
+  const slots: RuntimeValue[] = [];
   let cursor = 0;
   let activeAccountId = "account-1";
   const hooks = {
-    useState(initial: any) {
+    useState(initial: RuntimeValue) {
       const index = cursor++;
       if (!(index in slots)) slots[index] = typeof initial === "function" ? initial() : initial;
-      return [slots[index], (next: any) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
+      return [slots[index], (next: RuntimeValue) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
     },
     useRef(initial: unknown) { return slots[cursor++] ??= { current: initial }; },
     useCallback(callback: unknown, deps: unknown[]) {
@@ -103,7 +106,7 @@ function runtime(channel: Channel, options: {
   };
   const source = readFileSync(new URL(`../../app/dashboard/_hooks/channels/${channel.hook}.ts`, import.meta.url), "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const module = { exports: {} as Model };
+  const fixtureModule = { exports: {} as Model };
   const fetch = async (url: string, init?: RequestInit) => {
     requests.push({ url, init });
     if (options.fetch) return options.fetch(url, init);
@@ -111,7 +114,7 @@ function runtime(channel: Channel, options: {
     if (url === channel.saveEndpoint) return response(channel.saved);
     return response({ ok: true });
   };
-  new Function("module", "exports", "require", "fetch", "window", code)(module, module.exports, require, fetch, window);
+  new Function("module", "exports", "require", "fetch", "window", code)(fixtureModule, fixtureModule.exports, require, fetch, window);
   const props = {
     initialState: { ...channel.initial, ...options.initial }, panel: null, searchParams: new URLSearchParams(),
     patchChannelConnectionLocally: (key: string, patch: Model, opts: Model) => patches.push({ channel: key, patch, options: opts }),
@@ -119,7 +122,7 @@ function runtime(channel: Channel, options: {
     updateRootSettingsKey: (key: string, value: Model) => { settingsWrites.push({ key, value }); return options.writeSettings?.() ?? Promise.resolve(); },
   };
   return {
-    render: (): Model => { cursor = 0; return module.exports[channel.hook](props); },
+    render: (): Model => { cursor = 0; return fixtureModule.exports[channel.hook](props); },
     setActiveAccount: (id: string) => { activeAccountId = id; },
     requests, patches, settingsWrites, refreshes, window,
   };

@@ -6,7 +6,10 @@ import * as React from "react";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
-type Model = Record<string, any>;
+// Transpiled modules and mocked React slots have heterogeneous runtime shapes.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RuntimeValue = any;
+type Model = Record<string, RuntimeValue>;
 const settle = () => new Promise(setImmediate);
 const response = (payload: unknown, ok = true) => ({ ok, json: async () => payload });
 function deferred<T>() {
@@ -17,7 +20,7 @@ function deferred<T>() {
 
 /** Execute the real controller hooks while independently controlling response order. */
 function controller(file: string, initial: unknown, fetch: (url: string, init?: RequestInit) => unknown) {
-  const slots: any[] = [];
+  const slots: RuntimeValue[] = [];
   const effects: Array<() => void> = [];
   const events: Array<{ type: string; detail?: Model }> = [];
   const snapshots: unknown[] = [];
@@ -26,10 +29,10 @@ function controller(file: string, initial: unknown, fetch: (url: string, init?: 
   const changed = (before: unknown[] | undefined, after: unknown[] | undefined) => !before || !after || before.length !== after.length || before.some((value, index) => !Object.is(value, after[index]));
   const hooks = {
     ...React,
-    useState(value: any) {
+    useState(value: RuntimeValue) {
       const index = cursor++;
       if (!(index in slots)) slots[index] = typeof value === "function" ? value() : value;
-      return [slots[index], (next: any) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
+      return [slots[index], (next: RuntimeValue) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
     },
     useRef(value: unknown) { return slots[cursor++] ??= { current: value }; },
     useMemo(factory: () => unknown, deps?: unknown[]) {
@@ -47,7 +50,7 @@ function controller(file: string, initial: unknown, fetch: (url: string, init?: 
     },
   };
   const stub = (props: Model) => React.createElement("div", {}, props.children);
-  const localRequire = (specifier: string): any => {
+  const localRequire = (specifier: string): RuntimeValue => {
     if (specifier === "react") return hooks;
     if (specifier === "react/jsx-runtime") return require(specifier);
     if (specifier.endsWith(".css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
@@ -61,12 +64,12 @@ function controller(file: string, initial: unknown, fetch: (url: string, init?: 
   };
   const source = readFileSync(new URL(`../../app/dashboard/settings/_components/${file}.tsx`, import.meta.url), "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
-  const module = { exports: {} as Model };
+  const fixtureModule = { exports: {} as Model };
   const window = { location: { search: "", href: "http://localhost:3000/dashboard?panel=mails" }, dispatchEvent: (event: { type: string; detail?: Model }) => events.push(event), setTimeout() {}, clearTimeout() {}, addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }) };
-  new Function("module", "exports", "require", "fetch", "window", "console", code)(module, module.exports, localRequire, fetch, window, { ...console, warn() {} });
+  new Function("module", "exports", "require", "fetch", "window", "console", code)(fixtureModule, fixtureModule.exports, localRequire, fetch, window, { ...console, warn() {} });
   const props = { renderBubble: (value: Model) => { model = value; return null; } };
   return {
-    render() { cursor = 0; module.exports.default(props); return model; },
+    render() { cursor = 0; fixtureModule.exports.default(props); return model; },
     effects() { for (const effect of effects.splice(0)) effect(); },
     unmount() { for (const slot of slots) if (typeof slot?.cleanup === "function") slot.cleanup(); },
     events, snapshots,

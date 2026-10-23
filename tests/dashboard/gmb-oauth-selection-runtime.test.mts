@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 
-type Model = Record<string, any>;
+// Transpiled modules and mocked React slots have heterogeneous runtime shapes.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RuntimeValue = any;
+type Model = Record<string, RuntimeValue>;
 type Reply = { ok: boolean; json(): Promise<unknown> };
 const response = (payload: unknown, ok = true): Reply => ({ ok, json: async () => payload });
 const settle = () => new Promise(setImmediate);
@@ -27,16 +30,16 @@ function runtime(options: {
   fetch?: (url: string, init?: RequestInit) => Promise<Reply>;
   refresh?: () => Promise<void>;
 } = {}) {
-  const slots: any[] = [];
+  const slots: RuntimeValue[] = [];
   let cursor = 0;
   let accountScope = options.accountScope === undefined ? "account-1" : options.accountScope;
   const effects: Array<() => void> = [];
   const differs = (a: unknown[] | undefined, b: unknown[] | undefined) => !a || !b || a.length !== b.length || a.some((value, index) => !Object.is(value, b[index]));
   const hooks = {
-    useState(initial: any) {
+    useState(initial: RuntimeValue) {
       const index = cursor++;
       if (!(index in slots)) slots[index] = typeof initial === "function" ? initial() : initial;
-      return [slots[index], (next: any) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
+      return [slots[index], (next: RuntimeValue) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
     },
     useRef(initial: unknown) { return slots[cursor++] ??= { current: initial }; },
     useCallback(callback: unknown, deps: unknown[]) {
@@ -63,12 +66,12 @@ function runtime(options: {
   };
   const source = readFileSync(new URL("../../app/dashboard/_hooks/channels/useGoogleBusinessChannel.ts", import.meta.url), "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const module = { exports: {} as Model };
+  const fixtureModule = { exports: {} as Model };
   const fetch = async (url: string, init?: RequestInit) => {
     requests.push({ url, init });
     return options.fetch ? options.fetch(url, init) : response(url === listUrl ? oneLocation : url === selectUrl ? saved : { ok: true });
   };
-  new Function("module", "exports", "require", "fetch", "window", code)(module, module.exports, require, fetch, { location: { href: "" }, setTimeout() {} });
+  new Function("module", "exports", "require", "fetch", "window", code)(fixtureModule, fixtureModule.exports, require, fetch, { location: { href: "" }, setTimeout() {} });
   const props = {
     initialState: options.initial || {}, panel: options.panel ?? "gmb", searchParams: new URLSearchParams(options.params ?? "linked=gmb&ok=1"),
     patchChannelConnectionLocally: (_key: string, patch: Model) => patches.push(patch),
@@ -76,7 +79,7 @@ function runtime(options: {
     updateRootSettingsKey: () => { throw new Error("The authoritative selection route already persists settings"); },
   };
   return {
-    render: (): Model => { cursor = 0; return module.exports.useGoogleBusinessChannel(props); },
+    render: (): Model => { cursor = 0; return fixtureModule.exports.useGoogleBusinessChannel(props); },
     flushEffects: () => { effects.splice(0).forEach(effect => effect()); },
     setScope: (scope: string | null) => { accountScope = scope; },
     requests, patches, props, get refreshes() { return refreshes; },
