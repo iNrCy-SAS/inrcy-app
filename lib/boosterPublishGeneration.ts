@@ -506,7 +506,7 @@ function fitGeneratedXPost(post: ChannelPost): ChannelPost {
     content: post.content,
     cta: trimXGeneratedField(post.cta, 32),
     hashtags: post.hashtags
-      .slice(0, 1)
+      .slice(0, 2)
       .map((tag) => trimXGeneratedField(String(tag || "").replace(/^#+/, ""), 20))
       .filter(Boolean),
   };

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
 
 function read(path: string) {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -18,12 +19,30 @@ const videoAdapter = read(
 );
 
 test("channel titles keep raw spaces while the user is typing", () => {
-  // Desktop and phone now share one title input; typing must still bypass trimming.
-  assert.equal(
-    (contentEditor.match(/\{ title: e\.target\.value \},\s*\{ sanitize: false \}/g) || [])
-      .length,
-    1,
+  const source = ts.createSourceFile("editor.tsx", contentEditor, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let onChange: ts.Expression | undefined;
+  function visit(node: ts.Node) {
+    if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(source) === "TitleControl") {
+      const prop = node.attributes.properties.find((item) => ts.isJsxAttribute(item) && item.name.getText(source) === "onChange");
+      if (prop && ts.isJsxAttribute(prop) && prop.initializer && ts.isJsxExpression(prop.initializer)) onChange = prop.initializer.expression;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  assert.ok(onChange);
+  const javascript = ts.transpileModule(`const handler = ${onChange.getText(source)};`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  const changes: unknown[] = [];
+  const handler = new Function("updatePost", "activeCard", `${javascript}\nreturn handler;`)(
+    (...args: unknown[]) => changes.push(args), "threads",
   );
+  handler({ target: { value: "  Un titre avec  des espaces " } });
+  handler({ target: { value: "Un titre\r\ncollé sur\nplusieurs lignes" } });
+  assert.deepEqual(changes, [
+    ["threads", { title: "  Un titre avec  des espaces " }, { sanitize: false }],
+    ["threads", { title: "Un titre collé sur plusieurs lignes" }, { sanitize: false }],
+  ]);
   assert.doesNotMatch(publishModal, /\[ctaDefaults, postsByChannel\]/);
   assert.match(publishModal, /\}, \[ctaDefaults\]\);/);
 });

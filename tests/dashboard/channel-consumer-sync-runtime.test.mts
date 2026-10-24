@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import { ACTIVE_INRCY_ACCOUNT_EVENT } from "../../lib/multicompte/constants.ts";
 
 type Dict = Record<string, any>;
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -16,8 +17,8 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function browser() {
-  let accountId = "account-a";
+function browser(initialAccountId: string | null = "account-a") {
+  let accountId = initialAccountId;
   const window = Object.assign(new EventTarget(), { setInterval: () => 1, clearInterval() {} });
   const document = Object.assign(new EventTarget(), { visibilityState: "visible" });
   const cacheKey = () => `${CACHE}:uid:${accountId}`;
@@ -35,7 +36,11 @@ function browser() {
     window, document, cacheKey,
     subscribe: exports.subscribeToChannelConnectionUpdates,
     account: () => accountId,
-    changeAccount: (next: string) => { accountId = next; },
+    changeAccount: (next: string | null) => {
+      if (next === accountId) return;
+      accountId = next;
+      window.dispatchEvent(new CustomEvent(ACTIVE_INRCY_ACCOUNT_EVENT, { detail: { activeUserId: next } }));
+    },
     confirm: (scope = accountId) => window.dispatchEvent(new CustomEvent(EVENT, { detail: { accountId: scope, channel: "gmb" } })),
     storage: (oldValue: string | null, newValue: string | null, key = cacheKey()) => window.dispatchEvent(Object.assign(new Event("storage"), { oldValue, newValue, key })),
   };
@@ -54,6 +59,82 @@ function runEffect(path: string, marker: string, dependencies: Dict) {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   }).outputText;
   return new Function(...Object.keys(dependencies), `${compiled}\nreturn effect();`)(...Object.values(dependencies));
+}
+
+function connectedChannelsCallback(dependencies: Dict): (next: Dict) => void {
+  const path = "app/dashboard/booster/publier/PublishModal.tsx";
+  const source = ts.createSourceFile(path, read(path), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let found: ts.Expression | undefined;
+  function visit(node: ts.Node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(source) === "applyConnectedChannels" &&
+      node.initializer && ts.isCallExpression(node.initializer)) found = node.initializer.arguments[0];
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  assert.ok(found, "Missing channel selection callback");
+  const compiled = ts.transpileModule(`const callback = (${found.getText(source)});`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  return new Function(...Object.keys(dependencies), `${compiled}\nreturn callback;`)(...Object.values(dependencies));
+}
+
+function boosterEffect(options: {
+  fetch: (url: string) => Promise<Dict>;
+  browser?: ReturnType<typeof browser>;
+  details?: Dict;
+  detailScope?: string | null;
+}) {
+  const b = options.browser ?? browser();
+  const applied: Dict[] = [];
+  const writes: Dict[] = [];
+  let details: Dict = options.details ?? {};
+  let loadState = "loading";
+  const channelKeys = ["gmb", "facebook", "pinterest", "tiktok"];
+  let selection = Object.fromEntries(channelKeys.map(key => [key, false]));
+  let connected: Dict = {};
+  const draftChannelsRestoredRef = { current: false };
+  const manuallyControlledChannelsRef = { current: new Set<string>() };
+  const setConnected = (next: Dict) => { connected = next; applied.push(next); };
+  const applyConnectedChannels = connectedChannelsCallback({
+    CHANNEL_KEYS: channelKeys,
+    draftChannelsRestoredRef,
+    manuallyControlledChannelsRef,
+    setConnected,
+    setChannels: (update: any) => { selection = typeof update === "function" ? update(selection) : update; },
+  });
+  const cleanup = runEffect("app/dashboard/booster/publier/PublishModal.tsx", "const refreshConnectedChannels", {
+    window: b.window,
+    document: b.document,
+    ACTIVE_INRCY_ACCOUNT_EVENT,
+    getActiveBrowserUserId: b.account,
+    subscribeToChannelConnectionUpdates: b.subscribe,
+    connectedChannelsScopeRef: { current: options.detailScope === undefined ? (options.details ? b.account() : undefined) : options.detailScope },
+    authoritativeChannelsRef: { current: false },
+    fetch: options.fetch,
+    CHANNEL_KEYS: channelKeys,
+    EMPTY_CHANNEL_DETAILS: Object.fromEntries(channelKeys.map(key => [key, { label: "", href: null }])),
+    setConnected,
+    applyConnectedChannels,
+    normalizeExternalHref: (href: string) => href,
+    setChannelDetails: (update: any) => {
+      details = typeof update === "function" ? update(details) : update;
+      writes.push(details);
+    },
+    setConnectedChannelsLoadState: (update: any) => { loadState = typeof update === "function" ? update(loadState) : update; },
+  });
+  return {
+    browser: b, cleanup, applied, writes, details: () => details, loadState: () => loadState,
+    selection: () => selection,
+    connected: () => connected,
+    restoreDraft: (next: Dict) => {
+      draftChannelsRestoredRef.current = true;
+      selection = { ...selection, ...next };
+    },
+    chooseChannel: (key: string, selected: boolean) => {
+      manuallyControlledChannelsRef.current.add(key);
+      selection = { ...selection, [key]: selected };
+    },
+  };
 }
 
 test("connection updates: confirmed changes are immediate, account scoped and coalesced", async () => {
@@ -113,11 +194,15 @@ for (const consumer of ["Booster", "iNrAgent"] as const) {
     const dependencies = {
       window: b.window,
       document: b.document,
+      ACTIVE_INRCY_ACCOUNT_EVENT,
       getActiveBrowserUserId: b.account,
       subscribeToChannelConnectionUpdates: b.subscribe,
+      connectedChannelsScopeRef: { current: undefined },
+      authoritativeChannelsRef: { current: false },
       fetch: async () => { const next = deferred<Dict>(); requests.push(next); return next.promise; },
       CHANNEL_KEYS: ["gmb", "pinterest", "tiktok"],
       EMPTY_CHANNEL_DETAILS: {},
+      setConnected: (next: Dict) => applied.push(next),
       applyConnectedChannels: (next: Dict) => applied.push(next),
       setChannelDetails: (update: any) => { details = typeof update === "function" ? update(details) : update; },
       setConnectedChannelsLoadState: (update: any) => { loadState = typeof update === "function" ? update(loadState) : update; },
@@ -131,6 +216,7 @@ for (const consumer of ["Booster", "iNrAgent"] as const) {
       ? runEffect("app/dashboard/booster/publier/PublishModal.tsx", "const refreshConnectedChannels", dependencies)
       : runEffect("app/dashboard/agent/_hooks/useAgentRuntimeData.ts", "async function loadConnectedChannels", dependencies);
     assert.equal(requests.length, 1);
+    const initialWrites = applied.length;
     b.confirm();
     await tick();
     assert.equal(requests.length, 2, "Revalidation must not wait for focus or a polling interval");
@@ -139,8 +225,8 @@ for (const consumer of ["Booster", "iNrAgent"] as const) {
     await tick();
     requests[0].resolve({ ok: true, json: async () => data(true) });
     await tick();
-    assert.equal(applied.length, 1);
-    assert.equal(applied[0].gmb, false);
+    assert.equal(applied.length, initialWrites + 1);
+    assert.equal(applied.at(-1)?.gmb, false);
     cleanup();
     b.confirm();
     await tick();
@@ -148,139 +234,256 @@ for (const consumer of ["Booster", "iNrAgent"] as const) {
   });
 }
 
-test("Booster: Pinterest refresh commits one enriched detail snapshot while connectivity updates immediately", async () => {
-  const b = browser();
+test("Booster: account hydration retries immediately and ignores the response started without an account", async () => {
+  const b = browser(null);
+  const requests: Array<{ scope: string | null; response: ReturnType<typeof deferred<Dict>> }> = [];
+  const harness = boosterEffect({
+    browser: b,
+    fetch: async () => {
+      const response = deferred<Dict>();
+      requests.push({ scope: b.account(), response });
+      return response.promise;
+    },
+  });
+  b.changeAccount("account-a");
+  await tick();
+  const current = requests.find(request => request.scope === "account-a");
+  assert.ok(current, "Hydration must revalidate without waiting for focus, polling or Mes canaux");
+  current.response.resolve({ ok: true, json: async () => ({ channels: { gmb: true }, channelDetails: { gmb: { label: "Société A" } } }) });
+  await tick();
+  assert.equal(harness.applied.at(-1)?.gmb, true);
+  assert.equal(harness.details().gmb.label, "Société A");
+  assert.equal(harness.loadState(), "ready");
+  const writesBefore = harness.writes.length;
+  const appliedBefore = harness.applied.length;
+  for (const request of requests.filter(request => request.scope === null)) {
+    request.response.resolve({ ok: true, json: async () => ({ channels: { gmb: false }, channelDetails: { gmb: { label: "Périmètre périmé" } } }) });
+  }
+  await tick();
+  assert.equal(harness.writes.length, writesBefore);
+  assert.equal(harness.applied.length, appliedBefore);
+  harness.cleanup();
+  const requestsBefore = requests.length;
+  b.changeAccount("account-b");
+  await tick();
+  assert.equal(requests.length, requestsBefore, "Unmount must remove the account listener");
+});
+
+for (const selectionSource of ["draft", "manual"] as const) {
+  test(`Booster: account hydration preserves ${selectionSource} selection while availability is revalidated`, async () => {
+    const b = browser(null);
+    const requests: Array<ReturnType<typeof deferred<Dict>>> = [];
+    const harness = boosterEffect({
+      browser: b,
+      fetch: async () => {
+        const response = deferred<Dict>();
+        requests.push(response);
+        return response.promise;
+      },
+    });
+    const available = () => ({
+      ok: true,
+      json: async () => ({ channels: { gmb: true, facebook: true }, channelDetails: {} }),
+    });
+    // The server can resolve the authenticated account before its browser hint hydrates.
+    requests[0].resolve(available());
+    await tick();
+    if (selectionSource === "draft") {
+      harness.restoreDraft({ gmb: true, facebook: false });
+    } else {
+      harness.chooseChannel("gmb", true);
+      harness.chooseChannel("facebook", false);
+    }
+    const intendedSelection = { ...harness.selection() };
+    b.changeAccount("account-a");
+    await tick();
+    assert.equal(requests.length, 2);
+    assert.equal(harness.loadState(), "loading");
+    assert.equal(harness.connected().gmb, false, "The old scope must not remain available during hydration");
+    assert.deepEqual(harness.selection(), intendedSelection, "Temporary unavailability must not erase intent");
+    requests[1].resolve(available());
+    await tick();
+    assert.equal(harness.connected().gmb, true);
+    assert.equal(harness.loadState(), "ready");
+    assert.deepEqual(harness.selection(), intendedSelection, "The real selection callback must preserve checked and unchecked choices");
+    harness.cleanup();
+  });
+}
+
+test("Booster: all server account names render immediately while Pinterest identity is still pending", async () => {
   const identities: Array<ReturnType<typeof deferred<Dict>>> = [];
-  const applied: Dict[] = [];
-  const writes: Dict[] = [];
-  const serverDetails = { pinterest: { type: "account", label: "Compte Pinterest connecté", href: null } };
-  let details: Dict = { pinterest: { label: "Compte déjà chargé", href: "https://www.pinterest.fr/previous/" } };
-  const cleanup = runEffect("app/dashboard/booster/publier/PublishModal.tsx", "const refreshConnectedChannels", {
-    window: b.window,
-    getActiveBrowserUserId: b.account,
-    subscribeToChannelConnectionUpdates: b.subscribe,
+  const serverDetails = {
+    gmb: { type: "account", label: "Entreprise Google", href: "https://maps.google.com/" },
+    facebook: { type: "account", label: "Page Facebook", href: "https://www.facebook.com/company/" },
+    pinterest: { type: "account", label: "Compte Pinterest connecté", href: null },
+  };
+  const harness = boosterEffect({
     fetch: async (url: string) => {
       if (url.includes("/pinterest/")) {
         const identity = deferred<Dict>();
         identities.push(identity);
         return identity.promise;
       }
-      return { ok: true, json: async () => ({ channels: { pinterest: true }, channelDetails: serverDetails }) };
+      return { ok: true, json: async () => ({ channels: { gmb: true, facebook: true, pinterest: true }, channelDetails: serverDetails }) };
     },
-    CHANNEL_KEYS: ["pinterest"],
-    EMPTY_CHANNEL_DETAILS: {},
-    applyConnectedChannels: (next: Dict) => applied.push(next),
-    normalizeExternalHref: (href: string) => href,
-    setChannelDetails: (update: any) => { details = typeof update === "function" ? update(details) : update; writes.push(details); },
   });
   await tick();
-  assert.equal(applied[0].pinterest, true, "Connectivity must not wait for the live profile");
+  assert.equal(harness.applied.at(-1)?.pinterest, true, "Connectivity must not wait for the live profile");
   assert.equal(identities.length, 1);
-  assert.equal(writes.length, 0, "The generic server label must not be emitted while enrichment is pending");
-  assert.equal(details.pinterest.label, "Compte déjà chargé");
+  assert.equal(harness.details().gmb.label, "Entreprise Google", "Google's name must not wait for Pinterest");
+  assert.equal(harness.details().facebook.label, "Page Facebook", "Facebook's name must not wait for Pinterest");
+  assert.equal(harness.loadState(), "ready", "Availability is authoritative before optional identity enrichment");
   identities[0].resolve({ ok: true, json: async () => ({ ok: true, connected: true, username: "@fresh-account", accountName: "Compte Pinterest précis" }) });
   await tick();
-  assert.equal(writes.length, 1);
-  assert.equal(details.pinterest.label, "Compte Pinterest précis");
-  assert.equal(details.pinterest.href, "https://www.pinterest.fr/fresh-account/");
-  assert.equal(details.pinterest.availabilityError, false);
+  assert.equal(harness.details().pinterest.label, "Compte Pinterest précis");
+  assert.equal(harness.details().pinterest.href, "https://www.pinterest.fr/fresh-account/");
+  assert.equal(harness.details().pinterest.availabilityError, false);
+  assert.equal(harness.details().gmb.label, "Entreprise Google");
+  assert.equal(harness.details().facebook.label, "Page Facebook");
   assert.equal(serverDetails.pinterest.label, "Compte Pinterest connecté", "The response snapshot must not be mutated");
-  b.window.dispatchEvent(new Event("focus"));
+  assert.equal(serverDetails.pinterest.href, null, "The generic server snapshot carries no profile identity");
+  harness.browser.window.dispatchEvent(new Event("focus"));
   await tick();
-  assert.equal(applied.length, 2);
-  assert.equal(writes.length, 1, "Focus refresh must keep the complete label until its new snapshot is ready");
+  assert.equal(identities.length, 2);
+  assert.equal(harness.details().pinterest.label, "Compte Pinterest précis", "A generic null-href snapshot in the same account must not erase a known identity");
   identities[1].resolve({ ok: true, json: async () => ({ ok: true, connected: true, username: "new-account" }) });
   await tick();
-  assert.equal(writes.length, 2);
-  assert.equal(details.pinterest.label, "new-account", "A fresh identity must replace the old one instead of hiding it behind a display cache");
-  assert.ok(writes.every((snapshot) => snapshot.pinterest.label !== "Compte Pinterest connecté"));
-  cleanup();
+  assert.equal(harness.details().pinterest.label, "new-account", "A fresh identity must replace the old one instead of hiding it behind a display cache");
+  harness.cleanup();
 });
 
 for (const failure of ["http", "network", "json"] as const) {
-  test(`Booster: Pinterest ${failure} failure commits the server fallback once after enrichment settles`, async () => {
-    const b = browser();
+  test(`Booster: Pinterest ${failure} failure retains a known identity without blocking other names`, async () => {
     const identity = deferred<Dict>();
-    const writes: Dict[] = [];
-    let details: Dict = { pinterest: { label: "Ancien compte" } };
-    const cleanup = runEffect("app/dashboard/booster/publier/PublishModal.tsx", "const refreshConnectedChannels", {
-      window: b.window,
-      getActiveBrowserUserId: b.account,
-      subscribeToChannelConnectionUpdates: b.subscribe,
+    const profileHref = "https://www.pinterest.fr/known/";
+    const harness = boosterEffect({
+      details: { pinterest: { label: "Compte connu", href: profileHref } },
       fetch: async (url: string) => {
         if (url.includes("/pinterest/")) {
           const response = await identity.promise;
           if (failure === "network") throw new Error("Network unavailable");
           return response;
         }
-        return { ok: true, json: async () => ({ channels: { pinterest: true }, channelDetails: { pinterest: { label: "Compte Pinterest connecté" } } }) };
+        return { ok: true, json: async () => ({ channels: { gmb: true, pinterest: true }, channelDetails: { gmb: { label: "Société à jour" }, pinterest: { label: "Compte Pinterest connecté", href: profileHref } } }) };
       },
-      CHANNEL_KEYS: ["pinterest"],
-      EMPTY_CHANNEL_DETAILS: {},
-      applyConnectedChannels() {},
-      normalizeExternalHref: (href: string) => href,
-      setChannelDetails: (update: any) => { details = typeof update === "function" ? update(details) : update; writes.push(details); },
     });
     await tick();
-    assert.equal(writes.length, 0);
+    assert.equal(harness.details().gmb.label, "Société à jour");
+    assert.equal(harness.details().pinterest.label, "Compte connu");
     identity.resolve({ ok: failure !== "http", json: async () => { throw new Error("Invalid JSON"); } });
     await tick();
-    assert.equal(writes.length, 1);
-    assert.equal(details.pinterest.label, "Compte Pinterest connecté");
-    cleanup();
+    assert.equal(harness.details().pinterest.label, "Compte connu");
+    assert.equal(harness.details().pinterest.href, profileHref);
+    assert.equal(harness.loadState(), "ready");
+    harness.cleanup();
   });
 }
 
-test("Booster: a pending Pinterest identity is ignored after an account switch", async () => {
-  const b = browser();
+test("Booster: a different Pinterest profile cannot inherit the previous profile's label", async () => {
   const identity = deferred<Dict>();
-  let detailWrites = 0;
-  const cleanup = runEffect("app/dashboard/booster/publier/PublishModal.tsx", "const refreshConnectedChannels", {
-    window: b.window,
-    getActiveBrowserUserId: b.account,
-    subscribeToChannelConnectionUpdates: b.subscribe,
-    fetch: async (url: string) => url.includes("/pinterest/") ? identity.promise : { ok: true, json: async () => ({ channels: { pinterest: true }, channelDetails: { pinterest: { label: "Compte Pinterest connecté" } } }) },
-    CHANNEL_KEYS: ["pinterest"],
-    EMPTY_CHANNEL_DETAILS: {},
-    applyConnectedChannels() {},
-    normalizeExternalHref: (href: string) => href,
-    setChannelDetails: () => { detailWrites++; },
+  const harness = boosterEffect({
+    details: { pinterest: { label: "Ancien profil", href: "https://www.pinterest.fr/old/" } },
+    fetch: async (url: string) => url.includes("/pinterest/") ? identity.promise : {
+      ok: true,
+      json: async () => ({ channels: { pinterest: true }, channelDetails: { pinterest: { label: "Compte Pinterest connecté", href: "https://www.pinterest.fr/new/" } } }),
+    },
   });
   await tick();
-  assert.equal(detailWrites, 0);
+  assert.notEqual(harness.details().pinterest.label, "Ancien profil");
+  assert.equal(harness.details().pinterest.href, "https://www.pinterest.fr/new/");
+  identity.resolve({ ok: false });
+  await tick();
+  assert.notEqual(harness.details().pinterest.label, "Ancien profil");
+  harness.cleanup();
+});
+
+test("Booster: switching accounts revalidates names and a pending old Pinterest identity is ignored", async () => {
+  const b = browser();
+  const identity = deferred<Dict>();
+  const requestedScopes: Array<string | null> = [];
+  const harness = boosterEffect({
+    browser: b,
+    fetch: async (url: string) => {
+      if (url.includes("/pinterest/")) return identity.promise;
+      const scope = b.account();
+      requestedScopes.push(scope);
+      return { ok: true, json: async () => ({ channels: { gmb: true, pinterest: scope === "account-a" }, channelDetails: { gmb: { label: scope === "account-a" ? "Société A" : "Société B" }, pinterest: { label: scope === "account-a" ? "Profil A" : "", href: null } } }) };
+    },
+  });
+  await tick();
+  assert.equal(harness.details().gmb.label, "Société A");
   b.changeAccount("account-b");
+  await tick();
+  assert.deepEqual(requestedScopes, ["account-a", "account-b"]);
+  assert.equal(harness.details().gmb.label, "Société B");
+  assert.equal(harness.details().pinterest.label, "");
+  assert.equal(harness.applied.at(-1)?.pinterest, false);
+  const detailWrites = harness.writes.length;
   identity.resolve({ ok: true, json: async () => ({ ok: true, connected: true, username: "stale-account" }) });
   await tick();
-  assert.equal(detailWrites, 0);
-  cleanup();
+  assert.equal(harness.writes.length, detailWrites);
+  assert.equal(harness.details().gmb.label, "Société B");
+  assert.equal(harness.details().pinterest.label, "");
+  harness.cleanup();
+});
+
+test("Booster: an account switch clears known identities even when both accounts have the same Pinterest href", async () => {
+  const b = browser();
+  const newAccountSnapshot = deferred<Dict>();
+  const identity = deferred<Dict>();
+  const profileHref = "https://www.pinterest.fr/shared/";
+  const harness = boosterEffect({
+    browser: b,
+    details: { pinterest: { label: "Identité du compte A", href: profileHref } },
+    fetch: async (url: string) => {
+      if (url.includes("/pinterest/")) return identity.promise;
+      if (b.account() === "account-b") return newAccountSnapshot.promise;
+      return { ok: true, json: async () => ({ channels: { pinterest: true }, channelDetails: { pinterest: { label: "Compte Pinterest connecté", href: profileHref } } }) };
+    },
+  });
+  await tick();
+  assert.equal(harness.details().pinterest.label, "Identité du compte A");
+  b.changeAccount("account-b");
+  await tick();
+  assert.equal(harness.details().pinterest.label, "", "Account A's identity must be cleared before account B responds");
+  assert.equal(harness.applied.at(-1)?.pinterest, false);
+  assert.equal(harness.loadState(), "loading");
+  newAccountSnapshot.resolve({ ok: true, json: async () => ({ channels: { pinterest: true }, channelDetails: { pinterest: { label: "Compte Pinterest connecté", href: profileHref } } }) });
+  await tick();
+  assert.notEqual(harness.details().pinterest.label, "Identité du compte A", "A shared profile URL does not permit identity reuse across iNrCy accounts");
+  harness.cleanup();
+  identity.resolve({ ok: false });
+  await tick();
 });
 
 test("Booster: a late Pinterest profile request cannot restore details after disconnect", async () => {
-  const b = browser();
   const identity = deferred<Dict>();
   let connected = true;
-  let details: Dict = {};
-  let detailWrites = 0;
-  const cleanup = runEffect("app/dashboard/booster/publier/PublishModal.tsx", "const refreshConnectedChannels", {
-    window: b.window,
-    getActiveBrowserUserId: b.account,
-    subscribeToChannelConnectionUpdates: b.subscribe,
+  const harness = boosterEffect({
     fetch: async (url: string) => url.includes("/pinterest/") ? identity.promise : { ok: true, json: async () => ({ channels: { pinterest: connected }, channelDetails: { pinterest: { label: connected ? "initial" : "" } } }) },
-    CHANNEL_KEYS: ["pinterest"],
-    EMPTY_CHANNEL_DETAILS: {},
-    applyConnectedChannels() {},
-    normalizeExternalHref: (href: string) => href,
-    setChannelDetails: (update: any) => { detailWrites++; details = typeof update === "function" ? update(details) : update; },
   });
   await tick();
   connected = false;
-  b.confirm();
+  harness.browser.confirm();
   await tick();
-  assert.equal(details.pinterest.label, "");
-  const writesBefore = detailWrites;
+  assert.equal(harness.details().pinterest.label, "");
+  const writesBefore = harness.writes.length;
   identity.resolve({ ok: true, json: async () => ({ ok: true, connected: true, username: "stale-account" }) });
   await tick();
-  assert.equal(detailWrites, writesBefore);
-  assert.equal(details.pinterest.label, "");
-  cleanup();
+  assert.equal(harness.writes.length, writesBefore);
+  assert.equal(harness.details().pinterest.label, "");
+  harness.cleanup();
+});
+
+test("Booster: unmount cancels a pending Pinterest identity update", async () => {
+  const identity = deferred<Dict>();
+  const harness = boosterEffect({
+    fetch: async (url: string) => url.includes("/pinterest/") ? identity.promise : { ok: true, json: async () => ({ channels: { pinterest: true }, channelDetails: { pinterest: { label: "Snapshot" } } }) },
+  });
+  await tick();
+  const writesBefore = harness.writes.length;
+  harness.cleanup();
+  identity.resolve({ ok: true, json: async () => ({ ok: true, connected: true, username: "late-profile" }) });
+  await tick();
+  assert.equal(harness.writes.length, writesBefore);
 });

@@ -19,6 +19,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
 import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
+import PublishExecutionResultModal, { PublishExecutionResultActions, type PublishExecutionSummary } from "../../_components/PublishExecutionResultModal";
+import { getPublicationDestinationStatus, type PublicationProgressDestination } from "../../_components/PublishExecutionProgress";
+import { mergePreflightFailuresIntoPublicationSummary } from "@/lib/boosterPublicationOutcome";
 import { subscribeToChannelConnectionUpdates } from "@/lib/channelConnectionUpdates";
 import { createClient } from "@/lib/supabaseClient";
 import { prewarmBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
@@ -409,6 +413,62 @@ function getBoosterMediaOptimizerRequirements(
   });
 }
 
+function mergeRetriedPublicationSummary(
+  previous: PublishExecutionSummary | undefined,
+  next: PublishExecutionSummary | ReturnType<typeof mergePreflightFailuresIntoPublicationSummary>,
+  publicationId: string | null,
+  retriedChannels: readonly string[],
+): PublishExecutionSummary & { total: number; allSucceeded: boolean; failedChannels: string[] } {
+  const entriesByChannel = new Map(
+    (previous?.entries || []).map((entry) => [entry.channel, {
+      ...entry,
+      publicationId: entry.publicationId || previous?.publicationId || previous?.publication_id || null,
+    }]),
+  );
+  const retried = new Set(retriedChannels);
+  for (const entry of next.entries || []) {
+    const channel = String(entry.channel || "").trim();
+    if (!channel || (previous && !retried.has(channel))) continue;
+    entriesByChannel.set(channel, {
+      channel,
+      label: String(entry.label || channel),
+      publicationId,
+      ok: typeof entry.ok === "boolean" ? entry.ok : undefined,
+      status: typeof entry.status === "string" ? entry.status : undefined,
+      technicalStatus: typeof entry.technicalStatus === "string" ? entry.technicalStatus : undefined,
+      code: typeof entry.code === "string" ? entry.code : undefined,
+      retryable: typeof entry.retryable === "boolean" ? entry.retryable : undefined,
+      error: typeof entry.error === "string" ? entry.error : undefined,
+      warning: typeof entry.warning === "string" ? entry.warning : undefined,
+      warning_kind: typeof entry.warning_kind === "string" ? entry.warning_kind : undefined,
+      warning_message: typeof entry.warning_message === "string" ? entry.warning_message : undefined,
+      blockers: Array.isArray(entry.blockers) ? entry.blockers.filter((blocker): blocker is string => typeof blocker === "string") : undefined,
+    });
+  }
+  const entries = [...entriesByChannel.values()];
+  const statuses = entries.map(getPublicationDestinationStatus);
+  const pendingCount = statuses.filter((status) => status === "pending").length;
+  const successCount = statuses.filter((status) => ["published", "warning", "pending"].includes(status)).length;
+  const failureCount = statuses.filter((status) => status === "failed").length;
+  return {
+    ...previous,
+    ...next,
+    publicationId,
+    entries,
+    successCount,
+    failureCount,
+    retryableFailureCount: entries.filter((entry) => getPublicationDestinationStatus(entry) === "failed" && entry.retryable !== false).length,
+    pendingCount,
+    skippedCount: statuses.filter((status) => status === "skipped").length,
+    warningCount: statuses.filter((status) => status === "warning").length,
+    mediaWarningCount: entries.filter((entry) => entry.warning_kind === "media_degraded").length,
+    total: entries.length,
+    allSucceeded: entries.length > 0 && statuses.every((status) => status === "published" || status === "warning"),
+    failedChannels: entries.filter((entry) => ["failed", "skipped"].includes(getPublicationDestinationStatus(entry))).map((entry) => entry.channel),
+    allFailed: entries.length > 0 && successCount === 0 && failureCount > 0,
+  };
+}
+
 const GENERATION_PHASE_MESSAGE_KEYS: Record<GenerationProgressPhaseKey, string> = {
   initialization: "generation_phase_initialization",
   media_security: "generation_phase_media_security",
@@ -454,6 +514,7 @@ export default function PublishModal({
   onClose,
   trackEvent,
   onPublishSuccess,
+  publicationResult,
   onOverlayOpenChange,
   onUnsavedChange,
   saveDraftActionRef,
@@ -467,6 +528,13 @@ export default function PublishModal({
   onClose: () => void;
   trackEvent: (type: "publish", payload: Record<string, any>) => Promise<any>;
   onPublishSuccess?: (result?: any) => void;
+  publicationResult?: {
+    summary: PublishExecutionSummary | null;
+    retrying: boolean;
+    error?: string;
+    onRetryFailed?: () => void | Promise<void>;
+    onOpenInrSend: () => void;
+  };
   onOverlayOpenChange?: (open: boolean) => void;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
   onWizardModeChange?: (mode: BoosterCreationMode | null) => void;
@@ -573,6 +641,21 @@ export default function PublishModal({
   const [publishProgressLabel, setPublishProgressLabel] = useState("");
   const [publishProgressPhaseIndex, setPublishProgressPhaseIndex] = useState(0);
   const [publishProgressPhaseLabel, setPublishProgressPhaseLabel] = useState("");
+  const [publicationDestinations, setPublicationDestinations] = useState<PublicationProgressDestination[]>([]);
+  const latestPublicationSummaryRef = useRef<PublishExecutionSummary | null>(null);
+  const [livePublicationResult, setLivePublicationResult] = useState<{
+    source: PublishExecutionSummary | null | undefined;
+    summary: PublishExecutionSummary;
+  } | null>(null);
+  const handlePublicationSummaryChange = useCallback((summary: PublishExecutionSummary) => {
+    latestPublicationSummaryRef.current = summary;
+    setLivePublicationResult((current) => current?.summary === summary
+      ? current
+      : { source: publicationResult?.summary, summary });
+  }, [publicationResult?.summary]);
+  const publicationSummaryForActions = livePublicationResult?.source === publicationResult?.summary
+    ? livePublicationResult?.summary || publicationResult?.summary
+    : publicationResult?.summary;
   const publishProgressTargetRef = useRef(0);
   const publishProgressPhaseIndexRef = useRef(0);
   const phasedPublicationProgressRef = useRef(false);
@@ -1104,6 +1187,9 @@ export default function PublishModal({
   const [channelDetails, setChannelDetails] = useState<
     Record<ChannelKey, ChannelConnectionDetail>
   >(EMPTY_CHANNEL_DETAILS);
+  const [connectedChannelsLoadState, setConnectedChannelsLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const connectedChannelsScopeRef = useRef<string | null | undefined>(undefined);
+  const authoritativeChannelsRef = useRef(false);
   const [channelInfoOpen, setChannelInfoOpen] = useState<ChannelKey | null>(
     null,
   );
@@ -1393,6 +1479,7 @@ export default function PublishModal({
     let connectedChannelsRequestSeq = 0;
     const failClosedConnectedChannels = () => {
       if (!alive) return;
+      setConnectedChannelsLoadState("error");
       const unavailable = CHANNEL_KEYS.reduce(
         (result, key) => {
           result[key] = false;
@@ -1420,9 +1507,17 @@ export default function PublishModal({
       const requestSeq = ++connectedChannelsRequestSeq;
       const accountScope = getActiveBrowserUserId();
       const isCurrent = () => alive && requestSeq === connectedChannelsRequestSeq && accountScope === getActiveBrowserUserId();
+      if (connectedChannelsScopeRef.current !== accountScope) {
+        connectedChannelsScopeRef.current = accountScope;
+        authoritativeChannelsRef.current = false;
+        setChannelDetails(EMPTY_CHANNEL_DETAILS);
+        setConnected(CHANNEL_KEYS.reduce((next, key) => ({ ...next, [key]: false }), {} as Record<ChannelKey, boolean>));
+      }
+      if (!authoritativeChannelsRef.current) setConnectedChannelsLoadState("loading");
       try {
         const res = await fetch("/api/booster/connected-channels", {
           cache: "no-store" as any,
+          signal: AbortSignal.timeout(15_000),
         });
         if (!isCurrent()) return;
         if (!res.ok) {
@@ -1439,57 +1534,73 @@ export default function PublishModal({
             },
             {} as Record<ChannelKey, boolean>,
           );
+          authoritativeChannelsRef.current = true;
           applyConnectedChannels(nextConnected);
           const nextChannelDetails: Partial<Record<ChannelKey, ChannelConnectionDetail>> = {
             ...json?.channelDetails,
           };
-          let hasChannelDetails = Boolean(json?.channelDetails);
-          if (json.channels.pinterest) {
-            try {
-              const pinterestResponse = await fetch("/api/integrations/pinterest/status?live=1", {
-                cache: "no-store" as any,
-              });
-              if (!isCurrent()) return;
-              const pinterestStatus = pinterestResponse.ok
-                ? await pinterestResponse.json().catch(() => null)
-                : null;
-              if (!isCurrent()) return;
-              if (pinterestStatus?.ok && pinterestStatus?.connected) {
-                const username = String(pinterestStatus.username || "")
-                  .replace(/^@+/, "")
-                  .trim();
-                const profileHref = normalizeExternalHref(
-                  pinterestStatus.profileUrl ||
-                    pinterestStatus.publicProfileUrl ||
-                    (username
-                      ? `https://www.pinterest.fr/${encodeURIComponent(username)}/`
-                      : ""),
-                );
-                const accountLabel = String(
-                  pinterestStatus.accountName || username || profileHref,
-                ).trim();
-                nextChannelDetails.pinterest = {
-                  ...(nextChannelDetails.pinterest || EMPTY_CHANNEL_DETAILS.pinterest),
-                  type: "account",
-                  label: accountLabel || "Compte Pinterest connecté",
-                  href: profileHref || null,
-                };
-                hasChannelDetails = true;
-              }
-            } catch {
-              // The connected-channels snapshot remains authoritative when live identity is unavailable.
+          // Commit the server snapshot immediately. A slow social profile must
+          // never hide the other accounts or hold up channel selection.
+          setChannelDetails((prev) => {
+            if (!isCurrent()) return prev;
+            const next = { ...EMPTY_CHANNEL_DETAILS, ...nextChannelDetails };
+            const pinterest = next.pinterest;
+            const previousPinterest = prev.pinterest;
+            if (nextConnected.pinterest && previousPinterest?.label &&
+              (!pinterest?.href || previousPinterest.href === pinterest.href) &&
+              (!pinterest?.label || pinterest.label === "Compte Pinterest connecté")) {
+              next.pinterest = { ...pinterest, label: previousPinterest.label };
             }
-          }
-          if (!isCurrent()) return;
-          if (hasChannelDetails) {
-            setChannelDetails((prev) => {
-              if (!isCurrent()) return prev;
-              const next = { ...prev, ...nextChannelDetails };
-              CHANNEL_KEYS.forEach((key) => {
-                next[key] = { ...next[key], availabilityError: false };
-              });
-              return next;
+            CHANNEL_KEYS.forEach((key) => {
+              next[key] = { ...next[key], availabilityError: false };
             });
+            return next;
+          });
+          setConnectedChannelsLoadState("ready");
+          if (json.channels.pinterest) {
+            void (async () => {
+              try {
+                const pinterestResponse = await fetch("/api/integrations/pinterest/status?live=1", {
+                  cache: "no-store" as any,
+                  signal: AbortSignal.timeout(8_000),
+                });
+                if (!isCurrent()) return;
+                const pinterestStatus = pinterestResponse.ok
+                  ? await pinterestResponse.json().catch(() => null)
+                  : null;
+                if (!isCurrent()) return;
+                if (pinterestStatus?.ok && pinterestStatus?.connected) {
+                  const username = String(pinterestStatus.username || "")
+                    .replace(/^@+/, "")
+                    .trim();
+                  const profileHref = normalizeExternalHref(
+                    pinterestStatus.profileUrl ||
+                      pinterestStatus.publicProfileUrl ||
+                      (username
+                        ? `https://www.pinterest.fr/${encodeURIComponent(username)}/`
+                        : ""),
+                  );
+                  const accountLabel = String(
+                    pinterestStatus.accountName || username || profileHref,
+                  ).trim();
+                  if (!accountLabel) return;
+                  setChannelDetails((current) => {
+                    if (!isCurrent()) return current;
+                    return {
+                      ...current,
+                      pinterest: {
+                        ...(current.pinterest || EMPTY_CHANNEL_DETAILS.pinterest),
+                        type: "account",
+                        label: accountLabel,
+                        href: profileHref || null,
+                      },
+                    };
+                  });
+                }
+              } catch {
+                // The connected-channels snapshot remains authoritative when live identity is unavailable.
+              }
+            })();
           }
           if (json.channels.tiktok) {
             void fetch("/api/integrations/tiktok/status", {
@@ -1537,20 +1648,25 @@ export default function PublishModal({
     const onFocus = () => void refreshConnectedChannels();
     const unsubscribeConnectionUpdates = subscribeToChannelConnectionUpdates(onFocus);
     window.addEventListener("focus", onFocus);
+    window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, onFocus);
     return () => {
       alive = false;
       connectedChannelsRequestSeq += 1;
       window.clearInterval(intervalId);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, onFocus);
       unsubscribeConnectionUpdates();
     };
-  }, [applyConnectedChannels]);
+  }, [applyConnectedChannels, activeAccountId]);
 
   useEffect(() => {
     if (!initialConnectedChannels) return;
     const nextConnected = getInitialConnectedChannels();
     const previousConnected = lastInitialConnectedChannelsRef.current;
     lastInitialConnectedChannelsRef.current = nextConnected;
+    // Dashboard hydration can finish after the authoritative Booster request.
+    // Its older booleans must not overwrite the snapshot already displayed.
+    if (authoritativeChannelsRef.current) return;
 
     // Les valeurs initiales sont déjà utilisées par les state initializers.
     // On ne resynchronise ensuite que les clés qui changent réellement, afin
@@ -3485,10 +3601,11 @@ export default function PublishModal({
 
   const hasUnsavedChanges = useMemo(
     () =>
-      Boolean(pdfFile) ||
+      !publicationResult && (Boolean(pdfFile) ||
       (hasDraftablePublicationContent &&
-        currentPublicationDraftSnapshot !== lastPublicationDraftSnapshot),
+        currentPublicationDraftSnapshot !== lastPublicationDraftSnapshot)),
     [
+      publicationResult,
       pdfFile,
       hasDraftablePublicationContent,
       currentPublicationDraftSnapshot,
@@ -5495,6 +5612,7 @@ export default function PublishModal({
     closeOnSuccess?: boolean;
     suppressPublishSuccess?: boolean;
     throwOnError?: boolean;
+    retryPreviousSummary?: PublishExecutionSummary;
   }) => {
     if (
       saving ||
@@ -5531,6 +5649,16 @@ export default function PublishModal({
 
     publishStartGuardRef.current = true;
     phasedPublicationProgressRef.current = true;
+    setPublicationDestinations((current) => {
+      const destinations = options?.retryPreviousSummary && current.length
+        ? current
+        : publishTargetChannels.map((key) => ({ key, label: CHANNEL_LABELS[key] }));
+      return destinations.map<PublicationProgressDestination>((destination) => {
+        if (publishTargetChannels.includes(destination.key as ChannelKey)) return { ...destination, status: "pending", details: undefined, href: undefined };
+        const previousEntry = options?.retryPreviousSummary?.entries?.find((entry) => entry.channel === destination.key);
+        return previousEntry ? { ...destination, status: getPublicationDestinationStatus(previousEntry) } : destination;
+      });
+    });
     setSaving(true);
     setPublicationProgressPhase(
       "verification",
@@ -5828,6 +5956,15 @@ export default function PublishModal({
           ) as Record<string, any>[])
         : [];
       const terminalChannels = new Set<string>(preflightFailureChannels);
+      // Reuse the existing server snapshots for display only; accepted jobs remain pending.
+      setPublicationDestinations((current) => current.map((destination) => {
+        if (!publishTargetChannels.includes(destination.key as ChannelKey)) return destination;
+        const entry = entries.find((item) => item.channel === destination.key);
+        if (!entry) return preflightFailureChannels.has(destination.key as ChannelKey)
+          ? { ...destination, status: "skipped" }
+          : destination;
+        return { ...destination, status: getPublicationDestinationStatus(entry) };
+      }));
       let preparingCount = 0;
       entries.forEach((entry) => {
         const channel = String(entry.channel || "");
@@ -6351,7 +6488,7 @@ export default function PublishModal({
           recoveredPinterestHref = "";
         }
       }
-      const channelLinks = Object.fromEntries(
+      const channelLinks = { ...options?.retryPreviousSummary?.channelLinks, ...Object.fromEntries(
         publishableChannels.map((channel) => [
           channel,
           channel === "pinterest"
@@ -6359,17 +6496,34 @@ export default function PublishModal({
               recoveredPinterestHref
             : normalizeExternalHref(channelDetails[channel]?.href),
         ]),
-      );
+      ) };
       if (publicationComplete) {
         void archivePersistentMediaWorkspace().catch((error) => {
           console.warn("[media-pipeline] workspace archive skipped", error);
         });
       }
 
-      const retryFailed = retryFailedChannels.length
+      const completedSummary = mergeRetriedPublicationSummary(
+        options?.retryPreviousSummary,
+        mergePreflightFailuresIntoPublicationSummary(result?.summary, preflightFailedChannels),
+        String(result?.publication_id || result?.publicationId || "").trim() || null,
+        publishTargetChannels,
+      );
+      completedSummary.channelLinks = channelLinks;
+      latestPublicationSummaryRef.current = completedSummary;
+      const remainingRetryChannels = (completedSummary.entries || [])
+        .filter((entry) => getPublicationDestinationStatus(entry) === "failed" && entry.retryable !== false)
+        .map((entry) => entry.channel as ChannelKey);
+      const retryFailed = remainingRetryChannels.length || completedSummary.pendingCount
         ? async () => {
+            const retryPreviousSummary = latestPublicationSummaryRef.current || completedSummary;
+            const channels = (retryPreviousSummary.entries || [])
+              .filter((entry) => getPublicationDestinationStatus(entry) === "failed" && entry.retryable !== false)
+              .map((entry) => entry.channel as ChannelKey);
+            if (!channels.length) return;
             await runPublish({
-              channels: retryFailedChannels,
+              channels,
+              retryPreviousSummary,
               preparedPostsByChannel,
               tiktokPublicationSettings:
                 options?.tiktokPublicationSettings ||
@@ -6384,13 +6538,16 @@ export default function PublishModal({
       if (!options?.suppressPublishSuccess) {
         onPublishSuccess?.({
           ...result,
+          summary: completedSummary,
           channelLinks,
           preflightFailedChannels,
-          retryFailedChannels,
+          retryFailedChannels: remainingRetryChannels,
           retryFailed,
         });
       }
-      if (options?.closeOnSuccess !== false && publicationAccepted) {
+      // The acknowledged result stays in this wizard, beneath the same header.
+      // Standalone callers without a result handler retain their close behavior.
+      if (options?.closeOnSuccess !== false && publicationAccepted && (!onPublishSuccess || options?.suppressPublishSuccess)) {
         onClose();
       }
     } catch (e) {
@@ -7964,10 +8121,10 @@ export default function PublishModal({
   const wizardBusy = generating || saving || draftSaving || scheduleSaving || voiceInputBusy;
   const activeWizardStep: PublishWizardStep = saving || scheduleSaving
     ? "publication"
-    : wizardStep;
-  const canOpenWizardStep = (step: PublishWizardStep) => canOpenPublishWizardStep(step, {
+    : publicationResult ? "results" : wizardStep;
+  const canOpenWizardStep = (step: PublishWizardStep) => !publicationResult && canOpenPublishWizardStep(step, {
     mode: creationMode,
-    channelCount: selectedChannels.length,
+    channelCount: connectedChannelsLoadState === "ready" ? selectedChannels.length : 0,
     contentReady: showContentWorkspace,
     busy: wizardBusy,
   });
@@ -8006,6 +8163,9 @@ export default function PublishModal({
     });
   }, [activeWizardStep, mediaPoolSignature, imageKeys, videoPreviewUrl, selectedChannels, publicationDraftIdParam, loadedPublicationDraftId]);
 
+  const publicationVisualDestinations = publicationDestinations.length
+    ? publicationDestinations
+    : selectedChannels.map((key) => ({ key, label: CHANNEL_LABELS[key] }));
   const publicationActions = (
           <PublishFooterActions
             styles={styles}
@@ -8019,6 +8179,7 @@ export default function PublishModal({
             publishProgressPhaseIndex={publishProgressPhaseIndex}
             publishProgressPhaseTotal={PUBLICATION_PROGRESS_STAGES.length}
             publishProgressPhaseLabel={publishProgressPhaseLabel}
+            publicationDestinations={publicationVisualDestinations}
             publishError={publishError}
             mediaPreparationIssue={publishImagePreparationIssue}
             mediaPreparationFailed={
@@ -8218,10 +8379,11 @@ export default function PublishModal({
         nextDisabled={nextWizardStep ? !canOpenWizardStep(nextWizardStep) : false}
         footer={activeWizardStep === "intention" ? (
           <div ref={setIntentActionsContainer} className={wizardStyles.intentActions} />
-        ) : activeWizardStep === "content" ? <div ref={setContentActionsContainer} /> : activeWizardStep === "control" ? publicationActions : undefined}
+        ) : activeWizardStep === "content" ? <div ref={setContentActionsContainer} /> : activeWizardStep === "control" ? publicationActions : activeWizardStep === "results" && publicationResult ? <PublishExecutionResultActions {...publicationResult} summary={publicationSummaryForActions} publicationDestinations={publicationVisualDestinations} compact /> : undefined}
       >
         <PublishWizardScreen active={activeWizardStep === "mode" || activeWizardStep === "channels"} step="channels">
           <div className={wizardStyles.preparation}>
+            {connectedChannelsLoadState === "loading" ? <div role="status" aria-live="polite">{i18nT("chargement_01cba1df")}</div> : null}
             <div ref={setChannelActionsContainer} className={wizardStyles.selectionActions} />
       <PublishChannelSelector
         actionsContainer={channelActionsContainer}
@@ -8386,6 +8548,10 @@ export default function PublishModal({
         </PublishWizardScreen>
         <PublishWizardScreen active={activeWizardStep === "publication"} step="publication">
           <div className={wizardStyles.execution}>{activeWizardStep === "publication" ? publicationActions : null}</div>
+        </PublishWizardScreen>
+        <PublishWizardScreen active={activeWizardStep === "results"} step="results">
+          {publicationResult?.error ? <p role="alert" className={wizardStyles.resultError}>{publicationResult.error}</p> : null}
+          {activeWizardStep === "results" && publicationResult ? <PublishExecutionResultModal embedded styles={styles} {...publicationResult} publicationDestinations={publicationVisualDestinations} onSummaryChange={handlePublicationSummaryChange} onClose={onClose} /> : null}
         </PublishWizardScreen>
       {showContentWorkspace && workflowSteps ? (
         <>

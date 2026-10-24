@@ -7,6 +7,37 @@
   color: #ecfcff;
 }
 
+.descriptor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  max-width: 100%;
+  color: #bceaff;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: .065em;
+  line-height: 1.4;
+}
+
+.descriptor > span {
+  background: linear-gradient(100deg, #8edfff, #d9d4ff 55%, #bda8ff);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 22px #80cfff30;
+}
+
+.descriptor::before, .descriptor::after {
+  content: "";
+  width: 22px;
+  height: 1px;
+  flex: 0 0 auto;
+  background: linear-gradient(90deg, transparent, #70d4ff80);
+}
+
+.descriptor::after { transform: rotate(180deg); }
+
 .rocket {
   position: relative;
   display: grid;

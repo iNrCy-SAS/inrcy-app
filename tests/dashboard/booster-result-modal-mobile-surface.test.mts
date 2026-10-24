@@ -9,49 +9,24 @@ const read = (path: string) => readFileSync(resolve(ROOT, path), "utf8").replace
 const resultModal = read(
   "app/dashboard/_components/PublishExecutionResultModal.tsx",
 );
-const dashboardStyles = read("app/dashboard/dashboard.module.css");
+const resultStyles = read("app/dashboard/_components/PublishExecutionResultModal.module.css");
 
-test("the Booster publication summary keeps an opaque scroll surface through the iNrSend CTA on phone viewports", () => {
-  const resultCardStart = resultModal.indexOf(
-    "styles.publishResultScrollCard",
-  );
-  const inrSendCta = resultModal.indexOf(
-    'i18nT("voir_dans_inr_send_a74cc9ea")',
-    resultCardStart,
-  );
+test("the standalone result owns a bounded opaque surface while actions remain outside the scrolling content", () => {
+  assert.doesNotMatch(resultModal, /styles\.blockCard/);
+  assert.match(resultStyles, /\.shell \{[^}]*max-height: min\(900px, calc\(100dvh - 48px\)\)[^}]*background: linear-gradient/);
+  assert.match(resultStyles, /\.scrollSurface \{[^}]*min-height: 0[^}]*overflow-y: auto[^}]*overflow-x: hidden[^}]*overscroll-behavior: contain/);
+  assert.match(resultStyles, /\.standaloneFooter \{[^}]*flex-shrink: 0[^}]*background: #0c1220/);
+  assert.match(resultModal, /className=\{resultCss\.scrollSurface\}>\{resultCard\}<\/div>\s*<footer className=\{resultCss\.standaloneFooter\}>\{resultActions\}/);
+  assert.match(resultModal, /<PublishWizardFrame[\s\S]*?footer=\{resultActions\}/);
+  assert.match(resultStyles, /@media \(max-width: 700px\)[\s\S]*max-height: calc\(100dvh - var\(--inrcy-mobile-bottom-nav-total-height/);
+  assert.match(resultStyles, /@media \(max-width: 700px\)[\s\S]*\.overlay \{ bottom: var\(--inrcy-mobile-bottom-nav-total-height/);
+});
 
-  assert.ok(resultCardStart >= 0, "publication result scroll card is missing");
-  assert.ok(
-    inrSendCta > resultCardStart,
-    "the iNrSend CTA must remain inside the publication result surface",
-  );
-  assert.match(
-    resultModal.slice(resultCardStart, inrSendCta),
-    /maxHeight:[\s\S]*?100dvh[\s\S]*?overflowY: "auto"[\s\S]*?background:[\s\S]*?linear-gradient/,
-  );
-
-  const mobileDocumentScrollRule = dashboardStyles.indexOf(
-    ".page,\n  .blockCard {\n    overflow-x: clip !important;\n    overflow-y: visible !important;",
-  );
-  const mobileResultOverride = dashboardStyles.indexOf(
-    ".publishResultScrollCard {",
-    mobileDocumentScrollRule,
-  );
-
-  assert.ok(
-    mobileDocumentScrollRule >= 0,
-    "the phone document-scroll rule must stay covered by this regression test",
-  );
-  assert.ok(
-    mobileResultOverride > mobileDocumentScrollRule,
-    "the result surface override must follow the generic mobile blockCard rule",
-  );
-
-  const resultOverride = dashboardStyles.slice(
-    mobileResultOverride,
-    dashboardStyles.indexOf("}", mobileResultOverride) + 1,
-  );
-  assert.match(resultOverride, /overflow-x: hidden !important/);
-  assert.match(resultOverride, /overflow-y: auto !important/);
-  assert.match(resultOverride, /overscroll-behavior: contain/);
+test("the result is readable as a single column on phones and respects reduced motion", () => {
+  assert.match(resultStyles, /@media \(max-width: 700px\)[\s\S]*\.channelGrid \{ grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(resultStyles, /\.actions \{ display: grid; grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(resultStyles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*animation: none[\s\S]*transition: none !important/);
+  assert.match(resultModal, /aria-labelledby=\{titleId\}/);
+  assert.match(resultModal, /event\.key === "Escape"/);
+  assert.match(resultModal, /event\.key === "Tab"/);
 });

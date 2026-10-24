@@ -85,7 +85,8 @@ test("Booster keeps forbidden X URLs visible and blocks only X", () => {
   assert.match(prompt, /X — RÈGLE TECHNIQUE PRIORITAIRE/);
   assert.match(prompt, /ne recopie et ne génère aucun lien ni aucune URL/);
   assert.match(prompt, /2 à 3 phrases complémentaires/);
-  assert.match(prompt, /0 à 1 hashtag utile/);
+  assert.match(prompt, /1 à 2 hashtags pertinents/);
+  assert.match(prompt, /consigne explicite demande de ne pas ajouter de hashtags/);
   assert.doesNotMatch(prompt, /phrases courtes/);
 });
 
