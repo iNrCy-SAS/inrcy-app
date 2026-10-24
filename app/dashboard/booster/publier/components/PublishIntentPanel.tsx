@@ -18,7 +18,7 @@ import {
   BOOSTER_PDF_MAX_BYTES,
 } from "@/lib/boosterPdfAttachmentPolicy";
 import AiEngineInfoModal from "../../../_components/AiEngineInfoModal";
-import LocalMediaUploadChoice from "../../../_components/LocalMediaUploadChoice";
+import PublishReferencePicker from "./PublishReferencePicker";
 import MediaSubjectVoiceButton from "../../../_components/MediaSubjectVoiceButton";
 import {
   BOOSTER_MAX_IMAGE_COUNT,
@@ -403,25 +403,17 @@ export default function PublishIntentPanel({
         <aside className={css.references} aria-label={i18nT("wizard_inspirations_help")}>
           <div className={css.referenceHeading}>
             <h2>{i18nT("wizard_inspirations_help")}</h2>
-          </div>
-          <div className={css.referenceActions}>
-            <button type="button" className={css.referenceAction} data-testid="booster-pdf-context-control"
-              onClick={() => pdfInputRef.current?.click()} disabled={generationDisabled}
-              title={i18nT("pdf_attachment_help", { size: Math.round(BOOSTER_PDF_MAX_BYTES / (1024 * 1024)) })}>
-              <span aria-hidden="true">▤</span>{i18nT("wizard_file")}
-            </button>
-            <LocalMediaUploadChoice className={css.referenceAction} triggerLabel={i18nT("wizard_add_media")} triggerIcon={<span aria-hidden="true">＋</span>}
+            <PublishReferencePicker disabled={generationDisabled}
+              documentDetail={i18nT("pdf_attachment_help", { size: Math.round(BOOSTER_PDF_MAX_BYTES / (1024 * 1024)) })}
+              onPickDocument={() => pdfInputRef.current?.click()} onGenerateMedia={onGenerateMedia} onOpenMediaLibrary={onOpenMediaLibrary}
               image={{ onSelect: onPickImagesClick, disabled: pickImagesDisabled,
                 disabledReason: hasVideoMedia ? i18nT("generation_images_blocked_by_video") : imagesLimitReached ? i18nT("generation_images_limit", { count: BOOSTER_MAX_IMAGE_COUNT }) : undefined,
-                detail: `${getLocalizedBoosterImageLimits(runtimeT)} · ${getLocalizedBoosterImageFormats(runtimeT)}`,
-                maxSelection: Math.max(0, BOOSTER_MAX_IMAGE_COUNT - images.length) }}
+                detail: `${getLocalizedBoosterImageLimits(runtimeT)} · ${getLocalizedBoosterImageFormats(runtimeT)}` }}
               video={{ onSelect: onPickVideoClick, disabled: pickVideoDisabled,
                 disabledReason: hasImages ? i18nT("generation_video_blocked_by_images") : pickVideoDisabled ? i18nT("generation_video_limit") : undefined,
                 detail: `${getLocalizedBoosterVideoLimits(runtimeT)} · ${getLocalizedBoosterVideoFormats(runtimeT)} · ${getLocalizedBoosterRecommendedVideoDuration(runtimeT)}` }}
-              testId="booster-generation-local-media-choice" />
-            <button type="button" className={css.referenceAction} onClick={onGenerateMedia} title={mediaT("ai_generator_generate_media")}><span aria-hidden="true">✦</span>{i18nT("wizard_generate_media")}</button>
-            <button type="button" className={css.referenceAction} onClick={onOpenMediaLibrary} title={i18nT("ajouter_depuis_la_mediatheque_d0f700b2")}><span aria-hidden="true">▧</span>{i18nT("wizard_media_library")}</button>
-            <button type="button" className={css.referenceAction} onClick={!cameraDisabled ? onTakePhotoClick : undefined} disabled={cameraDisabled} aria-disabled={cameraDisabled} title={!isMobile ? i18nT("camera_mobile_only") : i18nT("camera_open_photo_or_video")}><span aria-hidden="true">◎</span>{i18nT("wizard_camera")}</button>
+              camera={isMobile ? { onSelect: onTakePhotoClick, disabled: cameraDisabled, disabledReason: hasVideoMedia ? i18nT("generation_images_blocked_by_video") : i18nT("generation_images_limit", { count: BOOSTER_MAX_IMAGE_COUNT }) } : undefined}
+            />
           </div>
           <div className={css.referenceThumbnails} data-wizard-reference-media>
             {pdfFile ? <div className={css.pdfThumbnail} data-testid="booster-selected-pdf" title={`${pdfFile.name} · ${formatAttachmentSize(pdfFile.size)}`}>

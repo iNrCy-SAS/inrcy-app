@@ -822,7 +822,7 @@
   "wizard_media_library": "Mediatheek",
   "wizard_camera": "Camera",
   "wizard_inspirations": "Inspiratie",
-  "wizard_inspirations_help": "Bestanden en media · optioneel",
+  "wizard_inspirations_help": "Document toevoegen om de AI te helpen (optioneel)",
   "wizard_file": "Bestand",
   "wizard_automatic_help": "iNrCy genereert je inhoud, aangepast aan elk kanaal.",
   "wizard_manual_help": "Schrijf je inhoud op jouw manier.",
@@ -882,5 +882,7 @@
   "wizard_confirm_publication": "Publicatie bevestigen?",
   "schedule_planning": "Planning",
   "schedule_view_planning": "Publicatieplanning bekijken",
-  "schedule_back_to_programming": "Terug naar inplannen"
+  "schedule_back_to_programming": "Terug naar inplannen",
+  "wizard_reference_add": "Document toevoegen",
+  "wizard_reference_back": "Terug naar keuzes"
 }

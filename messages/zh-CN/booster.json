@@ -822,7 +822,7 @@
   "wizard_media_library": "媒体库",
   "wizard_camera": "相机",
   "wizard_inspirations": "灵感",
-  "wizard_inspirations_help": "文件与媒体 · 可选",
+  "wizard_inspirations_help": "添加文档帮助 AI（可选）",
   "wizard_file": "文件",
   "wizard_automatic_help": "iNrCy 为您生成适合各渠道的内容。",
   "wizard_manual_help": "按自己的方式撰写内容。",
@@ -882,5 +882,7 @@
   "wizard_confirm_publication": "确认发布？",
   "schedule_planning": "日程",
   "schedule_view_planning": "查看发布日程",
-  "schedule_back_to_programming": "返回定时设置"
+  "schedule_back_to_programming": "返回定时设置",
+  "wizard_reference_add": "添加文档",
+  "wizard_reference_back": "返回选项"
 }

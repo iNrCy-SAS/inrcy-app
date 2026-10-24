@@ -778,10 +778,11 @@ test("iNr’Agent conserve les contenus en changeant les canaux et bloque la val
 });
 
 test("le compteur global précède les cinq cadres et le statut reste près de la validation", () => {
-  assert.match(
-    agentClientSource,
-    /<nav className=\{styles\.publicationNavigation\}[\s\S]*?publication_counter[\s\S]*?<\/nav>\s*<div className=\{`\$\{styles\.publishInfoGrid\} \$\{styles\.publishInfoGridWithFormat\}`\}/,
-  );
+  const navigationIndex = agentClientSource.indexOf("<AgentPublicationNavigation");
+  const infoGridIndex = agentClientSource.indexOf("styles.publishInfoGridWithFormat", navigationIndex);
+  assert.ok(navigationIndex >= 0 && infoGridIndex > navigationIndex, "La navigation doit précéder les cinq cadres");
+  const navigationSource = readFileSync(new URL("../../app/dashboard/agent/_components/AgentPublicationNavigation.tsx", import.meta.url), "utf8");
+  assert.match(navigationSource, /<nav[\s\S]*?publication_counter[\s\S]*?<\/nav>/);
   assert.match(agentStylesSource, /\.publishPreview > \.publishInfoGridWithFormat \{ grid-template-columns: repeat\(5,minmax\(0,1fr\)\);/);
   assert.match(agentClientSource, /className=\{styles\.publishFooterStatus\}[\s\S]*?publishValidationLabel[\s\S]*?className=\{styles\.previewActions\}/);
   assert.match(agentStylesSource, /\.publishReviewFooter \.dateItem \{\s*order: 0 !important;/);

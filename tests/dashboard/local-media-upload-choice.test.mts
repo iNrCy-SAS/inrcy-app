@@ -35,9 +35,8 @@ test("the local upload dialog stays above the settings drawer", () => {
   assert.ok(chooserZIndex < 2_147_483_647);
 });
 
-test("all creation and edition surfaces use the same media-type choice", () => {
+test("creation and edition surfaces preserve separate image and video choices", () => {
   const surfaces = [
-    ["app/dashboard/booster/publier/components/PublishIntentPanel.tsx", "booster-generation-local-media-choice"],
     ["app/dashboard/booster/publier/components/PublishImagesPanel.tsx", "booster-publication-local-media-choice"],
     ["app/dashboard/ads/AdsClient.tsx", "ads-local-media-choice"],
     ["app/dashboard/agent/AgentClient.tsx", "agent-local-media-choice"],
@@ -49,6 +48,15 @@ test("all creation and edition surfaces use the same media-type choice", () => {
     assert.match(source, /LocalMediaUploadChoice/, surface);
     assert.ok(source.includes(testId), `${surface}: ${testId}`);
   }
+  const intent = read("app/dashboard/booster/publier/components/PublishIntentPanel.tsx");
+  const picker = read("app/dashboard/booster/publier/components/PublishReferencePicker.tsx");
+  assert.match(intent, /<PublishReferencePicker/);
+  assert.match(picker, /data-testid="booster-reference-add"/);
+  assert.match(picker, /key: "image"[\s\S]*?local_upload_image/);
+  assert.match(picker, /key: "video"[\s\S]*?local_upload_video/);
+  assert.match(picker, /if \(!choice.disabled\) choose\(choice.onSelect\)/);
+  assert.match(picker, /role="dialog"[\s\S]*?aria-modal="true"/);
+  assert.match(picker, /event.key === "Escape"/);
 });
 
 test("image file inputs stay multiple where five images are supported and videos stay single", () => {
