@@ -889,5 +889,7 @@
   "publication_filter_empty_hint": "Select a status to display matching publications.",
   "publication_refusal_restore": "Undo rejection and return to pending",
   "publication_refusal_restored": "Publication returned to pending validation.",
-  "publication_refusal_restore_failed": "Unable to undo rejection. Check that the publication has not changed and its date has not passed."
+  "publication_refusal_restore_failed": "Unable to undo rejection. Check that the publication has not changed and its date has not passed.",
+  "publication_validation_restore": "Undo approval and return to pending",
+  "publication_review_restore_failed": "Unable to return the publication to pending. Please try again shortly."
 }

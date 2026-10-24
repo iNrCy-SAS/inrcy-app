@@ -2,6 +2,9 @@ import Image from "next/image";
 import { useLocale, useTranslations } from "next-intl";
 import React, { useState } from "react";
 import styles from "./stats.module.css";
+import panorama from "./statsPanorama.module.css";
+import StatsTrendChart from "./StatsTrendChart";
+import type { StatsTrend } from "./stats.trends";
 import { fmtInt, type CubeModel, type InrcyPublicationType } from "./stats.shared";
 
 function Donut({ segments }: { segments: Array<{ label: string; value: number; colorVar: string }> }) {
@@ -151,7 +154,7 @@ function MiniMetricGrid({ items }: { items: Array<{ label: string; value: string
           : "";
 
   return (
-    <div className={`${styles.metricMiniGrid} ${densityClass}`}>
+    <div className={`${styles.metricMiniGrid} ${densityClass}`} data-metric-count={items.length}>
       {items.map((item) => (
         <div key={item.label} className={styles.metricMiniCard}>
           <span>{item.label}</span>
@@ -494,6 +497,7 @@ export function Cube({
   estimatedRevenue = 0,
   statsReady = true,
   channelIconSrc,
+  trend,
 }: {
   model: CubeModel;
   onNavigate: (href: string) => void;
@@ -502,11 +506,13 @@ export function Cube({
   estimatedRevenue?: number;
   statsReady?: boolean;
   channelIconSrc?: string;
+  trend?: StatsTrend | null;
 }) {
   const locale = useLocale();
   const i18nT = useTranslations("stats");
   const formatInt = (value: number) => fmtInt(value, locale);
   const [open, setOpen] = useState(false);
+  const [showEvolution, setShowEvolution] = useState(true);
   const detailsOpen = forceOpen || open;
   const isSite = model.key === "site_web";
   const action = model.action;
@@ -682,10 +688,18 @@ export function Cube({
               <MiniMetricGrid items={model.visibilityStats} />
             </div>
 
-            <div className={`${styles.block} ${styles.provenanceCompactBlock}`}>
-              <div className={styles.blockTitle}>{model.key === "mails" ? i18nT("repartition_des_actions_mail_0df3dda5") : model.key === "inrbadge" ? i18nT("suivi_inrbadge_6ec1c532") : model.key === "inr_search" ? i18nT("sources_de_trafic_d908c5ca") : i18nT("provenance_dd35a816")}</div>
-              <Donut segments={model.provenance} />
-              {model.provenanceHint ? <div className={styles.provenanceHint}>{model.provenanceHint}</div> : null}
+            <div className={`${styles.block} ${styles.provenanceCompactBlock} ${trend && showEvolution ? panorama.trendPanel : ""}`}>
+              <div className={panorama.graphHeader}>
+                <div className={styles.blockTitle}>{model.key === "mails" ? i18nT("repartition_des_actions_mail_0df3dda5") : model.key === "inrbadge" ? i18nT("suivi_inrbadge_6ec1c532") : model.key === "inr_search" ? i18nT("sources_de_trafic_d908c5ca") : i18nT("provenance_dd35a816")}</div>
+                {trend ? <div className={panorama.graphSwitch}>
+                  <button type="button" aria-pressed={showEvolution} onClick={() => setShowEvolution(true)}>{i18nT("panorama_evolution")}</button>
+                  <button type="button" aria-pressed={!showEvolution} onClick={() => setShowEvolution(false)}>{i18nT("panorama_breakdown")}</button>
+                </div> : null}
+              </div>
+              {trend && showEvolution ? <StatsTrendChart trend={trend} /> : <>
+                <Donut segments={model.provenance} />
+                {model.provenanceHint ? <div className={styles.provenanceHint}>{model.provenanceHint}</div> : null}
+              </>}
             </div>
           </div>
 

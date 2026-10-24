@@ -52,6 +52,7 @@ export async function saveInrAgentPublicationRevision(args: {
   payload: Record<string, unknown>;
   previewText?: string;
   imageAssets?: unknown[];
+  requireFutureSchedule?: boolean;
 }) {
   const { action, accountId } = args;
   if (!canReviseInrAgentPublication(action) || !action.updatedAt) {
@@ -116,7 +117,7 @@ export async function saveInrAgentPublicationRevision(args: {
     payload.publicationRevisionReview = { required: true, editedAt: now,
       scheduledFor: action.scheduledFor, scheduleSelections, timezone };
   }
-  const saved = await supabaseAdmin.from("inr_agent_actions").update({
+  let saveQuery = supabaseAdmin.from("inr_agent_actions").update({
     payload, updated_at: now, last_error: null,
     ...(args.previewText !== undefined ? { preview_text: args.previewText } : {}),
     ...(args.imageAssets !== undefined ? { image_assets: args.imageAssets } : {}),
@@ -124,8 +125,10 @@ export async function saveInrAgentPublicationRevision(args: {
       execution_policy: "manual_validation", validated_at: null, refused_at: null } : {}),
     // scheduled_for is deliberately not written: the original instant is kept.
   }).eq("id", action.id).eq("user_id", accountId)
-    .eq("status", action.status).eq("updated_at", expectedUpdatedAt)
-    .select(ACTION_SELECT).maybeSingle();
+    .eq("status", action.status).eq("updated_at", expectedUpdatedAt);
+  if (args.requireFutureSchedule) saveQuery = saveQuery.eq("scheduled_for", action.scheduledFor)
+    .gt("scheduled_for", now).is("completed_at", null);
+  const saved = await saveQuery.select(ACTION_SELECT).maybeSingle();
   if (saved.error || !saved.data) {
     throw new InrAgentPublicationRevisionConflict("La publication a changé. Actualisez avant de la modifier. Sa diffusion n’a pas été relancée.");
   }

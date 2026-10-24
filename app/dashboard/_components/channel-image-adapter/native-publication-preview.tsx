@@ -80,7 +80,7 @@ type Props = {
 };
 
 export default function NativePublicationPreview({ preview, title, content, cta, hashtags, images, video, device, panelId, onOpen }: Props) {
-  const t = useTranslations("booster");
+  const boosterT = useTranslations("booster");
   const shellT = useTranslations("shell");
   const [expanded, setExpanded] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -117,13 +117,13 @@ export default function NativePublicationPreview({ preview, title, content, cta,
   const showAfterMedia = isInstagram || isPinterest || channel === "gmb";
   const media = <NativeMedia key={`${channel}-${device}`} images={images} video={video} channel={channel} vertical={isVertical} onOpen={onOpen} />;
   const avatar = <span className={css.avatar}>{initial}</span>;
-  const accountHeader = <div className={css.accountHeader}>{avatar}<div><strong>{channel === "x" || channel === "threads" ? handle : account}</strong><small>{channel === "linkedin" ? preview.channelLabel : t("wizard_preview_now")}<span aria-hidden="true"> · ◉</span></small></div><span className={css.moreMenu} aria-hidden="true">•••</span></div>;
+  const accountHeader = <div className={css.accountHeader}>{avatar}<div><strong>{channel === "x" || channel === "threads" ? handle : account}</strong><small>{channel === "linkedin" ? preview.channelLabel : boosterT("wizard_preview_now")}<span aria-hidden="true"> · ◉</span></small></div><span className={css.moreMenu} aria-hidden="true">•••</span></div>;
   const copy = <div className={css.copy} data-expanded={expanded}>
     {isSite ? <>
       {title ? <h2 dangerouslySetInnerHTML={{ __html: renderSafeSiteInlineHtml(title) }} /> : null}
       {content ? <div className={css.contentText} dangerouslySetInnerHTML={{ __html: renderSafeSiteInlineHtml(content) }} /> : null}
     </> : <div className={css.contentText}>{isInstagram ? <strong>{handle} </strong> : null}{title ? <strong>{title}{content ? "\n\n" : ""}</strong> : null}{content}</div>}
-    {(title.length + content.length > 350) && !expanded ? <button type="button" className={css.readMore} onClick={() => setExpanded(true)}>{t("wizard_preview_more")}</button> : null}
+    {(title.length + content.length > 350) && !expanded ? <button type="button" className={css.readMore} onClick={() => setExpanded(true)}>{boosterT("wizard_preview_more")}</button> : null}
     {hashtags.length ? <div className={css.hashtags}>{hashtags.map((tag) => `#${tag}`).join(" ")}</div> : null}
     {cta ? <span className={css.cta}>{cta}</span> : null}
   </div>;
@@ -141,13 +141,13 @@ export default function NativePublicationPreview({ preview, title, content, cta,
           <article className={css.post} data-vertical={isVertical}>
             {isVertical ? <>
               <div className={css.verticalStage}>{media}<div className={css.verticalCaption}>{avatar}<strong>{handle}</strong>{copy}</div><div className={css.verticalActions} aria-hidden="true"><Icon name="heart" size={27} /><Icon name="comment" size={25} /><Icon name="share" size={25} /><Icon name="save" size={25} /></div></div>
-              {channel === "youtube_shorts" ? <div className={css.youtubeTitle}><span>{account}</span><span className={css.subscribe}>{t("wizard_preview_subscribe")}</span></div> : null}
+              {channel === "youtube_shorts" ? <div className={css.youtubeTitle}><span>{account}</span><span className={css.subscribe}>{boosterT("wizard_preview_subscribe")}</span></div> : null}
             </> : channel === "youtube_shorts" ? <>
-              {media}{copy}<div className={css.youtubeAccount}>{accountHeader}<span className={css.subscribe}>{t("wizard_preview_subscribe")}</span></div>{actions}
+              {media}{copy}<div className={css.youtubeAccount}>{accountHeader}<span className={css.subscribe}>{boosterT("wizard_preview_subscribe")}</span></div>{actions}
             </> : isSite ? <>
-              <div className={css.siteHeading}><strong>{t("wizard_preview_news")}</strong></div><div className={css.siteArticle}>{media}{copy}</div>
+              <div className={css.siteHeading}><strong>{boosterT("wizard_preview_news")}</strong></div><div className={css.siteArticle}>{media}{copy}</div>
             </> : isPinterest ? <>
-              <div className={css.pinMedia}>{media}</div><div className={css.pinDetails}><div className={css.pinToolbar}><Icon name="share" /><span className={css.pinSave}>{t("wizard_preview_save")}</span></div>{copy}{accountHeader}</div>
+              <div className={css.pinMedia}>{media}</div><div className={css.pinDetails}><div className={css.pinToolbar}><Icon name="share" /><span className={css.pinSave}>{boosterT("wizard_preview_save")}</span></div>{copy}{accountHeader}</div>
             </> : isInstagram && device === "desktop" ? <>
               <div className={css.instagramMedia}>{media}</div><div className={css.instagramDetails}>{accountHeader}{copy}{actions}</div>
             </> : <>

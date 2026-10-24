@@ -889,5 +889,7 @@
   "publication_filter_empty_hint": "Selecione um estado para mostrar as publicações correspondentes.",
   "publication_refusal_restore": "Anular a recusa e voltar a pendente",
   "publication_refusal_restored": "Publicação novamente à espera de validação.",
-  "publication_refusal_restore_failed": "Não foi possível anular a recusa. Verifique se a publicação mudou ou se a data já passou."
+  "publication_refusal_restore_failed": "Não foi possível anular a recusa. Verifique se a publicação mudou ou se a data já passou.",
+  "publication_validation_restore": "Anular a validação e voltar a pendente",
+  "publication_review_restore_failed": "Não foi possível voltar a colocar a publicação como pendente. Tente novamente dentro de instantes."
 }

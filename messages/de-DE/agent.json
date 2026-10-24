@@ -889,5 +889,7 @@
   "publication_filter_empty_hint": "Wählen Sie einen Status, um passende Beiträge anzuzeigen.",
   "publication_refusal_restore": "Ablehnung zurücknehmen und auf ausstehend setzen",
   "publication_refusal_restored": "Beitrag wartet wieder auf Freigabe.",
-  "publication_refusal_restore_failed": "Ablehnung kann nicht zurückgenommen werden. Prüfen Sie, ob der Beitrag geändert wurde oder der Termin verstrichen ist."
+  "publication_refusal_restore_failed": "Ablehnung kann nicht zurückgenommen werden. Prüfen Sie, ob der Beitrag geändert wurde oder der Termin verstrichen ist.",
+  "publication_validation_restore": "Freigabe zurücknehmen und auf ausstehend setzen",
+  "publication_review_restore_failed": "Die Veröffentlichung kann nicht auf ausstehend gesetzt werden. Bitte versuchen Sie es gleich erneut."
 }

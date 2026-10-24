@@ -1,4 +1,5 @@
-import { restoreRefusedInrAgentPublication, PublicationRefusalRestoreError } from "@/lib/inrAgentPublicationRefusalServer";
+import { restoreInrAgentPublicationReview, PublicationRefusalRestoreError } from "@/lib/inrAgentPublicationRefusalServer";
+import { isInrAgentActionId } from "@/lib/inrAgentActionId";
 import { isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { normalizeThreadsPublicationMode, normalizeThreadsPublicationPreferences, isThreadsPublicationModeEnabled } from "@/lib/threadsPublicationPreferences";
 import { applyInrAgentThreadsPublicationSettings, readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
@@ -1451,18 +1452,22 @@ export async function PATCH(request: Request) {
     }
   }
 
-  if (editType === "restore_refused_publication") {
-    if (!MEDIA_LIBRARY_ID_PATTERN.test(actionId)) return NextResponse.json({ error: "Action invalide" }, { status: 400 });
+  if (editType === "restore_refused_publication" || editType === "restore_validated_publication") {
+    if (!isInrAgentActionId(actionId)) return NextResponse.json({ error: "Action invalide" }, { status: 400 });
     try {
-      const action = await restoreRefusedInrAgentPublication({ accountId: activeUserId, actionId, expectedUpdatedAt: requestBody?.expectedUpdatedAt, select: ACTION_SELECT });
+      const action = await restoreInrAgentPublicationReview({ accountId: activeUserId, actionId,
+        expectedUpdatedAt: requestBody?.expectedUpdatedAt, select: ACTION_SELECT,
+        decision: editType === "restore_refused_publication" ? "refused" : "validated" });
       return NextResponse.json({ action: await refreshActionImageUrls(action), saved: true });
     } catch (error) {
-      return NextResponse.json({ error: error instanceof Error ? error.message : "Annulation du refus impossible.", code: "INR_AGENT_REFUSAL_RESTORE_DENIED" }, { status: error instanceof PublicationRefusalRestoreError ? error.status : 500 });
+      return NextResponse.json({ error: error instanceof Error ? error.message : "Remise en attente impossible.",
+        code: error instanceof PublicationRefusalRestoreError ? error.code : "INR_AGENT_PUBLICATION_REVIEW_UNAVAILABLE" },
+        { status: error instanceof PublicationRefusalRestoreError ? error.status : 500 });
     }
   }
 
   if (editType === "publish_channel_selection") {
-    if (!MEDIA_LIBRARY_ID_PATTERN.test(actionId)) return NextResponse.json({ error: "Action invalide" }, { status: 400 });
+    if (!isInrAgentActionId(actionId)) return NextResponse.json({ error: "Action invalide" }, { status: 400 });
     return saveAgentPublicationChannels({ userId: activeUserId, actionId, channels: requestBody?.channels, expectedUpdatedAt: requestBody?.expectedUpdatedAt, tiktokPublicationSettings: requestBody?.tiktokPublicationSettings, confirmPending: requestBody?.confirmPending === true });
   }
 

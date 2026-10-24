@@ -1,3 +1,4 @@
+import { captureVisibilityIndex } from "@/lib/inrstats/visibilityIndexStore";
 import { isMetaChannelPilotEnabledForActorAndAccount, isMetaChannelPilotEnabledForAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from 'next/server';
@@ -214,7 +215,8 @@ async function dashboardStatsBulkHandler(req: Request) {
       },
     };
 
-    return NextResponse.json(withoutThreadsData(payload, metaPilotEnabled), {
+    const visibilityIndex = await captureVisibilityIndex({ userId, bulk: payload, channelStates, activity: await inrcyPublishedActivityLoader() });
+    return NextResponse.json(withoutThreadsData({ ...payload, visibilityIndex }, metaPilotEnabled), {
       headers: fresh
         ? {
             'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',

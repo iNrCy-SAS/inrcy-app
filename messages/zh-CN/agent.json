@@ -889,5 +889,7 @@
   "publication_filter_empty_hint": "勾选状态以显示相应的发布内容。",
   "publication_refusal_restore": "撤销拒绝并恢复待审核",
   "publication_refusal_restored": "发布内容已恢复为待审核。",
-  "publication_refusal_restore_failed": "无法撤销拒绝。请检查发布内容是否已更改或日期是否已过。"
+  "publication_refusal_restore_failed": "无法撤销拒绝。请检查发布内容是否已更改或日期是否已过。",
+  "publication_validation_restore": "撤销审核并重新设为待审核",
+  "publication_review_restore_failed": "无法将发布内容重新设为待审核，请稍后重试。"
 }

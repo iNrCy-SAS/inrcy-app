@@ -33,9 +33,9 @@ test("global connected count and navigation CTAs have explicit stable contracts"
   assert.match(client, /allStatsNumbersReady \? `\$\{connectedChannelsCount}/);
   assert.doesNotMatch(client, /<b>\{models\.length}<\/b>/);
   assert.doesNotMatch(client, /<button type="button" className=\{styles\.allStatsChannelButton}/);
-  assert.match(client, /models\[\(activeModelIndex - 1 \+ models\.length\) % models\.length\]/);
-  assert.match(client, /models\[\(activeModelIndex \+ 1\) % models\.length\]/);
-  assert.match(client, /className=\{styles\.channelStatsCycleButton\}/);
+  assert.match(client, /buildStatsNavigationPages\(models/);
+  assert.match(client, /<StatsViewNavigator/);
+  assert.match(read("app/dashboard/stats/StatsViewNavigator.tsx"), /adjacentStatsPage\(pages, activeKey, direction\)/);
   assert.match(ui, /items\.length >= 5[\s\S]*?metricMiniGridDense/);
   assert.match(css, /\.metricMiniGrid\.metricMiniGridDense[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.allStatsDetailsButton,[\s\S]*?\.channelStatsBackButton[\s\S]*?#f59e0b[\s\S]*?#ec4899[\s\S]*?#7c3aed/);

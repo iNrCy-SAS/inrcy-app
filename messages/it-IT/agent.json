@@ -889,5 +889,7 @@
   "publication_filter_empty_hint": "Seleziona uno stato per visualizzare le pubblicazioni corrispondenti.",
   "publication_refusal_restore": "Annulla il rifiuto e rimetti in attesa",
   "publication_refusal_restored": "Pubblicazione di nuovo in attesa di convalida.",
-  "publication_refusal_restore_failed": "Impossibile annullare il rifiuto. Verifica che la pubblicazione non sia cambiata e che la data non sia passata."
+  "publication_refusal_restore_failed": "Impossibile annullare il rifiuto. Verifica che la pubblicazione non sia cambiata e che la data non sia passata.",
+  "publication_validation_restore": "Annulla la convalida e rimetti in attesa",
+  "publication_review_restore_failed": "Impossibile rimettere la pubblicazione in attesa. Riprova tra poco."
 }

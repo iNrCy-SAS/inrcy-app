@@ -100,8 +100,8 @@ test("les destinations affichees dans la synthese correspondent a leur outil", (
 
 test("les deux vues iNrStats rendent le cadenas et desactivent vraiment GO", () => {
   assert.match(
-    statsClientSource,
-    /disabled=\{premiumLocked\}/,
+    readFileSync(new URL("../../app/dashboard/stats/StatsOverview.tsx", import.meta.url), "utf8"),
+    /disabled=\{channel\.premiumLocked \|\| channel\.status === "pending"\}/,
   );
   assert.match(
     statsClientSource,

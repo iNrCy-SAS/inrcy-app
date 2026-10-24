@@ -889,5 +889,7 @@
   "publication_filter_empty_hint": "Selecciona un estado para mostrar las publicaciones correspondientes.",
   "publication_refusal_restore": "Deshacer el rechazo y volver a pendiente",
   "publication_refusal_restored": "Publicación pendiente de validación de nuevo.",
-  "publication_refusal_restore_failed": "No se pudo deshacer el rechazo. Comprueba que la publicación no ha cambiado y que su fecha no ha pasado."
+  "publication_refusal_restore_failed": "No se pudo deshacer el rechazo. Comprueba que la publicación no ha cambiado y que su fecha no ha pasado.",
+  "publication_validation_restore": "Anular la validación y volver a pendiente",
+  "publication_review_restore_failed": "No se puede devolver la publicación a pendiente. Inténtalo de nuevo en un momento."
 }
