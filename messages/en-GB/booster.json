@@ -822,7 +822,7 @@
   "wizard_media_library": "Media library",
   "wizard_camera": "Camera",
   "wizard_inspirations": "Inspiration",
-  "wizard_inspirations_help": "Files and media · optional",
+  "wizard_inspirations_help": "To guide the AI · Optional",
   "wizard_file": "File",
   "wizard_automatic_help": "iNrCy generates your content, adapted to each channel.",
   "wizard_manual_help": "Write your content your way.",
