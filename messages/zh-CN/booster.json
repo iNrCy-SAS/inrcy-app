@@ -827,7 +827,7 @@
   "wizard_automatic_help": "iNrCy 为您生成适合各渠道的内容。",
   "wizard_manual_help": "按自己的方式撰写内容。",
   "wizard_hint_channels": "选择渠道，然后选择创作模式。",
-  "wizard_hint_intention": "描述您的想法，按需添加要求或参考资料。",
+  "wizard_hint_intention": "描述您的想法，按需添加要求、文件或媒体。",
   "wizard_hint_content": "调整每个渠道的标题、内容和按钮。",
   "wizard_hint_media": "添加或生成最多5张图片和1个视频。媒体将自动分配到各个渠道。",
   "wizard_hint_control": "检查每个渠道，调整媒体，然后发布或定时。",
@@ -879,5 +879,8 @@
   "wizard_preview_more": "查看更多",
   "wizard_preview_subscribe": "订阅",
   "wizard_preview_news": "动态",
-  "wizard_confirm_publication": "确认发布？"
+  "wizard_confirm_publication": "确认发布？",
+  "schedule_planning": "日程",
+  "schedule_view_planning": "查看发布日程",
+  "schedule_back_to_programming": "返回定时设置"
 }

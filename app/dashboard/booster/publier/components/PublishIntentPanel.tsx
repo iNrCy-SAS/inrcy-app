@@ -400,10 +400,9 @@ export default function PublishIntentPanel({
             value: publicationInstruction, onChange: setPublicationInstruction, maxLength: 4_000,
           })}
         </div>
-        <aside className={css.references} aria-label={i18nT("wizard_inspirations")}>
+        <aside className={css.references} aria-label={i18nT("wizard_inspirations_help")}>
           <div className={css.referenceHeading}>
-            <h2>{i18nT("wizard_inspirations")}</h2>
-            <span>{i18nT("wizard_inspirations_help")}</span>
+            <h2>{i18nT("wizard_inspirations_help")}</h2>
           </div>
           <div className={css.referenceActions}>
             <button type="button" className={css.referenceAction} data-testid="booster-pdf-context-control"

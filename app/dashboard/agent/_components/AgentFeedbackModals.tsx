@@ -1,9 +1,10 @@
 import { useTranslations } from "next-intl";
-import type { ComponentProps } from "react";
+import { useEffect, useRef, type ComponentProps } from "react";
 import PublishExecutionProgress from "../../_components/PublishExecutionProgress";
 import PublishExecutionResultModal from "../../_components/PublishExecutionResultModal";
 import dashboardStyles from "../../dashboard.module.css";
 import styles from "../agent.module.css";
+import choiceCss from "./AgentRegenerationChoices.module.css";
 import type {
   AgentCampaignLaunchNotice,
   AgentConfirmDialogState,
@@ -40,6 +41,28 @@ export default function AgentFeedbackModals({
   onAlternateConfirm,
 }: AgentFeedbackModalsProps) {
   const i18nT = useTranslations("agent");
+  const confirmRef = useRef<HTMLElement>(null);
+  const closeConfirmRef = useRef(onCloseConfirm);
+  const confirmOpen = Boolean(confirmDialog);
+  useEffect(() => { closeConfirmRef.current = onCloseConfirm; }, [onCloseConfirm]);
+  useEffect(() => {
+    if (!confirmOpen) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = confirmRef.current;
+    dialog?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!dialog) return;
+      if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); closeConfirmRef.current(); return; }
+      if (event.key !== "Tab") return;
+      const buttons = Array.from(dialog.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
+      const first = buttons[0], last = buttons.at(-1);
+      if (!first || !last) return;
+      if (!dialog.contains(document.activeElement) || event.shiftKey && document.activeElement === first) { event.preventDefault(); (event.shiftKey ? last : first).focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => { document.removeEventListener("keydown", onKeyDown, true); previous?.focus({ preventScroll: true }); };
+  }, [confirmOpen]);
   return (
     <>
       {publishExecutionProgress ? (
@@ -123,6 +146,7 @@ export default function AgentFeedbackModals({
             className={`${styles.settingsModal} ${styles.validationChoiceModal}`}
             role="dialog"
             aria-modal="true"
+            ref={confirmRef}
             aria-label={confirmDialog.title}
             onClick={(event) => event.stopPropagation()}
           >
@@ -132,6 +156,18 @@ export default function AgentFeedbackModals({
             <p className={styles.modalEyebrow}>{i18nT("confirmation_3424edc2")}</p>
             <h2>{confirmDialog.title}</h2>
             <p className={styles.modalHint}>{confirmDialog.message}</p>
+            {confirmDialog.choiceLayout === "regeneration" ? (
+              <div className={choiceCss.choices}>
+                <button type="button" className={choiceCss.channel} onClick={onAlternateConfirm}>
+                  <span className={choiceCss.icon} aria-hidden="true">{confirmDialog.channelIcon ? <img src={confirmDialog.channelIcon} alt="" width={32} height={32} /> : "↻"}</span>
+                  <strong>{confirmDialog.alternateLabel}</strong><span className={choiceCss.arrow} aria-hidden="true">→</span>
+                </button>
+                <button type="button" className={choiceCss.all} onClick={onConfirm}>
+                  <span className={choiceCss.icon} aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="6" r="3" /><path d="M12 9v4M5 16v-3h14v3" /><rect x="2" y="16" width="6" height="5" rx="1.5" /><rect x="16" y="16" width="6" height="5" rx="1.5" /></svg></span>
+                  <strong>{confirmDialog.confirmLabel}</strong><span className={choiceCss.arrow} aria-hidden="true">→</span>
+                </button>
+              </div>
+            ) : (
             <div className={styles.modalActionButtonRow}>
               <button type="button" className={styles.modalActionSecondaryButton} onClick={onCloseConfirm}>
                 {confirmDialog.cancelLabel || i18nT("annuler_49ba3292")}
@@ -154,6 +190,7 @@ export default function AgentFeedbackModals({
                 {confirmDialog.confirmLabel}
               </button>
             </div>
+            )}
           </section>
         </div>
       ) : null}

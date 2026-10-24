@@ -883,5 +883,11 @@
   },
   "regenerate_media_scope_title": "重新生成媒体",
   "regenerate_media_scope_message": "为所有渠道还是仅为 {channel} 重新生成媒体？文字和日期保持不变。已批准的发布需要重新批准。",
-  "regenerate_media_channel_success": "已重新生成 {channel} 的媒体。日期保持不变，发布需要批准。"
+  "regenerate_media_channel_success": "已重新生成 {channel} 的媒体。日期保持不变，发布需要批准。",
+  "publication_filter_label": "按状态筛选发布内容",
+  "publication_filter_empty": "没有符合这些状态的发布内容",
+  "publication_filter_empty_hint": "勾选状态以显示相应的发布内容。",
+  "publication_refusal_restore": "撤销拒绝并恢复待审核",
+  "publication_refusal_restored": "发布内容已恢复为待审核。",
+  "publication_refusal_restore_failed": "无法撤销拒绝。请检查发布内容是否已更改或日期是否已过。"
 }

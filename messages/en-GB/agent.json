@@ -883,5 +883,11 @@
   },
   "regenerate_media_scope_title": "Regenerate media",
   "regenerate_media_scope_message": "Regenerate media for every channel or only {channel}? Text and dates stay unchanged. An approved publication will require approval again.",
-  "regenerate_media_channel_success": "Media for {channel} has been regenerated. The date is preserved; the publication needs approval."
+  "regenerate_media_channel_success": "Media for {channel} has been regenerated. The date is preserved; the publication needs approval.",
+  "publication_filter_label": "Filter publications by status",
+  "publication_filter_empty": "No publications match these statuses",
+  "publication_filter_empty_hint": "Select a status to display matching publications.",
+  "publication_refusal_restore": "Undo rejection and return to pending",
+  "publication_refusal_restored": "Publication returned to pending validation.",
+  "publication_refusal_restore_failed": "Unable to undo rejection. Check that the publication has not changed and its date has not passed."
 }

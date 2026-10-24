@@ -883,5 +883,11 @@
   },
   "regenerate_media_scope_title": "Media opnieuw genereren",
   "regenerate_media_scope_message": "Media voor alle kanalen of alleen {channel} opnieuw genereren? Teksten en datums blijven behouden. Een goedgekeurde publicatie moet opnieuw worden goedgekeurd.",
-  "regenerate_media_channel_success": "De media voor {channel} zijn opnieuw gegenereerd. De datum blijft behouden; de publicatie moet worden goedgekeurd."
+  "regenerate_media_channel_success": "De media voor {channel} zijn opnieuw gegenereerd. De datum blijft behouden; de publicatie moet worden goedgekeurd.",
+  "publication_filter_label": "Publicaties op status filteren",
+  "publication_filter_empty": "Geen publicaties voor deze statussen",
+  "publication_filter_empty_hint": "Selecteer een status om de bijbehorende publicaties te tonen.",
+  "publication_refusal_restore": "Afwijzing ongedaan maken en terugzetten op wachtend",
+  "publication_refusal_restored": "Publicatie wacht opnieuw op goedkeuring.",
+  "publication_refusal_restore_failed": "Afwijzing kan niet ongedaan worden gemaakt. Controleer of de publicatie is gewijzigd of de datum is verstreken."
 }

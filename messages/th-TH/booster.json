@@ -827,7 +827,7 @@
   "wizard_automatic_help": "iNrCy สร้างเนื้อหาให้เหมาะกับแต่ละช่องทาง",
   "wizard_manual_help": "เขียนเนื้อหาในแบบของคุณเอง",
   "wizard_hint_channels": "เลือกช่องทาง แล้วเลือกวิธีสร้างเนื้อหา",
-  "wizard_hint_intention": "อธิบายไอเดีย เพิ่มคำแนะนำหรือแรงบันดาลใจได้ตามต้องการ",
+  "wizard_hint_intention": "อธิบายไอเดีย เพิ่มคำแนะนำ ไฟล์ หรือสื่อได้ตามต้องการ",
   "wizard_hint_content": "ปรับชื่อ เนื้อหา และปุ่มสำหรับแต่ละช่องทาง",
   "wizard_hint_media": "เพิ่มหรือสร้างรูปภาพได้สูงสุด 5 รูปและวิดีโอ 1 รายการ ระบบจะกำหนดสื่อให้แต่ละช่องทางโดยอัตโนมัติ",
   "wizard_hint_control": "ตรวจสอบแต่ละช่องทาง ปรับสื่อ แล้วเผยแพร่หรือตั้งเวลา",
@@ -879,5 +879,8 @@
   "wizard_preview_more": "ดูเพิ่มเติม",
   "wizard_preview_subscribe": "ติดตาม",
   "wizard_preview_news": "ข่าวสาร",
-  "wizard_confirm_publication": "ยืนยันการเผยแพร่หรือไม่?"
+  "wizard_confirm_publication": "ยืนยันการเผยแพร่หรือไม่?",
+  "schedule_planning": "ปฏิทิน",
+  "schedule_view_planning": "ดูปฏิทินการเผยแพร่",
+  "schedule_back_to_programming": "กลับไปตั้งเวลา"
 }

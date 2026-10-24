@@ -16,7 +16,9 @@ import AgentWorkspaceMessages from "./AgentWorkspaceMessages";
 type DashboardAgentPlanningModalProps = {
   open: boolean;
   onClose: () => void;
-  onManage: () => void;
+  onManage?: () => void;
+  inspectionOnly?: boolean;
+  closeLabel?: string;
   standardMode?: boolean;
   workspace?: InrAgentWorkspace;
 };
@@ -31,6 +33,8 @@ function DashboardAgentPlanningContent({
   open,
   onClose,
   onManage,
+  inspectionOnly = false,
+  closeLabel,
   standardMode = true,
   workspace,
 }: DashboardAgentPlanningModalProps) {
@@ -84,7 +88,7 @@ function DashboardAgentPlanningContent({
   const items = workspace ? filterAgentWorkspaceSchedule(workspace, allItems, manualAutomations) : allItems;
   const openPilotage = () => {
     onClose();
-    onManage();
+    onManage?.();
   };
 
   return (
@@ -98,6 +102,8 @@ function DashboardAgentPlanningContent({
         actionsLoadState === "loading"
       }
       readOnly
+      inspectionOnly={inspectionOnly}
+      closeLabel={closeLabel}
       showCampaigns={!standardMode && (!workspace || workspace === "campaigns")}
       onClose={onClose}
       onOpenContent={openPilotage}

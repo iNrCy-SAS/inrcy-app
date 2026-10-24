@@ -883,5 +883,11 @@
   },
   "regenerate_media_scope_title": "Regenerar os conteúdos multimédia",
   "regenerate_media_scope_message": "Regenerar para todos os canais ou apenas para {channel}? Os textos e as datas mantêm-se. Uma publicação aprovada precisará de nova aprovação.",
-  "regenerate_media_channel_success": "Os conteúdos multimédia de {channel} foram regenerados. A data mantém-se; a publicação precisa de aprovação."
+  "regenerate_media_channel_success": "Os conteúdos multimédia de {channel} foram regenerados. A data mantém-se; a publicação precisa de aprovação.",
+  "publication_filter_label": "Filtrar publicações por estado",
+  "publication_filter_empty": "Nenhuma publicação para estes estados",
+  "publication_filter_empty_hint": "Selecione um estado para mostrar as publicações correspondentes.",
+  "publication_refusal_restore": "Anular a recusa e voltar a pendente",
+  "publication_refusal_restored": "Publicação novamente à espera de validação.",
+  "publication_refusal_restore_failed": "Não foi possível anular a recusa. Verifique se a publicação mudou ou se a data já passou."
 }

@@ -822,12 +822,12 @@
   "wizard_media_library": "Médiathèque",
   "wizard_camera": "Appareil",
   "wizard_inspirations": "Inspirations",
-  "wizard_inspirations_help": "Fichiers et médias · facultatif",
+  "wizard_inspirations_help": "Fichiers et médias - Facultatif",
   "wizard_file": "Fichier",
   "wizard_automatic_help": "iNrCy génère vos contenus, adaptés à chaque canal.",
   "wizard_manual_help": "Rédigez vos contenus à votre façon.",
   "wizard_hint_channels": "Sélectionnez vos canaux, puis choisissez votre mode de création.",
-  "wizard_hint_intention": "Décrivez votre idée. Ajoutez une consigne ou des inspirations si besoin.",
+  "wizard_hint_intention": "Décrivez votre idée. Ajoutez une consigne, des fichiers ou des médias si besoin.",
   "wizard_hint_content": "Ajustez le titre, le contenu et le bouton de chaque canal.",
   "wizard_hint_media": "Ajoutez ou générez jusqu’à 5 images et 1 vidéo. Les médias sont affectés automatiquement à vos canaux.",
   "wizard_hint_control": "Vérifiez chaque canal. Ajustez ses médias, puis publiez ou programmez.",
@@ -879,5 +879,8 @@
   "wizard_preview_more": "Voir plus",
   "wizard_preview_subscribe": "S’abonner",
   "wizard_preview_news": "Actualités",
-  "wizard_confirm_publication": "Confirmer la publication ?"
+  "wizard_confirm_publication": "Confirmer la publication ?",
+  "schedule_planning": "Planning",
+  "schedule_view_planning": "Consulter le planning des publications",
+  "schedule_back_to_programming": "Revenir à la programmation"
 }

@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import type { ChannelKey } from "../booster/publier/publishModal.shared";
@@ -8,6 +9,8 @@ import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
 import PublishExecutionProgress from "./PublishExecutionProgress";
 import { PUBLISH_CHANNEL_IDENTITY } from "../booster/publier/components/publishChannelIdentity";
 import css from "./PublishScheduleModal.module.css";
+
+const SchedulePlanningPreview = dynamic(() => import("./SchedulePlanningPreview"), { ssr: false });
 
 export type PublishScheduleSelection = {
   channel: ChannelKey;
@@ -191,6 +194,9 @@ export default function PublishScheduleModal({
   const channelDetailsId = titleId + "-channels";
   const busy = saving || submitting;
   const [baseline, setBaseline] = useState("");
+  const [planningOpen, setPlanningOpen] = useState(false);
+  const planningButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (!open) setPlanningOpen(false); }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -299,7 +305,7 @@ export default function PublishScheduleModal({
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || planningOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       const dialog = dialogRef.current;
       if (!dialog) return;
@@ -329,7 +335,7 @@ export default function PublishScheduleModal({
     };
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [open, busy, confirmExit]);
+  }, [open, planningOpen, busy, confirmExit]);
 
   if (!open) return null;
 
@@ -461,7 +467,8 @@ export default function PublishScheduleModal({
     : publishableItems.filter((item) => isSelected(item.channel)).length;
 
   return createPortal(
-    <div className={css.overlay} onMouseDown={(event) => {
+    <>
+    <div className={css.overlay} inert={planningOpen} aria-hidden={planningOpen || undefined} onMouseDown={(event) => {
       if (event.target === event.currentTarget && !busy) void confirmExit();
     }}>
       <div
@@ -471,13 +478,14 @@ export default function PublishScheduleModal({
         data-mobile={isMobile || undefined}
         data-publish-schedule-dialog
         role="dialog"
-        aria-modal="true"
+        aria-modal={!planningOpen}
         aria-labelledby={titleId}
         tabIndex={-1}
       >
         <header className={css.header}>
           <span className={css.headerIcon}><CalendarMiniIcon /></span>
           <h2 id={titleId}>{i18nT("schedule_title")}</h2>
+          <button ref={planningButtonRef} type="button" className={css.planningButton} aria-label={i18nT("schedule_view_planning")} title={i18nT("schedule_view_planning")} disabled={busy || Boolean(doneMessage)} onClick={() => setPlanningOpen(true)}><CalendarMiniIcon /><span>{i18nT("schedule_planning")}</span></button>
           <button type="button" className={css.close} aria-label={i18nT("schedule_close")} disabled={busy} onClick={() => void confirmExit()}>×</button>
         </header>
         <div className={css.body}>
@@ -548,7 +556,9 @@ export default function PublishScheduleModal({
           </button>
         </footer>
       </div>
-    </div>,
+    </div>
+    {planningOpen ? <SchedulePlanningPreview onClose={() => setPlanningOpen(false)} returnFocusRef={planningButtonRef} /> : null}
+    </>,
     document.body,
   );
 }

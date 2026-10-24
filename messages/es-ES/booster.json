@@ -827,7 +827,7 @@
   "wizard_automatic_help": "iNrCy genera tus contenidos, adaptados a cada canal.",
   "wizard_manual_help": "Escribe tus contenidos a tu manera.",
   "wizard_hint_channels": "Selecciona tus canales y el modo de creación.",
-  "wizard_hint_intention": "Describe tu idea. Añade instrucciones o inspiración si lo necesitas.",
+  "wizard_hint_intention": "Describe tu idea. Añade instrucciones, archivos o medios si lo necesitas.",
   "wizard_hint_content": "Ajusta el título, el contenido y el botón de cada canal.",
   "wizard_hint_media": "Añade o genera hasta 5 imágenes y 1 vídeo. Los medios se asignan automáticamente a tus canales.",
   "wizard_hint_control": "Revisa cada canal. Ajusta sus medios y publica o programa.",
@@ -879,5 +879,8 @@
   "wizard_preview_more": "Ver más",
   "wizard_preview_subscribe": "Suscribirse",
   "wizard_preview_news": "Novedades",
-  "wizard_confirm_publication": "¿Confirmar la publicación?"
+  "wizard_confirm_publication": "¿Confirmar la publicación?",
+  "schedule_planning": "Calendario",
+  "schedule_view_planning": "Ver el calendario de publicaciones",
+  "schedule_back_to_programming": "Volver a la programación"
 }

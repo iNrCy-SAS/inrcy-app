@@ -47,3 +47,21 @@ export function nextPublicationVisibilityRefreshDelay(
     ),
   );
 }
+
+type RefusedPublicationReference = PublicationScheduleReference & {
+  status?: string; automationKey?: string | null; actionType?: string; targetTool?: string;
+  completedAt?: string | null; validationRequired?: boolean; executionPolicy?: string;
+};
+
+/** Reuse the publication visibility clock: undated refusals never remain in the review list. */
+export function isHiddenRefusedPublication(action: RefusedPublicationReference, nowTimestamp: number) {
+  return action.status === "refused" && (publicationScheduledTimestamp(action) === null || hasPublicationSchedulePassed(action, nowTimestamp));
+}
+
+export function canRestoreRefusedPublication(action: RefusedPublicationReference | null | undefined, nowTimestamp: number) {
+  return Boolean(action && action.status === "refused" && action.automationKey === "publish"
+    && action.actionType === "publication" && action.targetTool === "booster" && !action.completedAt
+    && action.validationRequired !== false && action.executionPolicy !== "automatic_after_settings"
+    && nowTimestamp > 0 && publicationScheduledTimestamp(action) !== null
+    && !hasPublicationSchedulePassed(action, nowTimestamp));
+}

@@ -21364,7 +21364,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 /* Global navigation, followed by compact cards for the current publication. */
 .previewCardNoFrame:has(.publishReviewFooter) { gap: 6px !important; }
-.publishPreview { grid-template-rows: 50px auto minmax(0, 1fr) !important; gap: 12px !important; }
+.publishPreview { grid-template-rows: minmax(50px, auto) auto minmax(0, 1fr) !important; gap: 12px !important; }
 .publicationNavigation {
  display: flex; align-items: center; justify-content: center; gap: 24px; min-height: 50px; width: 100%;
  color: #edf4ff; border: 1px solid #4161a34d; border-radius: 17px;
@@ -21761,3 +21761,14 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   margin-top: auto;
   padding-top: 14px;
 }
+
+.publicationFilterEmpty { grid-row:2 / -1; display:grid; justify-items:center; align-content:center; gap:12px; min-height:220px; text-align:center; padding:28px; border:1px dashed #53689566; border-radius:20px; color:#dbe7fa; background:linear-gradient(135deg,#15365133,#542b8133); }
+.publicationFilterEmpty > span { font-size:32px; color:#83d2ff; }
+.publicationFilterEmpty strong { font-size:20px; }
+.publicationFilterEmpty p { margin:0; max-width:380px; color:#a8bcda; font-size:14px; line-height:1.5; }
+
+.publicationRestoreButton { display:grid; place-items:center; width:34px; height:34px; flex-shrink:0; margin-left:auto; padding:7px; border:1px solid #f7a4ba57; border-radius:10px; background:#3d253e; color:#ffcfdb; cursor:pointer; }
+.publicationRestoreButton svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.publicationRestoreButton:hover:not(:disabled) { background:#66374e; border-color:#ffb7cc; }
+.publicationRestoreButton:focus-visible { outline:2px solid #87d2ff; outline-offset:3px; }
+.publicationRestoreButton:disabled { opacity:.5; cursor:default; }

@@ -883,5 +883,11 @@
   },
   "regenerate_media_scope_title": "Medien neu erstellen",
   "regenerate_media_scope_message": "Medien für alle Kanäle oder nur für {channel} neu erstellen? Texte und Termine bleiben unverändert. Freigegebene Beiträge müssen erneut bestätigt werden.",
-  "regenerate_media_channel_success": "Die Medien für {channel} wurden neu erstellt. Der Termin bleibt erhalten; der Beitrag muss bestätigt werden."
+  "regenerate_media_channel_success": "Die Medien für {channel} wurden neu erstellt. Der Termin bleibt erhalten; der Beitrag muss bestätigt werden.",
+  "publication_filter_label": "Beiträge nach Status filtern",
+  "publication_filter_empty": "Keine Beiträge für diese Status",
+  "publication_filter_empty_hint": "Wählen Sie einen Status, um passende Beiträge anzuzeigen.",
+  "publication_refusal_restore": "Ablehnung zurücknehmen und auf ausstehend setzen",
+  "publication_refusal_restored": "Beitrag wartet wieder auf Freigabe.",
+  "publication_refusal_restore_failed": "Ablehnung kann nicht zurückgenommen werden. Prüfen Sie, ob der Beitrag geändert wurde oder der Termin verstrichen ist."
 }
