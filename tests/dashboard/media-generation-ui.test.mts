@@ -453,43 +453,21 @@ test("un handoff iNrStudio protège la sortie et utilise un CTA média unique", 
   assert.match(navigation, /getInrStudioOriginLabel/);
 });
 
-test("Booster garde le même ordre d'actions en haut et dans Médias", () => {
-  const intentPanel = read(
-    "app/dashboard/booster/publier/components/PublishIntentPanel.tsx"
-  );
-  const mediaPanel = read(
-    "app/dashboard/booster/publier/components/PublishImagesPanel.tsx"
-  );
-
-  const topActions = sourceSection(
-    intentPanel,
-    "<LocalMediaUploadChoice",
-    "<div className={css.referenceThumbnails}"
-  );
-  const lowerActions = sourceSection(
-    mediaPanel,
-    "<LocalMediaUploadChoice",
-    "<div className={css.mediaModes}"
-  );
-  const sharedOrderedTokens = [
-    "onSelect: onPickImagesClick",
-    "onSelect: onPickVideoClick",
-    "onGenerateMedia",
-    "onOpenMediaLibrary",
-    "onTakePhotoClick",
-  ];
-  assertOrdered(topActions, sharedOrderedTokens);
-  assertOrdered(lowerActions, sharedOrderedTokens);
-  assert.match(topActions, /testId="booster-generation-local-media-choice"/);
+test("Booster conserve les outils de Médias dans son sélecteur de références", () => {
+  const intentPanel = read("app/dashboard/booster/publier/components/PublishIntentPanel.tsx");
+  const picker = read("app/dashboard/booster/publier/components/PublishReferencePicker.tsx");
+  const mediaPanel = read("app/dashboard/booster/publier/components/PublishImagesPanel.tsx");
+  const topActions = sourceSection(intentPanel, "<PublishReferencePicker", "<div className={css.referenceThumbnails}");
+  for (const callback of ["onPickImagesClick", "onPickVideoClick", "onGenerateMedia", "onOpenMediaLibrary", "onTakePhotoClick"]) {
+    assert.ok(topActions.includes(callback), callback + " reste accessible dans Idée");
+  }
+  assertOrdered(picker, ['t("wizard_file")', 't("wizard_step_media")', 't("wizard_generate_media")', 't("wizard_media_library")']);
+  assert.match(picker, /data-testid="booster-reference-add"/);
+  assert.match(picker, /data-testid="booster-pdf-context-control"/);
+  const lowerActions = sourceSection(mediaPanel, "<LocalMediaUploadChoice", "<div className={css.mediaModes}");
+  assertOrdered(lowerActions, ["onSelect: onPickImagesClick", "onSelect: onPickVideoClick", "onGenerateMedia", "onOpenMediaLibrary", "onTakePhotoClick"]);
   assert.match(lowerActions, /testId="booster-publication-local-media-choice"/);
-  assert.equal(
-    (topActions.match(/ai_generator_generate_media/g) || []).length >= 1,
-    true
-  );
-  assert.equal(
-    (lowerActions.match(/ai_generator_generate_media/g) || []).length >= 1,
-    true
-  );
+  assert.match(lowerActions, /ai_generator_generate_media/);
 });
 
 test("iNrSend délègue génération, modification et retouche à iNrStudio", () => {
