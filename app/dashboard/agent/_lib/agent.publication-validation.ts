@@ -16,3 +16,16 @@ export function publicationValidationState(
   }
   return "pending";
 }
+
+export type PublicationValidationFilters = Record<PublicationValidationState, boolean>;
+type ValidationAction = Pick<AgentPreparedAction, "status" | "validatedAt">;
+
+export function countPublicationValidationStates(actions: readonly ValidationAction[]): Record<PublicationValidationState, number> {
+  const counts = { validated: 0, pending: 0, refused: 0 };
+  for (const action of actions) counts[publicationValidationState(action)] += 1;
+  return counts;
+}
+
+export function filterPublicationsByValidation<T extends ValidationAction>(actions: readonly T[], filters: PublicationValidationFilters): T[] {
+  return actions.filter(action => filters[publicationValidationState(action)]);
+}

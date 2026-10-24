@@ -883,5 +883,11 @@
   },
   "regenerate_media_scope_title": "Régénérer le média",
   "regenerate_media_scope_message": "Régénérer le média pour tous les canaux ou uniquement pour {channel} ? Les textes et les dates restent inchangés. Toute publication validée devra être validée de nouveau.",
-  "regenerate_media_channel_success": "Le média de {channel} a été régénéré. La date est conservée ; la publication reste à valider."
+  "regenerate_media_channel_success": "Le média de {channel} a été régénéré. La date est conservée ; la publication reste à valider.",
+  "publication_filter_label": "Filtrer les publications par statut",
+  "publication_filter_empty": "Aucune publication pour ces statuts",
+  "publication_filter_empty_hint": "Cochez un statut pour afficher les publications correspondantes.",
+  "publication_refusal_restore": "Annuler le refus et remettre en attente",
+  "publication_refusal_restored": "Publication remise en attente de validation.",
+  "publication_refusal_restore_failed": "Impossible d’annuler le refus. Vérifiez que la publication n’a pas changé et que sa date n’est pas dépassée."
 }

@@ -827,7 +827,7 @@
   "wizard_automatic_help": "iNrCy genereert je inhoud, aangepast aan elk kanaal.",
   "wizard_manual_help": "Schrijf je inhoud op jouw manier.",
   "wizard_hint_channels": "Selecteer je kanalen en kies je aanmaakmodus.",
-  "wizard_hint_intention": "Beschrijf je idee. Voeg eventueel instructies of inspiratie toe.",
+  "wizard_hint_intention": "Beschrijf je idee. Voeg eventueel instructies, bestanden of media toe.",
   "wizard_hint_content": "Pas titel, inhoud en knop per kanaal aan.",
   "wizard_hint_media": "Voeg maximaal 5 afbeeldingen en 1 video toe of genereer ze. Media worden automatisch aan je kanalen toegewezen.",
   "wizard_hint_control": "Controleer elk kanaal. Pas de media aan en publiceer of plan het bericht.",
@@ -879,5 +879,8 @@
   "wizard_preview_more": "Meer weergeven",
   "wizard_preview_subscribe": "Abonneren",
   "wizard_preview_news": "Nieuws",
-  "wizard_confirm_publication": "Publicatie bevestigen?"
+  "wizard_confirm_publication": "Publicatie bevestigen?",
+  "schedule_planning": "Planning",
+  "schedule_view_planning": "Publicatieplanning bekijken",
+  "schedule_back_to_programming": "Terug naar inplannen"
 }

@@ -361,9 +361,12 @@ import {
   computeNextOccurrence,
 } from "./_lib/agent.schedule";
 import { buildAgentScheduleItems } from "./_lib/agent.schedule-items";
-import { publicationValidationState } from "./_lib/agent.publication-validation";
+import { publicationValidationState, countPublicationValidationStates, filterPublicationsByValidation, type PublicationValidationFilters } from "./_lib/agent.publication-validation";
+import AgentPublicationNavigation from "./_components/AgentPublicationNavigation";
 import {
   hasPublicationSchedulePassed,
+  isHiddenRefusedPublication,
+  canRestoreRefusedPublication,
   nextPublicationVisibilityRefreshDelay,
 } from "./_lib/agent.publication-visibility";
 import {
@@ -468,7 +471,7 @@ function isPublicationCarouselAction(
   ) {
     return false;
   }
-  if (hasPublicationSchedulePassed(action, nowTimestamp)) return false;
+  if (hasPublicationSchedulePassed(action, nowTimestamp) || isHiddenRefusedPublication(action, nowTimestamp)) return false;
   const editorialPlan = asRecord(action.payload?.editorialPlan);
   if (editorialPlan && action.status !== "cancelled") return true;
   if (isAgentActionAwaitingValidation(action)) return true;
@@ -598,6 +601,9 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   const [selectedPreparedActionId, setSelectedPreparedActionId] = useState<
     string | null
   >(null);
+  const [publicationRestoreState, setPublicationRestoreState] = useState<"idle" | "saving">("idle");
+  const publicationRestoreInFlightRef = useRef(false);
+  const [publicationStatusFilters, setPublicationStatusFilters] = useState<PublicationValidationFilters>({ validated: true, pending: true, refused: true });
   const publicationSwipeStartRef = useRef<{
     x: number;
     y: number;
@@ -995,9 +1001,9 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     instantPublishPreparationInProgress &&
     selectedKey === "publish" &&
     selectedPreparedActionId === INSTANT_PUBLICATION_PREPARATION_ID &&
-    !scheduledEditSession;
+    !scheduledEditSession && publicationStatusFilters.pending;
 
-  const publicationCarouselActions = useMemo(
+  const allPublicationCarouselActions = useMemo(
     () =>
       actions
         .filter((action) =>
@@ -1014,6 +1020,9 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     [actions, publicationVisibilityNow]
   );
 
+  const publicationStatusCounts = useMemo(() => countPublicationValidationStates(allPublicationCarouselActions), [allPublicationCarouselActions]);
+  const publicationCarouselActions = useMemo(() => filterPublicationsByValidation(allPublicationCarouselActions, publicationStatusFilters), [allPublicationCarouselActions, publicationStatusFilters]);
+
   const selectedPreparedActionFromActions = useMemo(() => {
     if (selectedKey === "publish") {
       if (isInstantPublicationPreview) return null;
@@ -1021,7 +1030,9 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         (action) =>
           action.id === selectedPreparedActionId &&
           action.automationKey === "publish" &&
-          action.actionType === "publication"
+          action.actionType === "publication" &&
+          publicationStatusFilters[publicationValidationState(action)] &&
+          !isHiddenRefusedPublication(action, publicationVisibilityNow)
       );
       return (
         explicitlySelectedPublication ??
@@ -1051,6 +1062,8 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   }, [
     actions,
     publicationCarouselActions,
+    publicationStatusFilters,
+    publicationVisibilityNow,
     isInstantPublicationPreview,
     selectedKey,
     selectedPreparedActionId,
@@ -1084,8 +1097,9 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   const publicationViewerActions = buildPublicationViewerItems(
     publicationCarouselActions,
     selectedKey === "publish" ? selectedPreparedAction : null,
-    instantPublishPreparationInProgress,
+    instantPublishPreparationInProgress && publicationStatusFilters.pending,
   );
+  const noMatchingPublications = selectedKey === "publish" && !scheduledEditSession && !isInstantPublicationPreview && !publicationCarouselActions.length && (allPublicationCarouselActions.length > 0 || Object.values(publicationStatusFilters).some(value => !value));
   const selectedPublicationIndex = publicationViewerActions.findIndex(
     (item) => item.id === (isInstantPublicationPreview
       ? INSTANT_PUBLICATION_PREPARATION_ID
@@ -1094,7 +1108,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   const canNavigatePublications =
     selected.key === "publish" &&
     !scheduledEditSession &&
-    tiktokSessionCheckState !== "checking" &&
+    tiktokSessionCheckState !== "checking" && publicationRestoreState !== "saving" &&
     publicationViewerActions.length > 1;
 
   function movePublication(offset: number) {
@@ -5412,6 +5426,31 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     }
   }
 
+  async function restoreRefusedPublication() {
+    const action = selectedPreparedAction;
+    if (!action || publicationRestoreInFlightRef.current || actionMutationState === "saving" || !canRestoreRefusedPublication(action, Date.now())) return;
+    publicationRestoreInFlightRef.current = true;
+    setPublicationRestoreState("saving");
+    try {
+      const response = await fetch("/api/agent/actions", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionId: action.id, editType: "restore_refused_publication", expectedUpdatedAt: action.updatedAt }),
+      });
+      const payload = await response.json().catch(() => null) as { action?: AgentPreparedAction; error?: string } | null;
+      if (!response.ok || !payload?.action) throw new Error(payload?.error || i18nT("publication_refusal_restore_failed"));
+      const restored = payload.action;
+      setActions(current => current.map(item => item.id === restored.id ? restored : item));
+      setPublicationStatusFilters(current => ({ ...current, pending: true }));
+      showNotice(i18nT("publication_refusal_restored"));
+    } catch {
+      showNotice(i18nT("publication_refusal_restore_failed"));
+      void refreshActions(true);
+    } finally {
+      publicationRestoreInFlightRef.current = false;
+      setPublicationRestoreState("idle");
+    }
+  }
+
   function requestPublishChannelRegeneration(kind: "content" | "media") {
     if (kind === "media" && activeThreadsGhost) { showNotice(i18nT("threads_ghost_help")); return; }
     if (
@@ -5425,45 +5464,16 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     }
     const channel = activePreviewChannel;
     const channelLabel = agentChannelLabel(channel, runtimeT);
-    if (kind === "media" || preparedChannels.length > 1) {
-      openAgentConfirmDialog({
-        title: i18nT(kind === "media" ? "regenerate_media_scope_title" : "regenerate_content_scope_title"),
-        message: i18nT(kind === "media" ? "regenerate_media_scope_message" : "regenerate_content_scope_message", {
-          channel: channelLabel,
-        }),
-        confirmLabel: i18nT("regenerate_all_channels"),
-        alternateLabel: i18nT("regenerate_current_channel", {
-          channel: channelLabel,
-        }),
-        cancelLabel: i18nT("annuler_49ba3292"),
-        tone: "warning",
-        onConfirm: () =>
-          performPublishChannelRegeneration(kind, channel, "publication"),
-        onAlternate: () =>
-          performPublishChannelRegeneration(kind, channel, "channel"),
-      });
-      return;
-    }
     openAgentConfirmDialog({
-      title:
-        kind === "content"
-          ? i18nT("regenerate_confirm_title", { channel: channelLabel })
-          : i18nT("regenerate_media"),
-      message:
-        kind === "content"
-          ? i18nT("regenerate_content_confirm", { channel: channelLabel })
-          : i18nT("regenerate_media_confirm"),
-      confirmLabel: i18nT(
-        kind === "content" ? "regenerate_content" : "regenerate_media"
-      ),
-      cancelLabel: i18nT("annuler_49ba3292"),
+      title: i18nT(kind === "media" ? "regenerate_media_scope_title" : "regenerate_content_scope_title"),
+      message: i18nT(kind === "media" ? "regenerate_media_scope_message" : "regenerate_content_scope_message", { channel: channelLabel }),
+      choiceLayout: "regeneration",
+      channelIcon: channelOptions[channel].src,
+      confirmLabel: i18nT("regenerate_all_channels"),
+      alternateLabel: i18nT("regenerate_current_channel", { channel: channelLabel }),
       tone: "warning",
-      onConfirm: () =>
-        performPublishChannelRegeneration(
-          kind,
-          channel,
-          "channel"
-        ),
+      onConfirm: () => performPublishChannelRegeneration(kind, channel, "publication"),
+      onAlternate: () => performPublishChannelRegeneration(kind, channel, "channel"),
     });
   }
 
@@ -5939,19 +5949,20 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                   </div>
                 ) : isPublishView ? (
                   <div
-                    key={`${selectedPreparedAction?.id || selected.key}-${
-                      activePreviewChannel || "global"
-                    }-publish`}
+                    key={`${selected.key}-publish`}
                     className={`${styles.publishPreview} ${
                       !selectedPreparedAction ? styles.publishPreviewEmpty : ""
                     }`}
                   >
-                    <nav className={styles.publicationNavigation} aria-label={i18nT("publication_navigation")}>
-                      <button type="button" onClick={() => movePublication(-1)} disabled={!canNavigatePublications} aria-label={i18nT("previous_publication")}><NavigationChevronIcon direction="left" /></button>
-                      <strong aria-live="polite">{i18nT("publication_counter", { current: Math.max(0, selectedPublicationIndex) + (publicationViewerActions.length ? 1 : 0), total: publicationViewerActions.length })}</strong>
-                      <button type="button" onClick={() => movePublication(1)} disabled={!canNavigatePublications} aria-label={i18nT("next_publication")}><NavigationChevronIcon direction="right" /></button>
-                    </nav>
-                    <div className={`${styles.publishInfoGrid} ${styles.publishInfoGridWithFormat}`}>
+                    <AgentPublicationNavigation
+                      current={Math.max(0, selectedPublicationIndex) + (publicationViewerActions.length ? 1 : 0)} total={publicationViewerActions.length}
+                      canNavigate={canNavigatePublications} onMove={movePublication}
+                      counts={publicationStatusCounts} filters={publicationStatusFilters}
+                      disabled={Boolean(scheduledEditSession) || publicationRestoreState === "saving" || actionMutationState === "saving" || validationScheduleState === "saving" || tiktokSessionCheckState === "checking"}
+                      onFilterChange={(state, checked) => setPublicationStatusFilters(current => ({ ...current, [state]: checked }))}
+                    />
+                    {noMatchingPublications ? <div className={styles.publicationFilterEmpty} role="status"><span aria-hidden>☷</span><strong>{i18nT("publication_filter_empty")}</strong><p>{i18nT("publication_filter_empty_hint")}</p></div> : null}
+                    {!noMatchingPublications && (<div className={`${styles.publishInfoGrid} ${styles.publishInfoGridWithFormat}`}>
                       <AgentPublicationChannelList key={selectedPreparedAction?.id || "empty"} channels={orderChannels([...new Set([...selected.availableChannels, ...preparedChannels])], selected.availableChannels).map(key => ({ key, label: agentChannelLabel(key, runtimeT), src: channelOptions[key].src, connected: Boolean(agentConnectedChannels?.[key]), prepared: preparedChannels.includes(key) }))} selectedChannels={selectedPublishChannels} disabled={!canEditPublicationChannels} saving={publishChannelSelectionSaving} preparingChannel={publicationChannelPreparing} onChange={channels => void savePublicationChannelSelection(channels)} />
                       <article
                         className={`${styles.campaignInfoCard} ${styles.publishInfoChannel}`}
@@ -6244,9 +6255,9 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                         </div>
                       </article>
 
-                    </div>
+                    </div>)}
 
-                    <div
+                    {!noMatchingPublications && (<div
                       className={styles.publishPostCarousel}
                       data-navigable={canNavigatePublications}
                     >
@@ -6492,7 +6503,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                         )}
                       </div>
 
-                    </div>
+                    </div>)}
                   </div>
                 ) : hasPreparedAction && selectedPreparedAction ? (
                   <div
@@ -6628,7 +6639,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                 )}
               </div>
 
-              <div
+              {!noMatchingPublications && (<div
                 className={`${styles.previewMeta} ${
                   selected.key === "stats" ? styles.previewMetaStats : ""
                 } ${isCampaignView ? styles.previewMetaCampaign : ""} ${
@@ -6951,11 +6962,12 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                           <small>{i18nT("statut_659499f3")}</small>
                           <strong className={publishStatusClass}>{publishValidationLabel}</strong>
                         </span>
+                        {!scheduledEditSession && canRestoreRefusedPublication(selectedPreparedAction, publicationVisibilityNow) ? <button type="button" className={styles.publicationRestoreButton} disabled={publicationRestoreState === "saving" || actionMutationState === "saving"} onClick={() => void restoreRefusedPublication()} aria-label={i18nT("publication_refusal_restore")} title={i18nT("publication_refusal_restore")} aria-busy={publicationRestoreState === "saving"}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5 4 10l5 5M5 10h9a6 6 0 0 1 0 12" /></svg></button> : null}
 
                       </div>
                     ) : null}
                     <div className={styles.previewActions}>
-                      {isPublishView && selectedPublicationUsesTiktok ? (
+                      {isPublishView && selectedPublicationUsesTiktok && isAgentActionAwaitingValidation(selectedPreparedAction) && !scheduledEditSession ? (
                         <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "center", minWidth: 0 }}>
                           <TiktokReviewCheckbox
                             checked={tiktokReviewCurrent}
@@ -7054,7 +7066,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                     </div>
                   </>
                 )}
-              </div>
+              </div>)}
               {isPublishView && (
                 <nav
                   className={`${styles.publicationNavigation} ${styles.publicationNavigationBottom}`}

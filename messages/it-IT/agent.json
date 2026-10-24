@@ -883,5 +883,11 @@
   },
   "regenerate_media_scope_title": "Rigenera i media",
   "regenerate_media_scope_message": "Rigenerare i media per tutti i canali o solo per {channel}? Testi e date restano invariati. Una pubblicazione approvata richiederà una nuova approvazione.",
-  "regenerate_media_channel_success": "I media di {channel} sono stati rigenerati. La data è mantenuta; la pubblicazione deve essere approvata."
+  "regenerate_media_channel_success": "I media di {channel} sono stati rigenerati. La data è mantenuta; la pubblicazione deve essere approvata.",
+  "publication_filter_label": "Filtra le pubblicazioni per stato",
+  "publication_filter_empty": "Nessuna pubblicazione per questi stati",
+  "publication_filter_empty_hint": "Seleziona uno stato per visualizzare le pubblicazioni corrispondenti.",
+  "publication_refusal_restore": "Annulla il rifiuto e rimetti in attesa",
+  "publication_refusal_restored": "Pubblicazione di nuovo in attesa di convalida.",
+  "publication_refusal_restore_failed": "Impossibile annullare il rifiuto. Verifica che la pubblicazione non sia cambiata e che la data non sia passata."
 }

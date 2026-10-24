@@ -883,5 +883,11 @@
   },
   "regenerate_media_scope_title": "สร้างสื่อใหม่",
   "regenerate_media_scope_message": "สร้างสื่อใหม่สำหรับทุกช่องทางหรือเฉพาะ {channel}? ข้อความและวันที่จะไม่เปลี่ยนแปลง โพสต์ที่อนุมัติแล้วจะต้องได้รับการอนุมัติอีกครั้ง",
-  "regenerate_media_channel_success": "สร้างสื่อของ {channel} ใหม่แล้ว วันที่ยังคงเดิมและโพสต์ต้องได้รับการอนุมัติ"
+  "regenerate_media_channel_success": "สร้างสื่อของ {channel} ใหม่แล้ว วันที่ยังคงเดิมและโพสต์ต้องได้รับการอนุมัติ",
+  "publication_filter_label": "กรองโพสต์ตามสถานะ",
+  "publication_filter_empty": "ไม่มีโพสต์ที่ตรงกับสถานะเหล่านี้",
+  "publication_filter_empty_hint": "เลือกสถานะเพื่อแสดงโพสต์ที่ตรงกัน",
+  "publication_refusal_restore": "ยกเลิกการปฏิเสธและกลับไปรออนุมัติ",
+  "publication_refusal_restored": "โพสต์กลับไปรอการอนุมัติแล้ว",
+  "publication_refusal_restore_failed": "ไม่สามารถยกเลิกการปฏิเสธได้ โปรดตรวจสอบว่าโพสต์ไม่มีการเปลี่ยนแปลงและยังไม่ถึงกำหนด"
 }

@@ -110,7 +110,7 @@ test("the review UI exposes independent content and media regeneration controls"
   assert.match(ui, /scope === "publication"/);
   assert.match(ui, /regenerate_content/);
   assert.match(ui, /regenerate_media/);
-  assert.match(ui, /i18nT\("regenerate_media_confirm"\)/);
+  assert.match(ui, /choiceLayout: "regeneration"/);
   assert.match(ui, /i18nT\("regenerate_media_success"\)/);
   assert.match(ui, /i18nT\("agent_working_regenerating_media"\)/);
   assert.match(ui, /agent_working_regenerating/);

@@ -822,6 +822,8 @@ type AgentScheduleModalProps = {
   mutationState: "idle" | "saving";
   loading?: boolean;
   readOnly?: boolean;
+  inspectionOnly?: boolean;
+  closeLabel?: string;
   showCampaigns?: boolean;
   onClose: () => void;
   onOpenContent: (item: ScheduleListItem) => void;
@@ -835,6 +837,8 @@ export function AgentScheduleModal({
   mutationState,
   loading = false,
   readOnly = false,
+  inspectionOnly = false,
+  closeLabel,
   showCampaigns = true,
   onClose,
   onOpenContent,
@@ -1092,7 +1096,7 @@ export function AgentScheduleModal({
               className={styles.scheduleCloseButton}
               onClick={onClose}
             >
-              {i18nT("fermer_5ab4ec64")}
+              {closeLabel || i18nT("fermer_5ab4ec64")}
             </button>
           </div>
         </div>
@@ -1232,7 +1236,7 @@ export function AgentScheduleModal({
                                   : approvalState === "refused"
                                     ? "planning_status_refused"
                                     : "planning_status_pending";
-                              const renderCalendarActions = () => item.source === "history" ? null : (
+                              const renderCalendarActions = () => inspectionOnly || item.source === "history" ? null : (
                                 <>
                                   <button
                                     type="button"
@@ -1362,7 +1366,7 @@ export function AgentScheduleModal({
                                       >
                                         {renderCalendarActions()}
                                       </span>
-                                      {item.source === "history" ? null : <details
+                                      {inspectionOnly || item.source === "history" ? null : <details
                                         className={
                                           styles.scheduleCalendarCardMobileActions
                                         }
