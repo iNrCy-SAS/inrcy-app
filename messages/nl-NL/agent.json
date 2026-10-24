@@ -889,5 +889,7 @@
   "publication_filter_empty_hint": "Selecteer een status om de bijbehorende publicaties te tonen.",
   "publication_refusal_restore": "Afwijzing ongedaan maken en terugzetten op wachtend",
   "publication_refusal_restored": "Publicatie wacht opnieuw op goedkeuring.",
-  "publication_refusal_restore_failed": "Afwijzing kan niet ongedaan worden gemaakt. Controleer of de publicatie is gewijzigd of de datum is verstreken."
+  "publication_refusal_restore_failed": "Afwijzing kan niet ongedaan worden gemaakt. Controleer of de publicatie is gewijzigd of de datum is verstreken.",
+  "publication_validation_restore": "Goedkeuring intrekken en terugzetten op in afwachting",
+  "publication_review_restore_failed": "De publicatie kan niet worden teruggezet op in afwachting. Probeer het straks opnieuw."
 }

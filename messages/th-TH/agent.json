@@ -889,5 +889,7 @@
   "publication_filter_empty_hint": "เลือกสถานะเพื่อแสดงโพสต์ที่ตรงกัน",
   "publication_refusal_restore": "ยกเลิกการปฏิเสธและกลับไปรออนุมัติ",
   "publication_refusal_restored": "โพสต์กลับไปรอการอนุมัติแล้ว",
-  "publication_refusal_restore_failed": "ไม่สามารถยกเลิกการปฏิเสธได้ โปรดตรวจสอบว่าโพสต์ไม่มีการเปลี่ยนแปลงและยังไม่ถึงกำหนด"
+  "publication_refusal_restore_failed": "ไม่สามารถยกเลิกการปฏิเสธได้ โปรดตรวจสอบว่าโพสต์ไม่มีการเปลี่ยนแปลงและยังไม่ถึงกำหนด",
+  "publication_validation_restore": "ยกเลิกการอนุมัติและกลับไปรอการตรวจสอบ",
+  "publication_review_restore_failed": "ไม่สามารถเปลี่ยนสิ่งพิมพ์กลับเป็นรอการตรวจสอบได้ โปรดลองอีกครั้งในอีกสักครู่"
 }

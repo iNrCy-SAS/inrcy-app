@@ -1,3 +1,4 @@
+import { captureVisibilityIndex } from "@/lib/inrstats/visibilityIndexStore";
 import { isMetaChannelPilotEnabledForActorAndAccount, isMetaChannelPilotEnabledForAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from "next/server";
@@ -325,6 +326,7 @@ async function handler(req: Request) {
         return jsonUserFacingError(`daily_refresh_complete_failed:${completeError.message}`, { status: 500 });
       }
 
+      const visibilityIndex = await captureVisibilityIndex({ userId: activeUserId, bulk: inrstatsEntries[1][1], channelStates, activity: await inrcyPublishedActivityLoader() });
       await bumpStatsVersion(activeUserId);
 
       devLogDailyRefresh({
@@ -348,6 +350,7 @@ async function handler(req: Request) {
         snapshotDate,
         syncAt,
         generator,
+        visibilityIndex,
         inrstats: Object.fromEntries(inrstatsEntries),
       }, metaPilotEnabled), {
         headers: {

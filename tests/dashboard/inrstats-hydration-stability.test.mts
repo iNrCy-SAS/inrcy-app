@@ -88,7 +88,8 @@ test("the first visible Stats values stay pending until every required source is
   assert.match(client, /const allStatsNumbersReady = bulkStatsReady && inrBadgeStatsReady && inrSearchStatsReady && mailStatsReady/);
   assert.match(client, /stableOpportunity\(centralPotential30, allStatsNumbersReady\)/);
   assert.match(client, /stableRevenue\([\s\S]*?allStatsNumbersReady\)/);
-  assert.match(client, /aria-busy=\{!allStatsNumbersReady\}/);
+  assert.match(client, /ready=\{allStatsNumbersReady\}/);
+  assert.match(read("app/dashboard/stats/StatsOverview.tsx"), /aria-busy=\{!ready\}/);
   assert.match(ui, /statsReady \? `\+\$\{formatInt\(model\.opportunity30\)\}` : "—"/);
   assert.match(ui, /detailsOpen && statsReady \? \(/);
   assert.doesNotMatch(hooks, /setSummaryOpp\(\(prev\) => \(\{ \.\.\.prev, loading: true \}\)\)/);

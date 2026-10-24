@@ -1,5 +1,6 @@
 import "server-only";
 
+import { recordVisibilityRewardHistory } from "@/lib/inrstats/visibilityRewardHistoryStore";
 import { resolveInstagramAuthMode } from "@/lib/instagramAuthMode";
 import { ensureMetaDirectAccessToken } from "@/lib/metaDirectTokens";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -1028,6 +1029,8 @@ export async function buildStatsOverview(args: {
     }
   } catch {}
 
+  // Cached LinkedIn fallbacks can be displayed but cannot prove loyalty history.
+  let linkedInHistoryVerified = false;
   // LinkedIn: connected if an OAuth row exists.
   try {
     sourcesStatus.linkedin.connected = isStatsActiveConnection(
@@ -1258,6 +1261,9 @@ export async function buildStatsOverview(args: {
               }
 
               const metrics = liAggregateAnalytics(sourceResults, start, end);
+              linkedInHistoryVerified = sourceResults.length > 0
+                && sourceResults.every(source => source.mode === "live" || source.mode === "live_partial")
+                && hasUsableLinkedInMetrics(metrics);
               const quotaMetricError = getLinkedInRateLimitErrorFromMetrics(metrics);
               if (quotaMetricError) {
                 await writeLinkedInQuotaGuard(quotaMetricError);
@@ -1515,6 +1521,21 @@ export async function buildStatsOverview(args: {
       }
     }
   }
+
+  // Register only freshly fetched provider ranges, before any last-good fallback.
+  const websiteReport = siteResults.find(result => result.key === "site_web");
+  const websiteHistory = websiteReport ? {
+    connected: websiteReport.entry.connected.ga4 || websiteReport.entry.connected.gsc,
+    metrics: {
+      range: { since: dateWindow.start.toISOString(), until: dateWindow.end.toISOString() },
+      totals: {
+        pageviews: websiteReport.entry.connected.ga4 ? websiteReport.agg.pageviews : null,
+        impressions: websiteReport.entry.connected.gsc ? websiteReport.agg.impressionsSum : null,
+      },
+    },
+  } : null;
+  try { await recordVisibilityRewardHistory(userId, { days, meta: { snapshotDate: dateWindow.snapshotDate }, sources: { ...sourcesStatus, linkedin: linkedInHistoryVerified ? sourcesStatus.linkedin : null, site_web: websiteHistory } }); }
+  catch { log.warn("inrstats_reward_history_deferred", { user_id: userId }); }
 
   const payload = await stabilizeOverviewPayload({
     supabase,

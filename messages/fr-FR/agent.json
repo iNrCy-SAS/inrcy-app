@@ -889,5 +889,7 @@
   "publication_filter_empty_hint": "Cochez un statut pour afficher les publications correspondantes.",
   "publication_refusal_restore": "Annuler le refus et remettre en attente",
   "publication_refusal_restored": "Publication remise en attente de validation.",
-  "publication_refusal_restore_failed": "Impossible d’annuler le refus. Vérifiez que la publication n’a pas changé et que sa date n’est pas dépassée."
+  "publication_refusal_restore_failed": "Impossible d’annuler le refus. Vérifiez que la publication n’a pas changé et que sa date n’est pas dépassée.",
+  "publication_validation_restore": "Annuler la validation et remettre en attente",
+  "publication_review_restore_failed": "Impossible de remettre la publication en attente. Réessayez dans un instant."
 }

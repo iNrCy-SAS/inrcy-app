@@ -92,6 +92,10 @@
     {
       "path": "/api/cron/tiktok-publications",
       "schedule": "*/1 * * * *"
+    },
+    {
+      "path": "/api/cron/inrstats-visibility",
+      "schedule": "7,22,37,52 * * * *"
     }
   ],
   "functions": {

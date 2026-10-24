@@ -366,7 +366,7 @@ import AgentPublicationNavigation from "./_components/AgentPublicationNavigation
 import {
   hasPublicationSchedulePassed,
   isHiddenRefusedPublication,
-  canRestoreRefusedPublication,
+  canReopenPublicationValidation,
   nextPublicationVisibilityRefreshDelay,
 } from "./_lib/agent.publication-visibility";
 import {
@@ -5426,24 +5426,34 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     }
   }
 
-  async function restoreRefusedPublication() {
+  async function restorePublicationReview() {
     const action = selectedPreparedAction;
-    if (!action || publicationRestoreInFlightRef.current || actionMutationState === "saving" || !canRestoreRefusedPublication(action, Date.now())) return;
+    if (!action || publicationRestoreInFlightRef.current || actionMutationState === "saving"
+      || validationScheduleState === "saving" || tiktokSessionCheckInFlightRef.current
+      || publishRegeneration || !canReopenPublicationValidation(action, Date.now())) return;
     publicationRestoreInFlightRef.current = true;
     setPublicationRestoreState("saving");
     try {
       const response = await fetch("/api/agent/actions", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actionId: action.id, editType: "restore_refused_publication", expectedUpdatedAt: action.updatedAt }),
+        body: JSON.stringify({ actionId: action.id, editType: action.status === "refused" ? "restore_refused_publication" : "restore_validated_publication", expectedUpdatedAt: action.updatedAt }),
       });
       const payload = await response.json().catch(() => null) as { action?: AgentPreparedAction; error?: string } | null;
-      if (!response.ok || !payload?.action) throw new Error(payload?.error || i18nT("publication_refusal_restore_failed"));
+      if (!response.ok || !payload?.action) throw new Error(payload?.error || i18nT("publication_review_restore_failed"));
       const restored = payload.action;
       setActions(current => current.map(item => item.id === restored.id ? restored : item));
       setPublicationStatusFilters(current => ({ ...current, pending: true }));
+      setSelectedPreparedActionId(restored.id);
+      setTiktokValidationSession(null);
+      setTiktokPublicationReviews(current => {
+        const next = { ...current };
+        delete next[restored.id];
+        return next;
+      });
       showNotice(i18nT("publication_refusal_restored"));
-    } catch {
-      showNotice(i18nT("publication_refusal_restore_failed"));
+      await refreshScheduledActions(true);
+    } catch (error) {
+      showNotice(error instanceof Error && error.message ? error.message : i18nT("publication_review_restore_failed"));
       void refreshActions(true);
     } finally {
       publicationRestoreInFlightRef.current = false;
@@ -6962,7 +6972,16 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                           <small>{i18nT("statut_659499f3")}</small>
                           <strong className={publishStatusClass}>{publishValidationLabel}</strong>
                         </span>
-                        {!scheduledEditSession && canRestoreRefusedPublication(selectedPreparedAction, publicationVisibilityNow) ? <button type="button" className={styles.publicationRestoreButton} disabled={publicationRestoreState === "saving" || actionMutationState === "saving"} onClick={() => void restoreRefusedPublication()} aria-label={i18nT("publication_refusal_restore")} title={i18nT("publication_refusal_restore")} aria-busy={publicationRestoreState === "saving"}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5 4 10l5 5M5 10h9a6 6 0 0 1 0 12" /></svg></button> : null}
+                        {!scheduledEditSession && canReopenPublicationValidation(selectedPreparedAction, publicationVisibilityNow) ? (
+                          <button type="button" className={styles.publicationRestoreButton}
+                            disabled={publicationRestoreState === "saving" || actionMutationState === "saving" || validationScheduleState === "saving" || tiktokSessionCheckState === "checking" || Boolean(publishRegeneration)}
+                            onClick={() => void restorePublicationReview()}
+                            aria-label={i18nT(selectedPublicationValidationState === "refused" ? "publication_refusal_restore" : "publication_validation_restore")}
+                            title={i18nT(selectedPublicationValidationState === "refused" ? "publication_refusal_restore" : "publication_validation_restore")}
+                            aria-busy={publicationRestoreState === "saving"}>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5 4 10l5 5M5 10h9a6 6 0 0 1 0 12" /></svg>
+                          </button>
+                        ) : null}
 
                       </div>
                     ) : null}

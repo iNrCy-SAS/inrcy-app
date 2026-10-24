@@ -1,10 +1,16 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import Image from "next/image";
 
 import { useMemo, useRef, useState } from "react";
 import styles from "./stats.module.css";
+import panorama from "./statsPanorama.module.css";
+import StatsEvolution from "./StatsEvolution";
+import StatsOverview, { StatsOverviewMetrics, type StatsOverviewChannel } from "./StatsOverview";
+import { measuredStatsVisibility } from "./stats.visibility";
+import { extractStatsTrend } from "./stats.trends";
+import StatsViewNavigator, { ChartIcon } from "./StatsViewNavigator";
+import { buildStatsNavigationPages, type StatsPanelKey } from "./stats.navigation";
 import { useRouter } from "next/navigation";
 import ResponsiveActionButton from "../_components/ResponsiveActionButton";
 import HelpButton from "../_components/HelpButton";
@@ -47,20 +53,6 @@ import { formatStableStatsValue, hasCommittedStatsSnapshot } from "./stats.clien
 import { Cube } from "./stats.ui";
 import { useDashboardViewerAccess } from "@/app/dashboard/_components/DashboardViewerAccessProvider";
 import { useDashboardEdition } from "@/app/dashboard/_components/DashboardEditionProvider";
-
-type StatsPanelKey = "all" | CubeKey;
-
-function PlugIcon() {
-  return (
-    <svg className={styles.plugSvgIcon} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M9 3v5" />
-      <path d="M15 3v5" />
-      <path d="M8 8h8v4a4 4 0 0 1-4 4h0a4 4 0 0 1-4-4V8Z" />
-      <path d="M12 16v5" />
-      <path d="M9.5 21h5" />
-    </svg>
-  );
-}
 
 type StatsClientProps = {
   initialInrSearch?: {
@@ -109,7 +101,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const formatInt = (value: number) => fmtInt(value, locale);
   const router = useRouter();
   const dashboardEdition = useDashboardEdition();
-  const { metaPilotEnabled } = useDashboardViewerAccess();
+  const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
   const standardMode = dashboardEdition === "standard";
   const [helpOpen, setHelpOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -160,11 +152,6 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const [channelIdentityHints, setChannelIdentityHints] = useState<ChannelIdentityHints>({});
   const [cachedChannelConnectivity, setCachedChannelConnectivity] = useState<CachedChannelConnectivity>({});
   const [officialChannelConnectionStatuses, setOfficialChannelConnectionStatuses] = useState<OfficialChannelConnectionStatuses>({});
-
-  const scrollTo = (key: CubeKey) => {
-    setActiveStatsPanel(key);
-    setStatsMenuOpen(false);
-  };
 
   // In-memory cache to avoid duplicate fetch bursts (React strict-mode/dev & quick navigations)
   const periodCacheRef = useRef(new Map<number, Record<CubeKey, Overview>>());
@@ -420,18 +407,47 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     return models.reduce((total, model) => total + safeNum(model.capturedLeads.month), 0);
   }, [models]);
 
-  const activeModel = activeStatsPanel === "all"
+  const activeModel = activeStatsPanel === "all" || activeStatsPanel === "evolution"
     ? null
     : models.find((model) => model.key === activeStatsPanel) ?? models[0] ?? null;
-  const activeModelIndex = activeModel
-    ? models.findIndex((model) => model.key === activeModel.key)
-    : -1;
-  const previousModel = activeModelIndex >= 0 && models.length > 0
-    ? models[(activeModelIndex - 1 + models.length) % models.length]
-    : null;
-  const nextModel = activeModelIndex >= 0 && models.length > 0
-    ? models[(activeModelIndex + 1) % models.length]
-    : null;
+  const navigationPages = buildStatsNavigationPages(models, i18nT("vue_globale_08073c33"), STATS_CHANNEL_ICON_SRC, i18nT("panorama_evolution"));
+
+  const overviewChannels: StatsOverviewChannel[] = models.map((model) => {
+    const actionItem = summaryActionByChannel.get(model.key);
+    const revenue = summaryEstimatedByCube[model.key] || computedEstimatedByCube[model.key] || actionItem?.revenue || 0;
+    const opportunityReady = opportunityReadyByCube[model.key];
+    const revenueReady = opportunityReady && bulkStatsReady;
+    const connected = isStatsModelConnected(model);
+    const displayedTool = actionItem?.badge ?? model.action.pill;
+    const premiumLocked = model.action.premiumLocked === true ||
+      (standardMode && connected && isPremiumStatsRecommendedTool(actionItem?.recommendedTool));
+    const actionHref = premiumLocked ? "" : actionItem?.actionHref || model.action.href || "#";
+    const actionTitle = premiumLocked
+      ? i18nT("stats_premium_action_locked", { tool: displayedTool })
+      : connected ? i18nT("stats_run_recommended_action") : i18nT("stats_configure_channel");
+
+    return {
+      key: model.key,
+      title: model.title,
+      accountLabel: model.accountLabel,
+      subtitle: model.subtitle,
+      iconSrc: STATS_CHANNEL_ICON_SRC[model.key],
+      status: model.connectionStatus === "needs_update" ? "needs_update"
+        : isStatsModelConnectionPending(model) ? "pending" : connected ? "connected" : "disconnected",
+      trend: opportunityReady ? extractStatsTrend(model.key, dataByCube[model.key]?.ov, connected) : null,
+      opportunities: stableOpportunity(model.opportunity30, opportunityReady),
+      opportunityValue: opportunityReady ? Math.max(0, safeNum(model.opportunity30)) : null,
+      visibilityValue: !opportunityReady || !connected ? null
+        : model.key === "inrbadge" ? inrBadgeStats.error ? null : inrBadgeStats.views.month
+        : model.key === "inr_search" ? inrSearchStats.error ? null : inrSearchStats.views.month
+        : measuredStatsVisibility(model.key, dataByCube[model.key]?.ov),
+      revenue: stableRevenue(revenue, revenueReady),
+      actionLabel: displayedTool,
+      actionTitle,
+      actionHref,
+      premiumLocked,
+    };
+  });
 
   const navigateFromStats = (href: string) => {
     if (/^https?:\/\//i.test(href)) window.open(href, "_blank", "noopener,noreferrer");
@@ -488,7 +504,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   };
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} data-stats-layout="panorama">
       <div className={styles.header}>
         <div className={styles.headerTop}>
           <div className={styles.brand}>
@@ -508,6 +524,17 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
           <div className={styles.headerActions}>
             <div className={styles.headerCloseControls}>
               <HelpButton onClick={() => setHelpOpen(true)} title={i18nT("aide_inr_stats_14d89e71")} size={34} />
+              <button
+                type="button"
+                className={panorama.reportButton}
+                onClick={() => { void generateStatsReportNow(); }}
+                disabled={isGeneratingReport}
+                aria-label={i18nT("generer_un_bilan_inr_stats_manuel_30ea8535")}
+                title={i18nT("creer_et_envoyer_un_bilan_manuel_f462a5fc")}
+              >
+                <ChartIcon />
+                <span>{isGeneratingReport ? i18nT("generation_du_bilan_9b3321bd") : i18nT("panorama_report")}</span>
+              </button>
               <button
                 type="button"
                 className={styles.statsMobileNavButton}
@@ -598,205 +625,49 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       ) : null}
 
       <div
-        className={`${styles.statsWorkspace} ${activeStatsPanel === "all" ? "" : styles.statsWorkspaceChannel}`}
-        data-stats-view={activeStatsPanel === "all" ? "global" : "channel"}
+        className={`${styles.statsWorkspace} ${activeStatsPanel === "all" || activeStatsPanel === "evolution" ? "" : styles.statsWorkspaceChannel}`}
+        data-stats-view={activeStatsPanel === "all" ? "global" : activeStatsPanel === "evolution" ? "evolution" : "channel"}
       >
         <main className={styles.statsPanel}>
+          <StatsViewNavigator
+            pages={navigationPages}
+            activeKey={activeStatsPanel === "evolution" ? "evolution" : activeModel?.key ?? "all"}
+            onSelect={selectStatsPanel}
+            summary={
+              <StatsOverviewMetrics
+                opportunities={activeModel
+                  ? stableOpportunity(activeModel.opportunity30, opportunityReadyByCube[activeModel.key])
+                  : stableOpportunity(centralPotential30, allStatsNumbersReady)}
+                potentialRevenue={activeModel
+                  ? stableRevenue(summaryEstimatedByCube[activeModel.key] || computedEstimatedByCube[activeModel.key] || 0, opportunityReadyByCube[activeModel.key] && bulkStatsReady)
+                  : stableRevenue(summaryActionItems.reduce((total, item) => total + safeNum(item.revenue), 0), allStatsNumbersReady)}
+                capturedLeads={activeModel
+                  ? activeModel.capturedLeadsUnavailable || !opportunityReadyByCube[activeModel.key] ? "—" : `${formatInt(activeModel.capturedLeads.week)} / ${formatInt(activeModel.capturedLeads.month)}`
+                  : stableCount(totalCapturedLeads30, allStatsNumbersReady)}
+                capturedLabel={activeModel ? i18nT(activeModel.key === "mails"
+                  ? "demandes_estimees_7j_30j_f40eb8d9"
+                  : "demandes_captees_7j_30j_d1d1b0de") : undefined}
+              />
+            }
+          />
+          <StatsEvolution key={activeAccountId} enabled={activeStatsPanel === "evolution"} accountId={activeAccountId} refreshKey={refreshNonce} channels={models} ready={bulkStatsReady && !isRefreshing} />
           {activeStatsPanel === "all" ? (
-            <section className={styles.allStatsPanel} aria-label={i18nT("vue_globale_inr_stats_db5feb84")} aria-busy={!allStatsNumbersReady}>
-              <div className={styles.allStatsHero}>
-                <div className={styles.allStatsHeaderMain}>
-                  <h2 className={styles.allStatsTitle}>{i18nT("vue_globale_08073c33")}</h2>
-                  <p className={styles.allStatsText}>
-                    {i18nT("synthese_par_canal_opportunites_activables_ca_7b735b50")}{" "}</p>
-                </div>
-
-                <div className={styles.allStatsKpis}>
-                  <div className={`${styles.allStatsKpi} ${styles.kpiToneBlue}`}>
-                    <span>{i18nT("opportunites_0dbfa3c5")}</span>
-                    <b>{stableOpportunity(centralPotential30, allStatsNumbersReady)}</b>
-                  </div>
-                  <div className={`${styles.allStatsKpi} ${styles.kpiTonePurple}`}>
-                    <span>{i18nT("ca_potentiel_fc9eeae4")}</span>
-                    <b>{stableRevenue(summaryActionItems.reduce((total, item) => total + safeNum(item.revenue), 0), allStatsNumbersReady)}</b>
-                  </div>
-                  <div className={`${styles.allStatsKpi} ${styles.kpiToneGreen}`}>
-                    <span>{i18nT("demandes_captees_30_j_a45db939")}</span>
-                    <b>{stableCount(totalCapturedLeads30, allStatsNumbersReady)}</b>
-                  </div>
-                  <div className={`${styles.allStatsKpi} ${styles.kpiToneSlate}`}>
-                    <span>{i18nT("canaux_27cb4473")}</span>
-                    <b>{allStatsNumbersReady ? `${connectedChannelsCount} / ${models.length}` : `— / ${models.length}`}</b>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  className={styles.allStatsReportButton}
-                  onClick={() => {
-                    void generateStatsReportNow();
-                  }}
-                  disabled={isGeneratingReport}
-                  aria-label={i18nT("generer_un_bilan_inr_stats_manuel_30ea8535")}
-                  title={i18nT("creer_et_envoyer_un_bilan_manuel_f462a5fc")}
-                >
-                  {isGeneratingReport ? i18nT("generation_du_bilan_9b3321bd") : i18nT("generer_un_bilan_77d1d8d2")}
-                </button>
-              </div>
-
-              <div className={styles.allStatsActions}>
-                {models.map((model) => {
-                  const actionItem = summaryActionByChannel.get(model.key);
-                  const revenue = summaryEstimatedByCube[model.key] || computedEstimatedByCube[model.key] || actionItem?.revenue || 0;
-                  const opportunityReady = opportunityReadyByCube[model.key];
-                  const revenueReady = opportunityReady && bulkStatsReady;
-                  const connected = isStatsModelConnected(model);
-                  const displayedTool = actionItem?.badge ?? model.action.pill;
-                  const premiumLocked = standardMode && connected && isPremiumStatsRecommendedTool(actionItem?.recommendedTool);
-                  const actionHref = premiumLocked ? "" : actionItem?.actionHref || model.action.href || "#";
-                  const actionTitle = premiumLocked
-                    ? i18nT("stats_premium_action_locked", { tool: displayedTool })
-                    : connected
-                      ? i18nT("stats_run_recommended_action")
-                      : i18nT("stats_configure_channel");
-
-                  return (
-                    <article
-                      key={model.key}
-                      className={`${styles.allStatsActionCard} ${connected ? styles.allStatsActionCardConnected : styles.allStatsActionCardOff}`}
-                      aria-busy={!revenueReady}
-                    >
-                      <div className={styles.allStatsChannelButton}>
-                        <span className={styles.allStatsChannelName}>{model.title}</span>
-                      </div>
-
-                      <div className={styles.allStatsMetrics}>
-                        <span>
-                          <small>{i18nT("opportunites_0dbfa3c5")}</small>
-                          <b>{stableOpportunity(model.opportunity30, opportunityReady)}</b>
-                        </span>
-                        <span>
-                          <small>{i18nT("ca_potentiel_fc9eeae4")}</small>
-                          <b>{stableRevenue(revenue, revenueReady)}</b>
-                        </span>
-                      </div>
-
-                      <div className={styles.allStatsRecommendedAction}>
-                        <span
-                          className={`${styles.allStatsToolBadge} ${connected ? "" : styles.allStatsToolBadgeConnect} ${premiumLocked ? styles.actionPillPremiumLocked : ""}`}
-                          title={premiumLocked ? actionTitle : undefined}
-                          aria-label={premiumLocked ? actionTitle : undefined}
-                        >
-                          {premiumLocked ? <span className={styles.premiumLockIcon} aria-hidden="true">🔒</span> : null}
-                          {displayedTool}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        className={styles.allStatsDetailsButton}
-                        onClick={() => selectStatsPanel(model.key)}
-                        aria-label={i18nT("voir_le_detail_value_ba79238d", { value0: model.title })}
-                      >
-                        <span>{i18nT("voir_le_detail_c6565c15")}</span>
-                        <span aria-hidden="true">→</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        className={`${styles.allStatsGoButton} ${connected ? styles.allStatsGoButtonOn : styles.allStatsGoButtonConnect} ${premiumLocked ? styles.allStatsGoButtonDisabled : ""}`}
-                        onClick={() => {
-                          if (premiumLocked) return;
-                          if (actionHref && actionHref !== "#") navigateFromStats(actionHref);
-                          else scrollTo(model.key);
-                        }}
-                        disabled={premiumLocked}
-                        aria-disabled={premiumLocked || undefined}
-                        title={actionTitle}
-                      >
-                        {premiumLocked
-                          ? i18nT("stats_go_locked")
-                          : connected
-                            ? i18nT("go_bb63fc96")
-                            : <>{i18nT("go_f63f96ef")}{" "}<PlugIcon /></>}
-                      </button>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
+            <StatsOverview
+              channels={overviewChannels}
+              ready={allStatsNumbersReady}
+              connectedCount={allStatsNumbersReady ? `${connectedChannelsCount} / ${models.length}` : `— / ${models.length}`}
+              onOpenChannel={selectStatsPanel}
+              onRunAction={(channel) => {
+                if (channel.premiumLocked || channel.status === "pending") return;
+                if (channel.actionHref && channel.actionHref !== "#") navigateFromStats(channel.actionHref);
+                else selectStatsPanel(channel.key);
+              }}
+            />
           ) : activeModel ? (
             <section className={styles.channelStatsPanel} aria-label={i18nT("donnees_value_9d3b1503", { value0: activeModel.title })} aria-busy={!(opportunityReadyByCube[activeModel.key] && bulkStatsReady)}>
-              <div className={styles.channelStatsHeader}>
-                <button
-                  type="button"
-                  className={styles.channelStatsBackButton}
-                  onClick={() => selectStatsPanel("all")}
-                >
-                  <span aria-hidden="true">←</span>
-                  <span>{i18nT("vue_globale_08073c33")}</span>
-                </button>
-
-                <div className={styles.channelStatsTitleBlock}>
-                  {previousModel ? (
-                    <button
-                      type="button"
-                      className={styles.channelStatsCycleButton}
-                      onClick={() => selectStatsPanel(previousModel.key)}
-                      aria-label={`${i18nT("canal_precedent_65f40ce6")} : ${previousModel.title}`}
-                      title={`${i18nT("canal_precedent_65f40ce6")} : ${previousModel.title}`}
-                    >
-                      <span aria-hidden="true">‹</span>
-                    </button>
-                  ) : null}
-                  <div className={styles.channelStatsTitleIdentity}>
-                    <h2 className={styles.allStatsTitle}>{activeModel.title}</h2>
-                    <span className={styles.channelStatsTitleIconBubble} aria-hidden="true">
-                      <Image
-                        className={styles.channelStatsTitleIcon}
-                        src={STATS_CHANNEL_ICON_SRC[activeModel.key]}
-                        alt=""
-                        width={16}
-                        height={16}
-                      />
-                    </span>
-                  </div>
-                  {nextModel ? (
-                    <button
-                      type="button"
-                      className={styles.channelStatsCycleButton}
-                      onClick={() => selectStatsPanel(nextModel.key)}
-                      aria-label={`${i18nT("canal_suivant_7b81611d")} : ${nextModel.title}`}
-                      title={`${i18nT("canal_suivant_7b81611d")} : ${nextModel.title}`}
-                    >
-                      <span aria-hidden="true">›</span>
-                    </button>
-                  ) : null}
-                  <p className={styles.allStatsText}>{activeModel.subtitle}</p>
-                </div>
-
-                <div className={`${styles.allStatsKpis} ${styles.channelStatsKpis}`}>
-                  <div className={`${styles.allStatsKpi} ${styles.kpiToneBlue}`}>
-                    <span>{i18nT("opportunites_0dbfa3c5")}</span>
-                    <b>{stableOpportunity(activeModel.opportunity30, opportunityReadyByCube[activeModel.key])}</b>
-                  </div>
-                  <div className={`${styles.allStatsKpi} ${styles.kpiTonePurple}`}>
-                    <span>{i18nT("ca_potentiel_fc9eeae4")}</span>
-                    <b>{stableRevenue(summaryEstimatedByCube[activeModel.key] || computedEstimatedByCube[activeModel.key] || 0, opportunityReadyByCube[activeModel.key] && bulkStatsReady)}</b>
-                  </div>
-                  <div className={`${styles.allStatsKpi} ${styles.kpiToneGreen} ${styles.channelDemandesKpi}`}>
-                    <span className={styles.channelDemandesKpiLabel}>
-                      {i18nT(activeModel.key === "mails"
-                        ? "demandes_estimees_7j_30j_f40eb8d9"
-                        : "demandes_captees_7j_30j_d1d1b0de")}
-                    </span>
-                    <b>{activeModel.capturedLeadsUnavailable || !opportunityReadyByCube[activeModel.key] ? "—" : `${formatInt(activeModel.capturedLeads.week)} / ${formatInt(activeModel.capturedLeads.month)}`}</b>
-                  </div>
-                </div>
-              </div>
-
               <Cube
                 model={activeModel}
+                trend={overviewChannels.find((channel) => channel.key === activeModel.key)?.trend}
                 onNavigate={navigateFromStats}
                 forceOpen
                 hideDetailsToggle

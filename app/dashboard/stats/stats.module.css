@@ -9367,3 +9367,285 @@
   --stats-information-accent: rgba(148, 163, 184, 0.8);
   color: rgba(226, 232, 240, 0.8) !important;
 }
+
+
+/* Panorama: one shared navigator above the overview and channel details. */
+.page[data-stats-layout="panorama"] .statsWorkspace {
+  grid-template-columns: minmax(0, 1fr) !important;
+  margin-top: 0 !important;
+  min-width: 0 !important;
+}
+.page[data-stats-layout="panorama"] .statsPanel {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  gap: 0 !important;
+}
+.page[data-stats-layout="panorama"] .channelStatsHeader {
+  display: block !important;
+  flex: 0 0 auto;
+  padding: 0 0 10px !important;
+  min-height: 0 !important;
+}
+.page[data-stats-layout="panorama"] .channelStatsHeader .allStatsKpis {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+@media (min-width: 901px) {
+  .page[data-stats-layout="panorama"] {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    padding: 20px 24px !important;
+    overflow: hidden !important;
+  }
+  .page[data-stats-layout="panorama"] .header {
+    flex: 0 0 auto;
+    margin-bottom: 16px !important;
+  }
+  .page[data-stats-layout="panorama"] .statsWorkspace {
+    display: flex !important;
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: hidden !important;
+  }
+  .page[data-stats-layout="panorama"] .statsPanel {
+    flex: 1 1 0 !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: hidden !important;
+  }
+}
+@media (max-width: 900px) {
+  .page[data-stats-layout="panorama"] {
+    height: auto !important;
+    min-height: calc(100dvh - 64px) !important;
+    overflow: visible !important;
+    padding: 12px 12px calc(90px + env(safe-area-inset-bottom)) !important;
+  }
+  .page[data-stats-layout="panorama"] .statsWorkspace,
+  .page[data-stats-layout="panorama"] .statsPanel,
+  .page[data-stats-layout="panorama"] .channelStatsPanel {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
+
+/* The persistent panorama band already carries channel identity and KPIs. */
+.page[data-stats-layout="panorama"] .mobileChannelHero { display:none !important; }
+
+@media(min-width:901px) {
+  .page[data-stats-layout="panorama"] .channelStatsPanel {
+    display:flex !important; flex-direction:column !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .cubeBody {
+    min-height:0 !important; overflow:hidden !important; scrollbar-gutter:auto !important;
+  }
+}
+
+/* Panorama containment contract: content determines the small rows; only the
+   visibility/chart row consumes the remaining height. Viewport-based row heights
+   previously reduced two-line action cards to 20px. */
+.page[data-stats-layout="panorama"] .channelStatsPanel .blockTitle {
+  flex: 0 0 auto;
+  line-height: 1.2 !important;
+}
+.page[data-stats-layout="panorama"] .channelStatsPanel .metricMiniCard {
+  box-sizing: border-box;
+  min-width: 0 !important;
+  min-height: 44px !important;
+  height: auto !important;
+  max-height: none !important;
+  padding: 5px 8px !important;
+  gap: 2px !important;
+}
+.page[data-stats-layout="panorama"] .channelStatsPanel .metricMiniCard > span,
+.page[data-stats-layout="panorama"] .channelStatsPanel .metricMiniValueRow {
+  flex: 0 0 auto !important;
+  min-width: 0;
+  margin: 0 !important;
+}
+.page[data-stats-layout="panorama"] .channelStatsPanel .metricMiniCard span {
+  line-height: 1.2 !important;
+  white-space: normal !important;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+.page[data-stats-layout="panorama"] .channelStatsPanel .metricMiniValueRow {
+  flex-wrap: wrap;
+  row-gap: 2px !important;
+}
+.page[data-stats-layout="panorama"] .channelStatsPanel .metricMiniCard b,
+.page[data-stats-layout="panorama"] .channelStatsPanel .metricMiniCard small {
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.2 !important;
+  overflow-wrap: anywhere;
+}
+.page[data-stats-layout="panorama"] .channelStatsPanel .metricMiniValueRow small {
+  flex-shrink: 1 !important;
+  white-space: normal !important;
+}
+.page[data-stats-layout="panorama"] .channelStatsPanel .qualityRow > div,
+.page[data-stats-layout="panorama"] .channelStatsPanel .legendLabel,
+.page[data-stats-layout="panorama"] .channelStatsPanel .lectureBusinessContent {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.page[data-stats-layout="panorama"] .channelStatsPanel .publicationWindowCard b,
+.page[data-stats-layout="panorama"] .channelStatsPanel .publicationTypeChip b,
+.page[data-stats-layout="panorama"] .channelStatsPanel .inrcyActivityItem b {
+  line-height: 1.2 !important;
+}
+.page[data-stats-layout="panorama"] .channelStatsPanel .publicationTypeChips {
+  min-width: 0;
+  flex-wrap: wrap !important;
+}
+.page[data-stats-layout="panorama"] .channelStatsPanel .publicationTypesNote {
+  white-space: normal !important;
+}
+@media (min-width: 901px) {
+  .page[data-stats-layout="panorama"] .channelStatsPanel .cubeBody:not(.cubeBodyWithInrcyActivity) {
+    grid-template-rows: minmax(160px, 1fr) max-content max-content !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .cubeBodyWithInrcyActivity {
+    grid-template-rows: minmax(160px, 1fr) max-content max-content max-content !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .blockRow {
+    height: auto !important;
+    min-height: max-content !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .blockRow > .block {
+    height: auto !important;
+    min-height: min-content !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .block {
+    padding: 8px 10px !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .blockTitle {
+    margin-bottom: 6px !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .metricMiniGrid,
+  .page[data-stats-layout="panorama"] .channelStatsPanel .metricMiniGrid.metricMiniGridDense {
+    grid-template-rows: none !important;
+    grid-auto-rows: minmax(min-content, 1fr) !important;
+    align-items: stretch !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .blockRow .metricMiniGrid[data-metric-count="3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .blockRow .metricMiniGrid[data-metric-count="4"] {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .blockRow .metricMiniGrid {
+    flex: 1 0 auto !important;
+    height: auto !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .cubeBody .metricMiniGrid > .metricMiniCard {
+    height: auto !important;
+    min-height: 44px !important;
+    align-self: stretch !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .qualityRow .ring {
+    flex: 0 0 52px !important;
+    width: 52px !important;
+    height: 52px !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .qualityRow .ringInner {
+    width: 40px !important;
+    height: 40px !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .cubeBody .inrcyActivityBlock {
+    height: auto !important;
+    min-height: min-content !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .inrcyActivityItems,
+  .page[data-stats-layout="panorama"] .channelStatsPanel .inrcyActivityItem {
+    height: auto !important;
+    min-height: min-content !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .publicationWindowCard {
+    padding: 5px 8px !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .publicationTypesPanel {
+    height: auto !important;
+    min-height: min-content !important;
+    padding: 5px 10px !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .lectureBusinessActionBlock {
+    height: auto !important;
+    min-height: min-content !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .bullets {
+    display: block !important;
+    max-height: none !important;
+    overflow: visible !important;
+    -webkit-line-clamp: unset !important;
+    line-height: 1.35 !important;
+  }
+}
+@media (min-width: 901px) and (max-height: 820px) {
+  .page[data-stats-layout="panorama"] .channelStatsPanel .cube_mails .cubeBodyWithInrcyActivity {
+    grid-template-rows: minmax(130px, 1fr) max-content max-content max-content !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .block {
+    padding: 6px 8px !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .blockTitle {
+    margin-bottom: 4px !important;
+    font-size: 10px !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .cubeBody .metricMiniGrid > .metricMiniCard {
+    min-height: 39px !important;
+    padding-block: 3px !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .metricMiniCard b {
+    font-size: 14px !important;
+  }
+}
+
+
+/* Let format chips use the full width before adding another row. */
+@media (min-width: 901px) and (max-width: 1200px) {
+  .page[data-stats-layout="panorama"] .channelStatsPanel .publicationTypesPanel {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: center !important;
+    gap: 4px !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .publicationTypesLabel {
+    margin: 0 !important;
+    line-height: 1.2 !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .publicationTypeChips {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    gap: 4px !important;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1200px) and (max-height: 820px) {
+  .page[data-stats-layout="panorama"] .channelStatsPanel .publicationTypeChip,
+  .page[data-stats-layout="panorama"] .channelStatsPanel .publicationTypesNote {
+    min-height: 0 !important;
+    padding: 2px 6px !important;
+    line-height: 1.2 !important;
+  }
+  .page[data-stats-layout="panorama"] .channelStatsPanel .publicationTypeChip b {
+    font-size: 11px !important;
+  }
+}

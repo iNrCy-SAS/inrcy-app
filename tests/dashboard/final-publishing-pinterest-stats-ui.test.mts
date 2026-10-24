@@ -143,7 +143,7 @@ test("iNrStats channel panels use the global column width while zoom reflow stay
   const css = read("app/dashboard/stats/stats.module.css");
 
   assert.match(client, /styles\.statsWorkspaceChannel/);
-  assert.match(client, /data-stats-view=\{activeStatsPanel === "all" \? "global" : "channel"\}/);
+  assert.match(client, /data-stats-view=\{activeStatsPanel === "all" \? "global" : activeStatsPanel === "evolution" \? "evolution" : "channel"\}/);
   assert.match(
     css,
     /\.statsWorkspaceChannel \.channelStatsHeader[\s\S]*?grid-template-columns: minmax\(0, 1fr\) !important/,
@@ -164,158 +164,40 @@ test("iNrStats channel panels use the global column width while zoom reflow stay
   assert.match(css, /overflow-x: hidden !important;[\s\S]*?overflow-y: visible !important/);
 });
 
-test("iNrStats uses a full-width master/detail table on desktop", () => {
+test("iNrStats opens on a channel mosaic in the shared swipe journey", () => {
   const client = read("app/dashboard/stats/StatsClient.tsx");
-  const css = read("app/dashboard/stats/stats.module.css");
-
-  assert.doesNotMatch(client, /<aside className=\{styles\.statsRail\}/);
-  assert.match(client, /className=\{styles\.allStatsDetailsButton\}[\s\S]*?selectStatsPanel\(model\.key\)/);
-  assert.match(client, /className=\{styles\.channelStatsBackButton\}[\s\S]*?selectStatsPanel\("all"\)/);
-  assert.match(css, /\.statsRail \{[\s\S]*?display: none !important;/);
-  assert.match(css, /max-width: none !important;/);
-  assert.match(
-    css,
-    /\.allStatsActionCard \{[\s\S]*?grid-template-columns:[\s\S]*?minmax\(116px, 0\.58fr\)[\s\S]*?minmax\(58px, 0\.3fr\) !important;/,
-  );
+  const overview = read("app/dashboard/stats/StatsOverview.tsx");
+  const navigator = read("app/dashboard/stats/StatsViewNavigator.tsx");
+  assert.match(client, /useState<StatsPanelKey>\("all"\)/);
+  assert.match(client, /<StatsViewNavigator[\s\S]*?<StatsOverview/);
+  assert.doesNotMatch(client, /className=\{styles\.allStatsPanel\}/);
+  assert.match(overview, /onClick=\{\(\) => onOpenChannel\(channel\.key\)\}/);
+  assert.match(navigator, /onClick=\{\(\) => onSelect\("all"\)\}/);
 });
 
-test("iNrStats keeps its taller global summary and all channel rows compact without desktop overflow", () => {
+test("iNrStats places global indicators in the navigation band and keeps channel cards compact", () => {
   const client = read("app/dashboard/stats/StatsClient.tsx");
-  const css = read("app/dashboard/stats/stats.module.css");
-  const globalWorkspace = '.statsWorkspace[data-stats-view="global"]';
-  const globalHero = `${globalWorkspace} .allStatsHero`;
-  const globalActions = `${globalWorkspace} .allStatsActions`;
-  const globalRow = `${globalWorkspace} .allStatsActionCard`;
-
-  assert.match(client, /className=\{styles\.allStatsTitle\}>\{i18nT\("vue_globale_08073c33"\)\}/);
-  assert.match(client, /<div className=\{styles\.allStatsKpis\}>[\s\S]*?<button[\s\S]*?className=\{styles\.allStatsReportButton\}/);
-
-  const heroHeight = Number.parseFloat(
-    lastCssDeclaration(css, globalHero, "min-height"),
-  );
-  assert.ok(
-    heroHeight >= 56,
-    `Expected the final desktop hero to be at least 56px high, got ${heroHeight}px`,
-  );
-
-  const rowGrid = lastCssDeclaration(
-    css,
-    globalRow,
-    "grid-template-columns",
-  );
-  const fixedFirstTrack = rowGrid.match(/^(\d+(?:\.\d+)?)px\b/);
-  const flexibleFirstTrack = rowGrid.match(
-    /^minmax\((\d+(?:\.\d+)?)px,\s*(\d+(?:\.\d+)?)fr\)/,
-  );
-  assert.ok(
-    fixedFirstTrack || flexibleFirstTrack,
-    "Expected the desktop channel row to start with a fixed or minmax() pixel track",
-  );
-  const firstTrackPixels = Number(
-    fixedFirstTrack?.[1] ?? flexibleFirstTrack?.[1],
-  );
-  const firstTrackFraction = Number(flexibleFirstTrack?.[2] ?? 0);
-  assert.ok(
-    firstTrackPixels <= 160 && firstTrackFraction <= 0.9,
-    `Expected a tightened first track (at most 160px / 0.9fr), got ${fixedFirstTrack?.[0] ?? flexibleFirstTrack?.[0]}`,
-  );
-  assert.equal(
-    rowGrid.replace(/\s*!important$/, "").match(/minmax\([^)]*\)|auto|\d+(?:\.\d+)?px/g)?.length,
-    5,
-    "Expected the compact desktop channel row to retain its five columns",
-  );
-
-  assert.match(lastCssDeclaration(css, ".page", "overflow"), /^hidden\b/);
-  assert.match(lastCssDeclaration(css, globalWorkspace, "overflow-x"), /^hidden\b/);
-  assert.match(lastCssDeclaration(css, globalWorkspace, "overflow-y"), /^hidden\b/);
-  assert.match(lastCssDeclaration(css, globalActions, "overflow-x"), /^hidden\b/);
-  assert.match(lastCssDeclaration(css, globalActions, "overflow-y"), /^hidden\b/);
-  assert.ok(
-    cssDeclarations(css, globalActions, "grid-auto-rows").some((value) =>
-      /^minmax\(44px,\s*1fr\)/.test(value),
-    ),
-    "Expected the normal desktop rows to retain their compact 44px floor",
-  );
+  const overview = read("app/dashboard/stats/StatsOverview.tsx");
+  assert.match(client, /summary=\{[\s\S]*?<StatsOverviewMetrics/);
+  assert.match(overview, /className=\{css\.cardInsight\}/);
+  assert.doesNotMatch(overview, /<details|quickDetails/);
+  assert.doesNotMatch(overview, /Math\.random|fake|dummy|mock/);
 });
 
-test("iNrStats keeps every row readable when browser zoom reduces the desktop height", () => {
-  const css = read("app/dashboard/stats/stats.module.css");
-  const marker = "/* iNrStats — sécurité finale au zoom navigateur.";
-  const zoomSafety = css.slice(css.lastIndexOf(marker));
-
-  assert.notEqual(zoomSafety, css, "Expected the final browser-zoom safety block");
-  assert.match(
-    zoomSafety,
-    /@media \(min-width: 901px\) and \(max-height: 960px\)/,
-  );
-  assert.match(
-    zoomSafety,
-    /\.page \.statsWorkspace\[data-stats-view="global"\] \.allStatsActions \{[\s\S]*?grid-auto-rows: minmax\(44px, 1fr\) !important;[\s\S]*?overflow-y: auto !important;/,
-  );
-  assert.match(
-    zoomSafety,
-    /\.page \.statsWorkspace\[data-stats-view="global"\] \.allStatsActionCard \{[\s\S]*?min-height: 44px !important;/,
-  );
-  assert.match(
-    zoomSafety,
-    /\.page \.statsWorkspaceChannel \.channelStatsPanel \.cubeBody,[\s\S]*?overflow-y: auto !important;/,
-  );
-  assert.match(
-    zoomSafety,
-    /\.allStatsActions::\-webkit-scrollbar \{[\s\S]*?display: block !important;/,
-  );
+test("iNrStats keeps an adaptive desktop mosaic and a single mobile column", () => {
+  const css = read("app/dashboard/stats/statsPanorama.module.css");
+  assert.match(css, /height:calc\(\(100% - \(var\(--rows\) - 1\) \* var\(--card-gap\)\) \/ var\(--rows\)\)/);
+  assert.match(css, /@media\(max-width:600px\)[\s\S]*?flex-basis:100%/);
+  assert.match(css, /cardInsight/);
+  assert.match(css, /prefers-reduced-motion:reduce|prefers-reduced-motion: reduce/);
 });
 
-test("iNrStats detail keeps the direct back action, prominent channel title and KPIs on one desktop header row", () => {
+test("channel views preserve real detail data and use the same global-inclusive navigator", () => {
   const client = read("app/dashboard/stats/StatsClient.tsx");
-  const css = read("app/dashboard/stats/stats.module.css");
-
-  assert.match(
-    client,
-    /<div className=\{styles\.channelStatsHeader\}>\s*<button[\s\S]*?className=\{styles\.channelStatsBackButton\}[\s\S]*?onClick=\{\(\) => selectStatsPanel\("all"\)\}[\s\S]*?<\/button>\s*<div className=\{styles\.channelStatsTitleBlock\}>/,
-  );
-  assert.match(
-    client,
-    /<div className=\{styles\.channelStatsTitleBlock\}>[\s\S]*?<h2 className=\{styles\.allStatsTitle\}>\{activeModel\.title\}<\/h2>[\s\S]*?<\/div>\s*<div className=\{`\$\{styles\.allStatsKpis\} \$\{styles\.channelStatsKpis\}/,
-  );
-  const titleBlockStart = client.indexOf('<div className={styles.channelStatsTitleBlock}>');
-  const titleBlockEnd = client.indexOf('</div>', titleBlockStart);
-  const titleBlock = client.slice(titleBlockStart, titleBlockEnd);
-  assert.doesNotMatch(titleBlock, /canal_actif_09801074|allStatsEyebrow/);
-  assert.match(titleBlock, /activeModel\.title[\s\S]*?channelStatsTitleIconBubble/);
-
-  const headerGrid = lastCssDeclaration(
-    css,
-    ".statsWorkspaceChannel .channelStatsHeader",
-    "grid-template-columns",
-  );
-  assert.match(
-    headerGrid,
-    /^(?:auto|minmax\([^)]*\))\s+(?:auto|minmax\([^)]*\))\s+(?:auto|minmax\([^)]*\))\s*!important$/,
-    "Expected the final desktop detail header to keep back, title and KPIs on three columns",
-  );
-  assert.match(
-    lastCssDeclaration(
-      css,
-      ".statsWorkspaceChannel .channelStatsHeader > .channelStatsTitleBlock",
-      "grid-column",
-    ),
-    /^2\b/,
-  );
-  assert.match(
-    lastCssDeclaration(
-      css,
-      ".statsWorkspaceChannel .channelStatsHeader > .channelStatsTitleBlock",
-      "text-align",
-    ),
-    /^center\b/,
-  );
-  assert.match(
-    lastCssDeclaration(
-      css,
-      ".statsWorkspaceChannel .channelStatsHeader .channelStatsKpis",
-      "grid-column",
-    ),
-    /^3\b/,
-  );
+  const navigator = read("app/dashboard/stats/StatsViewNavigator.tsx");
+  assert.match(client, /<Cube[\s\S]*?model=\{activeModel\}/);
+  assert.match(client, /trend=\{overviewChannels\.find/);
+  assert.doesNotMatch(client, /previousModel|nextModel|activeModelIndex/);
+  assert.match(navigator, /statsSwipeDirection/);
+  assert.match(navigator, /event\.key === "Home"/);
 });

@@ -58,10 +58,14 @@ export function isHiddenRefusedPublication(action: RefusedPublicationReference, 
   return action.status === "refused" && (publicationScheduledTimestamp(action) === null || hasPublicationSchedulePassed(action, nowTimestamp));
 }
 
-export function canRestoreRefusedPublication(action: RefusedPublicationReference | null | undefined, nowTimestamp: number) {
-  return Boolean(action && action.status === "refused" && action.automationKey === "publish"
+export function canReopenPublicationValidation(action: RefusedPublicationReference | null | undefined, nowTimestamp: number) {
+  return Boolean(action && ["refused", "validated", "scheduled"].includes(String(action.status)) && action.automationKey === "publish"
     && action.actionType === "publication" && action.targetTool === "booster" && !action.completedAt
     && action.validationRequired !== false && action.executionPolicy !== "automatic_after_settings"
     && nowTimestamp > 0 && publicationScheduledTimestamp(action) !== null
     && !hasPublicationSchedulePassed(action, nowTimestamp));
+}
+
+export function canRestoreRefusedPublication(action: RefusedPublicationReference | null | undefined, nowTimestamp: number) {
+  return action?.status === "refused" && canReopenPublicationValidation(action, nowTimestamp);
 }

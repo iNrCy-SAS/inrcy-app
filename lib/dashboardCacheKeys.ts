@@ -1,5 +1,6 @@
 /** Reproducible browser snapshots for the single website channel catalogue. */
 export const DASHBOARD_CACHE_KEYS = {
+  statsEvolution: "inrcy_stats_evolution_snapshot_v1",
   generatorKpis: "inrcy_generator_kpis_v2",
   opportunityTotal: "inrcy_opp30_total_v2",
   lastChannelSync: "inrcy_stats_last_channel_sync_v2",
