@@ -4,6 +4,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { validateBoosterDocumentSelection, normalizeBoosterDocumentReferences, BOOSTER_DOCUMENT_MAX_BYTES } from "../../lib/boosterDocumentAttachmentPolicy.ts";
 import { decodeAiDocumentText, extractOfficeDocumentText } from "../../lib/aiOfficeDocumentText.ts";
+import { getAiFeaturePolicy } from "../../lib/aiGatewayPolicy.ts";
 import { buildBoosterGenerationRequest } from "../../lib/boosterGenerationTransportClient.ts";
 import { readBoosterGenerationRequest } from "../../lib/boosterGenerationRequestTransport.ts";
 
@@ -115,4 +116,14 @@ test("the AI route enforces the document policy and consumes both workspace fami
   assert.match(route, /for \(const document of documentReferences\)/);
   assert.match(route, /allowMixedMedia: true/);
   assert.match(route, /AI_REFERENCE_MAX_COUNT/);
+});
+
+
+test("Booster gateway policies accept five photos and three video keyframes while Agent keeps its existing limit", () => {
+  for (const feature of ["booster.publish", "booster.media-understanding"] as const) {
+    assert.equal(getAiFeaturePolicy(feature).maxImages, 8);
+  }
+  for (const feature of ["agent.publish", "agent.media-understanding"] as const) {
+    assert.equal(getAiFeaturePolicy(feature).maxImages, 5);
+  }
 });
