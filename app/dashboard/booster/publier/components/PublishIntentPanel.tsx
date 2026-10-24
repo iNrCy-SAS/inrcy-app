@@ -412,7 +412,7 @@ export default function PublishIntentPanel({
               video={{ onSelect: onPickVideoClick, disabled: pickVideoDisabled,
                 disabledReason: hasImages ? i18nT("generation_video_blocked_by_images") : pickVideoDisabled ? i18nT("generation_video_limit") : undefined,
                 detail: `${getLocalizedBoosterVideoLimits(runtimeT)} · ${getLocalizedBoosterVideoFormats(runtimeT)} · ${getLocalizedBoosterRecommendedVideoDuration(runtimeT)}` }}
-              camera={isMobile ? { onSelect: onTakePhotoClick, disabled: cameraDisabled, disabledReason: i18nT("generation_images_limit", { count: BOOSTER_MAX_IMAGE_COUNT }) } : undefined}
+              camera={isMobile ? { onSelect: onTakePhotoClick, disabled: cameraDisabled, disabledReason: hasVideoMedia ? i18nT("generation_images_blocked_by_video") : i18nT("generation_images_limit", { count: BOOSTER_MAX_IMAGE_COUNT }) } : undefined}
             />
           </div>
           <div className={css.referenceThumbnails} data-wizard-reference-media>
