@@ -8379,7 +8379,7 @@ export default function PublishModal({
         nextDisabled={nextWizardStep ? !canOpenWizardStep(nextWizardStep) : false}
         footer={activeWizardStep === "intention" ? (
           <div ref={setIntentActionsContainer} className={wizardStyles.intentActions} />
-        ) : activeWizardStep === "content" ? <div ref={setContentActionsContainer} /> : activeWizardStep === "control" ? publicationActions : activeWizardStep === "results" && publicationResult ? <PublishExecutionResultActions {...publicationResult} summary={publicationSummaryForActions} compact /> : undefined}
+        ) : activeWizardStep === "content" ? <div ref={setContentActionsContainer} /> : activeWizardStep === "control" ? publicationActions : activeWizardStep === "results" && publicationResult ? <PublishExecutionResultActions {...publicationResult} summary={publicationSummaryForActions} publicationDestinations={publicationVisualDestinations} compact /> : undefined}
       >
         <PublishWizardScreen active={activeWizardStep === "mode" || activeWizardStep === "channels"} step="channels">
           <div className={wizardStyles.preparation}>

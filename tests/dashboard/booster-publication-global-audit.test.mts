@@ -41,7 +41,7 @@ test("stage 3 keeps TikTok video transfer on file upload and exposes real status
 
 test("stage 4 keeps partial results, retry scope and mobile modal state", () => {
   assert.match(resultModal, /failureCount/);
-  assert.match(resultModal, /\$\{publishedCount\}\/\$\{visualTotalCount\} publié/);
+  assert.match(resultModal, /\$\{publishedCount\}\/\$\{totalCount\} publié/);
   assert.match(resultModal, /<strong>\{failedOrSkippedCount\}<\/strong><span>à revoir<\/span>/);
   assert.match(resultModal, /getPublicationDestinationStatus\(entry\) === "failed" && entry\.retryable !== false/);
   assert.match(resultModal, /i18nT\("retenter_value_value_en_echec_b7d1f934"/);

@@ -51,6 +51,9 @@ const Actions = resultModule.PublishExecutionResultActions;
 const render = (summary: Record<string, unknown> | null, options: Record<string, unknown> = {}) => renderToStaticMarkup(createElement(Component, {
   styles: {}, summary, onClose() {}, onOpenInrSend() {}, ...options,
 }));
+const renderCompactActions = (summary: Record<string, unknown> | null, publicationDestinations: Array<{ key: string; label: string }> = []) => renderToStaticMarkup(createElement(Actions, {
+  summary, publicationDestinations, compact: true, onRetryFailed() {}, onOpenInrSend() {},
+}));
 
 test("result renders real published channels, their logos and external destination without duplicating the CTA", () => {
   const html = render({ successCount: 1, entries: [{ channel: "facebook", label: "Facebook", ok: true, status: "published" }], channelLinks: { facebook: "https://www.facebook.com/example/posts/1" } }, { wizardSteps: ["channels", "content", "publication"] });
@@ -105,12 +108,18 @@ test("failed, skipped and warning outcomes remain distinct and an absent summary
   assert.doesNotMatch(empty, /avec succès|publication[s]? en ligne|Tout est en ligne/);
 });
 
-test("embedded results render the balance once without creating another dialog, wizard or action bar", () => {
-  const html = render({ successCount: 1, retryableFailureCount: 1, entries: [
+test("embedded results leave the single publication recap to the compact footer without another dialog or action bar", () => {
+  const summary = { successCount: 1, retryableFailureCount: 1, entries: [
     { channel: "site_web", label: "Site Web", ok: true, status: "published" },
-  ] }, { embedded: true, wizardSteps: ["channels", "content", "results"], onRetryFailed() {} });
+  ] };
+  const destinations = [{ key: "site_web", label: "Site Web" }];
+  const html = render(summary, { embedded: true, publicationDestinations: destinations, wizardSteps: ["channels", "content", "results"], onRetryFailed() {} });
+  const footer = renderCompactActions(summary, destinations);
   assert.match(html, /class="resultBody immersive" data-result-tone="published"/);
-  assert.equal((html.match(/1\/1 publié/g) || []).length, 1);
+  assert.doesNotMatch(html, /1\/1 publié|data-publication-hub-summary/);
+  assert.equal((footer.match(/1\/1 publié/g) || []).length, 1);
+  assert.equal((footer.match(/data-publication-hub-summary/g) || []).length, 1);
+  assert.match(footer, /data-publication-result-footer/);
   assert.match(html, /Site Web — Publié/);
   assert.equal((html.match(/data-publication-visual-hub/g) || []).length, 1);
   assert.doesNotMatch(html, /class="channelGrid"|class="channelCard"/);
@@ -127,8 +136,11 @@ test("the shared result hub keeps all eleven destinations in their initial order
     ["pinterest", "Pinterest"], ["x", "X"],
   ].map(([key, label]) => ({ key, label }));
   const entries = destinations.map(({ key, label }, index) => ({ channel: key, label, ok: index !== 1, status: index === 1 ? "failed" : "published", error: index === 1 ? "Une erreur empêche la publication." : null })).reverse();
-  const html = render({ successCount: 10, failureCount: 1, entries, channelLinks: { facebook: "https://www.facebook.com/example/posts/1" } }, { embedded: true, publicationDestinations: destinations });
-  assert.match(html, /10\/11 publiés/);
+  const summary = { successCount: 10, failureCount: 1, entries, channelLinks: { facebook: "https://www.facebook.com/example/posts/1" } };
+  const html = render(summary, { embedded: true, publicationDestinations: destinations });
+  const footer = renderCompactActions(summary, destinations);
+  assert.doesNotMatch(html, /10\/11 publiés|data-publication-hub-summary/);
+  assert.equal((footer.match(/10\/11 publiés/g) || []).length, 1);
   assert.match(html, /Bilan prêt/);
   assert.equal((html.match(/<li\b/g) || []).length, 11);
   const renderedOrder = [...html.matchAll(/<li\b[^>]+data-channel="([^"]+)"/g)].map((match) => match[1]);
@@ -140,17 +152,22 @@ test("the shared result hub keeps all eleven destinations in their initial order
   assert.match(html, /aria-label="Voir Facebook"/);
   assert.match(html, /class="corePercent">100<span>%/);
   assert.doesNotMatch(html, /11\/11 publiés|Tout est en ligne/);
+  assert.doesNotMatch(footer, /11\/11 publiés|Tout est en ligne/);
 });
 
 test("result aliases reuse their original destination and pending or missing channels never count as published", () => {
-  const html = render({ successCount: 2, pendingCount: 1, entries: [
+  const summary = { successCount: 2, pendingCount: 1, entries: [
     { channel: "youtube", label: "YouTube", ok: true, status: "published" },
     { channel: "google_business", label: "Google Business", ok: true, status: "processing" },
-  ] }, { embedded: true, publicationDestinations: [
+  ] };
+  const destinations = [
     { key: "gmb", label: "Google Business" }, { key: "youtube_shorts", label: "YouTube" }, { key: "x", label: "X" },
-  ] });
+  ];
+  const html = render(summary, { embedded: true, publicationDestinations: destinations });
+  const footer = renderCompactActions(summary, destinations);
   assert.equal((html.match(/<li\b/g) || []).length, 3);
-  assert.match(html, /1\/3 publié/);
+  assert.doesNotMatch(html, /1\/3 publié|data-publication-hub-summary/);
+  assert.equal((footer.match(/1\/3 publié/g) || []).length, 1);
   assert.match(html, /Bilan prêt/);
   assert.match(html, /data-complete="false"/);
   assert.match(html, /Google Business — En attente/);
@@ -158,7 +175,7 @@ test("result aliases reuse their original destination and pending or missing cha
   assert.equal((html.match(/<li\b[^>]+data-status="published"/g) || []).length, 1);
   assert.equal((html.match(/<li\b[^>]+data-status="pending"/g) || []).length, 2);
   assert.match(html, /X — En attente/);
-  assert.match(html, /<strong>2<\/strong><span>en traitement/);
+  assert.match(footer, /<strong>2<\/strong><span>en traitement/);
 });
 
 test("unknown results stay pending while confirmed technical outcomes retain their real state", () => {
@@ -175,8 +192,40 @@ test("unknown results stay pending while confirmed technical outcomes retain the
     assert.match(html, /Google Business — Publié/);
     assert.match(html, /Pinterest — Échec/);
     assert.doesNotMatch(html, /Facebook — Publié|TikTok — Publié|Pinterest — Publié/);
-    assert.match(html, embedded ? /1\/4 publié/ : /1 publication en ligne/);
+    if (embedded) {
+      assert.doesNotMatch(html, /1\/4 publié|data-publication-hub-summary/);
+      assert.match(renderCompactActions(summary), /1\/4 publié/);
+    } else {
+      assert.match(html, /1 publication en ligne/);
+    }
   }
+});
+
+test("the compact footer updates real publication counts and retry eligibility after a polled result changes", () => {
+  const destinations = [{ key: "tiktok", label: "TikTok" }];
+  const pending = { publicationId: "job-pending", successCount: 1, pendingCount: 1, entries: [
+    { channel: "tiktok", label: "TikTok", ok: true, status: "processing" },
+  ] };
+  const before = renderCompactActions(pending, destinations);
+  assert.match(before, /0\/1 publié/);
+  assert.match(before, /<strong>1<\/strong><span>en traitement/);
+  assert.doesNotMatch(before, /class="retryButton"/);
+
+  const published = resultModule.mergePublicationResultSnapshot(pending, { entries: [
+    { channel: "tiktok", label: "TikTok", ok: true, status: "published" },
+  ] }, "job-pending");
+  const after = renderCompactActions(published, destinations);
+  assert.match(after, /1\/1 publié/);
+  assert.doesNotMatch(after, /en traitement|class="retryButton"/);
+
+  const failed = resultModule.mergePublicationResultSnapshot(pending, { entries: [
+    { channel: "tiktok", label: "TikTok", ok: false, status: "failed", retryable: true },
+  ] }, "job-pending");
+  const failureFooter = renderCompactActions(failed, destinations);
+  assert.match(failureFooter, /0\/1 publié/);
+  assert.match(failureFooter, /class="retryButton"/);
+  assert.match(failureFooter, /aria-label="Retenter 1 canal en échec"/);
+  assert.doesNotMatch(failureFooter, /en traitement/);
 });
 
 test("exported result actions preserve retry eligibility, busy state and the iNrSend callback", () => {
@@ -186,6 +235,7 @@ test("exported result actions preserve retry eligibility, busy state and the iNr
   const ready = renderActions();
   assert.equal((ready.match(/class="inrSendButton"/g) || []).length, 1);
   assert.match(ready, /Retenter 2 canaux en échec/);
+  assert.doesNotMatch(ready, /data-publication-hub-summary|class="footerRecap"/);
   assert.doesNotMatch(ready, /disabled=""/);
   assert.match(renderActions({ retrying: true }), /class="retryButton" disabled="" aria-busy="true"/);
   assert.doesNotMatch(renderActions({ summary: { retryableFailureCount: 0 } }), /class="retryButton"/);

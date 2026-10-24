@@ -554,7 +554,9 @@ test("le cockpit reflète le parcours communication et les bilans utilisent le b
   );
   assert.doesNotMatch(publicationResultModalSource, /canal\$\{[^\n]*"aux/);
   assert.match(publicationResultModalSource, /\$\{publishedCount\} publication\$\{publishedCount > 1 \? "s" : ""\} en ligne/);
-  assert.match(publicationResultModalSource, /\$\{publishedCount\}\/\$\{visualTotalCount\} publié\$\{publishedCount > 1 \? "s" : ""\}/);
+  assert.match(publicationResultModalSource, /\$\{publishedCount\}\/\$\{totalCount\} publié\$\{publishedCount > 1 \? "s" : ""\}/);
+  assert.match(publicationResultModalSource, /data-publication-result-footer>[\s\S]*<PublicationResultSummary summary=\{summary\} publicationDestinations=\{publicationDestinations\} compact/);
+  assert.match(publicationResultModalSource, /!embedded \? <PublicationResultSummary/);
   assert.match(publicationResultModalSource, /retryableFailureCount > 1 \? "canaux" : "canal"/);
 });
 

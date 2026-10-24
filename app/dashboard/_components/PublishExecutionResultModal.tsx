@@ -115,25 +115,114 @@ export function mergePublicationResultSnapshot(
   };
 }
 
+function getPublicationResultCounts(
+  effectiveSummary: PublishExecutionSummary | null | undefined,
+  publicationDestinations?: readonly PublicationProgressDestination[],
+) {
+  const failureCount = Number(effectiveSummary?.failureCount || 0);
+  const successCount = Number(effectiveSummary?.successCount || 0);
+  const allFailed = Boolean(effectiveSummary?.allFailed);
+  const entries = Array.isArray(effectiveSummary?.entries) ? effectiveSummary.entries : [];
+  const warningCount = Math.max(
+    Number(effectiveSummary?.warningCount || 0),
+    entries.filter((entry) => getPublicationDestinationStatus(entry) === "warning").length,
+  );
+  const entriesByChannel = new Map(entries.map((entry) => [publicationChannelKey(entry.channel), entry]));
+  const destinationsByChannel = new Map((publicationDestinations || []).map((destination) => [publicationChannelKey(destination.key), destination]));
+  const destinationKeys = [...new Set([...destinationsByChannel.keys(), ...entriesByChannel.keys()])];
+  const missingDestinationCount = destinationKeys.filter((key) => !entriesByChannel.has(key)).length;
+  const pendingCount = Math.max(
+    Number(effectiveSummary?.pendingCount || 0),
+    entries.filter(isPendingPublicationEntry).length + missingDestinationCount,
+  );
+  const skippedCount = Math.max(
+    Number(effectiveSummary?.skippedCount || 0),
+    entries.filter((entry) => getPublicationDestinationStatus(entry) === "skipped").length,
+  );
+  const publishedEntryCount = entries.filter(
+    (entry) => ["published", "warning"].includes(getPublicationDestinationStatus(entry)),
+  ).length;
+  const failedEntryCount = entries.filter(
+    (entry) => getPublicationDestinationStatus(entry) === "failed",
+  ).length;
+  const publishedCount = entries.length
+    ? publishedEntryCount
+    : Math.max(0, successCount - pendingCount);
+  const failedOrSkippedCount = Math.max(failureCount, failedEntryCount) + skippedCount;
+  const totalCount = Math.max(
+    entries.length,
+    publishedCount + pendingCount + failedOrSkippedCount,
+    1,
+  );
+  const hasPublishedChannels = publishedCount > 0;
+  return { failureCount, allFailed, entries, warningCount, entriesByChannel, destinationsByChannel, destinationKeys, pendingCount, publishedCount, failedOrSkippedCount, totalCount, hasPublishedChannels };
+}
+
+function PublicationResultSummary({ summary, publicationDestinations, compact = false, titleId }: {
+  summary: PublishExecutionSummary | null | undefined;
+  publicationDestinations?: readonly PublicationProgressDestination[];
+  compact?: boolean;
+  titleId?: string;
+}) {
+  const { publishedCount, totalCount, pendingCount, failedOrSkippedCount, warningCount, hasPublishedChannels } = getPublicationResultCounts(summary, publicationDestinations);
+  const overallTitle = hasPublishedChannels ? `${publishedCount} publication${publishedCount > 1 ? "s" : ""} en ligne` : "Bilan de publication";
+  return (
+    <div className={resultCss.overview} data-publication-hub-summary={compact || undefined} role="status" aria-live="polite" aria-atomic="true">
+      <header className={resultCss.hero}>
+        <div className={resultCss.headline} data-success={hasPublishedChannels || undefined}>
+          {hasPublishedChannels ? <span className={resultCss.overallSuccess} aria-hidden="true">🎉</span> : null}
+          <h2 id={titleId}>{compact ? `${publishedCount}/${totalCount} publié${publishedCount > 1 ? "s" : ""}` : overallTitle}</h2>
+        </div>
+      </header>
+
+      {pendingCount > 0 || failedOrSkippedCount > 0 || warningCount > 0 || !publishedCount ? <div className={resultCss.summary} aria-label="État des publications">
+        <div className={resultCss.summaryCounts}>
+          {pendingCount > 0 ? (
+            <div className={resultCss.metric} data-tone="pending">
+              <span className={resultCss.metricIcon} aria-hidden="true">◷</span>
+              <strong>{pendingCount}</strong><span>en traitement</span>
+            </div>
+          ) : null}
+          {failedOrSkippedCount > 0 ? (
+            <div className={resultCss.metric} data-tone="failed">
+              <span className={resultCss.metricIcon} aria-hidden="true">!</span>
+              <strong>{failedOrSkippedCount}</strong><span>à revoir</span>
+            </div>
+          ) : null}
+          {warningCount > 0 ? (
+            <div className={resultCss.metric} data-tone="warning">
+              <span className={resultCss.metricIcon} aria-hidden="true">!</span>
+              <strong>{warningCount}</strong><span>avertissement{warningCount > 1 ? "s" : ""}</span>
+            </div>
+          ) : null}
+          {!publishedCount && !pendingCount && !failedOrSkippedCount ? <p className={resultCss.emptySummary}>Consultez le suivi détaillé dans iNrSend.</p> : null}
+        </div>
+      </div> : null}
+    </div>
+  );
+}
+
 export function PublishExecutionResultActions({
   summary,
   onOpenInrSend,
   onRetryFailed,
   retrying = false,
   compact = false,
+  publicationDestinations,
 }: {
   summary: PublishExecutionSummary | null | undefined;
   onOpenInrSend: () => void;
   onRetryFailed?: () => void | Promise<void>;
   retrying?: boolean;
   compact?: boolean;
+  publicationDestinations?: readonly PublicationProgressDestination[];
 }) {
   const i18nT = useTranslations("booster");
   const retryableFailureCount = summary?.entries?.length
     ? summary.entries.filter((entry) => getPublicationDestinationStatus(entry) === "failed" && entry.retryable !== false).length
     : Math.max(0, Number(summary?.retryableFailureCount || 0));
 
-  return (
+  const actions = (
     <div className={resultCss.actions} data-publish-result-actions data-compact={compact}>
       {onRetryFailed && retryableFailureCount > 0 ? (
         <button
@@ -156,6 +245,16 @@ export function PublishExecutionResultActions({
         <span>{i18nT("voir_dans_inr_send_a74cc9ea")}</span>
         <span aria-hidden="true">→</span>
       </button>
+    </div>
+  );
+
+  if (!compact) return actions;
+  return (
+    <div className={resultCss.resultFooter} data-publication-result-footer>
+      <div className={resultCss.resultFooterLayout}>
+        <PublicationResultSummary summary={summary} publicationDestinations={publicationDestinations} compact />
+        {actions}
+      </div>
     </div>
   );
 }
@@ -501,48 +600,10 @@ export default function PublishExecutionResultModal({
   }, [liveSummary, summary, onSummaryChange]);
 
   const effectiveSummary = liveSummary || summary;
-  const failureCount = Number(effectiveSummary?.failureCount || 0);
-  const successCount = Number(effectiveSummary?.successCount || 0);
-  const allFailed = Boolean(effectiveSummary?.allFailed);
-  const entries = Array.isArray(effectiveSummary?.entries) ? effectiveSummary.entries : [];
-  const warningCount = Math.max(
-    Number(effectiveSummary?.warningCount || 0),
-    entries.filter((entry) => getPublicationDestinationStatus(entry) === "warning").length,
-  );
-  const entriesByChannel = new Map(entries.map((entry) => [publicationChannelKey(entry.channel), entry]));
-  const destinationsByChannel = new Map((publicationDestinations || []).map((destination) => [publicationChannelKey(destination.key), destination]));
-  const destinationKeys = [...new Set([...destinationsByChannel.keys(), ...entriesByChannel.keys()])];
-  const missingDestinationCount = destinationKeys.filter((key) => !entriesByChannel.has(key)).length;
-  const pendingCount = Math.max(
-    Number(effectiveSummary?.pendingCount || 0),
-    entries.filter(isPendingPublicationEntry).length + missingDestinationCount,
-  );
-  const skippedCount = Math.max(
-    Number(effectiveSummary?.skippedCount || 0),
-    entries.filter((entry) => getPublicationDestinationStatus(entry) === "skipped").length,
-  );
-  const publishedEntryCount = entries.filter(
-    (entry) => ["published", "warning"].includes(getPublicationDestinationStatus(entry)),
-  ).length;
-  const failedEntryCount = entries.filter(
-    (entry) => getPublicationDestinationStatus(entry) === "failed",
-  ).length;
-  const publishedCount = entries.length
-    ? publishedEntryCount
-    : Math.max(0, successCount - pendingCount);
-  const failedOrSkippedCount = Math.max(failureCount, failedEntryCount) + skippedCount;
-  const totalCount = Math.max(
-    entries.length,
-    publishedCount + pendingCount + failedOrSkippedCount,
-    1,
-  );
-  const hasPublishedChannels = publishedCount > 0;
+  const { allFailed, entries, warningCount, entriesByChannel, destinationsByChannel, destinationKeys, pendingCount, publishedCount, failedOrSkippedCount, totalCount, hasPublishedChannels } = getPublicationResultCounts(effectiveSummary, publicationDestinations);
   const orderedEntries = entries;
 
   const hasPublishedWarnings = warningCount > 0;
-  const overallTitle = hasPublishedChannels
-    ? `${publishedCount} publication${publishedCount > 1 ? "s" : ""} en ligne`
-    : "Bilan de publication";
   const resultTone = allFailed || (!hasPublishedChannels && failedOrSkippedCount > 0 && !pendingCount)
     ? "failed"
     : pendingCount > 0
@@ -572,7 +633,6 @@ export default function PublishExecutionResultModal({
       details: [errorMessage, warningMessage, ...blockers].filter(Boolean).join("\n") || undefined,
     };
   });
-  const visualTotalCount = Math.max(totalCount, visualDestinations.length);
 
   const resultActions = (
     <PublishExecutionResultActions summary={effectiveSummary} onOpenInrSend={onOpenInrSend} onRetryFailed={onRetryFailed} retrying={retrying} />
@@ -604,38 +664,7 @@ export default function PublishExecutionResultModal({
           centerLabel="Bilan prêt"
         />
       ) : null}
-      <div className={resultCss.overview} data-publication-hub-summary={embedded || undefined} role="status" aria-live="polite" aria-atomic="true">
-        <header className={resultCss.hero}>
-          <div className={resultCss.headline} data-success={hasPublishedChannels || undefined}>
-            {hasPublishedChannels ? <span className={resultCss.overallSuccess} aria-hidden="true">🎉</span> : null}
-            <h2 id={titleId}>{embedded && visualDestinations.length ? `${publishedCount}/${visualTotalCount} publié${publishedCount > 1 ? "s" : ""}` : overallTitle}</h2>
-          </div>
-        </header>
-
-      {pendingCount > 0 || failedOrSkippedCount > 0 || warningCount > 0 || !publishedCount ? <div className={resultCss.summary} aria-label="État des publications">
-        <div className={resultCss.summaryCounts}>
-          {pendingCount > 0 ? (
-            <div className={resultCss.metric} data-tone="pending">
-              <span className={resultCss.metricIcon} aria-hidden="true">◷</span>
-              <strong>{pendingCount}</strong><span>en traitement</span>
-            </div>
-          ) : null}
-          {failedOrSkippedCount > 0 ? (
-            <div className={resultCss.metric} data-tone="failed">
-              <span className={resultCss.metricIcon} aria-hidden="true">!</span>
-              <strong>{failedOrSkippedCount}</strong><span>à revoir</span>
-            </div>
-          ) : null}
-          {warningCount > 0 ? (
-            <div className={resultCss.metric} data-tone="warning">
-              <span className={resultCss.metricIcon} aria-hidden="true">!</span>
-              <strong>{warningCount}</strong><span>avertissement{warningCount > 1 ? "s" : ""}</span>
-            </div>
-          ) : null}
-          {!publishedCount && !pendingCount && !failedOrSkippedCount ? <p className={resultCss.emptySummary}>Consultez le suivi détaillé dans iNrSend.</p> : null}
-        </div>
-      </div> : null}
-      </div>
+      {!embedded ? <PublicationResultSummary summary={effectiveSummary} publicationDestinations={publicationDestinations} titleId={titleId} /> : null}
         {!embedded ? <div className={resultCss.progressTrack} aria-hidden="true">
           <span data-tone="published" style={{ width: (publishedCount / totalCount * 100) + "%" }} />
           <span data-tone="pending" style={{ width: (pendingCount / totalCount * 100) + "%" }} />

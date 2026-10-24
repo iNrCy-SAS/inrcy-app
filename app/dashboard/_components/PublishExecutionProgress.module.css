@@ -62,7 +62,6 @@ summary.destinationTrigger { cursor: pointer; }
 .destinationLink { position: absolute; top: 50%; right: 5px; transform: translateY(-50%); display: inline-flex; gap: 2px; align-items: center; min-height: 32px; padding: 1px 3px; border-radius: 8px; color: #c7f3e4; font-size: 11px; font-weight: 700; text-decoration: none; white-space: nowrap; }
 .destinationLink:hover { color: white; border-color: #9fc8e385; }
 .details { width: 100%; max-width: 690px; margin: 0 auto; text-align: center; }
-.immersive > :global([data-publication-hub-summary]) { box-sizing: border-box; min-height: 64px; margin-top: 0; }
 .heading { display: none; }
 .heading h2 { margin: 0; color: #f3f4ff; font-size: clamp(22px, 2vw, 28px); font-weight: 750; line-height: 1.2; letter-spacing: -.025em; }
 .phase { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 7px 10px; margin: 0 0 10px; font-size: 13px; line-height: 1.5; }
@@ -78,13 +77,13 @@ summary.destinationTrigger { cursor: pointer; }
 
 @media (min-width: 701px) {
   .immersive { display: flex; flex-direction: column; height: 100%; min-height: min-content; padding: 8px clamp(16px, 3vw, 48px); border: 0; border-radius: 0; background: none; box-shadow: none; }
-  .scene { --distribution-gap: 52px; flex: 1; grid-template-rows: auto auto; align-content: center; gap: var(--distribution-gap); padding-top: 24px; box-sizing: border-box; }
+  .scene { --distribution-gap: 64px; flex: 1; grid-template-rows: auto auto; align-content: center; gap: var(--distribution-gap); padding-top: 24px; box-sizing: border-box; }
   .core { width: 104px; height: 104px; }
-  .core::after { height: 37px; }
+  .core::after { height: 49px; }
   .coreContent { gap: 4px; }
   .corePercent { font-size: 34px; }
   .coreLabel { margin-top: 0; }
-  .destinations { --channel-gap: clamp(16px, 1.8vw, 32px); gap: 28px var(--channel-gap); align-content: center; }
+  .destinations { --channel-gap: clamp(16px, 1.8vw, 32px); gap: 32px var(--channel-gap); align-content: center; }
   .destinations::before { left: 8%; right: 8%; top: -17px; bottom: auto; width: auto; height: 1px; background: linear-gradient(90deg, transparent, #a9a2ee66 12%, #8bd9ec99 50%, #a9a2ee66 88%, transparent); box-shadow: 0 0 12px #a98cfa22; }
   .destination { width: calc((100% - 5 * var(--channel-gap)) / 6); height: 130px; border-radius: 18px; }
   .destination::before, .destination:nth-child(even)::before, .destination:last-child:nth-child(odd)::before { left: 50%; right: auto; top: -18px; width: 1px; height: 17px; background: linear-gradient(transparent, var(--destination-color)); }
@@ -97,7 +96,6 @@ summary.destinationTrigger { cursor: pointer; }
   .destination[data-linked="true"] .destinationTrigger { padding-right: 10px; }
   .destinationLink { top: auto; right: auto; bottom: 5px; left: 50%; transform: translateX(-50%); justify-content: center; min-height: 24px; padding: 0 8px; font-size: 12px; }
   .details { max-width: none; }
-  .immersive > :global([data-publication-hub-summary]) { flex: 0 0 auto; min-height: 48px; }
 }
 @media (min-width: 701px) and (max-width: 1000px) {
   .destination { width: calc((100% - 3 * var(--channel-gap)) / 4); }
@@ -105,14 +103,13 @@ summary.destinationTrigger { cursor: pointer; }
 }
 @media (min-width: 701px) and (max-height: 800px) {
   .immersive { padding-top: 6px; padding-bottom: 6px; }
-  .immersive > :global([data-publication-hub-summary]) { min-height: 54px; }
-  .scene { --distribution-gap: 40px; margin-bottom: 6px; }
+  .scene { --distribution-gap: 52px; margin-bottom: 6px; }
   .core { width: 88px; height: 88px; }
-  .core::after { height: 25px; }
+  .core::after { height: 37px; }
   .coreContent { gap: 3px; }
   .corePercent { font-size: 30px; }
   .coreLabel { margin-top: 0; font-size: 10px; }
-  .destinations { row-gap: 22px; }
+  .destinations { row-gap: 26px; }
   .destination { height: 104px; }
   .destinationTrigger { gap: 4px; padding-top: 6px; padding-bottom: 25px; }
   .destination img { flex-basis: 30px; width: 30px; height: 30px; }
@@ -156,7 +153,6 @@ summary.destinationTrigger { cursor: pointer; }
   .destinationPopover p { margin: 0; }
   summary.destinationTrigger { cursor: default; }
   .details { display: flex; align-items: center; justify-content: center; text-align: center; }
-  .immersive > :global([data-publication-hub-summary]) { min-height: 38px; }
   .heading { display: none; }
   .heading h2 { font-size: 18px; line-height: 1.25; }
   .phase { margin: 0; gap: 5px 7px; }
