@@ -606,8 +606,8 @@ export default function PublishExecutionResultModal({
       ) : null}
       <div className={resultCss.overview} data-publication-hub-summary={embedded || undefined} role="status" aria-live="polite" aria-atomic="true">
         <header className={resultCss.hero}>
-          <div className={resultCss.headline}>
-            {!embedded && hasPublishedChannels ? <span className={resultCss.overallSuccess} aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.7" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4 4L19 6" /></svg></span> : null}
+          <div className={resultCss.headline} data-success={hasPublishedChannels || undefined}>
+            {hasPublishedChannels ? <span className={resultCss.overallSuccess} aria-hidden="true">🎉</span> : null}
             <h2 id={titleId}>{embedded && visualDestinations.length ? `${publishedCount}/${visualTotalCount} publié${publishedCount > 1 ? "s" : ""}` : overallTitle}</h2>
           </div>
         </header>

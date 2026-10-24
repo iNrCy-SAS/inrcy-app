@@ -80,7 +80,7 @@ test("only destinations still pending retain an animated connection after the ba
 
 test("details remain keyboard accessible and the explicit Voir link is independent from the disclosure", () => {
   const html = hub({ destinations: [{ key: "facebook", label: "Facebook", status: "warning", details: "Une image <indisponible>.", href: "https://www.facebook.com/example/posts/1" }] });
-  assert.match(html, /<details\b[^>]*><summary\b[^>]+aria-label="Facebook — Publié avec avertissement"/);
+  assert.match(html, /<details\b[^>]*><summary\b[^>]+aria-label="Facebook — Publié avec avertissement : détails"/);
   assert.match(html, /Une image &lt;indisponible&gt;/);
   assert.match(html, /<\/details><a\b[^>]+aria-label="Voir Facebook"[^>]+target="_blank" rel="noopener noreferrer"/);
   assert.match(html, /<\/a><p class="inlineDetails">Une image &lt;indisponible&gt;\.<\/p>/);

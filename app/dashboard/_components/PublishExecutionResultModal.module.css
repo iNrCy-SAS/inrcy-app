@@ -109,7 +109,9 @@
 .hero { min-width: 0; }
 .headline { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .headline h2 { margin: 0; color: #f3f6ff; font-size: 21px; line-height: 1.3; font-weight: 750; letter-spacing: -.025em; text-wrap: balance; }
-.overallSuccess { display: grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; border: 1px solid #78eac264; border-radius: 50%; color: #9af4d6; background: radial-gradient(circle at 30% 20%, #7ee8c43b, #1b684c22); box-shadow: 0 0 18px #49d9aa24, inset 0 1px #c4ffe32b; }
+.overallSuccess { display: grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; font-size: 28px; line-height: 1; filter: drop-shadow(0 0 10px #fbafdf4d); }
+.resultBody[data-embedded="true"] .headline[data-success="true"] { padding: 8px 16px 8px 11px; border: 1px solid transparent; border-radius: 16px; background: linear-gradient(115deg, #173c55, #392456 60%, #522940) padding-box, linear-gradient(110deg, #56d8ffb3, #b482ffb3, #ff9ac9b3) border-box; box-shadow: inset 0 1px #e9dcff26, 0 0 24px #b56cff26; }
+.resultBody[data-embedded="true"] .headline[data-success="true"] h2 { color: #f5d5ff; background: linear-gradient(105deg, #9eeaff, #e0beff 52%, #ffc6dd); background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 20px #dc9cff20; }
 .scrollSurface .headline { padding-right: 32px; }
 
 .summary { min-width: 0; }

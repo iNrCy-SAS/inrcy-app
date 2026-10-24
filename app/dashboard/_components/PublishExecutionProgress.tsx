@@ -100,20 +100,22 @@ export function PublicationVisualHub({
       <ul className={css.destinations} aria-label={destinations.some((destination) => destination.status) ? "Résultat par canal" : "Destinations sélectionnées"}>
         {targets.map((destination, index) => {
           const status = destination.status ? DESTINATION_STATUS[destination.status] : null;
+          const hasDetails = Boolean(status && destination.details);
           const identity = <>
             {CHANNEL_LOGOS[destination.key] ? <img src={CHANNEL_LOGOS[destination.key]} alt="" width={38} height={38} /> : <span>{destination.label.slice(0, 1)}</span>}
             <span className={css.destinationText}><strong>{destination.label}</strong>{status ? <small>{status.label}</small> : null}</span>
-            {status ? <span className={css.destinationBadge} aria-hidden="true">{status.icon}</span> : null}
+            {status && !hasDetails ? <span className={css.destinationBadge} aria-hidden="true">{status.icon}</span> : null}
           </>;
           return (
             <li key={destination.key} className={css.destination} data-channel={destination.key} data-status={destination.status} data-feeding={(!completed && !destination.status) || destination.status === "pending"} data-linked={Boolean(destination.href)} style={{ "--destination-color": destination.color, "--pulse-delay": `${index * -.37}s` } as CSSProperties}>
-              {status ? <details className={css.destinationDetails}>
-                <summary className={css.destinationTrigger} aria-label={`${destination.label} — ${status.label}`} title={`${destination.label} — ${status.label}`}>{identity}</summary>
-                <div className={css.destinationPopover}>
+              <span className={css.destinationTrigger} aria-label={status ? `${destination.label} — ${status.label}` : destination.label}>{identity}</span>
+              {hasDetails && status ? <details className={css.destinationDetails} name={`${progressId}-channel-details`} onKeyDown={(event) => { if (event.key === "Escape" && event.currentTarget.open) { event.currentTarget.open = false; event.currentTarget.querySelector<HTMLElement>("summary")?.focus(); event.stopPropagation(); } }}>
+                <summary className={css.destinationInfo} aria-label={`${destination.label} — ${status.label} : détails`} title="Voir le détail"><span className={css.destinationInfoGlyph} aria-hidden="true">i</span><span className={css.destinationCloseGlyph} aria-hidden="true">×</span></summary>
+                <div className={css.destinationPopover} tabIndex={0} role="region" aria-label={`Détail ${destination.label}`}>
                   <strong>{destination.label}</strong><span>{status.label}</span>
-                  {destination.details ? <p>{destination.details}</p> : null}
+                  <p>{destination.details}</p>
                 </div>
-              </details> : <span className={css.destinationTrigger} aria-label={destination.label} title={destination.label}>{identity}</span>}
+              </details> : null}
               {destination.href ? <a className={css.destinationLink} href={destination.href} aria-label={`Voir ${destination.label}`} target="_blank" rel="noopener noreferrer">Voir <span aria-hidden="true">↗</span></a> : null}
               {destination.details ? <p className={css.inlineDetails}>{destination.details}</p> : null}
             </li>

@@ -131,8 +131,8 @@ test("the shared result hub keeps all eleven destinations in their initial order
   assert.match(html, /10\/11 publiés/);
   assert.match(html, /Bilan prêt/);
   assert.equal((html.match(/<li\b/g) || []).length, 11);
-  const renderedOrder = [...html.matchAll(/<summary[^>]+aria-label="([^—"]+) — /g)].map((match) => match[1]);
-  assert.deepEqual(renderedOrder, destinations.map(({ label }) => label));
+  const renderedOrder = [...html.matchAll(/<li\b[^>]+data-channel="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(renderedOrder, destinations.map(({ key }) => key));
   assert.equal((html.match(/<li\b[^>]+data-status="published"/g) || []).length, 10);
   assert.equal((html.match(/<li\b[^>]+data-status="failed"/g) || []).length, 1);
   assert.match(html, /Google Business — Échec/);
