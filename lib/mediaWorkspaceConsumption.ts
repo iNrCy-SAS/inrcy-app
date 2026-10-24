@@ -1681,9 +1681,8 @@ export async function resolveWorkspaceAiConsumption(params: {
   workspaceId: string;
   preferredMediaType?: "images" | "video";
   /**
-   * Reserved for a future generation mode. Booster currently generates from
-   * exactly one media family (images OR video); mixed assignments only belong
-   * to the publication editor.
+   * Resolve both reference families when the caller supports images + video.
+   * Callers that omit this flag keep their existing single-family behavior.
    */
   allowMixedMedia?: boolean;
   deadlineAt?: number;

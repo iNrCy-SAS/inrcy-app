@@ -56,7 +56,7 @@ test("Booster keeps media limits by the media controls without repeating them ab
 
   assert.match(
     shared,
-    /Jusqu’à \$\{BOOSTER_MAX_IMAGE_COUNT\} images ou 1 vidéo \(\$\{MEDIA_LIBRARY_VIDEO_SOURCE_MAX_MB_LABEL\} max\) · médias optimisés si nécessaire : format adapté et\/ou poids ramené à \$\{BOOSTER_MAX_IMAGE_MB_LABEL\}\/image ou \$\{BOOSTER_MAX_VIDEO_MB_LABEL\}\/vidéo\./,
+    /Jusqu’à \$\{BOOSTER_MAX_IMAGE_COUNT\} images et 1 vidéo \(\$\{MEDIA_LIBRARY_VIDEO_SOURCE_MAX_MB_LABEL\} max\) · médias optimisés si nécessaire : format adapté et\/ou poids ramené à \$\{BOOSTER_MAX_IMAGE_MB_LABEL\}\/image ou \$\{BOOSTER_MAX_VIDEO_MB_LABEL\}\/vidéo\./,
   );
   assert.match(shared, /BOOSTER_PUBLICATION_MEDIA_OPTIMIZATION_LABEL/);
   assert.doesNotMatch(intent, /getLocalizedBoosterMediaOptimization\("generation", runtimeT\)/);

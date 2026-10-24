@@ -609,11 +609,11 @@
   "media_recommended_video_duration": "แนะนำ 3 นาที",
   "media_image_limits": "{maxImages} ภาพสูงสุด · {imageMaxMb} MB ต่อภาพ · {imagesTotalMaxMb} MB ทั้งหมด",
   "media_video_limits": "สูงสุด 1 วิดีโอ · แหล่งที่มาสูงสุด {videoSourceMaxMb} MB · การเพิ่มประสิทธิภาพเกินกว่า {videoPublishMaxMb} MB · เก็บรักษาต้นฉบับไว้",
-  "media_generation_optimization": "สูงสุด {maxImages} รูปภาพหรือ 1 วิดีโอ ({videoSourceMaxMb} MB สูงสุด) · สื่อที่ปรับให้เหมาะสมหากจำเป็น: รูปแบบที่ดัดแปลงและ/หรือน้ำหนักลดลงเหลือ {imageMaxMb} MB/image หรือ {videoPublishMaxMb} MB/วิดีโอ",
+  "media_generation_optimization": "สูงสุด {maxImages} รูปภาพและวิดีโอ 1 รายการ ({videoSourceMaxMb} MB สูงสุด) · สื่อที่ปรับให้เหมาะสมหากจำเป็น: รูปแบบที่ดัดแปลงและ/หรือน้ำหนักลดลงเหลือ {imageMaxMb} MB/image หรือ {videoPublishMaxMb} MB/วิดีโอ",
   "media_publication_optimization": "สูงสุด {maxImages} รูปภาพและวิดีโอ 1 รายการ ({videoSourceMaxMb} MB สูงสุด) · สื่อที่ปรับให้เหมาะสมหากจำเป็น: รูปแบบที่ดัดแปลงและ/หรือน้ำหนักลดลงเหลือ {imageMaxMb} MB/image หรือ {videoPublishMaxMb} MB/วิดีโอ",
   "media_selected_images_summary": "{count}/{maxImages} {count, plural, one {รูปภาพ} other {รูปภาพ}} · {imageMaxMb} MB ต่อภาพ · {imagesTotalMaxMb} รวมเป็นล้านบาท",
   "media_selected_video_summary": "เพิ่มวิดีโอ 1 รายการ · แหล่งที่มาสูงสุด {videoSourceMaxMb} MB · การเพิ่มประสิทธิภาพเกินกว่า {videoPublishMaxMb} MB · เก็บรักษาต้นฉบับไว้",
-  "media_selected_none_generation": "ไม่มีการเพิ่มสื่อ · สูงสุด {maxImages} รูปภาพหรือ 1 วิดีโอ ({videoSourceMaxMb} MB สูงสุด) · ปรับให้เหมาะสมอัตโนมัติหากจำเป็น",
+  "media_selected_none_generation": "ไม่มีการเพิ่มสื่อ · สูงสุด {maxImages} รูปภาพและ 1 วิดีโอ ({videoSourceMaxMb} MB สูงสุด) · ปรับให้เหมาะสมอัตโนมัติหากจำเป็น",
   "media_selected_none_publication": "ไม่มีการเพิ่มสื่อ · สูงสุด {maxImages} รูปภาพและ 1 วิดีโอ ({videoSourceMaxMb} MB สูงสุด) · ปรับให้เหมาะสมอัตโนมัติหากจำเป็น",
   "theme_placeholder_default": "เช่น สถานที่ก่อสร้างที่ Michel’s ในเมือง Arras",
   "theme_placeholder_promotion": "เช่น: ข้อเสนอฤดูใบไม้ผลิสำหรับการตัดขอบจนถึงวันที่ 30 เมษายน",
@@ -739,7 +739,7 @@
   "media_label_one_video": "1 วิดีโอ",
   "media_label_images": "{count, plural, =0 {ไม่มีรูปภาพ} one {# รูปภาพ} other {# รูปภาพ}}",
   "media_label_text_only": "ข้อความเท่านั้น",
-  "media_library_generation_subtitle": "สำหรับการสร้าง ให้เลือกรูปภาพหรือวิดีโอได้สูงสุด 5 รายการ ส่วนผสมยังคงมีอยู่ในสื่อสิ่งพิมพ์",
+  "media_library_generation_subtitle": "เพิ่มรูปภาพได้สูงสุด 5 รูปและวิดีโอ 1 รายการเพื่อช่วย AI เขียนเนื้อหา",
   "media_library_publication_subtitle": "เลือกได้สูงสุด 5 ภาพและวิดีโอที่จัดเก็บไว้ใน iNrCy",
   "media_library_add_to_generation": "เพิ่มไปยังรุ่น",
   "media_library_add_to_publication": "เพิ่มในโพสต์",
@@ -884,5 +884,9 @@
   "schedule_view_planning": "ดูปฏิทินการเผยแพร่",
   "schedule_back_to_programming": "กลับไปตั้งเวลา",
   "wizard_reference_add": "เพิ่มเอกสาร",
-  "wizard_reference_back": "กลับไปเลือก"
+  "wizard_reference_back": "กลับไปเลือก",
+  "wizard_reference_media_detail": "5 รูปภาพ + 1 วิดีโอ",
+  "wizard_reference_generate_detail": "สร้างรูปภาพหรือวิดีโอ",
+  "wizard_reference_library_detail": "สื่อที่คุณบันทึกไว้",
+  "wizard_reference_document_limits": "สูงสุด 5 เอกสาร · 8 MB/ไฟล์ · รวม 20 MB"
 }

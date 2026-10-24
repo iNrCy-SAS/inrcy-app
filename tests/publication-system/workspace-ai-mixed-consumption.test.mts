@@ -108,7 +108,7 @@ test("les budgets par famille préservent la fenêtre serveur 30/45 secondes", (
   );
 });
 
-test("le resolver respecte images OU video et garde le mixage derriere un opt-in futur", () => {
+test("le resolver conserve le choix par famille et Booster active les références mixtes", () => {
   const consumption = read("lib/mediaWorkspaceConsumption.ts");
   const resolverStart = consumption.indexOf(
     "export async function resolveWorkspaceAiConsumption",
@@ -140,7 +140,7 @@ test("le resolver respecte images OU video et garde le mixage derriere un opt-in
     generation,
     /resolveWorkspaceAiConsumption\(\{[\s\S]*preferredMediaType: mediaType,[\s\S]*deadlineAt:/,
   );
-  assert.match(generation, /allowMixedMedia: false/);
+  assert.match(generation, /allowMixedMedia: true/);
   assert.match(generation, /const workspaceHasImages = workspaceMedia\.imagesForAI\.length > 0/);
   assert.match(generation, /const workspaceHasVideo = Boolean\(workspaceMedia\.videoForAI\)/);
   assert.match(

@@ -13,10 +13,7 @@ import {
   getAiEngineOption,
   type AiPreferredEngine,
 } from "@/lib/aiEnginePreference";
-import {
-  BOOSTER_PDF_ACCEPT,
-  BOOSTER_PDF_MAX_BYTES,
-} from "@/lib/boosterPdfAttachmentPolicy";
+import { BOOSTER_DOCUMENT_ACCEPT } from "@/lib/boosterDocumentAttachmentPolicy";
 import AiEngineInfoModal from "../../../_components/AiEngineInfoModal";
 import PublishReferencePicker from "./PublishReferencePicker";
 import MediaSubjectVoiceButton from "../../../_components/MediaSubjectVoiceButton";
@@ -91,8 +88,9 @@ type PublishIntentPanelProps = {
   videoPreviewUrl: string;
   videoDurationSeconds: number | null;
   pdfFile: File | null;
+  documentFiles: File[];
   pdfAttachmentError: string;
-  onRemovePdf: () => void;
+  onRemovePdf: (index?: number) => void;
   onRetouchVideo: () => void;
   removeVideo: () => void;
   removeImage: (index: number) => void;
@@ -144,6 +142,7 @@ export default function PublishIntentPanel({
   videoPreviewUrl,
   videoDurationSeconds,
   pdfFile,
+  documentFiles,
   pdfAttachmentError,
   onRemovePdf,
   onRetouchVideo,
@@ -400,22 +399,22 @@ export default function PublishIntentPanel({
           <div className={css.referenceHeading}>
             <h2>{i18nT("wizard_inspirations_help")}</h2>
             <PublishReferencePicker disabled={generationDisabled}
-              documentDetail={i18nT("pdf_attachment_help", { size: Math.round(BOOSTER_PDF_MAX_BYTES / (1024 * 1024)) })}
+              documentDetail={i18nT("wizard_reference_document_limits")} documentCount={documentFiles.length}
               onPickDocument={() => pdfInputRef.current?.click()} onGenerateMedia={onGenerateMedia} onOpenMediaLibrary={onOpenMediaLibrary}
               image={{ onSelect: onPickImagesClick, disabled: pickImagesDisabled,
-                disabledReason: hasVideoMedia ? i18nT("generation_images_blocked_by_video") : imagesLimitReached ? i18nT("generation_images_limit", { count: BOOSTER_MAX_IMAGE_COUNT }) : undefined,
+                disabledReason: imagesLimitReached ? i18nT("generation_images_limit", { count: BOOSTER_MAX_IMAGE_COUNT }) : undefined,
                 detail: `${getLocalizedBoosterImageLimits(runtimeT)} · ${getLocalizedBoosterImageFormats(runtimeT)}` }}
               video={{ onSelect: onPickVideoClick, disabled: pickVideoDisabled,
-                disabledReason: hasImages ? i18nT("generation_video_blocked_by_images") : pickVideoDisabled ? i18nT("generation_video_limit") : undefined,
+                disabledReason: pickVideoDisabled ? i18nT("generation_video_limit") : undefined,
                 detail: `${getLocalizedBoosterVideoLimits(runtimeT)} · ${getLocalizedBoosterVideoFormats(runtimeT)} · ${getLocalizedBoosterRecommendedVideoDuration(runtimeT)}` }}
-              camera={isMobile ? { onSelect: onTakePhotoClick, disabled: cameraDisabled, disabledReason: hasVideoMedia ? i18nT("generation_images_blocked_by_video") : i18nT("generation_images_limit", { count: BOOSTER_MAX_IMAGE_COUNT }) } : undefined}
+              camera={isMobile ? { onSelect: onTakePhotoClick, disabled: cameraDisabled, disabledReason: i18nT("generation_images_limit", { count: BOOSTER_MAX_IMAGE_COUNT }) } : undefined}
             />
           </div>
           <div className={css.referenceThumbnails} data-wizard-reference-media>
-            {pdfFile ? <div className={css.pdfThumbnail} data-testid="booster-selected-pdf" title={`${pdfFile.name} · ${formatAttachmentSize(pdfFile.size)}`}>
-              <span aria-hidden="true">PDF</span><strong>{pdfFile.name}</strong>
-              <button type="button" className={css.remove} disabled={generationDisabled} onClick={onRemovePdf} aria-label={`${i18nT("remove_pdf_attachment")} ${pdfFile.name}`}>×</button>
-            </div> : null}
+            {documentFiles.map((pdfFile, index) => <div key={`${pdfFile.name}-${pdfFile.size}-${index}`} className={css.pdfThumbnail} data-testid="booster-selected-pdf" title={`${pdfFile.name} · ${formatAttachmentSize(pdfFile.size)}`}>
+              <span aria-hidden="true">{pdfFile.name.split(".").pop()?.toUpperCase()}</span><strong>{pdfFile.name}</strong>
+              <button type="button" className={css.remove} disabled={generationDisabled} onClick={() => onRemovePdf(index)} aria-label={`${i18nT("remove_pdf_attachment")} ${pdfFile.name}`}>×</button>
+            </div>)}
             {imagePreviews.map((url,index) => <div className={css.thumbnail} key={url} title={images[index]?.name || i18nT("image_value_5907a7ef", { value0: index + 1 })}>
               <img src={url} alt={i18nT("image_value_5907a7ef", { value0: index + 1 })} />
               <button type="button" className={css.remove} aria-label={i18nT("supprimer_l_image_value_pour_tous_561091e2", { value0: index + 1 })} onClick={() => removeImage(index)}>×</button>
@@ -430,7 +429,7 @@ export default function PublishIntentPanel({
           </div>
         </aside>
       </div>
-      <input ref={pdfInputRef} type="file" accept={BOOSTER_PDF_ACCEPT} hidden onChange={(event) => { onPdfChange(event.target.files); event.currentTarget.value = ""; }} />
+      <input ref={pdfInputRef} type="file" accept={BOOSTER_DOCUMENT_ACCEPT} multiple hidden onChange={(event) => { onPdfChange(event.target.files); event.currentTarget.value = ""; }} />
       <input ref={fileInputRef} type="file" accept={BOOSTER_IMAGE_ACCEPT} multiple hidden onChange={(e) => { onImagesChange(e.target.files); e.currentTarget.value = ""; }} />
       <input ref={videoInputRef} type="file" accept={BOOSTER_VIDEO_ACCEPT} hidden onChange={(e) => { onVideoChange(e.target.files); e.currentTarget.value = ""; }} />
       {visibleErrors.length || generationNotice || generationMediaWarning || generating || showMediaOptimizerAction ? <div className={css.messages}>

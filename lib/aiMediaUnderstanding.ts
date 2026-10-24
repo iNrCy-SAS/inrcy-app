@@ -123,6 +123,7 @@ function formatVisionFacts(result: VisionFactsResponse) {
 export async function prepareMediaForSelectedWriter(args: {
   engine: AiPreferredEngine;
   images?: AiMediaImage[];
+  maxImages?: number;
   idea?: string;
   existingContext?: string;
   accountId?: string;
@@ -132,7 +133,7 @@ export async function prepareMediaForSelectedWriter(args: {
   mediaSubjectSource?: AiMediaSubjectSource;
 }): Promise<PreparedMediaForWriter> {
   const images = Array.isArray(args.images)
-    ? args.images.filter((image) => Boolean(image?.dataUrl)).slice(0, 5)
+    ? args.images.filter((image) => Boolean(image?.dataUrl)).slice(0, Math.min(8, Math.max(1, args.maxImages || 5)))
     : [];
   const existingContext = compactContext(args.existingContext, 5_000);
   const engineOption = getAiEngineOption(args.engine);

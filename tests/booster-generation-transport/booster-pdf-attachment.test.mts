@@ -156,7 +156,7 @@ test("la route vérifie la référence Storage puis propage un contexte PDF born
   assert.match(generation, /documentContext: args\.documentContext/);
   assert.match(
     prompt,
-    /compactLongPromptContext\([\s\S]*args\.documentContext,[\s\S]*6_500/,
+    /compactLongPromptContext\([\s\S]*args\.documentContext,[\s\S]*16_000/,
   );
   assert.match(
     prompt,
@@ -180,16 +180,16 @@ test("l'étape Intention affiche le PDF et le flux génération assure upload, r
 
   const picker = readFileSync(join(root, "app/dashboard/booster/publier/components/PublishReferencePicker.tsx"), "utf8");
   assert.match(picker, /data-testid="booster-pdf-context-control"/);
-  assert.match(panel, /accept=\{BOOSTER_PDF_ACCEPT\}/);
+  assert.match(panel, /accept=\{BOOSTER_DOCUMENT_ACCEPT\} multiple/);
   assert.match(panel, /\{pdfFile\.name\}/);
   assert.match(panel, /formatAttachmentSize\(pdfFile\.size\)/);
-  assert.match(panel, /onClick=\{onRemovePdf\}/);
+  assert.match(panel, /onClick=\{\(\) => onRemovePdf\(index\)\}/);
   assert.match(
     modal,
     /\.from\(BOOSTER_PDF_STORAGE_BUCKET\)[\s\S]*\.upload\(/,
   );
   assert.match(modal, /documentForAI: temporaryPdfReference/);
-  assert.match(modal, /\.remove\(\[temporaryPdfReference\.path\]\)/);
-  assert.match(modal, /const clearAiCreationWork[\s\S]*setPdfFile\(null\)/);
+  assert.match(modal, /\.remove\(temporaryDocumentReferences\.map\(reference => reference\.path\)\)/);
+  assert.match(modal, /const clearAiCreationWork[\s\S]*setDocumentFiles\(\[\]\)/);
   assert.match(modal, /onUnsavedChange\?\.\(Boolean\(pdfFile\)\)/);
 });

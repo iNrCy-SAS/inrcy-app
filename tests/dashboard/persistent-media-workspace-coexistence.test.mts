@@ -228,7 +228,7 @@ test("image and video UI removals mutate only their own persistent family", () =
   assert.match(removeImage, /syncPersistentWorkspaceImages\?\.\(/);
 });
 
-test("generation library is exclusive while publication keeps the 5 + 1 path", () => {
+test("generation and publication preserve the bounded 5 + 1 media pool", () => {
   const selection = between(
     publishModal,
     "const addMediaLibrarySelection",

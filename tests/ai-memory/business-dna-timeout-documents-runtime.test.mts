@@ -12,6 +12,7 @@ import * as timing from "../../lib/businessDnaAnalysisTiming.ts";
 import { buildBusinessDnaAnalysisSourcePayload } from "../../lib/businessDnaSourceBudget.ts";
 import * as documentBudget from "../../lib/businessDnaDocumentBudget.ts";
 import { extractPdfTextForAi } from "../../lib/pdfTextExtraction.ts";
+import * as officeDocumentText from "../../lib/aiOfficeDocumentText.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const requireBuiltin = createRequire(import.meta.url);
@@ -88,7 +89,14 @@ function docxFixture(text: string) {
   header.writeUInt16LE(8, 8);
   header.writeUInt32LE(data.length, 18);
   header.writeUInt16LE(name.length, 26);
-  return Buffer.concat([header, name, data]);
+  const xmlBytes = Buffer.byteLength(`<w:document><w:body><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:body></w:document>`);
+  header.writeUInt32LE(xmlBytes, 22);
+  const directory = Buffer.alloc(46);
+  directory.writeUInt32LE(0x02014b50); directory.writeUInt16LE(8, 10);
+  directory.writeUInt32LE(data.length, 20); directory.writeUInt32LE(xmlBytes, 24); directory.writeUInt16LE(name.length, 28);
+  const end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50); end.writeUInt16LE(1, 8); end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(directory.length + name.length, 12); end.writeUInt32LE(header.length + name.length + data.length, 16);
+  return Buffer.concat([header, name, data, directory, name, end]);
 }
 
 test("un Word long conserve les consignes après 2200 caractères dans l'analyse ADN", async () => {
@@ -96,6 +104,7 @@ test("un Word long conserve les consignes après 2200 caractères dans l'analyse
     "@/lib/aiGatewayClient": { aiGenerateJSON: () => { throw new Error("Aucun appel IA nécessaire pour un Word"); } },
     "@/lib/boosterPdfAttachmentPolicy": { hasBoosterPdfSignature: () => true },
     "@/lib/pdfTextExtraction": { extractPdfTextForAi },
+    "@/lib/aiOfficeDocumentText": officeDocumentText,
   });
   const fixture = docxFixture("Présentation de l'entreprise. ".repeat(160) + "CONSIGNE FINALE : conserver les fenêtres.");
   const storage = { storage: { from: () => ({ download: async () => ({ data: new Blob([fixture]), error: null }) }) } };

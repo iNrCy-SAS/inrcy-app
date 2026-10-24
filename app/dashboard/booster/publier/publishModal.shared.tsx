@@ -638,7 +638,7 @@ export const BOOSTER_RECOMMENDED_VIDEO_DURATION_LABEL = "3 min conseillées";
 export const BOOSTER_IMAGE_LIMITS_LABEL = INR_MEDIA_IMAGE_LIMITS_LABEL;
 export const BOOSTER_VIDEO_LIMITS_LABEL = INR_MEDIA_VIDEO_LIMITS_LABEL;
 export const BOOSTER_GENERATION_MEDIA_OPTIMIZATION_LABEL =
-  `Jusqu’à ${BOOSTER_MAX_IMAGE_COUNT} images ou 1 vidéo (${MEDIA_LIBRARY_VIDEO_SOURCE_MAX_MB_LABEL} max) · médias optimisés si nécessaire : format adapté et/ou poids ramené à ${BOOSTER_MAX_IMAGE_MB_LABEL}/image ou ${BOOSTER_MAX_VIDEO_MB_LABEL}/vidéo.`;
+  `Jusqu’à ${BOOSTER_MAX_IMAGE_COUNT} images et 1 vidéo (${MEDIA_LIBRARY_VIDEO_SOURCE_MAX_MB_LABEL} max) · médias optimisés si nécessaire : format adapté et/ou poids ramené à ${BOOSTER_MAX_IMAGE_MB_LABEL}/image ou ${BOOSTER_MAX_VIDEO_MB_LABEL}/vidéo.`;
 export const BOOSTER_PUBLICATION_MEDIA_OPTIMIZATION_LABEL =
   `Jusqu’à ${BOOSTER_MAX_IMAGE_COUNT} images et 1 vidéo (${MEDIA_LIBRARY_VIDEO_SOURCE_MAX_MB_LABEL} max) · médias optimisés si nécessaire : format adapté et/ou poids ramené à ${BOOSTER_MAX_IMAGE_MB_LABEL}/image ou ${BOOSTER_MAX_VIDEO_MB_LABEL}/vidéo.`;
 

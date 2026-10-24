@@ -609,11 +609,11 @@
   "media_recommended_video_duration": "建议 3 分钟",
   "media_image_limits": "{maxImages} 个图像最多 · {imageMaxMb} MB 每个图像 · {imagesTotalMaxMb} MB 总计",
   "media_video_limits": "最多 1 个视频 · 来源高达 {videoSourceMaxMb} MB · 优化超出 {videoPublishMaxMb} MB · 保留原始内容",
-  "media_generation_optimization": "最多 {maxImages} 个图像或 1 个视频（{videoSourceMaxMb} MB 最大） · 必要时优化媒体：调整格式和/或重量减少到 {imageMaxMb} MB/image 或 {videoPublishMaxMb} MB/video。",
+  "media_generation_optimization": "最多 {maxImages} 个图像和 1 个视频（{videoSourceMaxMb} MB 最大） · 必要时优化媒体：调整格式和/或重量减少到 {imageMaxMb} MB/image 或 {videoPublishMaxMb} MB/video。",
   "media_publication_optimization": "最多 {maxImages} 个图像和 1 个视频（{videoSourceMaxMb} MB 最大） · 必要时优化媒体：调整格式和/或重量减少到 {imageMaxMb} MB/image 或 {videoPublishMaxMb} MB/video。",
   "media_selected_images_summary": "{count}/{maxImages} {count, plural, one {图片} other {图片}} · {imageMaxMb} 每张图像 MB· {imagesTotalMaxMb} 总计 MB",
   "media_selected_video_summary": "添加了 1 个视频 · 来源高达 {videoSourceMaxMb} MB · 优化超出 {videoPublishMaxMb} MB · 保留原始内容",
-  "media_selected_none_generation": "未添加媒体 · 最多 {maxImages} 个图像或 1 个视频（{videoSourceMaxMb} MB 最大） · 必要时自动优化。",
+  "media_selected_none_generation": "未添加媒体 · 最多 {maxImages} 个图像和 1 个视频（{videoSourceMaxMb} MB 最大） · 必要时自动优化。",
   "media_selected_none_publication": "未添加媒体 · 最多 {maxImages} 个图像和 1 个视频（{videoSourceMaxMb} MB 最大） · 必要时自动优化。",
   "theme_placeholder_default": "例如：阿拉斯米歇尔的建筑工地",
   "theme_placeholder_promotion": "例如：春季对冲修剪报价直至 4 月 30 日",
@@ -739,7 +739,7 @@
   "media_label_one_video": "1 个视频",
   "media_label_images": "{count, plural, =0 {没有图片} one {# 图片} other {# 图片}}",
   "media_label_text_only": "仅文本",
-  "media_library_generation_subtitle": "对于生成，最多选择 5 张图像或一个视频。该组合仍然可以在该出版物的媒体上找到。",
+  "media_library_generation_subtitle": "最多添加 5 张图片和 1 个视频，帮助 AI 撰写内容。",
   "media_library_publication_subtitle": "最多选择 5 张图片和一个已存储在 iNrCy 中的视频。",
   "media_library_add_to_generation": "添加到生成",
   "media_library_add_to_publication": "添加到帖子",
@@ -884,5 +884,9 @@
   "schedule_view_planning": "查看发布日程",
   "schedule_back_to_programming": "返回定时设置",
   "wizard_reference_add": "添加文档",
-  "wizard_reference_back": "返回选项"
+  "wizard_reference_back": "返回选项",
+  "wizard_reference_media_detail": "5 张图片 + 1 个视频",
+  "wizard_reference_generate_detail": "创建图片或视频",
+  "wizard_reference_library_detail": "已保存的媒体",
+  "wizard_reference_document_limits": "最多 5 个文档 · 每个 8 MB · 共 20 MB"
 }
