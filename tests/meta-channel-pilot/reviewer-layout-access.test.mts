@@ -107,6 +107,8 @@ test("Meta reviewer visibility requires both trusted actor and active-account ro
     ["staff", "reviewer", "other-staff", FULL_PRODUCT_REVIEWER_ACCOUNT_ID, false, false],
   ] as const) {
     const result = await renderLayout(actorRole, accountRole, { actorId, accountId });
+    assert.equal(result.access.actorUserId, actorId, "cache actor comes from the authenticated server user");
+    assert.equal(result.access.activeAccountId, accountId, "actor and active establishment remain distinct");
     assert.equal(result.access.viewerMetaPilotEnabled, pilotExpected, actorRole + "/" + accountRole);
     assert.equal(result.access.viewerIsAdmin, adminExpected);
     assert.equal(result.edition.edition, "premium", "reviewer tool access cannot carry over to another active company");

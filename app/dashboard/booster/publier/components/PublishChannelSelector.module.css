@@ -100,3 +100,10 @@
   .mobileCard .accountName { font-size: 9px; }
 }
 @media (prefers-reduced-motion: reduce) { .channelCard { transition: none; } }
+
+/* Unknown availability is a neutral placeholder, never a disconnected card. */
+.connectionLoading { margin: 0 0 12px; color: #b8cee8; font-size: 13px; text-align: center; }
+.pendingCard { display: flex; flex-direction: column; align-items: center; justify-content: center; border-style: dashed !important; background: linear-gradient(135deg, #19374f66, #25213f66) !important; }
+.pendingCard .channelCopy { align-items: center; gap: 6px; text-align: center; }
+.accountPlaceholder { width: 62%; min-width: 44px; height: 7px; border-radius: 99px; background: #adc7e330; }
+@media (max-width: 700px) { .pendingCard { flex-direction: row; } .pendingCard .channelName { font-size: 11px !important; } }

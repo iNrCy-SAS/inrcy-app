@@ -1,4 +1,6 @@
 {
+  "connections_loading": "Vérification des connexions…",
+  "connections_unavailable": "Connexions temporairement indisponibles. Réessayez dans un instant.",
   "tiktok_review_terms": "Conditions TikTok",
   "tiktok_review_community": "Règles communautaires",
   "tiktok_review_music": "Utilisation de la musique",

@@ -1,4 +1,6 @@
 {
+  "connections_loading": "Verbindungen werden überprüft…",
+  "connections_unavailable": "Verbindungen sind vorübergehend nicht verfügbar. Bitte versuchen Sie es gleich erneut.",
   "tiktok_review_terms": "TikTok-Bedingungen",
   "tiktok_review_community": "Community-Richtlinien",
   "tiktok_review_music": "Musiknutzung",

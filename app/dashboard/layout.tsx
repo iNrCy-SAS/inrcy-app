@@ -166,7 +166,7 @@ export default async function DashboardLayout({
     <div className={`${styles.shell} inrcy-dashboard-shell`}>
       <DashboardIntlProvider locale={dashboardLocale} messages={dashboardMessages}>
       <DashboardEditionProvider edition={dashboardEdition} subscriptionEdition={subscriptionEdition}>
-      <DashboardViewerAccessProvider viewerIsAdmin={viewerIsAdmin} viewerMetaPilotEnabled={viewerMetaPilotEnabled} activeAccountId={accountScope.activeUserId}>
+      <DashboardViewerAccessProvider viewerIsAdmin={viewerIsAdmin} viewerMetaPilotEnabled={viewerMetaPilotEnabled} actorUserId={user.id} activeAccountId={accountScope.activeUserId}>
         <DashboardPersistentImageCache />
         <div className={styles.bg} />
         <div className={styles.noise} />
