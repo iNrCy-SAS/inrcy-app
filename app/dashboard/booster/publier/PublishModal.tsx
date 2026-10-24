@@ -3203,10 +3203,8 @@ export default function PublishModal({
           typeof payload.imageSettingsByChannel === "object"
             ? payload.imageSettingsByChannel
             : {};
-        const nextUseImagesForAI =
-          typeof payload.useImagesForAI === "boolean"
-            ? payload.useImagesForAI
-            : true;
+        // Images in Idée guide generation automatically, including restored drafts.
+        const nextUseImagesForAI = true;
         let imageDrafts = Array.isArray(payload.imageDrafts)
           ? payload.imageDrafts
           : [];
@@ -8500,8 +8498,6 @@ export default function PublishModal({
             }
             removeVideo={removeVideo}
             removeImage={removeImage}
-            useImagesForAI={useImagesForAI}
-            setUseImagesForAI={setUseImagesForAI}
             imgError={generationMediaWarning ? "" : imgError}
             showMediaOptimizerAction={false}
             onOpenMediaOptimizer={openMediaOptimizer}

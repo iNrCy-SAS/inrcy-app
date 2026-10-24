@@ -35,7 +35,7 @@
 .textarea:focus { border-color: #ce9df5 !important; box-shadow: 0 0 0 3px #c478e412,0 9px 35px #15112c24; }
 .references {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(100px, 150px);
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center; gap: 14px; min-width: 0; min-height: 78px;
   padding: 14px 0 0; border: 0; border-top: 1px solid #b29fdc26;
   background: transparent;
@@ -74,8 +74,6 @@
 .videoThumbnail > span { position: absolute; bottom: 3px; left: 4px; font-size: 9px; color: #fff; background: #111d39bd; border-radius: 4px; padding: 2px 4px; }
 .retouchVideo { position: absolute; bottom: 2px; right: 3px; font-size: 9px; color: white; background: #21365acc; border: 1px solid #a0b7ef44; border-radius: 5px; padding: 2px 4px; cursor: pointer; }
 .emptyReference { font-size: 10px; line-height: 1.4; color: #7f95b8; }
-.aiReference { display: flex; align-items: center; gap: 7px; color: #a9c2e1; font-size: 10px; line-height: 1.4; }
-.aiReference input { accent-color: #71d8ff; width: 14px; height: 14px; flex: 0 0 auto; margin: 0; }
 .messages { display: grid; gap: 6px; color: #d8eaff; font-size: 12px; line-height: 1.4; min-height: 0; max-height: 100px; overflow-y: auto; }
 .error { color: #ffb9c4; }
 .warning { color: #ffd19f; }
@@ -88,11 +86,10 @@
 .engineControl > div { flex: 0 0 auto; font-size: 11px; }
 .engineControl select { flex: 1; min-width: 0; width: auto !important; }
 @media (max-width: 1180px) and (min-width: 701px) {
-  .references { grid-template-columns: auto minmax(0, 1fr) 130px; gap: 6px 14px; }
+  .references { grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; }
   .referenceHeading { grid-column: 1; }
   .referenceHeading h2 { max-width: 250px; }
   .referenceThumbnails { grid-column: 2; }
-  .aiReference { grid-column: 3; }
   .referenceThumbnails:has(> .emptyReference:only-child) { display: none; }
   .referenceAction { min-height: 32px; padding: 5px 8px; }
 }
@@ -122,5 +119,4 @@
   .referenceThumbnails:has(> .emptyReference:only-child) { display: none; }
   .thumbnail, .videoThumbnail, .pdfThumbnail { height: 36px; min-width: 42px; width: 44px; }
   .pdfThumbnail { width: 110px; } .videoThumbnail { width: 80px; }
-  .aiReference { font-size: 9px; }
 }
