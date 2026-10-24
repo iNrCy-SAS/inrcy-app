@@ -822,7 +822,7 @@
   "wizard_media_library": "Mediateca",
   "wizard_camera": "Fotocamera",
   "wizard_inspirations": "Ispirazione",
-  "wizard_inspirations_help": "Per guidare l’IA · Facoltativo",
+  "wizard_inspirations_help": "Aggiungi un documento per aiutare l’IA (facoltativo)",
   "wizard_file": "File",
   "wizard_automatic_help": "iNrCy genera i contenuti, adattati a ogni canale.",
   "wizard_manual_help": "Scrivi i tuoi contenuti come vuoi.",
@@ -882,5 +882,7 @@
   "wizard_confirm_publication": "Confermare la pubblicazione?",
   "schedule_planning": "Calendario",
   "schedule_view_planning": "Visualizza il calendario delle pubblicazioni",
-  "schedule_back_to_programming": "Torna alla programmazione"
+  "schedule_back_to_programming": "Torna alla programmazione",
+  "wizard_reference_add": "Aggiungi un documento",
+  "wizard_reference_back": "Torna alle opzioni"
 }

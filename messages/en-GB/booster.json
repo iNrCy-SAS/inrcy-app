@@ -822,7 +822,7 @@
   "wizard_media_library": "Media library",
   "wizard_camera": "Camera",
   "wizard_inspirations": "Inspiration",
-  "wizard_inspirations_help": "To guide the AI · Optional",
+  "wizard_inspirations_help": "Add a document to help the AI (optional)",
   "wizard_file": "File",
   "wizard_automatic_help": "iNrCy generates your content, adapted to each channel.",
   "wizard_manual_help": "Write your content your way.",
@@ -882,5 +882,7 @@
   "wizard_confirm_publication": "Confirm publication?",
   "schedule_planning": "Planning",
   "schedule_view_planning": "View the publication calendar",
-  "schedule_back_to_programming": "Back to scheduling"
+  "schedule_back_to_programming": "Back to scheduling",
+  "wizard_reference_add": "Add a document",
+  "wizard_reference_back": "Back to choices"
 }

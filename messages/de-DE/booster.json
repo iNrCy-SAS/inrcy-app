@@ -822,7 +822,7 @@
   "wizard_media_library": "Mediathek",
   "wizard_camera": "Kamera",
   "wizard_inspirations": "Inspiration",
-  "wizard_inspirations_help": "Als KI-Vorgabe · Optional",
+  "wizard_inspirations_help": "Dokument als KI-Hilfe hinzufügen (optional)",
   "wizard_file": "Datei",
   "wizard_automatic_help": "iNrCy erstellt Ihre Inhalte, passend für jeden Kanal.",
   "wizard_manual_help": "Schreiben Sie Ihre Inhalte selbst.",
@@ -882,5 +882,7 @@
   "wizard_confirm_publication": "Veröffentlichung bestätigen?",
   "schedule_planning": "Planung",
   "schedule_view_planning": "Beitragskalender ansehen",
-  "schedule_back_to_programming": "Zurück zur Terminplanung"
+  "schedule_back_to_programming": "Zurück zur Terminplanung",
+  "wizard_reference_add": "Dokument hinzufügen",
+  "wizard_reference_back": "Zurück zur Auswahl"
 }

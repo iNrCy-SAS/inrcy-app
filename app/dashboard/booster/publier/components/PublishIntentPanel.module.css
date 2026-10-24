@@ -35,15 +35,13 @@
 .textarea:focus { border-color: #ce9df5 !important; box-shadow: 0 0 0 3px #c478e412,0 9px 35px #15112c24; }
 .references {
   display: grid;
-  grid-template-columns: minmax(115px, 150px) auto minmax(0, 1fr) minmax(100px, 150px);
+  grid-template-columns: auto minmax(0, 1fr) minmax(100px, 150px);
   align-items: center; gap: 14px; min-width: 0; min-height: 78px;
   padding: 14px 0 0; border: 0; border-top: 1px solid #b29fdc26;
   background: transparent;
 }
-.referenceHeading { display: grid; gap: 4px; }
-.referenceHeading h2 { font-size: 14px; margin: 0; font-weight: 800; }
-.referenceHeading > span { color: #91a5c7; font-size: 10px; line-height: 1.35; }
-.referenceActions { display: flex; flex-wrap: wrap; gap: 6px; }
+.referenceHeading { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.referenceHeading h2 { max-width: 320px; font-size: 14px; line-height: 1.45; margin: 0; font-weight: 800; }
 .referenceAction {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   min-height: 36px; min-width: 0; padding: 7px 10px;
@@ -90,10 +88,11 @@
 .engineControl > div { flex: 0 0 auto; font-size: 11px; }
 .engineControl select { flex: 1; min-width: 0; width: auto !important; }
 @media (max-width: 1180px) and (min-width: 701px) {
-  .references { grid-template-columns: 130px minmax(0, 1fr) 130px; gap: 6px 14px; }
-  .referenceHeading { grid-column: 1; grid-row: 1 / 3; }
-  .referenceActions, .referenceThumbnails { grid-column: 2; }
-  .aiReference { grid-column: 3; grid-row: 1 / 3; }
+  .references { grid-template-columns: auto minmax(0, 1fr) 130px; gap: 6px 14px; }
+  .referenceHeading { grid-column: 1; }
+  .referenceHeading h2 { max-width: 250px; }
+  .referenceThumbnails { grid-column: 2; }
+  .aiReference { grid-column: 3; }
   .referenceThumbnails:has(> .emptyReference:only-child) { display: none; }
   .referenceAction { min-height: 32px; padding: 5px 8px; }
 }
@@ -114,10 +113,9 @@
   .fieldHeading span { display: none; }
   .textarea { padding: 12px 50px 38px 13px; font-size: 15px; border-radius: 13px; }
   .references { grid-template-columns: minmax(0, 1fr); padding: 9px; gap: 8px; }
-  .referenceHeading { display: flex; align-items: baseline; gap: 8px; }
-  .referenceHeading h2 { font-size: 12px; }
-  .referenceHeading > span { font-size: 9px; }
-  .referenceActions { gap: 4px; }
+  .referenceHeading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .referenceHeading h2 { max-width: none; font-size: 12px; }
+
   .referenceAction { min-height: 36px; padding: 6px 8px; font-size: 11px; gap: 5px; }
   .referenceAction > span { font-size: 13px; }
   .referenceThumbnails { padding-block: 2px; }

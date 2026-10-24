@@ -178,7 +178,8 @@ test("l'étape Intention affiche le PDF et le flux génération assure upload, r
     "utf8",
   );
 
-  assert.match(panel, /data-testid="booster-pdf-context-control"/);
+  const picker = readFileSync(join(root, "app/dashboard/booster/publier/components/PublishReferencePicker.tsx"), "utf8");
+  assert.match(picker, /data-testid="booster-pdf-context-control"/);
   assert.match(panel, /accept=\{BOOSTER_PDF_ACCEPT\}/);
   assert.match(panel, /\{pdfFile\.name\}/);
   assert.match(panel, /formatAttachmentSize\(pdfFile\.size\)/);
