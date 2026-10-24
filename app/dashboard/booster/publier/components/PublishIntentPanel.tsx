@@ -96,8 +96,6 @@ type PublishIntentPanelProps = {
   onRetouchVideo: () => void;
   removeVideo: () => void;
   removeImage: (index: number) => void;
-  useImagesForAI: boolean;
-  setUseImagesForAI: Dispatch<SetStateAction<boolean>>;
   imgError: string;
   showMediaOptimizerAction?: boolean;
   onOpenMediaOptimizer?: () => void;
@@ -151,8 +149,6 @@ export default function PublishIntentPanel({
   onRetouchVideo,
   removeVideo,
   removeImage,
-  useImagesForAI,
-  setUseImagesForAI,
   imgError,
   showMediaOptimizerAction = false,
   onOpenMediaOptimizer,
@@ -432,10 +428,6 @@ export default function PublishIntentPanel({
             </div> : null}
             {!pdfFile && !hasImages && !hasVideoMedia ? <span className={css.emptyReference}>{referenceSummary}</span> : null}
           </div>
-          <label className={css.aiReference} title={i18nT(useImagesForAI ? "generation_images_used_by_ai" : "generation_images_publication_only")}>
-            <input type="checkbox" checked={useImagesForAI} disabled={!images.length} onChange={(event) => setUseImagesForAI(event.target.checked)} />
-            <span>{useImagesForAI ? i18nT("images_utilisees_par_l_ia_27b19f51") : i18nT("images_hors_generation_c3e94f90")}</span>
-          </label>
         </aside>
       </div>
       <input ref={pdfInputRef} type="file" accept={BOOSTER_PDF_ACCEPT} hidden onChange={(event) => { onPdfChange(event.target.files); event.currentTarget.value = ""; }} />
