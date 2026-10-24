@@ -1,4 +1,6 @@
 {
+  "connections_loading": "กำลังตรวจสอบการเชื่อมต่อ…",
+  "connections_unavailable": "การเชื่อมต่อไม่พร้อมใช้งานชั่วคราว โปรดลองอีกครั้งในอีกสักครู่",
   "tiktok_review_terms": "ข้อกำหนด TikTok",
   "tiktok_review_community": "แนวทางชุมชน",
   "tiktok_review_music": "การใช้เพลง",

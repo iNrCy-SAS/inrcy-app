@@ -18,6 +18,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
 import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
+import { readBoosterConnectionSnapshot, writeBoosterConnectionSnapshot } from "./publishConnectionSnapshot";
 import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import PublishExecutionResultModal, { PublishExecutionResultActions, type PublishExecutionSummary } from "../../_components/PublishExecutionResultModal";
@@ -549,7 +550,7 @@ export default function PublishModal({
   initialConnectedChannels?: Partial<Record<ChannelKey, boolean>>;
   companyName?: string;
 }) {
-  const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
+  const { metaPilotEnabled, activeAccountId, actorUserId } = useDashboardViewerAccess();
   const CHANNEL_KEYS = useMemo(() => ALL_CHANNEL_KEYS.filter((key) => key !== "threads" || metaPilotEnabled), [metaPilotEnabled]);
   const i18nT = useTranslations("booster");
   const mediaT = useTranslations("media");
@@ -1159,7 +1160,11 @@ export default function PublishModal({
     windowY: number;
   } | null>(null);
 
-  const getInitialConnectedChannels = (): Record<ChannelKey, boolean> => ({
+  const [initialConnectionBootstrap] = useState(() => {
+    const accountId = getActiveBrowserUserId() || activeAccountId || null;
+    return { accountId, snapshot: readBoosterConnectionSnapshot(actorUserId, accountId, CHANNEL_KEYS) };
+  });
+  const getInitialConnectedChannels = (): Record<ChannelKey, boolean> => initialConnectionBootstrap.snapshot?.channels ?? ({
 
     site_web: !!initialConnectedChannels?.site_web,
     gmb: !!initialConnectedChannels?.gmb,
@@ -1186,9 +1191,11 @@ export default function PublishModal({
   );
   const [channelDetails, setChannelDetails] = useState<
     Record<ChannelKey, ChannelConnectionDetail>
-  >(EMPTY_CHANNEL_DETAILS);
+  >(initialConnectionBootstrap.snapshot?.channelDetails ?? EMPTY_CHANNEL_DETAILS);
+  const [hasKnownChannelConnections, setHasKnownChannelConnections] = useState(Boolean(initialConnectionBootstrap.snapshot));
   const [connectedChannelsLoadState, setConnectedChannelsLoadState] = useState<"loading" | "ready" | "error">("loading");
-  const connectedChannelsScopeRef = useRef<string | null | undefined>(undefined);
+  const connectedChannelsScopeRef = useRef<string | null | undefined>(initialConnectionBootstrap.accountId);
+  const connectedChannelsActorRef = useRef(actorUserId);
   const authoritativeChannelsRef = useRef(false);
   const [channelInfoOpen, setChannelInfoOpen] = useState<ChannelKey | null>(
     null,
@@ -1480,14 +1487,9 @@ export default function PublishModal({
     const failClosedConnectedChannels = () => {
       if (!alive) return;
       setConnectedChannelsLoadState("error");
-      const unavailable = CHANNEL_KEYS.reduce(
-        (result, key) => {
-          result[key] = false;
-          return result;
-        },
-        {} as Record<ChannelKey, boolean>,
-      );
-      applyConnectedChannels(unavailable);
+      // A transport failure does not prove disconnection. Preserve the last
+      // display and selection, but revoke permission to continue or publish.
+      authoritativeChannelsRef.current = false;
       setChannelDetails((current) =>
         CHANNEL_KEYS.reduce(
           (next, key) => {
@@ -1505,13 +1507,16 @@ export default function PublishModal({
     };
     const refreshConnectedChannels = async () => {
       const requestSeq = ++connectedChannelsRequestSeq;
-      const accountScope = getActiveBrowserUserId();
-      const isCurrent = () => alive && requestSeq === connectedChannelsRequestSeq && accountScope === getActiveBrowserUserId();
-      if (connectedChannelsScopeRef.current !== accountScope) {
+      const accountScope = getActiveBrowserUserId() || activeAccountId || null;
+      const isCurrent = () => alive && requestSeq === connectedChannelsRequestSeq && accountScope === (getActiveBrowserUserId() || activeAccountId || null);
+      if (connectedChannelsScopeRef.current !== accountScope || connectedChannelsActorRef.current !== actorUserId) {
+        connectedChannelsActorRef.current = actorUserId;
         connectedChannelsScopeRef.current = accountScope;
         authoritativeChannelsRef.current = false;
-        setChannelDetails(EMPTY_CHANNEL_DETAILS);
-        setConnected(CHANNEL_KEYS.reduce((next, key) => ({ ...next, [key]: false }), {} as Record<ChannelKey, boolean>));
+        const cached = readBoosterConnectionSnapshot(actorUserId, accountScope, CHANNEL_KEYS);
+        setHasKnownChannelConnections(Boolean(cached));
+        setChannelDetails(cached?.channelDetails ?? EMPTY_CHANNEL_DETAILS);
+        setConnected(cached?.channels ?? CHANNEL_KEYS.reduce((next, key) => ({ ...next, [key]: false }), {} as Record<ChannelKey, boolean>));
       }
       if (!authoritativeChannelsRef.current) setConnectedChannelsLoadState("loading");
       try {
@@ -1535,6 +1540,7 @@ export default function PublishModal({
             {} as Record<ChannelKey, boolean>,
           );
           authoritativeChannelsRef.current = true;
+          setHasKnownChannelConnections(true);
           applyConnectedChannels(nextConnected);
           const nextChannelDetails: Partial<Record<ChannelKey, ChannelConnectionDetail>> = {
             ...json?.channelDetails,
@@ -1646,7 +1652,12 @@ export default function PublishModal({
     void refreshConnectedChannels();
     const intervalId = window.setInterval(refreshConnectedChannels, 60_000);
     const onFocus = () => void refreshConnectedChannels();
-    const unsubscribeConnectionUpdates = subscribeToChannelConnectionUpdates(onFocus);
+    const unsubscribeConnectionUpdates = subscribeToChannelConnectionUpdates(() => {
+      // A confirmed connection mutation invalidates publication permission
+      // immediately, while its replacement snapshot is fetched.
+      authoritativeChannelsRef.current = false;
+      void refreshConnectedChannels();
+    });
     window.addEventListener("focus", onFocus);
     window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, onFocus);
     return () => {
@@ -1657,7 +1668,13 @@ export default function PublishModal({
       window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, onFocus);
       unsubscribeConnectionUpdates();
     };
-  }, [applyConnectedChannels, activeAccountId]);
+  }, [applyConnectedChannels, activeAccountId, actorUserId]);
+
+  useEffect(() => {
+    const scope = connectedChannelsScopeRef.current;
+    if (connectedChannelsLoadState !== "ready" || !authoritativeChannelsRef.current || scope !== (getActiveBrowserUserId() || activeAccountId || null)) return;
+    writeBoosterConnectionSnapshot(actorUserId, scope ?? null, CHANNEL_KEYS, connected, channelDetails);
+  }, [actorUserId, activeAccountId, connected, channelDetails, connectedChannelsLoadState]);
 
   useEffect(() => {
     if (!initialConnectedChannels) return;
@@ -1666,7 +1683,7 @@ export default function PublishModal({
     lastInitialConnectedChannelsRef.current = nextConnected;
     // Dashboard hydration can finish after the authoritative Booster request.
     // Its older booleans must not overwrite the snapshot already displayed.
-    if (authoritativeChannelsRef.current) return;
+    if (authoritativeChannelsRef.current || hasKnownChannelConnections) return;
 
     // Les valeurs initiales sont déjà utilisées par les state initializers.
     // On ne resynchronise ensuite que les clés qui changent réellement, afin
@@ -3687,7 +3704,7 @@ export default function PublishModal({
           : detail?.connectionStatus === "disconnected"
             ? i18nT("connect_in_channels")
             : "";
-    const fullLabel = statusLabel || simplifiedLabel;
+    const fullLabel = availabilityError && simplifiedLabel ? simplifiedLabel : statusLabel || simplifiedLabel;
     if (!fullLabel) return null;
     const desktopLabel = truncateText(fullLabel, 34);
     const mobileLabel = truncateText(fullLabel, 24);
@@ -5620,6 +5637,10 @@ export default function PublishModal({
       voiceInputBusy ||
       publishStartGuardRef.current
     ) return;
+    if (!authoritativeChannelsRef.current || connectedChannelsScopeRef.current !== (getActiveBrowserUserId() || activeAccountId || null)) {
+      setPublishError(i18nT("connections_loading"));
+      return;
+    }
     const publishStartedAt = Date.now();
     const preparedPostsByChannel =
       options?.preparedPostsByChannel || buildPreparedPostsByChannel();
@@ -6840,6 +6861,10 @@ export default function PublishModal({
     tiktokSettingsForSchedule: TiktokPublicationSettings | null,
     immediateChannels: ChannelKey[] = [],
   ): Promise<PendingImmediatePublishAfterSchedule | null | undefined> => {
+    if (!authoritativeChannelsRef.current || connectedChannelsScopeRef.current !== (getActiveBrowserUserId() || activeAccountId || null)) {
+      setScheduleError(i18nT("connections_loading"));
+      return;
+    }
     if (
       saving ||
       draftSaving ||
@@ -8383,10 +8408,11 @@ export default function PublishModal({
       >
         <PublishWizardScreen active={activeWizardStep === "mode" || activeWizardStep === "channels"} step="channels">
           <div className={wizardStyles.preparation}>
-            {connectedChannelsLoadState === "loading" ? <div role="status" aria-live="polite">{i18nT("chargement_01cba1df")}</div> : null}
+            {connectedChannelsLoadState === "error" ? <div role="status" aria-live="polite">{i18nT("connections_unavailable")}</div> : null}
             <div ref={setChannelActionsContainer} className={wizardStyles.selectionActions} />
       <PublishChannelSelector
         actionsContainer={channelActionsContainer}
+        connectionsPending={!hasKnownChannelConnections}
         companyName={companyName}
         styles={styles}
         isMobile={isMobile}

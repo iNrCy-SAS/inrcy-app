@@ -1,4 +1,6 @@
 {
+  "connections_loading": "正在检查连接…",
+  "connections_unavailable": "连接暂时不可用，请稍后重试。",
   "tiktok_review_terms": "TikTok 条款",
   "tiktok_review_community": "社区准则",
   "tiktok_review_music": "音乐使用确认",

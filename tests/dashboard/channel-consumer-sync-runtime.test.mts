@@ -83,15 +83,18 @@ function boosterEffect(options: {
   browser?: ReturnType<typeof browser>;
   details?: Dict;
   detailScope?: string | null;
+  connected?: Dict;
+  readSnapshot?: (actor: string, scope: string | null) => Dict | null;
 }) {
   const b = options.browser ?? browser();
   const applied: Dict[] = [];
   const writes: Dict[] = [];
   let details: Dict = options.details ?? {};
   let loadState = "loading";
+  let hasKnown = Boolean(options.details);
   const channelKeys = ["gmb", "facebook", "pinterest", "tiktok"];
   let selection = Object.fromEntries(channelKeys.map(key => [key, false]));
-  let connected: Dict = {};
+  let connected: Dict = options.connected ?? {};
   const draftChannelsRestoredRef = { current: false };
   const manuallyControlledChannelsRef = { current: new Set<string>() };
   const setConnected = (next: Dict) => { connected = next; applied.push(next); };
@@ -107,6 +110,10 @@ function boosterEffect(options: {
     document: b.document,
     ACTIVE_INRCY_ACCOUNT_EVENT,
     getActiveBrowserUserId: b.account,
+    actorUserId: "actor-a", activeAccountId: "",
+    connectedChannelsActorRef: { current: "actor-a" },
+    readBoosterConnectionSnapshot: options.readSnapshot ?? (() => null),
+    setHasKnownChannelConnections: (next: boolean) => { hasKnown = next; },
     subscribeToChannelConnectionUpdates: b.subscribe,
     connectedChannelsScopeRef: { current: options.detailScope === undefined ? (options.details ? b.account() : undefined) : options.detailScope },
     authoritativeChannelsRef: { current: false },
@@ -126,6 +133,7 @@ function boosterEffect(options: {
     browser: b, cleanup, applied, writes, details: () => details, loadState: () => loadState,
     selection: () => selection,
     connected: () => connected,
+    hasKnown: () => hasKnown,
     restoreDraft: (next: Dict) => {
       draftChannelsRestoredRef.current = true;
       selection = { ...selection, ...next };
@@ -196,6 +204,10 @@ for (const consumer of ["Booster", "iNrAgent"] as const) {
       document: b.document,
       ACTIVE_INRCY_ACCOUNT_EVENT,
       getActiveBrowserUserId: b.account,
+      actorUserId: "actor-a", activeAccountId: "",
+      connectedChannelsActorRef: { current: "actor-a" },
+      readBoosterConnectionSnapshot: () => null,
+      setHasKnownChannelConnections() {},
       subscribeToChannelConnectionUpdates: b.subscribe,
       connectedChannelsScopeRef: { current: undefined },
       authoritativeChannelsRef: { current: false },
@@ -486,4 +498,133 @@ test("Booster: unmount cancels a pending Pinterest identity update", async () =>
   identity.resolve({ ok: true, json: async () => ({ ok: true, connected: true, username: "late-profile" }) });
   await tick();
   assert.equal(harness.writes.length, writesBefore);
+});
+
+
+test("Booster: reopening preserves cached names and Pinterest while revalidation remains mandatory", async () => {
+  const response = deferred<Dict>();
+  const harness = boosterEffect({
+    connected: { gmb: true, pinterest: true },
+    details: { gmb: { label: "Société connue" }, pinterest: { label: "Profil connu" } },
+    fetch: () => response.promise,
+  });
+  assert.equal(harness.connected().gmb, true);
+  assert.equal(harness.connected().pinterest, true);
+  assert.equal(harness.details().gmb.label, "Société connue");
+  assert.equal(harness.details().pinterest.label, "Profil connu");
+  assert.equal(harness.hasKnown(), true);
+  assert.equal(harness.loadState(), "loading", "Display cache cannot authorize the next wizard step");
+  response.resolve({ ok: true, json: async () => ({ channels: { gmb: true, pinterest: false }, channelDetails: { gmb: { label: "Société confirmée" } } }) });
+  await tick();
+  assert.equal(harness.connected().pinterest, false, "A fresh disconnect must override cached availability");
+  assert.equal(harness.details().gmb.label, "Société confirmée");
+  assert.equal(harness.loadState(), "ready");
+  harness.cleanup();
+});
+
+test("Booster: switching accounts restores only the new account display while its response is pending", async () => {
+  const b = browser();
+  const requests: Array<ReturnType<typeof deferred<Dict>>> = [];
+  const harness = boosterEffect({
+    browser: b, connected: { gmb: true }, details: { gmb: { label: "Entreprise A" } },
+    readSnapshot: (actor, scope) => {
+      assert.equal(actor, "actor-a");
+      return scope === "account-b" ? { channels: { facebook: true, gmb: false }, channelDetails: { facebook: { label: "Entreprise B" } } } : null;
+    },
+    fetch: () => { const response=deferred<Dict>(); requests.push(response); return response.promise; },
+  });
+  b.changeAccount("account-b");
+  assert.equal(harness.details().facebook.label, "Entreprise B");
+  assert.equal(harness.details().gmb, undefined);
+  assert.equal(harness.connected().gmb, false);
+  assert.equal(harness.hasKnown(), true);
+  assert.equal(harness.loadState(), "loading");
+  requests[0].resolve({ ok: true, json: async () => ({ channels: { gmb: true }, channelDetails: { gmb: { label: "Ancien compte" } } }) });
+  await tick();
+  assert.equal(harness.details().facebook.label, "Entreprise B");
+  harness.cleanup();
+});
+
+test("Booster: a network failure preserves the known display and selection but never confirms availability", async () => {
+  const response=deferred<Dict>();
+  const harness=boosterEffect({ connected: { gmb: true }, details: { gmb: { label: "Compte connu" } }, fetch:()=>response.promise });
+  harness.restoreDraft({ gmb:true, facebook:false });
+  response.resolve({ ok:false });
+  await tick();
+  assert.equal(harness.connected().gmb,true);
+  assert.equal(harness.details().gmb.label,"Compte connu");
+  assert.equal(harness.details().gmb.availabilityError,true);
+  assert.equal(harness.selection().gmb,true);
+  assert.equal(harness.selection().facebook,false);
+  assert.equal(harness.loadState(),"error");
+  harness.cleanup();
+});
+
+test("Booster: cold opening remains unknown until an actual connection response arrives", async () => {
+  const response=deferred<Dict>();
+  const harness=boosterEffect({ fetch:()=>response.promise });
+  assert.equal(harness.hasKnown(),false);
+  assert.equal(harness.loadState(),"loading");
+  response.resolve({ ok:true,json:async()=>({ channels:{gmb:false},channelDetails:{} }) });
+  await tick();
+  assert.equal(harness.hasKnown(),true,"Only a real response can establish that the channels are disconnected");
+  assert.equal(harness.connected().gmb,false);
+  harness.cleanup();
+});
+
+for(const action of ["runPublish", "performSchedulePublication"]) {
+  test("Booster: "+action+" refuses a display-only connection snapshot before any network work", async()=>{
+    const path="app/dashboard/booster/publier/PublishModal.tsx";
+    const source=ts.createSourceFile(path,read(path),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+    let found:ts.Expression|undefined;
+    function visit(node:ts.Node) {
+      if(ts.isVariableDeclaration(node) && node.name.getText(source)===action) found=node.initializer;
+      ts.forEachChild(node,visit);
+    }
+    visit(source); assert.ok(found);
+    const compiled=ts.transpileModule("const action=("+found.getText(source)+");",{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+    const errors:string[]=[];
+    const dependencies={saving:false,draftSaving:false,voiceInputBusy:false,publishStartGuardRef:{current:false},
+      authoritativeChannelsRef:{current:false},connectedChannelsScopeRef:{current:"account-a"},getActiveBrowserUserId:()=>"account-a",activeAccountId:"",
+      i18nT:(key:string)=>key,setPublishError:(message:string)=>errors.push(message),setScheduleError:(message:string)=>errors.push(message)};
+    const invoke=new Function(...Object.keys(dependencies),compiled+"; return action;")(...Object.values(dependencies));
+    await invoke();
+    assert.deepEqual(errors,["connections_loading"]);
+  });
+}
+
+
+function modalInitializer(name: string) {
+  const path="app/dashboard/booster/publier/PublishModal.tsx";
+  const source=ts.createSourceFile(path,read(path),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+  let found:ts.Expression|undefined;
+  function visit(node:ts.Node) {
+    if(ts.isVariableDeclaration(node) && node.name.getText(source).replace(/[\[\]]/g,"")===name) found=node.initializer;
+    ts.forEachChild(node,visit);
+  }
+  visit(source); assert.ok(found,name);
+  return (dependencies:Dict)=>new Function(...Object.keys(dependencies),ts.transpileModule("const value=("+found!.getText(source)+");",{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText+";return value;")(...Object.values(dependencies));
+}
+
+test("Booster: a transient connection check failure preserves the rendered account name and disables its link",()=>{
+  const detail=modalInitializer("getChannelDetailInfo")({
+    channelDetails:{gmb:{label:"Société connue",href:"https://example.com/",availabilityError:true,connectionStatus:"unavailable"}},
+    EMPTY_CHANNEL_DETAILS:{}, simplifyChannelDetail:(_key:string,label:string)=>label,
+    truncateText:(text:string)=>text,i18nT:(key:string)=>key,
+  })("gmb");
+  assert.equal(detail.fullLabel,"Société connue");
+  assert.equal(detail.href,null);
+  assert.equal(detail.connectionStatus,"unavailable");
+});
+
+test("Booster: the first render reads the cached display using the trusted account before the browser hint hydrates",()=>{
+  const snapshot={channels:{gmb:true,pinterest:true},channelDetails:{gmb:{label:"Société connue"},pinterest:{label:"Profil connu"}}};
+  const [bootstrap]=modalInitializer("initialConnectionBootstrap")({
+    useState:(initialize:()=>unknown)=>[initialize()],getActiveBrowserUserId:()=>null,activeAccountId:"account-a",actorUserId:"actor-a",CHANNEL_KEYS:["gmb","pinterest"],
+    readBoosterConnectionSnapshot:(actor:string,account:string)=>{ assert.equal(actor,"actor-a");assert.equal(account,"account-a");return snapshot; },
+  });
+  assert.equal(bootstrap.accountId,"account-a");
+  assert.equal(bootstrap.snapshot,snapshot);
+  const getInitial=modalInitializer("getInitialConnectedChannels")({initialConnectionBootstrap:bootstrap});
+  assert.deepEqual(getInitial(),snapshot.channels);
 });

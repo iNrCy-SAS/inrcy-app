@@ -8,6 +8,7 @@ export const DASHBOARD_CACHE_KEYS = {
   dashboardServerCheck: "inrcy_dashboard_server_cache_check_ui_v2",
   statsServerCheck: "inrcy_stats_server_cache_check_ui_v2",
   channelState: "inrcy_dashboard_channel_state_v2",
+  boosterConnections: "inrcy_booster_connections_v1",
   siteProgress: "site_web_bubble_progress_v3",
   generatorPower: "inrcy_generator_power_percent_v4",
   generatorPowerSnapshot: "inrcy_generator_power_snapshot_v4",

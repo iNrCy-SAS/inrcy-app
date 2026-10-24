@@ -45,6 +45,7 @@ function getChannelAccountName(info: ChannelDetailInfo | null, isConnected: bool
 
 type PublishChannelSelectorProps = {
   actionsContainer?: HTMLElement | null;
+  connectionsPending?: boolean;
   styles: PublishModalStyles;
   isMobile: boolean;
   companyName?: string;
@@ -114,6 +115,7 @@ function LinkIcon() {
 
 export default function PublishChannelSelector({
   actionsContainer,
+  connectionsPending = false,
   styles,
   isMobile,
   companyName,
@@ -163,6 +165,25 @@ export default function PublishChannelSelector({
       <span>{bulkLabel}</span>
     </label>
   );
+
+  if (connectionsPending) {
+    return (
+      <div className={css.selector} aria-busy="true">
+        <p className={css.connectionLoading} role="status">{i18nT("connections_loading")}</p>
+        <div className={css.channelGrid} style={{ display: isMobile ? "grid" : "flex", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", flexWrap: "wrap" }}>
+          {channelKeys.filter(key => key !== "threads" || metaPilotEnabled).map(key => (
+            <div key={key} className={`${css.channelCard} ${css.pendingCard} ${isMobile ? css.mobileCard : ""}`} aria-hidden="true">
+              <img className={isMobile ? css.mobileLogo : css.channelLogo} src={CHANNEL_ICON_SRC[key]} alt="" />
+              <span className={css.channelCopy}>
+                <span className={css.channelName}>{getLocalizedChannelLabel(key, messageKey => i18nT(messageKey as never))}</span>
+                <span className={css.accountPlaceholder} />
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

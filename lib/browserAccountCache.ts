@@ -152,7 +152,7 @@ export function readAccountCacheValue(baseKey: string, userId = getActiveBrowser
     // A tab's session storage does not receive updates from other tabs. For
     // connection snapshots, restore the newest confirmed state instead of an
     // older green/yellow state when returning to a previously opened tab.
-    const timestampField = baseKey === DASHBOARD_CACHE_KEYS.channelState
+    const timestampField = (baseKey === DASHBOARD_CACHE_KEYS.channelState || baseKey === DASHBOARD_CACHE_KEYS.boosterConnections)
       ? "cachedAt"
       : baseKey.startsWith("inrcy_channel_workspace_ui_v1:") ? "updatedAt" : null;
     if (timestampField && localValue !== null && sessionValue !== null && localValue !== sessionValue) {
