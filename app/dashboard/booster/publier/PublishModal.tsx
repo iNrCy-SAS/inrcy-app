@@ -28,10 +28,10 @@ import { subscribeToChannelConnectionUpdates } from "@/lib/channelConnectionUpda
 import { createClient } from "@/lib/supabaseClient";
 import { prewarmBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 import { buildBoosterGenerationRequest } from "@/lib/boosterGenerationTransportClient";
+import { getBoosterDocumentMimeType, validateBoosterDocumentSelection, type BoosterDocumentAttachmentRef } from "@/lib/boosterDocumentAttachmentPolicy";
 import {
   BOOSTER_PDF_STORAGE_BUCKET,
   BOOSTER_PDF_STORAGE_FOLDER,
-  validateBoosterPdfAttachmentMetadata,
   type BoosterPdfAttachmentRef,
 } from "@/lib/boosterPdfAttachmentPolicy";
 import {
@@ -580,7 +580,8 @@ export default function PublishModal({
   const [saving, setSaving] = useState(false);
   const [idea, setIdea] = useState("");
   const [publicationInstruction, setPublicationInstruction] = useState("");
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
+  const pdfFile = documentFiles[0] || null;
   const [pdfAttachmentError, setPdfAttachmentError] = useState("");
   const [theme, setTheme] = useState<ThemeKey>("");
   const [contentStyle, setContentStyle] = useState<StyleKey>("equilibre");
@@ -3441,7 +3442,7 @@ export default function PublishModal({
 
         // Le PDF sert uniquement de contexte à la génération courante. Il n'est
         // jamais sérialisé dans un brouillon ni réutilisé entre deux brouillons.
-        setPdfFile(null);
+        setDocumentFiles([]);
         setPdfAttachmentError("");
         setIdea(nextIdea);
         setPublicationInstruction(nextPublicationInstruction);
@@ -3785,7 +3786,7 @@ export default function PublishModal({
   const clearAiCreationWork = () => {
     setIdea("");
     setPublicationInstruction("");
-    setPdfFile(null);
+    setDocumentFiles([]);
     setPdfAttachmentError("");
     if (pdfInputRef.current) pdfInputRef.current.value = "";
     setTheme("");
@@ -3868,22 +3869,20 @@ export default function PublishModal({
   };
 
   const onPdfChange = (files: FileList | null) => {
-    const file = files?.[0] || null;
-    if (!file) return;
-
-    const validation = validateBoosterPdfAttachmentMetadata(file);
-    if (!validation.ok) {
-      setPdfAttachmentError(validation.message);
-      return;
+    if (!files?.length) return;
+    const next = [...documentFiles];
+    for (const file of Array.from(files)) {
+      if (!next.some(existing => existing.name === file.name && existing.size === file.size && existing.lastModified === file.lastModified)) next.push(file);
     }
-
-    setPdfFile(file);
+    const error = validateBoosterDocumentSelection(next);
+    if (error) { setPdfAttachmentError(error); return; }
+    setDocumentFiles(next);
     setPdfAttachmentError("");
     setGenError("");
   };
 
-  const removePdfAttachment = () => {
-    setPdfFile(null);
+  const removePdfAttachment = (index = 0) => {
+    setDocumentFiles(current => current.filter((_, currentIndex) => currentIndex !== index));
     setPdfAttachmentError("");
     if (pdfInputRef.current) pdfInputRef.current.value = "";
   };
@@ -3934,7 +3933,7 @@ export default function PublishModal({
     });
     const hasVideoForGeneration = !!videoGenerationContext?.enabled;
     const shouldUseImagesForAI =
-      !hasVideoForGeneration && images.length > 0 && useImagesForAI;
+      images.length > 0 && useImagesForAI;
     const shouldPrepareMediaForAi = shouldPrepareBoosterMediaForAi({
       mode: creationMode,
       mediaType: hasVideoForGeneration ? "video" : "images",
@@ -3945,6 +3944,7 @@ export default function PublishModal({
     const shouldUsePersistentMediaWorkspaceForAi =
       shouldPrepareMediaForAi && unifiedMediaConsumptionClientAvailable;
     let temporaryPdfReference: BoosterPdfAttachmentRef | null = null;
+    const temporaryDocumentReferences: BoosterDocumentAttachmentRef[] = [];
     resetGenerationProgress();
     setGenerating(true);
     setGenerationProgressPhase(
@@ -3955,55 +3955,27 @@ export default function PublishModal({
     setDuplicateFeedback(null);
 
     try {
-      if (pdfFile) {
-        setGenerationProgressPhase(
-          "media_security",
-          i18nT("progress_media_preparation"),
-          10,
-        );
+      if (documentFiles.length) {
+        const selectionError = validateBoosterDocumentSelection(documentFiles);
+        if (selectionError) throw new Error(selectionError);
+        setGenerationProgressPhase("media_security", i18nT("progress_media_preparation"), 10);
         const pdfSupabase = createClient();
-        const { data: authData, error: authError } =
-          await pdfSupabase.auth.getUser();
-        const storageUserId = authData?.user?.id
-          ? resolveActiveBrowserUserId(authData.user.id)
-          : "";
-        if (authError || !storageUserId) {
-          throw new Error(
-            "Votre session ne permet pas de préparer ce PDF. Reconnectez-vous puis réessayez.",
-          );
+        const { data: authData, error: authError } = await pdfSupabase.auth.getUser();
+        const storageUserId = authData?.user?.id ? resolveActiveBrowserUserId(authData.user.id) : "";
+        if (authError || !storageUserId) throw new Error("Reconnectez-vous pour préparer les documents.");
+        for (const file of documentFiles) {
+          const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 120);
+          const uniqueId = typeof globalThis.crypto?.randomUUID === "function" ? globalThis.crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+          const storagePath = storageUserId + "/" + BOOSTER_PDF_STORAGE_FOLDER + "/" + uniqueId + "-" + safeName;
+          const type = getBoosterDocumentMimeType(file.name);
+          const { error: uploadError } = await pdfSupabase.storage.from(BOOSTER_PDF_STORAGE_BUCKET).upload(storagePath, file, { cacheControl: "3600", upsert: false, contentType: type });
+          if (uploadError) throw new Error("Impossible de préparer le document « " + file.name + " » pour l’IA.");
+          temporaryDocumentReferences.push({ bucket: BOOSTER_PDF_STORAGE_BUCKET, path: storagePath, name: file.name, type, size: file.size });
         }
-        const safeName = pdfFile.name
-          .replace(/[^a-zA-Z0-9._-]+/g, "-")
-          .replace(/^-+|-+$/g, "")
-          .slice(0, 120) || "document.pdf";
-        const uniqueId =
-          typeof globalThis.crypto?.randomUUID === "function"
-            ? globalThis.crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-        const storagePath = `${storageUserId}/${BOOSTER_PDF_STORAGE_FOLDER}/${uniqueId}-${safeName}`;
-        const { error: uploadError } = await pdfSupabase.storage
-          .from(BOOSTER_PDF_STORAGE_BUCKET)
-          .upload(storagePath, pdfFile, {
-            cacheControl: "3600",
-            upsert: false,
-            contentType: "application/pdf",
-          });
-        if (uploadError) {
-          throw new Error(
-            uploadError.message ||
-              "Impossible de préparer ce PDF pour l'analyse IA.",
-          );
-        }
-        temporaryPdfReference = {
-          bucket: BOOSTER_PDF_STORAGE_BUCKET,
-          path: storagePath,
-          name: pdfFile.name,
-          type: "application/pdf",
-          size: pdfFile.size,
-        };
+        temporaryPdfReference = temporaryDocumentReferences[0] || null;
       }
 
-      // Le PDF explicitement demandé est déjà sécurisé ci-dessus. Les médias
+      // Les documents explicitement demandés sont déjà sécurisés ci-dessus. Les médias
       // visuels restent des enrichissements optionnels : une seule enveloppe de
       // 12 s couvre la dernière course upload + captures, puis la rédaction part
       // sans attendre davantage leur préparation.
@@ -4033,7 +4005,7 @@ export default function PublishModal({
                 mapProgressRange(progress, 25, 42, 23, 39),
               );
             },
-            hasVideoForGeneration ? ["video"] : ["image"],
+            [...(shouldUseImagesForAI ? ["image" as const] : []), ...(hasVideoForGeneration ? ["video" as const] : [])],
             Math.max(1_000, mediaPreparationDeadlineAt - Date.now()),
           );
         } catch (workspaceError) {
@@ -4243,6 +4215,7 @@ export default function PublishModal({
         idea: trimmed,
         publicationInstruction: publicationInstruction.trim(),
         documentForAI: temporaryPdfReference,
+        documentsForAI: temporaryDocumentReferences,
         theme,
         style: contentStyle,
         aiPreferredEngine: selectedAiPreferredEngine,
@@ -4459,7 +4432,7 @@ export default function PublishModal({
       setPostsByChannel(sanitizePostsForEditor(versions, ctaDefaults));
       // Le document source a été consommé par cette génération. On libère le
       // File local pour qu'un brouillon enregistré ensuite soit réellement net.
-      setPdfFile(null);
+      setDocumentFiles([]);
       setPdfAttachmentError("");
       if (pdfInputRef.current) pdfInputRef.current.value = "";
       setContentWorkspaceOpen(true);
@@ -4526,12 +4499,12 @@ export default function PublishModal({
         ),
       );
     } finally {
-      if (temporaryPdfReference) {
+      if (temporaryDocumentReferences.length) {
         try {
           const cleanupSupabase = createClient();
           const { error: cleanupError } = await cleanupSupabase.storage
-            .from(temporaryPdfReference.bucket)
-            .remove([temporaryPdfReference.path]);
+            .from(BOOSTER_PDF_STORAGE_BUCKET)
+            .remove(temporaryDocumentReferences.map(reference => reference.path));
           if (cleanupError) {
             console.warn(
               "[booster-generate] temporary PDF cleanup skipped",
@@ -8491,6 +8464,7 @@ export default function PublishModal({
             videoPreviewUrl={videoPreviewUrl}
             videoDurationSeconds={videoDurationSeconds}
             pdfFile={pdfFile}
+            documentFiles={documentFiles}
             pdfAttachmentError={pdfAttachmentError}
             onRemovePdf={removePdfAttachment}
             onRetouchVideo={() =>

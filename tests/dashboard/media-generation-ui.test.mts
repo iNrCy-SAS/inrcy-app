@@ -461,7 +461,7 @@ test("Booster conserve les outils de Médias dans son sélecteur de références
   for (const callback of ["onPickImagesClick", "onPickVideoClick", "onGenerateMedia", "onOpenMediaLibrary", "onTakePhotoClick"]) {
     assert.ok(topActions.includes(callback), callback + " reste accessible dans Idée");
   }
-  assertOrdered(picker, ['t("wizard_file")', 't("wizard_step_media")', 't("wizard_generate_media")', 't("wizard_media_library")']);
+  assertOrdered(picker, ['t("wizard_step_media")', 't("wizard_generate_media")', 't("wizard_media_library")', 't("wizard_file")']);
   assert.match(picker, /data-testid="booster-reference-add"/);
   assert.match(picker, /data-testid="booster-pdf-context-control"/);
   const lowerActions = sourceSection(mediaPanel, "<LocalMediaUploadChoice", "<div className={css.mediaModes}");

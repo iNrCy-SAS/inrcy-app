@@ -70,7 +70,8 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeature
     // Le Prompt Compiler V2 compacte fortement le contexte. 72k reste un dernier
     // garde-fou défensif pour les cas média/transcription atypiques, pas une cible.
     maxInputChars: 72_000,
-    maxImages: 5,
+    // Five source photos plus the three existing video keyframes.
+    maxImages: 8,
     maxImageDataChars: 40 * MB_AS_DATA_URL_CHARS,
     // V2 Étape 3 : un appel principal pour tous les canaux, puis au maximum
     // une réparation ciblée unique. Le nombre de canaux ne multiplie plus les appels.
@@ -97,7 +98,8 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeature
     maxRetries: 0,
     maxTimeoutMs: 32_000,
     maxInputChars: 12_000,
-    maxImages: 5,
+    // Five source photos plus the three existing video keyframes.
+    maxImages: 8,
     maxImageDataChars: 40 * MB_AS_DATA_URL_CHARS,
     defaultOperationMaxCalls: 1,
     defaultOperationMaxReservedOutputTokens: 900,

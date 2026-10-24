@@ -1,5 +1,5 @@
 import "server-only";
-import { inflateRawSync } from "node:zlib";
+import { decodeAiDocumentText, extractOfficeDocumentText } from "@/lib/aiOfficeDocumentText";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -90,60 +90,6 @@ function stripHtml(value: string) {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'");
 }
-
-function decodeXmlEntities(value: string) {
-  return value
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)));
-}
-
-function extractZipEntry(buffer: Buffer, wanted: Set<string>) {
-  let offset = 0;
-  while (offset + 30 <= buffer.length) {
-    if (buffer.readUInt32LE(offset) !== 0x04034b50) {
-      offset += 1;
-      continue;
-    }
-
-    const method = buffer.readUInt16LE(offset + 8);
-    const compressedSize = buffer.readUInt32LE(offset + 18);
-    const fileNameLength = buffer.readUInt16LE(offset + 26);
-    const extraLength = buffer.readUInt16LE(offset + 28);
-    const nameStart = offset + 30;
-    const dataStart = nameStart + fileNameLength + extraLength;
-    const dataEnd = dataStart + compressedSize;
-    if (dataEnd > buffer.length) break;
-
-    const name = buffer.slice(nameStart, nameStart + fileNameLength).toString("utf8");
-    if (wanted.has(name)) {
-      const data = buffer.slice(dataStart, dataEnd);
-      if (method === 0) return data;
-      if (method === 8) return inflateRawSync(data);
-      return null;
-    }
-
-    offset = dataEnd;
-  }
-  return null;
-}
-
-function extractDocxText(buffer: Buffer, maxChars: number) {
-  const xml = extractZipEntry(buffer, new Set(["word/document.xml"]));
-  if (!xml) return "";
-  const value = xml.toString("utf8")
-    .replace(/<w:tab\s*\/?>(?:<\/w:tab>)?/gi, " ")
-    .replace(/<w:br\s*\/?>(?:<\/w:br>)?/gi, "\n")
-    .replace(/<\/w:p>/gi, "\n")
-    .replace(/<[^>]+>/g, " ");
-  return normalizeExtractedText(decodeXmlEntities(value), maxChars);
-}
-
 
 function isImageAttachment(name: string, mimeType: string) {
   const lowerName = name.toLowerCase();
@@ -308,7 +254,7 @@ function canReadAsText(mimeType: string, name: string) {
   );
 }
 
-function extractAttachmentText(buffer: Buffer, name: string, mimeType: string, maxCharsPerFile: number) {
+async function extractAttachmentText(buffer: Buffer, name: string, mimeType: string, maxCharsPerFile: number) {
   const lowerName = name.toLowerCase();
   const lowerMime = mimeType.toLowerCase();
   let text = "";
@@ -316,9 +262,11 @@ function extractAttachmentText(buffer: Buffer, name: string, mimeType: string, m
   if (lowerMime === "application/pdf" || lowerName.endsWith(".pdf")) {
     text = extractPdfTextForAi(buffer, maxCharsPerFile);
   } else if (lowerMime.includes("wordprocessingml.document") || lowerName.endsWith(".docx")) {
-    text = extractDocxText(buffer, maxCharsPerFile);
+    text = await extractOfficeDocumentText(buffer, "document.docx", maxCharsPerFile);
+  } else if (lowerMime.includes("spreadsheetml.sheet") || lowerName.endsWith(".xlsx")) {
+    text = await extractOfficeDocumentText(buffer, "document.xlsx", maxCharsPerFile);
   } else if (canReadAsText(mimeType, name)) {
-    const raw = buffer.toString("utf8");
+    const raw = decodeAiDocumentText(buffer);
     text = lowerMime.includes("html") || lowerName.endsWith(".html") || lowerName.endsWith(".htm") ? stripHtml(raw) : raw;
   }
 
@@ -383,7 +331,7 @@ async function analyseOneAttachment(
         note: "signature PDF invalide",
       };
     }
-    const text = extractAttachmentText(buffer, name, resolvedMime, options.maxCharsPerFile);
+    const text = await extractAttachmentText(buffer, name, resolvedMime, options.maxCharsPerFile);
     if (text) {
       return { name, mimeType: resolvedMime, size: actualSize, status: "analysed", text };
     }

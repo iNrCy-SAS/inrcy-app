@@ -1660,6 +1660,7 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
     preparedMedia = await prepareMediaForSelectedWriter({
       engine: baseGenerationProfile.preferences.engine,
       images: args.imagesForAI,
+      maxImages: aiFeature === "agent.publish" ? 5 : 8,
       idea: args.idea,
       existingContext: args.mediaContext,
       accountId: args.accountId,

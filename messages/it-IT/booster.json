@@ -609,11 +609,11 @@
   "media_recommended_video_duration": "Durata consigliata: 3 min",
   "media_image_limits": "Massimo {maxImages} immagini · {imageMaxMb} MB per immagine · {imagesTotalMaxMb} MB totali",
   "media_video_limits": "Massimo 1 video · sorgente fino a {videoSourceMaxMb} MB · ottimizzazione oltre {videoPublishMaxMb} MB · originale conservato",
-  "media_generation_optimization": "Fino a {maxImages} immagini o 1 video ({videoSourceMaxMb} MB max) · ottimizzazione automatica se necessaria: adattamento del formato o riduzione del peso a {imageMaxMb} MB/immagine o {videoPublishMaxMb} MB/video.",
+  "media_generation_optimization": "Fino a {maxImages} immagini e 1 video ({videoSourceMaxMb} MB max) · ottimizzazione automatica se necessaria: adattamento del formato o riduzione del peso a {imageMaxMb} MB/immagine o {videoPublishMaxMb} MB/video.",
   "media_publication_optimization": "Fino a {maxImages} immagini e 1 video ({videoSourceMaxMb} MB max) · ottimizzazione automatica se necessaria: adattamento del formato o riduzione del peso a {imageMaxMb} MB/immagine o {videoPublishMaxMb} MB/video.",
   "media_selected_images_summary": "{count}/{maxImages} {count, plural, one {immagine} other {immagini}} · {imageMaxMb} MB per immagine · {imagesTotalMaxMb} MB totali",
   "media_selected_video_summary": "1 video aggiunto · sorgente fino a {videoSourceMaxMb} MB · ottimizzazione oltre {videoPublishMaxMb} MB · originale conservato",
-  "media_selected_none_generation": "Nessun contenuto multimediale aggiunto · fino a {maxImages} immagini o 1 video ({videoSourceMaxMb} MB max) · ottimizzazione automatica se necessaria.",
+  "media_selected_none_generation": "Nessun contenuto multimediale aggiunto · fino a {maxImages} immagini e 1 video ({videoSourceMaxMb} MB max) · ottimizzazione automatica se necessaria.",
   "media_selected_none_publication": "Nessun contenuto multimediale aggiunto · fino a {maxImages} immagini e 1 video ({videoSourceMaxMb} MB max) · ottimizzazione automatica se necessaria.",
   "theme_placeholder_default": "Es.: lavoro realizzato per Michel ad Arras",
   "theme_placeholder_promotion": "Esempio: Offerta primaverile sulla potatura delle siepi fino al 30 Aprile",
@@ -739,7 +739,7 @@
   "media_label_one_video": "1 video",
   "media_label_images": "{count, plural, =0 {Nessuna immagine} one {# immagine} other {# immagini}}",
   "media_label_text_only": "Solo testo",
-  "media_library_generation_subtitle": "Per la generazione, seleziona fino a 5 immagini oppure un video. Potrai comunque combinare i contenuti nella sezione Media della pubblicazione.",
+  "media_library_generation_subtitle": "Aggiungi fino a 5 immagini e 1 video per aiutare l’IA a scrivere.",
   "media_library_publication_subtitle": "Seleziona fino a 5 immagini e un video già archiviati in iNrCy.",
   "media_library_add_to_generation": "Aggiungi alla generazione",
   "media_library_add_to_publication": "Aggiungi alla pubblicazione",
@@ -884,5 +884,9 @@
   "schedule_view_planning": "Visualizza il calendario delle pubblicazioni",
   "schedule_back_to_programming": "Torna alla programmazione",
   "wizard_reference_add": "Aggiungi un documento",
-  "wizard_reference_back": "Torna alle opzioni"
+  "wizard_reference_back": "Torna alle opzioni",
+  "wizard_reference_media_detail": "5 immagini + 1 video",
+  "wizard_reference_generate_detail": "Crea un’immagine o un video",
+  "wizard_reference_library_detail": "I tuoi contenuti salvati",
+  "wizard_reference_document_limits": "Max 5 documenti · 8 MB/file · 20 MB totali"
 }

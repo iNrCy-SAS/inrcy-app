@@ -20,7 +20,7 @@ test("la migration étape 8 est additive et prépare les lectures de publication
   assert.doesNotMatch(verify, /\binsert\b|\bupdate\b|\bdelete\b|\bdrop\b|\btruncate\b/i);
 });
 
-test("Générer garde une seule famille IA et continue sans bloquer sur le média", () => {
+test("Générer accepte les deux familles IA et continue sans bloquer sur le média", () => {
   const generate = read("app/api/booster/generate/route.ts");
   assert.match(generate, /mediaPipelineCutoverV1\?: boolean/);
   assert.match(generate, /isLegacyMediaTransportCutoverEnabled\(\)/);
@@ -29,7 +29,7 @@ test("Générer garde une seule famille IA et continue sans bloquer sur le médi
     generate,
     /videoForAI:\s*mediaType === "video" \? body\.videoForAI : null/,
   );
-  assert.match(generate, /allowMixedMedia:\s*false/);
+  assert.match(generate, /allowMixedMedia:\s*true/);
   assert.match(generate, /mediaWorkspaceExpected\?: boolean/);
   assert.match(
     generate,
