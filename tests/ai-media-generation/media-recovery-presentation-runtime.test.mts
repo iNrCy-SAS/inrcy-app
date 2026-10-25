@@ -55,6 +55,7 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
   };
 }
 const common = new Map<string, unknown>([
+  ["./DashboardMobileSelect", { __esModule: true, default: "mobile-select" }],
   ["@/lib/aiMediaModelCatalog", models], ["@/lib/aiMediaGenerationContracts", contracts],
   ["@/lib/aiMediaVideoTimeline", timeline], ["@/lib/aiMediaVideoClientOptions", videoOptions],
 ]);
@@ -76,7 +77,7 @@ test("reload selects the owning Video Activity before recovery, preserves its re
   modalModules.set("@/app/dashboard/_hooks/useMediaGeneration", hookModule);
   modalModules.set("@/lib/inrStudioModalPolicy", policy);
   modalModules.set("react-dom", { createPortal: (tree: unknown) => tree });
-  for (const name of ["next/link", "./MediaModifier", "./MediaFreeGenerator", "./MediaRetoucher", "./MediaVideoRetoucher"]) modalModules.set(name, { __esModule: true, default: name });
+  for (const name of ["next/link", "./MediaModifier", "./MediaFreeGenerator", "./MediaRetoucher", "./MediaVideoRetoucher", "./DashboardMobileSelect"]) modalModules.set(name, { __esModule: true, default: name });
   const modal = runtime("app/dashboard/_components/MediaGeneratorModal.tsx", modalModules);
   const modalProps = { open: true, source: "studio", origin: "menu", acceptMode: "library", onClose() {}, onAccepted() {} };
   const activePanel = (tree: unknown) => find(find(tree, (node) => node.type === "activity" && node.props.mode === "visible"), (node) => node.type === "./MediaFreeGenerator");

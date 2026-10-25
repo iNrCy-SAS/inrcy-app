@@ -29,6 +29,6 @@ test("le raccourci iNr’Studio reste lisible et correctement rangé sur mobile"
   assert.match(styles, /\.studioButton:focus-visible/);
   assert.match(
     styles,
-    /@media \(max-width:680px\)[\s\S]*?grid-template-columns:38px minmax\(0, 1fr\) 38px 38px;[\s\S]*?\.studioButton\s*\{[\s\S]*?width:100%/,
+    /@media \(max-width:760px\)[\s\S]*?\.headerActions\{[^}]*width:100%[\s\S]*?\.studioButton\{[^}]*flex:1/,
   );
 });

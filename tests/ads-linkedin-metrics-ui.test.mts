@@ -92,6 +92,7 @@ function runtime(kind: Component, campaigns = [campaign()]) {
     "react-dom": { createPortal: (node: unknown) => node },
     "next/navigation": { useRouter: () => ({ push: () => assert.fail("Stats must not navigate or mutate") }) },
     "next/image": { default: () => null },
+    "../../_components/DashboardMobileSelect": { default: "mobile-select" },
     "@/lib/adsCampaignMetrics": metrics,
     "@/lib/adsAccountLinks": { getAdsAdvertiserAccountUrl: () => null },
     "@/lib/adsCampaignLifecycle": {

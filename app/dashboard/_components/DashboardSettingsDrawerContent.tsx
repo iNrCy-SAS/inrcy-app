@@ -1,11 +1,15 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import type { DashboardPanelName } from "../_hooks/useDashboardPanelRouting";
+import { useContext, useLayoutEffect, useRef } from "react";
+import { DrawerHeaderTabsContext } from "../DrawerHeaderTabs";
 
 import ContactContent from "../settings/_components/ContactContent";
 import AccountContent from "../settings/_components/AccountContent";
 import GeneralPreferencesContent from "../settings/_components/GeneralPreferencesContent";
 import AbonnementContent from "../settings/_components/AbonnementContent";
+import SubscriptionInvoicesPanel from "../settings/_components/SubscriptionInvoicesPanel";
+import { isDashboardAccountPanel } from "./DashboardAccountTabs";
 import LegalContent from "../settings/_components/LegalContent";
 import RgpdContent from "../settings/_components/RgpdContent";
 import AgendaSettingsContent from "../settings/_components/AgendaSettingsContent";
@@ -19,13 +23,14 @@ import StandardSubscriptionContent from "../settings/_components/StandardSubscri
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 import GoogleOAuthConsentBanner from "./GoogleOAuthConsentBanner";
 import styles from "../dashboard.module.css";
-
-type DashboardPanelName =
-  "contact" | "profil" | "preferences" | "inrbadge" | "compte" | "activite" | "ia" | "ai_memory" | "abonnement" | "mails" | "agenda" | "site_web" | "instagram" | "threads" | "linkedin" | "x" | "gmb" | "inr_search" | "facebook" | "tiktok" | "youtube_shorts" | "pinterest" | "legal" | "rgpd" | "inertie" | "boutique" | "notifications" | "parrainage" | "documents";
+import accountStyles from "./DashboardAccountWorkspace.module.css";
 
 type DashboardSettingsDrawerContentProps = {
   edition?: DashboardEdition;
   panel: string | null;
+  inlineShopNavigation?: boolean;
+  boutiqueView?: "products" | "orders";
+  onBoutiqueViewChange?: (view: "products" | "orders") => void;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
   inertiaSnapshot: any;
   openPanel: (name: DashboardPanelName) => void;
@@ -46,6 +51,9 @@ type DashboardSettingsDrawerContentProps = {
 export default function DashboardSettingsDrawerContent({
   edition = "standard",
   panel,
+  inlineShopNavigation = false,
+  boutiqueView,
+  onBoutiqueViewChange,
   onUnsavedChange,
   inertiaSnapshot,
   openPanel,
@@ -64,14 +72,17 @@ export default function DashboardSettingsDrawerContent({
 
 }: DashboardSettingsDrawerContentProps) {
   const subscriptionEdition = useDashboardSubscriptionEdition();
+  const headerTabsHost = useContext(DrawerHeaderTabsContext);
   const contentRef = useRef<HTMLDivElement>(null);
+  const isAccountPanel = isDashboardAccountPanel(panel);
   useLayoutEffect(() => {
     const scroll = contentRef.current?.closest<HTMLElement>('[data-dashboard-settings-drawer-scroll="true"]');
     if (scroll) scroll.scrollTop = 0;
   }, [panel]);
 
   return (
-    <div ref={contentRef} className={styles.settingsDrawerContent} data-dashboard-settings-drawer-content="true">
+    <DrawerHeaderTabsContext.Provider value={inlineShopNavigation ? undefined : headerTabsHost}>
+    <div ref={contentRef} className={`${styles.settingsDrawerContent} ${isAccountPanel ? accountStyles.workspace : ""}`} data-dashboard-settings-drawer-content="true">
       <GoogleOAuthConsentBanner panel={panel} />
       {panel === "contact" && <ContactContent mode="drawer" />}
       {panel === "compte" && (
@@ -88,6 +99,7 @@ export default function DashboardSettingsDrawerContent({
           ? <AbonnementContent mode="drawer" />
           : <StandardSubscriptionContent onOpenContact={() => openPanel("contact")} />
       )}
+      {panel === "factures" && <SubscriptionInvoicesPanel />}
       {panel === "legal" && <LegalContent mode="drawer" />}
       {panel === "rgpd" && <RgpdContent mode="drawer" />}
       {panel === "agenda" && <AgendaSettingsContent />}
@@ -102,6 +114,10 @@ export default function DashboardSettingsDrawerContent({
       {panel === "boutique" && (
         <BoutiqueContent
           mode="drawer"
+          hideInertiaShortcut={inlineShopNavigation}
+          hideNavigation={inlineShopNavigation}
+          view={inlineShopNavigation ? boutiqueView : undefined}
+          onViewChange={inlineShopNavigation ? onBoutiqueViewChange : undefined}
           onOpenInertia={() => openPanel("inertie")}
         />
       )}
@@ -127,5 +143,6 @@ export default function DashboardSettingsDrawerContent({
         <DocumentsSettingsContent onUnsavedChange={onUnsavedChange} />
       ) : null}
     </div>
+    </DrawerHeaderTabsContext.Provider>
   );
 }

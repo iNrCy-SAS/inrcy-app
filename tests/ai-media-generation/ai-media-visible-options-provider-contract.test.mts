@@ -1207,6 +1207,56 @@ test("le prompt Générer Image compilé traverse inchangé le moteur nominal et
   }
 });
 
+test("Libre transmet à Google et au moteur nominal le défaut photo conditionnel et les styles explicites, même avec référence", async () => {
+  const previousGatewayKey = process.env.AI_GATEWAY_API_KEY;
+  const previousGoogleKey = process.env.GEMINI_API_KEY;
+  process.env.AI_GATEWAY_API_KEY = "test-key";
+  process.env.GEMINI_API_KEY = "test-key";
+  try {
+    for (const freePrompt of [
+      "Une affiche sur une formation numérique avec deux personnes dans une salle réelle.",
+      "Une affiche avec des formatrices, sans dessin animé ni personnages illustrés.",
+      "Une illustration 2D de personnes en formation, sans aucun photoréalisme.",
+      "Une affiche avec des personnes : reprends le style de cette référence.",
+    ]) {
+      for (const referenceKind of ["none", "inspiration", "character", "logo"] as const) {
+        const withReference = referenceKind === "inspiration" || referenceKind === "character";
+        const role = referenceKind === "character" ? "character" as const : "inspiration" as const;
+        const usage = referenceKind === "character" ? "required" as const : "inspiration" as const;
+        const inspirationImages = withReference ? [{ data: REFERENCE_DATA, mimeType: "image/jpeg", role, usage, ...(referenceKind === "character" ? { characterIndex: 1 } : {}) }] : [];
+        const compiledPrompt = buildImagePrompt({ source: "studio", creationMode: "free", freePrompt, inspirationImages, identityConsent: referenceKind === "character", useBusinessDna: referenceKind === "logo" }, undefined, { hasLogo: referenceKind === "logo" });
+        const { runtime, captures } = loadImageGatewayRuntime();
+        const providerArgs = {
+          accountId: "free-image-render-contract", creationMode: "free" as const,
+          prompt: compiledPrompt, identityMode: "auto" as const,
+          identityReferences: withReference ? [Buffer.from(REFERENCE_DATA, "base64")] : [],
+          referenceRoles: withReference ? [{ role, usage, ...(referenceKind === "character" ? { characterIndex: 1 as const } : {}) }] : [],
+          officialLogo: referenceKind === "logo" ? Buffer.from(REFERENCE_DATA, "base64") : null,
+        };
+        await runtime.generateAiMediaImage(providerArgs);
+        await runtime.generateAiMediaImageWithGoogle(providerArgs);
+        assert.equal(captures.nominal, captures.google);
+        assert.ok(captures.google?.startsWith(compiledPrompt));
+        assert.ok(captures.google?.includes(freePrompt));
+        assert.match(captures.google!, /sans style artistique explicitement demandé[\s\S]*?scènes du monde réel en photographie réaliste/);
+        assert.match(captures.google!, /préférence par défaut ne remplace jamais[\s\S]*?style explicitement demandé[\s\S]*?respecter alors ce choix/);
+        assert.match(captures.google!, /Pour suivre le rendu artistique d'une référence, le brief doit le demander explicitement/);
+        assert.doesNotMatch(captures.google!, /Aucun cadre, scène photographique ou agencement commercial imposé/);
+        if (referenceKind !== "none") {
+          assert.match(captures.google!, /Respecter le choix du rendu défini dans le prompt/);
+          assert.match(captures.google!, /n'autorise pas à lui seul des personnages dessinés ; suivre son style artistique uniquement si le brief le demande explicitement/);
+        }
+        assert.equal(captures.googleImages, Number(referenceKind !== "none"));
+      }
+    }
+  } finally {
+    if (previousGatewayKey === undefined) delete process.env.AI_GATEWAY_API_KEY;
+    else process.env.AI_GATEWAY_API_KEY = previousGatewayKey;
+    if (previousGoogleKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousGoogleKey;
+  }
+});
+
 test("les deux fournisseurs reçoivent les mêmes références, rôles, usages et logo", async () => {
   const referenceRoles = [
     { role: "character" as const, usage: "inspiration" as const, characterIndex: 1 as const },

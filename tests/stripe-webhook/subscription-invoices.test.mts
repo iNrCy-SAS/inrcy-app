@@ -46,43 +46,34 @@ test("invoice UI references keys available in every settings catalogue", () => {
   }
 });
 
-test("invoice tab remains available when no Stripe subscription is linked", () => {
-  const abonnementContent = read(
-    "app/dashboard/settings/_components/AbonnementContent.tsx",
-  );
-  const standardSubscriptionContent = read(
-    "app/dashboard/settings/_components/StandardSubscriptionContent.tsx",
-  );
+test("the main account invoice tab remains available when no Stripe subscription is linked", () => {
+  const tabs = read("app/dashboard/_components/DashboardAccountTabs.tsx");
+  const drawer = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
+  const abonnementContent = read("app/dashboard/settings/_components/AbonnementContent.tsx");
+  const standardSubscriptionContent = read("app/dashboard/settings/_components/StandardSubscriptionContent.tsx");
   const workspace = read("app/dashboard/settings/_components/SubscriptionWorkspace.tsx");
 
+  assert.match(tabs, /"abonnement",\s*"factures",\s*"parrainage"/);
+  assert.match(drawer, /panel === "factures" && <SubscriptionInvoicesPanel \/>/);
+  assert.doesNotMatch(drawer, /(?:stripe_subscription_id|hasStripeSubscription)/);
   assert.match(abonnementContent, /<SubscriptionWorkspace/);
   assert.match(standardSubscriptionContent, /<SubscriptionWorkspace/);
-  assert.match(workspace, /\["overview", "invoices"\]/);
-  assert.match(workspace, /<SubscriptionInvoicesPanel \/>/);
   assert.doesNotMatch(abonnementContent, /stripe_subscription_id \? <SubscriptionWorkspace/);
-  assert.doesNotMatch(
-    standardSubscriptionContent,
-    /hasStripeSubscription \? <SubscriptionWorkspace/,
-  );
+  assert.doesNotMatch(standardSubscriptionContent, /hasStripeSubscription \? <SubscriptionWorkspace/);
   assert.doesNotMatch(workspace, /stripe_subscription_id|hasStripeSubscription/);
 });
 
-test("the invoice tab renders one shared invoice section alongside billing management", () => {
-  const abonnementContent = read(
-    "app/dashboard/settings/_components/AbonnementContent.tsx",
-  );
-  const standardSubscriptionContent = read(
-    "app/dashboard/settings/_components/StandardSubscriptionContent.tsx",
-  );
+test("the account drawer owns one invoice section and the subscription workspace retains offers and management", () => {
+  const drawer = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
+  const abonnementContent = read("app/dashboard/settings/_components/AbonnementContent.tsx");
+  const standardSubscriptionContent = read("app/dashboard/settings/_components/StandardSubscriptionContent.tsx");
   const workspace = read("app/dashboard/settings/_components/SubscriptionWorkspace.tsx");
 
-  assert.equal(
-    workspace.match(/<SubscriptionInvoicesPanel \/>/g)?.length,
-    1,
-  );
+  assert.equal(drawer.match(/<SubscriptionInvoicesPanel \/>/g)?.length, 1);
   assert.doesNotMatch(abonnementContent, /<SubscriptionInvoicesPanel/);
   assert.doesNotMatch(standardSubscriptionContent, /<SubscriptionInvoicesPanel/);
-  assert.match(workspace, /hidden=\{view !== "invoices"\}/);
-  assert.match(workspace, /\{management\}<SubscriptionInvoicesPanel \/>/);
+  assert.doesNotMatch(workspace, /SubscriptionInvoicesPanel|\["overview", "invoices"\]|hidden=\{view !== "invoices"\}/);
+  assert.match(workspace, /\{management\}/);
+  assert.match(abonnementContent, /<SubscriptionWorkspace\b[^>]*\bmanagement=\{management\}/);
   assert.match(standardSubscriptionContent, /<SubscriptionWorkspace\b[^>]*\bmanagement=\{management\}/);
 });

@@ -1,25 +1,50 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import DrawerHeaderTabs from "../../DrawerHeaderTabs";
-import SubscriptionInvoicesPanel from "./SubscriptionInvoicesPanel";
-import styles from "./settingsContentLayout.module.css";
+import styles from "./subscriptionWorkspace.module.css";
 
-export default function SubscriptionWorkspace({ children, management, notice }: {
+/** Long explanations remain available without extending the subscription overview. */
+export function SubscriptionDetails({ title, children, open, onClose }: {
+  title: string;
   children: ReactNode;
-  management?: ReactNode;
-  notice?: ReactNode;
+  open?: boolean;
+  onClose?: () => void;
 }) {
   const t = useTranslations("settings");
   const id = useId();
-  const [view, setView] = useState<"overview" | "invoices">("overview");
-  return <div className={styles.workspace}>
-    <DrawerHeaderTabs><nav className={styles.navigation} aria-label={t("mon_abonnement_d248414d")}>
-      {(["overview", "invoices"] as const).map((item) => <button key={item} type="button" aria-pressed={view === item} aria-controls={`${id}-${item}`} onClick={() => setView(item)}>{t(`subscription_${item}`)}</button>)}
-    </nav></DrawerHeaderTabs>
+  const dialog = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const element = dialog.current;
+    if (!element || open === undefined) return;
+    if (open && !element.open) element.showModal();
+    else if (!open && element.open) element.close();
+  }, [open]);
+
+  return <>
+    <button type="button" className={styles.detailsTrigger} aria-haspopup="dialog"
+      onClick={() => dialog.current?.showModal()}>{title}<span aria-hidden="true">↗</span></button>
+    <dialog ref={dialog} className={styles.detailsDialog} role="dialog" aria-modal="true" aria-labelledby={id} onClose={onClose}
+      onKeyDown={(event) => { if (event.key === "Escape") event.stopPropagation(); }}>
+      <header><h2 id={id}>{title}</h2><button type="button" onClick={() => dialog.current?.close()}
+        aria-label={t("fermer_5ab4ec64")} title={t("fermer_5ab4ec64")}>×</button></header>
+      <div className={styles.detailsBody}>{children}</div>
+    </dialog>
+  </>;
+}
+
+export default function SubscriptionWorkspace({ children, management, notice, className }: {
+  children: ReactNode;
+  management?: ReactNode;
+  notice?: ReactNode;
+  className?: string;
+}) {
+  return <div className={`${styles.workspace} ${className ?? ""}`}>
     {notice}
-    <div id={`${id}-overview`} className={styles.view} hidden={view !== "overview"}>{children}</div>
-    <div id={`${id}-invoices`} className={styles.view} hidden={view !== "invoices"}><div className={management ? styles.billingGrid : undefined}>{management}<SubscriptionInvoicesPanel /></div></div>
+    <div className={management ? styles.subscriptionLayout : undefined}>
+      <div className={styles.overview}>{children}</div>
+      {management}
+    </div>
   </div>;
 }

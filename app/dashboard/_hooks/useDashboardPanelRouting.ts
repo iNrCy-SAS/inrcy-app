@@ -6,7 +6,7 @@ import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessPr
 import { useDashboardUnsavedNavigation } from "../_components/DashboardUnsavedNavigationProvider";
 
 export type DashboardPanelName =
-  "contact" | "profil" | "preferences" | "inrbadge" | "compte" | "activite" | "ia" | "ai_memory" | "abonnement" | "mails" | "agenda" | "site_web" | "instagram" | "threads" | "linkedin" | "x" | "gmb" | "inr_search" | "facebook" | "tiktok" | "youtube_shorts" | "pinterest" | "legal" | "rgpd" | "inertie" | "boutique" | "notifications" | "parrainage" | "documents";
+  "contact" | "profil" | "preferences" | "inrbadge" | "compte" | "activite" | "ia" | "ai_memory" | "abonnement" | "factures" | "mails" | "agenda" | "site_web" | "instagram" | "threads" | "linkedin" | "x" | "gmb" | "inr_search" | "facebook" | "tiktok" | "youtube_shorts" | "pinterest" | "legal" | "rgpd" | "inertie" | "boutique" | "notifications" | "parrainage" | "documents";
 
 const PANEL_RETURN_QUERY_KEYS = ["linked", "ok", "error", "message", "warning", "toast", "activated", "skipped", "panelSource", "profileSection", "premium", "ig_login"];
 
@@ -65,7 +65,7 @@ export function useDashboardPanelRouting() {
   const openPanel = useCallback(
     (name: DashboardPanelName) => {
       if (name === "threads" && !metaPilotEnabled) return;
-      void requestNavigation(() => {
+      return requestNavigation(() => {
         if (name === "profil" || name === "activite" || name === "ai_memory" || name === "ia") {
           markPanelAsExplicitlyOpened(name);
           setPanel(null);

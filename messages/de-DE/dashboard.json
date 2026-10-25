@@ -1,5 +1,44 @@
 {
+  "usageGuide": {
+    "setupTab": "Ihr Cockpit",
+    "routineTab": "Im Alltag",
+    "landmarksTab": "Orientierung",
+    "title": "iNrCy richtig nutzen",
+    "intro": "Drei Einstellungen für den Einstieg, dann eine einfache Routine.",
+    "setupTitle": "Beginnen Sie in Ihrem Cockpit",
+    "channelsTitle": "Kanäle verbinden",
+    "channelsBody": "Verknüpfen Sie Ihre Konten und prüfen Sie ihren Status. Kehren Sie hierher zurück, wenn ein Kanal neu verbunden werden muss.",
+    "dnaTitle": "Unternehmens-DNA ergänzen",
+    "dnaBody": "Beschreiben Sie Ihre Tätigkeit, Angebote und Zielgruppe, damit die KI den Kontext Ihres Unternehmens kennt.",
+    "aiTitle": "KI personalisieren",
+    "aiBody": "Wählen Sie den Ton und ergänzen Sie Vorgaben, damit die Inhalte zu Ihrer Kommunikation passen.",
+    "routineTitle": "Ihre tägliche Routine",
+    "publishTitle": "Mit Booster veröffentlichen",
+    "publishBody": "Inhalt vorbereiten, prüfen, Kanäle auswählen und dann veröffentlichen oder planen.",
+    "agentsBody": "Die Agenten können Inhalte vorbereiten. Prüfen Sie vor der Veröffentlichung ihre Freigabe- und Automatisierungseinstellungen.",
+    "mediaTitle": "Medien erstellen und wiederfinden",
+    "mediaBody": "Erstellen und bearbeiten Sie Medien in iNr’Studio. Das Symbol Mediathek öffnet gespeicherte Medien zur erneuten Verwendung.",
+    "statsTitle": "Ergebnisse verfolgen",
+    "statsBody": "Öffnen Sie iNr’Stats, um Ihre Messdaten zu verfolgen. Angaben wie „geschätzt“ oder „Potenzial“ stehen für Schätzungen, nicht für bereits erzielte Ergebnisse.",
+    "landmarksTitle": "Orientierung im Dashboard",
+    "generatorTitle": "Der Statuspunkt des Generators",
+    "generatorBody": "Grün: aktiv. Rot: wartend. Prüfen Sie den Verbindungsstatus jedes Kanals separat im Cockpit.",
+    "inertiaTitle": "Ihre Inertia-Einheiten (UI)",
+    "inertiaBody": "Das Guthaben steht im Cockpit. Nutzen Sie Ihre UI im Shop. Dort finden Sie auch Meine Inertia und Ihren Bestellverlauf.",
+    "gpsTitle": "Welches Werkzeug nutzen?",
+    "gpsBody": "Das Nutzungs-GPS hilft Ihnen passend zu Ihrem Ziel."
+  },
+  "accountTabs": {
+    "compte": "Konto",
+    "abonnement": "Abonnement",
+    "preferences": "Einstellungen",
+    "legal": "Rechtliches",
+    "rgpd": "Datenschutz",
+    "parrainage": "Empfehlungen",
+    "factures": "Rechnungen"
+  },
   "topbar": {
+    "myAccount": "Mein Konto",
     "brandTag": "Sichtbarkeitsgenerator",
     "admin": "Admin",
     "adminTitle": "iNrCy admin",
@@ -50,7 +89,8 @@
     "referral": "iNrCy weiterempfehlen",
     "legal": "Rechtliches",
     "rgpd": "Meine Daten (DSGVO)",
-    "logout": "Abmelden"
+    "logout": "Abmelden",
+    "invoices": "Meine Rechnungen"
   },
   "notifications": {
     "aria": "Infos",
@@ -98,7 +138,8 @@
       "parrainage": "iNrCy weiterempfehlen",
       "notifications": "Infos",
       "documents": "Standardwerte",
-      "threads": "Einstellungen — Threads"
+      "threads": "Einstellungen — Threads",
+      "factures": "Abonnementrechnungen"
     }
   },
   "hero": {
@@ -111,6 +152,7 @@
     "connectStep": "Verbinden",
     "enrichStep": "Anreichern",
     "configureStep": "Konfigurieren",
+    "stepComplete": "Erledigt",
     "channelsStepLabel": "Aktive Kanäle",
     "dnaStepLabel": "Unternehmens-DNA",
     "aiStepLabel": "Meine KI konfigurieren",
@@ -152,6 +194,7 @@
     "progressAria": "Generator power",
     "nextRise": "Nächster Boost:",
     "completeHint": "Alle Hebel speisen die Maschine.",
+    "generatorShortTitle": "Generator",
     "generatorTitle": "iNrCy Generator",
     "generatorHelpTitle": "Hilfe: iNrCy Generator",
     "generatorDesc": "Ein Spiegel der Wirksamkeit Ihrer Kommunikationskanäle.",
@@ -168,7 +211,8 @@
     "basedOnProfile": "Basierend auf Profil + Chancen",
     "opportunities": "Chancen",
     "projection30": "30-Tage-Prognose",
-    "capturedLeads": "Anfragen",
+    "generatedContactsHint": "Schätzung anhand der Aktivitäten Ihrer Kanäle.",
+    "capturedLeads": "Generierte Kontakte",
     "last7": "Letzte 7 Tage",
     "last30": "Letzte 30 Tage"
   },
@@ -706,8 +750,8 @@
     "aiGoalsDescription": "Legen Sie Ergebnisse, Inspirationen und zu vermeidende Inhalte fest."
   },
   "signatureTools": {
-    "createTitle": "Kommunizieren & Wachsen",
-    "pilotTitle": "Erstellen & Steuern",
+    "createTitle": "Erstellen und wachsen",
+    "pilotTitle": "Verfolgen und steuern",
     "mailCampaigns": "E-Mail-Kampagnen",
     "businessSpace": "IHR UNTERNEHMENSBEREICH",
     "amplify": "VERSTÄRKEN",
@@ -740,7 +784,7 @@
     "pilotSubtitle": "Messen, verfolgen und speichern",
     "statsDescription": "Messen Sie Ihre Wirkung.",
     "statsCta": "Statistiken anzeigen",
-    "sendDescription": "Sehen Sie den Verlauf Ihrer Aktivitäten in der App.",
+    "sendDescription": "Verlauf Ihrer Aktivitäten.",
     "sendCta": "Verlauf ansehen",
     "reputationName": "Reputation",
     "reputationDescription": "Bewertungen verwalten Google",
@@ -759,7 +803,7 @@
     "agentPlanning": "Planung",
     "agentCta": "Steuerung",
     "studioEyebrow": "KI-Medienerstellung",
-    "studioLine1": "Erstellen, bearbeiten und retuschieren Sie",
+    "studioLine1": "Speichern, generieren und erstellen Sie",
     "studioLine2": "Ihre Medien.",
     "studioCta": "Medienstudio"
   },
@@ -811,5 +855,152 @@
     "threads": "Teilen Sie Neuigkeiten und tauschen Sie sich mit Ihrer Community aus. Wählen Sie die verfügbaren Beitragsformate und das Standardformat.",
     "pinterest": "Veröffentlicht Ihre Bilder auf den Pinnwänden Ihres Kontos. Wählen Sie eine Pinnwand oder erstellen Sie eine neue direkt in der Blase.",
     "x": "Teilt Neuigkeiten und Beiträge auf Ihrem X-Konto, um Ihre Präsenz aktiv zu halten."
+  },
+  "helpCenter": {
+    "title": "iNrCy-Hilfe",
+    "aria": "iNrCy-Hilfe öffnen",
+    "intro": "Die ersten Schritte und danach das richtige Werkzeug zur richtigen Zeit.",
+    "setupTitle": "Gut starten",
+    "setupSubtitle": "Drei Schritte, um die KI auf Ihr Unternehmen abzustimmen.",
+    "goalsTitle": "Was möchten Sie tun?",
+    "goalsSubtitle": "Wählen Sie Ihr Ziel, wir zeigen Ihnen den Weg.",
+    "back": "Zurück zu den Zielen",
+    "completed": "Erledigt",
+    "continue": "Noch zu ergänzen",
+    "connected": "{connected} / {total} verbunden",
+    "open": "Öffnen",
+    "search": "Hilfe suchen…",
+    "noResults": "Keine Ergebnisse. Versuchen Sie ein anderes Wort.",
+    "articles": "Ausführliche Anleitungen",
+    "chooseArticle": "Anleitung auswählen",
+    "overview": "Das Wichtigste",
+    "steps": "Die Schritte",
+    "checks": "Das sollten Sie prüfen",
+    "pitfalls": "Bewährte Vorgehensweisen",
+    "faq": "Häufige Fragen",
+    "page": "Seite {current} / {total}",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "premium": "In Premium enthalten",
+    "viewOffers": "Mein Abonnement ansehen",
+    "agent": "Ihr KI-Agent kann Sie unterstützen.",
+    "landmarksTitle": "Mein Cockpit verstehen",
+    "landmarksBody": "Anzeigen, zentraler Punkt und Inertia-Einheiten",
+    "powerBody": "Die drei Anzeigen zeigen Ihren Einrichtungsfortschritt: Kanäle, Unternehmens-DNA und KI-Personalisierung. Vervollständigen Sie diese Angaben, damit iNrCy den richtigen Kontext erhält.",
+    "generatorTitle": "Der zentrale Punkt",
+    "generatorBody": "Grün: aktiv. Rot: wartend. Prüfen Sie auch den Status jedes Kanals im Cockpit.",
+    "inertiaTitle": "Ihre Inertia-Einheiten",
+    "inertiaBody": "Durch Ihre Aktivität auf iNrCy sammeln Sie UI. Ihr Guthaben steht im Cockpit, Ihr Verlauf unter Shop → Meine Inertia.",
+    "balance": "{value} UI verfügbar",
+    "generatorSettings": "Einstellungen für Schätzungen",
+    "shop": "Shop öffnen",
+    "channels": {
+      "title": "Meine Kanäle verbinden",
+      "body": "Verknüpfen Sie Ihre Konten und prüfen Sie ihren Status. Verbinden Sie Konten bei Bedarf erneut.",
+      "action": "Meine Kanäle verwalten"
+    },
+    "dna": {
+      "title": "Mein Unternehmen vorstellen",
+      "body": "Beschreiben Sie Ihre Tätigkeit, Angebote und Zielgruppe, um der KI den richtigen Kontext zu geben.",
+      "action": "Meine DNA vervollständigen"
+    },
+    "ai": {
+      "title": "Meine KI personalisieren",
+      "body": "Legen Sie Ihren Ton, Ihre Vorgaben und Ihre Kommunikationspräferenzen fest.",
+      "action": "Meine KI konfigurieren"
+    },
+    "goals": {
+      "publish": {
+        "title": "Inhalte veröffentlichen",
+        "subtitle": "Booster · iNr’Agent Publications",
+        "intro": "Beginnen Sie mit einer Idee und erstellen Sie einen passenden Beitrag für Ihre Kanäle.",
+        "steps": {
+          "step1": "Wählen Sie Ihre Kanäle in Booster und beschreiben Sie Ihre Idee.",
+          "step2": "Erstellen Sie den Inhalt und prüfen und bearbeiten Sie anschließend Text und Medien.",
+          "step3": "Geben Sie den Beitrag frei und veröffentlichen oder planen Sie ihn. Prüfen Sie bei iNr’Agent vor der Automatisierung die Freigaberegeln."
+        }
+      },
+      "media": {
+        "title": "Meine Medien erstellen und finden",
+        "subtitle": "iNr’Studio · Mediathek",
+        "intro": "Erstellen Sie visuelle Inhalte und nutzen Sie gespeicherte Medien erneut.",
+        "steps": {
+          "step1": "Öffnen Sie iNr’Studio, um Medien zu erstellen oder zu bearbeiten.",
+          "step2": "Prüfen Sie die angezeigten Credits, bevor Sie die Generierung starten.",
+          "step3": "Finden Sie Ihre Inhalte in der Mediathek und fügen Sie sie Ihren Beiträgen hinzu."
+        }
+      },
+      "grow": {
+        "title": "Kunden gewinnen und binden",
+        "subtitle": "iNr’ADS · Propulser · Fidéliser",
+        "intro": "Wählen Sie je nach Ziel Werbung oder E-Mail-Kampagnen.",
+        "steps": {
+          "step1": "Wählen Sie iNr’ADS für Werbung, Propulser für die Neukundengewinnung oder Fidéliser für bestehende Kunden.",
+          "step2": "Bereiten Sie die Nachricht vor und wählen Sie Ihre Zielgruppe. Prüfen Sie das Budget oder die Empfänger.",
+          "step3": "Prüfen und bestätigen Sie alles vor dem Start und verfolgen Sie die Ergebnisse in iNr’Stats."
+        }
+      },
+      "reviews": {
+        "title": "Meine Bewertungen verwalten",
+        "subtitle": "Reputation · Google Business",
+        "intro": "Sehen Sie Ihre Google-Bewertungen ein und bereiten Sie passende Antworten vor.",
+        "steps": {
+          "step1": "Prüfen Sie, ob Ihr Google-Business-Profil verbunden ist.",
+          "step2": "Öffnen Sie Reputation und wählen Sie eine Bewertung.",
+          "step3": "Prüfen Sie die vorgeschlagene Antwort und geben Sie sie vor der Veröffentlichung frei."
+        }
+      },
+      "contacts": {
+        "title": "Meine Kontakte und Termine verfolgen",
+        "subtitle": "iNr’CRM · iNr’Calendar",
+        "intro": "Bündeln Sie Ihre Kontakte und organisieren Sie die nächsten Schritte.",
+        "steps": {
+          "step1": "Suchen Sie einen Kontakt in iNr’CRM oder fügen Sie ihn hinzu.",
+          "step2": "Vervollständigen Sie sein Profil und bereiten Sie die passende Nachverfolgung vor.",
+          "step3": "Öffnen Sie iNr’Calendar, um Termine einzusehen oder einen Termin vorzuschlagen."
+        }
+      },
+      "stats": {
+        "title": "Meine Ergebnisse verstehen",
+        "subtitle": "iNr’Stats · Booster-Bericht",
+        "intro": "Verfolgen Sie gemessene Daten und erkennen Sie Verbesserungen.",
+        "steps": {
+          "step1": "Öffnen Sie die Übersicht in iNr’Stats und wählen Sie anschließend einen Kanal.",
+          "step2": "Vergleichen Sie die verfügbaren Zeiträume unter Entwicklung und sehen Sie sich die gemessenen Daten an.",
+          "step3": "Lesen Sie die Berechnungsmethode: Indizes und Potenzialwerte sind Schätzungen und garantieren keine Ergebnisse."
+        }
+      }
+    },
+    "mediaDetails": {
+      "brief": "Beschreiben Sie Motiv, Umgebung und Stil: realistisches Foto, Illustration… Geben Sie bei Videos auch die gewünschten Handlungen und gesprochenen Worte an.",
+      "format": "Wählen Sie Bild oder Video und anschließend das Format. Legen Sie bei Videos auch Dauer und Ton fest.",
+      "engine": "Wählen Sie eine kompatible Engine und prüfen Sie vor der Generierung die Credit-Kosten. Manche Video-Engines benötigen ein Ausgangsbild.",
+      "referencesTitle": "Die KI mit Referenzen anleiten",
+      "references": "Fügen Sie bei Bedarf Referenzen von Ihrem Gerät oder aus der Mediathek hinzu. Legen Sie deren Rolle fest und was übernommen oder als Inspiration genutzt werden soll.",
+      "dna": "Das Unternehmensprofil (ADN) ist optional: Aktivieren Sie es, wenn die Erstellung den Kontext Ihres Unternehmens berücksichtigen soll.",
+      "finishTitle": "Überarbeiten, speichern und wiederverwenden",
+      "review": "Prüfen Sie Texte und Darstellung, bei Videos auch Bewegungen und Ton. Bearbeiten Sie das Medium oder passen Sie die Beschreibung für eine neue Generierung an.",
+      "save": "Speichern Sie das ausgewählte Ergebnis in der Mediathek. Dort finden Sie es wieder, um es in Ihren Beiträgen zu verwenden."
+    },
+    "assistPreview": "iNr’Assist — demnächst verfügbar"
+  },
+  "mobileMenu": {
+    "create": "Erstellen und kommunizieren",
+    "manage": "Verfolgen und verwalten",
+    "space": "Mein Bereich",
+    "account": "Mein Konto",
+    "studio": "iNr’Studio",
+    "media": "Mediathek",
+    "ads": "iNr’ADS",
+    "campaigns": "E-Mail-Kampagnen",
+    "reputation": "Reputation",
+    "stats": "iNr’Stats",
+    "send": "iNr’Send",
+    "calendar": "iNr’Calendar",
+    "crm": "iNr’CRM",
+    "cash": "Zahlungen",
+    "publish": "Veröffentlichen",
+    "establishments": "Standorte",
+    "backToMenu": "Zurück zum Menü"
   }
 }

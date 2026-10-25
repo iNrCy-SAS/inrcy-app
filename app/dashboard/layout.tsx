@@ -27,6 +27,7 @@ import { isDashboardCompletionE2EBypassEnabled } from "@/lib/e2eServerFlags";
 import DashboardPersistentImageCache from "./_components/DashboardPersistentImageCache";
 import DashboardEditionProvider from "./_components/DashboardEditionProvider";
 import DashboardViewerAccessProvider from "./_components/DashboardViewerAccessProvider";
+import DashboardGeneratorStateProvider from "./_components/DashboardGeneratorStateProvider";
 import { ADMIN_USER_IDS, getMyRole, isAdminRole } from "@/lib/roles";
 import { isMetaChannelPilotEnabled } from "@/lib/metaChannelRollout";
 import { hasFullProductReviewerAccess } from "@/lib/reviewerAccess";
@@ -167,6 +168,7 @@ export default async function DashboardLayout({
       <DashboardIntlProvider locale={dashboardLocale} messages={dashboardMessages}>
       <DashboardEditionProvider edition={dashboardEdition} subscriptionEdition={subscriptionEdition}>
       <DashboardViewerAccessProvider viewerIsAdmin={viewerIsAdmin} viewerMetaPilotEnabled={viewerMetaPilotEnabled} actorUserId={user.id} activeAccountId={accountScope.activeUserId}>
+      <DashboardGeneratorStateProvider key={accountScope.activeUserId} accountId={accountScope.activeUserId}>
         <DashboardPersistentImageCache />
         <div className={styles.bg} />
         <div className={styles.noise} />
@@ -187,6 +189,7 @@ export default async function DashboardLayout({
             <ResponsiveBottomNav />
           </DashboardUnsavedNavigationProvider>
         </DashboardCompletionBypassProvider>
+      </DashboardGeneratorStateProvider>
       </DashboardViewerAccessProvider>
       </DashboardEditionProvider>
       </DashboardIntlProvider>

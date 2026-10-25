@@ -1,0 +1,61 @@
+.headerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.guideDialog {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #83a9ef4a;
+  border-radius: 24px;
+  background:
+    radial-gradient(ellipse at 0 10%, #0878b56b, transparent 65%),
+    radial-gradient(ellipse at 100% 60%, #8548cf4a, transparent 65%),
+    linear-gradient(130deg, #122c50, #1c244b 55%, #282047);
+}
+
+.guideHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  flex-shrink: 0;
+  padding: 18px clamp(18px, 2vw, 30px);
+  background: linear-gradient(110deg, #0e5c89f5, #3e3d83f5 70%, #643879f5);
+  box-shadow: 0 6px 30px #050a1926;
+}
+
+.guideTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  font-size: clamp(18px, 1.5vw, 22px);
+  letter-spacing: -.025em;
+  color: #f2f7ff;
+}
+.guideTitle::before { content: "?"; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: linear-gradient(140deg, #4dd9ff, #a25cf8); border: 1px solid #d8f4ff77; box-shadow: 0 4px 15px #10215830; color: white; font-size: 23px; }
+
+.guideBody {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  padding: 16px;
+}
+
+.guideHeader .headerActions > button { min-height: 42px; }
+
+@media (max-width: 1100px) {
+  .guideHeader { grid-template-columns: minmax(0, 1fr) auto; }
+}
+@media (max-width: 600px) {
+  .guideHeader { padding: 15px 16px; gap: 12px; }
+  .guideHeader .headerActions { gap: 8px; }
+  .guideBody { padding: 16px; }
+}
+
+@media (max-width: 700px) {
+  .guideBody { flex: 1 0 auto; grid-template-rows: auto; }
+}

@@ -1,5 +1,44 @@
 {
+  "usageGuide": {
+    "setupTab": "Je cockpit",
+    "routineTab": "Dagelijks gebruik",
+    "landmarksTab": "Je weg vinden",
+    "title": "iNrCy gebruiken",
+    "intro": "Drie instellingen voor een goede start, daarna een eenvoudige routine.",
+    "setupTitle": "Begin in je cockpit",
+    "channelsTitle": "Verbind je kanalen",
+    "channelsBody": "Koppel je accounts en controleer hun status. Kom hier terug als een kanaal opnieuw moet worden verbonden.",
+    "dnaTitle": "Vul je bedrijfs-DNA aan",
+    "dnaBody": "Beschrijf je activiteiten, aanbod en doelgroep, zodat de AI de context van je bedrijf kent.",
+    "aiTitle": "Personaliseer je AI",
+    "aiBody": "Kies de toon en voeg instructies toe voor inhoud die past bij jouw manier van communiceren.",
+    "routineTitle": "Je dagelijkse routine",
+    "publishTitle": "Publiceren met Booster",
+    "publishBody": "Bereid je inhoud voor, lees deze na, kies je kanalen en publiceer of plan in.",
+    "agentsBody": "Agenten kunnen inhoud voorbereiden. Controleer vóór publicatie hun instellingen voor goedkeuring en automatisering.",
+    "mediaTitle": "Media maken en terugvinden",
+    "mediaBody": "Maak en bewerk media in iNr’Studio. Het pictogram Mediatheek opent je opgeslagen media voor hergebruik.",
+    "statsTitle": "Je resultaten volgen",
+    "statsBody": "Open iNr’Stats om je gemeten gegevens te volgen. Labels als ‘geschat’ of ‘potentieel’ duiden op schattingen, niet op behaalde resultaten.",
+    "landmarksTitle": "Je weg vinden op het dashboard",
+    "generatorTitle": "Het statuspunt van de Generator",
+    "generatorBody": "Groen: actief. Rood: wachtstand. Controleer de status van elk kanaal afzonderlijk in de cockpit.",
+    "inertiaTitle": "Je Inertia-eenheden (UI)",
+    "inertiaBody": "Je saldo staat in de cockpit. Besteed je UI in Shop. Daar vind je ook Mijn inertia en je bestelgeschiedenis.",
+    "gpsTitle": "Welk hulpmiddel gebruiken?",
+    "gpsBody": "Gebruik-GPS helpt je kiezen op basis van je doel."
+  },
+  "accountTabs": {
+    "compte": "Account",
+    "abonnement": "Abonnement",
+    "preferences": "Voorkeuren",
+    "legal": "Juridisch",
+    "rgpd": "Privacygegevens",
+    "parrainage": "Doorverwijzingen",
+    "factures": "Facturen"
+  },
   "topbar": {
+    "myAccount": "Mijn account",
     "brandTag": "Zichtbaarheidsgenerator",
     "admin": "Admin",
     "adminTitle": "iNrCy admin",
@@ -50,7 +89,8 @@
     "referral": "iNrCy aanbevelen",
     "legal": "Juridische info",
     "rgpd": "Mijn data (GDPR)",
-    "logout": "Uitloggen"
+    "logout": "Uitloggen",
+    "invoices": "Mijn facturen"
   },
   "notifications": {
     "aria": "Meldingen",
@@ -98,7 +138,8 @@
       "parrainage": "iNrCy aanbevelen",
       "notifications": "Meldingen",
       "documents": "Standaardwaarden",
-      "threads": "Instellingen — Threads"
+      "threads": "Instellingen — Threads",
+      "factures": "Abonnementsfacturen"
     }
   },
   "hero": {
@@ -111,6 +152,7 @@
     "connectStep": "Verbinden",
     "enrichStep": "Verrijken",
     "configureStep": "Instellen",
+    "stepComplete": "Voltooid",
     "channelsStepLabel": "Actieve kanalen",
     "dnaStepLabel": "Bedrijfs-DNA",
     "aiStepLabel": "Mijn AI configureren",
@@ -152,6 +194,7 @@
     "progressAria": "Generator power",
     "nextRise": "Volgende boost:",
     "completeHint": "Alle hefbomen voeden de machine.",
+    "generatorShortTitle": "Generator",
     "generatorTitle": "iNrCy Generator",
     "generatorHelpTitle": "Hulp: iNrCy Generator",
     "generatorDesc": "Een weerspiegeling van de effectiviteit van uw communicatiekanalen.",
@@ -168,7 +211,8 @@
     "basedOnProfile": "Op profiel + kansen gebaseerd",
     "opportunities": "Kansen",
     "projection30": "30-d prognose",
-    "capturedLeads": "Aanvragen",
+    "generatedContactsHint": "Schatting op basis van de activiteit op je kanalen.",
+    "capturedLeads": "Gegenereerde contacten",
     "last7": "Laatste 7 dagen",
     "last30": "Laatste 30 dagen"
   },
@@ -706,8 +750,8 @@
     "aiGoalsDescription": "Bepaal de gewenste resultaten, inspiratie en wat vermeden moet worden."
   },
   "signatureTools": {
-    "createTitle": "Communiceren & groeien",
-    "pilotTitle": "Creëren & beheren",
+    "createTitle": "Creëren en groeien",
+    "pilotTitle": "Volgen en beheren",
     "mailCampaigns": "E-mailcampagnes",
     "businessSpace": "UW BEDRIJFSOMGEVING",
     "amplify": "VERSTERK",
@@ -740,7 +784,7 @@
     "pilotSubtitle": "Meten, volgen en bewaren",
     "statsDescription": "Meet uw impact.",
     "statsCta": "Bekijk statistieken",
-    "sendDescription": "Bekijk de geschiedenis van uw activiteiten in de app.",
+    "sendDescription": "Uw activiteitenhistorie.",
     "sendCta": "Bekijk geschiedenis",
     "reputationName": "Reputatie",
     "reputationDescription": "Beheer uw beoordelingen Google",
@@ -759,8 +803,8 @@
     "agentPlanning": "Planning",
     "agentCta": "Beheer",
     "studioEyebrow": "AI-mediacreatie",
-    "studioLine1": "Maak, bewerk en retoucheer",
-    "studioLine2": "uw media.",
+    "studioLine1": "Bewaar, genereer en maak",
+    "studioLine2": "je media.",
     "studioCta": "Mediastudio"
   },
   "channelBubble": {
@@ -811,5 +855,152 @@
     "threads": "Deel nieuws en ga in gesprek met uw community. Kies de beschikbare berichtformaten en het standaardformaat.",
     "pinterest": "Publiceert uw beelden op de borden van uw account. Kies een bord of maak vanuit de bubbel een nieuw bord aan.",
     "x": "Deelt uw nieuws en berichten op uw X-account om uw aanwezigheid actief te houden."
+  },
+  "helpCenter": {
+    "title": "iNrCy-hulp",
+    "aria": "iNrCy-hulp openen",
+    "intro": "Je eerste stappen, daarna de juiste tool op het juiste moment.",
+    "setupTitle": "Goed beginnen",
+    "setupSubtitle": "Drie stappen om de AI op je bedrijf af te stemmen.",
+    "goalsTitle": "Wat wil je doen?",
+    "goalsSubtitle": "Kies je doel, wij wijzen je de weg.",
+    "back": "Terug naar de doelen",
+    "completed": "Voltooid",
+    "continue": "Nog aan te vullen",
+    "connected": "{connected} / {total} verbonden",
+    "open": "Openen",
+    "search": "Hulp zoeken…",
+    "noResults": "Geen resultaten. Probeer een ander woord.",
+    "articles": "Uitgebreide handleidingen",
+    "chooseArticle": "Een handleiding kiezen",
+    "overview": "De kern",
+    "steps": "De stappen",
+    "checks": "Te controleren",
+    "pitfalls": "Goede gewoontes",
+    "faq": "Veelgestelde vragen",
+    "page": "Pagina {current} / {total}",
+    "previous": "Vorige",
+    "next": "Volgende",
+    "premium": "Inbegrepen bij Premium",
+    "viewOffers": "Mijn abonnement bekijken",
+    "agent": "Je AI-agent kan je ondersteunen.",
+    "landmarksTitle": "Mijn cockpit begrijpen",
+    "landmarksBody": "Meters, centraal punt en Inertia-eenheden",
+    "powerBody": "De drie meters tonen je voorbereiding: kanalen, bedrijfs-DNA en AI-personalisatie. Vul ze aan om iNrCy de juiste context te geven.",
+    "generatorTitle": "Het centrale punt",
+    "generatorBody": "Groen: actief. Rood: wachtend. Controleer ook de status van elk kanaal in de cockpit.",
+    "inertiaTitle": "Je Inertia-eenheden",
+    "inertiaBody": "Met je activiteit op iNrCy spaar je UI. Je saldo staat in de cockpit en je geschiedenis onder Shop → Mijn inertia.",
+    "balance": "{value} UI beschikbaar",
+    "generatorSettings": "Instellingen voor schattingen",
+    "shop": "Shop openen",
+    "channels": {
+      "title": "Mijn kanalen verbinden",
+      "body": "Koppel je accounts en controleer hun status. Verbind accounts opnieuw als dat nodig is.",
+      "action": "Mijn kanalen beheren"
+    },
+    "dna": {
+      "title": "Mijn bedrijf voorstellen",
+      "body": "Beschrijf je activiteit, aanbod en doelgroep om de AI de juiste context te geven.",
+      "action": "Mijn DNA aanvullen"
+    },
+    "ai": {
+      "title": "Mijn AI personaliseren",
+      "body": "Stel je toon, instructies en communicatievoorkeuren in.",
+      "action": "Mijn AI instellen"
+    },
+    "goals": {
+      "publish": {
+        "title": "Content publiceren",
+        "subtitle": "Booster · iNr’Agent Publications",
+        "intro": "Begin met een idee en maak een bericht dat bij je kanalen past.",
+        "steps": {
+          "step1": "Kies je kanalen in Booster en beschrijf je idee.",
+          "step2": "Genereer de content, lees die na en pas de tekst en media aan.",
+          "step3": "Keur het bericht goed en publiceer of plan het. Controleer bij iNr’Agent de goedkeuringsregels voordat je automatiseert."
+        }
+      },
+      "media": {
+        "title": "Mijn media maken en terugvinden",
+        "subtitle": "iNr’Studio · Mediabibliotheek",
+        "intro": "Maak visuele content en gebruik opgeslagen media opnieuw.",
+        "steps": {
+          "step1": "Open iNr’Studio om media te maken of te bewerken.",
+          "step2": "Controleer de getoonde credits voordat je de generatie start.",
+          "step3": "Vind je creaties terug in de Mediabibliotheek en voeg ze toe aan je berichten."
+        }
+      },
+      "grow": {
+        "title": "Klanten aantrekken en behouden",
+        "subtitle": "iNr’ADS · Propulser · Fidéliser",
+        "intro": "Kies advertenties of e-mailcampagnes op basis van je doel.",
+        "steps": {
+          "step1": "Kies iNr’ADS voor advertenties, Propulser voor nieuwe klanten of Fidéliser voor bestaande klanten.",
+          "step2": "Bereid je bericht voor en kies je doelgroep. Controleer het budget of de ontvangers.",
+          "step3": "Lees alles na en keur het goed vóór de start. Volg daarna de resultaten in iNr’Stats."
+        }
+      },
+      "reviews": {
+        "title": "Mijn reviews beheren",
+        "subtitle": "Reputatie · Google Business",
+        "intro": "Bekijk je Google-reviews en bereid passende antwoorden voor.",
+        "steps": {
+          "step1": "Controleer of je Google Business-profiel verbonden is.",
+          "step2": "Open Reputatie en kies een review.",
+          "step3": "Lees het voorgestelde antwoord na en keur het goed voordat je het publiceert."
+        }
+      },
+      "contacts": {
+        "title": "Mijn contacten en afspraken volgen",
+        "subtitle": "iNr’CRM · iNr’Calendar",
+        "intro": "Breng je contacten samen en organiseer de volgende stappen.",
+        "steps": {
+          "step1": "Zoek of voeg een contact toe in iNr’CRM.",
+          "step2": "Vul het profiel aan en bereid de juiste opvolging voor.",
+          "step3": "Open iNr’Calendar om je afspraken te bekijken of een tijdstip voor te stellen."
+        }
+      },
+      "stats": {
+        "title": "Mijn resultaten begrijpen",
+        "subtitle": "iNr’Stats · Booster-rapport",
+        "intro": "Volg je gemeten gegevens en zie wat er verbetert.",
+        "steps": {
+          "step1": "Open iNr’Stats voor het overzicht en kies daarna een kanaal.",
+          "step2": "Vergelijk de beschikbare periodes onder Ontwikkeling en bekijk de gemeten gegevens.",
+          "step3": "Lees de berekeningsmethode: indexen en potentiële cijfers zijn schattingen, zonder garantie op resultaten."
+        }
+      }
+    },
+    "mediaDetails": {
+      "brief": "Beschrijf het onderwerp, de omgeving en de stijl: realistische foto, illustratie… Vermeld bij video ook de gewenste handelingen en gesproken tekst.",
+      "format": "Kies Afbeelding of Video en daarna het formaat. Stel bij video ook de duur en het geluid in.",
+      "engine": "Kies een geschikte engine en controleer de kosten in credits voordat je genereert. Sommige video-engines vereisen een startafbeelding.",
+      "referencesTitle": "Stuur de AI met referenties",
+      "references": "Voeg zo nodig referenties toe vanaf je apparaat of uit de Mediabibliotheek. Geef hun rol aan en wat moet worden overgenomen of als inspiratie dient.",
+      "dna": "Het bedrijfsprofiel (ADN) is optioneel: schakel het in als je wilt dat de creatie rekening houdt met de context van je bedrijf.",
+      "finishTitle": "Verfijnen, opslaan en hergebruiken",
+      "review": "Controleer de tekst en het beeld; controleer bij video ook bewegingen en geluid. Bewerk de media of pas de beschrijving aan om opnieuw te genereren.",
+      "save": "Sla het gekozen resultaat op in de Mediabibliotheek. Daar vind je het terug om het opnieuw in je berichten te gebruiken."
+    },
+    "assistPreview": "iNr’Assist — binnenkort beschikbaar"
+  },
+  "mobileMenu": {
+    "create": "Creëren en communiceren",
+    "manage": "Volgen en beheren",
+    "space": "Mijn omgeving",
+    "account": "Mijn account",
+    "studio": "iNr’Studio",
+    "media": "Mediabibliotheek",
+    "ads": "iNr’ADS",
+    "campaigns": "E-mailcampagnes",
+    "reputation": "Reputatie",
+    "stats": "iNr’Stats",
+    "send": "iNr’Send",
+    "calendar": "iNr’Calendar",
+    "crm": "iNr’CRM",
+    "cash": "Betalingen",
+    "publish": "Publiceren",
+    "establishments": "Vestigingen",
+    "backToMenu": "Terug naar menu"
   }
 }

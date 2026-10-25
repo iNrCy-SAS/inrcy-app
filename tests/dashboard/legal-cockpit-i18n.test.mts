@@ -75,18 +75,32 @@ test("le cockpit reste complet et lisible sur desktop comme en responsive", () =
   assert.equal(french.hero.cockpitShortTitle, "Cockpit");
 });
 
-test("le Générateur conserve un en-tête strictement organisé sur deux lignes", () => {
-  const hero = read("app/dashboard/_components/DashboardHero.tsx");
-  const css = read("app/dashboard/dashboard.module.css");
+test("le Générateur central conserve ses commandes et son état accessible sans texte visible redondant", () => {
+  const generator = read("app/dashboard/_components/DashboardGeneratorHub.tsx");
+  const orb = read("app/dashboard/_components/DashboardGeneratorOrb.tsx");
+  const css = read("app/dashboard/_components/DashboardExperience.module.css");
 
-  assert.match(hero, /className=\{styles\.generatorTitle\}>\{t\.hero\.generatorTitle\}<\/div>/);
-  assert.doesNotMatch(hero, /compactGeneratorTitle|generatorTitleFull|generatorTitleCompact/);
-  assert.match(css, /\.generatorHeader\s*\{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: minmax\(0, 1fr\) auto/);
-  assert.match(css, /\.generatorHeaderCopy\s*\{\s*display: contents/);
-  assert.match(css, /\.generatorHeaderLead\s*\{[\s\S]*?grid-column: 1;[\s\S]*?grid-row: 1/);
-  assert.match(css, /\.generatorHeaderRight\s*\{[\s\S]*?grid-column: 2;[\s\S]*?grid-row: 1/);
-  assert.match(
-    css,
-    /\.generatorDesc\s*\{[\s\S]*?grid-column: 1 \/ -1;[\s\S]*?grid-row: 2;[\s\S]*?white-space: nowrap/,
-  );
+  assert.match(generator, /aria-label=\{`\$\{heroT\("settingsAria"\)\} · \$\{generatorIsActive \? t\.hero\.active : t\.hero\.waiting\}`\}/);
+  assert.match(generator, /title=\{`\$\{heroT\("settingsTitle"\)\} · \$\{generatorIsActive \? t\.hero\.active : t\.hero\.waiting\} · \$\{inertiaHint\}`\}/);
+  assert.match(generator, /<DashboardGeneratorOrb isActive=\{generatorIsActive\}/);
+  assert.match(orb, /data-active=\{isActive === null \? "unknown" : String\(isActive\)\} aria-hidden="true"/);
+  assert.match(orb, /<span className=\{styles\.status\} \/>/);
+  assert.doesNotMatch(generator, /<strong>|heroT\("generatorShortTitle"\)/);
+  for (const action of ["onOpenGeneratorHelp", "onOpenGeneratorSettings", "onRefreshGenerator"]) {
+    assert.ok(generator.includes(`onClick={${action}}`), action);
+  }
+  assert.match(generator, /disabled=\{kpisLoading\} aria-busy=\{kpisLoading \|\| undefined\}/);
+  assert.match(generator, /generatorIsActive \? t\.hero\.active : t\.hero\.waiting/);
+  const hero = read("app/dashboard/_components/DashboardHero.tsx");
+  assert.match(hero, /uiBalance\.toLocaleString\(locale\)/);
+  assert.match(css, /\.hubRow\s*\{[^}]*grid-area: generator/);
+  assert.match(css, /\.channelsHub:focus-visible/);
+  assert.match(css, /@media \(max-width: 1100px\)/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
+  for (const locale of locales) {
+    const dashboard = JSON.parse(read(`messages/${locale}/dashboard.json`)) as { hero: Record<string, string> };
+    for (const key of ["settingsAria", "settingsTitle", "active", "waiting"]) {
+      assert.ok(dashboard.hero[key]?.trim(), `${locale}/${key}`);
+    }
+  }
 });

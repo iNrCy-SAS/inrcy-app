@@ -1,5 +1,44 @@
 {
+  "usageGuide": {
+    "setupTab": "您的控制台",
+    "routineTab": "日常使用",
+    "landmarksTab": "操作指引",
+    "title": "如何使用 iNrCy",
+    "intro": "先完成三项设置，再按简单流程使用。",
+    "setupTitle": "从驾驶舱开始",
+    "channelsTitle": "连接您的渠道",
+    "channelsBody": "关联账号并检查状态。如果某个渠道需要重新连接，请回到这里处理。",
+    "dnaTitle": "完善企业 DNA",
+    "dnaBody": "填写业务、产品或服务以及目标受众，让 AI 了解您的企业背景。",
+    "aiTitle": "个性化设置 AI",
+    "aiBody": "选择语气并添加要求，让内容符合您的沟通风格。",
+    "routineTitle": "日常使用流程",
+    "publishTitle": "通过 Booster 发布",
+    "publishBody": "准备内容、检查内容、选择渠道，然后立即发布或定时发布。",
+    "agentsBody": "智能体可以帮助准备内容。发布前，请检查其审批与自动化设置。",
+    "mediaTitle": "创建和查找媒体",
+    "mediaBody": "在 iNr’Studio 中创建和编辑媒体。点击媒体库图标，即可打开已保存的媒体并再次使用。",
+    "statsTitle": "跟踪您的成效",
+    "statsBody": "打开 iNr’Stats 查看实测数据。标有“估算”或“潜力”的指标属于估算，并非已经实现的结果。",
+    "landmarksTitle": "仪表盘上的使用提示",
+    "generatorTitle": "生成器的状态指示点",
+    "generatorBody": "绿色：活跃。红色：等待。请在驾驶舱中单独检查每个渠道的连接状态。",
+    "inertiaTitle": "您的惯性单位（UI）",
+    "inertiaBody": "余额显示在驾驶舱中。您可以在商店使用 UI，并查看我的惰性和订单历史。",
+    "gpsTitle": "该使用哪种工具？",
+    "gpsBody": "GPS 使用情况会根据您的目标提供指引。"
+  },
+  "accountTabs": {
+    "compte": "账户",
+    "abonnement": "订阅",
+    "preferences": "偏好设置",
+    "legal": "法律信息",
+    "rgpd": "个人数据",
+    "parrainage": "推荐奖励",
+    "factures": "发票"
+  },
   "topbar": {
+    "myAccount": "我的账户",
     "brandTag": "能见度发生器",
     "admin": "管理员",
     "adminTitle": "管理 iNrCy",
@@ -50,7 +89,8 @@
     "referral": "赞助 iNrCy",
     "legal": "法律信息",
     "rgpd": "我的数据 (GDPR)",
-    "logout": "断开连接"
+    "logout": "断开连接",
+    "invoices": "我的发票"
   },
   "notifications": {
     "aria": "通知",
@@ -98,7 +138,8 @@
       "parrainage": "赞助 iNrCy",
       "notifications": "通知",
       "documents": "默认设置",
-      "threads": "配置 — Threads"
+      "threads": "配置 — Threads",
+      "factures": "订阅发票"
     }
   },
   "hero": {
@@ -111,6 +152,7 @@
     "connectStep": "连接",
     "enrichStep": "完善",
     "configureStep": "配置",
+    "stepComplete": "已完成",
     "channelsStepLabel": "活跃渠道",
     "dnaStepLabel": "企业 DNA",
     "aiStepLabel": "配置我的 AI",
@@ -152,6 +194,7 @@
     "progressAria": "发电机功率",
     "nextRise": "下一次攀登：",
     "completeHint": "您的所有杠杆都可以全功率为机器提供动力。",
+    "generatorShortTitle": "生成器",
     "generatorTitle": "生成器 iNrCy",
     "generatorHelpTitle": "帮助：生成器 iNrCy",
     "generatorDesc": "反映您的沟通渠道的有效性。",
@@ -168,7 +211,8 @@
     "basedOnProfile": "基于个人资料+机会",
     "opportunities": "可激活的机会",
     "projection30": "30天预测",
-    "capturedLeads": "捕获的请求",
+    "generatedContactsHint": "根据您的渠道活动估算。",
+    "capturedLeads": "带来的联系",
     "last7": "过去 7 天",
     "last30": "过去 30 天"
   },
@@ -706,8 +750,8 @@
     "aiGoalsDescription": "列出预期的结果、你的灵感以及要避免的事情。"
   },
   "signatureTools": {
-    "createTitle": "沟通与发展",
-    "pilotTitle": "创作与管理",
+    "createTitle": "创建与发展",
+    "pilotTitle": "跟踪与管理",
     "mailCampaigns": "邮件营销",
     "businessSpace": "您的企业工作空间",
     "amplify": "扩大影响",
@@ -740,7 +784,7 @@
     "pilotSubtitle": "衡量、发现、建立忠诚度",
     "statsDescription": "衡量你的影响力。",
     "statsCta": "查看统计数据",
-    "sendDescription": "查看您在应用内的活动记录。",
+    "sendDescription": "您的活动历史。",
     "sendCta": "查看历史记录",
     "reputationName": "声誉",
     "reputationDescription": "管理您的评论 Google。",
@@ -759,7 +803,7 @@
     "agentPlanning": "计划",
     "agentCta": "管理",
     "studioEyebrow": "AI 媒体创作",
-    "studioLine1": "创建、编辑和润饰",
+    "studioLine1": "存储、生成和创作",
     "studioLine2": "您的媒体内容。",
     "studioCta": "媒体工作室"
   },
@@ -811,5 +855,152 @@
     "threads": "分享动态并与社区交流。选择可用的发布格式和默认格式。",
     "pinterest": "将图片发布到您账号的画板。可在气泡中选择画板或创建新画板。",
     "x": "将动态和帖子分享到您的 X 账号，让您的线上形象保持活跃。"
+  },
+  "helpCenter": {
+    "title": "iNrCy 帮助",
+    "aria": "打开 iNrCy 帮助",
+    "intro": "先完成入门设置，再找到适合当前目标的工具。",
+    "setupTitle": "轻松开始",
+    "setupSubtitle": "只需三步，让 AI 更了解您的企业。",
+    "goalsTitle": "您想做什么？",
+    "goalsSubtitle": "选择目标，我们为您指路。",
+    "back": "返回目标列表",
+    "completed": "已完成",
+    "continue": "待完善",
+    "connected": "已连接 {connected} / {total}",
+    "open": "打开",
+    "search": "搜索帮助…",
+    "noResults": "没有结果，请换个关键词。",
+    "articles": "详细指南",
+    "chooseArticle": "选择指南",
+    "overview": "要点",
+    "steps": "操作步骤",
+    "checks": "需要检查",
+    "pitfalls": "实用建议",
+    "faq": "常见问题",
+    "page": "第 {current} / {total} 页",
+    "previous": "上一页",
+    "next": "下一页",
+    "premium": "Premium 已包含",
+    "viewOffers": "查看我的订阅",
+    "agent": "您的 AI 代理可以协助您。",
+    "landmarksTitle": "了解我的驾驶舱",
+    "landmarksBody": "进度条、中心点与惯性单位",
+    "powerBody": "三条进度条展示您的准备情况：渠道、企业 DNA 和 AI 个性化设置。完善这些信息，为 iNrCy 提供正确的业务背景。",
+    "generatorTitle": "中心点",
+    "generatorBody": "绿色：已启用。红色：等待中。也请在驾驶舱中检查每个渠道的状态。",
+    "inertiaTitle": "您的惯性单位",
+    "inertiaBody": "在 iNrCy 上开展活动可以积累 UI。在驾驶舱查看余额，在商店 → 我的惰性中查看记录。",
+    "balance": "{value} UI 可用",
+    "generatorSettings": "估算设置",
+    "shop": "打开商店",
+    "channels": {
+      "title": "连接我的渠道",
+      "body": "关联您的账户并检查状态。需要时重新连接相应账户。",
+      "action": "管理我的渠道"
+    },
+    "dna": {
+      "title": "介绍我的企业",
+      "body": "填写业务、产品服务和受众信息，为 AI 提供正确的背景。",
+      "action": "完善我的 DNA"
+    },
+    "ai": {
+      "title": "个性化设置我的 AI",
+      "body": "设定您的语气、指令和沟通偏好。",
+      "action": "配置我的 AI"
+    },
+    "goals": {
+      "publish": {
+        "title": "发布内容",
+        "subtitle": "Booster · iNr’Agent Publications",
+        "intro": "从一个想法开始，为您的渠道准备合适的帖子。",
+        "steps": {
+          "step1": "在 Booster 中选择渠道并描述您的想法。",
+          "step2": "生成内容后，仔细检查并调整文字和媒体。",
+          "step3": "确认后发布或定时发布。使用 iNr’Agent 时，请先检查审核规则，再启用自动化。"
+        }
+      },
+      "media": {
+        "title": "创建和查找我的媒体",
+        "subtitle": "iNr’Studio · 媒体库",
+        "intro": "创建视觉内容，重复使用已保存的媒体。",
+        "steps": {
+          "step1": "打开 iNr’Studio，创建或编辑媒体。",
+          "step2": "开始生成前，检查界面显示的积分费用。",
+          "step3": "在媒体库中找到作品，并将其添加到帖子。"
+        }
+      },
+      "grow": {
+        "title": "吸引和留住客户",
+        "subtitle": "iNr’ADS · Propulser · Fidéliser",
+        "intro": "根据目标，选择广告或邮件营销活动。",
+        "steps": {
+          "step1": "选择 iNr’ADS 投放广告、Propulser 开发新客户，或 Fidéliser 维护现有客户。",
+          "step2": "准备内容并选择受众，检查预算或收件人。",
+          "step3": "启动前检查并确认，随后在 iNr’Stats 中跟踪结果。"
+        }
+      },
+      "reviews": {
+        "title": "管理我的评价",
+        "subtitle": "声誉 · Google Business",
+        "intro": "查看 Google 评价，并准备合适的回复。",
+        "steps": {
+          "step1": "确认您的 Google Business 商家资料已连接。",
+          "step2": "打开声誉并选择一条评价。",
+          "step3": "检查建议回复，确认后再发布。"
+        }
+      },
+      "contacts": {
+        "title": "跟进联系人和预约",
+        "subtitle": "iNr’CRM · iNr’Calendar",
+        "intro": "集中管理联系人，安排后续行动。",
+        "steps": {
+          "step1": "在 iNr’CRM 中查找或添加联系人。",
+          "step2": "完善联系人资料，准备合适的跟进方式。",
+          "step3": "打开 iNr’Calendar，查看预约或提议时间段。"
+        }
+      },
+      "stats": {
+        "title": "了解我的结果",
+        "subtitle": "iNr’Stats · Booster 报告",
+        "intro": "跟踪实测数据，了解哪些方面正在改善。",
+        "steps": {
+          "step1": "打开 iNr’Stats 查看总览，然后选择渠道。",
+          "step2": "在趋势中比较可用的时间范围，并查看实测数据。",
+          "step3": "查看计算方法：指数和潜力数值属于估算，并不保证实际结果。"
+        }
+      }
+    },
+    "mediaDetails": {
+      "brief": "描述主体、场景和风格，例如写实照片或插画。生成视频时，还要说明所需的动作和台词。",
+      "format": "选择图像或视频，再选择画面格式。生成视频时，还需设置时长和声音。",
+      "engine": "选择兼容的引擎，生成前检查所需积分。部分视频引擎需要一张起始图像。",
+      "referencesTitle": "用参考素材引导 AI",
+      "references": "根据需要，从设备或媒体库添加参考素材。说明各素材的作用，以及哪些内容必须保留、哪些仅供灵感参考。",
+      "dna": "企业背景资料（ADN）为可选项；如需让作品结合您的业务背景，可将其开启。",
+      "finishTitle": "调整、保存和重复使用",
+      "review": "检查文字和画面效果；视频还需检查动作和声音。可编辑媒体，或调整描述后重新生成。",
+      "save": "将选定的作品保存到媒体库，之后便可找到并重复用于帖子。"
+    },
+    "assistPreview": "iNr’Assist — 即将推出"
+  },
+  "mobileMenu": {
+    "create": "创作与沟通",
+    "manage": "跟踪与管理",
+    "space": "我的空间",
+    "account": "我的账户",
+    "studio": "iNr’Studio",
+    "media": "媒体库",
+    "ads": "iNr’ADS",
+    "campaigns": "邮件营销",
+    "reputation": "声誉管理",
+    "stats": "iNr’Stats",
+    "send": "iNr’Send",
+    "calendar": "iNr’Calendar",
+    "crm": "iNr’CRM",
+    "cash": "收款",
+    "publish": "发布",
+    "establishments": "企业",
+    "backToMenu": "返回菜单"
   }
 }

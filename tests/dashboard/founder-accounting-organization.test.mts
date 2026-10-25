@@ -59,7 +59,7 @@ test("Founder est la seule édition qui possède Encaisser, Factures et Devis", 
   );
 });
 
-test("le cockpit Premium groupe la communication à gauche et Studio avec le pilotage à droite", () => {
+test("le cockpit Premium garde Booster seul et réunit Studio, Réputation, ADS et Campagnes dans la création", () => {
   const source = read("app/dashboard/_components/DashboardModulesCard.tsx");
   const campaignChoices = read("app/dashboard/_components/DashboardCampaignChoices.tsx");
   const styles = read("app/dashboard/_components/DashboardSignatureTools.module.css");
@@ -68,16 +68,17 @@ test("le cockpit Premium groupe la communication à gauche et Studio avec le pil
   const secondary = source.indexOf('data-dashboard-premium-secondary-tools=');
   const ads = source.indexOf('"premium-campaign-ads"');
   const pilot = source.indexOf('id="dashboard-pilot-title"');
-  const signatures = source.indexOf("{signatureTools.map");
+  const signatures = source.indexOf("{pilotTools.map");
   const relationships = source.indexOf('data-dashboard-relationship-tools="true"');
   const mailCampaigns = source.indexOf('"premium-campaign-open"');
 
-  assert.ok(creation >= 0 && creation < booster);
-  assert.ok(booster < secondary && secondary < ads && ads < mailCampaigns);
+  assert.ok(booster >= 0 && booster < creation);
+  assert.ok(creation < secondary && secondary < ads && ads < mailCampaigns);
   assert.ok(mailCampaigns < pilot && pilot < relationships && relationships < signatures);
   assert.doesNotMatch(source, /signatureStyles\.dnaCard/);
 
-  // Six cards form three pairs, with the Premium tools on the final row.
+  // The same six signature cards are split across creation and pilot areas;
+  // their destinations and access restrictions remain unchanged.
   const signatureDefinitions = source.slice(source.indexOf("const signatureTools:"), creation);
   const signatureNames = Array.from(
     signatureDefinitions.matchAll(/tone: "([^"]+)"/g),
@@ -91,10 +92,10 @@ test("le cockpit Premium groupe la communication à gauche et Studio avec le pil
   assert.match(source, /signatureStyles\.mailCampaignCard/);
   assert.match(styles, /\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/);
   assert.match(styles, /\.creationGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /\.signatureGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /\.signatureGrid\s*\{[^}]*grid-template-rows:\s*repeat\(3,/);
+  assert.match(styles, /\.signatureGrid\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.statsCard\s*\{[^}]*grid-column: 1 \/ -1/);
   assert.match(styles, /@media \(max-width: 1100px\)[\s\S]*?\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
-  assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.adsCard\s*\{[^}]*grid-column:\s*1 \/ -1/);
+  assert.match(source, /creationTools\.map\(renderSignatureTool\)/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.boosterWave\s*\{\s*animation:\s*none/);
 
   // The visual regrouping must keep the existing tool entry points and access restrictions.
@@ -151,7 +152,8 @@ test("iNrSend, CRM, menus et GPS masquent la comptabilité hors Founder", () => 
   assert.match(crmToolbar, /\{documentsEnabled \? \(/);
   assert.match(crmContacts, /\{documentsEnabled \? \(/);
   assert.match(userMenu, /accountingEnabled \? \(/);
-  assert.match(responsiveMenu, /accountingEnabled \? \(/);
+  assert.match(responsiveMenu, /getDashboardMobileMenu\(dashboardEdition\)/);
+  assert.match(read("app/dashboard/_components/dashboardMobileMenuModel.ts"), /isDashboardDestinationAllowedForEdition/);
   assert.match(gpsPolicy, /FOUNDER_ONLY_SECTION_IDS = new Set\(\["documents"\]\)/);
   assert.match(gpsPolicy, /edition === "founder"/);
 });

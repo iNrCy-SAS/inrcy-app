@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 import { evaluatePassword } from "@/lib/passwordPolicy";
@@ -92,10 +92,20 @@ function accountPlanPresentation(
 
 function Rule({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center", opacity: ok ? 1 : 0.75 }}>
-      <span aria-hidden style={{ fontSize: 12 }}>{ok ? "●" : "○"}</span>
-      <span style={{ fontSize: 13 }}>{label}</span>
-    </div>
+    <span className={accountStyles.passwordRule} data-satisfied={ok}>
+      <span aria-hidden="true">{ok ? "●" : "○"}</span>
+      <span>{label}</span>
+    </span>
+  );
+}
+
+function AccountIcon({ kind }: { kind: "identity" | "security" | "plan" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      {kind === "identity" ? <><circle cx="12" cy="8" r="3.5" /><path d="M5 21v-2a7 7 0 0 1 14 0v2" /></> : null}
+      {kind === "security" ? <><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z" /><rect x="9" y="10" width="6" height="6" rx="1" /><path d="M10 10V8a2 2 0 0 1 4 0v2" /></> : null}
+      {kind === "plan" ? <><path d="m12 3 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 16l9 5 9-5" /></> : null}
+    </svg>
   );
 }
 
@@ -108,6 +118,7 @@ export default function AccountContent({
   const i18nT = useTranslations("settings");
   const passwordT = useTranslations("auth.password");
   const locale = useLocale();
+  const accountId = useId();
   const [email, setEmail] = useState<string>("");
   const [createdAt, setCreatedAt] = useState<string>("");
   const [subscriptionSummary, setSubscriptionSummary] = useState<AccountSubscriptionSummary | null>(null);
@@ -167,59 +178,6 @@ export default function AccountContent({
     [edition, subscriptionSummary, i18nT, locale],
   );
 
-  const card: React.CSSProperties = {
-    padding: 22,
-    borderRadius: 22,
-    border: "1px solid rgba(86,204,251,0.35)",
-    background: "linear-gradient(145deg, rgba(13,91,136,0.7), rgba(29,47,105,0.68))",
-    boxShadow: "inset 0 1px 0 rgba(146,228,255,0.18), 0 12px 34px rgba(17,96,162,0.10)",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
-  };
-
-  const input: React.CSSProperties = {
-    width: "100%",
-    minWidth: 0,
-    boxSizing: "border-box",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(0,0,0,0.22)",
-    color: "white",
-    padding: "10px 12px",
-    outline: "none",
-  };
-
-  const label: React.CSSProperties = { fontSize: 12, fontWeight: 900, opacity: 0.85, marginBottom: 6 };
-
-  const primaryBtn: React.CSSProperties = {
-    border: "1px solid rgba(255,255,255,0.18)",
-    background:
-      "linear-gradient(135deg, rgba(255, 77, 166, 0.35), rgba(97, 87, 255, 0.28), rgba(0, 200, 255, 0.22))",
-    color: "white",
-    borderRadius: 14,
-    padding: "10px 12px",
-    cursor: "pointer",
-    fontWeight: 900,
-    width: "100%",
-    opacity: busy ? 0.7 : 1,
-  };
-
-  const planButton: React.CSSProperties = {
-    border: "1px solid rgba(255,255,255,0.18)",
-    background: "linear-gradient(115deg, rgba(39, 154, 255, .9), rgba(133, 74, 239, .92), rgba(238, 72, 163, .82))",
-    color: "white",
-    borderRadius: 14,
-    padding: "10px 14px",
-    cursor: "pointer",
-    fontWeight: 900,
-    width: "100%",
-    display: "block",
-    textAlign: "center",
-    textDecoration: "none",
-    marginTop: 14,
-  };
-
-
   async function onChangePassword() {
     setMsg("");
     setOk("");
@@ -278,128 +236,87 @@ export default function AccountContent({
     }
   }
 
-  if (loading) return <div style={{ opacity: 0.85 }}>{i18nT("chargement_01cba1df")}</div>;
+  if (loading) return <div className={accountStyles.loading} role="status">{i18nT("chargement_01cba1df")}</div>;
 
   return (
     <div className={styles.workspace}>
-    <div className={accountStyles.stack}>
-      <div style={card}>
-        {createdAt ? (
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-            <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.85 }}>{i18nT("date_de_creation_d5e8d1af")}</div>
-            <div style={{ fontSize: 13, fontWeight: 900, opacity: 0.92 }}>{createdAt}</div>
-          </div>
-        ) : null}
-
-        <h2 style={{ margin: 0, fontSize: 16 }}>{i18nT("identifiants_7e7dc904")}</h2>
-        <p style={{ margin: "8px 0 0", opacity: 0.8 }}>
-          {i18nT("votre_email_de_connexion_est_affiche_84123fc4")}{" "}</p>
-
-        <div className={accountStyles.passwordFields} style={{ marginTop: 12 }}>
-          <div>
-            <div style={label}>{i18nT("mail_92379cbb")}</div>
-            <input style={{ ...input, opacity: 0.9 }} value={email} readOnly />
-          </div>
-
-
-          <div>
-            <div style={label}>{i18nT("mot_de_passe_actuel_f9242976")}</div>
-            <input
-              style={input}
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
-            />
-          </div>
-
-          <div>
-            <div style={label}>{i18nT("nouveau_mot_de_passe_3a713829")}</div>
-            <input
-              style={input}
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="new-password"
-            />
-          </div>
-
-          <div>
-            <div style={label}>{i18nT("confirmer_le_mot_de_passe_88362d0d")}</div>
-            <input
-              style={input}
-              type="password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="new-password"
-            />
-          </div>
-
-          <div className={styles.fullWidth} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 6, opacity: 0.9 }}>
-            <Rule ok={strength.rules.minLen} label={i18nT("8_caracteres_85066a4b")} />
-            <Rule ok={strength.rules.hasLetter} label={i18nT("1_lettre_2147bd0b")} />
-            <Rule ok={strength.rules.hasNumber} label={i18nT("1_chiffre_6d6bd070")} />
-            <Rule ok={strength.rules.hasUpper} label={i18nT("1_majuscule_6f8fac24")} />
-            <Rule ok={strength.rules.hasSymbol} label={i18nT("1_symbole_412b784c")} />
-          </div>
-
-          <button className={styles.fullWidth} type="button" onClick={onChangePassword} style={primaryBtn} disabled={!canSubmit}>
-            {i18nT("modifier_le_mot_de_passe_b6eec6a6")}{" "}</button>
-
-          {msg ? <div className={styles.fullWidth} style={{ marginTop: 6, opacity: 0.9 }}>⚠️ {msg}</div> : null}
-          {ok ? <div className={styles.fullWidth} style={{ marginTop: 6, opacity: 0.95 }}>{ok}</div> : null}
-        </div>
-      </div>
-      <div
-        style={{
-          ...card,
-          border: "1px solid rgba(218, 134, 253, 0.4)",
-          background:
-            "linear-gradient(140deg, rgba(94, 47, 160, 0.76), rgba(135, 44, 143, 0.6), rgba(61, 37, 108, 0.72))",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 950, opacity: 0.82, letterSpacing: 0.6, textTransform: "uppercase" }}>
-              {i18nT("votre_forfait_6d06f631")}{" "}</div>
-            <div style={{ marginTop: 6, fontSize: 24, lineHeight: 1.15, fontWeight: 900 }}>
-              {planPresentation.label}
+      <div className={accountStyles.stack}>
+        <div className={accountStyles.overview}>
+          <section className={accountStyles.identityCard} aria-labelledby={`${accountId}-identity`}>
+            <div className={accountStyles.cardHeading}>
+              <span className={accountStyles.identityIcon}><AccountIcon kind="identity" /></span>
+              <div>
+                <h2 id={`${accountId}-identity`}>{i18nT("identifiants_7e7dc904")}</h2>
+                {createdAt ? (
+                  <p className={accountStyles.createdAt}><span>{i18nT("date_de_creation_d5e8d1af")}</span><strong>{createdAt}</strong></p>
+                ) : null}
+              </div>
             </div>
-          </div>
-          <div
-            style={{
-              flexShrink: 0,
-              border: `1px solid ${planPresentation.statusView.color}55`,
-              background: `${planPresentation.statusView.color}16`,
-              color: planPresentation.statusView.color,
-              borderRadius: 999,
-              padding: "7px 11px",
-              fontSize: 12,
-              fontWeight: 900,
-            }}
-          >
-            {i18nT("nbsp_value_34e8a717", { value0: planPresentation.statusView.label })}</div>
+            <p className={accountStyles.description}>{i18nT("votre_email_de_connexion_est_affiche_84123fc4")}</p>
+            <label className={accountStyles.field} htmlFor={`${accountId}-email`}>
+              <span>{i18nT("mail_92379cbb")}</span>
+              <input id={`${accountId}-email`} className={accountStyles.input} value={email} readOnly />
+            </label>
+          </section>
+
+          <section className={accountStyles.planCard} aria-labelledby={`${accountId}-plan`}>
+            <div className={accountStyles.planHeading}>
+              <span className={accountStyles.planIcon}><AccountIcon kind="plan" /></span>
+              <div className={accountStyles.planName}>
+                <span>{i18nT("votre_forfait_6d06f631")}</span>
+                <h2 id={`${accountId}-plan`}>{planPresentation.label}</h2>
+              </div>
+              <span className={accountStyles.planStatus} style={{ "--account-status": planPresentation.statusView.color } as CSSProperties}>
+                <i aria-hidden="true" />{planPresentation.statusView.label}
+              </span>
+            </div>
+            <p className={accountStyles.planDescription}>{planPresentation.description}</p>
+            {planPresentation.detail ? <p className={accountStyles.planDetail}>{planPresentation.detail}</p> : null}
+            {onOpenSubscription ? (
+              <button type="button" onClick={onOpenSubscription} className={accountStyles.planButton}>{i18nT("voir_mon_abonnement_d5b2da25")}</button>
+            ) : (
+              <a href="/dashboard?panel=abonnement&panelSource=settings" className={accountStyles.planButton}>{i18nT("voir_mon_abonnement_d5b2da25")}</a>
+            )}
+          </section>
         </div>
-        <p style={{ margin: "14px 0 0", opacity: 0.84, lineHeight: 1.5 }}>
-          {planPresentation.description}
-        </p>
-        {planPresentation.detail ? (
-          <div style={{ marginTop: 12, fontSize: 13, fontWeight: 800, opacity: 0.92 }}>
-            {planPresentation.detail}
+
+        <section className={accountStyles.securityCard} aria-labelledby={`${accountId}-security`}>
+          <div className={accountStyles.cardHeading}>
+            <span className={accountStyles.securityIcon}><AccountIcon kind="security" /></span>
+            <h2 id={`${accountId}-security`}>{i18nT("modifier_le_mot_de_passe_b6eec6a6")}</h2>
           </div>
-        ) : null}
-        {onOpenSubscription ? (
-          <button type="button" onClick={onOpenSubscription} style={planButton}>
-            {i18nT("voir_mon_abonnement_d5b2da25")}{" "}</button>
-        ) : (
-          <a href="/dashboard?panel=abonnement&panelSource=settings" style={planButton}>
-            {i18nT("voir_mon_abonnement_d5b2da25")}{" "}</a>
-        )}
+          <div className={accountStyles.passwordFields}>
+            <label className={`${accountStyles.field} ${accountStyles.fullWidth}`} htmlFor={`${accountId}-current`}>
+              <span>{i18nT("mot_de_passe_actuel_f9242976")}</span>
+              <input id={`${accountId}-current`} className={accountStyles.input} type="password" value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
+            </label>
+            <label className={accountStyles.field} htmlFor={`${accountId}-new`}>
+              <span>{i18nT("nouveau_mot_de_passe_3a713829")}</span>
+              <input id={`${accountId}-new`} className={accountStyles.input} type="password" value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" />
+            </label>
+            <label className={accountStyles.field} htmlFor={`${accountId}-confirm`}>
+              <span>{i18nT("confirmer_le_mot_de_passe_88362d0d")}</span>
+              <input id={`${accountId}-confirm`} className={accountStyles.input} type="password" value={confirm}
+                onChange={(e) => setConfirm(e.target.value)} placeholder="••••••••" autoComplete="new-password" />
+            </label>
+            <div className={`${accountStyles.passwordRules} ${accountStyles.fullWidth}`}>
+              <Rule ok={strength.rules.minLen} label={i18nT("8_caracteres_85066a4b")} />
+              <Rule ok={strength.rules.hasLetter} label={i18nT("1_lettre_2147bd0b")} />
+              <Rule ok={strength.rules.hasNumber} label={i18nT("1_chiffre_6d6bd070")} />
+              <Rule ok={strength.rules.hasUpper} label={i18nT("1_majuscule_6f8fac24")} />
+              <Rule ok={strength.rules.hasSymbol} label={i18nT("1_symbole_412b784c")} />
+            </div>
+            <button className={`${accountStyles.primaryButton} ${accountStyles.fullWidth}`} type="button" onClick={onChangePassword}
+              disabled={!canSubmit} aria-busy={busy || undefined}>
+              {i18nT("modifier_le_mot_de_passe_b6eec6a6")}
+            </button>
+            {msg ? <p className={`${accountStyles.feedback} ${accountStyles.fullWidth}`} role="alert">⚠️ {msg}</p> : null}
+            {ok ? <p className={`${accountStyles.feedback} ${accountStyles.success} ${accountStyles.fullWidth}`} role="status">{ok}</p> : null}
+          </div>
+        </section>
       </div>
-    </div>
     </div>
   );
 }

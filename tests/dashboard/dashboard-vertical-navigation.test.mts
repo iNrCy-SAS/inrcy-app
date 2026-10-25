@@ -8,6 +8,8 @@ function read(path: string) {
 
 const dashboard = read("app/dashboard/DashboardClient.tsx");
 const channels = read("app/dashboard/_components/DashboardChannelsSection.tsx");
+const hero = read("app/dashboard/_components/DashboardHero.tsx");
+const generator = read("app/dashboard/_components/DashboardGeneratorHub.tsx");
 const modules = read("app/dashboard/_components/DashboardModulesCard.tsx");
 const boosterLayer = read("app/dashboard/_components/DashboardBoosterModalLayer.tsx");
 const routing = read("app/dashboard/_hooks/useDashboardPanelRouting.ts");
@@ -15,7 +17,7 @@ const layout = read("app/dashboard/layout.tsx");
 const memory = read("app/dashboard/_components/DashboardScrollMemory.tsx");
 const scroll = read("app/dashboard/dashboard.scroll.ts");
 
-test("le cockpit compact remplace les deux commandes verticales par un hub de canaux accessible", () => {
+test("le cockpit ouvre les canaux et le hub central ouvre le Générateur sans modifier leurs fenêtres", () => {
   // Keep the existing landmarks for links and scroll restoration, without the obsolete jump buttons.
   assert.match(dashboard, /id=\{DASHBOARD_TOP_ANCHOR_ID\}/);
   assert.match(channels, /id=\{DASHBOARD_TOOLS_ANCHOR_ID\}/);
@@ -23,12 +25,14 @@ test("le cockpit compact remplace les deux commandes verticales par un hub de ca
   assert.doesNotMatch(dashboard, /dashboardQuickJump|quickNavigation\.goToTools|scrollToDashboardAnchor/);
   assert.doesNotMatch(channels, /quickNavigation\.goToTop|scrollToDashboardAnchor/);
 
-  assert.match(channels, /data-testid="dashboard-channels-hub"/);
-  assert.match(channels, /onClick=\{onOpenChannels\}/);
-  assert.match(channels, /aria-haspopup="dialog"/);
-  assert.match(channels, /aria-expanded=\{channelsOpen\}/);
+  assert.match(hero, /action: onOpenChannels/);
+  assert.match(dashboard, /onOpenChannels=\{\(\) => setChannelConnectionsOpen\(true\)\}/);
+  assert.match(generator, /data-testid="dashboard-generator-hub"/);
+  assert.match(generator, /onClick=\{onOpenGeneratorSettings\}/);
+  assert.match(generator, /aria-haspopup="dialog"/);
+  assert.doesNotMatch(channels, /data-testid="dashboard-channels-hub"/);
   assert.match(channels, /getChannelTone\(item\) === "connected"/);
-  assert.match(channels, /<small>\/\{total\}<\/small>/);
+  assert.match(channels, /summary=\{\{ connected, total \}\}/);
   assert.match(channels, /channelsOpen \? <DashboardChannelsModal items=\{fluxBubbleItems\}/);
   assert.match(channels, /onClose=\{onCloseChannels\}/);
 });

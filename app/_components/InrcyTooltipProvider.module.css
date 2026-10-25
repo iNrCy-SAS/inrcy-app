@@ -1,0 +1,42 @@
+.bubble {
+  position: fixed;
+  z-index: 2147483000;
+  display: grid;
+  gap: 5px;
+  width: max-content;
+  max-width: min(340px, calc(100vw - 24px));
+  box-sizing: border-box;
+  margin: 0;
+  padding: 11px 14px 12px;
+  border: 1px solid rgba(135, 177, 240, .37);
+  border-radius: 13px;
+  color: #edf6ff;
+  background: radial-gradient(ellipse at 5% 0, rgba(43, 159, 218, .14), transparent 65%), linear-gradient(125deg, rgba(10, 24, 49, .98), rgba(29, 24, 57, .98));
+  box-shadow: 0 12px 32px rgba(2, 7, 22, .35), inset 0 1px rgba(255, 255, 255, .07), 0 0 18px rgba(95, 118, 236, .07);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-align: left;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  user-select: none;
+  visibility: hidden;
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+.bubble[data-positioned="true"] { visibility: visible; animation: tooltipAppear 130ms ease-out both; }
+.accent { position: absolute; inset: -1px 17px auto; height: 2px; border-radius: 3px; background: linear-gradient(90deg, #3bd5ed, #9194ff 68%, #c57bea); opacity: .85; }
+.label { display: block; min-width: 0; font-size: inherit; font-weight: 680; }
+.description { display: block; min-width: 0; color: #b8cce6; font-size: 11px; font-weight: 450; }
+
+/* These three older local CSS tooltips use data-tooltip. The controller takes
+   over their labels so a native, local and global bubble cannot coexist. */
+:global(html[data-inrcy-tooltips-ready] [data-inrcy-tooltip-managed][data-tooltip])::before,
+:global(html[data-inrcy-tooltips-ready] [data-inrcy-tooltip-managed][data-tooltip])::after { content: none !important; display: none !important; }
+
+@keyframes tooltipAppear { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .bubble[data-positioned="true"] { animation: none; } }
+@media (forced-colors: active) { .bubble { border-color: CanvasText; color: CanvasText; background: Canvas; box-shadow: none; } .description { color: CanvasText; } .accent { display: none; } }

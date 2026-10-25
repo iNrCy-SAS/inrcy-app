@@ -52,17 +52,17 @@ test("mobile navigation uses the shared 650 ms loading controller", () => {
 
   assert.match(navigation, /useDelayedPendingAction/);
   assert.match(navigation, /modal:publish/);
-  assert.match(navigation, /publishLoadingVisible \? i18nT\("chargement_01cba1df"\)/);
+  assert.match(navigation, /generatorLoadingVisible \|\| undefined/);
   assert.match(navigation, /shortcutLoadingVisible \? i18nT\("chargement_01cba1df"\)/);
   assert.match(navigation, /resolveHrefDestination\(option\.href\)/);
   assert.match(navigation, /onClick=\{\(\) => navigate\(option\.href\)\}/);
   assert.match(read("lib/mobileShortcutPolicy.ts"), /id: "channels", href: "\/dashboard\?action=channels"/);
-  assert.match(navigation, /resolveHrefDestination\("\/dashboard\/mediatheque"\)/);
+  assert.match(read("app/dashboard/_components/dashboardMobileMenuModel.ts"), /id: "media", href: "\/dashboard\/mediatheque"/);
   assert.match(navigation, /data-disable-pull-refresh/);
   assert.match(navigation, /requestDashboardToolWarmup/);
 });
 
-test("the responsive hamburger keeps profile inside Business DNA and a regular media button", () => {
+test("the responsive menu groups tools and keeps cockpit setup on the home page", () => {
   const navigation = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
   const navigationStyles = read(
     "app/dashboard/_components/ResponsiveBottomNav.module.css",
@@ -70,15 +70,14 @@ test("the responsive hamburger keeps profile inside Business DNA and a regular m
 
   assert.doesNotMatch(navigation, /label=\{t\.userMenu\.profile\}/);
   assert.doesNotMatch(navigation, /label=\{t\.userMenu\.activity\}/);
-  assert.match(
-    navigation,
-    /id === "business_dna" && hasMenuWarning/,
-  );
+  assert.match(navigation, /menuGroups\.map/);
+  assert.match(navigation, /hasMenuWarning \?/);
+  assert.doesNotMatch(navigation, /id === "business_dna"/);
   assert.doesNotMatch(navigation, /\bwide\??:/);
   assert.doesNotMatch(navigationStyles, /\.menuItemWide\b/);
 });
 
-test("the tablet bottom dock keeps Publier in its centered grid column", () => {
+test("the tablet bottom dock keeps the real generator in its centered grid column", () => {
   const navigation = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
   const navigationStyles = read(
     "app/dashboard/_components/ResponsiveBottomNav.module.css",
@@ -86,8 +85,8 @@ test("the tablet bottom dock keeps Publier in its centered grid column", () => {
 
   assert.match(
     navigation,
-    /<EstablishmentMenu[\s\S]*?<button[\s\S]*?className=\{`\$\{styles\.publishItem\}/,
-    "the establishment selector must remain before Publier in DOM order",
+    /styles\.assistPreview[\s\S]*?<button[\s\S]*?className=\{styles\.generatorItem\}/,
+    "the real generator follows the assistant in the third position",
   );
   assert.match(
     navigationStyles,
@@ -96,8 +95,8 @@ test("the tablet bottom dock keeps Publier in its centered grid column", () => {
   );
   assert.match(
     navigationStyles,
-    /grid-template-columns:\s*42px\s*42px\s*minmax\(104px,\s*118px\)\s*42px\s*42px;/,
-    "Publier must keep the central third track",
+    /grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\);/,
+    "five equal tracks keep all icons evenly spaced and the generator centered",
   );
 });
 

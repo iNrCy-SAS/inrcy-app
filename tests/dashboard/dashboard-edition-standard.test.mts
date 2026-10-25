@@ -415,11 +415,12 @@ test("les blocs inférieurs Standard conservent Stats, Publications, Réputation
   assert.doesNotMatch(sharedModulesSource, /signatureStyles\.dnaCard/);
 });
 
-test("Standard reprend la même rangée ADS et Studio, les agents étant intégrés à leur outil", () => {
+test("Standard conserve les quatre outils de création dans la même grille, avec leurs agents intégrés", () => {
   assert.match(sharedModulesSource, /data-dashboard-standard-secondary-tools=\{standardMode \? "true" : undefined\}/);
   assert.match(sharedModulesCssSource, /\.creationGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(sharedModulesCssSource, /@media \(max-width: 700px\)[\s\S]*?\.creationGrid\s*\{\s*grid-template-columns:\s*1fr 1fr/);
-  assert.match(sharedModulesCssSource, /@media \(max-width: 700px\)[\s\S]*?\.adsCard\s*\{\s*grid-column:\s*1 \/ -1/);
+  assert.match(sharedModulesSource, /creationTools\.map\(renderSignatureTool\)/);
+  assert.match(sharedModulesSource, /const creationTools = signatureTools\.filter\(\(tool\) => tool\.tone === "studioCard" \|\| tool\.tone === "reputationCard"\)/);
+  assert.match(sharedModulesCssSource, /@media \(max-width: 700px\)[\s\S]*?\.creationGrid\s*\{[^}]*grid-auto-rows: minmax\(170px, auto\)/);
   for (const key of ["studioEyebrow", "studioLine1", "studioLine2", "studioCta"]) {
     assert.match(dashboardI18nSource, new RegExp(`"${key}":\\s*"[^"]+"`));
   }
@@ -879,7 +880,7 @@ test("iNrSend Standard donne accès aux brouillons de Publications et conserve l
 });
 
 test("Mon compte affiche les identifiants puis le forfait et renvoie vers Mon abonnement", () => {
-  const professionalInfoPosition = accountContentSource.indexOf("<div style={card}>");
+  const professionalInfoPosition = accountContentSource.indexOf("<section className={accountStyles.identityCard}");
   const subscriptionPosition = accountContentSource.indexOf('i18nT("votre_forfait_6d06f631")');
 
   assert.notEqual(professionalInfoPosition, -1);

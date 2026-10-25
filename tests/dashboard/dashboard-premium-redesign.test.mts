@@ -10,6 +10,8 @@ const modules = read("app/dashboard/_components/DashboardModulesCard.tsx");
 const modal = read("app/dashboard/_components/DashboardChannelsModal.tsx");
 const bubble = read("app/dashboard/_components/DashboardFluxBubble.tsx");
 const hero = read("app/dashboard/_components/DashboardHero.tsx");
+const generator = read("app/dashboard/_components/DashboardGeneratorHub.tsx");
+const generatorOrb = read("app/dashboard/_components/DashboardGeneratorOrb.tsx");
 const modalCss = read("app/dashboard/_components/DashboardChannelsModal.module.css");
 const toolsCss = read("app/dashboard/_components/DashboardSignatureTools.module.css");
 const hubCss = read("app/dashboard/_components/DashboardExperience.module.css");
@@ -28,35 +30,43 @@ function channel(status: Parameters<typeof getChannelTone>[0]["bubbleStatus"], t
   return { key: "test", name: "Test", description: "", accent: "blue", logoSrc: "/test.svg", logoAlt: "", bubbleStatus: status, bubbleStatusText: text, onConfigure: () => {} };
 }
 
-test("le dashboard compact conserve le cockpit et remplace les sauts haut/bas par le hub", () => {
-  assertOrdered(dashboard, "<DashboardHero", "<DashboardChannelsSection");
+test("le dashboard conserve le cockpit et place le Générateur au centre sans second accès aux canaux", () => {
+  assertOrdered(dashboard, "<DashboardChannelsSection", "cockpit={", "<DashboardHero", "generator={", "<DashboardGeneratorHub");
   assert.doesNotMatch(dashboard + channels, /dashboardQuickJump|scrollToDashboardAnchor/);
   assert.doesNotMatch(channels, /<DashboardFluxBubble\b|fluxCarousel|carouselTrack/);
-  assertOrdered(channels, "styles.hubRow", "styles.toolsAnchor");
-  assert.match(channels, /data-testid="dashboard-channels-hub"/);
-  assert.match(channels, /onClick=\{onOpenChannels\}/);
-  assert.match(channels, /aria-haspopup="dialog"[\s\S]*aria-expanded=\{channelsOpen\}/);
+  assert.match(generator, /data-testid="dashboard-generator-hub"/);
+  assert.match(generator, /onClick=\{onOpenGeneratorSettings\}/);
+  assert.match(generator, /aria-haspopup="dialog"/);
+  assert.match(generator, /aria-label=\{`\$\{heroT\("settingsAria"\)\} · \$\{generatorIsActive \? t\.hero\.active : t\.hero\.waiting\}`\}/);
+  assert.match(generator, /<DashboardGeneratorOrb isActive=\{generatorIsActive\}/);
+  assert.match(generatorOrb, /data-active=\{isActive === null \? "unknown" : String\(isActive\)\} aria-hidden="true"/);
+  assert.doesNotMatch(channels, /dashboard-channels-hub|styles\.hubRow/);
   assert.match(channels, /channelsOpen \? <DashboardChannelsModal/);
   assert.match(channels, /import DashboardChannelsModal from "\.\/DashboardChannelsModal"/);
   assert.match(dashboard, /import DashboardChannelWorkspace from "\.\/_components\/DashboardChannelWorkspace"/);
 });
 
-test("Booster, ADS et Emailings communiquent à gauche ; Studio et les outils de pilotage restent à droite", () => {
-  assertOrdered(modules, 'aria-labelledby="dashboard-create-title"', "signatureStyles.boosterCard", "signatureStyles.adsCard", "signatureStyles.mailCampaignCard", 'aria-labelledby="dashboard-pilot-title"', "signatureStyles.signatureGrid");
+test("Booster reste seul en haut, la création regroupe quatre outils et le pilotage met Stats en premier", () => {
+  assertOrdered(modules, "{cockpit}", "signatureStyles.boosterCard", "{generator}", 'aria-labelledby="dashboard-create-title"', "creationTools.map(renderSignatureTool)", "signatureStyles.adsCard", "signatureStyles.mailCampaignCard", 'aria-labelledby="dashboard-pilot-title"', "pilotTools.map(renderSignatureTool)");
   const signatureDeclaration = modules.slice(modules.indexOf("const signatureTools:"), modules.indexOf("  return (", modules.indexOf("const signatureTools:")));
   assert.deepEqual([...signatureDeclaration.matchAll(/tone: "([^"]+)"/g)].map((match) => match[1]), ["sendCard", "studioCard", "statsCard", "reputationCard", "calendarCard", "crmCard"]);
   assert.match(signatureDeclaration, /path: standardMode \? "\/dashboard\/mails\?folder=publications&boxView=sent" : "\/dashboard\/mails"/);
   assert.deepEqual([...signatureDeclaration.matchAll(/path: "([^"]+)"/g)].map((match) => match[1]), ["/dashboard/stats", "/dashboard/e-reputation", "/dashboard/agenda", "/dashboard/crm"]);
   assert.match(toolsCss, /\.lowerRow\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
-  assert.match(toolsCss, /\.signatureGrid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(toolsCss, /\.signatureGrid\s*\{[^}]*grid-template-rows: repeat\(3,/);
+  assert.match(toolsCss, /\.lowerRow\s*\{[^}]*grid-template-areas: "cockpit booster" "generator generator" "create pilot"/);
+  assert.match(toolsCss, /\.signatureGrid\s*\{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(toolsCss, /\.statsCard\s*\{[^}]*grid-column: 1 \/ -1/);
+  assert.match(modules, /const creationTools = signatureTools\.filter\(\(tool\) => tool\.tone === "studioCard" \|\| tool\.tone === "reputationCard"\)/);
+  assertOrdered(modules, "const pilotTools", 'tool.tone === "statsCard"', 'tool.tone === "sendCard"');
   assert.doesNotMatch(modules, /signatureStyles\.dnaCard/);
   assert.doesNotMatch(modules, /Autres outils|Other tools/);
 });
 
-test("les six outils partagent une seule grille ; Emailings conserve ses accès dans la colonne de communication", () => {
+test("les cartes partagent leur rendu et Emailings conserve ses accès dans la grille de création", () => {
   const relationshipRow = modules.slice(modules.indexOf('data-dashboard-relationship-tools="true"'), modules.indexOf("{!standardMode && campaignModalOpen ?"));
-  assertOrdered(relationshipRow, "signatureTools.map", "signatureStyles.signatureCard", "signatureStyles.cardActions");
+  assert.match(relationshipRow, /pilotTools\.map\(renderSignatureTool\)/);
+  const sharedCard = modules.slice(modules.indexOf("const renderSignatureTool"), modules.indexOf("{cockpit}"));
+  assertOrdered(sharedCard, "signatureStyles.signatureCard", "signatureStyles.cardActions");
   assert.doesNotMatch(relationshipRow, /studioBanner|relationshipGrid/);
   const communicationRow = modules.slice(modules.indexOf('data-dashboard-premium-secondary-tools='), modules.indexOf('aria-labelledby="dashboard-pilot-title"'));
   assert.match(communicationRow, /signatureStyles\.relationshipLogo[^\n]*<ToolGlyph kind="mail"/);
@@ -70,10 +80,12 @@ test("les six outils partagent une seule grille ; Emailings conserve ses accès 
 
 test("les réglages, le planning et le bilan ont des commandes clairement visibles sur ordinateur et mobile", () => {
   assert.match(toolsCss, /\.planningButton,\s*\.settingsButton\s*\{[^}]*width: 36px; height: 36px/);
-  assert.match(toolsCss, /\.boosterStats\s*\{[^}]*min-height: 36px;[^}]*font-size: 11px/);
+  const bilanStyle = [...toolsCss.matchAll(/\.boosterStats\s*\{([^}]+)\}/g)].find(([, block]) => /min-height: 36px/.test(block))?.[1];
+  assert.ok(bilanStyle);
+  assert.ok(Number(bilanStyle.match(/font-size:\s*([\d.]+)px/)?.[1]) >= 11, "Bilan must remain readable");
   assert.match(toolsCss, /\.boosterStats svg\s*\{[^}]*width: 18px; height: 18px/);
-  assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.settingsButton,\s*\.planningButton\s*\{[^}]*width: 40px; height: 40px/);
-  assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.boosterStats\s*\{[^}]*min-height: 40px/);
+  assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.settingsButton,\s*\.planningButton[^{}]*\{[^}]*width: 40px; height: 40px/);
+  assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.boosterStats[^{}]*\{[^}]*min-height: 40px/);
   assert.match(modules, /className=\{signatureStyles\.settingsButton\}[\s\S]*?aria-label=\{standardMode \? `\$\{tool\.settingsLabel\} — \$\{t\.modules\.campaignsPremiumLabel\}` : tool\.settingsLabel\}/);
 });
 
@@ -101,15 +113,12 @@ test("les cartes de pilotage conservent des textes et actions lisibles à chaque
     }
   }
 
-  for (const selector of ["signatureCard"]) {
-    const blocks = [...toolsCss.matchAll(new RegExp(`^\\s*\\.${selector}\\s*\\{([^}]+)\\}`, "gm"))];
-    for (const [, block] of blocks) {
-      const padding = block.match(/padding:\s*\d+px\s+\d+px\s+(\d+)px/);
-      if (padding) assert.ok(Number(padding[1]) >= 46, `${selector}: reserve room below text for the larger action`);
-    }
-  }
-  assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.toolButton\s*\{[^}]*max-width: calc\(100% - 34px\)/);
-  assert.match(toolsCss, /@media \(max-width: 420px\)[\s\S]*?\.signatureCard\s*\{[^}]*padding: 12px 10px 60px/);
+  // Actions now participate in the card layout instead of relying on a fixed
+  // bottom reservation. Long translated copy can therefore grow without overlap.
+  assert.match(toolsCss, /\.signatureCard\s*\{[^}]*display: grid/);
+  assert.match(toolsCss, /\.signatureCard \.cardActions\s*\{[^}]*grid-column: 1 \/ -1;[^}]*align-self: end/);
+  assert.match(toolsCss, /\.signatureCopy h4,[^}]*\.relationshipCopy h4\s*\{[^}]*overflow-wrap: anywhere/);
+  assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.creationGrid \.signatureCard \.toolButton\s*\{[^}]*max-width: 100%/);
 });
 
 test("les outils conservent leurs destinations et les callbacks de publication, bilan et statistiques", () => {
@@ -232,7 +241,7 @@ test("le header est fin avec les informations au centre, les logos sont ronds et
   assert.doesNotMatch(modal, /styles\.selectedSummary|CONNECTER · RAYONNER · GRANDIR/);
   assert.match(modalCss, /\.headerPanel\s*\{[^}]*grid-template-columns: minmax\(0,1fr\) auto minmax\(0,1fr\)[^}]*min-height: 66px/);
   assert.match(modalCss, /\.channelLogoMedallion\s*\{[^}]*border-radius: 50%/);
-  for (const part of ["generatorCoreCenter", "miniCoreRing", "miniCoreRotor", "miniCoreGlass", "miniCoreGlow"]) assert.ok(hero.includes(`legacyStyles.${part}`), part);
+  for (const part of ["generatorCoreCenter", "miniCoreRing", "miniCoreRotor", "miniCoreGlass", "miniCoreGlow"]) assert.ok(generatorOrb.includes(`styles.${part}`), part);
 });
 
 test("les flèches entourent la bulle centrale sans bloc dessous ni ouverture de fenêtre", () => {
@@ -264,13 +273,16 @@ test("les informations du header sont lisibles et Fermer ne contient plus de cro
   assert.doesNotMatch(modalCss, /\.close\s*\{[^}]*font-size: 0/);
 });
 
-test("le cockpit conserve ses trois actions et les métriques réelles sous son nouvel habillage", () => {
+test("le cockpit garde ses trois actions et son solde UI, les métriques réelles restent dans Stats", () => {
   assert.match(hero, /import styles from "\.\/DashboardHeroPremium\.module\.css"/);
   for (const action of ["onOpenChannels", "onOpenDna", "onOpenAi"]) assert.ok(hero.includes(`action: ${action}`), action);
-  for (const metric of ["{uiBalance}", "estimatedValue.toLocaleString(t.locale)", "`+${oppTotal}`", 'leadsWeek === null ? "—" : leadsWeek', 'leadsMonth === null ? "—" : leadsMonth']) assert.ok(hero.includes(metric), metric);
-  assert.match(hero, /onClick=\{onRefreshGenerator\}[\s\S]*?disabled=\{kpisLoading\}/);
-  assert.match(hero, /onClick=\{onOpenGeneratorSettings\}/);
-  assert.match(hero, /onClick=\{onOpenStats\}/);
+  assert.match(hero, /uiBalance\.toLocaleString\(locale\)/);
+  for (const metric of ["leadsWeek", "leadsMonth", "oppTotal", "estimatedValue"]) assert.ok(modules.includes(`overview.${metric}`), metric);
+  assert.match(generator, /onClick=\{onRefreshGenerator\}[\s\S]*?disabled=\{kpisLoading\}/);
+  assert.match(generator, /onClick=\{onOpenGeneratorSettings\}/);
+  assert.match(generator, /onClick=\{onOpenGeneratorHelp\}/);
+  assert.match(modules, /startModuleNavigation\("\/dashboard\/stats", onOpenStats\)/);
   assert.match(hero, /role="progressbar"[\s\S]*?aria-valuenow=\{step\.value\}/);
-  assert.match(heroCss, /@media \(max-width: 980px\)[\s\S]*?\.hero\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(heroCss, /\.hero\s*\{[^}]*grid-area: cockpit;[^}]*min-width: 0/);
+  assert.match(toolsCss, /@media \(max-width: 1100px\)[\s\S]*?\.lowerRow\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
 });

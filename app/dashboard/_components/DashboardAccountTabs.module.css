@@ -1,0 +1,61 @@
+.tabs {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 5px;
+  border: 1px solid var(--inrcy-theme-border-strong, #7bafff4d);
+  border-radius: 16px;
+  background: linear-gradient(110deg, #18638b24, #694a9c24), var(--inrcy-theme-surface-soft, #0c1b36c7);
+  box-shadow: inset 0 1px 0 #d3eaff10;
+  box-sizing: border-box;
+}
+.tab {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 40px;
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--inrcy-theme-text-secondary, #bdcde8);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.tab > svg { flex: 0 0 17px; width: 17px; height: 17px; opacity: .9; }
+.tab > span { min-width: 0; overflow-wrap: normal; word-break: normal; }
+.tab:hover {
+  background: var(--inrcy-theme-surface-soft, #97baff12);
+  border-color: var(--inrcy-theme-border-strong, #9acbff40);
+  color: var(--inrcy-theme-text-primary, #f3f8ff);
+}
+.tab[aria-selected="true"] {
+  color: var(--inrcy-theme-text-primary, #fff);
+  border-color: var(--inrcy-theme-border-strong, #8fcdf2a6);
+  background: linear-gradient(115deg, #176793d9, #4253a8d9 62%, #7053a1d9);
+  box-shadow: inset 0 1px 0 #e1f9ff27, 0 3px 11px #06112b38;
+}
+.tab:focus-visible { outline: 2px solid var(--inrcy-theme-text-primary, #b8edff); outline-offset: 3px; }
+@media (min-width: 1101px) and (max-width: 1280px) {
+  .tabs[data-dashboard-account-tabs] .tab { padding-inline: 8px; font-size: 11px; }
+}
+@media (max-width: 1100px) {
+  .desktopNavigation { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .tab { transition: none; } }

@@ -23,8 +23,8 @@ test("profile and AI configuration collapse fields without horizontal overflow",
   assert.match(configuration, /grid-template-columns: minmax\(0, \.75fr\) minmax\(0, 1\.25fr\) !important/);
 });
 
-test("Business DNA uses one swipeable tab and keeps its analysis content within the phone viewport", () => {
-  assert.match(businessDna, /data-ai-memory-mobile-tabs/);
+test("Business DNA uses one selector with swipe and keeps its analysis content within the phone viewport", () => {
+  assert.match(businessDna, /<DashboardMobileSelect/);
   assert.match(businessDna, /onTouchStart=/);
   assert.match(businessDna, /onTouchEnd=/);
   assert.match(businessDna, /\[data-business-dna-channel-states\][\s\S]*?flex-wrap: wrap !important/);

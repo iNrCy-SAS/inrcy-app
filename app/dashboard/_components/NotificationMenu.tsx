@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import styles from "../dashboard.module.css";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import type { NotificationItem } from "../dashboard.types";
@@ -23,6 +24,7 @@ export default function NotificationMenu(props: {
   onNavigate: (ctaUrl: string) => void;
   mobile?: boolean;
   label?: string;
+  icon?: ReactNode;
   buttonClassName?: string;
   panelClassName?: string;
   countClassName?: string;
@@ -47,6 +49,7 @@ export default function NotificationMenu(props: {
     onNavigate,
     mobile = false,
     label,
+    icon,
     buttonClassName,
     panelClassName,
     countClassName,
@@ -87,7 +90,7 @@ export default function NotificationMenu(props: {
         }}
       >
         <span className={styles.notificationBellIcon} aria-hidden>
-          🔔
+          {icon ?? "🔔"}
         </span>
         {label && <span className={styles.notificationBellLabel}>{label}</span>}
         {displayedBadgeCount > 0 && (

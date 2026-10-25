@@ -1,0 +1,11 @@
+.workspace { width: 100%; max-width: 1440px; min-width: 0; margin: 0 auto; overflow: visible; }
+:global([data-dashboard-settings-drawer]):has(.workspace) {
+  background: radial-gradient(ellipse at 0 0, #0b7ca726, transparent 50%), radial-gradient(ellipse at 100% 0, #7045ab29, transparent 55%), var(--inrcy-theme-background, linear-gradient(135deg, #0b1d35, #151a35 65%, #211a38)) !important;
+}
+:global([data-dashboard-settings-drawer-scroll]):has(.workspace) { padding: 22px clamp(16px, 3vw, 44px) !important; }
+@media (min-width: 1101px) and (max-height: 820px) {
+  :global([data-dashboard-settings-drawer-scroll]):has(.workspace) { padding-top: 18px !important; padding-bottom: 18px !important; }
+}
+@media (max-width: 600px) {
+  :global([data-dashboard-settings-drawer-scroll]):has(.workspace) { padding: 16px 12px !important; }
+}

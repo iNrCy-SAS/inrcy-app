@@ -67,11 +67,11 @@ function renderHelp(nativeLayer: boolean, initialOverflow: string) {
   return { view, document, dialog, opener, closeButton, listeners, getCloseRequests: () => closeRequests, cleanup: () => cleanups.forEach((cleanup) => cleanup()) };
 }
 
-test("only the two channel help dialogs opt into the native layer, preserving other help screens", () => {
+test("the unified guide and two channel help dialogs use the native layer, preserving other help screens", () => {
   const entries = [...dashboardHelp.matchAll(/<HelpModal\b([\s\S]*?)>/g)];
   assert.equal(entries.length, 6);
   const nativeEntries = entries.filter((entry) => /\bnativeLayer\b/.test(entry[1]));
-  assert.deepEqual(nativeEntries.map((entry) => entry[1].match(/open=\{(\w+)\}/)?.[1]), ["helpCanauxOpen", "helpSiteWebOpen"]);
+  assert.deepEqual(nativeEntries.map((entry) => entry[1].match(/open=\{(\w+)\}/)?.[1]), ["helpGeneratorOpen", "helpCanauxOpen", "helpSiteWebOpen"]);
   assert.match(help, /nativeLayer = false/);
   assert.match(help, /if \(!nativeLayer\) return content/);
   assert.match(dashboardHelp, /premiumLocked = standardMode && channel\.premiumOnly/);

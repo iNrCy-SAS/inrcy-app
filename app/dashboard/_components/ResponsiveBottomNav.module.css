@@ -35,15 +35,10 @@
     width: 100%;
     height: calc(var(--inrcy-mobile-bottom-nav-height, 50px) + var(--inrcy-safe-area-bottom));
     display: grid;
-    grid-template-columns:
-      42px
-      42px
-      minmax(104px, 118px)
-      42px
-      42px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     align-items: center;
-    justify-content: center;
-    gap: clamp(5px, 1.8vw, 8px);
+    justify-items: center;
+    gap: 0;
     padding:
       4px
       max(14px, var(--inrcy-safe-area-right))
@@ -93,15 +88,14 @@
   /*
     Entre 769 px et 1100 px, les actions partagées avec le header desktop
     peuvent encore recevoir un `order`. Dans ce dock, l'ordre du DOM fait
-    partie de la mise en page : Publier doit toujours occuper la 3e colonne,
+    partie de la mise en page : le générateur reste dans la 3e colonne,
     exactement au centre, sur téléphone comme sur tablette.
   */
   .bar > * {
     order: 0 !important;
   }
 
-  .item,
-.publishItem {
+  .item {
     position: relative;
     z-index: 1;
     min-width: 0;
@@ -115,8 +109,8 @@
   }
 
   .item {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -125,8 +119,7 @@
     background: transparent;
   }
 
-  .item:active,
-.publishItem:active {
+  .item:active {
     transform: scale(0.97);
   }
 
@@ -165,95 +158,6 @@
     height: 24px;
     display: block;
   }
-
-  .publishItem {
-    width: 100%;
-    height: 42px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    background: transparent;
-    border-radius: 999px;
-  }
-
-  .publishItem:disabled {
-    cursor: default;
-  }
-
-  .publishItem:disabled:active {
-    transform: none;
-  }
-
-  .publishButton {
-    width: 100%;
-    max-width: 118px;
-    height: 36px;
-    min-width: 0;
-    padding: 0 12px;
-    box-sizing: border-box;
-    border: 0;
-    border-radius: 999px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: #fff;
-    background-color: #7c3aed;
-    background-image: linear-gradient(
-      90deg,
-      #2dbcf0 0%,
-      #2dbcf0 24%,
-      #378ff2 38%,
-      #7c3aed 58%,
-      #ef5ba7 80%,
-      #fb8a3c 100%
-    );
-    background-repeat: no-repeat;
-    background-size: 100% 100%;
-    background-position: center;
-    box-shadow:
-      0 7px 18px rgba(0, 0, 0, 0.24),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.30),
-      inset 0 1px 0 rgba(255, 255, 255, 0.16);
-    font-size: 11px;
-    line-height: 1;
-    font-weight: 950;
-    letter-spacing: 0.01em;
-    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.24);
-  }
-
-  .publishItemActive .publishButton,
-  .publishItem:disabled .publishButton {
-    color: rgba(255, 255, 255, 0.76);
-    background-color: rgba(148, 163, 184, 0.22);
-    background-image: linear-gradient(
-      90deg,
-      rgba(148, 163, 184, 0.24),
-      rgba(100, 116, 139, 0.30)
-    );
-    box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.18),
-      inset 0 1px 0 rgba(255, 255, 255, 0.10);
-    filter: grayscale(1) saturate(0.4);
-    text-shadow: none;
-  }
-
-  .publishItemActive::after,
-  .publishItem:disabled::after {
-    content: "";
-    position: absolute;
-    left: 50%;
-    bottom: 1px;
-    width: 28px;
-    height: 2px;
-    border-radius: 999px;
-    transform: translateX(-50%);
-    background: rgba(255, 255, 255, 0.38);
-  }
-
 
   .badge {
     position: absolute;
@@ -300,32 +204,23 @@
 
   .menuPanel {
     position: fixed;
-    left: 8px;
-    right: 8px;
-    top: auto;
+    right: max(8px, var(--inrcy-safe-area-right));
     bottom: calc(var(--inrcy-mobile-bottom-nav-height, 50px) + var(--inrcy-safe-area-bottom) + 8px);
     z-index: 121;
-    width: auto;
-    height: auto;
-    max-height: calc(
-      100dvh
-      - var(--inrcy-safe-area-top)
-      - var(--inrcy-mobile-bottom-nav-height, 50px)
-      - var(--inrcy-safe-area-bottom)
-      - 16px
-    );
+    width: min(680px, calc(100% - 16px));
+    box-sizing: border-box;
+    max-height: calc(100dvh - var(--inrcy-safe-area-top) - var(--inrcy-mobile-bottom-nav-height, 50px) - var(--inrcy-safe-area-bottom) - 16px);
+    display: grid;
+    gap: 10px;
     overflow-y: auto;
+    overflow-x: hidden;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    padding: 7px;
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    background:
-      radial-gradient(circle at 80% 0%, rgba(167, 139, 250, 0.16), transparent 32%),
-      rgba(12, 19, 43, 0.97);
-    box-shadow: 0 26px 90px rgba(0, 0, 0, 0.58);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    padding: 10px;
+    border-radius: 22px;
+    border: 1px solid rgba(126, 183, 246, .34);
+    background: radial-gradient(ellipse at 0 0, #18486b99, transparent 50%), radial-gradient(ellipse at 100% 0, #693c8677, transparent 55%), #101b35;
+    box-shadow: 0 26px 90px #0009, inset 0 1px 0 #d2eaff20;
     pointer-events: auto;
   }
 
@@ -336,22 +231,22 @@
   }
 
   .menuItem {
-    min-height: 42px;
+    min-height: 48px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 7px;
+    gap: 8px;
     min-width: 0;
-    padding: 9px 10px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    background: rgba(255, 255, 255, 0.055);
-    color: rgba(255, 255, 255, 0.90);
+    padding: 7px 9px;
+    border-radius: 13px;
+    border: 1px solid #9fbeef26;
+    background: #c9e7ff0a;
+    color: #eef6ff;
     font: inherit;
     font-size: 11px;
-    font-weight: 850;
+    font-weight: 800;
     text-align: left;
     cursor: pointer;
+    touch-action: manipulation;
   }
 
   .menuItem:active {
@@ -359,10 +254,11 @@
   }
 
   .menuItemText {
+    flex: 1;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
   }
 
   .menuItemWarning {
@@ -391,46 +287,37 @@
 
   .menuDanger {
     width: 100%;
-    min-height: 42px;
-    border-radius: 12px;
-    border: 1px solid rgba(244, 114, 182, 0.24);
-    background: rgba(244, 114, 182, 0.10);
-    color: rgba(255, 255, 255, 0.92);
+    min-width: 0;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 9px;
+    border-radius: 13px;
+    border: 1px solid #ee97c72e;
+    background: #f472b60c;
+    color: #ffd2e8;
     font: inherit;
     font-size: 11px;
-    font-weight: 900;
+    font-weight: 800;
+    text-align: left;
+    overflow-wrap: anywhere;
     cursor: pointer;
+    touch-action: manipulation;
   }
 }
 
 @media (max-width: 340px) {
   .bar {
-    grid-template-columns:
-      39px
-      39px
-      minmax(94px, 106px)
-      39px
-      39px;
-    gap: 4px;
     padding-left: max(12px, var(--inrcy-safe-area-left));
     padding-right: max(12px, var(--inrcy-safe-area-right));
   }
 
-  .item {
-    width: 39px;
-    height: 40px;
-  }
-
-  .publishButton {
-    padding-inline: 8px;
-    font-size: 10px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .root,
-.item,
-.publishItem {
+.item {
     transition: none;
   }
 }
@@ -460,8 +347,8 @@
 
   .notificationDockWrap {
     position: relative;
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     display: grid;
     place-items: center;
     z-index: 1;
@@ -469,6 +356,16 @@
 
   .notificationDockWrap > * {
     min-width: 0;
+  }
+
+  .notificationDockWrap .notificationDockIcon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .notificationDockWrap .badge {
+    top: -3px;
+    right: -3px;
   }
 
   .dockNotificationPanel {
@@ -521,41 +418,43 @@
   .menuSection {
     display: grid;
     gap: 6px;
+    min-width: 0;
   }
 
   .menuSectionTitle {
-    padding: 1px 4px;
-    color: rgba(255, 255, 255, 0.58);
-    font-size: 9px;
-    font-weight: 950;
-    letter-spacing: 0.12em;
+    margin: 0;
+    padding: 0 2px;
+    color: #b8cee9;
+    font-size: 10px;
+    line-height: 1.3;
+    font-weight: 850;
+    letter-spacing: .07em;
     text-transform: uppercase;
   }
 
   .shortcutGrid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 5px;
+    gap: 7px;
   }
 
   .shortcutItem {
-    min-height: 45px;
+    min-height: 49px;
     min-width: 0;
     display: grid;
-    grid-template-columns: 32px minmax(0, 1fr);
+    grid-template-columns: 32px minmax(0, 1fr) 7px;
     align-items: center;
-    gap: 8px;
-    padding: 5px 8px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    border-radius: 13px;
-    border: 1px solid rgba(255, 255, 255, 0.11);
-    background:
-      radial-gradient(circle at 15% 0%, rgba(56, 189, 248, 0.10), transparent 42%),
-      linear-gradient(135deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.028));
-    color: rgba(255, 255, 255, 0.94);
+    gap: 7px;
+    padding: 7px 8px;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--menu-tone, #72bcff) 32%, transparent);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--menu-tone, #72bcff) 13%, transparent), #ffffff05);
+    box-shadow: inset 0 1px 0 #ffffff0a;
+    color: #f4f8ff;
     font: inherit;
     cursor: pointer;
     text-align: left;
+    touch-action: manipulation;
   }
 
   .shortcutItem:active {
@@ -563,22 +462,21 @@
     background: rgba(255, 255, 255, 0.10);
   }
 
+  .shortcutItem:disabled {
+    opacity: .55;
+    cursor: default;
+  }
+
   .shortcutIconSlot {
-    position: relative;
     width: 32px;
     height: 32px;
     display: grid;
     place-items: center;
     flex: 0 0 32px;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background:
-      radial-gradient(circle at 30% 30%, rgba(56, 189, 248, 0.18), transparent 52%),
-      radial-gradient(circle at 72% 72%, rgba(167, 139, 250, 0.16), transparent 56%),
-      linear-gradient(145deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03));
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 8px 18px rgba(0, 0, 0, 0.22);
+    border-radius: 11px;
+    color: var(--menu-tone, #72bcff);
+    border: 1px solid color-mix(in srgb, var(--menu-tone, #72bcff) 35%, transparent);
+    background: linear-gradient(145deg, color-mix(in srgb, var(--menu-tone, #72bcff) 23%, transparent), #ffffff08);
   }
 
   .shortcutIconImage {
@@ -588,7 +486,7 @@
     display: block;
   }
 
-  .shortcutItem[data-mobile-shortcut="media_studio"] .shortcutIconSlot {
+  .shortcutItem[data-mobile-tool="studio"] .shortcutIconSlot {
     color: #fff;
     background: radial-gradient(circle at 20% 15%, #487fff, #1938eb);
     border-color: #70abff;
@@ -598,9 +496,9 @@
     min-width: 0;
     white-space: normal;
     overflow-wrap: anywhere;
-    line-height: 1.25;
-    font-size: 10.5px;
-    font-weight: 900;
+    line-height: 1.3;
+    font-size: 11px;
+    font-weight: 850;
   }
 
   .shortcutBadge {
@@ -641,7 +539,7 @@
 
   .languageChoice {
     min-width: 0;
-    min-height: 40px;
+    min-height: 44px;
     display: grid;
     grid-template-columns: 20px minmax(0, 1fr);
     align-items: center;
@@ -680,4 +578,57 @@
     overflow-wrap: anywhere;
     line-height: 1.25;
   }
+}
+
+@media (max-width: 1100px) {
+  .menuPanel [data-tone="blue"] { --menu-tone: #76bdff; }
+  .menuPanel [data-tone="violet"] { --menu-tone: #b89aff; }
+  .menuPanel [data-tone="pink"] { --menu-tone: #f394ce; }
+  .menuPanel [data-tone="amber"] { --menu-tone: #edbf82; }
+  .menuPanel [data-tone="cyan"] { --menu-tone: #62d9f3; }
+  .menuPanel [data-tone="mint"] { --menu-tone: #6bdfbd; }
+  .menuArrow { color: #c1ddf1aa; font-size: 16px; line-height: 1; }
+  .menuActionIcon { display: grid; place-items: center; width: 27px; height: 28px; flex: 0 0 27px; }
+  .menuActionIcon svg { width: 27px; height: 27px; }
+  .menuPanel button:focus-visible { outline: 2px solid #a4dfff; outline-offset: 2px; }
+  .menuEstablishments { min-width: 0; }
+  .menuEstablishments > div { width: 100%; }
+  .menuEstablishmentButton { display: flex; align-items: center; gap: 8px; min-height: 48px; width: 100%; padding: 7px 9px; border-radius: 13px; border: 1px solid #9fbeef26; background: #c9e7ff0a; color: #eef6ff; font: inherit; font-size: 11px; font-weight: 800; text-align: left; cursor: pointer; touch-action: manipulation; }
+  .menuEstablishmentButton > span:first-child { width: 27px; height: 28px; flex: 0 0 27px; }
+  .menuEstablishmentButton > span:last-child { min-width: 0; overflow-wrap: normal; word-break: normal; line-height: 1.3; }
+  .assistPreview { cursor: default; background: transparent; border: 0; box-shadow: none; }
+  .assistPreview img { display: block; width: 38px; height: 38px; object-fit: contain; filter: drop-shadow(0 0 5px #ff75d45c); }
+  .generatorItem { position: relative; z-index: 1; display: grid; place-items: center; width: 100%; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #eef6ff; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .generatorItem .generatorOrb {
+    width: 48px;
+    height: 48px;
+    transform: translateY(-2px);
+    box-sizing: border-box;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: none;
+  }
+  .generatorItem:focus-visible { outline: 2px solid #a4dfff; outline-offset: 4px; }
+  .generatorItem[aria-busy="true"] { opacity: .7; }
+}
+
+@media (min-width: 600px) and (max-width: 1100px) {
+  .shortcutGrid, .menuGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .menuPanel { padding: 16px; }
+  .shortcutLabel, .menuItem, .menuDanger, .menuEstablishmentButton { font-size: 12px; }
+}
+
+@media (max-width: 599px) {
+  .menuPanel { gap: 8px; padding: 8px; }
+  .menuSection { gap: 4px; }
+  .shortcutGrid, .menuGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
+  .shortcutItem { grid-template-columns: 26px minmax(0, 1fr); min-height: 44px; gap: 6px; padding: 5px 7px; border-radius: 11px; }
+  .shortcutIconSlot { width: 26px; height: 26px; border: 0; border-radius: 8px; }
+  .shortcutIconImage { width: 24px; height: 24px; }
+  .shortcutLabel, .menuItem, .menuDanger, .menuEstablishmentButton { font-size: 11px; line-height: 1.2; }
+  .menuItem, .menuDanger, .menuEstablishmentButton { min-height: 44px; gap: 6px; padding: 5px 7px; border-radius: 11px; }
+  .menuActionIcon, .menuEstablishmentButton > span:first-child { width: 26px; height: 26px; flex-basis: 26px; }
+  .menuActionIcon svg, .menuEstablishmentButton > span:first-child svg { width: 26px; height: 26px; }
+  .menuArrow { display: none; }
 }

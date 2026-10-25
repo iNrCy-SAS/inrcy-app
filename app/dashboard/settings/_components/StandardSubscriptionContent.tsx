@@ -25,9 +25,9 @@ import {
   type StandardSubscriptionStorePrices,
 } from "@/lib/clientSubscriptionBilling";
 import { openNativeSubscriptionManagement } from "@/lib/nativeBillingManagement";
-import SubscriptionWorkspace from "./SubscriptionWorkspace";
+import SubscriptionWorkspace, { SubscriptionDetails } from "./SubscriptionWorkspace";
 import { SubscriptionPlanFeatures } from "./SubscriptionComparison";
-import styles from "./settingsContentLayout.module.css";
+import styles from "./subscriptionWorkspace.module.css";
 
 type Props = {
   onOpenContact: () => void;
@@ -626,8 +626,9 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       <button type="button" onClick={() => updateCancellation(view.cancellationScheduled ? "uncancel" : "cancel")} style={secondaryButton} disabled={busyAction !== null}>{view.cancellationScheduled ? i18nT("annuler_ma_resiliation_902e43a0") : i18nT("programmer_ma_resiliation_d074ca2d")}</button>
       {!view.cancellationScheduled ? <p className={styles.finePrint}>{i18nT("essai_arret_sans_prelevement_mensuel_actif_32634c83")}</p> : null}
     </> : null}
-    {view.edition === "premium" ? <div className={styles.managementActions}>
+    {view.edition === "premium" ? <SubscriptionDetails title="iNrCy Standard"><div className={styles.managementActions}>
       <h3>iNrCy Standard</h3>
+      {error ? <p role="alert" style={{ color: "#ff9bbd", margin: 0, fontSize: 12, lineHeight: 1.45 }}>{error}</p> : null}
       <p className={styles.finePrint}>{i18nT("premium_standard_description")}</p>
       {!downgradeScheduled && view.hasStripeSubscription && view.status === "active" && !view.cancellationScheduled ? <>
         {cycleOptions("Standard")}
@@ -646,7 +647,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       </> : view.hasStripeSubscription && view.status === "active" && !view.cancellationScheduled ? <button type="button" onClick={() => changeDowngrade("schedule")} style={secondaryButton} disabled={busyAction !== null}>{i18nT("premium_downgrade_button")}</button>
       : view.hasNativeSubscription ? <button type="button" onClick={openPortal} style={secondaryButton} disabled={busyAction !== null}>{i18nT("premium_native_change_button")}</button>
       : <button type="button" onClick={onOpenContact} style={secondaryButton}>{i18nT("premium_contact_change_button")}</button>}
-    </div> : null}
+    </div></SubscriptionDetails> : null}
   </section>;
 
   const renderPlanChange = (targetPlan: "Standard" | "Premium", activateSelectedPremium = false) => {
@@ -659,7 +660,8 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         else void previewPremiumUpgrade(targetPlan);
       }} disabled={busyAction !== null}>
         {busyAction === "quote" ? i18nT("premium_quote_loading") : activateSelectedPremium ? i18nT("premium_activation_now_title") : isCurrentPlan ? i18nT("subscription_change_cycle") : view.status === "trialing" ? i18nT("subscription_trial_choose_plan") : i18nT("subscription_upgrade")} <span aria-hidden="true">→</span>
-      </button> : <div className={styles.quoteConfirmation}>
+      </button> : <SubscriptionDetails title={i18nT("subscription_confirm_change")} open onClose={() => setUpgradeQuote(null)}><div className={styles.quoteConfirmation}>
+        {error ? <p role="alert" style={{ color: "#ff9bbd", margin: 0, fontSize: 12, lineHeight: 1.45 }}>{error}</p> : null}
         <p>{i18nT("premium_quote_amount", { amount: new Intl.NumberFormat(locale, { style: "currency", currency: quote.currency }).format(quote.amountDue / 100) })}</p>
         {quote.trialChange ? <p>{quote.activation === "now"
           ? i18nT("premium_activation_now_quote_notice")
@@ -669,7 +671,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         </>}
         <button type="button" className={targetPlan === "Premium" ? styles.premiumCta : styles.standardCta} onClick={confirmPremiumUpgrade} disabled={busyAction !== null}>{busyAction === "change-plan" ? i18nT("premium_confirming") : i18nT("subscription_confirm_change")}</button>
         <button type="button" className={styles.quoteRefresh} onClick={() => previewPremiumUpgrade(targetPlan, quote.activation)} disabled={busyAction !== null}>{i18nT("premium_refresh_quote")}</button>
-      </div>}
+      </div></SubscriptionDetails>}
       {!quote?.trialChange ? <p className={styles.finePrint}>{activateSelectedPremium
         ? i18nT("subscription_trial_change_notice", { date: view.trialEndLabel || "—" })
         : view.status === "trialing" && targetPlan === "Premium"
@@ -750,7 +752,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       </section>
     </div>
     <p className={styles.quotaNote}>{i18nT("subscription_quota_note")}{clientBillingPlatform === "web" && premiumOffer.taxBehavior === "exclusive" ? ` ${i18nT("standard_taxes_checkout")}` : ""}</p>
-    <StudioCreditBalance />
+    <div className={styles.creditsStrip}><StudioCreditBalance /></div>
   </SubscriptionWorkspace>{premiumActivationOpen && typeof document !== "undefined" ? createPortal(
     <div className={styles.premiumActivationOverlay} onMouseDown={(event) => {
       if (event.target === event.currentTarget) closePremiumActivationChoice();

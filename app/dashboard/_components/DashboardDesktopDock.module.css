@@ -1,0 +1,310 @@
+/* Desktop controls move to the existing Generator row. Mobile keeps its header. */
+.centralGroup {
+  display: none;
+}
+
+.assistPreview { cursor: default; }
+.assistPreview img { display: block; object-fit: contain; width: 38px; height: 38px; filter: drop-shadow(0 0 6px #ff75d477); }
+.centralGroup .iconButton.assistPreview.assistPreview { border-color: transparent; background: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+@media (min-width: 1101px) {
+  .topbar.topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-rows: auto;
+    align-items: center;
+    column-gap: 16px;
+  }
+
+  .topbar .brand {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: center;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .topbar .brand > div {
+    max-width: none;
+  }
+
+  .topbar .brand > div > div {
+    white-space: nowrap;
+  }
+
+  .topbar .headerActions {
+    display: contents;
+  }
+
+  .topbar .establishmentSlot {
+    position: relative;
+    z-index: 85;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: start;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .topbar .headerRightSlot {
+    position: relative;
+    z-index: 85;
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .headerRightSlot {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+    height: 42px;
+  }
+
+  .headerRightSlot > :nth-child(1) { order: 1; }
+  .headerRightSlot > :nth-child(2) { order: 2; }
+  .headerRightSlot > :nth-child(3) { order: 3; }
+
+  .establishmentSlot .establishmentButton {
+    width: auto;
+    min-width: 150px;
+    max-width: 210px;
+    height: 42px !important;
+    min-height: 42px !important;
+    max-height: 42px !important;
+    padding-inline: 10px !important;
+    justify-content: flex-start;
+    gap: 8px;
+    border-color: #7ad8f4 !important;
+    color: #f5fcff;
+    background:
+      radial-gradient(ellipse at 8% 0%, #7beaff38, transparent 58%),
+      linear-gradient(110deg, #086d9c, #2855a3 50%, #7046b6) !important;
+    box-shadow: inset 0 1px 0 #e1fbff45, 0 0 16px #35b9ef24, 0 4px 14px #121a4c35 !important;
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+  }
+
+  .establishmentSlot .establishmentButton:hover,
+  .establishmentSlot .establishmentButton[aria-expanded="true"] {
+    border-color: #c3f5ff !important;
+    background:
+      radial-gradient(ellipse at 8% 0%, #a0f3ff40, transparent 58%),
+      linear-gradient(110deg, #087eae, #3263b6 50%, #8055c8) !important;
+    box-shadow: inset 0 1px 0 #ecfdff55, 0 0 20px #45c3f43b, 0 4px 16px #23296640 !important;
+  }
+
+  .establishmentSlot .establishmentButton:focus-visible {
+    outline: 2px solid #bbf4ff;
+    outline-offset: 3px;
+  }
+
+  .establishmentButton > span:nth-child(2) {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .establishmentButton > span:nth-child(2) > span:nth-child(2) {
+    flex: 0 0 auto;
+    padding: 4px 7px;
+    border: 1px solid #f0fdffb3;
+    border-radius: 999px;
+    color: #16457a;
+    background: linear-gradient(125deg, #e0fbff, #c8dcff);
+    box-shadow: inset 0 1px 0 #fff9, 0 1px 5px #071c4930;
+    font-size: 10px;
+    line-height: 1;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .establishmentButton > span:nth-child(2) > span:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .establishmentButton > span:nth-child(3) {
+    display: inline;
+    flex: 0 0 auto;
+    color: #e2f6ff;
+  }
+
+  .establishmentSlot .establishmentPanel {
+    right: auto;
+    left: 0;
+    max-width: calc(100vw - 40px);
+  }
+
+  .centralGroup {
+    position: relative;
+    z-index: 12;
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    min-width: 0;
+    height: 42px;
+    max-height: 42px;
+    overflow: visible;
+  }
+
+  .centralGroup:has([role="dialog"]),
+  .centralGroup:has([role="menu"]) {
+    z-index: 100;
+  }
+
+  .centralGroup.centralGroup > * {
+    order: 0;
+  }
+
+  .centralGroup .iconButton.iconButton,
+  .establishmentSlot .headerIconButton.headerIconButton {
+    display: inline-flex;
+    flex: 0 0 42px;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    min-width: 42px;
+    max-width: 42px;
+    height: 42px !important;
+    min-height: 42px !important;
+    max-height: 42px !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    overflow: visible;
+    border-radius: 50% !important;
+  }
+
+  .centralGroup .iconButton.iconButton,
+  .establishmentSlot .headerIconButton.headerIconButton {
+    font-size: 0 !important;
+    background:
+      radial-gradient(circle at 18% 0%, rgba(255, 255, 255, .14), transparent 30%),
+      linear-gradient(135deg, rgba(15, 23, 42, .78), rgba(31, 41, 75, .56));
+    box-shadow: 0 18px 46px rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255, 255, 255, .12);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .iconButton > span:first-child,
+  .headerIconButton > span:first-child {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .iconButton svg,
+  .headerIconButton svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .centralGroup .iconButton .commerceIcon {
+    width: 30px;
+    height: 30px;
+    overflow: visible;
+    filter: drop-shadow(0 2px 3px #020b263b);
+  }
+
+  .iconButton:focus-visible,
+  .headerIconButton:focus-visible,
+  .headerButton:focus-visible {
+    outline: 2px solid #b7f3ff;
+    outline-offset: 4px;
+  }
+
+  .menuAnchor {
+    position: relative;
+    flex: 0 0 42px;
+    min-width: 42px;
+    height: 42px;
+    overflow: visible;
+  }
+
+  .headerRightSlot .headerButton.headerButton {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-width: 0;
+    height: 42px !important;
+    min-height: 42px !important;
+    max-height: 42px !important;
+    padding: 0 12px !important;
+    font-size: 12px !important;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .headerButton svg {
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  .headerRightSlot .headerButton.headerButton[data-dashboard-action="account"] {
+    border-color: #aab9ff !important;
+    color: #fff !important;
+    background: linear-gradient(110deg, #078dc9, #5850cf 58%, #aa3ac5) !important;
+    box-shadow: inset 0 1px 0 #d9f6ff38, 0 3px 14px #3846c535 !important;
+  }
+
+  .headerRightSlot .headerButton.headerButton[data-dashboard-action="account"]:hover {
+    border-color: #d3daff !important;
+    background: linear-gradient(110deg, #159fd8, #685cdd 58%, #bc4bd6) !important;
+  }
+
+  .centralGroup [data-dashboard-panel="boutique"] { color: #ffe3a4; }
+  .centralGroup [data-dashboard-action="cash"] { color: #98efc9; }
+
+  .notificationPanel.notificationPanel {
+    right: auto;
+    left: 0;
+    width: min(430px, calc(100vw - 40px));
+    max-height: min(38dvh, 360px);
+    overflow: auto;
+    z-index: 100;
+  }
+}
+
+
+/* One coherent set of softly bevelled navigation icons; control geometry stays unchanged. */
+@media (min-width: 1101px) {
+  .centralGroup .iconButton .navigationIcon,
+  .establishmentSlot .headerIconButton .navigationIcon {
+    width: 29px;
+    height: 29px;
+    filter: drop-shadow(0 2px 2px #020a2533);
+  }
+
+  .centralGroup .iconButton > span:first-child:has(.navigationIcon),
+  .establishmentSlot .headerIconButton > span:first-child:has(.navigationIcon) {
+    width: 29px;
+    height: 29px;
+    flex: 0 0 29px;
+    filter: none;
+  }
+
+  .headerRightSlot .headerButton .navigationIcon {
+    flex: 0 0 24px;
+    width: 24px;
+    height: 24px;
+  }
+}
+
+@media (min-width: 1101px) {
+  .establishmentButton > span:first-child:has([data-dashboard-navigation-icon]) { flex: 0 0 24px; width: 24px; height: 24px; filter: none; }
+  .establishmentButton [data-dashboard-navigation-icon] { width: 24px; height: 24px; }
+}

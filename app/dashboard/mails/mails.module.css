@@ -4638,6 +4638,13 @@
   }
 }
 
+.mobileFolderSelect { display: none; }
+@media (max-width: 1100px) {
+  .mobileFolderSelect { display: block; min-width: 0; padding: 12px 12px 0; }
+  .mobileFolderError { margin: 7px 2px 0; color: #ffbdce; font-size: 12px; overflow-wrap: anywhere; }
+  .folderTabs.folderTabs { display: none; }
+}
+
 /* iNr'Send : bulles propres, mêmes largeurs, sans scroll horizontal */
 @media (min-width: 821px) {
   .folderTabs {

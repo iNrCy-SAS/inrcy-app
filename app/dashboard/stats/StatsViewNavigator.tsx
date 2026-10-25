@@ -3,6 +3,7 @@
 import { useRef, type ReactNode } from "react";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
+import DashboardMobileSelect from "../_components/DashboardMobileSelect";
 import { adjacentStatsPage, statsSwipeDirection, type StatsNavigationPage, type StatsPanelKey } from "./stats.navigation";
 import css from "./statsPanorama.module.css";
 
@@ -22,7 +23,7 @@ export default function StatsViewNavigator({ pages, activeKey, onSelect, summary
       if (event.key === "Home" || event.key === "End") { event.preventDefault(); onSelect(event.key === "Home" ? "all" : pages.at(-1)?.key || "all"); }
     }}
     onPointerDown={event => {
-      if (!event.isPrimary || event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
+      if (!event.isPrimary || event.button !== 0 || (event.target as HTMLElement).closest("button, select, option")) return;
       gesture.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
       event.currentTarget.setPointerCapture(event.pointerId);
     }}
@@ -33,6 +34,14 @@ export default function StatsViewNavigator({ pages, activeKey, onSelect, summary
       const direction = statsSwipeDirection(start, { x: event.clientX, y: event.clientY });
       if (direction) { event.preventDefault(); move(direction); }
     }} onPointerCancel={() => { gesture.current = null; }} onLostPointerCapture={() => { gesture.current = null; }}>
+    <div className={css.mobileViewSelector}>
+      <DashboardMobileSelect
+        value={page.key}
+        options={pages.map((item) => ({ value: item.key, label: item.title, icon: item.iconSrc ? <Image src={item.iconSrc} alt="" width={19} height={19} unoptimized /> : item.key === "all" ? <GridIcon /> : <ChartIcon /> }))}
+        onChange={onSelect}
+        ariaLabel={t("panorama_navigation")}
+      />
+    </div>
     <div className={css.overviewTabs}>
       <button type="button" className={css.globalShortcut} onClick={() => onSelect("all")} aria-current={activeKey === "all" ? "page" : undefined} aria-label={t("vue_globale_08073c33")} title={t("vue_globale_08073c33")}><GridIcon /><span>{t("vue_globale_08073c33")}</span></button>
       <button type="button" className={css.globalShortcut} onClick={() => onSelect("evolution")} aria-current={activeKey === "evolution" ? "page" : undefined} aria-label={t("panorama_evolution")} title={t("panorama_evolution")}><ChartIcon /><span>{t("panorama_evolution")}</span></button>

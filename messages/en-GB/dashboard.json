@@ -1,5 +1,44 @@
 {
+  "usageGuide": {
+    "setupTab": "Your cockpit",
+    "routineTab": "Everyday use",
+    "landmarksTab": "Your guide",
+    "title": "Using iNrCy",
+    "intro": "Three settings to get started, then a simple routine.",
+    "setupTitle": "Start with your cockpit",
+    "channelsTitle": "Connect your channels",
+    "channelsBody": "Link your accounts and check their status. Return here if a channel needs reconnecting.",
+    "dnaTitle": "Complete your business DNA",
+    "dnaBody": "Describe your business, offers and audience to give the AI context about your company.",
+    "aiTitle": "Personalise your AI",
+    "aiBody": "Choose a tone and add your instructions for content that matches how you communicate.",
+    "routineTitle": "Your everyday routine",
+    "publishTitle": "Publish with Booster",
+    "publishBody": "Prepare your content, review it, select your channels, then publish or schedule.",
+    "agentsBody": "Agents can prepare content for you. Check their approval and automation settings before publication.",
+    "mediaTitle": "Create and find your media",
+    "mediaBody": "Create and edit in iNr’Studio. The Media library icon opens your saved media for reuse.",
+    "statsTitle": "Track your results",
+    "statsBody": "Open iNr’Stats to follow your measured data. Labels such as “estimated” or “potential” indicate estimates, rather than achieved results.",
+    "landmarksTitle": "Your dashboard landmarks",
+    "generatorTitle": "The Generator status dot",
+    "generatorBody": "Green: active. Red: pending. Check each channel’s connection status separately in the cockpit.",
+    "inertiaTitle": "Your Inertia Units (UI)",
+    "inertiaBody": "Your balance is in the cockpit. Spend your UI in Shop, where you’ll also find My inertia and your order history.",
+    "gpsTitle": "Which tool should you use?",
+    "gpsBody": "Usage GPS guides you according to your goal."
+  },
+  "accountTabs": {
+    "compte": "Account",
+    "abonnement": "Subscription",
+    "preferences": "Preferences",
+    "legal": "Legal info",
+    "rgpd": "Privacy data",
+    "parrainage": "Referrals",
+    "factures": "Invoices"
+  },
   "topbar": {
+    "myAccount": "My account",
     "brandTag": "Visibility generator",
     "admin": "Admin",
     "adminTitle": "iNrCy admin",
@@ -50,7 +89,8 @@
     "referral": "Refer with iNrCy",
     "legal": "Legal info",
     "rgpd": "My data (GDPR)",
-    "logout": "Log out"
+    "logout": "Log out",
+    "invoices": "My invoices"
   },
   "notifications": {
     "aria": "Alerts",
@@ -98,7 +138,8 @@
       "parrainage": "Refer with iNrCy",
       "notifications": "Alerts",
       "documents": "Default settings",
-      "threads": "Settings — Threads"
+      "threads": "Settings — Threads",
+      "factures": "Subscription invoices"
     }
   },
   "hero": {
@@ -111,6 +152,7 @@
     "connectStep": "Connect",
     "enrichStep": "Enrich",
     "configureStep": "Configure",
+    "stepComplete": "Complete",
     "channelsStepLabel": "Active channels",
     "dnaStepLabel": "Company DNA",
     "aiStepLabel": "Configure my AI",
@@ -152,6 +194,7 @@
     "progressAria": "Generator power",
     "nextRise": "Next boost:",
     "completeHint": "All levers feed the engine at full power.",
+    "generatorShortTitle": "Generator",
     "generatorTitle": "iNrCy Generator",
     "generatorHelpTitle": "Help: iNrCy Generator",
     "generatorDesc": "A reflection of how effectively your communication channels perform.",
@@ -168,7 +211,8 @@
     "basedOnProfile": "Based on profile + opportunities",
     "opportunities": "Open opportunities",
     "projection30": "30-day forecast",
-    "capturedLeads": "Captured leads",
+    "generatedContactsHint": "Estimated from activity across your channels.",
+    "capturedLeads": "Contacts generated",
     "last7": "Last 7 days",
     "last30": "Last 30 days"
   },
@@ -706,8 +750,8 @@
     "aiGoalsDescription": "Set the expected results, your inspiration and what must be avoided."
   },
   "signatureTools": {
-    "createTitle": "Communicate & Grow",
-    "pilotTitle": "Create & Manage",
+    "createTitle": "Create and grow",
+    "pilotTitle": "Track and manage",
     "mailCampaigns": "Email campaigns",
     "businessSpace": "YOUR BUSINESS SPACE",
     "amplify": "AMPLIFY",
@@ -740,7 +784,7 @@
     "pilotSubtitle": "Measure, find, retain",
     "statsDescription": "Measure your impact.",
     "statsCta": "View statistics",
-    "sendDescription": "Find the history of your activity in the app.",
+    "sendDescription": "Your activity history.",
     "sendCta": "View history",
     "reputationName": "Reputation",
     "reputationDescription": "Manage your reviews Google.",
@@ -759,7 +803,7 @@
     "agentPlanning": "Planning",
     "agentCta": "Manage",
     "studioEyebrow": "AI media creation",
-    "studioLine1": "Create, edit and retouch",
+    "studioLine1": "Store, generate and create",
     "studioLine2": "your media.",
     "studioCta": "Media Studio"
   },
@@ -811,5 +855,152 @@
     "threads": "Share news and talk with your community. Choose the available post formats and the default format.",
     "pinterest": "Publishes your visuals to your account’s boards. Select a board or create a new one from the bubble.",
     "x": "Shares your news and posts on your X account to keep your presence active."
+  },
+  "helpCenter": {
+    "title": "iNrCy Help",
+    "aria": "Open iNrCy Help",
+    "intro": "Your first steps, then the right tool at the right time.",
+    "setupTitle": "Get started",
+    "setupSubtitle": "Three steps to tailor the AI to your business.",
+    "goalsTitle": "What would you like to do?",
+    "goalsSubtitle": "Choose your goal and we’ll guide you.",
+    "back": "Back to goals",
+    "completed": "Complete",
+    "continue": "To complete",
+    "connected": "{connected} / {total} connected",
+    "open": "Open",
+    "search": "Search for help…",
+    "noResults": "No results. Try another word.",
+    "articles": "Detailed guides",
+    "chooseArticle": "Choose a guide",
+    "overview": "The essentials",
+    "steps": "The steps",
+    "checks": "Things to check",
+    "pitfalls": "Good habits",
+    "faq": "Frequently asked questions",
+    "page": "Page {current} / {total}",
+    "previous": "Previous",
+    "next": "Next",
+    "premium": "Included with Premium",
+    "viewOffers": "View my subscription",
+    "agent": "Your AI agent can help you along the way.",
+    "landmarksTitle": "Understand my cockpit",
+    "landmarksBody": "Gauges, central point and Inertia Units",
+    "powerBody": "The three gauges show your setup progress: channels, business DNA and AI personalisation. Complete them to give iNrCy the right context.",
+    "generatorTitle": "The central point",
+    "generatorBody": "Green: active. Red: waiting. Check each channel’s status in the cockpit too.",
+    "inertiaTitle": "Your Inertia Units",
+    "inertiaBody": "Your activity on iNrCy earns you UI. Find your balance in the cockpit and your history under Shop → My inertia.",
+    "balance": "{value} UI available",
+    "generatorSettings": "Estimation settings",
+    "shop": "Open Shop",
+    "channels": {
+      "title": "Connect my channels",
+      "body": "Link your accounts and check their status. Reconnect any that need it.",
+      "action": "Manage my channels"
+    },
+    "dna": {
+      "title": "Introduce my business",
+      "body": "Describe your activity, offers and audience to give the AI the right context.",
+      "action": "Complete my DNA"
+    },
+    "ai": {
+      "title": "Personalise my AI",
+      "body": "Set your tone, instructions and communication preferences.",
+      "action": "Configure my AI"
+    },
+    "goals": {
+      "publish": {
+        "title": "Publish content",
+        "subtitle": "Booster · iNr’Agent Publications",
+        "intro": "Start with an idea and prepare a post suited to your channels.",
+        "steps": {
+          "step1": "Choose your channels in Booster and describe your idea.",
+          "step2": "Generate the content, then review and adjust the text and media.",
+          "step3": "Approve, then publish or schedule. With iNr’Agent, check the approval rules before enabling automation."
+        }
+      },
+      "media": {
+        "title": "Create and find my media",
+        "subtitle": "iNr’Studio · Media library",
+        "intro": "Create visuals and reuse your saved media.",
+        "steps": {
+          "step1": "Open iNr’Studio to create or edit media.",
+          "step2": "Check the credits shown before starting generation.",
+          "step3": "Find your creations in the Media library and add them to your posts."
+        }
+      },
+      "grow": {
+        "title": "Attract and retain customers",
+        "subtitle": "iNr’ADS · Propulser · Fidéliser",
+        "intro": "Choose advertising or email campaigns to suit your goal.",
+        "steps": {
+          "step1": "Choose iNr’ADS for advertising, Propulser for prospecting or Fidéliser for existing customers.",
+          "step2": "Prepare your message and select your audience; check the budget or recipients.",
+          "step3": "Review and approve before launching, then track results in iNr’Stats."
+        }
+      },
+      "reviews": {
+        "title": "Manage my reviews",
+        "subtitle": "Reputation · Google Business",
+        "intro": "Find your Google reviews and prepare suitable replies.",
+        "steps": {
+          "step1": "Check that your Google Business profile is connected.",
+          "step2": "Open Reputation and choose a review.",
+          "step3": "Review the suggested reply and approve it before publishing."
+        }
+      },
+      "contacts": {
+        "title": "Track my contacts and appointments",
+        "subtitle": "iNr’CRM · iNr’Calendar",
+        "intro": "Keep your contacts together and organise the next steps.",
+        "steps": {
+          "step1": "Find or add a contact in iNr’CRM.",
+          "step2": "Complete their record and prepare the right follow-up.",
+          "step3": "Open iNr’Calendar to view appointments or suggest a time slot."
+        }
+      },
+      "stats": {
+        "title": "Understand my results",
+        "subtitle": "iNr’Stats · Booster report",
+        "intro": "Track measured data and see what is improving.",
+        "steps": {
+          "step1": "Open iNr’Stats for the overview, then choose a channel.",
+          "step2": "Compare the available periods in Trends and check the measured data.",
+          "step3": "Read the calculation method: indices and potential figures are estimates, with no guarantee of results."
+        }
+      }
+    },
+    "mediaDetails": {
+      "brief": "Describe the subject, setting and style: realistic photo, illustration… For video, also specify the actions and spoken words you want.",
+      "format": "Choose Image or Video, then the format. For video, also set the duration and sound.",
+      "engine": "Choose a compatible engine and check the credit cost before generating. Some video engines require a starting image.",
+      "referencesTitle": "Guide the AI with references",
+      "references": "If needed, add references from your device or the Media library. Set their role and what must be included or used as inspiration.",
+      "dna": "Business DNA is optional: enable it if you want the creation to use the context of your business.",
+      "finishTitle": "Refine, save and reuse",
+      "review": "Review any text and the visual result; for video, check movement and sound too. Retouch the media or revise the brief before regenerating.",
+      "save": "Save your chosen result in the Media library, then find it again to reuse in your posts."
+    },
+    "assistPreview": "iNr’Assist — coming soon"
+  },
+  "mobileMenu": {
+    "create": "Create and communicate",
+    "manage": "Track and manage",
+    "space": "My space",
+    "account": "My account",
+    "studio": "iNr’Studio",
+    "media": "Media library",
+    "ads": "iNr’ADS",
+    "campaigns": "Email campaigns",
+    "reputation": "Reputation",
+    "stats": "iNr’Stats",
+    "send": "iNr’Send",
+    "calendar": "iNr’Calendar",
+    "crm": "iNr’CRM",
+    "cash": "Payments",
+    "publish": "Publish",
+    "establishments": "Establishments",
+    "backToMenu": "Back to menu"
   }
 }

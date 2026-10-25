@@ -324,6 +324,7 @@ test("Wan Libre conserve la séparation audio/texte et le plein cadre dans son t
   const input = context.runtime.buildGatewayAiVideoRequest(args);
   const prompt = (input.prompt as { text: string }).text;
   assert.ok(prompt.includes(freePrompt.buildAiMediaFreeVideoPresentationContract(args.request)));
+  assert.ok(prompt.includes(freePrompt.AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT));
   assert.ok(prompt.includes(`USER: ${args.request.freePrompt}`));
   assert.ok(prompt.length <= 1500);
   assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
@@ -425,6 +426,7 @@ test("Wan visual silence fits previously valid full briefs with the real normali
       continue;
     }
     const prompt = (context.runtime.buildGatewayAiVideoRequest(args).prompt as { text: string }).text;
+    assert.ok(prompt.includes(freePrompt.AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT));
     assert.ok(prompt.includes(`USER: ${brief}`), "Keep the entire user brief.");
     assert.ok(prompt.includes(`ACTION: ${args.plan.scenes[0].visualBrief}`));
     assert.ok(prompt.includes(`PARAMS: ${args.providerContract.parameters}`));

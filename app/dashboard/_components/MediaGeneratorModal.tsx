@@ -17,6 +17,7 @@ import type {
   MediaGeneratorStudioMode,
 } from "./MediaGenerator";
 import MediaModifier from "./MediaModifier";
+import DashboardMobileSelect from "./DashboardMobileSelect";
 import MediaFreeGenerator from "./MediaFreeGenerator";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import MediaRetoucher, {
@@ -519,6 +520,21 @@ export default function MediaGeneratorModal({
             </div>
           </div>
           <div className={styles.heading}>
+            <DashboardMobileSelect
+              value={studioTab}
+              ariaLabel={t("ai_generator_studio_tabs_label")}
+              disabled={locked || hasPendingWork}
+              options={([
+                ["generate", "ai_generator_studio_tab_generate"],
+                ["modify", "ai_generator_studio_tab_modify"],
+                ["retouch", "ai_generator_studio_tab_retouch"],
+              ] as const).map(([tab, labelKey]) => ({
+                value: tab,
+                label: t(labelKey),
+                disabled: isInrStudioTabUnavailable(tab, { hasExternalHandoff, hasSourceMedia }),
+              }))}
+              onChange={requestStudioTab}
+            />
             <nav
               className={styles.studioTabs}
               aria-label={t("ai_generator_studio_tabs_label")}

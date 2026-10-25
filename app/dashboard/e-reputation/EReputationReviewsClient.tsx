@@ -10,6 +10,7 @@ import { confirmInrcy } from "@/lib/inrcyDialog";
 import EmojiPickerButton from "@/app/dashboard/_components/EmojiPickerButton";
 import AiContentReportButton from "@/app/dashboard/_components/AiContentReportButton";
 import AiConfigurationIcon from "@/app/dashboard/_components/AiConfigurationIcon";
+import DashboardMobileSelect from "@/app/dashboard/_components/DashboardMobileSelect";
 import PublishAiConfigurationDrawer from "@/app/dashboard/booster/publier/components/PublishAiConfigurationDrawer";
 import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
 import styles from "./eReputation.module.css";
@@ -1084,6 +1085,16 @@ export default function EReputationReviewsClient(props: Props) {
         <div className={styles.toolbar}>
           <div className={styles.toolbarLeft}>
             {platformData.length > 1 ? (
+              <>
+              <div className={styles.mobilePlatformNavigation}>
+                <DashboardMobileSelect
+                  value={activePlatform.id}
+                  options={platformData.map((platform) => ({ value: platform.id, label: platform.shortLabel || platform.label }))}
+                  onChange={changePlatform}
+                  ariaLabel={i18nT("plateformes_d_avis_df7d687b")}
+                  disabled={busy}
+                />
+              </div>
               <div className={styles.platformTabs} role="tablist" aria-label={i18nT("plateformes_d_avis_df7d687b")}>
                 {platformData.map((platform) => (
                   <button
@@ -1100,6 +1111,7 @@ export default function EReputationReviewsClient(props: Props) {
                   </button>
                 ))}
               </div>
+              </>
             ) : null}
             <label className={styles.filterLabel} htmlFor="review-filter">{i18nT("filtrer_a7a02ef5")}</label>
             <select id="review-filter" className={styles.select} value={filter} onChange={(event) => setFilter(event.target.value as "all" | "todo" | "answered")}>

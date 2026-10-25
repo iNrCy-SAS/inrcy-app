@@ -181,7 +181,7 @@ export default function GeneratorSettingsModal({
   const referenceCount = opportunities && opportunities > 0 ? opportunities : 10;
 
   return (
-    <div data-inrcy-tool-overlay
+    <div
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -202,10 +202,10 @@ export default function GeneratorSettingsModal({
         @media (max-width: 620px) {
           div[data-generator-fields="2"] { grid-template-columns: 1fr !important; }
           div[data-generator-actions] { grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr) !important; }
-          section[data-generator-settings-modal] { padding: 16px !important; border-radius: 20px !important; max-height: calc(100dvh - 16px) !important; }
+          section[data-generator-settings-modal] { padding: 16px !important; border-radius: 20px !important; max-height: calc(100dvh - 28px) !important; }
         }
       `}</style>
-      <section data-inrcy-tool-dialog
+      <section
         data-generator-settings-modal
         role="dialog"
         aria-modal="true"

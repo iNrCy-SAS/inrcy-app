@@ -1,0 +1,10 @@
+.icon {
+  display: block;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  overflow: visible;
+  filter: drop-shadow(0 1.5px 1.5px #020a2545);
+  pointer-events: none;
+  shape-rendering: geometricPrecision;
+}

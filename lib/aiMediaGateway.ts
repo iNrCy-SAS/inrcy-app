@@ -239,7 +239,7 @@ function buildImageReferenceRoleRules(args: {
         ? "Plusieurs produits sont obligatoires : les préserver tous séparément, les rendre reconnaissables et les intégrer chacun une seule fois sans les fusionner ni en inventer un autre."
         : "",
       officialLogoIncluded ? `Image ${referenceImagesCount} : logo officiel demandé, à reproduire fidèlement.` : "",
-      "Créer une œuvre complète selon le brief, y compris une affiche, un flyer, une illustration ou un collage si demandé. Aucun cadre, scène photographique ou agencement commercial imposé.",
+      "Créer une œuvre complète selon le brief, y compris une affiche, un flyer, une illustration ou un collage si demandé. Respecter le choix du rendu défini dans le prompt, sa préférence photographique pour les sujets réels sans style précisé et la priorité des styles explicitement demandés dans le brief. Un logo ou une référence, même illustrés ou obligatoires pour un personnage, un produit ou un lieu, n'autorise pas à lui seul des personnages dessinés ; suivre son style artistique uniquement si le brief le demande explicitement. Aucun cadre ni agencement commercial imposé.",
     ].filter(Boolean).join("\n");
   }
   return [

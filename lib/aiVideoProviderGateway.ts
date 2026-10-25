@@ -8,7 +8,7 @@ import {
   rollbackAiGatewayAccountAttempt,
 } from "@/lib/aiGatewayAccountGuard";
 import { bufferFromUint8ArrayView } from "./aiMediaBuffer.ts";
-import { buildAiMediaFreeVideoPresentationContract, splitAiMediaFreeQuotedSpeech } from "./aiMediaFreeGenerationPrompt.ts";
+import { AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT, buildAiMediaFreeVideoPresentationContract, splitAiMediaFreeQuotedSpeech } from "./aiMediaFreeGenerationPrompt.ts";
 import { AiMediaRequestValidationError } from "@/lib/aiMediaGenerationContracts";
 import {
   getAiMediaVideoModel,
@@ -57,7 +57,8 @@ export function buildWanFlashVideoPrompt(args: AiVideoProviderGenerationArgs, va
     ? validatedPrompt.split("\n").filter((line) => /^(?:NATIVE DIALOGUE:|NATIVE VOICEOVER:|AUDIO PRONUNCIATION:|No native voices|EXTERNAL VOICEOVER CAPTIONS:)/.test(line)).join("\n")
     : buildGoogleVideoTeamSpeechDirection(args, index);
   const prompt = [
-    `SHOT ${index + 1}/${args.plan.scenes.length}; ${duration}s. Motion from frame 1; fill frame, no bars.`,
+    `SHOT ${index + 1}/${args.plan.scenes.length};${duration}s. Move from frame 1; no bars.`,
+    ...(args.request.creationMode === "free" ? [AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT] : []),
     compactSilence ? "VISUAL SPEECH: No speaking/articulation/mimed speech/lip-sync; natural gestures, gaze, smiles. Overrides speaking below." : visualSpeech,
     subject ? `SUBJECT: ${subject}` : "",
     `USER: ${user}`,

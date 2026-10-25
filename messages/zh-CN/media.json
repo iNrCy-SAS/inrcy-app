@@ -1021,5 +1021,20 @@
   "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 接受的声音样本总时长最多为 15 秒。请缩短样本，或选择 Wan 2.7。",
   "ai_generator_reference_drop_title": "将参考素材拖放到此处",
   "ai_generator_reference_information": "参考素材说明",
-  "ai_generator_reference_drop_hint": "人物、产品、地点或灵感"
+  "ai_generator_reference_drop_hint": "人物、产品、地点或灵感",
+  "library_import": "导入",
+  "library_field_title": "标题",
+  "library_information": "信息",
+  "library_edit_title": "编辑标题：{value}",
+  "library_edit_tags": "编辑标签：{value}",
+  "library_edit_failed": "无法保存，您输入的内容已保留。",
+  "library_edit_save": "保存",
+  "library_edit_saving": "正在保存…",
+  "library_tags_hint": "请用英文逗号分隔标签。",
+  "library_finish_edit": "请先保存或取消编辑，然后再更改筛选条件。",
+  "library_bulk_download": "下载所选媒体",
+  "library_bulk_download_preparing": "正在准备下载…",
+  "library_bulk_download_started": "您的 ZIP 压缩文件已开始下载。",
+  "library_bulk_download_failed": "无法准备下载，请重试。",
+  "library_import_common_tags": "通用标签（可选）"
 }

@@ -58,9 +58,9 @@ test("iNrSearch refreshes use a bounded cadence and never overlap", () => {
   );
 });
 
-test("topbar and mobile navigation consume one shared account-scoped pending-count source", () => {
+test("the agent count stays account-scoped without polling from the simplified mobile menu", () => {
   assert.match(topbar, /useInrAgentPendingCount\([^)]*\)/);
-  assert.match(bottomNav, /useInrAgentPendingCount\([^)]*\)/);
+  assert.doesNotMatch(bottomNav, /useInrAgentPendingCount/);
   assert.doesNotMatch(topbar, /\/api\/agent\/actions\/pending-count/);
   assert.doesNotMatch(bottomNav, /\/api\/agent\/actions\/pending-count/);
 

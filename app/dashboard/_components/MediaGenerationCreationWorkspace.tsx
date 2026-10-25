@@ -11,6 +11,7 @@ import type {
 import { resolveAiMediaPreviewFormat } from "@/lib/aiMediaGenerationContracts";
 import { AI_MEDIA_VIDEO_MODELS } from "@/lib/aiMediaModelCatalog";
 import { MediaGenerationActions } from "./MediaEngineCreditControls";
+import DashboardMobileSelect from "./DashboardMobileSelect";
 import styles from "./MediaGenerator.module.css";
 import editorStyles from "./MediaGenerationCreationWorkspace.module.css";
 
@@ -63,7 +64,22 @@ type Props = {
 
 export function MediaGenerationSettingsTabs({ idPrefix, tabs, activeTab, onChange }: { idPrefix: string; tabs: readonly { id: string; label: string; warning?: boolean | string }[]; activeTab: string; onChange: (id: string) => void }) {
   const t = useTranslations("media");
-  return <div className={editorStyles.tabs} role="tablist" aria-label={t("ai_generator_editor_settings_label")}>
+  const activeWarning = tabs.find((tab) => tab.id === activeTab)?.warning;
+  return <>
+    <div className={editorStyles.mobileSettingsNavigation}>
+      <DashboardMobileSelect
+        value={activeTab}
+        options={tabs.map((tab) => ({ value: tab.id, label: `${tab.warning ? "⚠︎ " : ""}${tab.label}` }))}
+        onChange={onChange}
+        ariaLabel={t("ai_generator_editor_settings_label")}
+        controls={`${idPrefix}-panel-${activeTab}`}
+        describedBy={activeWarning ? `${idPrefix}-mobile-warning` : undefined}
+      />
+      {activeWarning ? <p id={`${idPrefix}-mobile-warning`} className={editorStyles.mobileWarning} role="status">
+        {typeof activeWarning === "string" ? activeWarning : t("ai_generator_editor_criteria_incomplete")}
+      </p> : null}
+    </div>
+    <div className={editorStyles.tabs} role="tablist" aria-label={t("ai_generator_editor_settings_label")}>
     {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab" id={`${idPrefix}-tab-${tab.id}`} aria-controls={`${idPrefix}-panel-${tab.id}`} aria-label={tab.label} aria-describedby={tab.warning ? `${idPrefix}-warning-${tab.id}` : undefined} title={tab.warning ? (typeof tab.warning === "string" ? tab.warning : t("ai_generator_editor_criteria_incomplete")) : undefined} aria-selected={activeTab === tab.id} tabIndex={activeTab === tab.id ? 0 : -1} onClick={() => onChange(tab.id)} onKeyDown={(event) => {
       const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : event.key === "ArrowRight" ? (index + 1) % tabs.length : event.key === "ArrowLeft" ? (index - 1 + tabs.length) % tabs.length : null;
       if (next === null) return;
@@ -73,7 +89,7 @@ export function MediaGenerationSettingsTabs({ idPrefix, tabs, activeTab, onChang
       <span className={editorStyles.tabWarning} aria-hidden="true">⚠︎</span>
       <span id={`${idPrefix}-warning-${tab.id}`} className={editorStyles.warningDescription}>{(typeof tab.warning === "string" ? tab.warning : t("ai_generator_editor_criteria_incomplete"))}</span>
     </>}</button>)}
-  </div>;
+  </div></>;
 }
 
 const FORMATS: Array<{ id: MediaGenerationFormat; ratio: string }> = [
