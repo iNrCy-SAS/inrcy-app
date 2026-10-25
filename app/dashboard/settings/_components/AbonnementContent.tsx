@@ -18,7 +18,6 @@ import {
 } from "@/lib/subscriptionOffers";
 import SubscriptionWorkspace from "./SubscriptionWorkspace";
 import { SubscriptionPlanFeatures, SubscriptionQuotaSummary } from "./SubscriptionComparison";
-import { StudioCreditBalance } from "@/app/dashboard/_components/VideoCreditRecharge";
 import styles from "./subscriptionWorkspace.module.css";
 
 
@@ -829,7 +828,6 @@ useEffect(() => {
       <div className={styles.founderSidebar}>
         {datesSummary}
         {management}
-        <div className={styles.creditsStrip}><StudioCreditBalance /></div>
       </div>
     }>
       <section className={`${styles.planCard} ${styles.founderCard}`}>
@@ -890,7 +888,6 @@ useEffect(() => {
         <span className={styles.quotaEmblem}><SubscriptionSummaryIcon kind="studio" /></span>
         <SubscriptionQuotaSummary edition={computed.planNormalized === "Premium" ? "premium" : "standard"} />
       </div>
-      <div className={`${styles.legacySummary} ${styles.creditsStrip} ${styles.legacyCredits}`}><StudioCreditBalance /></div>
     </div>
     </SubscriptionWorkspace>
   );
