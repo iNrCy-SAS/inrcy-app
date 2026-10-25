@@ -13,6 +13,8 @@ const photo = { ...audio, id: "image-a", media_type: "image", storage_path: "use
 /** Run the actual page callbacks with local File metadata and mocked private storage. */
 function libraryHarness() {
   const slots: unknown[] = []; let cursor = 0; let tree!: Element;
+  const effects: Array<{ callback: () => unknown; dependencies: unknown[] }> = [];
+  const listeners = new Map<string, (event: unknown) => void>();
   const requests: Array<{ url: string; init: RequestInit }> = [];
   let activeAccount = "pro";
   let patchResponse: (() => Promise<Response>) | undefined;
@@ -23,7 +25,7 @@ function libraryHarness() {
   const invalidated: string[] = [];
   const transfers: File[] = []; const optimizedTypes: unknown[] = []; const revoked: string[] = [];
   const react = {
-    useId: () => "library-test", useEffect: () => undefined,
+    useId: () => "library-test", useEffect: (callback: () => unknown, dependencies: unknown[]) => { effects.push({ callback, dependencies }); },
     useCallback: (callback: unknown) => callback,
     useMemo: (callback: () => unknown) => callback(),
     useRef(initial: unknown) { const index = cursor++; slots[index] ??= { current: initial }; return slots[index]; },
@@ -73,7 +75,7 @@ function libraryHarness() {
     assert.equal(body.uploads[0].width, null);
     return Response.json({ ok: true, uploaded: 1, failed: 0 });
   };
-  const document = { body: { appendChild() {} }, createElement(type: string) {
+  const document = { body: { appendChild() {} }, addEventListener(type: string, listener: (event: unknown) => void) { listeners.set(type, listener); }, removeEventListener(type: string) { listeners.delete(type); }, createElement(type: string) {
     if (type === "a") { const link = { href: "", download: "", click() { downloads.push(link.href); }, remove() {} }; return link; }
     assert.equal(type, "audio", "audio metadata must never use video or image probes");
     const element = { preload: "", duration: 2, onloadedmetadata: null as (() => void) | null, onerror: null as (() => void) | null, removeAttribute() {}, load() {} };
@@ -82,7 +84,7 @@ function libraryHarness() {
   } };
   class FixtureURL extends URL { static createObjectURL() { return "blob:metadata"; } static revokeObjectURL(url: string) { revoked.push(url); } }
   new Function("module", "exports", "require", "fetch", "document", "URL", "window", output)(moduleRecord, moduleRecord.exports, require, fetch, document, FixtureURL, { location: { origin: "https://fixture.invalid" } });
-  const render = () => { cursor = 0; tree = moduleRecord.exports.default(); };
+  const render = () => { cursor = 0; effects.length = 0; tree = moduleRecord.exports.default(); };
   const elements = (type: string) => {
     const found: Element[] = [];
     const visit = (value: unknown) => {
@@ -94,6 +96,8 @@ function libraryHarness() {
   };
   render();
   return { render, elements, requests, transfers, optimizedTypes, revoked, invalidated, snapshots, downloads,
+    runOpenOverlayEffect() { const effect = effects.find(({ dependencies }) => dependencies?.length === 1 && dependencies[0] === true); assert.ok(effect); return effect.callback(); },
+    keyDown(event: unknown) { listeners.get("keydown")?.(event); },
     setAccount(account: string) { activeAccount = account; },
     setPatchResponse(response: () => Promise<Response>) { patchResponse = response; },
     setGetResponse(response: () => Promise<Response>) { getResponse = response; },
@@ -158,6 +162,63 @@ test("filters wait for the inline editor to save or cancel", () => {
   assert.ok(h.elements("input").find((control) => control.props.placeholder === "titre_tag_fichier_3ea8c409")?.props.disabled);
   (title.props.onEditingChange as (editing: boolean) => void)(false); h.render();
   assert.ok(h.elements("select").every((control) => control.props.disabled === false));
+});
+
+test("mobile filters open their fields, focus the first select and restore focus on Escape", () => {
+  const h = libraryHarness();
+  const filterButton = () => h.elements("button").find((item) => item.props["aria-label"] === "library_filters")!;
+  const panel = () => h.elements("div").find((item) => item.props.role === "group" && item.props["aria-label"] === "library_filters")!;
+  assert.equal(filterButton().props["aria-expanded"], false);
+  assert.equal(panel().props["data-open"], undefined);
+  (filterButton().props.onClick as () => void)(); h.render();
+  assert.equal(filterButton().props["aria-expanded"], true);
+  assert.equal(panel().props["data-open"], true);
+  const focus: string[] = [];
+  const wrapper = h.elements("div").find((item) => Array.isArray(item.props.children) && (item.props.children as Element[]).includes(panel()))!;
+  assert.ok(wrapper);
+  (wrapper.props.ref as { current: unknown }).current = { querySelector: () => ({ focus: () => focus.push("type") }) };
+  (filterButton().props.ref as { current: unknown }).current = { focus: () => focus.push("filters") };
+  const cleanup = h.runOpenOverlayEffect();
+  assert.deepEqual(focus, ["type"]);
+  h.changeFilter("audio");
+  assert.equal(filterButton().props["data-active"], true);
+  let prevented = false;
+  h.keyDown({ key: "Escape", preventDefault() { prevented = true; } }); h.render();
+  assert.equal(prevented, true);
+  assert.equal(filterButton().props["aria-expanded"], false);
+  assert.deepEqual(focus, ["type", "filters"]);
+  assert.equal(typeof cleanup, "function");
+  (cleanup as () => void)();
+});
+
+test("compact select-all toggles the visible media in both directions", () => {
+  const h = libraryHarness();
+  const select = h.elements("button").find((item) => item.props["aria-label"] === "tout_selectionner_06f2c1c0")!;
+  assert.equal(select.props["aria-pressed"], false);
+  (select.props.onClick as () => void)(); h.render();
+  assert.ok(h.elements("input").filter((item) => item.props.type === "checkbox").every((item) => item.props.checked === true));
+  const clear = h.elements("button").find((item) => item.props["aria-label"] === "tout_deselectionner_d17ec0b7")!;
+  assert.equal(clear.props["aria-pressed"], true);
+  (clear.props.onClick as () => void)(); h.render();
+  assert.ok(h.elements("input").filter((item) => item.props.type === "checkbox").every((item) => item.props.checked === false));
+});
+
+test("mobile details disclose metadata and cannot hide an unsaved tag draft", () => {
+  const h = libraryHarness();
+  const open = h.elements("button").find((item) => item.props["aria-label"] === "media_show_details")!;
+  assert.equal(open.props["aria-expanded"], false);
+  (open.props.onClick as (event: unknown) => void)({ stopPropagation() {} }); h.render();
+  const close = () => h.elements("button").find((item) => item.props["aria-label"] === "media_hide_details")!;
+  assert.equal(close().props["aria-expanded"], true);
+  const tags = h.elements("metadata").find((item) => item.props.field === "tags")!;
+  (tags.props.onEditingChange as (editing: boolean) => void)(true); h.render();
+  assert.equal(close().props.disabled, true);
+  (close().props.onClick as (event: unknown) => void)({ stopPropagation() {} }); h.render();
+  assert.equal(close().props["aria-expanded"], true);
+  (tags.props.onEditingChange as (editing: boolean) => void)(false); h.render();
+  assert.equal(close().props.disabled, false);
+  (close().props.onClick as (event: unknown) => void)({ stopPropagation() {} }); h.render();
+  assert.equal(h.elements("button").find((item) => item.props["aria-label"] === "media_show_details")?.props["aria-expanded"], false);
 });
 
 test("audio imports use scoped signed uploads and audio-only metadata, even when universal visual upload is enabled", async () => {

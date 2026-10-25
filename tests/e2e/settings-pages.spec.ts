@@ -95,7 +95,15 @@ test.describe('settings pages', () => {
     await page.goto('/dashboard/settings/abonnement', { waitUntil: 'domcontentloaded' });
 
     await expectSettingsPanelUrl(page, 'abonnement');
-    await expect(page.getByText(/Mon abonnement/i).first()).toBeVisible({ timeout: 20_000 });
+    const account = page.getByRole('dialog', { name: 'Mon compte', exact: true });
+    await expect(
+      account.getByRole('tab', { name: 'Abonnement', exact: true, selected: true })
+    ).toBeVisible({ timeout: 20_000 });
+    const subscription = account.getByRole('tabpanel', { name: 'Abonnement', exact: true });
+    await expect(subscription).toBeVisible();
+    await expect(
+      subscription.getByRole('heading', { name: /^(?:Mon abonnement|Modifier \/ Résilier)$/i })
+    ).toBeVisible({ timeout: 20_000 });
 
     await runtime.expectNoErrors();
   });

@@ -74,8 +74,9 @@ test.describe('dashboard module routes', () => {
     await page.goto('/dashboard/mails', { waitUntil: 'domcontentloaded' });
 
     await expect(page).toHaveURL(/\/dashboard\/mails/, { timeout: 30_000 });
+    await expect(page.getByRole('img', { name: /iNr.?Send/i })).toBeVisible({ timeout: 20_000 });
     await expect(
-      page.getByText(/Mails|Contacts CRM/i).first()
+      page.getByRole('button', { name: /^Mails(?:\s|$)/i })
     ).toBeVisible({ timeout: 20_000 });
 
     await runtime.expectNoErrors();

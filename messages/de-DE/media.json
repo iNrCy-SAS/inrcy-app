@@ -1036,5 +1036,6 @@
   "library_bulk_download_preparing": "Download wird vorbereitet…",
   "library_bulk_download_started": "Der Download Ihres ZIP-Archivs wurde gestartet.",
   "library_bulk_download_failed": "Der Download konnte nicht vorbereitet werden. Versuchen Sie es erneut.",
-  "library_import_common_tags": "Gemeinsame Tags (optional)"
+  "library_import_common_tags": "Gemeinsame Tags (optional)",
+  "library_filters": "Filter"
 }

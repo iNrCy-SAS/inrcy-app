@@ -1036,5 +1036,6 @@
   "library_bulk_download_preparing": "กำลังเตรียมการดาวน์โหลด…",
   "library_bulk_download_started": "เริ่มดาวน์โหลดไฟล์ ZIP ของคุณแล้ว",
   "library_bulk_download_failed": "ไม่สามารถเตรียมการดาวน์โหลดได้ โปรดลองอีกครั้ง",
-  "library_import_common_tags": "แท็กร่วม (ไม่บังคับ)"
+  "library_import_common_tags": "แท็กร่วม (ไม่บังคับ)",
+  "library_filters": "ตัวกรอง"
 }

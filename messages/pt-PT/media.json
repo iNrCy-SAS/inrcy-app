@@ -1036,5 +1036,6 @@
   "library_bulk_download_preparing": "A preparar a transferência…",
   "library_bulk_download_started": "A transferência do seu arquivo ZIP foi iniciada.",
   "library_bulk_download_failed": "Não foi possível preparar a transferência. Tente novamente.",
-  "library_import_common_tags": "Etiquetas comuns (opcional)"
+  "library_import_common_tags": "Etiquetas comuns (opcional)",
+  "library_filters": "Filtros"
 }

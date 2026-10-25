@@ -1036,5 +1036,6 @@
   "library_bulk_download_preparing": "正在准备下载…",
   "library_bulk_download_started": "您的 ZIP 压缩文件已开始下载。",
   "library_bulk_download_failed": "无法准备下载，请重试。",
-  "library_import_common_tags": "通用标签（可选）"
+  "library_import_common_tags": "通用标签（可选）",
+  "library_filters": "筛选"
 }

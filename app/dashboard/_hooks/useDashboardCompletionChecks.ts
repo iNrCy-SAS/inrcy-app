@@ -211,6 +211,10 @@ function buildFailedState(accountId: string | null): DashboardCompletionState {
   };
 }
 
+function isCompletionCheckAborted(error: unknown) {
+  return Boolean(error && typeof error === "object" && "name" in error && error.name === "AbortError");
+}
+
 function markSectionCompleted(
   current: DashboardCompletionState,
   accountId: string,
@@ -255,7 +259,15 @@ export function useDashboardCompletionChecks() {
     if (bypassCompletionChecks) return BYPASSED_COMPLETION_STATE;
 
     const refreshSequence = ++refreshSequenceRef.current;
-    const accountId = await resolveCompletionAccountId();
+    let accountId: string | null;
+    try {
+      accountId = await resolveCompletionAccountId();
+    } catch (error) {
+      // Auth can reject on a cancelled navigation/HMR request, before the
+      // profile query begins. The effect deliberately does not await this call.
+      if (refreshSequence !== refreshSequenceRef.current || isCompletionCheckAborted(error)) return null;
+      accountId = null;
+    }
     if (refreshSequence !== refreshSequenceRef.current) return null;
     activeAccountIdRef.current = accountId;
 
@@ -277,8 +289,8 @@ export function useDashboardCompletionChecks() {
       writeCachedCompletionState(readyState);
       broadcastCompletionState(readyState);
       return readyState;
-    } catch {
-      if (refreshSequence !== refreshSequenceRef.current) return null;
+    } catch (error) {
+      if (refreshSequence !== refreshSequenceRef.current || isCompletionCheckAborted(error)) return null;
       if (completionRefreshGenerationByAccount.get(accountId) !== accountRefreshGeneration) return null;
       const cachedState = readCachedCompletionState();
       const failedState = cachedState?.accountId === accountId ? cachedState : buildFailedState(accountId);
@@ -337,6 +349,7 @@ export function useDashboardCompletionChecks() {
     window.addEventListener(DASHBOARD_COMPLETION_STATE_EVENT, handleCompletionState);
     window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, handleActiveAccountChange);
     return () => {
+      refreshSequenceRef.current += 1;
       window.removeEventListener(DASHBOARD_COMPLETION_STATE_EVENT, handleCompletionState);
       window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, handleActiveAccountChange);
     };

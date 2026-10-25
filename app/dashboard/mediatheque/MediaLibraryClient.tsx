@@ -382,6 +382,10 @@ export default function MediaLibraryClient() {
   const [typeFilter, setTypeFilter] = useState<MediaTypeFilter>("all");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("active");
   const [search, setSearch] = useState("");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const filtersRef = useRef<HTMLDivElement>(null);
+  const filtersTriggerRef = useRef<HTMLButtonElement>(null);
+  const filtersId = useId();
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
   const [helperOpen, setHelperOpen] = useState(false);
   const [optimizerItem, setOptimizerItem] = useState<MediaOptimizerItem | null>(null);
@@ -409,6 +413,7 @@ export default function MediaLibraryClient() {
   const allVisibleItemsSelected =
     items.length > 0 && items.every((item) => selectedItemIds.has(item.id));
   const bulkDeleting = savingId === "__bulk__";
+  const secondaryFilterCount = Number(typeFilter !== "all") + Number(activeFilter !== "active");
   const hasRunningOptimization = items.some((item) =>
     ["queued", "processing", "retry_wait"].includes(
       String(item.optimization?.status || ""),
@@ -502,6 +507,23 @@ export default function MediaLibraryClient() {
     document.addEventListener("keydown", onKeyDown);
     return () => { document.removeEventListener("keydown", onKeyDown); document.body.style.overflow = previousOverflow; importTriggerRef.current?.focus(); };
   }, [importOpen]);
+
+  useEffect(() => {
+    if (!mobileFiltersOpen) return;
+    filtersRef.current?.querySelector<HTMLSelectElement>("select:not([disabled])")?.focus();
+    const closeOutside = (event: PointerEvent) => {
+      if (!filtersRef.current?.contains(event.target as Node)) setMobileFiltersOpen(false);
+    };
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setMobileFiltersOpen(false);
+      filtersTriggerRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeWithEscape);
+    return () => { document.removeEventListener("pointerdown", closeOutside); document.removeEventListener("keydown", closeWithEscape); };
+  }, [mobileFiltersOpen]);
 
   async function saveMetadata(id: string, field: MediaMetadataFieldKind, value: string) {
     const key = id + ":" + field;
@@ -870,6 +892,7 @@ export default function MediaLibraryClient() {
   }
 
   function toggleItemDetails(id: string) {
+    if (metadataEditingKeys.has(id + ":tags")) return;
     setExpandedItemIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -1041,7 +1064,7 @@ export default function MediaLibraryClient() {
             🖼️
           </div>
           <div className={styles.heroContent}>
-            <h1 className={styles.title}>{i18nT("mes_medias_0c5196c9")}</h1>
+            <h1 className={styles.title}><span className={styles.desktopTitle}>{i18nT("mes_medias_0c5196c9")}</span><span className={styles.mobileTitle}>{i18nT("medias_486d82f4")}</span></h1>
           </div>
 
           <div className={styles.headerMetrics} aria-label={i18nT("library_statistics")}>
@@ -1072,8 +1095,8 @@ export default function MediaLibraryClient() {
                 {loading ? i18nT("chargement_01cba1df") : i18nT("rafraichir_be30b7d1")}
               </span>
             </button>
-            <button ref={importTriggerRef} type="button" className={styles.importButton} onClick={() => setImportOpen(true)} aria-haspopup="dialog" aria-expanded={importOpen}>
-              <span aria-hidden="true">＋</span>{i18nT("library_import")}
+            <button ref={importTriggerRef} type="button" className={styles.importButton} onClick={() => setImportOpen(true)} aria-haspopup="dialog" aria-expanded={importOpen} aria-label={i18nT("library_import")} title={i18nT("library_import")}>
+              <span aria-hidden="true">＋</span><span className={styles.importLabel}>{i18nT("library_import")}</span>
             </button>
             <Link
               href="/dashboard/generer-media"
@@ -1093,7 +1116,8 @@ export default function MediaLibraryClient() {
         <div className={styles.grid} data-media-library-content="true">
 
           <section className={styles.libraryCard}>
-            <div className={styles.filters}>
+            <div ref={filtersRef} className={styles.filters}>
+              <div id={filtersId} className={styles.secondaryFilters} data-open={mobileFiltersOpen || undefined} data-disable-pull-refresh="true" role="group" aria-label={i18nT("library_filters")}>
               <label>
                 <span>{i18nT("type_3deb7456")}</span>
                 <select
@@ -1125,6 +1149,7 @@ export default function MediaLibraryClient() {
                   <option value="all">{i18nT("tous_b97ae3b4")}</option>
                 </select>
               </label>
+              </div>
               <label className={styles.searchLabel}>
                 <span>{i18nT("recherche_787b5492")}</span>
                 <input
@@ -1135,14 +1160,21 @@ export default function MediaLibraryClient() {
                   placeholder={i18nT("titre_tag_fichier_3ea8c409")}
                 />
               </label>
-
+              <button ref={filtersTriggerRef} type="button" className={styles.mobileFilterButton} aria-label={i18nT("library_filters")} title={i18nT("library_filters")} aria-expanded={mobileFiltersOpen} aria-controls={filtersId} data-active={secondaryFilterCount > 0 || undefined} disabled={metadataEditingKeys.size > 0} onClick={() => setMobileFiltersOpen((open) => !open)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M4 7h16M4 17h16" strokeLinecap="round"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg>
+                {secondaryFilterCount > 0 ? <span className={styles.filterCount}>{secondaryFilterCount}</span> : null}
+              </button>
               <button
                 type="button"
                 className={styles.selectAllButton}
                 onClick={toggleAllVisibleItems}
                 disabled={loading || items.length === 0 || bulkDeleting}
+                aria-label={allVisibleItemsSelected ? i18nT("tout_deselectionner_d17ec0b7") : i18nT("tout_selectionner_06f2c1c0")}
+                title={allVisibleItemsSelected ? i18nT("tout_deselectionner_d17ec0b7") : i18nT("tout_selectionner_06f2c1c0")}
+                aria-pressed={allVisibleItemsSelected}
               >
-                {allVisibleItemsSelected ? i18nT("tout_deselectionner_d17ec0b7") : i18nT("tout_selectionner_06f2c1c0")}
+                <span className={styles.selectAllLabel}>{allVisibleItemsSelected ? i18nT("tout_deselectionner_d17ec0b7") : i18nT("tout_selectionner_06f2c1c0")}</span>
+                <svg className={styles.selectAllIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="5" y="5" width="15" height="15" rx="4"/><path d="M3 15V6a3 3 0 0 1 3-3h9M9 12l3 3 5-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </button>
             </div>
 
@@ -1195,6 +1227,7 @@ export default function MediaLibraryClient() {
                   <article
                     key={item.id}
                     className={`${styles.mediaRow} ${isSelected ? styles.mediaRowSelected : ""} ${detailsOpen ? styles.mediaRowDetailsOpen : ""} ${item.is_active === false ? styles.mediaRowDisabled : ""}`}
+                    data-title-editing={metadataEditingKeys.has(item.id + ":title") || undefined}
                     onClick={(event) => handleMobileRowSelection(event, item)}
                   >
                     <label
@@ -1207,7 +1240,6 @@ export default function MediaLibraryClient() {
                         onChange={() => toggleItemSelection(item.id)}
                         disabled={isSaving || bulkDeleting}
                       />
-                      <span aria-hidden="true" />
                     </label>
                     <div className={styles.mediaRowFile}>
                       <button
@@ -1244,6 +1276,7 @@ export default function MediaLibraryClient() {
                     </div>
                     <div className={styles.mediaRowMain}>
                         <MediaMetadataField field="title" value={item.title || ""} disabled={isSaving || bulkDeleting} onSave={(field, value) => saveMetadata(item.id, field, value)} onEditingChange={(editing) => setMetadataEditing(item.id, "title", editing)} />
+                        <div className={styles.mediaRowExtra}>
                         {item.media_type === "audio" && item.signed_url ? <audio className={styles.mediaRowAudioPlayer} src={item.signed_url} controls preload="none" aria-label={i18nT("library_audio_preview", { name: item.title || item.original_file_name || i18nT("media_sans_titre_e77f1871") })} /> : null}
                         {item.imageRecovery ? (
                           <span className={styles.optimizationBadge} title={i18nT("image_recovery_notice")}>{i18nT("image_recovery_badge")}</span>
@@ -1272,6 +1305,7 @@ export default function MediaLibraryClient() {
                         ) : item.media_type !== "audio" && item.source === "mediatheque_optimization" ? (
                           <span className={styles.compatibleCopyBadge}>{i18nT("copie_optimisee_f10d59ec")}</span>
                         ) : null}
+                        </div>
                     </div>
                     <div className={styles.mediaRowTags}>
                       <MediaMetadataField field="tags" value={tagsToText(item.tags)} disabled={isSaving || bulkDeleting} onSave={(field, value) => saveMetadata(item.id, field, value)} onEditingChange={(editing) => setMetadataEditing(item.id, "tags", editing)} />
@@ -1288,6 +1322,7 @@ export default function MediaLibraryClient() {
                       <button
                         type="button"
                         className={styles.mediaRowDetailsButton}
+                        disabled={metadataEditingKeys.has(item.id + ":tags")}
                         onClick={(event) => {
                           event.stopPropagation();
                           toggleItemDetails(item.id);
@@ -1370,8 +1405,10 @@ export default function MediaLibraryClient() {
                           deleteItem(item);
                         }}
                         disabled={isSaving || bulkDeleting}
+                        aria-label={i18nT("supprimer_1acfc1c7")}
                       >
-                        {i18nT("supprimer_1acfc1c7")}{" "}
+                        <svg className={styles.mediaRowDeleteIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7M14 10v7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        <span className={styles.mediaRowDeleteLabel}>{i18nT("supprimer_1acfc1c7")}</span>
                       </button>
                     </div>
                   </article>
