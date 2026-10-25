@@ -190,7 +190,7 @@ export default function DashboardClient({
   initialOfficialChannelStates = null,
   initialOfficialChannelStatesUserId = null,
 }: DashboardClientProps) {
-  const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
+  const { metaPilotEnabled, activeAccountId, actorUserId } = useDashboardViewerAccess();
   const publishGeneratorState = useDashboardGeneratorPublisher();
   const i18nT = useTranslations("shell");
   const commonT = useTranslations("common");
@@ -4217,6 +4217,23 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         key={boosterPublishSession}
         mode={dashboardBoosterModal}
         companyName={inrBadgeProfile.companyLegalName}
+        initialChannelIdentity={{
+          actorUserId,
+          accountId: initialBrowserCacheAccountId,
+          channelDetails: {
+            site_web: { type: "url", label: siteWebSavedUrl, href: siteWebSavedUrl },
+            inr_search: { type: "page", label: inrBadgeProfile.companyLegalName, href: inrSearchUrl },
+            gmb: { type: "location", label: gmbLocationLabel, href: gmbUrl },
+            facebook: { type: "page", label: fbSelectedPageName, href: facebookUrl },
+            instagram: { type: "account", label: instagramUsername, href: instagramUrl },
+            ...(metaPilotEnabled ? { threads: { type: "account", label: threadsChannel.connection.username, href: threadsUrl } } : {}),
+            linkedin: { type: "profile", label: linkedinSelectedOrganizationId ? linkedinSelectedOrganizationName : linkedinDisplayName, href: linkedinPreferredUrl },
+            x: { type: "account", label: xProfileUrl, href: xProfileUrl },
+            tiktok: { type: "account", label: tiktokUsername, href: tiktokProfileUrl },
+            youtube_shorts: { type: "channel", label: youtubeShortsUrl, href: youtubeShortsUrl },
+            pinterest: { type: "account", label: pinterestUrl, href: pinterestUrl },
+          },
+        }}
         initialConnectedChannels={{
 
           site_web: Boolean(normalizeSiteUrl(siteWebSavedUrl)),

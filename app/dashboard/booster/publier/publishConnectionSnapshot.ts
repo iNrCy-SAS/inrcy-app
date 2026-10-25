@@ -14,6 +14,12 @@ type Snapshot<K extends string> = {
   channelDetails: Record<K, ChannelConnectionDetail>;
 };
 
+export type BoosterChannelIdentitySeed = {
+  actorUserId: string;
+  accountId: string | null;
+  channelDetails: Record<string, Pick<ChannelConnectionDetail, "type" | "label" | "href">>;
+};
+
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
@@ -30,6 +36,47 @@ function publicHref(value: unknown): string | null {
     if ([...url.searchParams.keys()].some(key => /token|secret|password|authorization|api[_-]?key/i.test(key))) return null;
     return url.href;
   } catch { return null; }
+}
+
+/** Reuse dashboard identities at first paint without granting publication access. */
+export function readBoosterChannelIdentitySeed<K extends string>(
+  actorUserId: string,
+  accountId: string | null,
+  keys: readonly K[],
+  seed?: BoosterChannelIdentitySeed,
+): Partial<Record<K, ChannelConnectionDetail>> {
+  const browserAccountId = getActiveBrowserUserId();
+  if (!actorUserId || !accountId || seed?.actorUserId !== actorUserId || seed.accountId !== accountId ||
+    (browserAccountId && browserAccountId !== accountId)) return {};
+  const details: Partial<Record<K, ChannelConnectionDetail>> = {};
+  for (const key of keys) {
+    const detail = seed.channelDetails[key];
+    if (!detail) continue;
+    const label = publicText(detail.label);
+    const href = publicHref(detail.href);
+    if (label || href) details[key] = { type: publicText(detail.type, 50), label, href };
+  }
+  return details;
+}
+
+/** A background availability check must not erase an already known account name. */
+export function mergeBoosterChannelDetails<K extends string>(
+  keys: readonly K[],
+  incoming: Record<K, ChannelConnectionDetail>,
+  previous: Partial<Record<K, ChannelConnectionDetail>>,
+  connected: Record<K, boolean>,
+): Record<K, ChannelConnectionDetail> {
+  const merged = { ...incoming };
+  for (const key of keys) {
+    const next = incoming[key];
+    const known = previous[key];
+    const generic = !next?.label || next.label === next.href || /^https?:\/\//i.test(next.label) || /^(?:compte|page|fiche|cha[iî]ne|site web)\b.*\b(?:connect[eé]e?|publi[eé]e?|indisponible)$/i.test(next.label);
+    if (connected[key] && !next?.disabled && !next?.requiresReconnect && next?.connectionStatus !== "disconnected" && next?.connectionStatus !== "needs_update" &&
+      known?.label && generic && (!next?.href || !known.href || next.href.replace(/\/$/, "") === known.href.replace(/\/$/, ""))) {
+      merged[key] = { ...next, label: known.label, href: next.href || known.href || null };
+    }
+  }
+  return merged;
 }
 
 function normalizeSnapshot<K extends string>(keys: readonly K[], channels: unknown, details: unknown): Snapshot<K> | null {
@@ -109,4 +156,35 @@ export function writeBoosterConnectionSnapshot<K extends string>(
   writeAccountCacheValue(DASHBOARD_CACHE_KEYS.boosterConnections, JSON.stringify({
     version: 1, actorUserId, accountId, cachedAt: Date.now(), ...snapshot,
   }), cacheScope);
+}
+
+/** Prepare the first opening from the same canonical endpoint used by Booster. */
+export async function warmBoosterConnectionSnapshot(
+  actorUserId: string,
+  accountId: string | null,
+  isCurrent: () => boolean = () => true,
+): Promise<void> {
+  const cacheScope = scope(actorUserId, accountId);
+  if (!cacheScope || !accountId || !isCurrent() || getActiveBrowserUserId() !== accountId) return;
+  const before = readAccountCacheValue(DASHBOARD_CACHE_KEYS.boosterConnections, cacheScope);
+  try {
+    const response = await fetch("/api/booster/connected-channels", {
+      cache: "no-store", credentials: "include", signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) return;
+    const result = await response.json();
+    if (!isCurrent() || getActiveBrowserUserId() !== accountId || result?.ok !== true) return;
+    // A foreground revalidation that finished in the meantime is newer.
+    if (readAccountCacheValue(DASHBOARD_CACHE_KEYS.boosterConnections, cacheScope) !== before) return;
+    const states = record(result.channels);
+    if (!states) return;
+    const keys = Object.keys(states);
+    const snapshot = normalizeSnapshot(keys, states, result.channelDetails);
+    if (!snapshot) return;
+    const known = readBoosterConnectionSnapshot(actorUserId, accountId, keys);
+    writeBoosterConnectionSnapshot(actorUserId, accountId, keys, snapshot.channels,
+      mergeBoosterChannelDetails(keys, snapshot.channelDetails, known?.channelDetails ?? {}, snapshot.channels));
+  } catch {
+    // A failed prefetch must neither block navigation nor invalidate a good snapshot.
+  }
 }

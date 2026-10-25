@@ -5,12 +5,14 @@ export type MeasuredEvolutionMonth = { period: StatsCalendarMonth; values: Parti
 export const MEASURED_EVOLUTION_CACHE_TTL = 15 * 60 * 1000;
 type Cache = { version: 1; scope: string; channels: string; savedAt: number; months: MeasuredEvolutionMonth[] };
 
+export const measuredEvolutionChannelKey = (channels: string) => [...new Set(channels.split(',').filter(Boolean))].sort().join(',');
+
 /** A cache is usable only for this establishment and these exact calendar windows. */
 export function readMeasuredEvolutionCache(raw: string | null, scope: string, channels: string, periods: StatsCalendarMonth[], now = Date.now()): MeasuredEvolutionMonth[] | null {
   if (!raw || !scope) return null;
   try {
     const data = JSON.parse(raw) as Cache;
-    if (data.version !== 1 || data.scope !== scope || data.channels !== channels || !Number.isFinite(data.savedAt) || data.savedAt > now || now - data.savedAt >= MEASURED_EVOLUTION_CACHE_TTL || !Array.isArray(data.months) || data.months.length !== periods.length) return null;
+    if (data.version !== 1 || data.scope !== scope || typeof data.channels !== 'string' || measuredEvolutionChannelKey(data.channels) !== measuredEvolutionChannelKey(channels) || !Number.isFinite(data.savedAt) || data.savedAt > now || now - data.savedAt >= MEASURED_EVOLUTION_CACHE_TTL || !Array.isArray(data.months) || data.months.length !== periods.length) return null;
     const keys = new Set(channels.split(','));
     for (let i = 0; i < periods.length; i++) {
       const month = data.months[i], period = periods[i];

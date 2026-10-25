@@ -23,6 +23,7 @@ import {
 import { mergePreflightFailuresIntoPublicationSummary } from "@/lib/boosterPublicationOutcome";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
 import PublishModal from "../booster/publier/PublishModal";
+import type { BoosterChannelIdentitySeed } from "../booster/publier/publishConnectionSnapshot";
 import AiConfigurationIcon from "./AiConfigurationIcon";
 import BusinessDnaIcon from "./BusinessDnaIcon";
 import BoosterHeaderBrand from "./BoosterHeaderBrand";
@@ -51,11 +52,13 @@ export default function DashboardBoosterModalLayer({
   mode,
   onClose,
   initialConnectedChannels,
+  initialChannelIdentity,
   companyName,
 }: {
   mode: DashboardBoosterModalMode;
   onClose: () => void;
   companyName?: string;
+  initialChannelIdentity?: BoosterChannelIdentitySeed;
   initialConnectedChannels?: Partial<Record<"site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "threads" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest", boolean>>;
 }) {
   const i18nT = useTranslations("booster");
@@ -566,6 +569,7 @@ export default function DashboardBoosterModalLayer({
             openHelpActionRef={publishOpenHelpRef}
             onDraftHeaderStateChange={handlePublishDraftHeaderStateChange}
             initialConnectedChannels={initialConnectedChannels}
+            initialChannelIdentity={initialChannelIdentity}
             publicationResult={publishSuccessOpen ? {
               summary: publishSummary,
               retrying: publishRetrying,

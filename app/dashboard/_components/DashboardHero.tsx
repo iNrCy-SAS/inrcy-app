@@ -205,7 +205,7 @@ export default function DashboardHero({
                   </div>
                   <span className={styles.cockpitStageScore}>
                     {step.value >= 100 ? <span className={styles.cockpitComplete}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 10 3.2 3.2L15 6.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>{heroT("stepComplete")}</span> : null}
-                    {step.key !== "channels" ? <b>{step.value}%</b> : null}
+                    <b>{step.value}%</b>
                   </span>
                 </div>
               </div>

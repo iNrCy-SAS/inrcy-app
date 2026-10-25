@@ -18,7 +18,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
 import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
-import { readBoosterConnectionSnapshot, writeBoosterConnectionSnapshot } from "./publishConnectionSnapshot";
+import { mergeBoosterChannelDetails, readBoosterChannelIdentitySeed, readBoosterConnectionSnapshot, writeBoosterConnectionSnapshot, type BoosterChannelIdentitySeed } from "./publishConnectionSnapshot";
 import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import PublishExecutionResultModal, { PublishExecutionResultActions, type PublishExecutionSummary } from "../../_components/PublishExecutionResultModal";
@@ -523,6 +523,7 @@ export default function PublishModal({
   onDraftHeaderStateChange,
   onWizardModeChange,
   initialConnectedChannels,
+  initialChannelIdentity,
   companyName,
 }: {
   styles: typeof stylesDash;
@@ -548,6 +549,7 @@ export default function PublishModal({
     draftMessage: string;
   }) => void;
   initialConnectedChannels?: Partial<Record<ChannelKey, boolean>>;
+  initialChannelIdentity?: BoosterChannelIdentitySeed;
   companyName?: string;
 }) {
   const { metaPilotEnabled, activeAccountId, actorUserId } = useDashboardViewerAccess();
@@ -1192,7 +1194,15 @@ export default function PublishModal({
   );
   const [channelDetails, setChannelDetails] = useState<
     Record<ChannelKey, ChannelConnectionDetail>
-  >(initialConnectionBootstrap.snapshot?.channelDetails ?? EMPTY_CHANNEL_DETAILS);
+  >(() => {
+    const cached = initialConnectionBootstrap.snapshot?.channelDetails ?? EMPTY_CHANNEL_DETAILS;
+    const seed = readBoosterChannelIdentitySeed(actorUserId, initialConnectionBootstrap.accountId, CHANNEL_KEYS, initialChannelIdentity);
+    const incoming = { ...EMPTY_CHANNEL_DETAILS, ...cached };
+    for (const key of CHANNEL_KEYS) {
+      if (seed[key]) incoming[key] = { ...incoming[key], ...seed[key] };
+    }
+    return mergeBoosterChannelDetails(CHANNEL_KEYS, incoming, cached, getInitialConnectedChannels());
+  });
   const [hasKnownChannelConnections, setHasKnownChannelConnections] = useState(Boolean(initialConnectionBootstrap.snapshot));
   const [connectedChannelsLoadState, setConnectedChannelsLoadState] = useState<"loading" | "ready" | "error">("loading");
   const connectedChannelsScopeRef = useRef<string | null | undefined>(initialConnectionBootstrap.accountId);
@@ -1550,14 +1560,7 @@ export default function PublishModal({
           // never hide the other accounts or hold up channel selection.
           setChannelDetails((prev) => {
             if (!isCurrent()) return prev;
-            const next = { ...EMPTY_CHANNEL_DETAILS, ...nextChannelDetails };
-            const pinterest = next.pinterest;
-            const previousPinterest = prev.pinterest;
-            if (nextConnected.pinterest && previousPinterest?.label &&
-              (!pinterest?.href || previousPinterest.href === pinterest.href) &&
-              (!pinterest?.label || pinterest.label === "Compte Pinterest connecté")) {
-              next.pinterest = { ...pinterest, label: previousPinterest.label };
-            }
+            const next = mergeBoosterChannelDetails(CHANNEL_KEYS, { ...EMPTY_CHANNEL_DETAILS, ...nextChannelDetails }, prev, nextConnected);
             CHANNEL_KEYS.forEach((key) => {
               next[key] = { ...next[key], availabilityError: false };
             });
@@ -1630,7 +1633,8 @@ export default function PublishModal({
                       ? `https://www.tiktok.com/@${encodeURIComponent(username)}`
                       : ""),
                 );
-                setChannelDetails((current) => ({
+                if (!username && !profileHref) return;
+                setChannelDetails((current) => !isCurrent() ? current : mergeBoosterChannelDetails(CHANNEL_KEYS, {
                   ...current,
                   tiktok: {
                     ...(current.tiktok || EMPTY_CHANNEL_DETAILS.tiktok),
@@ -1638,7 +1642,7 @@ export default function PublishModal({
                     label: username ? `@${username}` : "Compte TikTok connecté",
                     href: profileHref || null,
                   },
-                }));
+                }, current, nextConnected));
               })
               .catch(() => null);
           }
