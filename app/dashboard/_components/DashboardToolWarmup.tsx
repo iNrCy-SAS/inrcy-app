@@ -9,6 +9,7 @@ import {
 } from "@/lib/browserModuleSnapshotCache";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { useDashboardEdition } from "./DashboardEditionProvider";
+import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
 
 export const DASHBOARD_TOOL_WARMUP_EVENT = "inrcy:dashboard-tool-warmup";
@@ -107,6 +108,7 @@ function normalizedPath(path: string) {
 export default function DashboardToolWarmup() {
   const router = useRouter();
   const edition = useDashboardEdition();
+  const { actorUserId, activeAccountId, metaPilotEnabled } = useDashboardViewerAccess();
   const standardMode = edition === "standard";
   const accountingEnabled = hasAccountingDashboardAccess(edition);
 
@@ -161,6 +163,17 @@ export default function DashboardToolWarmup() {
 
     const enqueueSnapshotForPath = (path: string, priority = 20) => {
       const pathname = normalizedPath(path);
+
+      if (pathname === "/dashboard/stats") {
+        enqueue({
+          key: `snapshot:stats-evolution:${activeAccountId}:${standardMode}:${metaPilotEnabled}`,
+          priority,
+          run: async () => {
+            const { loadMeasuredEvolution, statsEvolutionChannels } = await import("../stats/stats.evolution-loader");
+            await loadMeasuredEvolution({ accountId: activeAccountId, channels: statsEvolutionChannels(standardMode, metaPilotEnabled) });
+          },
+        });
+      }
 
       if (pathname === "/dashboard/crm") {
         enqueue({
@@ -340,12 +353,8 @@ export default function DashboardToolWarmup() {
         prefetchRoute(route, 20 - Math.floor(index / 2));
       });
 
-      // iNr'Send is the only data snapshot warmed without explicit intent. Its
-      // first page is bounded and directly fixes the slow-open complaint. The
-      // former six-tool sweep fired several Supabase history/metrics queries
-      // 800 ms after every dashboard mount, even when those tools were never
-      // opened. All other snapshots remain intent-first through pointer,
-      // focus, click or the explicit warmup event above.
+      // Other tool snapshots remain intent-first, apart from Send's bounded
+      // first page. Stats and Booster start immediately below, ahead of routes.
       enqueueSnapshotForPath("/dashboard/mails", 12);
     };
 
@@ -366,6 +375,17 @@ export default function DashboardToolWarmup() {
       scheduleProgressiveWarmup();
     };
 
+    // Start critical opening data as soon as the account is available. Waiting
+    // for the idle route queue leaves an avoidable cold-load waterfall.
+    enqueueSnapshotForPath("/dashboard/stats", 100);
+    enqueue({
+      key: `snapshot:booster-connections:${actorUserId}:${activeAccountId}`,
+      priority: 95,
+      run: async () => {
+        const { warmBoosterConnectionSnapshot } = await import("../booster/publier/publishConnectionSnapshot");
+        await warmBoosterConnectionSnapshot(actorUserId, activeAccountId, () => !cancelled);
+      },
+    });
     scheduleProgressiveWarmup();
     window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, handleAccountChange);
 
@@ -382,7 +402,7 @@ export default function DashboardToolWarmup() {
       window.removeEventListener(DASHBOARD_TOOL_WARMUP_EVENT, onExplicitWarmup as EventListener);
       window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, handleAccountChange);
     };
-  }, [accountingEnabled, router, standardMode]);
+  }, [accountingEnabled, actorUserId, activeAccountId, metaPilotEnabled, router, standardMode]);
 
   return null;
 }

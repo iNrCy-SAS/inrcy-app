@@ -25,7 +25,7 @@ function storage() {
   };
 }
 
-function harness() {
+function harness(fetcher: typeof fetch = async () => { throw new Error("Unexpected network request"); }) {
   let activeAccount: string | null = "account-a";
   let now = 1_800_000_000_000;
   const sessionStorage = storage();
@@ -39,12 +39,12 @@ function harness() {
     loaded.set(path, loadedModule.exports);
     const source = readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
     const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-    new Function("module", "exports", "require", "window", "document", "Date", output)(
+    new Function("module", "exports", "require", "window", "document", "Date", "fetch", output)(
       loadedModule, loadedModule.exports,
       (name: string) => {
         assert.ok(name.startsWith("@/lib/"), `Unexpected dependency ${name}`);
         return load(`${name.slice(2)}.ts`);
-      }, window, document, class extends Date { static now() { return now; } },
+      }, window, document, class extends Date { static now() { return now; } }, fetcher,
     );
     return loadedModule.exports;
   };
@@ -61,7 +61,7 @@ function harness() {
     for (const store of [sessionStorage, localStorage]) store.setItem(key, JSON.stringify(value));
   };
   return {
-    read, write, modify, snapshotKey, sessionStorage, localStorage, cache, cacheKeys,
+    api, read, write, modify, snapshotKey, sessionStorage, localStorage, cache, cacheKeys,
     account: (next: string | null) => { activeAccount = next; },
     time: (elapsed: number) => { now += elapsed; },
     dashboard: (state: unknown, offset = 0) => cache.writeAccountCacheValue(cacheKeys.channelState, JSON.stringify({ cachedAt: now + offset, state }), "account-a"),
@@ -199,4 +199,84 @@ test("Booster: unavailable browser storage remains a harmless cache miss", () =>
   }
   assert.doesNotThrow(() => h.write());
   assert.equal(h.read(), null);
+});
+
+test("Booster: dashboard identities are actor/account scoped and never carry publication permissions", () => {
+  const h = harness();
+  const seed = { actorUserId: "actor-one", accountId: "account-a", channelDetails: {
+    ...details,
+    pinterest: { ...details.pinterest, disabled: false, connectionStatus: "connected", access_token: "private" },
+    facebook: { label: "", href: null },
+  } };
+  const readSeed = (actor = "actor-one", account = "account-a") => h.api.readBoosterChannelIdentitySeed(actor, account, keys, seed);
+  assert.deepEqual(readSeed().pinterest, details.pinterest);
+  assert.equal(readSeed().facebook, undefined, "an empty dashboard identity cannot clear a known cached profile");
+  assert.deepEqual(readSeed("another-actor"), {});
+  assert.deepEqual(readSeed("actor-one", "account-b"), {});
+  h.account("account-b");
+  assert.deepEqual(readSeed(), {});
+});
+
+test("Booster: generic or URL refreshes preserve known names only for the same available destination", () => {
+  const h = harness();
+  for (const label of [null, "Compte Pinterest connecté", details.pinterest.href]) {
+    const incoming = { ...details, pinterest: { ...details.pinterest, label } };
+    assert.equal(h.api.mergeBoosterChannelDetails(keys, incoming, details, channels).pinterest.label, "iNrCy Pinterest");
+  }
+  for (const override of [
+    { href: "https://www.pinterest.fr/another/" }, { disabled: true },
+    { requiresReconnect: true }, { connectionStatus: "disconnected" }, { connectionStatus: "needs_update" },
+  ]) {
+    const next = { ...details.pinterest, label: "Compte Pinterest connecté", ...override };
+    assert.deepEqual(h.api.mergeBoosterChannelDetails(keys, { ...details, pinterest: next }, details, channels).pinterest, next);
+  }
+  const disconnected = { ...details, pinterest: { label: null } };
+  assert.equal(h.api.mergeBoosterChannelDetails(keys, disconnected, details, { ...channels, pinterest: false }).pinterest.label, null);
+  for (const href of ["https://www.youtube.com/@école", "https://example.com"]) {
+    const known = { youtube_shorts: { label: "École connue", href: new URL(href).href } };
+    const incoming = { youtube_shorts: { label: href, href: new URL(href).href } };
+    assert.equal(h.api.mergeBoosterChannelDetails(["youtube_shorts"], incoming, known, { youtube_shorts: true }).youtube_shorts.label, "École connue");
+  }
+});
+
+test("Booster: dashboard warmup prepares the complete first-opening snapshot without private metadata", async () => {
+  let requests = 0;
+  const h = harness(async (url, options) => {
+    requests++;
+    assert.equal(url, "/api/booster/connected-channels");
+    assert.equal(options?.cache, "no-store");
+    assert.equal(options?.credentials, "include");
+    return Response.json({ ok: true, channels, channelDetails: { ...details, pinterest: { ...details.pinterest, access_token: "private" } } });
+  });
+  assert.equal(h.read(), null);
+  await h.api.warmBoosterConnectionSnapshot("actor-one", "account-a");
+  assert.equal(requests, 1);
+  assert.deepEqual(h.read()?.channels, channels);
+  assert.equal(h.read()?.channelDetails.pinterest.label, "iNrCy Pinterest");
+  assert.doesNotMatch([...h.localStorage.values.values()].join(""), /private|access_token/);
+});
+
+test("Booster: a late warmup cannot overwrite a foreground refresh or write after account change/unmount", async () => {
+  for (const scenario of ["foreground", "account", "unmount"] as const) {
+    let resolve!: (response: Response) => void;
+    let current = true;
+    const h = harness(() => new Promise<Response>(done => { resolve = done; }));
+    const warmup = h.api.warmBoosterConnectionSnapshot("actor-one", "account-a", () => current);
+    if (scenario === "foreground") h.write("actor-one", "account-a", channels, { ...details, pinterest: { ...details.pinterest, label: "Updated foreground" } });
+    if (scenario === "account") h.account("account-b");
+    if (scenario === "unmount") current = false;
+    resolve(Response.json({ ok: true, channels, channelDetails: details }));
+    await warmup;
+    h.account("account-a");
+    assert.equal(h.read()?.channelDetails.pinterest.label, scenario === "foreground" ? "Updated foreground" : undefined, scenario);
+  }
+});
+
+test("Booster: failed or malformed warmups leave the last known snapshot intact", async () => {
+  for (const result of [Response.json({ ok: false }, { status: 503 }), Response.json({ ok: true, channels, channelDetails: {} })]) {
+    const h = harness(async () => result);
+    h.write();
+    await h.api.warmBoosterConnectionSnapshot("actor-one", "account-a");
+    assert.equal(h.read()?.channelDetails.pinterest.label, "iNrCy Pinterest");
+  }
 });

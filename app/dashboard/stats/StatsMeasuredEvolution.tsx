@@ -2,80 +2,61 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { getActiveBrowserUserId, readAccountCacheValue, writeAccountCacheValue } from "@/lib/browserAccountCache";
-import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
-import { readMeasuredEvolutionCache, writeMeasuredEvolutionCache, type MeasuredEvolutionMonth } from "./stats.evolution-cache";
-import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
-import type { CubeKey, Overview } from "./stats.shared.types";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+import type { MeasuredEvolutionMonth } from "./stats.evolution-cache";
+import { loadMeasuredEvolution, readBrowserMeasuredEvolution } from "./stats.evolution-loader";
+import type { CubeKey } from "./stats.shared.types";
 import { statsCalendarMonths, type MonthlyMeasuredMetrics, type StatsCalendarMonth } from "./stats.months";
-import { commonMonthlyChange, monthlyMeasuredStats } from "./stats.monthly-metrics";
+import { commonMonthlyChange } from "./stats.monthly-metrics";
 import css from "./statsPanorama.module.css";
 
 type MonthResult = MeasuredEvolutionMonth;
+type Snapshot = { scope: string; channels: string; refresh: number; months: MonthResult[] };
 type Props = { enabled: boolean; accountId: string; refreshKey: number; channels: Array<{ key: CubeKey; title: string }>; ready: boolean; tabs?: ReactNode; onHistoryLoaded?: () => void };
-export default function StatsEvolution({ enabled, accountId, refreshKey, channels, ready, tabs, onHistoryLoaded }: Props) {
+export default function StatsEvolution({ enabled, accountId, refreshKey, channels, tabs, onHistoryLoaded }: Props) {
   const locale = useLocale();
   const t = useTranslations("stats");
   const [metric, setMetric] = useState<keyof MonthlyMeasuredMetrics>("visibility");
   const [channel, setChannel] = useState<CubeKey | "all">("all");
   const [requestTick, setRequestTick] = useState(0);
-  const [snapshot, setSnapshot] = useState<{ scope: string; refresh: number; months: MonthResult[] } | null>(null);
+  const requestedKeys = channels.map(item => item.key).sort().join(",");
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(() => {
+    const cached = refreshKey === 0 ? readBrowserMeasuredEvolution(accountId, requestedKeys) : null;
+    return cached ? { scope: accountId, channels: requestedKeys, refresh: refreshKey, months: cached } : null;
+  });
   const [busy, setBusy] = useState(false);
   const visibleScope = getActiveBrowserUserId() || accountId;
-  const visible = snapshot?.scope === visibleScope && snapshot?.refresh === refreshKey ? snapshot : null;
+  const visible = snapshot?.scope === visibleScope && snapshot.channels === requestedKeys ? snapshot : null;
   const periods = visible?.months.map(month => month.period) || statsCalendarMonths();
-  const requestedKeys = channels.map(item => item.key).join(",");
 
   useEffect(() => {
-    if (!accountId || (snapshot?.scope === accountId && snapshot.refresh === refreshKey)) return;
+    if (!accountId) return;
     const scope = getActiveBrowserUserId() || accountId;
     if (scope !== accountId) return;
-    const windows = statsCalendarMonths();
-    const cached = refreshKey === 0 && requestTick === 0
-      ? readMeasuredEvolutionCache(readAccountCacheValue(DASHBOARD_CACHE_KEYS.statsEvolution, scope), scope, requestedKeys, windows)
-      : null;
-    if (cached) { setSnapshot({ scope, refresh: refreshKey, months: cached }); return; }
-    // Both views stay mounted. Start the cold fetch as soon as the main snapshot
-    // is ready, independently of which tab is currently visible.
-    if (!ready) return;
-    const controller = new AbortController();
-    const stop = () => controller.abort();
-    window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, stop);
-    const timeout = window.setTimeout(stop, 75_000);
-    const valid = () => !controller.signal.aborted && (getActiveBrowserUserId() || accountId) === scope;
-    async function load() {
-      setBusy(true);
-      const internalPromise = fetch("/api/inrstats/evolution", { cache: "no-store", credentials: "include", signal: controller.signal })
-        .then(async response => response.ok ? response.json() : null).catch(() => null) as Promise<{ results?: Array<{ month: string; inrbadge: MonthlyMeasuredMetrics; inr_search: MonthlyMeasuredMetrics }> } | null>;
-      const external = await Promise.all(windows.map(async period => {
-        if (period.days < 7) return { period, values: {}, loaded: true } as MonthResult;
-        try {
-          const supported = requestedKeys.split(",").filter(key => !["inrbadge", "inr_search", "mails", "tiktok", "x"].includes(key));
-          const include = supported.flatMap(key => key === "site_web" ? ["site_web_ga4", "site_web_gsc"] : [key]).join(",");
-          if (!include) return { period, values: {}, loaded: true } as MonthResult;
-          const params = new URLSearchParams({ days: String(period.days), snapshotDate: period.end, include });
-          const response = await fetch(`/api/stats/overview?${params}`, { cache: "no-store", credentials: "include", signal: controller.signal });
-          if (!response.ok) throw new Error("unavailable");
-          const overview = await response.json() as Overview;
-          return { period, loaded: true, values: Object.fromEntries(requestedKeys.split(",").map(key => [key, monthlyMeasuredStats(key as CubeKey, overview, period)])) } as MonthResult;
-        } catch { return { period, values: {}, loaded: false } as MonthResult; }
-      }));
-      const internal = await internalPromise;
-      for (const month of external) {
-        const counts = internal?.results?.find(result => result.month === month.period.key);
-        if (counts) { month.values.inrbadge = counts.inrbadge; month.values.inr_search = counts.inr_search; }
-      }
-      if (valid()) {
-        setSnapshot({ scope, refresh: refreshKey, months: external });
-        onHistoryLoaded?.();
-        const cache = writeMeasuredEvolutionCache(scope, requestedKeys, external);
-        if (cache) writeAccountCacheValue(DASHBOARD_CACHE_KEYS.statsEvolution, cache, scope);
-      }
-      if ((getActiveBrowserUserId() || accountId) === scope) setBusy(false);
+    if (snapshot?.scope === accountId && snapshot.channels === requestedKeys && snapshot.refresh === refreshKey) {
+      setBusy(false);
+      onHistoryLoaded?.();
+      return;
     }
-    void load();
-    return () => { controller.abort(); window.clearTimeout(timeout); window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, stop); };
-  }, [accountId, ready, refreshKey, requestTick, requestedKeys, snapshot, onHistoryLoaded]);
+    const cached = refreshKey === 0 && requestTick === 0
+      ? readBrowserMeasuredEvolution(scope, requestedKeys)
+      : null;
+    if (cached) { setSnapshot({ scope, channels: requestedKeys, refresh: refreshKey, months: cached }); return; }
+    // Join the dashboard preload immediately, without waiting for the unrelated
+    // overview. Keep a same-account snapshot visible during manual refresh.
+    let cancelled = false;
+    const valid = () => !cancelled && (getActiveBrowserUserId() || accountId) === scope;
+    setBusy(true);
+    void loadMeasuredEvolution({ accountId: scope, channels: requestedKeys, force: refreshKey !== 0 || requestTick !== 0 })
+      .then(months => {
+        if (months && valid()) setSnapshot({ scope, channels: requestedKeys, refresh: refreshKey, months });
+      })
+      .catch(() => undefined)
+      .finally(() => { if (valid()) setBusy(false); });
+    // Leaving the tool must not cancel a shared dashboard preload. The loader
+    // itself aborts on account changes and never caches another account's data.
+    return () => { cancelled = true; };
+  }, [accountId, refreshKey, requestTick, requestedKeys, snapshot, onHistoryLoaded]);
 
   const number = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
   const monthName = (period: StatsCalendarMonth) => new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${period.start}T12:00:00Z`));

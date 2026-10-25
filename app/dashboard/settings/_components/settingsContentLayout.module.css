@@ -166,6 +166,16 @@
   .preferencesGrid { grid-template-columns: minmax(0, .9fr) minmax(0, 1fr) minmax(0, 1.4fr); }
 }
 
+@media (min-width: 1101px) {
+  .plansGrid .planHeader { flex-wrap: nowrap; gap: 12px; }
+  .plansGrid .planHeader > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-width: 0; }
+  .plansGrid .planHeader h2 { order: -1; margin: 0; font-size: 27px; line-height: 1.2; }
+  .plansGrid .planEyebrow { font-size: 9px; line-height: 1.4; letter-spacing: .045em; }
+  .plansGrid .currentBadge { flex: 0 0 auto; padding: 5px 8px; font-size: 10px; }
+  .plansGrid .planDescription { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-height: 0; margin-top: 10px; font-size: 12px; line-height: 1.45; }
+  .plansGrid .planDescription strong { font-size: 18px; line-height: 1.35; }
+}
+
 @media (max-width: 520px) {
   .premiumActivationOptions { grid-template-columns: minmax(0, 1fr); }
   .premiumActivationOption { min-height: 110px; }

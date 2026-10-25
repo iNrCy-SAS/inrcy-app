@@ -11,6 +11,13 @@ const EVENT = "inrcy:channel-connection-updated";
 const CACHE = "inrcy_dashboard_channel_state_v2";
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 
+const snapshotSource = ts.createSourceFile("snapshot.ts", read("app/dashboard/booster/publier/publishConnectionSnapshot.ts"), ts.ScriptTarget.Latest, true);
+const mergeDeclaration = snapshotSource.statements.find(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === "mergeBoosterChannelDetails");
+assert.ok(mergeDeclaration);
+const mergeBoosterChannelDetails = new Function("exports", ts.transpileModule(mergeDeclaration.getText(snapshotSource), {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+}).outputText + "; return mergeBoosterChannelDetails;")({});
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>(done => { resolve = done; });
@@ -113,6 +120,7 @@ function boosterEffect(options: {
     actorUserId: "actor-a", activeAccountId: "",
     connectedChannelsActorRef: { current: "actor-a" },
     readBoosterConnectionSnapshot: options.readSnapshot ?? (() => null),
+    mergeBoosterChannelDetails,
     setHasKnownChannelConnections: (next: boolean) => { hasKnown = next; },
     subscribeToChannelConnectionUpdates: b.subscribe,
     connectedChannelsScopeRef: { current: options.detailScope === undefined ? (options.details ? b.account() : undefined) : options.detailScope },
@@ -207,6 +215,7 @@ for (const consumer of ["Booster", "iNrAgent"] as const) {
       actorUserId: "actor-a", activeAccountId: "",
       connectedChannelsActorRef: { current: "actor-a" },
       readBoosterConnectionSnapshot: () => null,
+      mergeBoosterChannelDetails,
       setHasKnownChannelConnections() {},
       subscribeToChannelConnectionUpdates: b.subscribe,
       connectedChannelsScopeRef: { current: undefined },

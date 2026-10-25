@@ -11,6 +11,12 @@ test('a warm monthly snapshot restores exact measured values including zeroes',(
   const raw=writeMeasuredEvolutionCache('account-a',channels,months,now);
   assert.deepEqual(readMeasuredEvolutionCache(raw,'account-a',channels,periods,now+1000),months);
 });
+
+test('prewarming reuses existing snapshots when the same channel catalogue has a different order',()=>{
+  const raw=writeMeasuredEvolutionCache('account-a','instagram,facebook',months,now);
+  assert.deepEqual(readMeasuredEvolutionCache(raw,'account-a',channels,periods,now+1000),months);
+  assert.equal(readMeasuredEvolutionCache(raw,'account-a','facebook,instagram,threads',periods,now),null);
+});
 test('history cache cannot cross accounts, channel catalogues, days, or its freshness window',()=>{
   const raw=writeMeasuredEvolutionCache('account-a',channels,months,now);
   assert.equal(readMeasuredEvolutionCache(raw,'account-b',channels,periods,now),null);

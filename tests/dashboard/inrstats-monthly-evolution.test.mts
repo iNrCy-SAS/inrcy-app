@@ -72,8 +72,9 @@ test("the real monthly internal endpoint scopes every count to the authenticated
 
 test("monthly data stays isolated by account and chart interaction has one point readout", () => {
   const source = readFileSync(new URL("../../app/dashboard/stats/StatsMeasuredEvolution.tsx", import.meta.url), "utf8");
+  const loader = readFileSync(new URL("../../app/dashboard/stats/stats.evolution-loader.ts", import.meta.url), "utf8");
   assert.match(source, /snapshot\?\.scope === visibleScope/);
-  assert.match(source, /controller\.abort\(\)/);
+  assert.match(loader, /controller\.abort\(\)/);
   assert.match(source, /getActiveBrowserUserId\(\).*=== scope/);
   const chart = readFileSync(new URL("../../app/dashboard/stats/StatsTrendChart.tsx", import.meta.url), "utf8");
   assert.match(chart, /trendPointCard/);
