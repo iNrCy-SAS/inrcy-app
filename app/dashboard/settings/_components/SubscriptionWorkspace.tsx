@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import styles from "./subscriptionWorkspace.module.css";
+import offerStyles from "./settingsContentLayout.module.css";
 
 /** Long explanations remain available without extending the subscription overview. */
 export function SubscriptionDetails({ title, children, open, onClose }: {
@@ -34,12 +35,18 @@ export function SubscriptionDetails({ title, children, open, onClose }: {
   </>;
 }
 
-export default function SubscriptionWorkspace({ children, management, notice, className }: {
+export default function SubscriptionWorkspace({ children, management, notice, className, layout = "compact" }: {
   children: ReactNode;
   management?: ReactNode;
   notice?: ReactNode;
   className?: string;
+  layout?: "compact" | "offers";
 }) {
+  if (layout === "offers") return <div className={offerStyles.workspace}>
+    {notice}
+    {children}
+    {management ? <div className={styles.offerManagement}>{management}</div> : null}
+  </div>;
   return <div className={`${styles.workspace} ${className ?? ""}`}>
     {notice}
     <div className={management ? styles.subscriptionLayout : undefined}>

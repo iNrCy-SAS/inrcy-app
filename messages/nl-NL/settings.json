@@ -723,6 +723,7 @@
   "subscription_quota_note": "Booster en iNr’Studio delen de AI-quota. Ongebruikte tegoeden worden meegenomen tot de saldolimiet van je abonnement.",
   "subscription_publication_channels": "Publiceren op {count} kanalen",
   "subscription_publications_statistics": "Publicaties en statistieken",
+  "subscription_ai_agents_included": "{count} iNrAgent AI-agenten inbegrepen",
   "subscription_reputation": "Reputatie",
   "subscription_email_campaigns": "E-mailcampagnes",
   "subscription_quotes_invoices": "Klantoffertes en facturen",

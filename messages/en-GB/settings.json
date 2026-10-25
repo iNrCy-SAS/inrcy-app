@@ -723,6 +723,7 @@
   "subscription_quota_note": "AI quotas are shared between Booster and iNr’Studio. Unused credits roll over up to your plan’s balance limit.",
   "subscription_publication_channels": "Publishing to {count} channels",
   "subscription_publications_statistics": "Publications and statistics",
+  "subscription_ai_agents_included": "{count} iNrAgent AI agents included",
   "subscription_reputation": "Reputation",
   "subscription_email_campaigns": "Email campaigns",
   "subscription_quotes_invoices": "Customer quotes and invoices",

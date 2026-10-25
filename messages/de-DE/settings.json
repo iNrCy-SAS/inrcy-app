@@ -723,6 +723,7 @@
   "subscription_quota_note": "Booster und iNr’Studio teilen sich die KI-Kontingente. Nicht verbrauchtes Guthaben wird bis zum Guthabenlimit Ihres Tarifs übertragen.",
   "subscription_publication_channels": "Veröffentlichung auf {count} Kanälen",
   "subscription_publications_statistics": "Veröffentlichungen und Statistiken",
+  "subscription_ai_agents_included": "{count} iNrAgent KI-Agenten inklusive",
   "subscription_reputation": "Reputation",
   "subscription_email_campaigns": "E-Mail-Kampagnen",
   "subscription_quotes_invoices": "Kundenangebote und Rechnungen",

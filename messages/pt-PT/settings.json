@@ -723,6 +723,7 @@
   "subscription_quota_note": "As quotas de IA são partilhadas entre Booster e iNr’Studio. Os créditos não utilizados acumulam até ao limite de saldo do seu plano.",
   "subscription_publication_channels": "Publicação em {count} canais",
   "subscription_publications_statistics": "Publicações e estatísticas",
+  "subscription_ai_agents_included": "{count} agentes de IA iNrAgent incluídos",
   "subscription_reputation": "Reputação",
   "subscription_email_campaigns": "Campanhas de email",
   "subscription_quotes_invoices": "Orçamentos e faturas de clientes",

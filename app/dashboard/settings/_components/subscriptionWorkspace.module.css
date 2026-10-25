@@ -2,6 +2,7 @@
 .workspace :where(button, a, input) { -webkit-tap-highlight-color: transparent; }
 .workspace :where(button, a):focus-visible, .detailsDialog :where(button, a):focus-visible { outline: 2px solid #9feaff; outline-offset: 3px; }
 .workspace button:disabled, .detailsDialog button:disabled { opacity: .55; cursor: default; }
+.offerManagement { margin-top: 24px; min-width: 0; }
 .overview { container: subscription-overview / inline-size; min-width: 0; }
 .subscriptionLayout, .plansGrid, .legacyGrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; min-width: 0; }
 .subscriptionLayout > *, .plansGrid > *, .legacyGrid > * { min-width: 0; }

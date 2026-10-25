@@ -723,6 +723,7 @@
   "subscription_quota_note": "Booster และ iNr’Studio ใช้โควตา AI ร่วมกัน เครดิตที่ไม่ได้ใช้จะสะสมได้ไม่เกินวงเงินของแพ็กเกจ",
   "subscription_publication_channels": "เผยแพร่ผ่าน {count} ช่องทาง",
   "subscription_publications_statistics": "สิ่งพิมพ์และสถิติ",
+  "subscription_ai_agents_included": "รวมเอเจนต์ AI iNrAgent {count} ตัว",
   "subscription_reputation": "ชื่อเสียง",
   "subscription_email_campaigns": "แคมเปญอีเมล",
   "subscription_quotes_invoices": "ใบเสนอราคาและใบแจ้งหนี้ลูกค้า",
