@@ -1,11 +1,16 @@
 "use client";
 
-import DashboardModulesCard from "./DashboardModulesCard";
+import type { ReactNode } from "react";
+import DashboardModulesCard, { type DashboardOverviewMetrics } from "./DashboardModulesCard";
 
 type Props = {
+  cockpit?: ReactNode;
+  generator?: ReactNode;
+  overview?: DashboardOverviewMetrics;
   goToModule: (path: string) => void;
   onOpenPremium: () => void;
   onOpenStats?: () => void;
+  onOpenGeneratorSettings?: () => void;
   onOpenBoosterPublish?: () => void;
   onOpenBoosterStats?: () => void;
   adsPilotEnabled?: boolean;

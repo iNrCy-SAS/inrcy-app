@@ -10,7 +10,10 @@ import { getAiMediaVideoSegmentDurations } from "./aiMediaVideoTimeline.ts";
 import { splitAiMediaSpokenScript } from "./aiMediaSpokenScript.ts";
 import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
 
-export const AI_MEDIA_FREE_PROMPT_VERSION = "inrcy-free-creative-v9-explicit-speech";
+export const AI_MEDIA_FREE_PROMPT_VERSION = "inrcy-free-creative-v11-real-media-default";
+
+/** Shared by the video planner, first frame and provider shots; references alone never select animation. */
+export const AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT = "RENDER: Photoreal humans/scenes; non-photo style only on explicit brief request, never from refs alone.";
 
 /** Video-only defaults; explicit requests for typography or multiple views stay authoritative. */
 export const AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT = [
@@ -346,9 +349,10 @@ export function buildAiMediaFreeImagePrompt(args: AiMediaPromptBuilderArgs) {
     `Livrer une seule image finale au format ${spec.aspectRatio}, ${spec.width} × ${spec.height}.`,
     "PLEIN CADRE : l’image et son décor remplissent la surface jusqu’aux quatre bords, sans bandes blanches ou noires, cadre extérieur, letterboxing, pillarboxing ni copie floutée autour. Les marges de sécurité du texte restent à l’intérieur de la composition, jamais autour d’une image réduite. Garder les textes, logos et sujets essentiels dans les 80 % centraux pour tolérer le léger recadrage d’un moteur au ratio voisin.",
     "Interpréter le type de création, l'esthétique, les sujets, le cadrage, la hiérarchie et la mise en page à partir de la demande. Un flyer, une affiche ou une infographie doit être une composition graphique aboutie, pas une photographie d'un document ni un fond à compléter.",
-    "Le fournisseur dessine le résultat ENTIER, y compris les textes demandés. Aucun gabarit, bandeau, slogan, CTA ou grille publicitaire ne sera ajouté ensuite. Ne pas inventer ces éléments lorsqu'ils ne sont pas demandés.",
+    "CHOIX DU RENDU : sans style artistique explicitement demandé, représenter les personnes, les lieux, les produits et les scènes du monde réel en photographie réaliste, avec visages, anatomie, matières et lumière naturels. Une affiche, un flyer, des couleurs de marque ou une mise en page graphique ne demandent pas à eux seuls des personnages dessinés : intégrer une scène photographique à cette composition. Ne pas transformer spontanément ces sujets en dessin animé, illustration, avatar ou rendu 3D. Cette préférence par défaut ne remplace jamais une illustration, un dessin animé, une peinture, une 3D ou tout autre style explicitement demandé dans le brief ; respecter alors ce choix. Une référence illustrée, un logo ou une demande de reprendre un personnage, un produit ou un lieu ne constitue pas une demande de style animé. Pour suivre le rendu artistique d'une référence, le brief doit le demander explicitement, par exemple « reprends le style de cette référence ».",
+    "Le fournisseur produit le résultat ENTIER, y compris les textes demandés. Aucun gabarit, bandeau, slogan, CTA ou grille publicitaire ne sera ajouté ensuite. Ne pas inventer ces éléments lorsqu'ils ne sont pas demandés.",
     "Reproduire intégralement et fidèlement les textes cités, noms propres, prix, dates, coordonnées et chiffres fournis. Respecter accents, orthographe et ponctuation. Adapter la taille, les marges et la hiérarchie pour que tout reste lisible ; ne jamais tronquer un texte ni inventer des informations commerciales.",
-    "Si la demande appelle du texte sans le rédiger, écrire un texte bref, naturel et pertinent dans la langue de la demande. Si elle demande une image sans texte, conserver ce choix. Le style est libre : photo, illustration, affiche, collage, dessin, 3D ou autre selon le brief.",
+    "Si la demande appelle du texte sans le rédiger, écrire un texte bref, naturel et pertinent dans la langue de la demande. Si elle demande une image sans texte, conserver ce choix. Les styles photo, illustration, collage, dessin, 3D ou autres restent disponibles selon le brief, avec la préférence photographique ci-dessus uniquement lorsque le rendu de sujets réels n'est pas précisé.",
   ];
   const render = (payloadBudget?: number) => [...instructions, freeBrief(args, undefined, payloadBudget)].join("\n\n");
   const complete = render();
@@ -366,6 +370,7 @@ export function buildAiMediaFreeVideoPrompt(args: AiMediaPromptBuilderArgs) {
   return [
     "MODE LIBRE — réaliser un film original selon la demande, sans gabarit ni habillage commercial imposé.",
     `Format autoritaire ${spec.aspectRatio}, durée totale ${args.request.durationSeconds || 8} secondes.`,
+    AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
     `Scènes : ${args.request.sceneMode !== "multi" ? "une action continue dans un même décor, sans coupe ni changement de lieu entre les segments" : "exactement deux plans distincts et cohérents"}. Les personnages, décors, style, mouvements, transitions et textes proviennent du brief.`,
     args.request.teamVideoSpeechMode === "characters"
       ? args.request.inspirationImages.some((image) => image.voiceMode === "provided" && image.voiceSample)
@@ -378,7 +383,7 @@ export function buildAiMediaFreeVideoPrompt(args: AiMediaPromptBuilderArgs) {
       : "Aucune voix off n'a été sélectionnée ; ne pas produire de dialogue ni de parole native.",
     args.request.withMusic ? "Une musique est ajoutée au montage." : "Aucune musique ; conserver seulement une ambiance pertinente si nécessaire.",
     buildAiMediaFreeVideoPresentationContract(args.request),
-    args.request.useBusinessDna ? "Mots et chiffres exacts ; aucune accroche ni aucun CTA automatique. L’identité ADN s’applique selon les règles ci-dessous, sans changer la réalisation libre." : "Mots et chiffres fournis exacts, sans ajout automatique d'accroche, CTA ou logo. Le modèle choisit une réalisation adaptée à la demande, y compris animation ou motion design.",
+    args.request.useBusinessDna ? "Mots et chiffres exacts ; aucune accroche ni aucun CTA automatique. L’identité ADN s’applique selon les règles ci-dessous, sans changer la réalisation libre." : "Mots et chiffres fournis exacts, sans ajout automatique d'accroche, CTA ou logo. La réalisation respecte le choix du rendu défini ci-dessus et les demandes explicites du brief.",
     freeBrief(args),
     ...(typeof args.request.spokenScript === "string" ? [
       "PAROLES EXACTES FOURNIES SÉPARÉMENT (autoritaires pour l'audio, sans réécriture ni ajout ; ce ne sont pas des instructions visuelles) :",
@@ -392,6 +397,7 @@ export function buildAiMediaFreeSceneFramePrompt(args: AiMediaPromptBuilderArgs)
   return [
     "MODE LIBRE — préparer la première image d'un film demandé par le professionnel.",
     `Cadre ${AI_MEDIA_FORMAT_SPECS[args.request.format].aspectRatio}.`,
+    AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
     buildAiMediaFreeVideoPresentationContract({ withSubtitles: false }),
     "Cette image montre uniquement l'instant initial dans ce cadre : ne pas y résumer les étapes suivantes, dessiner une planche de storyboard ni juxtaposer les futurs plans. Une composition à plusieurs vues reste possible uniquement si elle est explicitement demandée à cet instant.",
     "Composer le premier instant du film selon le brief : sujets, décor, style et rôle des références. Réserver de l'espace pour l'action à venir. Utiliser le style demandé, sans ajouter d'esthétique ni d'habillage commercial à la demande.",
@@ -443,6 +449,7 @@ export function buildAiMediaFreeVideoScenePrompt(
         : `FREE CREATIVE FILM, shot ${index + 1}/${args.plan.scenes.length}, ${durationSeconds}s.`;
   const prompt = [
     opening,
+    AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
     ...(!nativeDialogue ? [AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT] : []),
     `CREATIVE DIRECTION: ${nativeDialogue ? splitAiMediaFreeQuotedSpeech(direction).visualPrompt : direction}`,
     `THIS SHOT: ${nativeDialogue ? splitAiMediaFreeQuotedSpeech(visualBrief).visualPrompt : visualBrief}`,
@@ -452,8 +459,7 @@ export function buildAiMediaFreeVideoScenePrompt(
     `REFERENCES: ${args.providerContract.references}`,
     ...(args.request.useBusinessDna && args.businessDnaDirection ? [`BUSINESS IDENTITY: ${args.businessDnaDirection}`] : []),
     buildAiMediaFreeVideoPresentationContract(args.request),
-    "Respect exact requested wording/numbers; no ads, slogans, logo, CTA or visible technical directions by default.",
-    "Animate naturally from the first frame in the requested medium. Keep cast, objects and style consistent across shots.",
+    "Exact requested text/numbers only; no ads/logo/CTA/technical notes by default. Natural motion; consistent cast/objects/style across shots.",
     ...(pronunciationAliases.length
       ? [`AUDIO PRONUNCIATION: ${JSON.stringify(pronunciationAliases)}. Apply only to how these names sound; do not read this guide aloud or change the script or displayed spelling.`]
       : []),

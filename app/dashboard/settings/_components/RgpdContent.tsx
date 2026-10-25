@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import sectionStyles from "./SettingsSections.module.css";
+import styles from "./LegalPrivacyContent.module.css";
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -33,6 +33,17 @@ type Props = {
   mode?: "page" | "drawer";
 };
 
+function PrivacyIcon({ kind }: { kind: "shield" | "export" | "cookies" | "delete" }) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      {kind === "shield" ? <><path d="m24 6 14 5v11c0 10-14 19-14 19S10 32 10 22V11l14-5Z" fill="currentColor" fillOpacity=".1" /><path d="m17 23 5 5 10-11" /></> : null}
+      {kind === "export" ? <><path d="M27 6H13a4 4 0 0 0-4 4v28a4 4 0 0 0 4 4h22a4 4 0 0 0 4-4V18L27 6Z" fill="currentColor" fillOpacity=".1" /><path d="M27 6v12h12M24 23v12m-5-5 5 5 5-5" /></> : null}
+      {kind === "cookies" ? <><path d="M38 24a9 9 0 0 1-9-9 8 8 0 0 1-9-8 17.5 17.5 0 1 0 18 17Z" fill="currentColor" fillOpacity=".1" /><circle cx="17" cy="20" r="1.5" /><circle cx="14" cy="29" r="1.5" /><circle cx="24" cy="33" r="1.5" /><path d="M34 7v6m-3-3h6" /></> : null}
+      {kind === "delete" ? <><path d="M11 14h26l-2 24a4 4 0 0 1-4 4H17a4 4 0 0 1-4-4l-2-24Z" fill="currentColor" fillOpacity=".1" /><path d="M7 14h34M18 14V7h12v7m-10 9v11m8-11v11" /></> : null}
+    </svg>
+  );
+}
+
 export default function RgpdContent({ mode = "page" }: Props) {
   const i18nT = useTranslations("settings");
   const [busy, setBusy] = useState<"export" | null>(null);
@@ -40,36 +51,6 @@ export default function RgpdContent({ mode = "page" }: Props) {
   const [done, setDone] = useState<string | null>(null);
   const initialPrefs = useMemo(() => getCookiePrefs(), []);
   const [analytics, setAnalytics] = useState<boolean>(Boolean(initialPrefs?.analytics));
-
-  const card: React.CSSProperties = {
-    padding: 16,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.045)",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
-  };
-
-  const btn: React.CSSProperties = {
-    border: "1px solid rgba(255,255,255,0.16)",
-    background: "rgba(255,255,255,0.06)",
-    color: "white",
-    borderRadius: 14,
-    padding: "10px 12px",
-    cursor: "pointer",
-    fontWeight: 900,
-    textDecoration: "none",
-    display: "inline-flex",
-    justifyContent: "center",
-    alignItems: "center",
-    width: "100%",
-  };
-
-  const dangerBtn: React.CSSProperties = {
-    ...btn,
-    border: "1px solid rgba(255,120,120,0.35)",
-    background: "rgba(255, 77, 166, 0.10)",
-  };
 
   async function downloadExport() {
     setErr(null);
@@ -103,67 +84,59 @@ export default function RgpdContent({ mode = "page" }: Props) {
     setDone(i18nT("rgpd_cookie_saved"));
   }
 
-  const info: React.CSSProperties = {
-    marginTop: 10,
-    padding: 10,
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(0,0,0,0.25)",
-    fontSize: 13,
-    lineHeight: 1.45,
-    opacity: 0.9,
-  };
-
   return (
-    <div className={sectionStyles.cards}>
-      <div className={sectionStyles.fullWidth} style={card}>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900 }}>{i18nT("mes_donnees_rgpd_735ed1cb")}</h3>
-        <p style={{ margin: "10px 0 0", opacity: 0.85, lineHeight: 1.5 }}>
-          {i18nT("telecharger_vos_donnees_gerer_vos_cookies_2af2d2a2")}{" "}</p>
+    <div className={styles.surface} data-mode={mode}>
+      <header className={styles.intro}>
+        <span className={styles.introIcon}><PrivacyIcon kind="shield" /></span>
+        <div>
+          <h2>{i18nT("mes_donnees_rgpd_735ed1cb")}</h2>
+          <p>{i18nT("telecharger_vos_donnees_gerer_vos_cookies_2af2d2a2")}</p>
+        </div>
+      </header>
 
-        {(err || done) && (
-          <div style={info}>
-            {err ? <div style={{ color: "#ff9aa2", fontWeight: 900 }}>{err}</div> : null}
-            {done ? <div style={{ color: "#b5ffcf", fontWeight: 900 }}>{done}</div> : null}
+      {(err || done) ? (
+        <div className={styles.status} role="status">
+          {err ? <div className={styles.error}>{err}</div> : null}
+          {done ? <div className={styles.success}>{done}</div> : null}
+        </div>
+      ) : null}
+
+      <div className={styles.grid}>
+        <section className={`${styles.card} ${styles.privacyCard} ${styles.blue}`}>
+          <span className={styles.iconTile}><PrivacyIcon kind="export" /></span>
+          <h3>{i18nT("export_portabilite_6f1c0665")}</h3>
+          <p>{i18nT("genere_un_fichier_json_telechargeable_contenant_a96ab16c")}</p>
+          <div className={styles.cardActions}>
+            <button type="button" className={styles.actionButton} onClick={downloadExport} disabled={busy !== null} aria-busy={busy === "export" || undefined}>
+              {busy === "export" ? i18nT("export_en_cours_a536865e") : i18nT("telecharger_mes_donnees_b4de503a")}
+            </button>
           </div>
-        )}
-      </div>
+        </section>
 
-      <div style={card}>
-        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 900 }}>{i18nT("export_portabilite_6f1c0665")}</h4>
-        <p style={{ margin: "8px 0 0", opacity: 0.85, lineHeight: 1.5, fontSize: 13 }}>
-          {i18nT("genere_un_fichier_json_telechargeable_contenant_a96ab16c")}{" "}</p>
-        <div style={{ marginTop: 10 }}>
-          <button type="button" style={btn} onClick={downloadExport} disabled={busy !== null}>
-            {busy === "export" ? i18nT("export_en_cours_a536865e") : i18nT("telecharger_mes_donnees_b4de503a")}
-          </button>
-        </div>
-      </div>
+        <section className={`${styles.card} ${styles.privacyCard} ${styles.violet}`}>
+          <span className={styles.iconTile}><PrivacyIcon kind="cookies" /></span>
+          <h3>{i18nT("cookies_524cf50b")}</h3>
+          <p>{i18nT("les_cookies_necessaires_sont_toujours_actifs_6feb1cf6")}</p>
+          <div className={styles.cardActions}>
+            <label className={styles.cookieChoice}>
+              <input type="checkbox" checked={analytics} onChange={(e) => onToggleAnalytics(Boolean(e.target.checked))} />
+              <span>{i18nT("autoriser_la_mesure_d_audience_optionnel_f8b76c20")}</span>
+            </label>
+          </div>
+        </section>
 
-      <div style={card}>
-        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 900 }}>{i18nT("cookies_524cf50b")}</h4>
-        <p style={{ margin: "8px 0 0", opacity: 0.85, lineHeight: 1.5, fontSize: 13 }}>
-          {i18nT("les_cookies_necessaires_sont_toujours_actifs_6feb1cf6")}{" "}</p>
-        <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, opacity: 0.9 }}>
-          <input type="checkbox" checked={analytics} onChange={(e) => onToggleAnalytics(Boolean(e.target.checked))} />
-          <span>{i18nT("autoriser_la_mesure_d_audience_optionnel_f8b76c20")}</span>
-        </label>
+        <section className={`${styles.card} ${styles.privacyCard} ${styles.pink}`}>
+          <span className={styles.iconTile}><PrivacyIcon kind="delete" /></span>
+          <h3>{i18nT("suppression_du_compte_11789c76")}</h3>
+          <p>{i18nT("account_deletion_choices_description")}</p>
+          <div className={styles.cardActions}>
+            <Link href="/suppression-compte" className={`${styles.actionButton} ${styles.dangerButton}`}>
+              {i18nT("supprimer_mon_compte_e894aea3")}
+            </Link>
+            <p className={styles.note}>{i18nT("conseil_telechargez_d_abord_vos_donnees_5319daf3")}</p>
+          </div>
+        </section>
       </div>
-
-      <div style={card}>
-        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 900 }}>{i18nT("suppression_du_compte_11789c76")}</h4>
-        <p style={{ margin: "8px 0 0", opacity: 0.85, lineHeight: 1.5, fontSize: 13 }}>
-          {i18nT("account_deletion_choices_description")} {" "}</p>
-        <div style={{ marginTop: 10 }}>
-          <Link href="/suppression-compte" style={dangerBtn}>
-            {i18nT("supprimer_mon_compte_e894aea3")}
-          </Link>
-        </div>
-        <div style={{ marginTop: 10, opacity: 0.75, fontSize: 12, lineHeight: 1.4 }}>
-          {i18nT("conseil_telechargez_d_abord_vos_donnees_5319daf3")}{" "}</div>
-      </div>
-
-      {mode === "drawer" ? null : null}
     </div>
   );
 }

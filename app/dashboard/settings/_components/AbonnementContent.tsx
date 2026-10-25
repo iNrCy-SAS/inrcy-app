@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  FOUNDER_OFFER_MONTHLY_PRICE_EXCL_TAX_EUR,
   PREMIUM_SUBSCRIPTION_OFFER,
   PREMIUM_SUBSCRIPTION_OFFER_V2,
   pricingVersionForAccountCreatedAt,
@@ -16,9 +17,8 @@ import {
   STANDARD_SUBSCRIPTION_OFFER_V2,
 } from "@/lib/subscriptionOffers";
 import SubscriptionWorkspace from "./SubscriptionWorkspace";
-import { SubscriptionQuotaSummary } from "./SubscriptionComparison";
-import { StudioCreditBalance } from "@/app/dashboard/_components/VideoCreditRecharge";
-import styles from "./settingsContentLayout.module.css";
+import { SubscriptionPlanFeatures, SubscriptionQuotaSummary } from "./SubscriptionComparison";
+import styles from "./subscriptionWorkspace.module.css";
 
 
 type InrcyPlan = "Trial" | "Standard" | "Premium" | "Founder";
@@ -177,6 +177,21 @@ function planLabel(plan: SubData["plan"], i18nT: (key: string) => string) {
   if (normalized === "Premium") return "Premium";
   if (normalized === "Founder") return "Founder";
   return i18nT("essai_21j_2cf2287d");
+}
+
+type SummaryIconKind = "pack" | "calendar" | "start" | "renew" | "end" | "studio";
+
+function SubscriptionSummaryIcon({ kind }: { kind: SummaryIconKind }) {
+  return (
+    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      {kind === "pack" ? <><path d="m14 3 11 6-11 6L3 9l11-6Z" fill="currentColor" fillOpacity=".15" /><path d="m3 14 11 6 11-6M3 19l11 6 11-6" /><path d="m8 6 11 6" strokeOpacity=".55" /></> : null}
+      {kind === "calendar" ? <><rect x="4" y="6" width="20" height="18" rx="4" fill="currentColor" fillOpacity=".1" /><path d="M9 3v6m10-6v6M4 12h20M9 17h3m4 0h3m-10 4h3" /></> : null}
+      {kind === "start" ? <><circle cx="14" cy="14" r="10" fill="currentColor" fillOpacity=".08" /><path d="M14 8v6l4 2M6 6l3 1-2 3" /></> : null}
+      {kind === "renew" ? <><path d="M22 12a9 9 0 1 0 .1 5M22 5v7h-7" /><path d="M14 8v6l4 2" /></> : null}
+      {kind === "end" ? <><rect x="4" y="6" width="20" height="18" rx="4" fill="currentColor" fillOpacity=".1" /><path d="M9 3v6m10-6v6M4 12h20m-15 6 3 3 6-6" /></> : null}
+      {kind === "studio" ? <><rect x="4" y="7" width="18" height="17" rx="4" fill="currentColor" fillOpacity=".1" /><path d="m6 20 5-5 4 3 5-6M22 2l1.2 3.8L27 7l-3.8 1.2L22 12l-1.2-3.8L17 7l3.8-1.2L22 2Z" /></> : null}
+    </svg>
+  );
 }
 
 export default function AbonnementContent({ mode: _mode = "page", onOpenContact }: Props) {
@@ -407,43 +422,13 @@ useEffect(() => {
     };
   }, [sub, checkoutState, locale, i18nT, accountCreatedAt]);
 
-  const shell: React.CSSProperties = {
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "linear-gradient(135deg, rgba(255, 77, 166, 0.14), rgba(97, 87, 255, 0.10) 45%, rgba(0, 200, 255, 0.08))",
-  };
-
   const card: React.CSSProperties = {
     padding: 16,
     borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.045)",
+    border: "1px solid rgba(124, 191, 239, .26)",
+    background: "linear-gradient(145deg, rgba(18, 50, 78, .88), rgba(38, 35, 72, .88))",
     backdropFilter: "blur(10px)",
     WebkitBackdropFilter: "blur(10px)",
-  };
-
-  const badge: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background:
-      "linear-gradient(135deg, rgba(255, 77, 166, 0.22), rgba(97, 87, 255, 0.16), rgba(0, 200, 255, 0.12))",
-    fontSize: 12,
-    fontWeight: 900,
-    letterSpacing: 0.4,
-    whiteSpace: "nowrap",
-  };
-
-  const miniBox: React.CSSProperties = {
-    padding: 12,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(0,0,0,0.18)",
-    minWidth: 0,
   };
 
   const primaryBtn: React.CSSProperties = {
@@ -578,96 +563,9 @@ useEffect(() => {
     );
   }
 
-  return (
-    <SubscriptionWorkspace>
-    <div className={styles.legacyGrid}>
-      <style>{`
-        .datesGrid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 10px;
-          margin-top: 12px;
-        }
-        .billingPackGrid,
-        .billingCycleGrid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 10px;
-        }
-        @media (max-width: 520px) {
-          .datesGrid,
-          .billingPackGrid,
-          .billingCycleGrid {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
-
-      <div className={styles.legacySummary} style={{ ...card, ...shell, padding: 18 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ opacity: 0.85, fontSize: 12, fontWeight: 900, letterSpacing: 0.4 }}>PACK</div>
-            <div style={{ fontSize: 22, fontWeight: 950, marginTop: 4, lineHeight: 1.15 }}>{planLabel(sub.plan, i18nT)}</div>
-
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-              <span style={badge}>{i18nT("sans_engagement_b19d4f9b")}</span>
-              <span style={badge}>{computed.annualPayment ? "ANNUEL" : "MENSUEL"}</span>
-              <span style={badge}>{computed.statusText}</span>
-            </div>
-          </div>
-
-          <div style={{ textAlign: "right", flexShrink: 0 }}>
-            <div style={{ opacity: 0.85, fontSize: 12, fontWeight: 900, letterSpacing: 0.4 }}>PRIX</div>
-            <div style={{ fontSize: 26, fontWeight: 950, marginTop: 4, lineHeight: 1 }}>{computed.priceLabel}</div>
-            <div style={{ opacity: 0.75, fontSize: 12, marginTop: 6 }}>{computed.pricePeriodLabel}</div>
-          </div>
-        </div>
-      </div>
-
-      <div className={styles.legacySummary} style={card}>
-        <h2 style={{ margin: 0, fontSize: 16 }}>{i18nT("dates_842b7b5d")}</h2>
-
-        <div
-          className="datesGrid"
-          style={computed?.planNormalized === "Trial" ? ({ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" } as any) : undefined}
-        >
-          {computed?.planNormalized === "Trial" ? (
-            <>
-              <div style={miniBox}>
-                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>{i18nT("inscription_9be51f96")}</div>
-                <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900 }}>{computed.startLabel}</div>
-              </div>
-
-              <div style={miniBox}>
-                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>{i18nT("fin_de_periode_d_essai_e49ad56a")}</div>
-                <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900 }}>{computed.trialEndLabel}</div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={miniBox}>
-                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>{i18nT("actualisation_d386fa8d")}</div>
-                <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900 }}>{computed.startLabel}</div>
-              </div>
-
-              <div style={miniBox}>
-                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>{computed.annualPayment ? i18nT("renouvellement_annuel_ffcc422c") : i18nT("renouvellement_5b961f3a")}</div>
-                <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900 }}>{computed.renewalLabel}</div>
-              </div>
-
-              <div style={miniBox}>
-                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>{computed.annualPayment ? i18nT("formule_1bb7d659") : i18nT("fin_previsionnelle_682cf200")}</div>
-                <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900 }}>{computed.annualPayment && !computed.cancellationScheduled ? i18nT("annuelle_0e25612c") : computed.cancellationScheduled && computed.cancelEndLabel ? computed.cancelEndLabel : computed.endEstLabel}</div>
-                <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75, lineHeight: 1.3 }}>
-                  {computed.cancellationScheduled ? i18nT("resiliation_programmee_09802990") : computed.annualPayment ? i18nT("resiliable_avant_echeance_7d2a6c32") : i18nT("preavis_inclus_1_mois_4e679006")}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className={styles.legacyActions} style={card}>
+  const management = (
+    <section className={styles.managementCard}>
+        <div className={styles.legacyActions}>
         <h2 style={{ margin: 0, fontSize: 16 }}>{i18nT("modifier_resilier_36d44555")}</h2>
 
         {sub.stripe_customer_id ? (
@@ -883,9 +781,113 @@ useEffect(() => {
           <p style={{ margin: "10px 0 0", opacity: 0.9, lineHeight: 1.35 }}>⚠️ {billingMsg}</p>
         ) : null}
       </div>
+    </section>
+  );
 
-      <div className={styles.legacySummary}><SubscriptionQuotaSummary edition={computed.planNormalized === "Founder" ? "founder" : computed.planNormalized === "Premium" ? "premium" : "standard"} /></div>
-      <StudioCreditBalance />
+  const datesSummary = (
+      <section className={`${styles.legacySummary} ${styles.datesCard}`}>
+        <h2 className={styles.summaryHeading}><span><SubscriptionSummaryIcon kind="calendar" /></span>{i18nT("dates_842b7b5d")}</h2>
+        <div
+          className={`${styles.datesGrid} ${styles.summaryDates}`}
+          style={computed?.planNormalized === "Trial" ? ({ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" } as any) : undefined}
+        >
+          {computed?.planNormalized === "Trial" ? (
+            <>
+              <div className={styles.dateTile}>
+                <div className={styles.dateLabel}><span><SubscriptionSummaryIcon kind="start" /></span>{i18nT("inscription_9be51f96")}</div>
+                <strong>{computed.startLabel}</strong>
+              </div>
+              <div className={styles.dateTile}>
+                <div className={styles.dateLabel}><span><SubscriptionSummaryIcon kind="end" /></span>{i18nT("fin_de_periode_d_essai_e49ad56a")}</div>
+                <strong>{computed.trialEndLabel}</strong>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={styles.dateTile}>
+                <div className={styles.dateLabel}><span><SubscriptionSummaryIcon kind="start" /></span>{i18nT("actualisation_d386fa8d")}</div>
+                <strong>{computed.startLabel}</strong>
+              </div>
+              <div className={styles.dateTile}>
+                <div className={styles.dateLabel}><span><SubscriptionSummaryIcon kind="renew" /></span>{computed.annualPayment ? i18nT("renouvellement_annuel_ffcc422c") : i18nT("renouvellement_5b961f3a")}</div>
+                <strong>{computed.renewalLabel}</strong>
+              </div>
+              <div className={styles.dateTile}>
+                <div className={styles.dateLabel}><span><SubscriptionSummaryIcon kind="end" /></span>{computed.annualPayment ? i18nT("formule_1bb7d659") : i18nT("fin_previsionnelle_682cf200")}</div>
+                <strong>{computed.annualPayment && !computed.cancellationScheduled ? i18nT("annuelle_0e25612c") : computed.cancellationScheduled && computed.cancelEndLabel ? computed.cancelEndLabel : computed.endEstLabel}</strong>
+                <small>{computed.cancellationScheduled ? i18nT("resiliation_programmee_09802990") : computed.annualPayment ? i18nT("resiliable_avant_echeance_7d2a6c32") : i18nT("preavis_inclus_1_mois_4e679006")}</small>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+  );
+
+  if (computed.planNormalized === "Founder") {
+    return <SubscriptionWorkspace className={styles.founderWorkspace} management={
+      <div className={styles.founderSidebar}>
+        {datesSummary}
+        {management}
+      </div>
+    }>
+      <section className={`${styles.planCard} ${styles.founderCard}`}>
+        <header className={styles.founderHeader}>
+          <span className={styles.founderEmblem} aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+              <path d="m24 5 17 10v18L24 43 7 33V15L24 5Z" fill="currentColor" fillOpacity=".08" />
+              <path d="m14 20 5 4 5-10 5 10 5-4-3 13H17l-3-13Z" fill="currentColor" fillOpacity=".2" />
+              <path d="M18 37h12M24 2v3M43 14l-3 2M5 14l3 2" strokeOpacity=".6" />
+            </svg>
+          </span>
+          <div><span className={styles.planEyebrow}>{i18nT("subscription_current_plan")}</span><h2>iNrCy <span>Founder</span></h2></div>
+          <span className={styles.statusPill} data-status={sub.status}><i aria-hidden="true" />{computed.statusText}</span>
+        </header>
+        <p className={styles.planDescription}>
+          <strong>{i18nT("subscription_premium_benefit")}</strong>
+          <span>{i18nT("subscription_standard_pitch")}</span>
+        </p>
+        <SubscriptionPlanFeatures edition="founder" />
+        <footer className={styles.founderFooter}>
+          <div className={styles.planPrice}><span>{i18nT("subscription_offer_price")}</span><strong>{new Intl.NumberFormat(locale).format(FOUNDER_OFFER_MONTHLY_PRICE_EXCL_TAX_EUR)} € {i18nT("standard_tax_exclusive_short")}</strong><small>{i18nT("standard_per_month")}</small></div>
+          <div className={styles.founderBadges}>
+            <span className={styles.passBadge}>{i18nT("sans_engagement_b19d4f9b")}</span>
+            <span className={styles.passBadge}>{i18nT(computed.annualPayment ? "subscription_yearly" : "subscription_monthly")}</span>
+          </div>
+        </footer>
+      </section>
+    </SubscriptionWorkspace>;
+  }
+
+  return (
+    <SubscriptionWorkspace management={management}>
+    <div className={`${styles.legacyGrid} ${styles.legacyOverview}`}>
+
+      <section className={`${styles.legacySummary} ${styles.subscriptionPass}`}>
+        <header className={styles.passHeader}>
+          <span className={styles.passMark}><SubscriptionSummaryIcon kind="pack" /></span>
+          <div className={styles.passIdentity}>
+            <span className={styles.passEyebrow}>PACK</span>
+            <h2>{planLabel(sub.plan, i18nT)}</h2>
+          </div>
+          <div className={styles.passPrice}>
+            <span>PRIX</span>
+            <strong>{computed.priceLabel}</strong>
+            <small>{computed.pricePeriodLabel}</small>
+          </div>
+        </header>
+        <div className={styles.passMeta}>
+          <span className={styles.passBadge}>{i18nT("sans_engagement_b19d4f9b")}</span>
+          <span className={styles.passBadge}>{computed.annualPayment ? "ANNUEL" : "MENSUEL"}</span>
+          <span className={styles.statusPill} data-status={sub.status}><i aria-hidden="true" />{computed.statusText}</span>
+        </div>
+      </section>
+
+      {datesSummary}
+
+      <div className={`${styles.legacySummary} ${styles.legacyQuota}`}>
+        <span className={styles.quotaEmblem}><SubscriptionSummaryIcon kind="studio" /></span>
+        <SubscriptionQuotaSummary edition={computed.planNormalized === "Premium" ? "premium" : "standard"} />
+      </div>
     </div>
     </SubscriptionWorkspace>
   );

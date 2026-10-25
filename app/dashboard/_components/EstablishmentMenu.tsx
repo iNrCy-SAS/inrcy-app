@@ -7,6 +7,8 @@ import { switchActiveInrcyAccount } from "@/lib/multicompte/client";
 import { getAvailableEstablishmentSlots } from "@/lib/multicompte/normalize";
 import type { InrcyAccountSummary, InrcyMultiAccountConfig } from "@/lib/multicompte/types";
 import styles from "../dashboard.module.css";
+import DashboardNavigationIcon from "./DashboardNavigationIcon";
+import menuStyles from "./EstablishmentMenu.module.css";
 
 type MenuPayload = {
   ok?: boolean;
@@ -117,12 +119,7 @@ const COPIES: Record<string, StaticCopy> = {
 };
 
 function EstablishmentIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
-      <path d="M4 21V7.8c0-.5.3-1 .8-1.2l6-2.7c.6-.3 1.2.2 1.2.8V21M12 9h7c.6 0 1 .4 1 1v11M2.5 21h19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M7 9.5h1M7 13h1M7 16.5h1M15 12.5h1.5M15 16h1.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
+  return <DashboardNavigationIcon kind="building" />;
 }
 
 export default function EstablishmentMenu({
@@ -133,6 +130,8 @@ export default function EstablishmentMenu({
   buttonClassName,
   panelClassName,
   beforeAccountSwitch,
+  mobileLabel,
+  mobileBackLabel,
 }: {
   mobile?: boolean;
   onContact: () => void;
@@ -141,6 +140,8 @@ export default function EstablishmentMenu({
   buttonClassName?: string;
   panelClassName?: string;
   beforeAccountSwitch?: (proceed: () => Promise<void>) => void | Promise<void> | Promise<boolean>;
+  mobileLabel?: string;
+  mobileBackLabel?: string;
 }) {
   const language = String(locale || "fr").slice(0, 2).toLowerCase();
   const t = useTranslations("shell");
@@ -153,6 +154,7 @@ export default function EstablishmentMenu({
     namePlaceholder: t("etablissement_2_7e566a56"),
   };
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
@@ -161,6 +163,10 @@ export default function EstablishmentMenu({
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [payload, setPayload] = useState<MenuPayload | null>(null);
+  const closeToMenu = useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -193,7 +199,7 @@ export default function EstablishmentMenu({
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") closeToMenu();
     };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -201,7 +207,7 @@ export default function EstablishmentMenu({
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open]);
+  }, [closeToMenu, open]);
 
   const accounts = payload?.accounts || [];
   const config = payload?.config || { multiAccountEnabled: false, maxEstablishments: 1 };
@@ -275,9 +281,10 @@ export default function EstablishmentMenu({
   return (
     <div className={styles.establishmentMenuWrap} ref={rootRef}>
       <button
+        ref={triggerRef}
         type="button"
         className={buttonClass}
-        aria-label={buttonTitle}
+        aria-label={mobileLabel || buttonTitle}
         title={buttonTitle}
         aria-expanded={open}
         onClick={() => {
@@ -287,6 +294,7 @@ export default function EstablishmentMenu({
         }}
       >
         <span className={styles.establishmentTopbarIcon} aria-hidden="true"><EstablishmentIcon /></span>
+        {mobile && mobileLabel ? <span>{mobileLabel}</span> : null}
         {!mobile ? (
           <>
             <span className={styles.establishmentTopbarText}>
@@ -307,7 +315,13 @@ export default function EstablishmentMenu({
                 <small>{accounts.length} / {Math.max(config.maxEstablishments, accounts.length)}</small>
               ) : null}
             </div>
-            <span className={styles.establishmentMenuHeaderIcon} aria-hidden="true"><EstablishmentIcon /></span>
+            <div className={menuStyles.headerActions}>
+              <span className={styles.establishmentMenuHeaderIcon} aria-hidden="true"><EstablishmentIcon /></span>
+              {mobile && mobileBackLabel ? <button type="button" className={menuStyles.backButton}
+                aria-label={mobileBackLabel} title={mobileBackLabel} onClick={closeToMenu}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m10 6-6 6 6 6M4 12h16" /></svg>
+              </button> : null}
+            </div>
           </div>
 
           {loading && !payload ? <div className={styles.establishmentMenuState}>{copy.loading}</div> : null}

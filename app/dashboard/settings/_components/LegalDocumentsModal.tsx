@@ -19,8 +19,8 @@ export default function LegalDocumentsModal({
   const Content = doc.Content;
 
   return (
-    <BaseModal title={i18nT(doc.titleKey)} moduleLabel="" onClose={onClose}>
-      <div style={{ width: "100%", maxWidth: 980, margin: "0 auto" }}>
+    <BaseModal title={i18nT(doc.titleKey)} moduleLabel="" onClose={onClose} wideOnDesktop>
+      <div style={{ width: "100%", minWidth: 0, overflowWrap: "anywhere" }}>
         <div className={legalStyles.card} style={{ marginTop: 0 }}>
           {doc.subtitleKey ? <p className={legalStyles.subtitle} style={{ marginTop: 0 }}>{i18nT(doc.subtitleKey)}</p> : null}
           <div style={{ marginTop: 14 }}>

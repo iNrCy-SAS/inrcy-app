@@ -15,6 +15,9 @@ export type SubscriptionOffer = {
 
 export const PRICING_V2_CUTOVER_ENV = "NEXT_PUBLIC_INRCY_PRICING_V2_CUTOVER_AT";
 
+/** Catalogue display only: existing Founder billing remains managed by its contract. */
+export const FOUNDER_OFFER_MONTHLY_PRICE_EXCL_TAX_EUR = 58;
+
 // Contrats historiques : ne jamais modifier ces montants.
 export const STANDARD_SUBSCRIPTION_OFFER: SubscriptionOffer = {
   edition: "standard",

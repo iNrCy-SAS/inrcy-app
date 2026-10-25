@@ -1,5 +1,4 @@
 "use client";
-import { StudioCreditBalance } from "@/app/dashboard/_components/VideoCreditRecharge";
 
 import { useLocale, useTranslations } from "next-intl";
 
@@ -694,7 +693,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   const canPreviewPlanChange = (plan: "Standard" | "Premium") => canPreviewSubscriptionPlanChange(subscription, plan, billingCycles[plan]);
   const selectedCycleDiffers = (plan: "Standard" | "Premium") => billingCycles[plan] !== (view.billingCycle === "yearly" ? "yearly" : "monthly");
 
-  return <><SubscriptionWorkspace management={management} notice={<div role="status" aria-live="polite">
+  return <><SubscriptionWorkspace layout="offers" management={management} notice={<div role="status" aria-live="polite">
     {checkoutState === "cancel" ? <p style={{ color: "#ffd38f", margin: "0 0 12px" }}>{i18nT("paiement_annule_aucun_changement_n_a_c603ca12")}</p> : null}
     {message ? <p style={{ color: "#8ff7d0", margin: "0 0 12px" }}>{message}</p> : null}
     {error ? <p style={{ color: "#ff9bbd", margin: "0 0 12px" }}>{error}</p> : null}
@@ -750,7 +749,6 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       </section>
     </div>
     <p className={styles.quotaNote}>{i18nT("subscription_quota_note")}{clientBillingPlatform === "web" && premiumOffer.taxBehavior === "exclusive" ? ` ${i18nT("standard_taxes_checkout")}` : ""}</p>
-    <StudioCreditBalance />
   </SubscriptionWorkspace>{premiumActivationOpen && typeof document !== "undefined" ? createPortal(
     <div className={styles.premiumActivationOverlay} onMouseDown={(event) => {
       if (event.target === event.currentTarget) closePremiumActivationChoice();

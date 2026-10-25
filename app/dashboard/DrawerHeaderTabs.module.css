@@ -17,6 +17,16 @@
 }
 .header:has(.headerTabs:not(:empty)) .headerTitle { grid-column: 1 !important; grid-row: 1; }
 .header:has(.headerTabs:not(:empty)) .headerActions { grid-column: 3 !important; grid-row: 1; justify-self: end; }
+@media (min-width: 1101px) {
+  .header:has(.headerTabs [data-dashboard-account-tabs]) {
+    grid-template-columns: minmax(max-content, 1fr) minmax(0, 5fr) minmax(max-content, 1fr) !important;
+  }
+}
+@media (min-width: 1101px) and (max-width: 1280px) {
+  .header:has(.headerTabs [data-dashboard-account-tabs]) {
+    grid-template-columns: max-content minmax(0, 1fr) max-content !important;
+  }
+}
 @media (max-width: 1100px) {
   .header:has(.headerTabs:not(:empty)) { grid-template-columns: minmax(0, 1fr) auto !important; gap: 8px !important; }
   .header:has(.headerTabs:not(:empty)) .headerActions { grid-column: 2 !important; }

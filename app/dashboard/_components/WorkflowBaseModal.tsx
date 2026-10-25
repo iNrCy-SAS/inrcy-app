@@ -88,7 +88,7 @@ export default function BaseModal({
   }, [onClose]);
 
   return (
-    <div data-inrcy-tool-overlay
+    <div data-inrcy-tool-overlay={compact ? undefined : true}
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -100,10 +100,11 @@ export default function BaseModal({
         height: "100dvh",
         maxHeight: "100dvh",
         zIndex: 90,
-        background:
-          "radial-gradient(circle at 12% 0%, rgba(56,189,248,0.18), transparent 36%), radial-gradient(circle at 88% 8%, rgba(168,85,247,0.16), transparent 38%), linear-gradient(180deg, #050817 0%, #070a16 48%, #050711 100%)",
-        backdropFilter: "none",
-        WebkitBackdropFilter: "none",
+        background: compact
+          ? "rgba(3, 8, 20, 0.55)"
+          : "radial-gradient(circle at 12% 0%, rgba(56,189,248,0.18), transparent 36%), radial-gradient(circle at 88% 8%, rgba(168,85,247,0.16), transparent 38%), linear-gradient(180deg, #050817 0%, #070a16 48%, #050711 100%)",
+        backdropFilter: compact ? "blur(6px)" : "none",
+        WebkitBackdropFilter: compact ? "blur(6px)" : "none",
         display: "flex",
         alignItems: compact ? "center" : "stretch",
         justifyContent: compact ? "center" : "stretch",
@@ -114,7 +115,7 @@ export default function BaseModal({
         overflow: "hidden",
       }}
     >
-      <div data-inrcy-tool-dialog
+      <div data-inrcy-tool-dialog={compact ? undefined : true}
         onMouseDown={(e) => e.stopPropagation()}
         className={[styles.blockCard, styles.fullscreenModalCard].join(" ")}
         style={{

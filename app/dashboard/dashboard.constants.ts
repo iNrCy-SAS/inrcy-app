@@ -262,6 +262,7 @@ export const DRAWER_TITLES = {
   preferences: "Préférences générales",
   inrbadge: "Réglages iNr'Badge",
   abonnement: "Mon abonnement",
+  factures: "Factures d’abonnement",
   legal: "Informations légales",
   rgpd: "Mes données (RGPD)",
   mails: "Réglages Mails",

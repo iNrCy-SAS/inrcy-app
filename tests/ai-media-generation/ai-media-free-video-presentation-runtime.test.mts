@@ -84,6 +84,38 @@ test("le réalisateur et le transport gardent la demande brute avec un cadre uni
   assert.ok(transport.length <= 3_200);
 });
 
+for (const freePrompt of [
+  "Deux formatrices accompagnent des adultes dans une salle de formation numérique.",
+  "Deux formatrices dans une salle réelle, sans dessin animé ni personnages illustrés.",
+  "Un dessin animé 2D avec deux formatrices dans une salle de formation, sans aucun photoréalisme.",
+  "Deux formatrices en formation : reprends le style artistique de cette référence.",
+]) {
+  test(`le rendu vidéo reste cohérent du planneur au fournisseur : ${freePrompt}`, async () => {
+    const runtime = loadPlanner({ direction: freePrompt, scenes: [freePrompt] });
+    const input = request({ freePrompt, inspirationImages: [{ mimeType: "image/png", data: "A".repeat(64), role: "inspiration", usage: "inspiration" }] });
+    const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile });
+    const plannerCall = runtime.calls[0];
+    assert.equal(JSON.parse(plannerCall.input).brief, freePrompt);
+    assert.ok(plannerCall.system.includes(prompts.AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT));
+    assert.doesNotMatch(plannerCall.system, /ni photo réaliste imposés/);
+    const canonical = prompts.buildAiMediaFreeVideoPrompt({ request: input, profile });
+    const firstFrame = prompts.buildAiMediaFreeSceneFramePrompt({ request: input, profile });
+    const transport = prompts.buildAiMediaFreeVideoScenePrompt(provider(input, plan), 0, 15);
+    for (const prompt of [canonical, firstFrame, transport]) {
+      assert.ok(prompt.includes(prompts.AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT));
+      assert.ok(prompt.includes(freePrompt), "The explicit style, reference-style request and exclusions survive unchanged");
+      assert.match(prompt, /Photoreal humans\/scenes/);
+      assert.match(prompt, /non-photo style only on explicit brief request/);
+      assert.match(prompt, /never from refs alone/);
+      assert.doesNotMatch(prompt, /y compris animation ou motion design/);
+    }
+    assert.ok(transport.length <= 3_200);
+    assert.equal(input.durationSeconds, 15);
+    assert.equal(input.videoEngine, "grok-lite");
+    assert.equal(input.withNarration, false);
+  });
+}
+
 test("la première image conserve uniquement l’instant initial et les références du film", () => {
   const input = request({ inspirationImages: [{ mimeType: "image/png", data: "A".repeat(64), role: "environment", usage: "required" }] });
   const firstFrame = prompts.buildAiMediaFreeSceneFramePrompt({ request: input, profile });

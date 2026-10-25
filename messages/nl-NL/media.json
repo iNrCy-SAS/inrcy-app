@@ -1021,5 +1021,21 @@
   "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepteert in totaal maximaal 15 seconden aan stemfragmenten. Kort de fragmenten in of kies Wan 2.7.",
   "ai_generator_reference_drop_title": "Sleep je referenties hierheen",
   "ai_generator_reference_information": "Informatie over referenties",
-  "ai_generator_reference_drop_hint": "Personen, producten, locaties of inspiratie"
+  "ai_generator_reference_drop_hint": "Personen, producten, locaties of inspiratie",
+  "library_import": "Importeren",
+  "library_field_title": "Titel",
+  "library_information": "Informatie",
+  "library_edit_title": "Titel bewerken: {value}",
+  "library_edit_tags": "Tags bewerken: {value}",
+  "library_edit_failed": "Opslaan mislukt. Je wijzigingen zijn behouden.",
+  "library_edit_save": "Opslaan",
+  "library_edit_saving": "Bezig met opslaan…",
+  "library_tags_hint": "Scheid tags met komma’s.",
+  "library_finish_edit": "Sla je wijziging op of annuleer deze voordat je de filters wijzigt.",
+  "library_bulk_download": "Selectie downloaden",
+  "library_bulk_download_preparing": "Download voorbereiden…",
+  "library_bulk_download_started": "Het downloaden van je ZIP-archief is gestart.",
+  "library_bulk_download_failed": "De download kon niet worden voorbereid. Probeer het opnieuw.",
+  "library_import_common_tags": "Gemeenschappelijke tags (optioneel)",
+  "library_filters": "Filters"
 }

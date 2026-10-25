@@ -1021,5 +1021,21 @@
   "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 admite hasta 15 segundos de muestras de voz en total. Acorta las muestras o elige Wan 2.7.",
   "ai_generator_reference_drop_title": "Arrastra tus referencias aquí",
   "ai_generator_reference_information": "Información sobre las referencias",
-  "ai_generator_reference_drop_hint": "Personas, productos, lugares o inspiraciones"
+  "ai_generator_reference_drop_hint": "Personas, productos, lugares o inspiraciones",
+  "library_import": "Importar",
+  "library_field_title": "Título",
+  "library_information": "Información",
+  "library_edit_title": "Editar título: {value}",
+  "library_edit_tags": "Editar etiquetas: {value}",
+  "library_edit_failed": "No se pudo guardar. Se conservan los cambios.",
+  "library_edit_save": "Guardar",
+  "library_edit_saving": "Guardando…",
+  "library_tags_hint": "Separa las etiquetas con comas.",
+  "library_finish_edit": "Guarda o cancela el cambio antes de modificar los filtros.",
+  "library_bulk_download": "Descargar selección",
+  "library_bulk_download_preparing": "Preparando la descarga…",
+  "library_bulk_download_started": "Se ha iniciado la descarga de tu archivo ZIP.",
+  "library_bulk_download_failed": "No se pudo preparar la descarga. Inténtalo de nuevo.",
+  "library_import_common_tags": "Etiquetas comunes (opcional)",
+  "library_filters": "Filtros"
 }

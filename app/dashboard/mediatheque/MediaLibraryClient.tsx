@@ -40,7 +40,9 @@ import {
   MEDIA_LIBRARY_VIDEO_SOURCE_MAX_BYTES,
   getMediaLibraryOptimizationRequirements,
 } from "@/lib/mediaLibraryOptimizationPolicy";
-import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
+import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot, invalidateModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
+import MediaMetadataField, { normalizeMediaMetadata, type MediaMetadataFieldKind } from "./MediaMetadataField";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import styles from "./mediaLibrary.module.css";
 
 type MediaTypeFilter = "all" | "image" | "video" | "audio";
@@ -85,7 +87,6 @@ type MediaItem = {
   } | null;
 };
 
-
 type MediaLibrarySnapshot = {
   items: MediaItem[];
   stats: {
@@ -126,7 +127,6 @@ type UploadFinalizeItem = {
   duration_seconds: number | null;
   upload_protocol?: "signed" | "tus";
 };
-
 
 const MAX_IMAGE_BYTES = MEDIA_LIBRARY_IMAGE_SOURCE_MAX_BYTES;
 const MAX_VIDEO_BYTES = MEDIA_LIBRARY_VIDEO_SOURCE_MAX_BYTES;
@@ -313,14 +313,6 @@ function buildMediaDownloadUrl(contentUrl: string | null) {
   return `${contentUrl}${contentUrl.includes("?") ? "&" : "?"}download=1`;
 }
 
-function cleanEditableTags(value: string) {
-  return value
-    .split(",")
-    .map((tag) => tag.trim().toLowerCase())
-    .filter(Boolean)
-    .slice(0, 30);
-}
-
 function mediaOptimizationLimit(item: Pick<MediaItem, "media_type">) {
   return item.media_type === "video"
     ? MEDIA_LIBRARY_VIDEO_OUTPUT_MAX_BYTES
@@ -343,7 +335,6 @@ const MEDIA_LIBRARY_VIDEO_ACCEPT = [
   ...UNIVERSAL_MEDIA_VIDEO_EXTENSIONS.map((extension) => `.${extension}`),
 ].join(",");
 
-
 export default function MediaLibraryClient() {
   const locale = useLocale();
   const i18nT = useTranslations("media");
@@ -361,6 +352,22 @@ export default function MediaLibraryClient() {
   }));
   const [loading, setLoading] = useState(() => !initialSnapshot);
   const [uploading, setUploading] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const importTriggerRef = useRef<HTMLButtonElement>(null);
+  const importDialogRef = useRef<HTMLDivElement>(null);
+  const uploadingRef = useRef(uploading);
+  uploadingRef.current = uploading;
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  const importTitleId = useId();
+  const [metadataSavingKeys, setMetadataSavingKeys] = useState<Set<string>>(() => new Set());
+  const [metadataEditingKeys, setMetadataEditingKeys] = useState<Set<string>>(() => new Set());
+  const loadSequenceRef = useRef(0);
+  const metadataRevisionRef = useRef(0);
+  const [bulkDownloading, setBulkDownloading] = useState(false);
+  const bulkDownloadBusyRef = useRef(false);
+  const bulkDownloadAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => { bulkDownloadAbortRef.current?.abort(); }, []);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const fileInputId = useId();
@@ -371,11 +378,14 @@ export default function MediaLibraryClient() {
   const [files, setFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
-  const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");
   const [typeFilter, setTypeFilter] = useState<MediaTypeFilter>("all");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("active");
   const [search, setSearch] = useState("");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const filtersRef = useRef<HTMLDivElement>(null);
+  const filtersTriggerRef = useRef<HTMLButtonElement>(null);
+  const filtersId = useId();
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
   const [helperOpen, setHelperOpen] = useState(false);
   const [optimizerItem, setOptimizerItem] = useState<MediaOptimizerItem | null>(null);
@@ -403,6 +413,7 @@ export default function MediaLibraryClient() {
   const allVisibleItemsSelected =
     items.length > 0 && items.every((item) => selectedItemIds.has(item.id));
   const bulkDeleting = savingId === "__bulk__";
+  const secondaryFilterCount = Number(typeFilter !== "all") + Number(activeFilter !== "active");
   const hasRunningOptimization = items.some((item) =>
     ["queued", "processing", "retry_wait"].includes(
       String(item.optimization?.status || ""),
@@ -410,6 +421,10 @@ export default function MediaLibraryClient() {
   );
 
   const loadItems = useCallback(async (options?: { silent?: boolean }) => {
+    const sequence = ++loadSequenceRef.current;
+    const revision = metadataRevisionRef.current;
+    const accountId = getActiveBrowserUserId();
+    const isCurrentRequest = () => mountedRef.current && sequence === loadSequenceRef.current && getActiveBrowserUserId() === accountId;
     if (!options?.silent) setLoading(true);
     setError(null);
     try {
@@ -431,6 +446,8 @@ export default function MediaLibraryClient() {
       if (!response.ok)
         throw new Error(json?.error || i18nT("library_load_failed"));
 
+      // A GET started before a successful edit must never restore the old metadata.
+      if (!isCurrentRequest() || revision !== metadataRevisionRef.current) return;
       const nextItems = (json.items ?? []) as MediaItem[];
       setItems(nextItems);
       setSelectedItemIds((prev) => {
@@ -454,9 +471,9 @@ export default function MediaLibraryClient() {
         });
       }
     } catch (e: any) {
-      setError(getClientUserFacingErrorMessage(e, i18nT("library_load_failed")));
+      if (isCurrentRequest() && revision === metadataRevisionRef.current) setError(getClientUserFacingErrorMessage(e, i18nT("library_load_failed")));
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }, [activeFilter, i18nT, search, typeFilter]);
 
@@ -471,6 +488,105 @@ export default function MediaLibraryClient() {
     }, 2_500);
     return () => window.clearInterval(timer);
   }, [hasRunningOptimization, loadItems]);
+
+  useEffect(() => {
+    if (!importOpen) return;
+    const dialog = importDialogRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialog?.querySelector<HTMLElement>("button:not([disabled])")?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !uploadingRef.current) { event.preventDefault(); setImportOpen(false); }
+      if (event.key !== "Tab" || !dialog) return;
+      const controls = Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]):not([type="hidden"]):not([hidden]), select:not([disabled]), textarea:not([disabled]), a[href]')).filter((element) => element.getClientRects().length);
+      const first = controls[0], last = controls.at(-1);
+      if (!first) { event.preventDefault(); dialog.focus(); return; }
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => { document.removeEventListener("keydown", onKeyDown); document.body.style.overflow = previousOverflow; importTriggerRef.current?.focus(); };
+  }, [importOpen]);
+
+  useEffect(() => {
+    if (!mobileFiltersOpen) return;
+    filtersRef.current?.querySelector<HTMLSelectElement>("select:not([disabled])")?.focus();
+    const closeOutside = (event: PointerEvent) => {
+      if (!filtersRef.current?.contains(event.target as Node)) setMobileFiltersOpen(false);
+    };
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setMobileFiltersOpen(false);
+      filtersTriggerRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeWithEscape);
+    return () => { document.removeEventListener("pointerdown", closeOutside); document.removeEventListener("keydown", closeWithEscape); };
+  }, [mobileFiltersOpen]);
+
+  async function saveMetadata(id: string, field: MediaMetadataFieldKind, value: string) {
+    const key = id + ":" + field;
+    const accountId = getActiveBrowserUserId();
+    setMetadataSavingKeys((current) => new Set(current).add(key));
+    try {
+      const patch = normalizeMediaMetadata(field, value);
+      const response = await fetch("/api/media-library/items", {
+        method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, ...patch }),
+      });
+      const json = await readApiJson(response, i18nT("library_edit_failed"));
+      if (!response.ok || json?.ok !== true) throw new Error(json?.error || i18nT("library_edit_failed"));
+      if (!mountedRef.current || getActiveBrowserUserId() !== accountId) return;
+      metadataRevisionRef.current += 1;
+      setItems((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item));
+      setPreviewItem((current) => current?.id === id ? { ...current, ...patch } : current);
+      invalidateModuleSnapshot(MODULE_SNAPSHOT_KEYS.mediaLibraryDefault);
+    } finally {
+      if (mountedRef.current && getActiveBrowserUserId() === accountId) setMetadataSavingKeys((current) => { const next = new Set(current); next.delete(key); return next; });
+    }
+  }
+
+  function setMetadataEditing(id: string, field: MediaMetadataFieldKind, editing: boolean) {
+    if (!mountedRef.current) return;
+    const key = id + ":" + field;
+    setMetadataEditingKeys((current) => {
+      if (current.has(key) === editing) return current;
+      const next = new Set(current);
+      if (editing) next.add(key); else next.delete(key);
+      return next;
+    });
+  }
+
+  async function downloadSelectedItems() {
+    if (bulkDownloadBusyRef.current || selectedItems.length === 0 || bulkDeleting) return;
+    const accountId = getActiveBrowserUserId();
+    const controller = new AbortController();
+    bulkDownloadAbortRef.current = controller;
+    bulkDownloadBusyRef.current = true;
+    setBulkDownloading(true); setError(null); setSuccess(null);
+    try {
+      const response = await fetch("/api/media-library/download", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids: selectedItems.map((item) => item.id) }), signal: controller.signal,
+      });
+      const json = await readApiJson(response, i18nT("library_bulk_download_failed"));
+      if (!response.ok || json?.ok !== true || typeof json.downloadUrl !== "string") throw new Error(json?.error || i18nT("library_bulk_download_failed"));
+      if (!mountedRef.current || getActiveBrowserUserId() !== accountId || controller.signal.aborted) return;
+      const downloadUrl = new URL(json.downloadUrl, window.location.origin);
+      if (downloadUrl.origin !== window.location.origin || downloadUrl.pathname !== "/api/media-library/download") throw new Error(i18nT("library_bulk_download_failed"));
+      // Let the browser stream directly to its download manager, including on mobile.
+      const link = document.createElement("a");
+      link.href = downloadUrl.href; link.download = "mes-medias.zip";
+      document.body.appendChild(link); link.click(); link.remove();
+      setSuccess(i18nT("library_bulk_download_started"));
+    } catch (cause) {
+      if (!controller.signal.aborted && mountedRef.current && getActiveBrowserUserId() === accountId) setError(getClientUserFacingErrorMessage(cause, i18nT("library_bulk_download_failed")));
+    } finally {
+      bulkDownloadBusyRef.current = false;
+      if (bulkDownloadAbortRef.current === controller) bulkDownloadAbortRef.current = null;
+      if (mountedRef.current && getActiveBrowserUserId() === accountId) setBulkDownloading(false);
+    }
+  }
 
   function mergeSelectedFiles(nextFiles: File[]) {
     if (nextFiles.length === 0) return;
@@ -722,7 +838,6 @@ export default function MediaLibraryClient() {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               mode: "finalize",
-              title,
               tags,
               source: "mediatheque",
               uploads: finalizeItems,
@@ -757,7 +872,6 @@ export default function MediaLibraryClient() {
       if (failures.length > 0) setError(failures.slice(0, 4).join("\n"));
       setFiles([]);
       setFileInputKey((value) => value + 1);
-      setTitle("");
       await loadItems();
     } catch (e: any) {
       setError(getClientUserFacingErrorMessage(e, i18nT("upload_failed")));
@@ -778,6 +892,7 @@ export default function MediaLibraryClient() {
   }
 
   function toggleItemDetails(id: string) {
+    if (metadataEditingKeys.has(id + ":tags")) return;
     setExpandedItemIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -943,20 +1058,22 @@ export default function MediaLibraryClient() {
 
   return (
     <div className={styles.page} data-media-library-page="true">
-      <div className={styles.wrap}>
+      <div className={styles.wrap} inert={importOpen ? true : undefined}>
         <section className={styles.heroCard}>
           <div className={styles.heroIcon} aria-hidden="true">
             🖼️
           </div>
           <div className={styles.heroContent}>
-            <h1 className={styles.title}>
-              <span className={styles.titleFull}>{i18nT("library_media_title")}</span>
-              <span className={styles.titleMobile}>{i18nT("mediatheque_inrcy_a885e19e")}</span>
-            </h1>
-            <p className={styles.subtitle}>
-              {i18nT("medias_prives_pour_vos_publications_et_d4b404be")}{" "}</p>
+            <h1 className={styles.title}><span className={styles.desktopTitle}>{i18nT("mes_medias_0c5196c9")}</span><span className={styles.mobileTitle}>{i18nT("medias_486d82f4")}</span></h1>
           </div>
 
+          <div className={styles.headerMetrics} aria-label={i18nT("library_statistics")}>
+            <span><strong>{stats.total}</strong> {i18nT("medias_486d82f4")}</span>
+            <span data-kind="image"><strong>{stats.images}</strong> {i18nT("images_09e871c9")}</span>
+            <span data-kind="video"><strong>{stats.videos}</strong> {i18nT("videos_ea129238")}</span>
+            <span data-kind="audio"><strong>{stats.audios ?? 0}</strong> {i18nT("library_audio")}</span>
+            <span>{displayBytes(stats.total_bytes)}</span>
+          </div>
           <div className={styles.headerActions}>
             <button
               type="button"
@@ -966,16 +1083,6 @@ export default function MediaLibraryClient() {
             >
               ?
             </button>
-            <Link
-              href="/dashboard/generer-media"
-              className={styles.studioButton}
-              aria-label={`${i18nT("ai_generator_made_inrcy")} — ${i18nT("ai_generator_generate_media")}`}
-            >
-              <span className={styles.studioButtonIcon} aria-hidden="true">
-                ✦
-              </span>
-              <span>{i18nT("ai_generator_made_inrcy")}</span>
-            </Link>
             <button
               type="button"
               className={styles.ghostButton}
@@ -988,6 +1095,17 @@ export default function MediaLibraryClient() {
                 {loading ? i18nT("chargement_01cba1df") : i18nT("rafraichir_be30b7d1")}
               </span>
             </button>
+            <button ref={importTriggerRef} type="button" className={styles.importButton} onClick={() => setImportOpen(true)} aria-haspopup="dialog" aria-expanded={importOpen} aria-label={i18nT("library_import")} title={i18nT("library_import")}>
+              <span aria-hidden="true">＋</span><span className={styles.importLabel}>{i18nT("library_import")}</span>
+            </button>
+            <Link
+              href="/dashboard/generer-media"
+              className={styles.studioButton}
+              aria-label={`${i18nT("ai_generator_made_inrcy")} — ${i18nT("ai_generator_generate_media")}`}
+            >
+              <span className={styles.studioButtonIcon} aria-hidden="true">✦</span>
+              <span>{i18nT("ai_generator_made_inrcy")}</span>
+            </Link>
             <Link href="/dashboard" className={styles.closeButton} aria-label={i18nT("fermer_la_mediatheque_beaaf18f")}>
               <span className={styles.closeText}>{i18nT("fermer_5ab4ec64")}</span>
               <span className={styles.closeIcon} aria-hidden="true">×</span>
@@ -995,55 +1113,319 @@ export default function MediaLibraryClient() {
           </div>
         </section>
 
-
-        <details className={styles.metricsPanel}>
-          <summary className={styles.metricsSummary}>
-            <svg className={styles.metricsIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-              <path d="M5 20V12M12 20V4M19 20V8" strokeLinecap="round" />
-            </svg>
-            <span>{i18nT("library_statistics")}</span>
-            <span className={styles.metricsOverview}>
-              {stats.total} {i18nT("medias_486d82f4")} · {displayBytes(stats.total_bytes)}
-            </span>
-            <svg className={styles.metricsChevron} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-              <path d="m5 7.5 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </summary>
-          <div className={styles.metricsGrid}>
-            <article className={styles.metricCard}>
-              <span className={styles.metricLabel}>{i18nT("medias_486d82f4")}</span>
-              <strong className={styles.metricValue}>{stats.total}</strong>
-              <small className={styles.metricSub}>{i18nT("elements_affiches_20abefad")}</small>
-            </article>
-            <article className={styles.metricCard}>
-              <span className={styles.metricLabel}>{i18nT("images_09e871c9")}</span>
-              <strong className={styles.metricValue}>{stats.images}</strong>
-              <small className={styles.metricSub}>{i18nT("jpg_png_webp_b52b82db")}</small>
-            </article>
-            <article className={styles.metricCard}>
-              <span className={styles.metricLabel}>{i18nT("videos_ea129238")}</span>
-              <strong className={styles.metricValue}>{stats.videos}</strong>
-              <small className={styles.metricSub}>{i18nT("mp4_webm_mov_116ade48")}</small>
-            </article>
-            <article className={styles.metricCard}>
-              <span className={styles.metricLabel}>{i18nT("library_audio")}</span>
-              <strong className={styles.metricValue}>{stats.audios ?? 0}</strong>
-              <small className={styles.metricSub}>{i18nT("library_audio_formats")}</small>
-            </article>
-            <article className={styles.metricCard}>
-              <span className={styles.metricLabel}>{i18nT("poids_affiche_299b78be")}</span>
-              <strong className={styles.metricValueSmall}>
-                {displayBytes(stats.total_bytes)}
-              </strong>
-              <small className={styles.metricSub}>{i18nT("sur_cette_vue_d3d66a31")}</small>
-            </article>
-          </div>
-        </details>
-
         <div className={styles.grid} data-media-library-content="true">
+
+          <section className={styles.libraryCard}>
+            <div ref={filtersRef} className={styles.filters}>
+              <div id={filtersId} className={styles.secondaryFilters} data-open={mobileFiltersOpen || undefined} data-disable-pull-refresh="true" role="group" aria-label={i18nT("library_filters")}>
+              <label>
+                <span>{i18nT("type_3deb7456")}</span>
+                <select
+                  className={styles.select}
+                  value={typeFilter}
+                  disabled={metadataEditingKeys.size > 0}
+                  onChange={(event) =>
+                    setTypeFilter(event.target.value as MediaTypeFilter)
+                  }
+                >
+                  <option value="all">{i18nT("tous_b97ae3b4")}</option>
+                  <option value="image">{i18nT("images_09e871c9")}</option>
+                  <option value="video">{i18nT("videos_ea129238")}</option>
+                  <option value="audio">{i18nT("library_audio")}</option>
+                </select>
+              </label>
+              <label>
+                <span>{i18nT("statut_659499f3")}</span>
+                <select
+                  className={styles.select}
+                  value={activeFilter}
+                  disabled={metadataEditingKeys.size > 0}
+                  onChange={(event) =>
+                    setActiveFilter(event.target.value as ActiveFilter)
+                  }
+                >
+                  <option value="active">{i18nT("actifs_4fc3a980")}</option>
+                  <option value="inactive">{i18nT("masques_cb0d30ef")}</option>
+                  <option value="all">{i18nT("tous_b97ae3b4")}</option>
+                </select>
+              </label>
+              </div>
+              <label className={styles.searchLabel}>
+                <span>{i18nT("recherche_787b5492")}</span>
+                <input
+                  className={styles.input}
+                  value={search}
+                  disabled={metadataEditingKeys.size > 0}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder={i18nT("titre_tag_fichier_3ea8c409")}
+                />
+              </label>
+              <button ref={filtersTriggerRef} type="button" className={styles.mobileFilterButton} aria-label={i18nT("library_filters")} title={i18nT("library_filters")} aria-expanded={mobileFiltersOpen} aria-controls={filtersId} data-active={secondaryFilterCount > 0 || undefined} disabled={metadataEditingKeys.size > 0} onClick={() => setMobileFiltersOpen((open) => !open)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M4 7h16M4 17h16" strokeLinecap="round"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg>
+                {secondaryFilterCount > 0 ? <span className={styles.filterCount}>{secondaryFilterCount}</span> : null}
+              </button>
+              <button
+                type="button"
+                className={styles.selectAllButton}
+                onClick={toggleAllVisibleItems}
+                disabled={loading || items.length === 0 || bulkDeleting}
+                aria-label={allVisibleItemsSelected ? i18nT("tout_deselectionner_d17ec0b7") : i18nT("tout_selectionner_06f2c1c0")}
+                title={allVisibleItemsSelected ? i18nT("tout_deselectionner_d17ec0b7") : i18nT("tout_selectionner_06f2c1c0")}
+                aria-pressed={allVisibleItemsSelected}
+              >
+                <span className={styles.selectAllLabel}>{allVisibleItemsSelected ? i18nT("tout_deselectionner_d17ec0b7") : i18nT("tout_selectionner_06f2c1c0")}</span>
+                <svg className={styles.selectAllIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="5" y="5" width="15" height="15" rx="4"/><path d="M3 15V6a3 3 0 0 1 3-3h9M9 12l3 3 5-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
+            </div>
+
+            <div className={styles.bulkToolbar} hidden={!selectedItemCount}>
+
+              {selectedItemCount > 0 ? (
+                <>
+                  <span className={styles.selectedCount}>
+                    {i18nT("value_media_s_selectionne_s_bf363244", { value0: selectedItemCount })}</span>
+                  <button type="button" className={styles.bulkDownloadButton} onClick={downloadSelectedItems} disabled={bulkDownloading || bulkDeleting || metadataSavingKeys.size > 0} aria-busy={bulkDownloading}>
+                    {i18nT(bulkDownloading ? "library_bulk_download_preparing" : "library_bulk_download")}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.bulkDangerButton}
+                    onClick={deleteSelectedItems}
+                    disabled={bulkDownloading || bulkDeleting || metadataSavingKeys.size > 0}
+                  >
+                    {bulkDeleting ? i18nT("suppression_a620db43") : i18nT("supprimer_la_selection_d1347096")}
+                  </button>
+                </>
+              ) : null}
+            </div>
+
+            {!importOpen && (success || error) ? <div className={styles.pageFeedback} aria-live="polite">
+              {success ? <div className={styles.success}>{success}</div> : null}
+              {error ? <div className={styles.error}>{error}</div> : null}
+            </div> : null}
+            {metadataEditingKeys.size > 0 ? <p className={styles.editingNotice} role="status">{i18nT("library_finish_edit")}</p> : null}
+            {loading && items.length === 0 ? (
+              <div className={styles.emptyState}>
+                {i18nT("chargement_de_votre_mediatheque_25fc0449")}{" "}</div>
+            ) : items.length === 0 ? (
+              <div className={styles.emptyState}>
+                <strong>{i18nT("aucun_media_pour_le_moment_12d38a73")}</strong>
+                <span>
+                  {i18nT("importez_vos_premieres_photos_ou_videos_7f226498")}{" "}</span>
+              </div>
+            ) : (
+              <div className={styles.mediaList} aria-busy={loading}>
+                <div className={styles.mediaListHead} aria-hidden="true">
+                  <span></span><span>{i18nT("media_d8a313d3")}</span><span>{i18nT("library_field_title")}</span><span>{i18nT("tags_848eed0f")}</span><span>{i18nT("library_information")}</span><span></span>
+                </div>
+                {items.map((item) => {
+                  const isSelected = selectedItemIds.has(item.id);
+                  const detailsOpen = expandedItemIds.has(item.id);
+                  const isSaving = savingId === item.id || metadataSavingKeys.has(item.id + ":title") || metadataSavingKeys.has(item.id + ":tags");
+                  const downloadUrl = buildMediaDownloadUrl(item.signed_url);
+                  return (
+                  <article
+                    key={item.id}
+                    className={`${styles.mediaRow} ${isSelected ? styles.mediaRowSelected : ""} ${detailsOpen ? styles.mediaRowDetailsOpen : ""} ${item.is_active === false ? styles.mediaRowDisabled : ""}`}
+                    data-title-editing={metadataEditingKeys.has(item.id + ":title") || undefined}
+                    onClick={(event) => handleMobileRowSelection(event, item)}
+                  >
+                    <label
+                      className={styles.rowCheck}
+                      aria-label={i18nT("selectionner_value_b74d84aa", { value0: item.title || i18nT("media_this") })}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleItemSelection(item.id)}
+                        disabled={isSaving || bulkDeleting}
+                      />
+                    </label>
+                    <div className={styles.mediaRowFile}>
+                      <button
+                        type="button"
+                        className={styles.mediaRowPreview}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setPreviewItem(item);
+                        }}
+                        aria-label={item.media_type === "audio" ? i18nT("library_audio_preview", { name: item.title || item.original_file_name || i18nT("media_sans_titre_e77f1871") }) : i18nT("agrandir_le_media_55f536e4")}
+                      >
+                        {item.media_type === "audio" ? (
+                          <span className={styles.mediaRowAudioThumb} aria-hidden="true">🎙</span>
+                        ) : item.media_type === "video" ? (
+                          <video
+                            src={item.signed_url || undefined}
+                            className={styles.mediaRowThumb}
+                            muted
+                            playsInline
+                            preload="metadata"
+                          />
+                        ) : item.signed_url ? (
+                          <img
+                            src={item.preview_url || item.signed_url}
+                            alt={item.title || i18nT("media_default_alt")}
+                            className={styles.mediaRowThumb}
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className={styles.noPreview}>{i18nT("apercu_indisponible_d0ce704a")}</div>
+                        )}
+                      </button>
+
+                    </div>
+                    <div className={styles.mediaRowMain}>
+                        <MediaMetadataField field="title" value={item.title || ""} disabled={isSaving || bulkDeleting} onSave={(field, value) => saveMetadata(item.id, field, value)} onEditingChange={(editing) => setMetadataEditing(item.id, "title", editing)} />
+                        <div className={styles.mediaRowExtra}>
+                        {item.media_type === "audio" && item.signed_url ? <audio className={styles.mediaRowAudioPlayer} src={item.signed_url} controls preload="none" aria-label={i18nT("library_audio_preview", { name: item.title || item.original_file_name || i18nT("media_sans_titre_e77f1871") })} /> : null}
+                        {item.imageRecovery ? (
+                          <span className={styles.optimizationBadge} title={i18nT("image_recovery_notice")}>{i18nT("image_recovery_badge")}</span>
+                        ) : item.media_type === "image" && item.processing_status === "failed_terminal" ? (
+                          <span className={styles.optimizationBadge} role="status">{item.processing_error_message || i18nT("image_recovery_failed")}</span>
+                        ) : null}
+                        {mediaNeedsOptimization(item) ? (
+                          <div className={styles.mediaRowOptimizationActions}>
+                            <span className={styles.optimizationBadge}>
+                              {i18nT("a_optimiser_format_et_ou_poids_df2070a3")}{" "}</span>
+                            <button
+                              type="button"
+                              className={styles.optimizeButton}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setOptimizerItem(item as MediaOptimizerItem);
+                              }}
+                            >
+                              {["queued", "processing", "retry_wait"].includes(
+                                String(item.optimization?.status || ""),
+                              )
+                                ? i18nT("optimisation_value_174c8358", { value0: Math.max(0, Math.min(99, Number(item.optimization?.progress || 0))) })
+                                : i18nT("optimiser_19599bcc")}
+                            </button>
+                          </div>
+                        ) : item.media_type !== "audio" && item.source === "mediatheque_optimization" ? (
+                          <span className={styles.compatibleCopyBadge}>{i18nT("copie_optimisee_f10d59ec")}</span>
+                        ) : null}
+                        </div>
+                    </div>
+                    <div className={styles.mediaRowTags}>
+                      <MediaMetadataField field="tags" value={tagsToText(item.tags)} disabled={isSaving || bulkDeleting} onSave={(field, value) => saveMetadata(item.id, field, value)} onEditingChange={(editing) => setMetadataEditing(item.id, "tags", editing)} />
+                    </div>
+                    <div className={styles.mediaRowActionRail}>
+                      {isSelected ? (
+                        <span
+                          className={styles.mediaRowSelectionBadge}
+                          aria-hidden="true"
+                        >
+                          ✓
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        className={styles.mediaRowDetailsButton}
+                        disabled={metadataEditingKeys.has(item.id + ":tags")}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleItemDetails(item.id);
+                        }}
+                        aria-label={detailsOpen ? i18nT("media_hide_details") : i18nT("media_show_details")}
+                        aria-expanded={detailsOpen}
+                      >
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 20 20"
+                          className={styles.detailsChevron}
+                        >
+                          <path
+                            d="M5.25 7.5 10 12.25 14.75 7.5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div className={styles.mediaRowFacts}>
+                    <span className={styles.mediaRowPill} data-label={i18nT("type_3deb7456")}>
+                      {item.media_type === "audio" ? i18nT("library_audio") : item.media_type === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")}
+                    </span>
+                    <span className={styles.mediaRowMeta} data-label={i18nT("poids_2cc4c1e5")}>
+                      {displayBytes(item.size_bytes)}
+                    </span>
+                    <span className={styles.mediaRowMeta} data-label={i18nT("format_041a5dec")}>
+                      {item.media_type === "video" || item.media_type === "audio"
+                        ? formatDuration(item.duration_seconds)
+                        : item.width && item.height
+                          ? `${item.width}×${item.height}`
+                          : "—"}
+                    </span>
+                    <span className={styles.mediaRowMeta} data-label={i18nT("date_eb9a4bc1")}>
+                      {displayDate(item.created_at)}
+                    </span>
+
+                    </div>
+                    <div className={styles.mediaRowActions}>
+                      <a
+                        className={styles.mediaRowDownload}
+                        href={downloadUrl || undefined}
+                        download={item.original_file_name || true}
+                        aria-label={i18nT("ai_generator_download")}
+                        aria-disabled={!downloadUrl}
+                        title={i18nT("ai_generator_download")}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (!downloadUrl) event.preventDefault();
+                        }}
+                      >
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 24 24"
+                          className={styles.downloadIcon}
+                        >
+                          <path
+                            d="M12 3v11m0 0 4-4m-4 4-4-4M5 18v2h14v-2"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        <span className={styles.mediaRowDownloadLabel}>
+                          {i18nT("ai_generator_download")}
+                        </span>
+                      </a>
+                      <button
+                        type="button"
+                        className={styles.mediaRowDelete}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          deleteItem(item);
+                        }}
+                        disabled={isSaving || bulkDeleting}
+                        aria-label={i18nT("supprimer_1acfc1c7")}
+                      >
+                        <svg className={styles.mediaRowDeleteIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7M14 10v7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        <span className={styles.mediaRowDeleteLabel}>{i18nT("supprimer_1acfc1c7")}</span>
+                      </button>
+                    </div>
+                  </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+
+      {importOpen ? <div className={styles.importOverlay} role="presentation" onClick={() => { if (!uploading) setImportOpen(false); }}>
+        <div ref={importDialogRef} className={styles.importDialog} role="dialog" aria-modal="true" aria-labelledby={importTitleId} tabIndex={-1} onClick={(event) => event.stopPropagation()}>
+          <button type="button" className={styles.importClose} onClick={() => setImportOpen(false)} disabled={uploading} aria-label={i18nT("fermer_5ab4ec64")}>×</button>
           <form className={styles.card} onSubmit={onSubmit}>
             <div className={styles.cardHeader}>
-              <h2>{i18nT("importer_dans_ma_mediatheque_3f45cbb6")}</h2>
+              <h2 id={importTitleId}>{i18nT("importer_dans_ma_mediatheque_3f45cbb6")}</h2>
               <p>
                 {i18nT("les_medias_restent_prives_et_rattaches_384c40f8")}{" "}</p>
             </div>
@@ -1153,20 +1535,11 @@ export default function MediaLibraryClient() {
             ) : null}
 
             <label className={styles.label}>
-              <span>{i18nT("titre_commun_optionnel_01483e16")}</span>
-              <input
-                className={styles.input}
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder={i18nT("ex_realisations_toiture_2026_a3f9cf21")}
-              />
-            </label>
-
-            <label className={styles.label}>
-              <span>{i18nT("tags_848eed0f")}</span>
+              <span>{i18nT("library_import_common_tags")}</span>
               <input
                 className={styles.input}
                 value={tags}
+                disabled={uploading}
                 onChange={(event) => setTags(event.target.value)}
                 placeholder={i18nT("chantier_avant_apres_equipe_produit_5ef60075")}
               />
@@ -1201,301 +1574,8 @@ export default function MediaLibraryClient() {
               </div>
             )}
           </form>
-
-          <section className={styles.libraryCard}>
-            <div className={styles.libraryHeader}>
-              <div>
-                <h2>{i18nT("mes_medias_0c5196c9")}</h2>
-                <p>
-                  {i18nT("photos_et_videos_disponibles_pour_inragent_f169f51c")}{" "}</p>
-              </div>
-            </div>
-
-            <div className={styles.filters}>
-              <label>
-                <span>{i18nT("type_3deb7456")}</span>
-                <select
-                  className={styles.select}
-                  value={typeFilter}
-                  onChange={(event) =>
-                    setTypeFilter(event.target.value as MediaTypeFilter)
-                  }
-                >
-                  <option value="all">{i18nT("tous_b97ae3b4")}</option>
-                  <option value="image">{i18nT("images_09e871c9")}</option>
-                  <option value="video">{i18nT("videos_ea129238")}</option>
-                  <option value="audio">{i18nT("library_audio")}</option>
-                </select>
-              </label>
-              <label>
-                <span>{i18nT("statut_659499f3")}</span>
-                <select
-                  className={styles.select}
-                  value={activeFilter}
-                  onChange={(event) =>
-                    setActiveFilter(event.target.value as ActiveFilter)
-                  }
-                >
-                  <option value="active">{i18nT("actifs_4fc3a980")}</option>
-                  <option value="inactive">{i18nT("masques_cb0d30ef")}</option>
-                  <option value="all">{i18nT("tous_b97ae3b4")}</option>
-                </select>
-              </label>
-              <label className={styles.searchLabel}>
-                <span>{i18nT("recherche_787b5492")}</span>
-                <input
-                  className={styles.input}
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={i18nT("titre_tag_fichier_3ea8c409")}
-                />
-              </label>
-              <button
-                type="button"
-                className={styles.applyButton}
-                onClick={() => void loadItems()}
-              >
-                {i18nT("appliquer_a4d66139")}{" "}</button>
-            </div>
-
-            <div className={styles.bulkToolbar}>
-              <button
-                type="button"
-                className={styles.smallGhostButton}
-                onClick={toggleAllVisibleItems}
-                disabled={loading || items.length === 0 || bulkDeleting}
-              >
-                {allVisibleItemsSelected ? i18nT("tout_deselectionner_d17ec0b7") : i18nT("tout_selectionner_06f2c1c0")}
-              </button>
-              {selectedItemCount > 0 ? (
-                <>
-                  <span className={styles.selectedCount}>
-                    {i18nT("value_media_s_selectionne_s_bf363244", { value0: selectedItemCount })}</span>
-                  <button
-                    type="button"
-                    className={styles.bulkDangerButton}
-                    onClick={deleteSelectedItems}
-                    disabled={bulkDeleting}
-                  >
-                    {bulkDeleting ? i18nT("suppression_a620db43") : i18nT("supprimer_la_selection_d1347096")}
-                  </button>
-                </>
-              ) : null}
-            </div>
-
-            {loading ? (
-              <div className={styles.emptyState}>
-                {i18nT("chargement_de_votre_mediatheque_25fc0449")}{" "}</div>
-            ) : items.length === 0 ? (
-              <div className={styles.emptyState}>
-                <strong>{i18nT("aucun_media_pour_le_moment_12d38a73")}</strong>
-                <span>
-                  {i18nT("importez_vos_premieres_photos_ou_videos_7f226498")}{" "}</span>
-              </div>
-            ) : (
-              <div className={styles.mediaList}>
-                <div className={styles.mediaListHead} aria-hidden="true">
-                  <span></span>
-                  <span>{i18nT("media_d8a313d3")}</span>
-                  <span>{i18nT("type_3deb7456")}</span>
-                  <span>{i18nT("poids_2cc4c1e5")}</span>
-                  <span>{i18nT("format_041a5dec")}</span>
-                  <span>{i18nT("date_eb9a4bc1")}</span>
-                  <span></span>
-                </div>
-                {items.map((item) => {
-                  const isSelected = selectedItemIds.has(item.id);
-                  const detailsOpen = expandedItemIds.has(item.id);
-                  const isSaving = savingId === item.id;
-                  const downloadUrl = buildMediaDownloadUrl(item.signed_url);
-                  return (
-                  <article
-                    key={item.id}
-                    className={`${styles.mediaRow} ${isSelected ? styles.mediaRowSelected : ""} ${detailsOpen ? styles.mediaRowDetailsOpen : ""} ${item.is_active === false ? styles.mediaRowDisabled : ""}`}
-                    onClick={(event) => handleMobileRowSelection(event, item)}
-                  >
-                    <label
-                      className={styles.rowCheck}
-                      aria-label={i18nT("selectionner_value_b74d84aa", { value0: item.title || i18nT("media_this") })}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleItemSelection(item.id)}
-                        disabled={isSaving || bulkDeleting}
-                      />
-                      <span aria-hidden="true" />
-                    </label>
-                    <div className={styles.mediaRowFile}>
-                      <button
-                        type="button"
-                        className={styles.mediaRowPreview}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setPreviewItem(item);
-                        }}
-                        aria-label={item.media_type === "audio" ? i18nT("library_audio_preview", { name: item.title || item.original_file_name || i18nT("media_sans_titre_e77f1871") }) : i18nT("agrandir_le_media_55f536e4")}
-                      >
-                        {item.media_type === "audio" ? (
-                          <span className={styles.mediaRowAudioThumb} aria-hidden="true">🎙</span>
-                        ) : item.media_type === "video" ? (
-                          <video
-                            src={item.signed_url || undefined}
-                            className={styles.mediaRowThumb}
-                            muted
-                            playsInline
-                            preload="metadata"
-                          />
-                        ) : item.signed_url ? (
-                          <img
-                            src={item.preview_url || item.signed_url}
-                            alt={item.title || i18nT("media_default_alt")}
-                            className={styles.mediaRowThumb}
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className={styles.noPreview}>{i18nT("apercu_indisponible_d0ce704a")}</div>
-                        )}
-                      </button>
-
-                      <div className={styles.mediaRowMain}>
-                        <strong>{item.title || i18nT("media_sans_titre_e77f1871")}</strong>
-                        <span>{tagsToText(item.tags) || i18nT("aucun_tag_b6d9425d")}</span>
-                        {item.media_type === "audio" && item.signed_url ? <audio className={styles.mediaRowAudioPlayer} src={item.signed_url} controls preload="none" aria-label={i18nT("library_audio_preview", { name: item.title || item.original_file_name || i18nT("media_sans_titre_e77f1871") })} /> : null}
-                        {item.imageRecovery ? (
-                          <span className={styles.optimizationBadge} title={i18nT("image_recovery_notice")}>{i18nT("image_recovery_badge")}</span>
-                        ) : item.media_type === "image" && item.processing_status === "failed_terminal" ? (
-                          <span className={styles.optimizationBadge} role="status">{item.processing_error_message || i18nT("image_recovery_failed")}</span>
-                        ) : null}
-                        {mediaNeedsOptimization(item) ? (
-                          <div className={styles.mediaRowOptimizationActions}>
-                            <span className={styles.optimizationBadge}>
-                              {i18nT("a_optimiser_format_et_ou_poids_df2070a3")}{" "}</span>
-                            <button
-                              type="button"
-                              className={styles.optimizeButton}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setOptimizerItem(item as MediaOptimizerItem);
-                              }}
-                            >
-                              {["queued", "processing", "retry_wait"].includes(
-                                String(item.optimization?.status || ""),
-                              )
-                                ? i18nT("optimisation_value_174c8358", { value0: Math.max(0, Math.min(99, Number(item.optimization?.progress || 0))) })
-                                : i18nT("optimiser_19599bcc")}
-                            </button>
-                          </div>
-                        ) : item.media_type !== "audio" && item.source === "mediatheque_optimization" ? (
-                          <span className={styles.compatibleCopyBadge}>{i18nT("copie_optimisee_f10d59ec")}</span>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className={styles.mediaRowActionRail}>
-                      {isSelected ? (
-                        <span
-                          className={styles.mediaRowSelectionBadge}
-                          aria-hidden="true"
-                        >
-                          ✓
-                        </span>
-                      ) : null}
-                      <button
-                        type="button"
-                        className={styles.mediaRowDetailsButton}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          toggleItemDetails(item.id);
-                        }}
-                        aria-label={detailsOpen ? i18nT("media_hide_details") : i18nT("media_show_details")}
-                        aria-expanded={detailsOpen}
-                      >
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 20 20"
-                          className={styles.detailsChevron}
-                        >
-                          <path
-                            d="M5.25 7.5 10 12.25 14.75 7.5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-
-                    <span className={styles.mediaRowPill} data-label="Type">
-                      {item.media_type === "audio" ? i18nT("library_audio") : item.media_type === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")}
-                    </span>
-                    <span className={styles.mediaRowMeta} data-label="Poids">
-                      {displayBytes(item.size_bytes)}
-                    </span>
-                    <span className={styles.mediaRowMeta} data-label="Format">
-                      {item.media_type === "video" || item.media_type === "audio"
-                        ? formatDuration(item.duration_seconds)
-                        : item.width && item.height
-                          ? `${item.width}×${item.height}`
-                          : "—"}
-                    </span>
-                    <span className={styles.mediaRowMeta} data-label="Date">
-                      {displayDate(item.created_at)}
-                    </span>
-
-                    <div className={styles.mediaRowActions}>
-                      <a
-                        className={styles.mediaRowDownload}
-                        href={downloadUrl || undefined}
-                        download={item.original_file_name || true}
-                        aria-label={i18nT("ai_generator_download")}
-                        aria-disabled={!downloadUrl}
-                        title={i18nT("ai_generator_download")}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (!downloadUrl) event.preventDefault();
-                        }}
-                      >
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 24 24"
-                          className={styles.downloadIcon}
-                        >
-                          <path
-                            d="M12 3v11m0 0 4-4m-4 4-4-4M5 18v2h14v-2"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        <span className={styles.mediaRowDownloadLabel}>
-                          {i18nT("ai_generator_download")}
-                        </span>
-                      </a>
-                      <button
-                        type="button"
-                        className={styles.mediaRowDelete}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          deleteItem(item);
-                        }}
-                        disabled={isSaving || bulkDeleting}
-                      >
-                        {i18nT("supprimer_1acfc1c7")}{" "}
-                      </button>
-                    </div>
-                  </article>
-                  );
-                })}
-              </div>
-            )}
-          </section>
         </div>
-      </div>
+      </div> : null}
 
       <MediaOptimizerModal
         open={Boolean(optimizerItem)}

@@ -88,7 +88,17 @@ const modules = new Map<string, unknown>([
   ["./MediaGenerator.module.css", { __esModule: true, default: new Proxy({}, { get: (_target, key) => key }) }],
   ["./MediaGenerationCreationWorkspace.module.css", { __esModule: true, default: new Proxy({}, { get: (_target, key) => key }) }],
   ["./MediaEngineCreditControls.module.css", { __esModule: true, default: new Proxy({}, { get: (_target, key) => key }) }],
+  ["./DashboardMobileSelect.module.css", { __esModule: true, default: new Proxy({}, { get: (_target, key) => key }) }],
 ]);
+const mobileSelectRecord = { exports: {} as Record<string, unknown> };
+const mobileSelectOutput = ts.transpileModule(read("app/dashboard/_components/DashboardMobileSelect.tsx"), {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
+}).outputText;
+new Function("module", "exports", "require", mobileSelectOutput)(mobileSelectRecord, mobileSelectRecord.exports, (specifier: string) => {
+  assert.ok(modules.has(specifier), `Unexpected navigation dependency: ${specifier}`);
+  return modules.get(specifier);
+});
+modules.set("./DashboardMobileSelect", mobileSelectRecord.exports);
 // The real shared action wrapper is a presentation dependency, not a request
 // owner. Execute it too so the existing lifecycle tests retain their meaning.
 const controlsOutput=ts.transpileModule(read("app/dashboard/_components/MediaEngineCreditControls.tsx"),{
@@ -425,7 +435,7 @@ test("les onglets de réglage ne font que sélectionner un panneau et gardent un
   const selected: string[] = [];
   const tree = record.exports.MediaGenerationSettingsTabs({ idPrefix: "free-image", activeTab: "criteria",
     tabs: [{ id: "criteria", label: "Critères" }, { id: "prompt", label: "Prompt" }], onChange: (id: string) => selected.push(id) });
-  assert.equal(tree.props.role, "tablist");
+  assert.ok(find(tree, (node) => node.props.role === "tablist"));
   const criteria = button(tree, "Critères"); const prompt = button(tree, "Prompt");
   assert.equal(criteria.props.type, "button"); assert.equal(criteria.props["aria-selected"], true); assert.equal(criteria.props.tabIndex, 0);
   assert.equal(prompt.props["aria-controls"], "free-image-panel-prompt"); assert.equal(prompt.props.tabIndex, -1);
@@ -434,6 +444,11 @@ test("les onglets de réglage ne font que sélectionner un panneau et gardent un
   (criteria.props.onKeyDown as (event: { key: string; preventDefault: () => void }) => void)({ key: "ArrowRight", preventDefault: () => { prevented = true; } });
   assert.equal(prevented, true); assert.deepEqual(selected, ["prompt", "prompt"]);
   assert.equal(focusedElements.at(-1), "free-image-tab-prompt");
+  const mobileSelect = find(tree, (node) => node.type === "select");
+  assert.equal(mobileSelect.props.value, "criteria");
+  assert.equal(mobileSelect.props["aria-controls"], "free-image-panel-criteria");
+  (mobileSelect.props.onChange as (event: { currentTarget: { value: string } }) => void)({ currentTarget: { value: "prompt" } });
+  assert.deepEqual(selected, ["prompt", "prompt", "prompt"]);
 });
 
 test("un critère manquant indique précisément son onglet et disparaît une fois complété", () => {
@@ -467,6 +482,10 @@ test("une alerte d’onglet explique précisément le champ manquant", () => {
   const description = find(tree, (node) => node.props.id === criteria.props["aria-describedby"]);
   assert.equal(text(description), reason);
   assert.doesNotMatch(text(description), /ai_generator_editor_criteria_incomplete/);
+  const select = find(tree, (node) => node.type === "select");
+  const mobileDescription = find(tree, (node) => node.props.id === select.props["aria-describedby"]);
+  assert.equal(text(mobileDescription), reason);
+  assert.equal(mobileDescription.props.role, "status");
 });
 
 test("image et vidéo regroupent Enregistrer, Réajuster, Régénérer et Réinitialiser sous l’aperçu", () => {

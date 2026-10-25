@@ -72,7 +72,6 @@ test("les deux offres montrent douze canaux, Mails restant verrouillé en Standa
     channelsSectionSource,
     /const connected = fluxBubbleItems\.filter\(\(item\) => getChannelTone\(item\) === "connected"\)\.length;/,
   );
-  assert.match(channelsSectionSource, /\{connected\}<small>\/\{total\}<\/small>/);
   assert.match(channelsSectionSource, /items=\{fluxBubbleItems\} summary=\{\{ connected, total \}\}/);
   assert.match(dashboardClientSource, /const dashboardChannelItems = useMemo\(\(\) => \{[\s\S]*collapseDashboardWebsiteChannels\(fluxBubbleItems, \{/);
   assert.doesNotMatch(dashboardClientSource, /<ChannelConnectionsModal/);
@@ -157,7 +156,9 @@ test("le nouveau cockpit ouvre une infobulle par étape et détaille les onze ca
   );
   assert.match(dashboardCssSource, /\.cockpitStageInfoOpen\s*\{[\s\S]*z-index: 30;/);
   assert.match(dashboardCssSource, /\.cockpitInfoPopover\s*\{[\s\S]*z-index: 40;/);
-  assert.match(heroCssSource, /\.heroInfoOpen\s*\{ position: relative; z-index: 5; \}/);
+  const infoLayer = Number(heroCssSource.match(/\.heroInfoOpen\s*\{[^}]*z-index:\s*(\d+)/)?.[1]);
+  const hubLayer = Number(read("../../app/dashboard/_components/DashboardExperience.module.css").match(/\.hubRow\s*\{[^}]*z-index:\s*(\d+)/)?.[1]);
+  assert.ok(infoLayer > hubLayer, "L’aide du cockpit reste au-dessus des accès centraux");
   assert.match(heroCssSource, /\.cockpitInfoPopover\s*\{[^}]*background: #0d1c3c/);
 });
 

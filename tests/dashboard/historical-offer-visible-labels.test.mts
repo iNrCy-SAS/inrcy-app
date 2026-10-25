@@ -57,7 +57,7 @@ const TECHNICAL_PLAN_VALUES = new Set([
   "inrcy_founder",
 ]);
 
-test("no locale exposes the former public offer name in translated values", () => {
+test("locales exclude the former public offer name outside existing Founder tools", () => {
   const violations: string[] = [];
   const messagesRoot = resolve(ROOT, "messages");
   for (const localeEntry of readdirSync(messagesRoot, { withFileTypes: true })) {
@@ -68,6 +68,8 @@ test("no locale exposes the former public offer name in translated values", () =
       const relativePath = `messages/${localeEntry.name}/${catalogEntry.name}`;
       const catalog = JSON.parse(read(relativePath)) as unknown;
       for (const item of collectStrings(catalog)) {
+        // Existing Founder accounts may name their tools modal; public offer and checkout copy stay guarded.
+        if (catalogEntry.name === "settings.json" && item.path === "root.subscription_founder_tools") continue;
         if (FORMER_PUBLIC_LABEL.test(item.value)) {
           violations.push(`${relativePath}:${item.path}=${JSON.stringify(item.value)}`);
         }
@@ -96,6 +98,7 @@ test("Founder rights remain while legacy subscription plans are removed", () => 
   const admin = read("app/dashboard/admin/users/AdminUsersClient.tsx");
   const account = read("app/dashboard/settings/_components/AccountContent.tsx");
   const subscription = read("app/dashboard/settings/_components/AbonnementContent.tsx");
+  const comparison = read("app/dashboard/settings/_components/SubscriptionComparison.tsx");
 
   assert.match(edition, /DashboardEdition = "standard" \| "premium" \| "founder"/);
   assert.match(admin, /<option value="Founder">Accès test · droits complets<\/option>/);
@@ -104,4 +107,6 @@ test("Founder rights remain while legacy subscription plans are removed", () => 
   assert.match(subscription, /if \(normalized === "Founder"\) return "Founder";/);
   assert.doesNotMatch(subscription, /"Starter"|"Accel"|"Speed"/);
   assert.match(subscription, /i18nT\("les_forfaits_premium_et_founder_sont_374bb1ec"\)/);
+  assert.match(comparison, /edition === "founder" \? "subscription_founder_tools"/);
+  assert.match(comparison, /<SubscriptionDetails title=\{toolsLabel\}>/);
 });

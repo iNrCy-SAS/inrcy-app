@@ -19,7 +19,7 @@ test("the shared settings drawer keeps every configuration panel inside the resp
   assert.match(drawer, /height: "100%"/);
   assert.match(drawer, /flexDirection: "column"/);
   assert.match(drawer, /data-dashboard-settings-drawer-scroll="true"[\s\S]*?minHeight: 0[\s\S]*?overflowY: "auto"/);
-  assert.match(content, /className=\{styles\.settingsDrawerContent\}/);
+  assert.match(content, /className=\{(?:styles\.settingsDrawerContent|`\$\{styles\.settingsDrawerContent\}[^`]*`)\}/);
   assert.match(css, /\.settingsDrawerContent[\s\S]*?max-width: 100%;[\s\S]*?min-width: 0;/);
   assert.match(css, /\.settingsDrawerContent :where\(input, select, textarea, fieldset, table, img, video, iframe\)/);
 });

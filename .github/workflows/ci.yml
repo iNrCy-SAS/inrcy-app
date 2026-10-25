@@ -201,7 +201,7 @@ jobs:
           path: .next
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: npx playwright install --with-deps chromium
 
       - name: Run E2E (local webServer)
         run: npm run test:e2e

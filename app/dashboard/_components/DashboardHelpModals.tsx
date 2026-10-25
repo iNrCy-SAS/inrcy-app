@@ -3,7 +3,11 @@
 import { useTranslations } from "next-intl";
 
 import HelpModal from "./HelpModal";
+import dynamic from "next/dynamic";
+import type { DashboardUsageGuideProps } from "./DashboardUsageGuide";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
+
+const DashboardUsageGuide = dynamic(() => import("./DashboardUsageGuide"));
 
 type DashboardHelpModalsProps = {
   edition?: DashboardEdition;
@@ -14,6 +18,7 @@ type DashboardHelpModalsProps = {
   helpInstagramOpen: boolean;
   helpFacebookOpen: boolean;
   onCloseGenerator: () => void;
+  usageGuide: DashboardUsageGuideProps;
   onCloseCanaux: () => void;
   onCloseSiteWeb: () => void;
   onCloseInertie: () => void;
@@ -53,6 +58,7 @@ export default function DashboardHelpModals({
   helpInstagramOpen,
   helpFacebookOpen,
   onCloseGenerator,
+  usageGuide,
   onCloseCanaux,
 
   onCloseSiteWeb,
@@ -62,98 +68,19 @@ export default function DashboardHelpModals({
 }: DashboardHelpModalsProps) {
   const i18nT = useTranslations("shell");
   const channelHelp = useTranslations("dashboard.channelHelp");
+  const usageGuideT = useTranslations("dashboard.helpCenter");
   const standardMode = edition === "standard";
 
   return (
     <>
       <HelpModal
         open={helpGeneratorOpen}
-        title={i18nT("generateur_inrcy_3882fff4")}
+        title={usageGuideT("title")}
         onClose={onCloseGenerator}
+        nativeLayer
+        variant="guide"
       >
-        <div
-          style={{
-            marginTop: 0,
-            borderRadius: 18,
-            padding: "clamp(16px, 4vw, 24px)",
-            boxSizing: "border-box",
-            maxWidth: "100%",
-            overflow: "hidden",
-            background:
-              "linear-gradient(135deg, rgba(0,180,255,0.14), rgba(167,72,255,0.14), rgba(255,92,138,0.10))",
-            border: "1px solid rgba(110,180,255,0.18)",
-            boxShadow: "0 0 40px rgba(87,117,255,0.12)",
-          }}
-        >
-          <p style={{ marginTop: 0, fontSize: 15.5, lineHeight: 1.8 }}>
-            {i18nT("le_generateur_inrcy_centralise_vos_canaux_7e8b377d")}{" "}</p>
-
-          <div style={{ display: "grid", gap: 22 }}>
-            <div>
-              <div
-                style={{ fontWeight: 700, color: "#66d9ff", marginBottom: 10 }}
-              >
-                {i18nT("unites_d_inertie_4d7ed5c6")}{" "}</div>
-              <div style={{ opacity: 0.96, lineHeight: 1.75, fontSize: 14.5 }}>
-                {standardMode ? (
-                  <>
-                    {i18nT("points_generes_par_votre_activite_et_93e1c500")}{" "}</>
-                ) : (
-                  <>
-                    {i18nT("points_generes_par_votre_activite_et_a4e9014c")}{" "}</>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <div
-                style={{ fontWeight: 700, color: "#ff9ad5", marginBottom: 10 }}
-              >
-                {i18nT("ca_potentiel_30_jours_7325dfe0")}{" "}</div>
-              <div style={{ opacity: 0.96, lineHeight: 1.75, fontSize: 14.5 }}>
-                {i18nT("estimation_du_chiffre_d_affaires_pouvant_cb2212ef")}{" "}</div>
-            </div>
-
-            <div>
-              <div
-                style={{ fontWeight: 700, color: "#7df7c4", marginBottom: 10 }}
-              >
-                {i18nT("demandes_captees_369d1ff6")}{" "}</div>
-              <div style={{ opacity: 0.96, lineHeight: 1.75, fontSize: 14.5 }}>
-                {i18nT("analyse_business_des_statistiques_reelles_de_a51ff55a")}{" "}</div>
-            </div>
-
-            <div>
-              <div
-                style={{ fontWeight: 700, color: "#ffd36f", marginBottom: 10 }}
-              >
-                {i18nT("opportunites_activables_253f4140")}{" "}</div>
-              <div style={{ opacity: 0.96, lineHeight: 1.75, fontSize: 14.5 }}>
-                {standardMode ? (
-                  <>
-                    {i18nT("contacts_supplementaires_pouvant_etre_generes_en_12d3fa24")}{" "}</>
-                ) : (
-                  <>
-                    {i18nT("contacts_supplementaires_pouvant_etre_generes_gr_207bdb80")}{" "}</>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div
-            style={{
-              marginTop: 18,
-              padding: "12px 14px",
-              borderRadius: 14,
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              fontSize: 13,
-              lineHeight: 1.5,
-              opacity: 0.95,
-            }}
-          >
-            {i18nT("les_donnees_affichees_sont_calculees_automatique_ee4f1d05")}{" "}</div>
-        </div>
+        {helpGeneratorOpen ? <DashboardUsageGuide {...usageGuide} /> : null}
       </HelpModal>
 
       <HelpModal

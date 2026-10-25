@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
+import styles from "./subscriptionWorkspace.module.css";
 
 type StripeInvoice = {
   id: string;
@@ -59,10 +59,12 @@ function statusLabel(status: string, i18nT: (key: string) => string) {
 export default function SubscriptionInvoicesPanel() {
   const i18nT = useTranslations("settings");
   const locale = useLocale();
+  const shellT = useTranslations("shell");
   const [invoices, setInvoices] = useState<StripeInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -93,97 +95,51 @@ export default function SubscriptionInvoicesPanel() {
     return () => controller.abort();
   }, [i18nT, reloadToken]);
 
-  const linkStyle: CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 36,
-    padding: "7px 10px",
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,.18)",
-    color: "white",
-    background: "rgba(255,255,255,.06)",
-    textDecoration: "none",
-    fontSize: 12,
-    fontWeight: 800,
-    whiteSpace: "nowrap",
-  };
+  const pageSize = 5;
+  const pageCount = Math.max(1, Math.ceil(invoices.length / pageSize));
+  const activePage = Math.min(page, pageCount - 1);
+  const visibleInvoices = invoices.slice(activePage * pageSize, (activePage + 1) * pageSize);
 
   return (
-    <section
-      aria-labelledby="subscription-invoices-title"
-      style={{
-        padding: 18,
-        borderRadius: 18,
-        border: "1px solid rgba(61, 222, 255, 0.18)",
-        background: "rgba(0, 200, 255, 0.045)",
-        display: "grid",
-        gap: 10,
-      }}
-    >
-      <div>
-        <h2 id="subscription-invoices-title" style={{ margin: 0, fontSize: 16 }}>
-          {i18nT("factures_stripe_abonnement_titre_2d6f8a10")}
-        </h2>
-        <p style={{ margin: "6px 0 0", opacity: 0.78, lineHeight: 1.45, fontSize: 12 }}>
-          {i18nT("factures_stripe_abonnement_description_5a1c9e32")}
-        </p>
-      </div>
-
-      {loading ? (
-        <div style={{ opacity: 0.78, fontSize: 13 }}>{i18nT("factures_stripe_chargement_0f7b3c21")}</div>
-      ) : error ? (
-        <div>
-          <p style={{ margin: "0 0 10px", color: "#ffb4b4", fontSize: 13 }}>{error}</p>
-          <button type="button" onClick={() => setReloadToken((value) => value + 1)} style={linkStyle}>
-            {i18nT("factures_stripe_reessayer_9c4e1a70")}
-          </button>
-        </div>
-      ) : invoices.length === 0 ? (
-        <div style={{ opacity: 0.78, fontSize: 13 }}>{i18nT("factures_stripe_aucune_6b2d8f14")}</div>
-      ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", minWidth: 700, borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ opacity: 0.78, textAlign: "left" }}>
-                <th style={{ padding: "8px 6px" }}>{i18nT("facture_stripe_numero_1f6a3c20")}</th>
-                <th style={{ padding: "8px 6px" }}>{i18nT("facture_stripe_date_2c7a1e54")}</th>
-                <th style={{ padding: "8px 6px" }}>{i18nT("facture_stripe_periode_4c8e2a61")}</th>
-                <th style={{ padding: "8px 6px" }}>{i18nT("facture_stripe_statut_5d9b3c12")}</th>
-                <th style={{ padding: "8px 6px", textAlign: "right" }}>{i18nT("facture_stripe_total_8a4e6d20")}</th>
-                <th style={{ padding: "8px 6px" }} />
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((invoice) => (
-                <tr key={invoice.id} style={{ borderTop: "1px solid rgba(255,255,255,.10)" }}>
-                  <td style={{ padding: "10px 6px", fontWeight: 800 }}>{invoice.number || invoice.id}</td>
-                  <td style={{ padding: "10px 6px" }}>{formatDate(invoice.created, locale)}</td>
-                  <td style={{ padding: "10px 6px" }}>{formatPeriod(invoice.periodStart, invoice.periodEnd, locale)}</td>
-                  <td style={{ padding: "10px 6px" }}>{statusLabel(invoice.status, i18nT)}</td>
-                  <td style={{ padding: "10px 6px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                    {formatAmount(invoice.total ?? invoice.amountPaid, invoice.currency, locale)}
-                  </td>
-                  <td style={{ padding: "10px 6px", textAlign: "right" }}>
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
-                      {invoice.hostedInvoiceUrl ? (
-                        <a href={invoice.hostedInvoiceUrl} target="_blank" rel="noreferrer" style={linkStyle}>
-                          {i18nT("facture_stripe_voir_7a1d5c30")}
-                        </a>
-                      ) : null}
-                      {invoice.invoicePdf ? (
-                        <a href={invoice.invoicePdf} target="_blank" rel="noreferrer" style={linkStyle}>
-                          {i18nT("facture_stripe_pdf_3e8b2a61")}
-                        </a>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+    <section aria-labelledby="subscription-invoices-title" className={styles.invoicesCard}>
+      <header className={styles.invoicesHeader}>
+        <span className={styles.invoiceMark} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M6 3h9l4 4v14H6V3Z" /><path d="M14 3v5h5M9 12h7m-7 4h7" /></svg></span>
+        <div><h2 id="subscription-invoices-title">{i18nT("factures_stripe_abonnement_titre_2d6f8a10")}</h2>
+          <p>{i18nT("factures_stripe_abonnement_description_5a1c9e32")}</p></div>
+        {!loading && !error ? <span className={styles.invoiceCount}>{invoices.length.toLocaleString(locale)}</span> : null}
+      </header>
+      {loading ? <div className={styles.invoiceEmpty} role="status">{i18nT("factures_stripe_chargement_0f7b3c21")}</div>
+      : error ? <div className={styles.invoiceEmpty} role="alert"><p>{error}</p><button type="button" onClick={() => setReloadToken((value) => value + 1)} className={styles.invoiceLink}>{i18nT("factures_stripe_reessayer_9c4e1a70")}</button></div>
+      : invoices.length === 0 ? <div className={styles.invoiceEmpty}>{i18nT("factures_stripe_aucune_6b2d8f14")}</div>
+      : <>
+        <table className={styles.invoiceTable}>
+          <thead><tr>
+            <th>{i18nT("facture_stripe_numero_1f6a3c20")}</th>
+            <th>{i18nT("facture_stripe_date_2c7a1e54")}</th>
+            <th>{i18nT("facture_stripe_periode_4c8e2a61")}</th>
+            <th>{i18nT("facture_stripe_statut_5d9b3c12")}</th>
+            <th>{i18nT("facture_stripe_total_8a4e6d20")}</th>
+            <th><span className={styles.visuallyHidden}>{i18nT("facture_stripe_voir_7a1d5c30")}</span></th>
+          </tr></thead>
+          <tbody>{visibleInvoices.map((invoice) => <tr key={invoice.id}>
+            <td data-label={i18nT("facture_stripe_numero_1f6a3c20")}><strong>{invoice.number || invoice.id}</strong></td>
+            <td data-label={i18nT("facture_stripe_date_2c7a1e54")}>{formatDate(invoice.created, locale)}</td>
+            <td data-label={i18nT("facture_stripe_periode_4c8e2a61")}>{formatPeriod(invoice.periodStart, invoice.periodEnd, locale)}</td>
+            <td data-label={i18nT("facture_stripe_statut_5d9b3c12")}><span className={styles.invoiceStatus} data-status={invoice.status}>{statusLabel(invoice.status, i18nT)}</span></td>
+            <td data-label={i18nT("facture_stripe_total_8a4e6d20")} className={styles.invoiceAmount}>{formatAmount(invoice.total ?? invoice.amountPaid, invoice.currency, locale)}</td>
+            <td><div className={styles.invoiceLinks}>
+              {invoice.hostedInvoiceUrl ? <a href={invoice.hostedInvoiceUrl} target="_blank" rel="noreferrer" className={styles.invoiceLink}>{i18nT("facture_stripe_voir_7a1d5c30")}</a> : null}
+              {invoice.invoicePdf ? <a href={invoice.invoicePdf} target="_blank" rel="noreferrer" className={styles.invoiceLink}>{i18nT("facture_stripe_pdf_3e8b2a61")}</a> : null}
+            </div></td>
+          </tr>)}</tbody>
+        </table>
+        <nav className={styles.invoicePagination} aria-label={i18nT("factures_stripe_abonnement_titre_2d6f8a10")}>
+          <span aria-live="polite">{(activePage * pageSize + 1).toLocaleString(locale)}–{Math.min((activePage + 1) * pageSize, invoices.length).toLocaleString(locale)} / {invoices.length.toLocaleString(locale)}</span>
+          <div><button type="button" className={styles.invoiceLink} aria-label={shellT("element_precedent_358f9c1e")} disabled={activePage === 0} onClick={() => setPage(activePage - 1)}>‹</button>
+            <span>{activePage + 1} / {pageCount}</span>
+            <button type="button" className={styles.invoiceLink} aria-label={shellT("element_suivant_9d61e569")} disabled={activePage + 1 >= pageCount} onClick={() => setPage(activePage + 1)}>›</button></div>
+        </nav>
+      </>}
     </section>
   );
 }

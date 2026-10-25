@@ -22,6 +22,10 @@ import { MediaCreditRechargeButton } from "@/app/dashboard/_components/VideoCred
 type Props = {
   mode?: "drawer" | "page";
   onOpenInertia?: () => void;
+  hideInertiaShortcut?: boolean;
+  view?: "products" | "orders";
+  onViewChange?: (view: "products" | "orders") => void;
+  hideNavigation?: boolean;
 };
 
 type Method = "EUR" | "UI";
@@ -52,8 +56,19 @@ function statusLabel(s: OrderRow["status"], i18nT: (key: string) => string) {
   return s === "processed" ? i18nT("traitee_ed7d5868") : i18nT("en_cours_bc9b533a");
 }
 
-export default function BoutiqueContent({ onOpenInertia }: Props) {
-  const [view, setView] = useState<"products" | "orders">("products");
+export default function BoutiqueContent({
+  onOpenInertia,
+  hideInertiaShortcut = false,
+  view: controlledView,
+  onViewChange,
+  hideNavigation = false,
+}: Props) {
+  const [localView, setLocalView] = useState<"products" | "orders">("products");
+  const view = controlledView ?? localView;
+  const setView = (nextView: "products" | "orders") => {
+    if (controlledView === undefined) setLocalView(nextView);
+    onViewChange?.(nextView);
+  };
   const i18nT = useTranslations("settings");
   const locale = useLocale();
   const taxLabel = i18nT("standard_tax_exclusive_short");
@@ -207,14 +222,14 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
 
   return (
     <div className={layoutStyles.workspace} style={{ display: "grid", gap: 14 }}>
-      <DrawerHeaderTabs>
+      {hideNavigation ? null : <DrawerHeaderTabs>
         <div className={boutiqueStyles.headerTools}>
           <nav className={layoutStyles.navigation} aria-label={i18nT("boutique_05236d3a")}>
             <button type="button" aria-pressed={view === "products"} onClick={() => setView("products")}>{i18nT("boutique_05236d3a")}</button>
             <button type="button" aria-pressed={view === "orders"} onClick={() => setView("orders")}>{i18nT("historique_des_commandes_3b9f0e3d")}</button>
           </nav>
         </div>
-      </DrawerHeaderTabs>
+      </DrawerHeaderTabs>}
       <DrawerHeaderDetails>
         <div className={boutiqueStyles.balance}>
           <span>{i18nT("solde_ui_86037358")}</span>
@@ -222,7 +237,7 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
         </div>
       </DrawerHeaderDetails>
       <DrawerHeaderActions>
-        <button type="button" className={boutiqueStyles.inertiaLink} onClick={() => (onOpenInertia ? onOpenInertia() : router.push("/dashboard?panel=inertie"))}>{i18nT("voir_mon_inertie_5f3d5554")}</button>
+        {hideInertiaShortcut ? null : <button type="button" className={boutiqueStyles.inertiaLink} onClick={() => (onOpenInertia ? onOpenInertia() : router.push("/dashboard?panel=inertie"))}>{i18nT("voir_mon_inertie_5f3d5554")}</button>}
         <button type="button" className={boutiqueStyles.helpButton} aria-expanded={showUiHelp} aria-label={i18nT("comprendre_les_ui_5d7da596")} onClick={() => setShowUiHelp((v) => !v)}>?</button>
       </DrawerHeaderActions>
       {showUiHelp && <div className={boutiqueStyles.help}>{i18nT("plus_votre_generateur_inrcy_est_actif_6aee499e")}</div>}

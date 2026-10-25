@@ -1,4 +1,6 @@
 .navigator { display:grid; grid-template-columns:minmax(120px,.6fr) minmax(260px,1fr) minmax(450px,1.5fr); position:relative; align-items:center; flex:0 0 auto; gap:24px; padding:15px 20px 19px; margin-bottom:18px; border:1px solid #7db5e32b; border-radius:22px; background:linear-gradient(110deg,#11283be6,#111b30de 55%,#211c38d6); box-shadow:inset 0 1px #ffffff09,0 12px 30px #03071620; touch-action:pan-y pinch-zoom; user-select:none; }
+.mobileViewSelector { display:none; }
+.evolutionViewNavigation { min-width:0; justify-self:center; align-self:center; }
 .globalShortcut { justify-self:start; display:inline-flex; align-items:center; gap:9px; padding:10px 13px; border:1px solid #89b6d833; border-radius:13px; background:#101c31a8; color:#b8cce3; font:inherit; font-size:12px; font-weight:650; cursor:pointer; }
 .globalShortcut svg { width:18px; height:18px; }
 .globalShortcut[aria-current="page"] { color:#b5edff; border-color:#72d4f063; background:#284b6745; }
@@ -523,4 +525,16 @@
   .cardFooter { padding: 3px 9px; min-height: 26px; gap: 5px; }
   .connectionStatus, .channelAction { font-size: 8px; }
   .channelAction { min-height: 20px; padding: 2px 5px; }
+}
+
+@media (max-width: 1100px) {
+  .navigator { grid-template-columns:minmax(0,1fr); height:auto; min-height:0; gap:12px; padding:12px; }
+  .mobileViewSelector { display:block; min-width:0; }
+  .overviewTabs, .navigationCenter, .pageTrack, .navigationHint, .evolutionViewTabs { display:none; }
+  .navigationSummary { grid-column:1; margin-top:0; }
+  .evolutionViewNavigation { width:100%; justify-self:stretch; }
+}
+
+@media (max-width: 900px) {
+  .evolutionToolbarUnified .evolutionViewNavigation { grid-row:2; }
 }

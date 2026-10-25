@@ -2521,6 +2521,10 @@
   background: rgba(255,255,255,0.06);
 }
 
+.mobilePlatformNavigation {
+  display: none;
+}
+
 .platformTab,
 .platformTabActive {
   min-height: 34px;
@@ -2579,6 +2583,11 @@
 }
 
 /* Navigation tactile dans le détail d'un avis */
+@media (max-width: 1100px) {
+  .platformTabs { display: none; }
+  .mobilePlatformNavigation { display: block; flex: 0 0 100%; min-width: 0; width: 100%; }
+}
+
 .reviewSequenceControls {
   flex: 0 0 auto;
   display: inline-flex;

@@ -22,12 +22,13 @@ test("the desktop account menu leaves the four workspace tools in their dedicate
   assert.doesNotMatch(source, /closeAndNavigate\("\/dashboard(?:\?action=channels|\/generer-media)"\)/);
 });
 
-test("the mobile General menu keeps account settings without repeating the tool shortcuts", () => {
-  assert.match(responsiveSource, /label=\{t\.userMenu\.preferences\}/);
+test("the mobile space menu consolidates account settings without repeating cockpit setup", () => {
+  assert.match(responsiveSource, /openDashboardPanel\("compte"\)/);
+  assert.doesNotMatch(responsiveSource, /openDashboardPanel\("preferences"\)/);
   assert.doesNotMatch(responsiveSource, /label=\{t\.userMenu\.profile\}/);
   assert.doesNotMatch(responsiveSource, /label=\{t\.userMenu\.(?:ai|aiMemory|mediaGenerator)\}/);
   assert.doesNotMatch(responsiveSource, /label=\{t\.hero\.channelOverviewTitle\}/);
-  assert.match(responsiveSource, /getDisplayedMobileShortcuts\(shortcuts, standardMode\)/);
+  assert.match(responsiveSource, /getDashboardMobileMenu\(dashboardEdition\)/);
   assert.match(responsiveSource, /navigate\(option\.href\)/);
 });
 

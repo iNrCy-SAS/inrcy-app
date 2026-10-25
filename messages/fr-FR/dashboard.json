@@ -1,5 +1,44 @@
 {
+  "usageGuide": {
+    "setupTab": "Votre cockpit",
+    "routineTab": "Au quotidien",
+    "landmarksTab": "Vos repères",
+    "title": "Bien utiliser iNrCy",
+    "intro": "Trois réglages pour bien démarrer, puis une routine simple.",
+    "setupTitle": "Commencez par votre cockpit",
+    "channelsTitle": "Connectez vos canaux",
+    "channelsBody": "Reliez vos comptes et vérifiez leur état. Revenez ici si un canal demande une reconnexion.",
+    "dnaTitle": "Complétez votre ADN",
+    "dnaBody": "Renseignez votre activité, vos offres et votre public pour donner à l’IA le contexte de votre entreprise.",
+    "aiTitle": "Personnalisez votre IA",
+    "aiBody": "Choisissez le ton et ajoutez vos consignes pour des contenus adaptés à votre façon de communiquer.",
+    "routineTitle": "Votre routine au quotidien",
+    "publishTitle": "Publier avec Booster",
+    "publishBody": "Préparez votre contenu, relisez-le, choisissez les canaux, puis publiez ou programmez.",
+    "agentsBody": "Les agents peuvent préparer vos contenus. Vérifiez leurs réglages de validation et d’automatisation avant diffusion.",
+    "mediaTitle": "Créer et retrouver vos médias",
+    "mediaBody": "Créez et retouchez dans iNr’Studio. L’icône Médiathèque ouvre vos médias enregistrés pour les réutiliser.",
+    "statsTitle": "Suivre vos résultats",
+    "statsBody": "Ouvrez iNr’Stats pour suivre vos données mesurées. Les mentions « estimé » ou « potentiel » désignent des estimations, pas des résultats acquis.",
+    "landmarksTitle": "Vos repères sur le dashboard",
+    "generatorTitle": "Le point du Générateur",
+    "generatorBody": "Vert : actif. Rouge : en attente. Vérifiez séparément l’état de chaque canal dans le cockpit.",
+    "inertiaTitle": "Vos Unités d’Inertie (UI)",
+    "inertiaBody": "Le solde est dans le cockpit. Utilisez vos UI dans Boutique ; retrouvez-y Mon inertie et l’historique des commandes.",
+    "gpsTitle": "Quel outil utiliser ?",
+    "gpsBody": "Le GPS d’utilisation vous oriente selon votre objectif."
+  },
+  "accountTabs": {
+    "compte": "Compte",
+    "abonnement": "Abonnement",
+    "preferences": "Préférences",
+    "legal": "Infos légales",
+    "rgpd": "Données RGPD",
+    "parrainage": "Parrainage",
+    "factures": "Factures"
+  },
   "topbar": {
+    "myAccount": "Mon compte",
     "brandTag": "Générateur de visibilité",
     "admin": "Admin",
     "adminTitle": "Administration iNrCy",
@@ -50,7 +89,8 @@
     "referral": "Parrainer avec iNrCy",
     "legal": "Informations légales",
     "rgpd": "Mes données (RGPD)",
-    "logout": "Déconnexion"
+    "logout": "Déconnexion",
+    "invoices": "Mes factures"
   },
   "notifications": {
     "aria": "Notifications",
@@ -98,7 +138,8 @@
       "parrainage": "Parrainer avec iNrCy",
       "notifications": "Notifications",
       "documents": "Réglages par défaut",
-      "threads": "Configuration — Threads"
+      "threads": "Configuration — Threads",
+      "factures": "Factures d’abonnement"
     }
   },
   "hero": {
@@ -111,6 +152,7 @@
     "connectStep": "Connecter",
     "enrichStep": "Enrichir",
     "configureStep": "Paramétrer",
+    "stepComplete": "Terminé",
     "channelsStepLabel": "Canaux actifs",
     "dnaStepLabel": "ADN de l’entreprise",
     "aiStepLabel": "Configurer mon IA",
@@ -152,6 +194,7 @@
     "progressAria": "Puissance du générateur",
     "nextRise": "Prochaine montée :",
     "completeHint": "Tous vos leviers alimentent la machine à pleine puissance.",
+    "generatorShortTitle": "Générateur",
     "generatorTitle": "Générateur iNrCy",
     "generatorHelpTitle": "Aide : Générateur iNrCy",
     "generatorDesc": "Le reflet de l’efficacité de vos canaux de communication.",
@@ -168,7 +211,8 @@
     "basedOnProfile": "Basé sur profil + opportunités",
     "opportunities": "Opportunités activables",
     "projection30": "Projection 30 jours",
-    "capturedLeads": "Demandes captées",
+    "generatedContactsHint": "Estimation à partir de l’activité de vos canaux.",
+    "capturedLeads": "Contacts générés",
     "last7": "7 derniers jours",
     "last30": "30 derniers jours"
   },
@@ -706,8 +750,8 @@
     "aiGoalsDescription": "Cadrez les résultats attendus, vos inspirations et ce qu’il faut éviter."
   },
   "signatureTools": {
-    "createTitle": "Communiquer et Développer",
-    "pilotTitle": "Créer et Piloter",
+    "createTitle": "Créer et développer",
+    "pilotTitle": "Suivre et piloter",
     "mailCampaigns": "Campagnes mails",
     "businessSpace": "VOTRE ESPACE ENTREPRISE",
     "amplify": "AMPLIFIEZ",
@@ -740,7 +784,7 @@
     "pilotSubtitle": "Mesurez, retrouvez, fidélisez",
     "statsDescription": "Mesurez votre impact.",
     "statsCta": "Voir les statistiques",
-    "sendDescription": "Retrouvez tout l’historique de votre activité.",
+    "sendDescription": "Historique de votre activité.",
     "sendCta": "Voir l’historique",
     "reputationName": "Réputation",
     "reputationDescription": "Pilotez vos avis Google.",
@@ -759,7 +803,7 @@
     "agentPlanning": "Planning",
     "agentCta": "Pilotage",
     "studioEyebrow": "Création de médias IA",
-    "studioLine1": "Créez, modifiez et retouchez",
+    "studioLine1": "Stockez, générez et créez",
     "studioLine2": "vos médias.",
     "studioCta": "Studio Médias"
   },
@@ -811,5 +855,152 @@
     "threads": "Partagez vos actualités et échangez avec votre communauté. Choisissez les formats de publication disponibles et celui proposé par défaut.",
     "pinterest": "Diffuse vos visuels dans les tableaux de votre compte. Choisissez un tableau ou créez-en un nouveau depuis la bulle.",
     "x": "Partage vos actualités et vos publications sur votre compte X pour faire vivre votre présence."
+  },
+  "helpCenter": {
+    "title": "Aide iNrCy",
+    "aria": "Ouvrir l’aide iNrCy",
+    "intro": "Vos premiers pas, puis le bon outil au bon moment.",
+    "setupTitle": "Bien démarrer",
+    "setupSubtitle": "Trois étapes pour une IA adaptée à votre entreprise.",
+    "goalsTitle": "Que souhaitez-vous faire ?",
+    "goalsSubtitle": "Choisissez votre objectif, nous vous guidons.",
+    "back": "Retour aux objectifs",
+    "completed": "Terminé",
+    "continue": "À compléter",
+    "connected": "{connected} / {total} connectés",
+    "open": "Ouvrir",
+    "search": "Rechercher une aide…",
+    "noResults": "Aucun résultat. Essayez un autre mot.",
+    "articles": "Guides détaillés",
+    "chooseArticle": "Choisir un guide",
+    "overview": "L’essentiel",
+    "steps": "Les étapes",
+    "checks": "À vérifier",
+    "pitfalls": "Les bons réflexes",
+    "faq": "Questions fréquentes",
+    "page": "Page {current} / {total}",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "premium": "Inclus avec Premium",
+    "viewOffers": "Voir mon abonnement",
+    "agent": "Votre agent IA peut vous accompagner.",
+    "landmarksTitle": "Comprendre mon cockpit",
+    "landmarksBody": "Jauges, point central et Unités d’Inertie",
+    "powerBody": "Les trois jauges indiquent votre préparation : canaux, ADN de l’entreprise et personnalisation IA. Complétez-les pour donner à iNrCy le bon contexte.",
+    "generatorTitle": "Le point central",
+    "generatorBody": "Vert : actif. Rouge : en attente. Vérifiez aussi l’état de chaque canal dans le cockpit.",
+    "inertiaTitle": "Vos Unités d’Inertie",
+    "inertiaBody": "Votre activité sur iNrCy vous permet de cumuler des UI. Retrouvez votre solde dans le cockpit, puis votre historique dans Boutique → Mon inertie.",
+    "balance": "{value} UI disponibles",
+    "generatorSettings": "Réglages des estimations",
+    "shop": "Ouvrir la Boutique",
+    "channels": {
+      "title": "Connecter mes canaux",
+      "body": "Reliez vos comptes et vérifiez leur état. Reconnectez ceux qui le demandent.",
+      "action": "Gérer mes canaux"
+    },
+    "dna": {
+      "title": "Présenter mon entreprise",
+      "body": "Renseignez votre activité, vos offres et votre public pour donner le bon contexte à l’IA.",
+      "action": "Compléter mon ADN"
+    },
+    "ai": {
+      "title": "Personnaliser mon IA",
+      "body": "Définissez votre ton, vos consignes et vos préférences de communication.",
+      "action": "Configurer mon IA"
+    },
+    "goals": {
+      "publish": {
+        "title": "Publier du contenu",
+        "subtitle": "Booster · iNr’Agent Publications",
+        "intro": "Partez d’une idée et préparez une publication adaptée à vos canaux.",
+        "steps": {
+          "step1": "Choisissez vos canaux dans Booster et décrivez votre idée.",
+          "step2": "Générez le contenu, puis relisez et ajustez le texte et les médias.",
+          "step3": "Validez, puis publiez ou programmez. Avec iNr’Agent, vérifiez les règles de validation avant l’automatisation."
+        }
+      },
+      "media": {
+        "title": "Créer et retrouver mes médias",
+        "subtitle": "iNr’Studio · Médiathèque",
+        "intro": "Créez vos visuels et réutilisez vos médias enregistrés.",
+        "steps": {
+          "step1": "Ouvrez iNr’Studio pour créer ou retoucher un média.",
+          "step2": "Vérifiez les crédits affichés avant de lancer la génération.",
+          "step3": "Retrouvez vos créations dans la Médiathèque et ajoutez-les à vos publications."
+        }
+      },
+      "grow": {
+        "title": "Attirer et fidéliser des clients",
+        "subtitle": "iNr’ADS · Propulser · Fidéliser",
+        "intro": "Choisissez la publicité ou les campagnes mails selon votre objectif.",
+        "steps": {
+          "step1": "Choisissez iNr’ADS pour la publicité, Propulser pour prospecter ou Fidéliser pour vos clients.",
+          "step2": "Préparez le message et sélectionnez votre cible ; vérifiez le budget ou les destinataires.",
+          "step3": "Relisez et validez avant lancement, puis suivez les résultats dans iNr’Stats."
+        }
+      },
+      "reviews": {
+        "title": "Gérer mes avis",
+        "subtitle": "Réputation · Google Business",
+        "intro": "Retrouvez vos avis Google et préparez des réponses adaptées.",
+        "steps": {
+          "step1": "Vérifiez que votre fiche Google Business est connectée.",
+          "step2": "Ouvrez Réputation et choisissez un avis.",
+          "step3": "Relisez la réponse proposée et validez-la avant publication."
+        }
+      },
+      "contacts": {
+        "title": "Suivre mes contacts et rendez-vous",
+        "subtitle": "iNr’CRM · iNr’Calendar",
+        "intro": "Centralisez vos contacts et organisez les prochaines étapes.",
+        "steps": {
+          "step1": "Retrouvez ou ajoutez un contact dans iNr’CRM.",
+          "step2": "Complétez sa fiche et préparez le suivi adapté.",
+          "step3": "Ouvrez iNr’Calendar pour consulter vos rendez-vous ou proposer un créneau."
+        }
+      },
+      "stats": {
+        "title": "Comprendre mes résultats",
+        "subtitle": "iNr’Stats · Bilan Booster",
+        "intro": "Suivez vos données mesurées et repérez ce qui progresse.",
+        "steps": {
+          "step1": "Ouvrez iNr’Stats pour la vue globale, puis choisissez un canal.",
+          "step2": "Comparez les périodes disponibles dans Évolution et consultez les données mesurées.",
+          "step3": "Consultez la méthode de calcul : les indices et potentiels sont des estimations, sans garantie de résultats."
+        }
+      }
+    },
+    "mediaDetails": {
+      "brief": "Décrivez le sujet, le décor et le style : photo réaliste, illustration… En vidéo, précisez aussi les actions et les paroles souhaitées.",
+      "format": "Choisissez Image ou Vidéo, puis le format. Pour une vidéo, réglez aussi la durée et le son.",
+      "engine": "Choisissez un moteur compatible et vérifiez le coût en crédits avant de générer. Certains moteurs vidéo demandent une image de départ.",
+      "referencesTitle": "Guider l’IA avec vos références",
+      "references": "Si besoin, ajoutez des références depuis votre appareil ou la Médiathèque. Précisez leur rôle et ce qui doit être repris ou servir d’inspiration.",
+      "dna": "L’ADN de l’entreprise est facultatif : activez-le si vous souhaitez que la création reprenne le contexte de votre activité.",
+      "finishTitle": "Affiner, enregistrer et réutiliser",
+      "review": "Relisez les textes et vérifiez le rendu ; en vidéo, contrôlez aussi les mouvements et le son. Retouchez ou ajustez la consigne pour régénérer.",
+      "save": "Enregistrez le résultat retenu dans la Médiathèque, puis retrouvez-le pour le réutiliser dans vos publications."
+    },
+    "assistPreview": "iNr’Assist — bientôt disponible"
+  },
+  "mobileMenu": {
+    "create": "Créer et communiquer",
+    "manage": "Suivre et gérer",
+    "space": "Mon espace",
+    "account": "Mon compte",
+    "studio": "iNr’Studio",
+    "media": "Médiathèque",
+    "ads": "iNr’ADS",
+    "campaigns": "Campagnes mails",
+    "reputation": "Réputation",
+    "stats": "iNr’Stats",
+    "send": "iNr’Send",
+    "calendar": "iNr’Calendar",
+    "crm": "iNr’CRM",
+    "cash": "Encaisser",
+    "publish": "Publier",
+    "establishments": "Établissements",
+    "backToMenu": "Retour au menu"
   }
 }

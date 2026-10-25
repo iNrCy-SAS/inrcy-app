@@ -1,6 +1,7 @@
 "use client";
 
 import DrawerHeaderTabs from "../../DrawerHeaderTabs";
+import DashboardMobileSelect from "../../_components/DashboardMobileSelect";
 import colorStyles from "./AiConfigurationContent.module.css";
 
 import { useTranslations } from "next-intl";
@@ -883,6 +884,7 @@ export default function AiConfigurationContent({
 
       <DrawerHeaderTabs>
       <nav
+        data-ai-configuration-desktop-tabs
         aria-label={configurationT("tabsLabel")}
         role="tablist"
         style={{
@@ -933,6 +935,17 @@ export default function AiConfigurationContent({
           <span>{configurationT("tabInstructions")}</span>
         </button>
       </nav>
+      <DashboardMobileSelect
+        value={activeTab}
+        options={[
+          { value: "parameters", label: configurationT("tabParameters"), icon: "⚙️" },
+          { value: "ctas", label: "CTA", icon: "↗" },
+          { value: "instructions", label: configurationT("tabInstructions"), icon: "🧭" },
+        ]}
+        onChange={setActiveTab}
+        ariaLabel={configurationT("tabsLabel")}
+        disabled={voiceBusy}
+      />
       </DrawerHeaderTabs>
 
       <div style={loading ? card : { display: "grid", gap: 12 }}>
@@ -1416,6 +1429,9 @@ export default function AiConfigurationContent({
         </div>
       ) : null}
       <style jsx>{`
+        @media (max-width: 1100px) {
+          nav[data-ai-configuration-desktop-tabs] { display: none !important; }
+        }
         @media (max-width: 1120px) {
           div[data-ai-parameters-grid="workspace"] {
             grid-template-columns: 1fr !important;

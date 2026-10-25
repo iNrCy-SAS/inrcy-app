@@ -1,0 +1,5 @@
+.headerActions.headerActions { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 6px; flex: 0 0 auto; }
+.backButton { display: grid; place-items: center; width: 44px; height: 44px; padding: 10px; border: 1px solid #83caf85c; border-radius: 14px; background: linear-gradient(135deg, #268ecb38, #8d58cf38); color: #ddf4ff; cursor: pointer; touch-action: manipulation; }
+.backButton svg { width: 22px; height: 22px; }
+.backButton:focus-visible { outline: 2px solid #a4dfff; outline-offset: 3px; }
+.backButton:active { background: #79b9ff30; }

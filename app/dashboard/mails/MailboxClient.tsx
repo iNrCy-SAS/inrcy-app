@@ -44,7 +44,6 @@ import {
 } from "@/lib/profileVersioning";
 import MailboxHeader from "./_components/MailboxHeader";
 import PublishAiConfigurationDrawer from "../booster/publier/components/PublishAiConfigurationDrawer";
-import MobileFoldersMenu from "./_components/MobileFoldersMenu";
 import FolderTabs from "./_components/FolderTabs";
 import AdsCampaignsFolder from "./_components/AdsCampaignsFolder";
 import { useAdsCampaignCount } from "./_hooks/useAdsCampaignCount";
@@ -269,7 +268,6 @@ export default function MailboxClient({
     [founderMode, standardMode],
   );
 
-  const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aiConfigurationOpen, setAiConfigurationOpen] = useState(false);
   const [isMobileHeader, setIsMobileHeader] = useState(false);
@@ -504,7 +502,6 @@ export default function MailboxClient({
     setFolder("publications");
     setBoxView(nextBoxView);
     setFilterAccountId("");
-    setMobileFoldersOpen(false);
     setSettingsOpen(false);
     setComposeOpen(false);
 
@@ -5710,26 +5707,12 @@ export default function MailboxClient({
           settingsOpen={settingsOpen}
           onOpenHelp={() => setHelpOpen(true)}
           onCloseHelp={() => setHelpOpen(false)}
-          onOpenFolders={() => setMobileFoldersOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           onCloseSettings={() => {
             setSettingsOpen(false);
             void loadSignature(selectedAccountId || undefined);
           }}
         />
-
-        {(!standardMode || adsEnabled) ? (
-          <MobileFoldersMenu
-            folders={visibleFolders}
-            open={mobileFoldersOpen}
-            folder={folder}
-            counts={counts}
-            countsLoading={!historyCountsLoadedOnce}
-            onClose={() => setMobileFoldersOpen(false)}
-            onSelectFolder={updateFolder}
-            adsTab={adsEnabled ? { active: Boolean(adsCampaignsSelected), count: adsCampaignCount, countError: adsCampaignCountError, onSelect: () => router.replace("/dashboard/mails?folder=campagnes-ads") } : undefined}
-          />
-        ) : null}
 
         <div className={styles.grid}>
           <div className={`${styles.card} ${styles.listCard}`}>

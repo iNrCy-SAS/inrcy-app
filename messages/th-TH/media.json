@@ -1021,5 +1021,21 @@
   "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 รองรับตัวอย่างเสียงรวมกันได้ไม่เกิน 15 วินาที โปรดย่อตัวอย่างเสียงหรือเลือก Wan 2.7",
   "ai_generator_reference_drop_title": "วางสื่ออ้างอิงที่นี่",
   "ai_generator_reference_information": "ข้อมูลเกี่ยวกับสื่ออ้างอิง",
-  "ai_generator_reference_drop_hint": "บุคคล ผลิตภัณฑ์ สถานที่ หรือแรงบันดาลใจ"
+  "ai_generator_reference_drop_hint": "บุคคล ผลิตภัณฑ์ สถานที่ หรือแรงบันดาลใจ",
+  "library_import": "นำเข้า",
+  "library_field_title": "ชื่อ",
+  "library_information": "ข้อมูล",
+  "library_edit_title": "แก้ไขชื่อ: {value}",
+  "library_edit_tags": "แก้ไขแท็ก: {value}",
+  "library_edit_failed": "บันทึกไม่สำเร็จ ข้อมูลที่กรอกยังคงอยู่",
+  "library_edit_save": "บันทึก",
+  "library_edit_saving": "กำลังบันทึก…",
+  "library_tags_hint": "คั่นแต่ละแท็กด้วยเครื่องหมายจุลภาค",
+  "library_finish_edit": "บันทึกหรือยกเลิกการแก้ไขก่อนเปลี่ยนตัวกรอง",
+  "library_bulk_download": "ดาวน์โหลดรายการที่เลือก",
+  "library_bulk_download_preparing": "กำลังเตรียมการดาวน์โหลด…",
+  "library_bulk_download_started": "เริ่มดาวน์โหลดไฟล์ ZIP ของคุณแล้ว",
+  "library_bulk_download_failed": "ไม่สามารถเตรียมการดาวน์โหลดได้ โปรดลองอีกครั้ง",
+  "library_import_common_tags": "แท็กร่วม (ไม่บังคับ)",
+  "library_filters": "ตัวกรอง"
 }

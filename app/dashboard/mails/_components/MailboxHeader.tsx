@@ -15,7 +15,6 @@ type Props = {
   settingsOpen: boolean;
   onOpenHelp: () => void;
   onCloseHelp: () => void;
-  onOpenFolders: () => void;
   onOpenSettings: () => void;
   onCloseSettings: () => void;
   standardMode?: boolean;
@@ -27,7 +26,6 @@ export default function MailboxHeader({
   settingsOpen,
   onOpenHelp,
   onCloseHelp,
-  onOpenFolders,
   onOpenSettings,
   onCloseSettings,
   standardMode = false,
@@ -83,17 +81,6 @@ export default function MailboxHeader({
 
           {!standardMode ? (
             <>
-              <button
-                className={`${styles.btnGhost} ${styles.iconOnlyBtn} ${styles.hamburgerBtn}`}
-                onClick={onOpenFolders}
-                type="button"
-                aria-label={i18nT("dossiers_2a59919f")}
-                title={i18nT("dossiers_2a59919f")}
-              >
-                <span aria-hidden>☰</span>
-                <span className={styles.srOnly}>{i18nT("dossiers_2a59919f")}</span>
-              </button>
-
               <ResponsiveActionButton
                 desktopLabel={i18nT("reglages_00d63297")}
                 mobileIcon="⚙️"

@@ -11,6 +11,7 @@ import NativeRuntimeBridge from "./_components/NativeRuntimeBridge";
 import { htmlLanguageFromLocale } from "@/i18n/config";
 import AppAppearanceThemeBridge from "./_components/AppAppearanceThemeBridge";
 import { APP_APPEARANCE_THEME_BOOT_SCRIPT } from "@/lib/appAppearanceTheme";
+import InrcyTooltipProvider from "./_components/InrcyTooltipProvider";
 
 export const metadata: Metadata = {
   title: "iNrCy",
@@ -63,6 +64,7 @@ export default async function RootLayout({
           <OrientationGuard />
           <CookieConsentBanner />
           <InrcyDialogProvider />
+          <InrcyTooltipProvider />
           <PullToRefresh disabledOnDashboard />
           {children}
         </NextIntlClientProvider>

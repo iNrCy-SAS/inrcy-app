@@ -3,8 +3,6 @@
 import { useTranslations } from "next-intl";
 import styles from "./settingsContentLayout.module.css";
 import preferencesStyles from "./PreferencesContent.module.css";
-
-
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 
@@ -17,16 +15,6 @@ import {
   type AppLanguageCode,
 } from "@/lib/appLanguage";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
-import { useDashboardI18n } from "../../_hooks/useDashboardI18n";
-import {
-  DEFAULT_MOBILE_SHORTCUTS,
-  MOBILE_SHORTCUT_MAX,
-  MOBILE_SHORTCUT_OPTIONS,
-  getMobileShortcutLabel,
-  loadMobileShortcutsPreference,
-  saveMobileShortcutsPreference,
-  type MobileShortcutId,
-} from "@/lib/mobileShortcuts";
 import AppAppearancePicker from "./AppAppearancePicker";
 
 type Props = {
@@ -137,13 +125,11 @@ const normalizePartialPreferences = (source: Record<string, unknown> | null | un
 
 export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedChange }: Props) {
   const i18nT = useTranslations("settings");
-  const t = useDashboardI18n();
   const [form, setForm] = useState<PreferencesForm>(initialForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
-  const [mobileShortcuts, setMobileShortcuts] = useState<MobileShortcutId[]>([...DEFAULT_MOBILE_SHORTCUTS]);
   const savedPreferencesSignatureRef = useRef("");
 
   useEffect(() => {
@@ -153,9 +139,9 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
     }
     onUnsavedChange?.(
       savedPreferencesSignatureRef.current !== ""
-        && savedPreferencesSignatureRef.current !== JSON.stringify({ form, mobileShortcuts }),
+        && savedPreferencesSignatureRef.current !== JSON.stringify(form),
     );
-  }, [form, loading, mobileShortcuts, onUnsavedChange]);
+  }, [form, loading, onUnsavedChange]);
 
   const card: React.CSSProperties = useMemo(() => ({
     width: "100%",
@@ -270,10 +256,8 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
         const migratedLocal = normalizePartialPreferences(local);
 
         const nextForm = { ...initialForm, clientLanguage: appDefaultLanguage, ...migratedLocal, ...dbPreferences };
-        const nextMobileShortcuts = await loadMobileShortcutsPreference();
         setForm(nextForm);
-        setMobileShortcuts(nextMobileShortcuts);
-        savedPreferencesSignatureRef.current = JSON.stringify({ form: nextForm, mobileShortcuts: nextMobileShortcuts });
+        savedPreferencesSignatureRef.current = JSON.stringify(nextForm);
       } catch (e) {
         setError(getSimpleFrenchErrorMessage(e, "Impossible de charger les préférences générales."));
       } finally {
@@ -322,8 +306,6 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
         await invalidateBoosterGenerationContextClient("professional");
       }
 
-      await saveMobileShortcutsPreference(mobileShortcuts);
-
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("inrcy:general-preferences-updated", {
           detail: {
@@ -335,7 +317,7 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
         }));
       }
 
-      savedPreferencesSignatureRef.current = JSON.stringify({ form, mobileShortcuts });
+      savedPreferencesSignatureRef.current = JSON.stringify(form);
       // Updating the baseline ref alone does not trigger the dirty-state
       // effect because the form values themselves did not change.
       onUnsavedChange?.(false);
@@ -354,35 +336,12 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
 
   const reset = () => {
     setForm({ ...initialForm, clientLanguage: readDefaultAppLanguage() });
-    setMobileShortcuts([...DEFAULT_MOBILE_SHORTCUTS]);
     setSaved(false);
     setError("");
     try {
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem(CLIENT_LANGUAGE_CUSTOM_STORAGE_KEY);
     } catch {}
-  };
-
-  const toggleMobileShortcut = (id: MobileShortcutId) => {
-    setSaved(false);
-    setError("");
-    setMobileShortcuts((current) => {
-      if (current.includes(id)) return current.filter((item) => item !== id);
-      if (current.length >= MOBILE_SHORTCUT_MAX) return current;
-      return [...current, id];
-    });
-  };
-
-  const moveMobileShortcut = (id: MobileShortcutId, direction: -1 | 1) => {
-    setSaved(false);
-    setMobileShortcuts((current) => {
-      const index = current.indexOf(id);
-      const target = index + direction;
-      if (index < 0 || target < 0 || target >= current.length) return current;
-      const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
   };
 
   return (
@@ -407,7 +366,7 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
           {i18nT("reglez_les_parametres_globaux_de_vos_1396fb07")}{" "}</div>
       </div>}
 
-      <div style={card}>
+      <div className={preferencesStyles.canvas}>
         {loading ? (
           <div style={{ color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.72))", fontSize: 13 }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
@@ -416,8 +375,11 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
               <AppAppearancePicker />
             </div>
 
-            <div className={preferencesStyles.section}>
-              <div style={sectionTitle}>{i18nT("localisation_echanges_clients_548f849b")}</div>
+            <div className={`${preferencesStyles.section} ${preferencesStyles.localisation}`}>
+              <div className={preferencesStyles.sectionHeading}>
+                <span className={preferencesStyles.headingIcon} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/></svg></span>
+                <div style={sectionTitle}>{i18nT("localisation_echanges_clients_548f849b")}</div>
+              </div>
               <div className={preferencesStyles.locationFields}>
                 <label style={label}>
                   <span style={labelTitle}>{i18nT("langue_clients_c45957b4")}</span>
@@ -475,52 +437,6 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
               </div>
             </div>
 
-
-            <div className={preferencesStyles.section}>
-              <div>
-                <div style={sectionTitle}>{i18nT("raccourcis_mobiles_db886e5d")}</div>
-                <div style={{ marginTop: 6, color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.70))", fontSize: 12.5, lineHeight: 1.5 }}>
-                  {i18nT("choisissez_jusqu_a_9d086004")}{" "}{MOBILE_SHORTCUT_MAX} {" "}{i18nT("outils_pour_le_bloc_839a3e2f")}{" "}<strong>{i18nT("raccourcis_0e0d6404")}</strong> {" "}{i18nT("du_menu_mobile_le_choix_est_6892ed72")}{" "}</div>
-              </div>
-
-              <p style={{ margin: 0, color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.76))", fontSize: 12, lineHeight: 1.5 }}>{i18nT("mobile_fixed_tools_description")}</p>
-
-              <div className={preferencesStyles.shortcutOrder}>
-                {mobileShortcuts.map((id, index) => (
-                  <div key={id} style={{ ...label, padding: "7px 9px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                    <span style={{ ...labelTitle, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {index + 1}. {getMobileShortcutLabel(id, t.locale)}
-                    </span>
-                    <span style={{ display: "inline-flex", gap: 6, flex: "0 0 auto" }}>
-                      <button type="button" aria-label={i18nT("monter_dd1b79d9")} disabled={index === 0} onClick={() => moveMobileShortcut(id, -1)} style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.12))", background: "var(--inrcy-theme-surface-soft, rgba(255,255,255,0.06))", color: "var(--inrcy-theme-text-primary, white)", cursor: index === 0 ? "default" : "pointer", opacity: index === 0 ? 0.35 : 1 }}>↑</button>
-                      <button type="button" aria-label={i18nT("descendre_383f2e3e")} disabled={index === mobileShortcuts.length - 1} onClick={() => moveMobileShortcut(id, 1)} style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.12))", background: "var(--inrcy-theme-surface-soft, rgba(255,255,255,0.06))", color: "var(--inrcy-theme-text-primary, white)", cursor: index === mobileShortcuts.length - 1 ? "default" : "pointer", opacity: index === mobileShortcuts.length - 1 ? 0.35 : 1 }}>↓</button>
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              <div className={preferencesStyles.shortcutChoices}>
-                {MOBILE_SHORTCUT_OPTIONS.filter((option) => option.id !== "cash").map((option) => {
-                  const checked = mobileShortcuts.includes(option.id);
-                  const disabled = !checked && mobileShortcuts.length >= MOBILE_SHORTCUT_MAX;
-                  return (
-                    <label key={option.id} style={{ ...label, display: "flex", gridTemplateColumns: "auto 1fr", alignItems: "center", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.45 : 1 }}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={disabled}
-                        onChange={() => toggleMobileShortcut(option.id)}
-                        style={{ width: 18, height: 18, accentColor: "#8b5cf6" }}
-                      />
-                      <span style={labelTitle}>{getMobileShortcutLabel(option.id, t.locale)}</span>
-                    </label>
-                  );
-                })}
-              </div>
-
-              <div style={{ color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.86))", fontSize: 12, fontWeight: 800 }}>
-                {mobileShortcuts.length} / {MOBILE_SHORTCUT_MAX} {" "}{i18nT("raccourcis_selectionnes_14f4e07e")}{" "}</div>
-            </div>
 
             {error ? <div className={styles.fullWidth} style={{ color: "var(--inrcy-theme-danger-text, rgba(248,113,113,0.95))", fontWeight: 800 }}>{error}</div> : null}
             {saved ? <div className={styles.fullWidth} style={{ color: "var(--inrcy-theme-success-text, rgba(34,197,94,0.95))", fontWeight: 900 }}>{i18nT("preferences_enregistrees_d062995f")}</div> : null}

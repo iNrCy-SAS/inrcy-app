@@ -13,6 +13,11 @@ import SettingsDrawer from "./SettingsDrawer";
 import HelpButton from "./_components/HelpButton";
 import DashboardHelpModals from "./_components/DashboardHelpModals";
 import DashboardHero from "./_components/DashboardHero";
+import DashboardGeneratorHub from "./_components/DashboardGeneratorHub";
+import { useDashboardGeneratorPublisher } from "./_components/DashboardGeneratorStateProvider";
+import DashboardAccountTabs, { DASHBOARD_ACCOUNT_PANEL_ID, getDashboardAccountTabId, isDashboardAccountPanel } from "./_components/DashboardAccountTabs";
+import DashboardBoutiqueTabs, { DASHBOARD_BOUTIQUE_PANEL_ID, getDashboardBoutiqueTabId, isDashboardBoutiquePanel, type DashboardBoutiqueTab } from "./_components/DashboardBoutiqueTabs";
+import DrawerHeaderTabs from "./DrawerHeaderTabs";
 import DashboardChannelWorkspace from "./_components/DashboardChannelWorkspace";
 import GeneratorSettingsModal from "./_components/GeneratorSettingsModal";
 import DashboardTopbar from "./_components/DashboardTopbar";
@@ -25,7 +30,7 @@ import { useDrawerMutationGuard } from "./_hooks/useDrawerMutationGuard";
 import { useUnsavedExitGuard } from "./_hooks/useUnsavedExitGuard";
 import { useDashboardNotifications } from "./_hooks/useDashboardNotifications";
 import { useReferralForm } from "./_hooks/useReferralForm";
-import { useDashboardPanelRouting } from "./_hooks/useDashboardPanelRouting";
+import { useDashboardPanelRouting, type DashboardPanelName } from "./_hooks/useDashboardPanelRouting";
 import { useDashboardCompletionChecks } from "./_hooks/useDashboardCompletionChecks";
 import { useDashboardSetupAlert } from "./_hooks/useDashboardSetupAlert";
 import { useDashboardMenus } from "./_hooks/useDashboardMenus";
@@ -65,7 +70,7 @@ import type { ActusFont, GoogleProduct, GoogleSource} from "./dashboard.types";
 import { normalizeActusAccent, normalizeActusDesign, normalizeActusLayout, normalizeActusTheme } from "./dashboard.types";
 import { DASHBOARD_CHANNEL_KEYS, type DashboardChannelKey } from "@/lib/dashboardChannels";
 import { buildFluxBubbleItems } from "./dashboard.flux-bubbles";
-import { collapseDashboardWebsiteChannels } from "./_components/dashboard-channel-presentation";
+import { collapseDashboardWebsiteChannels, getChannelTone } from "./_components/dashboard-channel-presentation";
 import {
   getDashboardChannelPowerSetup,
   type DashboardSetupChannelKey,
@@ -185,7 +190,8 @@ export default function DashboardClient({
   initialOfficialChannelStates = null,
   initialOfficialChannelStatesUserId = null,
 }: DashboardClientProps) {
-  const { metaPilotEnabled } = useDashboardViewerAccess();
+  const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
+  const publishGeneratorState = useDashboardGeneratorPublisher();
   const i18nT = useTranslations("shell");
   const commonT = useTranslations("common");
   const settingsDrawerT = useTranslations("dashboard.settingsDrawer");
@@ -312,6 +318,7 @@ export default function DashboardClient({
   const isStandardEdition = dashboardEdition === "standard";
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const dashboardCopy = useDashboardI18n();
+  const topbarT = useTranslations("dashboard.topbar");
   const { panel, openPanel, closePanel, goToModule } = useDashboardPanelRouting();
   const openInitialChannelConnections = useCallback(() => {
     setChannelConnectionsOpen(true);
@@ -330,11 +337,14 @@ export default function DashboardClient({
     onOpenChannels: openInitialChannelConnections,
   });
   const [settingsDrawerHasUnsavedChanges, setSettingsDrawerHasUnsavedChanges] = useState(false);
+  const [boutiqueView, setBoutiqueView] = useState<"products" | "orders">("products");
+  const settingsDrawerTabSwitchRef = useRef(false);
   const settingsDrawerGuardActive = panel === "preferences" || panel === "documents" || panel === "compte" || panel === "parrainage";
   const settingsDrawerRequiresExplicitClose = settingsDrawerGuardActive;
 
   useEffect(() => {
     setSettingsDrawerHasUnsavedChanges(false);
+    if (!isDashboardBoutiquePanel(panel)) setBoutiqueView("products");
   }, [panel]);
 
   const closeSettingsDrawer = useCallback(async () => {
@@ -348,7 +358,7 @@ export default function DashboardClient({
     shouldBlock: settingsDrawerHasUnsavedChanges,
     onConfirmExit: () => {
       setSettingsDrawerHasUnsavedChanges(false);
-      void closeSettingsDrawer();
+      if (!settingsDrawerTabSwitchRef.current) void closeSettingsDrawer();
     },
     eyebrow: settingsDrawerT("settings"),
     title: settingsDrawerT("exitWithoutSavingTitle"),
@@ -374,10 +384,27 @@ export default function DashboardClient({
     setSettingsDrawerHasUnsavedChanges(hasUnsavedChanges);
   }, []);
 
-  const navigateDashboardCta = useCallback((ctaUrl: string) => {
+  const selectSettingsTab = useCallback(async (nextPanel: DashboardPanelName) => {
+    if (settingsDrawerTabSwitchRef.current) return false;
+    if (nextPanel === panel) return true;
+    settingsDrawerTabSwitchRef.current = true;
+    try {
+      return await openPanel(nextPanel);
+    } finally {
+      settingsDrawerTabSwitchRef.current = false;
+    }
+  }, [openPanel, panel]);
+
+  const selectBoutiqueTab = useCallback(async (tab: DashboardBoutiqueTab) => {
+    const selected = await selectSettingsTab(tab === "inertie" ? "inertie" : "boutique");
+    if (selected) setBoutiqueView(tab === "orders" ? "orders" : "products");
+  }, [selectSettingsTab]);
+
+  const navigateDashboardCta = useCallback((ctaUrl: string, onApproved?: () => void) => {
     if (!isDashboardDestinationAllowedForEdition(ctaUrl, dashboardEdition)) return;
 
     void requestNavigation(() => {
+      onApproved?.();
       if (ctaUrl.startsWith("/")) {
         router.push(ctaUrl);
       } else {
@@ -386,8 +413,9 @@ export default function DashboardClient({
     });
   }, [dashboardEdition, requestNavigation, router]);
 
-  const openBoosterPublish = useCallback(() => {
+  const openBoosterPublish = useCallback((onApproved?: () => void) => {
     void requestNavigation(() => {
+      onApproved?.();
       // Only an explicit new publication starts a fresh editor. Draft saves and
       // Studio returns keep their mounted session and their chosen mode.
       setBoosterPublishSession((current) => current + 1);
@@ -398,6 +426,46 @@ export default function DashboardClient({
       router.replace("/dashboard?action=publish", { scroll: false });
     });
   }, [requestNavigation, router]);
+
+  const openUsageGuide = useCallback(() => {
+    setHelpGeneratorOpen(true);
+  }, []);
+
+  const closeUsageGuide = useCallback(() => {
+    setHelpGeneratorOpen(false);
+    if (searchParams.get("help") !== "1") return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("help");
+    const query = params.toString();
+    router.replace(query ? `/dashboard?${query}` : "/dashboard", { scroll: false });
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("help") === "1") setHelpGeneratorOpen(true);
+  }, [searchParams]);
+
+  const closeGeneratorSettings = useCallback(() => {
+    setGeneratorSettingsOpen(false);
+    if (searchParams.get("generator") !== "1") return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("generator");
+    const query = params.toString();
+    router.replace(query ? `/dashboard?${query}` : "/dashboard", { scroll: false });
+  }, [router, searchParams]);
+
+  const generatorRequested = searchParams.get("generator") === "1";
+  const generatorOpenedFromRoute = useRef(false);
+  useEffect(() => {
+    if (!generatorRequested) {
+      if (generatorOpenedFromRoute.current) setGeneratorSettingsOpen(false);
+      generatorOpenedFromRoute.current = false;
+      return;
+    }
+    void requestNavigation(() => {
+      generatorOpenedFromRoute.current = true;
+      setGeneratorSettingsOpen(true);
+    });
+  }, [generatorRequested, requestNavigation]);
 
   const openBoosterStats = useCallback(() => {
     setDashboardBoosterModal("stats");
@@ -578,6 +646,8 @@ export default function DashboardClient({
   }, []);
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [desktopLeftHost, setDesktopLeftHost] = useState<HTMLDivElement | null>(null);
+  const [desktopRightHost, setDesktopRightHost] = useState<HTMLDivElement | null>(null);
   const {
     userMenuOpen,
     setUserMenuOpen,
@@ -3586,6 +3656,13 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     : computedGeneratorIsActive;
 
   useEffect(() => {
+    if (!siteConnectionsReady || !officialChannelStatesReady) return;
+    const sourceAccountId = initialOfficialChannelStatesUserId || activeAccountId;
+    if (!sourceAccountId || sourceAccountId !== activeAccountId) return;
+    publishGeneratorState({ accountId: sourceAccountId, isActive: generatorIsActive, inertiaSnapshot });
+  }, [activeAccountId, generatorIsActive, inertiaSnapshot, initialOfficialChannelStatesUserId, officialChannelStatesReady, publishGeneratorState, siteConnectionsReady]);
+
+  useEffect(() => {
     if (!siteConnectionsReady) return;
     setDisplayedGeneratorIsActive(computedGeneratorIsActive);
     try {
@@ -4002,6 +4079,35 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     connectTiktok, disconnectTiktok, saveTiktokProfileUrl, saveTiktokDefaults,
   };
 
+  const navigateUsageGuide = useCallback((href: string) => {
+    if (!isDashboardDestinationAllowedForEdition(href, dashboardEdition)) return;
+    const destination = new URL(href, "https://inrcy.local");
+    if (destination.pathname.startsWith("/dashboard/agent") && !canAccessInrAgent) return;
+    if (destination.searchParams.get("panel") === "threads" && !metaPilotEnabled) return;
+    const helpAction = destination.pathname === "/dashboard" ? destination.searchParams.get("helpAction") : null;
+    if (helpAction) {
+      if (helpAction !== "channels" && helpAction !== "generator-settings") return;
+      void requestNavigation(() => {
+        setHelpGeneratorOpen(false);
+        // The accepted exit may already have closed a dirty drawer. Remove
+        // route-owned overlays rather than restoring its stale panel query.
+        const params = new URLSearchParams(searchParams.toString());
+        ["help", "helpAction", "panel", "action", "stats"].forEach((key) => params.delete(key));
+        const query = params.toString();
+        router.replace(query ? `/dashboard?${query}` : "/dashboard", { scroll: false });
+        if (helpAction === "channels") setChannelConnectionsOpen(true);
+        else setGeneratorSettingsOpen(true);
+      });
+      return;
+    }
+    const dismissGuide = () => setHelpGeneratorOpen(false);
+    if (destination.pathname === "/dashboard" && destination.searchParams.get("action") === "publish") {
+      openBoosterPublish(dismissGuide);
+      return;
+    }
+    navigateDashboardCta(href, dismissGuide);
+  }, [canAccessInrAgent, dashboardEdition, metaPilotEnabled, navigateDashboardCta, openBoosterPublish, requestNavigation, router, searchParams]);
+
   const {
     siteWebPanelProps,
     gmbPanelProps,
@@ -4015,6 +4121,8 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   return (
     <main id={DASHBOARD_TOP_ANCHOR_ID} className={`${styles.page} ${experienceStyles.dashboard}`}>
       <DashboardTopbar
+        desktopLeftHost={desktopLeftHost}
+        desktopRightHost={desktopRightHost}
         desktopNotificationMenuRef={desktopNotificationMenuRef}
         mobileNotificationMenuRef={mobileNotificationMenuRef}
         userMenuRef={userMenuRef}
@@ -4039,55 +4147,58 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         activityIncomplete={activityIncomplete}
         userMenuOpen={userMenuOpen}
         setUserMenuOpen={setUserMenuOpen}
-        goToGps={() => {
-          void requestNavigation(() => router.push("/dashboard/gps"));
-        }}
+        onOpenHelp={openUsageGuide}
         handleLogout={async () => { await requestNavigation(handleLogout); }}
-      />
-
-      <DashboardHero
-        generatorPower={generatorPower}
-        dnaPower={dnaScore}
-        aiPower={aiScore}
-        channelPowerSteps={displayedGeneratorPowerSteps.map((step) => ({
-          ...step,
-          label: fluxBubbleItems.find((item) => item.key === step.key)?.name ?? step.key,
-        }))}
-        onOpenChannels={() => setChannelConnectionsOpen(true)}
-        onOpenDna={() => {
-          void requestNavigation(() => router.push("/dashboard/adn-entreprise"));
-        }}
-        onOpenAi={() => {
-          void requestNavigation(() => router.push("/dashboard/configuration-ia"));
-        }}
-        onOpenGeneratorHelp={() => setHelpGeneratorOpen(true)}
-        onOpenGeneratorSettings={() => setGeneratorSettingsOpen(true)}
-        onRefreshGenerator={() => {
-          void handleSharedGeneratorRefresh();
-        }}
-        kpisLoading={kpisLoading}
-        generatorIsActive={generatorIsActive}
-        uiBalance={uiBalance}
-        inertiaSnapshot={inertiaSnapshot}
-        estimatedValue={estimatedValue}
-        oppTotal={oppTotal}
-        onOpenStats={openStatsModule}
-        leadsWeek={leadsWeek}
-        leadsMonth={leadsMonth}
       />
 
       {generatorSettingsOpen ? (
         <GeneratorSettingsModal
           opportunities={oppTotal}
-          onClose={() => setGeneratorSettingsOpen(false)}
+          onClose={closeGeneratorSettings}
           onSaved={handleSharedGeneratorRefresh}
         />
       ) : null}
 
       <DashboardChannelsSection
+        cockpit={(
+          <DashboardHero
+            generatorPower={generatorPower}
+            dnaPower={dnaScore}
+            aiPower={aiScore}
+            connectedChannels={dashboardChannelItems.filter((item) => getChannelTone(item) === "connected").length}
+            totalChannels={dashboardChannelItems.length}
+            uiBalance={uiBalance}
+            channelPowerSteps={displayedGeneratorPowerSteps.map((step) => ({
+              ...step,
+              label: fluxBubbleItems.find((item) => item.key === step.key)?.name ?? step.key,
+            }))}
+            onOpenChannels={() => setChannelConnectionsOpen(true)}
+            onOpenDna={() => {
+              void requestNavigation(() => router.push("/dashboard/adn-entreprise"));
+            }}
+            onOpenAi={() => {
+              void requestNavigation(() => router.push("/dashboard/configuration-ia"));
+            }}
+          />
+        )}
+        generator={(
+          <DashboardGeneratorHub
+            onDesktopLeftHost={setDesktopLeftHost}
+            onDesktopRightHost={setDesktopRightHost}
+            onOpenGeneratorHelp={openUsageGuide}
+            onOpenGeneratorSettings={() => setGeneratorSettingsOpen(true)}
+            onRefreshGenerator={() => {
+              void handleSharedGeneratorRefresh();
+            }}
+            kpisLoading={kpisLoading}
+            generatorIsActive={generatorIsActive}
+            inertiaSnapshot={inertiaSnapshot}
+          />
+        )}
+        overview={{ estimatedValue, oppTotal, leadsWeek, leadsMonth }}
+        onOpenGeneratorSettings={() => setGeneratorSettingsOpen(true)}
         fluxBubbleItems={dashboardChannelItems}
         channelsOpen={channelConnectionsOpen || isChannelSettingsPanel(panel)}
-        onOpenChannels={() => setChannelConnectionsOpen(true)}
         onCloseChannels={closeChannelConnections}
         initialSelectedKey={isChannelSettingsPanel(panel) ? panel : undefined}
         renderSelected={item => <DashboardChannelWorkspace key={completionAccountId + ":" + item.key} item={item} siteWebPanelProps={siteWebPanelProps} gmbPanelProps={gmbPanelProps} facebookPanelProps={facebookPanelProps} instagramPanelProps={instagramPanelProps} linkedinPanelProps={linkedinPanelProps} tiktokPanelProps={tiktokPanelProps} threadsChannel={threadsChannel} inrBadgeSettingsProps={inrBadgeSettingsProps} inrSearchConnected={inrSearchConnected} inrSearchUrl={inrSearchUrl} inrSearchDirectoryEnabled={inrSearchDirectoryEnabled} />}
@@ -4133,17 +4244,28 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       />
 
       <SettingsDrawer
-        title={getDrawerTitle(panel, dashboardCopy)}
+        title={isDashboardAccountPanel(panel) ? topbarT("myAccount") : isDashboardBoutiquePanel(panel) ? dashboardCopy.userMenu.shop : getDrawerTitle(panel, dashboardCopy)}
         isOpen={isDrawerPanel(panel) && !isChannelSettingsPanel(panel)}
         onClose={requestCloseSettingsDrawer}
         closeOnBackdrop={!settingsDrawerRequiresExplicitClose}
         closeOnEscape={!settingsDrawerRequiresExplicitClose}
         headerActions={panel === "inertie" ? <HelpButton onClick={() => setHelpInertieOpen(true)} title={i18nT("aide_mon_inertie_beeca900")} /> : undefined}
       >
+        {isDashboardAccountPanel(panel) ? <DrawerHeaderTabs><DashboardAccountTabs panel={panel} onSelect={selectSettingsTab} /></DrawerHeaderTabs> : null}
+        {isDashboardBoutiquePanel(panel) ? <DrawerHeaderTabs><DashboardBoutiqueTabs panel={panel} view={boutiqueView} onSelect={selectBoutiqueTab} /></DrawerHeaderTabs> : null}
+        <div
+          id={isDashboardAccountPanel(panel) ? DASHBOARD_ACCOUNT_PANEL_ID : isDashboardBoutiquePanel(panel) ? DASHBOARD_BOUTIQUE_PANEL_ID : undefined}
+          role={isDashboardAccountPanel(panel) || isDashboardBoutiquePanel(panel) ? "tabpanel" : undefined}
+          aria-labelledby={isDashboardAccountPanel(panel) ? getDashboardAccountTabId(panel) : isDashboardBoutiquePanel(panel) ? getDashboardBoutiqueTabId(panel === "boutique" && boutiqueView === "orders" ? "orders" : panel) : undefined}
+          tabIndex={isDashboardAccountPanel(panel) || isDashboardBoutiquePanel(panel) ? 0 : undefined}
+        >
         <DashboardSettingsDrawerContent
             key={completionAccountId || "dashboard-channel-settings"}
             edition={dashboardEdition}
             panel={isChannelSettingsPanel(panel) ? null : panel}
+            inlineShopNavigation={isDashboardBoutiquePanel(panel)}
+            boutiqueView={boutiqueView}
+            onBoutiqueViewChange={setBoutiqueView}
             onUnsavedChange={handleSettingsDrawerUnsavedChange}
             inertiaSnapshot={inertiaSnapshot}
             openPanel={openPanel}
@@ -4161,6 +4283,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
             submitReferral={submitReferral}
 
           />
+        </div>
       </SettingsDrawer>
 
       <DashboardHelpModals
@@ -4173,7 +4296,22 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         helpInertieOpen={helpInertieOpen}
         helpFacebookOpen={helpFacebookOpen}
         helpInstagramOpen={helpInstagramOpen}
-        onCloseGenerator={() => setHelpGeneratorOpen(false)}
+        onCloseGenerator={closeUsageGuide}
+        usageGuide={{
+          edition: dashboardEdition,
+          metaPilotEnabled,
+          inrAgentEnabled: canAccessInrAgent,
+          progress: {
+            channels: generatorPower,
+            dna: dnaScore,
+            ai: aiScore,
+            connected: dashboardChannelItems.filter((item) => getChannelTone(item) === "connected").length,
+            total: dashboardChannelItems.length,
+            uiBalance,
+            isActive: generatorIsActive,
+          },
+          onNavigate: navigateUsageGuide,
+        }}
         onCloseCanaux={() => setHelpCanauxOpen(false)}
 
         onCloseSiteWeb={() => setHelpSiteWebOpen(false)}
@@ -4182,7 +4320,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         onCloseInstagram={() => setHelpInstagramOpen(false)}
       />
 
-      <footer className={styles.footer}>
+      <footer className={`${styles.footer} ${experienceStyles.footer}`}>
         <div className={styles.footerLeft}>{i18nT("2026_inrcy_abae7872")}</div>
       </footer>
     </main>

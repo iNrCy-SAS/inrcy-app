@@ -42,11 +42,13 @@ test("manual publishing now goes through the idempotent mobile-safe transport", 
   assert.match(publishNowFoundations, /retryable,/);
 });
 
-test("the Google Pixel bottom publish button is disabled from real modal state, not URL only", () => {
+test("the mobile menu publish button is disabled from real modal state, not URL only", () => {
   assert.match(modalLayer, /inrcy:publish-modal-state/);
   assert.match(bottomNav, /publishModalOpen \|\|/);
   assert.match(bottomNav, /inrcy:publish-modal-state/);
-  assert.match(bottomNavCss, /\.publishItem:disabled \.publishButton/);
+  assert.match(bottomNav, /option\.id === "publish" && \(publishActive \|\| adsWorkspaceActive\)/);
+  assert.match(bottomNav, /disabled=\{publicationUnavailable\}/);
+  assert.match(bottomNavCss, /\.shortcutItem:disabled/);
 });
 
 

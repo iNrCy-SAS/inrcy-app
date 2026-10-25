@@ -153,6 +153,43 @@ test("les prompts libres préservent le brief complet et le format sans importer
   }
 });
 
+test("une scène humaine et une affiche sans rendu précisé reçoivent le défaut photographique sur chaque moteur image", () => {
+  for (const imageEngine of ["openai", "gemini", "flux", "grok", "recraft"]) {
+    for (const freePrompt of [
+      "Deux formatrices accompagnent des adultes dans une salle de formation numérique.",
+      'Une affiche pour notre formation numérique avec des apprenants dans une salle équipée et le titre « Se former ensemble ».',
+      "Une affiche avec des formatrices dans une salle réelle, sans dessin animé ni personnages illustrés.",
+    ]) {
+      const input = args({ freePrompt, imageEngine });
+      // An old guided choice must not silently restore an illustrated medium.
+      input.request.imageStyle = "illustration";
+      const prompt = freePrompts.buildAiMediaFreeImagePrompt(input);
+      assert.ok(prompt.includes(freePrompt), imageEngine);
+      assert.match(prompt, /sans style artistique explicitement demandé[\s\S]*?scènes du monde réel en photographie réaliste/);
+      assert.match(prompt, /Une affiche, un flyer[\s\S]*?ne demandent pas à eux seuls des personnages dessinés/);
+      assert.match(prompt, /intégrer une scène photographique à cette composition/);
+      assert.doesNotMatch(prompt, /illustration éditoriale originale|véritable dessin animé 2D/);
+    }
+  }
+});
+
+test("le défaut photo reste conditionnel et conserve les demandes artistiques et références explicites", () => {
+  for (const freePrompt of [
+    "Une illustration dessinée à la main représentant deux personnes dans une salle de formation.",
+    "Un dessin animé 2D avec des formatrices, sans aucun photoréalisme.",
+    "Une affiche avec des personnages en 3D, dans le style de l’image de référence.",
+  ]) {
+    const input = args({ freePrompt, inspirationImages: [{ data: "A".repeat(64), mimeType: "image/png", role: "inspiration", usage: "inspiration" }] });
+    const prompt = freePrompts.buildAiMediaFreeImagePrompt(input);
+    assert.ok(prompt.includes(freePrompt));
+    assert.match(prompt, /préférence par défaut ne remplace jamais[\s\S]*?style explicitement demandé dans le brief ; respecter alors ce choix/);
+    assert.match(prompt, /Une référence illustrée, un logo[\s\S]*?ne constitue pas une demande de style animé/);
+    assert.match(prompt, /Pour suivre le rendu artistique d'une référence, le brief doit le demander explicitement/);
+    assert.match(prompt, /Image 1 — rôle inspiration, usage inspiration/);
+    assert.doesNotMatch(prompt, /photographie obligatoire|aucune illustration autorisée/);
+  }
+});
+
 test("l'ADN et le logo sont activés uniquement par une demande compatible", () => {
   assert.deepEqual(freePrompts.getAiMediaFreeBrandPolicy("Une galaxie dessinée à la main", "Atelier Test"), {
     useCompanyContext: false, useLogo: false, useBrandColors: false,

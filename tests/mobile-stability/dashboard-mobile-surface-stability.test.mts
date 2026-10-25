@@ -63,7 +63,7 @@ test("phone dashboards delegate vertical scrolling to the document", () => {
 test("the bottom dock prevents compositor seams while preserving its border", () => {
   const css = read("app/dashboard/_components/ResponsiveBottomNav.module.css");
   const barStart = css.indexOf("  .bar {");
-  const itemStart = css.indexOf("  .item,", barStart);
+  const itemStart = css.indexOf("  .item {", barStart);
   const barBlock = css.slice(barStart, itemStart);
 
   assert.ok(barStart >= 0 && itemStart > barStart);

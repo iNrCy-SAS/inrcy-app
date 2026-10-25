@@ -10,10 +10,10 @@ const styles = readFileSync(
 test("la carte de la médiathèque ne devient jamais un second conteneur de défilement", () => {
   assert.match(
     styles,
-    /\.libraryCard\{\s*display:grid;\s*grid-template-rows:auto auto minmax\(0, 1fr\);[\s\S]*?overflow:clip;\s*overscroll-behavior:none;/,
+    /\.libraryCard\{\s*display:flex;\s*flex-direction:column;[\s\S]*?overflow:clip;\s*overscroll-behavior:none;/,
   );
   assert.match(
     styles,
-    /\.mediaList\{\s*min-height:0;\s*height:auto;\s*max-height:100%;\s*overflow:auto;\s*overscroll-behavior:contain;\s*scrollbar-gutter:stable;/,
+    /\.mediaList\{\s*min-height:0;\s*height:auto;\s*max-height:100%;\s*flex:1;\s*overflow:auto;\s*overscroll-behavior:contain;\s*scrollbar-gutter:stable;/,
   );
 });

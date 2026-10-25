@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import DashboardMobileSelect from "../../_components/DashboardMobileSelect";
 import type { StoredAdsCampaign } from "@/app/dashboard/ads/AdsCampaignTracking";
 import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
 import {
@@ -160,7 +161,7 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
         if (!busyRef.current) onCloseRef.current();
       }
       if (event.key !== "Tab" || !cardRef.current) return;
-      const elements = Array.from(cardRef.current.querySelectorAll<HTMLElement>("button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),summary"));
+      const elements = Array.from(cardRef.current.querySelectorAll<HTMLElement>("button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),summary"));
       if (!elements.length) return;
       if (event.shiftKey && document.activeElement === elements[0]) { event.preventDefault(); elements.at(-1)?.focus(); }
       else if (!event.shiftKey && document.activeElement === elements.at(-1)) { event.preventDefault(); elements[0]?.focus(); }
@@ -467,6 +468,15 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
         {extendId === campaign.id && <div className={styles.confirmation}><label>Nouvelle date de fin du brouillon <input type="date" value={nextDate} min={minDate} max={maxDate} onChange={(event) => setNextDate(event.target.value)} /></label><div><button type="button" className={styles.primary} disabled={busyId === campaign.id || !nextDate || nextDate < minDate || nextDate > maxDate} onClick={() => void extendDraft(campaign)}>{busyId ? "Enregistrement…" : "Enregistrer"}</button><button type="button" className={mailboxStyles.btnGhost} onClick={() => setExtendId(null)} disabled={Boolean(busyId)}>Annuler</button></div><small>Le changement concerne uniquement le brouillon iNr’ADS.</small></div>}
         {deleteId === campaign.id && <div className={styles.confirmation}><strong>{canChange ? "Supprimer définitivement ce brouillon ?" : canDiscardLocalRecovery ? "Retirer définitivement ce suivi local interrompu ?" : `Supprimer définitivement la campagne sur ${adsChannelLabels[campaign.provider] || campaign.provider} ?`}</strong><p>{canChange ? "Aucune campagne publiée ne sera supprimée." : canDiscardLocalRecovery ? "Vérifiez d’abord le compte publicitaire. Aucun identifiant de campagne n’étant disponible, cette action retire uniquement la ligne iNrSend et ne modifie rien sur la plateforme." : "Cette action supprime la campagne chez le fournisseur puis la retire d’iNrSend. Elle est irréversible."}</p><div><button type="button" className={styles.danger} disabled={busyId === campaign.id} onClick={() => void (canChange ? deleteDraft(campaign) : deleteRemoteCampaign(campaign))}>{busyId ? "Suppression…" : canDiscardLocalRecovery ? "Confirmer le nettoyage local" : "Confirmer la suppression définitive"}</button><button type="button" className={mailboxStyles.btnGhost} onClick={() => setDeleteId(null)} disabled={Boolean(busyId)}>Annuler</button></div></div>}
 
+        <div className={styles.mobileDetailNavigation}>
+          <DashboardMobileSelect
+            value={activeTab}
+            options={[{ value: "info", label: "Infos campagne" }, { value: "stats", label: "Stats" }]}
+            onChange={setActiveTab}
+            ariaLabel="Détails de la campagne"
+            controls={`ads-campaign-${activeTab}-panel`}
+          />
+        </div>
         <div className={styles.detailTabs} role="tablist" aria-label="Détails de la campagne">
           <button id="ads-campaign-info-tab" type="button" role="tab" aria-selected={activeTab === "info"} aria-controls="ads-campaign-info-panel" data-active={activeTab === "info"} onClick={() => setActiveTab("info")}>Infos campagne</button>
           <button id="ads-campaign-stats-tab" type="button" role="tab" aria-selected={activeTab === "stats"} aria-controls="ads-campaign-stats-panel" data-active={activeTab === "stats"} onClick={() => setActiveTab("stats")}>Stats</button>

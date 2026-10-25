@@ -22,7 +22,7 @@ function messagesFor(locale: string) {
   return localeMessages.get(locale)!;
 }
 const compiled = new Map<string, string>();
-for (const file of ["DashboardModulesCard", "DashboardStandardModulesCard", "DashboardAgentLogoButton", "DashboardPremiumLockIcon", "StudioIcon", "BoosterIcon"]) {
+for (const file of ["DashboardModulesCard", "DashboardStandardModulesCard", "DashboardAgentLogoButton", "DashboardPremiumLockIcon", "DashboardToolArtwork", "StudioIcon", "BoosterIcon"]) {
   compiled.set(file, ts.transpileModule(read(`app/dashboard/_components/${file}.tsx`), {
     fileName: `${file}.tsx`,
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
@@ -132,7 +132,7 @@ function harness(options: HarnessOptions = {}) {
     if (specifier === "next/image") return { __esModule: true, default: ({ src, alt, width, height, className }: Props) => createElement("img", { src, alt, width, height, className }) };
     if (specifier === "next/dynamic") return { __esModule: true, default: () => (props: Props) => createElement("div", { "data-agent-planning": "true", "data-standard-mode": props.standardMode, "data-workspace": props.workspace }) };
     if (specifier.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) };
-    if (specifier === "./WorkflowBaseModal") return { __esModule: true, default: (props: Props) => createElement("div", { role: "dialog", "aria-label": props.title }, props.headerActions as ReactNode, ...(Array.isArray(props.children) ? props.children : [props.children]) as ReactNode[]) };
+    if (specifier === "./WorkflowBaseModal") return { __esModule: true, default: (props: Props) => createElement("div", { role: "dialog", "aria-label": props.title, onClose: props.onClose }, props.headerActions as ReactNode, ...(Array.isArray(props.children) ? props.children : [props.children]) as ReactNode[]) };
     if (specifier === "./AdsChannelInfoModal") return { __esModule: true, default: (props: Props) => createElement("div", { role: "dialog", "aria-label": "iNr’ADS", onClick: props.onClose }) };
     if (specifier === "../_hooks/useDashboardI18n") return { useDashboardI18n: () => ({ ...messages.dashboard, locale }) };
     if (specifier === "../_hooks/useInrAgentPendingCount") return { useInrAgentPendingCount: (enabled: boolean) => { calls.enabled.push(enabled); return enabled ? options.pendingCount ?? 0 : 0; } };
@@ -189,17 +189,70 @@ function harness(options: HarnessOptions = {}) {
 const variants = [{ adapter: true, edition: "standard" as const }, { edition: "premium" as const }, { edition: "founder" as const }];
 
 test("Standard, Premium and Founder render the same signature cards, hierarchy and shared CSS", () => {
-  const expected = ["boosterCard", "adsCard", "mailCampaignCard", "sendCard", "studioCard", "statsCard", "reputationCard", "calendarCard", "crmCard"];
+  const expected = ["boosterCard", "studioCard", "reputationCard", "adsCard", "mailCampaignCard", "statsCard", "sendCard", "calendarCard", "crmCard"];
   for (const variant of variants) {
     const { tree, html } = harness(variant).render();
     const cards = elements(tree).flatMap((node) => expected.filter((name) => hasClass(node, name)));
     assert.deepEqual(cards, expected);
     assert.equal(elements(tree).filter((node) => hasClass(node, "signatureGrid")).length, 1);
     const toolsGrid = find(tree, (node) => node.props["data-dashboard-relationship-tools"] === "true");
-    assert.deepEqual(elements(toolsGrid).filter((node) => node.type === "article").map((node) => expected.find((name) => hasClass(node, name))), expected.slice(3));
-    assert.match(html, /Communiquer et Développer/);
-    assert.match(html, /Créer et Piloter/);
+    assert.deepEqual(elements(toolsGrid).filter((node) => node.type === "article").map((node) => expected.find((name) => hasClass(node, name))), ["statsCard", "sendCard", "calendarCard", "crmCard"]);
+    const creationGrid = find(tree, (node) => hasClass(node, "creationGrid"));
+    assert.deepEqual(elements(creationGrid).filter((node) => node.type === "article").map((node) => expected.find((name) => hasClass(node, name))), ["studioCard", "reputationCard", "adsCard", "mailCampaignCard"]);
+    assert.equal(elements(creationGrid).filter((node) => hasClass(node, "boosterCard")).length, 0);
+    assert.ok(html.includes(dashboardMessages.signatureTools.createTitle));
+    assert.ok(html.includes(dashboardMessages.signatureTools.pilotTitle));
     assert.doesNotMatch(html, /undefined|standardActionStack|premiumDashboardList/);
+  }
+});
+
+test("the shared dashboard preserves supplied cockpit and generator content and shows real overview metrics only inside Stats", () => {
+  for (const variant of variants) {
+    const view = harness({ ...variant, props: {
+      cockpit: createElement("section", { "data-slot": "cockpit" }, "Cockpit conservé"),
+      generator: createElement("section", { "data-slot": "generator" }, "Générateur conservé"),
+      overview: { leadsWeek: 125, leadsMonth: 689, oppTotal: 286, estimatedValue: 5720 },
+    } });
+    const { tree } = view.render();
+    const layout = card(tree, "lowerRow");
+    const children = elements(layout).filter((node) => node.props["data-slot"] || hasClass(node, "boosterCard") || hasClass(node, "creationPanel") || hasClass(node, "pilotPanel"));
+    assert.deepEqual(children.map((node) => node.props["data-slot"] ?? ["boosterCard", "creationPanel", "pilotPanel"].find((name) => hasClass(node, name))), ["cockpit", "boosterCard", "generator", "creationPanel", "pilotPanel"]);
+    const overview = card(tree, "statsOverview");
+    assert.ok(elements(card(tree, "statsCard")).includes(overview));
+    assert.deepEqual(elements(overview).filter((node) => node.type === "dd").map(content), ["125", "689", "+286", `${(5720).toLocaleString("fr-FR")} €`]);
+    assert.equal(elements(tree).filter((node) => hasClass(node, "statsOverview")).length, 1);
+
+    const unavailable = harness({ ...variant, props: { overview: { leadsWeek: null, leadsMonth: null, oppTotal: null, estimatedValue: null } } }).render().tree;
+    assert.deepEqual(elements(card(unavailable, "statsOverview")).filter((node) => node.type === "dd").map(content), ["—", "—", "—", "—"]);
+  }
+});
+
+test("Stats settings reuse the supplied generator settings action without intercepting Stats or agent navigation", () => {
+  for (const variant of variants) {
+    const callbacks: string[] = [];
+    const view = harness({ ...variant, props: {
+      onOpenGeneratorSettings: () => { callbacks.push("settings"); },
+      onOpenStats: () => { callbacks.push("stats"); },
+    } });
+    const tree = view.render().tree;
+    const settings = find(card(tree, "statsCard"), (node) => node.props["data-testid"] === "dashboard-stats-settings");
+    assert.equal(settings.props["aria-haspopup"], "dialog");
+    click(settings);
+    assert.deepEqual(callbacks, ["settings"]);
+    assert.deepEqual(view.calls.routes, []);
+    assert.deepEqual(view.calls.panels, []);
+    assert.deepEqual(view.calls.warmups, []);
+    assert.deepEqual(view.calls.begun, []);
+
+    click(action(tree, "statsCard"));
+    assert.deepEqual(callbacks, ["settings", "stats"]);
+    assert.deepEqual(view.calls.warmups, ["/dashboard/stats"]);
+    view.release();
+    click(find(card(tree, "statsCard"), (node) => node.props["data-agent-workspace"] === "stats"));
+    assert.deepEqual(view.calls.routes, [workspacePolicy.INR_AGENT_WORKSPACES.stats.href]);
+
+    const withoutCallback = harness(variant).render().tree;
+    assert.equal(elements(withoutCallback).filter((node) => node.props["data-testid"] === "dashboard-stats-settings").length, 0);
   }
 });
 
@@ -290,7 +343,7 @@ test("Premium and Founder retain direct tool routes, settings panels and the rea
     for (const [name, panel] of [["sendCard", "mails"], ["calendarCard", "agenda"]]) {
       const unlocked = harness({ edition });
       const tree = unlocked.render().tree;
-      assert.equal(elements(tree).filter((node) => hasClass(node, "settingsButton")).length, 2);
+      assert.equal(elements(tree).filter((node) => hasClass(node, "settingsButton")).length, 3, "Send, Calendar and the separate Studio library shortcut remain available");
       const settings = find(card(tree, name), (node) => hasClass(node, "settingsButton"));
       assert.match(renderToStaticMarkup(settings), /M12 15\.5a3\.5 3\.5/);
       assert.doesNotMatch(renderToStaticMarkup(settings), /M8 10V7a4 4 0 0 1 8 0v3/);
@@ -307,6 +360,36 @@ test("Premium and Founder retain direct tool routes, settings panels and the rea
       click(find(chooser, (node) => node.type === "button" && content(node).includes(label)));
       assert.deepEqual(campaigns.calls.routes, [path]);
     }
+  }
+});
+
+test("the mobile campaign destination opens the chooser, preserves unrelated query values on close and follows back navigation", () => {
+  for (const edition of ["premium", "founder"] as const) {
+    const view = harness({ edition, query: "action=campaigns&help=1" });
+    view.render();
+    view.flushEffects();
+    const dialog = find(view.render().tree, (node) => node.props.role === "dialog");
+    assert.ok(content(dialog).includes(dashboardMessages.modules.propulserTitle));
+    assert.ok(content(dialog).includes(dashboardMessages.modules.fideliserTitle));
+    (dialog.props.onClose as () => void)();
+    assert.deepEqual(view.calls.routes, ["/dashboard?help=1"]);
+    assert.equal(elements(view.render().tree).some((node) => node.props.role === "dialog"), false);
+
+    const back = harness({ edition, query: "action=campaigns" });
+    back.render();
+    back.flushEffects();
+    assert.ok(elements(back.render().tree).some((node) => node.props.role === "dialog"));
+    back.navigate("/dashboard");
+    back.render();
+    back.flushEffects();
+    assert.equal(elements(back.render().tree).some((node) => node.props.role === "dialog"), false);
+  }
+  for (const options of [{ edition: "standard" as const }, { edition: "founder" as const, adapter: true }]) {
+    const view = harness({ ...options, query: "action=campaigns" });
+    view.render();
+    view.flushEffects();
+    assert.equal(elements(view.render().tree).some((node) => node.props.role === "dialog"), false);
+    assert.deepEqual(view.calls.routes, []);
   }
 });
 
@@ -339,6 +422,33 @@ test("Studio, Agent and Reputation keep their existing accessible routes in ever
       assert.deepEqual(view.calls.warmups, [path]);
       assert.equal(editionPolicy.isStandardDashboardRouteAllowed(path), true);
     }
+  }
+});
+
+test("the Studio library shortcut opens the existing media library without replacing Studio or bypassing the action guard", () => {
+  for (const variant of variants) {
+    const view = harness(variant);
+    const tree = view.render().tree;
+    const library = find(card(tree, "studioCard"), (node) => hasClass(node, "studioLibrary"));
+    assert.equal(library.props["aria-label"], dashboardMessages.userMenu.media);
+    assert.equal(library.props.title, dashboardMessages.userMenu.media);
+    assert.equal(library.props["data-dashboard-prefetch"], "/dashboard/mediatheque");
+    click(library);
+    click(library);
+    assert.deepEqual(view.calls.routes, ["/dashboard/mediatheque"]);
+    assert.deepEqual(view.calls.warmups, ["/dashboard/mediatheque"]);
+    assert.deepEqual(view.calls.panels, []);
+
+    view.release();
+    click(action(tree, "studioCard"));
+    assert.deepEqual(view.calls.routes, ["/dashboard/mediatheque", "/dashboard/generer-media"]);
+    assert.deepEqual(view.calls.warmups, ["/dashboard/mediatheque", "/dashboard/generer-media"]);
+
+    const loading = harness({ ...variant, visibleKey: "route:/dashboard/mediatheque" }).render().tree;
+    const busyLibrary = find(card(loading, "studioCard"), (node) => hasClass(node, "studioLibrary"));
+    assert.equal(busyLibrary.props.disabled, true);
+    assert.equal(busyLibrary.props["aria-busy"], true);
+    assert.notEqual(action(loading, "studioCard").props.disabled, true);
   }
 });
 

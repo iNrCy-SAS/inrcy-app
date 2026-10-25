@@ -1,12 +1,10 @@
 "use client";
 
+import type { DashboardPanelName } from "../_hooks/useDashboardPanelRouting";
 import styles from "../dashboard.module.css";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
 import { useDashboardEdition } from "./DashboardEditionProvider";
-
-type OpenPanelName =
-  "contact" | "profil" | "preferences" | "compte" | "ia" | "ai_memory" | "abonnement" | "mails" | "site_web" | "instagram" | "linkedin" | "gmb" | "facebook" | "legal" | "rgpd" | "inertie" | "boutique" | "notifications" | "parrainage";
 
 export default function UserMenu(props: {
   userEmail: string | null;
@@ -15,7 +13,7 @@ export default function UserMenu(props: {
   activityIncomplete: boolean;
   userMenuOpen: boolean;
   setUserMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  openPanel: (name: OpenPanelName) => void;
+  openPanel: (name: DashboardPanelName) => void;
   handleLogout: () => void | Promise<void>;
   onNavigate?: (href: string) => void;
 }) {
@@ -32,7 +30,7 @@ export default function UserMenu(props: {
     onNavigate,
   } = props;
 
-  const closeAndOpen = (panel: OpenPanelName) => {
+  const closeAndOpen = (panel: DashboardPanelName) => {
     setUserMenuOpen(false);
     openPanel(panel);
   };
@@ -48,6 +46,7 @@ export default function UserMenu(props: {
       <button
         className={styles.userBubbleBtn}
         type="button"
+        aria-label={t.userMenu.label}
         aria-haspopup="menu"
         aria-expanded={userMenuOpen}
         onClick={() => setUserMenuOpen((v) => !v)}
@@ -85,25 +84,17 @@ export default function UserMenu(props: {
             type="button"
             className={styles.userMenuItem}
             role="menuitem"
-            onClick={() => closeAndNavigate("/dashboard/mediatheque")}
-          >
-            {t.userMenu.media}
-          </button>
-          <button
-            type="button"
-            className={styles.userMenuItem}
-            role="menuitem"
-            onClick={() => closeAndOpen("notifications")}
-          >
-            {t.userMenu.notifications}
-          </button>
-          <button
-            type="button"
-            className={styles.userMenuItem}
-            role="menuitem"
             onClick={() => closeAndOpen("abonnement")}
           >
             {t.userMenu.subscription}
+          </button>
+          <button
+            type="button"
+            className={styles.userMenuItem}
+            role="menuitem"
+            onClick={() => closeAndOpen("factures")}
+          >
+            {t.userMenu.invoices}
           </button>
           <button
             type="button"

@@ -1,15 +1,18 @@
 "use client";
 
+import type { DashboardPanelName } from "../_hooks/useDashboardPanelRouting";
 import { useTranslations } from "next-intl";
 
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import styles from "./ResponsiveBottomNav.module.css";
-import experienceStyles from "./DashboardExperience.module.css";
-import AiConfigurationIcon, { AI_CONFIGURATION_BUBBLE_STYLE } from "./AiConfigurationIcon";
 import StudioIcon from "./StudioIcon";
+import DashboardNavigationIcon from "./DashboardNavigationIcon";
+import DashboardGeneratorOrb from "./DashboardGeneratorOrb";
+import { useDashboardGeneratorState } from "./DashboardGeneratorStateProvider";
+import { getDashboardMobileMenu, type DashboardMobileTool } from "./dashboardMobileMenuModel";
 import { useDashboardCompletionChecks } from "../_hooks/useDashboardCompletionChecks";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import { useDashboardLanguage } from "../_hooks/useDashboardLanguage";
@@ -20,39 +23,11 @@ import { setActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvider";
 import NotificationMenu from "./NotificationMenu";
 import EstablishmentMenu from "./EstablishmentMenu";
-import {
-  DEFAULT_MOBILE_SHORTCUTS,
-  MOBILE_SHORTCUTS_EVENT,
-  getDisplayedMobileShortcuts,
-  getMobileShortcutLabel,
-  getMobileShortcutOption,
-  loadMobileShortcutsPreference,
-  normalizeMobileShortcuts,
-  type MobileShortcutId,
-} from "@/lib/mobileShortcuts";
 import { APP_LANGUAGE_OPTIONS, getAppLanguageOption, type AppLanguageCode } from "@/lib/appLanguage";
 import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
-import { useInrAgentPendingCount } from "../_hooks/useInrAgentPendingCount";
 import { useDashboardEdition } from "./DashboardEditionProvider";
-import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
 
-
-type DashboardPanelName =
-  | "contact"
-  | "compte"
-  | "profil"
-  | "activite"
-  | "preferences"
-  | "ia"
-  | "ai_memory"
-  | "abonnement"
-  | "inertie"
-  | "boutique"
-  | "parrainage"
-  | "legal"
-  | "rgpd"
-  | "notifications";
 
 const MOBILE_QUERY = "(max-width: 1100px)";
 type SearchParamsReader = {
@@ -104,23 +79,19 @@ function MenuIcon() {
 
 type CompactLabels = {
   home: string;
-  publish: string;
-  shortcuts: string;
-  general: string;
   language: string;
-  gps: string;
 };
 
 function compactLabels(locale: string, i18nT: (key: string) => string): CompactLabels {
   const lang = locale.toLowerCase().split("-")[0];
   const keysByLanguage: Record<string, Record<keyof CompactLabels, string>> = {
-    en: { home: "home_70f8bb9a", publish: "publish_56564005", shortcuts: "shortcuts_90c93523", general: "general_9239ee2c", language: "language_89b86ab0", gps: "usage_gps_3938b96f" },
-    es: { home: "inicio_4f70d8c3", publish: "publicar_9df643f0", shortcuts: "accesos_directos_a5fc2348", general: "general_9239ee2c", language: "idioma_00943388", gps: "gps_de_uso_e0f617b6" },
-    it: { home: "home_70f8bb9a", publish: "pubblica_6887c13e", shortcuts: "scorciatoie_43143428", general: "generale_96cf0eaf", language: "lingua_a1b8a94a", gps: "gps_utilizzo_2c49e8ca" },
-    de: { home: "start_952f3754", publish: "veroff_d6edd358", shortcuts: "schnellzugriffe_25541a78", general: "allgemein_21a7b4ec", language: "sprache_3d9f5cb4", gps: "nutzungs_gps_b4fa44cc" },
-    nl: { home: "home_70f8bb9a", publish: "publiceren_83a7dddc", shortcuts: "snelkoppelingen_01c5d161", general: "algemeen_aedfc952", language: "taal_53eee21b", gps: "gebruiks_gps_0ddb3d74" },
-    pt: { home: "inicio_fc2c7400", publish: "publicar_9df643f0", shortcuts: "atalhos_c7f81ce8", general: "geral_b6748d4e", language: "idioma_00943388", gps: "gps_de_utilizacao_3a9e429c" },
-    fr: { home: "accueil_a8ff8fd2", publish: "publier_34e6b19e", shortcuts: "raccourcis_0e0d6404", general: "general_9239ee2c", language: "langue_6619264a", gps: "gps_d_utilisation_5f30c155" },
+    en: { home: "home_70f8bb9a", language: "language_89b86ab0" },
+    es: { home: "inicio_4f70d8c3", language: "idioma_00943388" },
+    it: { home: "home_70f8bb9a", language: "lingua_a1b8a94a" },
+    de: { home: "start_952f3754", language: "sprache_3d9f5cb4" },
+    nl: { home: "home_70f8bb9a", language: "taal_53eee21b" },
+    pt: { home: "inicio_fc2c7400", language: "idioma_00943388" },
+    fr: { home: "accueil_a8ff8fd2", language: "langue_6619264a" },
   };
   const keys = keysByLanguage[lang] || keysByLanguage.fr;
   return Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, i18nT(key)])) as CompactLabels;
@@ -132,6 +103,8 @@ type MobileMenuActionButtonProps = {
   onClick: () => void;
   warning?: boolean;
   badge?: string;
+  icon?: ReactNode;
+  tone?: DashboardMobileTool["tone"];
 };
 
 function MobileMenuActionButton({
@@ -140,6 +113,8 @@ function MobileMenuActionButton({
   onClick,
   warning = false,
   badge,
+  icon,
+  tone = "blue",
 }: MobileMenuActionButtonProps) {
   const i18nT = useTranslations("shell");
   return (
@@ -147,10 +122,12 @@ function MobileMenuActionButton({
       className={styles.menuItem}
       type="button"
       role="menuitem"
+      data-tone={tone}
       aria-busy={loading || undefined}
       aria-disabled={loading || undefined}
       onClick={onClick}
     >
+      {icon ? <span className={styles.menuActionIcon} aria-hidden="true">{icon}</span> : null}
       <span className={styles.menuItemText}>
         {loading ? i18nT("chargement_01cba1df") : label}
       </span>
@@ -164,16 +141,31 @@ function MobileMenuActionButton({
   );
 }
 
+function MobileToolIcon({ tool }: { tool: DashboardMobileTool }) {
+  if (tool.iconSrc) return <img src={tool.iconSrc} alt="" className={styles.shortcutIconImage} loading="eager" decoding="async" />;
+  if (tool.id === "studio") return <StudioIcon className={styles.shortcutIconImage} />;
+  if (tool.id === "cash") return <DashboardNavigationIcon kind="cash" className={styles.shortcutIconImage} />;
+  return <svg className={styles.shortcutIconImage} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {tool.id === "publish" ? <><path d="M14 4c3-2 6-2 7-1 1 1 1 4-1 7l-6 6-6-6 6-6ZM8 10l-4 1-2 5 7-1m5 1-1 6 5-2 1-5M6 18l-3 3" /><circle cx="16" cy="8" r="2" /></> : null}
+    {tool.id === "media" ? <><rect x="4" y="5" width="16" height="15" rx="3" /><path d="m5 17 5-5 4 4 3-3 3 3M8 2h9" /><circle cx="15" cy="9" r="1.5" /></> : null}
+    {tool.id === "ads" ? <><circle cx="11" cy="13" r="8" /><circle cx="11" cy="13" r="4" /><path d="m11 13 9-9m-1-2v4h4" /></> : null}
+    {tool.id === "campaigns" ? <><rect x="3" y="6" width="18" height="14" rx="3" /><path d="m4 8 8 6 8-6m-16 11 6-6m10 6-6-6" /></> : null}
+    {tool.id === "reputation" ? <><path d="M8 3h8v6c0 4-2 6-4 6s-4-2-4-6V3ZM8 5H4v3c0 3 3 4 5 4m7-7h4v3c0 3-3 4-5 4M12 15v5m-5 1h10" /></> : null}
+  </svg>;
+}
+
 function ResponsiveBottomNavMobile() {
   const i18nT = useTranslations("shell");
+  const helpT = useTranslations("dashboard.helpCenter");
+  const heroT = useTranslations("dashboard.hero");
+  const menuT = useTranslations("dashboard.mobileMenu");
   const router = useRouter();
   const pathname = usePathname();
   const adsWorkspaceActive = pathname === "/dashboard/ads" || pathname.startsWith("/dashboard/ads/");
   const searchParams = useSearchParams();
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const dashboardEdition = useDashboardEdition();
-  const standardMode = dashboardEdition === "standard";
-  const accountingEnabled = hasAccountingDashboardAccess(dashboardEdition);
+  const generatorState = useDashboardGeneratorState();
   const t = useDashboardI18n();
   const { language, setLanguage } = useDashboardLanguage();
   const labels = useMemo(() => compactLabels(t.locale, i18nT), [t.locale, i18nT]);
@@ -197,17 +189,8 @@ function ResponsiveBottomNavMobile() {
   const [cameraCaptureOpen, setCameraCaptureOpen] = useState(false);
   const [explicitImmersiveModeOpen, setExplicitImmersiveModeOpen] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
-  const pendingInrAgentCount = useInrAgentPendingCount(true);
-  const [shortcuts, setShortcuts] = useState<MobileShortcutId[]>([...DEFAULT_MOBILE_SHORTCUTS]);
   const [isAdmin, setIsAdmin] = useState(false);
-  const displayedShortcuts = useMemo(
-    () => getDisplayedMobileShortcuts(shortcuts, standardMode),
-    [shortcuts, standardMode],
-  );
-  const availableShortcutOptions = useMemo(
-    () => displayedShortcuts.map(getMobileShortcutOption),
-    [displayedShortcuts],
-  );
+  const menuGroups = useMemo(() => getDashboardMobileMenu(dashboardEdition), [dashboardEdition]);
 
   useEffect(() => {
     const syncViewport = () => setIsLandscapeViewport(window.innerWidth > window.innerHeight);
@@ -271,25 +254,6 @@ function ResponsiveBottomNavMobile() {
       window.removeEventListener("inrcy-immersive-mode-change", onExplicitImmersiveStateChange);
     };
   }, []);
-
-  const refreshShortcuts = useCallback(async () => {
-    try {
-      setShortcuts(await loadMobileShortcutsPreference());
-    } catch {
-      setShortcuts([...DEFAULT_MOBILE_SHORTCUTS]);
-    }
-  }, []);
-
-  useEffect(() => {
-    void refreshShortcuts();
-    const onUpdated = (event: Event) => {
-      const detail = (event as CustomEvent<{ shortcuts?: unknown }>).detail;
-      if (detail?.shortcuts) setShortcuts(normalizeMobileShortcuts(detail.shortcuts));
-      else void refreshShortcuts();
-    };
-    window.addEventListener(MOBILE_SHORTCUTS_EVENT, onUpdated);
-    return () => window.removeEventListener(MOBILE_SHORTCUTS_EVENT, onUpdated);
-  }, [refreshShortcuts]);
 
   useEffect(() => {
     let cancelled = false;
@@ -477,23 +441,20 @@ function ResponsiveBottomNavMobile() {
   }, [requestNavigation]);
 
   const currentLanguage = getAppLanguageOption(language);
-  const pendingLabel = pendingInrAgentCount > 99 ? "99+" : String(pendingInrAgentCount);
   const homeActive = pathname === "/dashboard" && !searchParams.get("action") && !searchParams.get("panel");
   const publishActive =
     publishModalOpen ||
     (pathname === "/dashboard" && searchParams.get("action") === "publish");
   const hasMenuWarning = profileIncomplete || activityIncomplete;
-  const publishActionKey = resolveHrefDestination("/dashboard?action=publish").key;
-  const mediaActionKey = resolveHrefDestination("/dashboard/mediatheque").key;
-  const cashActionKey = resolveHrefDestination("/dashboard?action=cash").key;
-  const gpsActionKey = resolveHrefDestination("/dashboard/gps").key;
+  const generatorActionKey = resolveHrefDestination("/dashboard?generator=1").key;
+  const helpActionKey = resolveHrefDestination("/dashboard?help=1").key;
   const adminActionKey = resolveHrefDestination("/dashboard/admin").key;
-  const publishLoadingVisible = isVisible(publishActionKey);
+  const generatorLoadingVisible = isVisible(generatorActionKey);
 
   return (
     <>
       <div className={styles.shortcutPreloader} aria-hidden="true">
-        {availableShortcutOptions.map((option) => option.iconSrc).filter((src): src is string => Boolean(src)).map((src) => (
+        {menuGroups.flatMap((group) => group.tools).map((option) => option.iconSrc).filter((src): src is string => Boolean(src)).map((src) => (
           <img key={src} src={src} alt="" loading="eager" decoding="async" />
         ))}
       </div>
@@ -511,151 +472,67 @@ function ResponsiveBottomNavMobile() {
             }}
           />
           <div className={styles.menuPanel} role="menu" aria-label={t.topbar.menu} data-disable-pull-refresh="true">
-            <section className={styles.menuSection} aria-label={labels.shortcuts}>
-              <div className={styles.menuSectionTitle}>{labels.shortcuts}</div>
+            {menuGroups.map((group) => <section key={group.id} className={styles.menuSection} aria-label={menuT(group.id)}>
+              <h2 className={styles.menuSectionTitle}>{menuT(group.id)}</h2>
               <div className={styles.shortcutGrid}>
-                {displayedShortcuts.map((id) => {
-                  const option = getMobileShortcutOption(id);
-                  const label = getMobileShortcutLabel(id, t.locale);
+                {group.tools.map((option) => {
+                  const label = menuT(option.id);
                   const shortcutActionKey = resolveHrefDestination(option.href).key;
                   const shortcutLoadingVisible = isVisible(shortcutActionKey);
-                  return (
-                    <button
-                      key={id}
-                      className={styles.shortcutItem}
-                      type="button"
-                      role="menuitem"
-                      data-mobile-shortcut={id}
-                      title={label}
-                      aria-busy={shortcutLoadingVisible || undefined}
-                      aria-disabled={shortcutLoadingVisible || undefined}
-                      onClick={() => navigate(option.href)}
-                    >
-                      <span className={styles.shortcutIconSlot} style={id === "ai_configuration" ? AI_CONFIGURATION_BUBBLE_STYLE : undefined} aria-hidden="true">
-                        {option.iconSrc ? <img src={option.iconSrc} alt="" className={styles.shortcutIconImage} loading="eager" decoding="async" /> : null}
-                        {id === "channels" ? <span className={experienceStyles.hubTiles}><i /><i /><i /><i /></span> : null}
-                        {id === "ai_configuration" ? <AiConfigurationIcon size={24} style={{ fontSize: AI_CONFIGURATION_BUBBLE_STYLE.fontSize }} /> : null}
-                        {id === "media_studio" ? <StudioIcon className={styles.shortcutIconImage} /> : null}
-                        {id === "agent" && pendingInrAgentCount > 0 ? <span className={styles.shortcutBadge}>{pendingLabel}</span> : null}
-                        {id === "business_dna" && hasMenuWarning ? <span className={styles.warning} aria-hidden="true">⚠️</span> : null}
-                      </span>
-                      <span className={styles.shortcutLabel}>{shortcutLoadingVisible ? i18nT("chargement_01cba1df") : label}</span>
-                    </button>
-                  );
+                  const publicationUnavailable = option.id === "publish" && (publishActive || adsWorkspaceActive);
+                  return <button key={option.id} className={styles.shortcutItem} type="button" role="menuitem"
+                    data-mobile-tool={option.id} data-tone={option.tone}
+                    aria-busy={shortcutLoadingVisible || undefined} aria-disabled={publicationUnavailable || shortcutLoadingVisible || undefined}
+                    disabled={publicationUnavailable}
+                    onClick={() => navigate(option.href)}>
+                    <span className={styles.shortcutIconSlot} aria-hidden="true"><MobileToolIcon tool={option} /></span>
+                    <span className={styles.shortcutLabel}>{shortcutLoadingVisible ? i18nT("chargement_01cba1df") : label}</span>
+                    <span className={styles.menuArrow} aria-hidden="true">›</span>
+                  </button>;
                 })}
               </div>
-            </section>
-
-            <div className={styles.menuDivider} />
-
-            <section className={styles.menuSection} aria-label={labels.general}>
-              <div className={styles.menuSectionTitle}>{labels.general}</div>
+            </section>)}
+            <section className={styles.menuSection} aria-label={menuT("space")}>
+              <h2 className={styles.menuSectionTitle}>{menuT("space")}</h2>
               <div className={styles.menuGrid}>
-                <MobileMenuActionButton
-                  label={t.topbar.contact}
-                  loading={isVisible("panel:contact")}
-                  onClick={() => openDashboardPanel("contact")}
-                />
-                <MobileMenuActionButton
-                  label={t.userMenu.account}
-                  loading={isVisible("panel:compte")}
-                  onClick={() => openDashboardPanel("compte")}
-                />
-                <MobileMenuActionButton
-                  label={t.userMenu.preferences}
-                  loading={isVisible("panel:preferences")}
-                  onClick={() => openDashboardPanel("preferences")}
-                />
-                <MobileMenuActionButton
-                  label={t.userMenu.media}
-                  loading={isVisible(mediaActionKey)}
-                  onClick={() => navigate("/dashboard/mediatheque")}
-                />
-                {accountingEnabled ? (
-                  <MobileMenuActionButton
-                    label={t.modules.cashTitle}
-                    loading={isVisible(cashActionKey)}
-                    onClick={() => navigate("/dashboard?action=cash")}
-                  />
-                ) : null}
-                <MobileMenuActionButton
-                  label={t.userMenu.subscription}
-                  loading={isVisible("panel:abonnement")}
-                  onClick={() => openDashboardPanel("abonnement")}
-                />
-                <MobileMenuActionButton
-                  label={t.userMenu.inertia}
-                  loading={isVisible("panel:inertie")}
-                  onClick={() => openDashboardPanel("inertie")}
-                />
-                <MobileMenuActionButton
-                  label={t.userMenu.shop}
-                  loading={isVisible("panel:boutique")}
-                  onClick={() => openDashboardPanel("boutique")}
-                />
-                <MobileMenuActionButton
-                  label={t.userMenu.referral}
-                  loading={isVisible("panel:parrainage")}
-                  onClick={() => openDashboardPanel("parrainage")}
-                />
-                <MobileMenuActionButton
-                  label={labels.gps}
-                  loading={isVisible(gpsActionKey)}
-                  onClick={() => navigate("/dashboard/gps")}
-                />
-                <button
-                  className={styles.menuItem}
-                  type="button"
-                  role="menuitem"
-                  aria-expanded={languageOpen}
-                  onClick={() => setLanguageOpen((open) => !open)}
-                >
-                  <span className={styles.menuItemText}>{labels.language}</span>
-                  <img
-                    className={styles.menuLanguageFlag}
-                    src={currentLanguage.flagSrc}
-                    alt={currentLanguage.flag}
-                  />
-                </button>
-                {isAdmin ? (
-                  <MobileMenuActionButton
-                    label={t.topbar.admin}
-                    loading={isVisible(adminActionKey)}
-                    onClick={() => navigate("/dashboard/admin")}
-                  />
-                ) : null}
-                <MobileMenuActionButton
-                  label={t.userMenu.legal}
-                  loading={isVisible("panel:legal")}
-                  onClick={() => openDashboardPanel("legal")}
-                />
-                <MobileMenuActionButton
-                  label={t.userMenu.rgpd}
-                  loading={isVisible("panel:rgpd")}
-                  onClick={() => openDashboardPanel("rgpd")}
-                />
-              </div>
-
-              {languageOpen ? (
-                <div className={styles.languageGrid} role="group" aria-label={t.language.panelAria}>
-                  {APP_LANGUAGE_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      className={`${styles.languageChoice} ${option.value === language ? styles.languageChoiceActive : ""}`}
-                      aria-pressed={option.value === language}
-                      onClick={() => { void setLanguage(option.value as AppLanguageCode); setLanguageOpen(false); }}
-                    >
-                      <img src={option.flagSrc} alt={option.flag} />
-                      <span>{option.shortLabel}</span>
-                    </button>
-                  ))}
+                <MobileMenuActionButton label={menuT("account")} icon={<DashboardNavigationIcon kind="account" />}
+                  loading={isVisible("panel:compte")} onClick={() => openDashboardPanel("compte")} />
+                <div className={styles.menuEstablishments}>
+                  <EstablishmentMenu mobile locale={t.locale} mobileLabel={menuT("establishments")} mobileBackLabel={menuT("backToMenu")}
+                    buttonClassName={styles.menuEstablishmentButton} panelClassName={styles.dockEstablishmentPanel}
+                    onContact={() => openDashboardPanel("contact")}
+                    onOpen={() => { setLanguageOpen(false); setNotificationMenuOpen(false); }}
+                    beforeAccountSwitch={(proceed) => requestNavigation(proceed)} />
                 </div>
-              ) : null}
+                <MobileMenuActionButton label={t.userMenu.shop} icon={<DashboardNavigationIcon kind="shop" />} tone="violet"
+                  loading={isVisible("panel:boutique")} onClick={() => openDashboardPanel("boutique")} />
+                <MobileMenuActionButton label={t.topbar.contact} icon={<DashboardNavigationIcon kind="contact" />} tone="pink"
+                  loading={isVisible("panel:contact")} onClick={() => openDashboardPanel("contact")} />
+                <MobileMenuActionButton label={helpT("title")} icon={<DashboardNavigationIcon kind="help" />} tone="violet"
+                  loading={isVisible(helpActionKey)} onClick={() => navigate("/dashboard?help=1")} />
+                <button className={styles.menuItem} type="button" role="menuitem" data-tone="blue"
+                  aria-expanded={languageOpen} aria-controls="dashboard-mobile-languages"
+                  onClick={() => setLanguageOpen((open) => !open)}>
+                  <span className={styles.menuActionIcon}><img className={styles.menuLanguageFlag} src={currentLanguage.flagSrc} alt="" /></span>
+                  <span className={styles.menuItemText}>{labels.language}</span>
+                  <span className={styles.menuArrow} aria-hidden="true">{languageOpen ? "−" : "+"}</span>
+                </button>
+                <button className={styles.menuDanger} type="button" role="menuitem" onClick={() => void handleLogout()}>
+                  <span className={styles.menuActionIcon} aria-hidden="true"><DashboardNavigationIcon kind="logout" /></span>
+                  <span>{t.userMenu.logout}</span>
+                </button>
+                {isAdmin ? <MobileMenuActionButton label={t.topbar.admin} icon={<DashboardNavigationIcon kind="admin" />} tone="violet"
+                  loading={isVisible(adminActionKey)} onClick={() => navigate("/dashboard/admin")} /> : null}
+              </div>
+              {languageOpen ? <div id="dashboard-mobile-languages" className={styles.languageGrid} role="group" aria-label={t.language.panelAria}>
+                {APP_LANGUAGE_OPTIONS.map((option) => <button key={option.value} type="button"
+                  className={[styles.languageChoice, option.value === language ? styles.languageChoiceActive : ""].join(" ")}
+                  aria-pressed={option.value === language}
+                  onClick={() => { void setLanguage(option.value as AppLanguageCode); setLanguageOpen(false); }}>
+                  <img src={option.flagSrc} alt={option.flag} /><span>{option.shortLabel}</span>
+                </button>)}
+              </div> : null}
             </section>
-
-            <div className={styles.menuDivider} />
-            <button className={styles.menuDanger} type="button" role="menuitem" onClick={() => void handleLogout()}>{t.userMenu.logout}</button>
           </div>
         </>
       ) : null}
@@ -672,30 +549,23 @@ function ResponsiveBottomNavMobile() {
             <span className={styles.iconSlot}><HomeIcon /></span>
           </button>
 
-          <EstablishmentMenu
-            mobile
-            locale={t.locale}
-            buttonClassName={styles.item}
-            panelClassName={styles.dockEstablishmentPanel}
-            onContact={() => openDashboardPanel("contact")}
-            onOpen={() => { setMenuOpen(false); setLanguageOpen(false); setNotificationMenuOpen(false); }}
-            beforeAccountSwitch={(proceed) => requestNavigation(proceed)}
-          />
+          <button type="button" className={[styles.item, styles.assistPreview].join(" ")}
+            aria-label={helpT("assistPreview")} title={helpT("assistPreview")} aria-disabled="true">
+            <img src="/agent/agent-assist-pink.png" alt="" width={38} height={38} />
+          </button>
 
           <button
             type="button"
-            className={`${styles.publishItem} ${publishActive ? styles.publishItemActive : ""}`}
-            aria-label={labels.publish}
-            aria-current={publishActive ? "page" : undefined}
-            aria-busy={publishLoadingVisible || undefined}
-            aria-disabled={publishActive || publishLoadingVisible || adsWorkspaceActive ? "true" : undefined}
-            disabled={publishActive || adsWorkspaceActive}
-            title={adsWorkspaceActive ? "La publication naturelle est indisponible dans iNr’ADS" : undefined}
-            onClick={() => {
-              navigate("/dashboard?action=publish");
-            }}
+            className={styles.generatorItem}
+            aria-label={`${heroT("settingsAria")}${generatorState.isActive === null ? "" : ` · ${generatorState.isActive ? t.hero.active : t.hero.waiting}`}`}
+            title={heroT("settingsTitle")}
+            aria-haspopup="dialog"
+            aria-busy={generatorLoadingVisible || undefined}
+            aria-disabled={generatorLoadingVisible || undefined}
+            data-testid="dashboard-mobile-generator"
+            onClick={() => navigate("/dashboard?generator=1")}
           >
-            <span className={styles.publishButton}>{publishLoadingVisible ? i18nT("chargement_01cba1df") : labels.publish}</span>
+            <DashboardGeneratorOrb isActive={generatorState.isActive} className={styles.generatorOrb} bare />
           </button>
 
           <div className={styles.notificationDockWrap}>
@@ -714,6 +584,7 @@ function ResponsiveBottomNavMobile() {
               deleteNotification={notificationsApi.deleteNotification}
               onNavigate={navigate}
               mobile
+              icon={<DashboardNavigationIcon kind="bell" className={styles.notificationDockIcon} />}
               buttonClassName={styles.item}
               panelClassName={styles.dockNotificationPanel}
               countClassName={styles.badge}

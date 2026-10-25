@@ -2,6 +2,7 @@
 
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import DrawerHeaderTabs from "../../DrawerHeaderTabs";
+import DashboardMobileSelect from "../../_components/DashboardMobileSelect";
 
 import {
   forwardRef,
@@ -1400,36 +1401,13 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         })}
       </nav>
 
-      <nav data-ai-memory-mobile-tabs aria-label={t("title")} style={mobileTabNavigatorStyle}>
-        <button
-          type="button"
-          disabled={voiceBusy || activeTabIndex === 0}
-          aria-label={activeTabIndex > 0 ? tabs[activeTabIndex - 1].label : activeTabDefinition.label}
-          onClick={() => selectTabAt(activeTabIndex - 1)}
-          style={mobileTabArrowStyle}
-        >
-          <span aria-hidden>←</span>
-        </button>
-        <div aria-live="polite" style={mobileTabCurrentStyle}>
-          <span style={mobileTabLabelStyle}>
-            <span aria-hidden>{activeTabDefinition.icon}</span>
-            <strong>{activeTabDefinition.label}</strong>
-          </span>
-          <span style={mobileTabPositionStyle}>{activeTabIndex + 1} / {tabs.length}</span>
-          <span aria-hidden style={mobileTabProgressTrackStyle}>
-            <span style={{ ...mobileTabProgressValueStyle, width: `${((activeTabIndex + 1) / tabs.length) * 100}%` }} />
-          </span>
-        </div>
-        <button
-          type="button"
-          disabled={voiceBusy || activeTabIndex === tabs.length - 1}
-          aria-label={activeTabIndex < tabs.length - 1 ? tabs[activeTabIndex + 1].label : activeTabDefinition.label}
-          onClick={() => selectTabAt(activeTabIndex + 1)}
-          style={mobileTabArrowStyle}
-        >
-          <span aria-hidden>→</span>
-        </button>
-      </nav>
+      <DashboardMobileSelect
+        value={activeTab}
+        options={tabs.map((tab) => ({ value: tab.key, label: tab.label, icon: tab.icon }))}
+        onChange={selectTab}
+        ariaLabel={t("title")}
+        disabled={voiceBusy}
+      />
       </DrawerHeaderTabs>
 
       <div
@@ -2487,7 +2465,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         @keyframes dnaAurora { 0% { transform: translate3d(-3%,-2%,0) rotate(-8deg) scale(.94); } 55% { transform: translate3d(3%,1%,0) rotate(7deg) scale(1.04); } 100% { transform: translate3d(-1%,4%,0) rotate(16deg) scale(1.08); } }
         @keyframes dnaParticles { 0% { transform: translate3d(0,0,0); opacity: .18; } 55% { opacity: .36; } 100% { transform: translate3d(18px,-14px,0); opacity: .24; } }
         @keyframes dnaProgressSweep { to { transform: translateX(100%); } }
-        @media (min-width: 721px) and (max-width: 1180px) {
+        @media (min-width: 1101px) and (max-width: 1180px) {
           nav[data-ai-memory-desktop-tabs] {
             grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
             gap: 3px !important;
@@ -2504,13 +2482,10 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
           overflow: hidden;
           text-overflow: ellipsis;
         }
-        @media (max-width: 720px) {
+        @media (max-width: 1100px) {
           nav[data-ai-memory-desktop-tabs] { display: none !important; }
-          nav[data-ai-memory-mobile-tabs] { display: grid !important; }
-          nav[data-ai-memory-mobile-tabs] button:disabled {
-            opacity: .28 !important;
-            cursor: default !important;
-          }
+        }
+        @media (max-width: 720px) {
           section[data-business-dna-channel-analysis] { height: auto !important; min-height: 590px !important; padding: 24px 14px !important; }
           [data-business-dna-analysis-orb] {
             width: 100% !important;
@@ -2734,13 +2709,6 @@ const progressValueStyle: CSSProperties = { display: "block", height: "100%", mi
 const tabListStyle: CSSProperties = { position: "relative", zIndex: 2, display: "grid", gridTemplateColumns: "repeat(9, minmax(0, 1fr))", gap: 5, padding: 6, overflow: "hidden", borderRadius: 16, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(5,13,28,0.94)", boxShadow: "0 12px 34px rgba(0,0,0,0.20)", backdropFilter: "blur(18px)" };
 const tabButtonStyle: CSSProperties = { minWidth: 0, display: "flex", justifyContent: "center", alignItems: "center", gap: 6, borderRadius: 11, border: "1px solid transparent", background: "transparent", color: "rgba(255,255,255,0.66)", padding: "9px 5px", cursor: "pointer", fontSize: 11.5, fontWeight: 850, whiteSpace: "nowrap", overflow: "hidden" };
 const activeTabButtonStyle: CSSProperties = { border: "1px solid rgba(125,211,252,0.28)", background: "linear-gradient(135deg, rgba(14,165,233,0.18), rgba(124,58,237,0.18))", color: "white", boxShadow: "0 7px 22px rgba(14,165,233,0.10)" };
-const mobileTabNavigatorStyle: CSSProperties = { position: "relative", zIndex: 3, display: "none", gridTemplateColumns: "42px minmax(0, 1fr) 42px", alignItems: "stretch", gap: 7, padding: 7, borderRadius: 16, border: "1px solid rgba(125,211,252,.20)", background: "linear-gradient(135deg, rgba(4,18,38,.98), rgba(25,16,54,.98))", boxShadow: "0 13px 34px rgba(0,0,0,.24)" };
-const mobileTabArrowStyle: CSSProperties = { minWidth: 0, minHeight: 48, display: "grid", placeItems: "center", borderRadius: 11, border: "1px solid rgba(125,211,252,.18)", background: "rgba(56,189,248,.08)", color: "rgba(240,249,255,.92)", fontSize: 19, fontWeight: 900, cursor: "pointer" };
-const mobileTabCurrentStyle: CSSProperties = { minWidth: 0, display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", columnGap: 8, rowGap: 5, padding: "3px 4px" };
-const mobileTabLabelStyle: CSSProperties = { minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, color: "white", fontSize: 11.5, lineHeight: 1.2, textAlign: "center" };
-const mobileTabPositionStyle: CSSProperties = { color: "rgba(186,230,253,.72)", fontSize: 10.5, fontWeight: 850, whiteSpace: "nowrap" };
-const mobileTabProgressTrackStyle: CSSProperties = { gridColumn: "1 / -1", height: 3, overflow: "hidden", borderRadius: 999, background: "rgba(255,255,255,.08)" };
-const mobileTabProgressValueStyle: CSSProperties = { display: "block", height: "100%", borderRadius: 999, background: "linear-gradient(90deg, #38bdf8, #8b5cf6 58%, #ec4899)", transition: "width .2s ease" };
 const tabPanelStyle: CSSProperties = { minWidth: 0 };
 const tabResetActionStyle: CSSProperties = { display: "flex", justifyContent: "flex-end", paddingTop: 12 };
 const sectionStackStyle: CSSProperties = { display: "grid", gap: 15, minWidth: 0 };

@@ -1,8 +1,10 @@
 .lowerRow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "cockpit booster" "generator generator" "create pilot";
+  grid-template-rows: auto 80px auto;
   align-items: stretch;
-  gap: 22px;
+  gap: 0 22px;
   width: 100%;
   color: #f5f7ff;
 }
@@ -82,7 +84,7 @@
   border-radius: 99px;
   background: #131a416e;
   font: inherit;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
   cursor: pointer;
   transition: background .2s, border-color .2s;
@@ -94,15 +96,15 @@
   position: relative;
   display: flex;
   align-items: center;
-  flex: 1 0 190px;
+  grid-area: booster;
   min-width: 0;
-  min-height: 190px;
+  min-height: 300px;
   gap: clamp(14px, 1.8vw, 29px);
   overflow: hidden;
-  padding: 20px 24px;
+  padding: 30px;
   isolation: isolate;
   border: 1px solid transparent;
-  border-radius: 17px;
+  border-radius: 20px;
   background:
     radial-gradient(ellipse at 3% 0%, #0072e1, transparent 65%) padding-box,
     linear-gradient(118deg, #074191, #132564 48%, #451b7e 82%, #8927a3) padding-box,
@@ -121,22 +123,6 @@
   border-radius: 50%;
   box-shadow: 0 0 0 22px #19aeff06, 0 0 0 45px #41bfff05;
 }
-
-.boosterRocket {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: clamp(64px, 5.5vw, 94px);
-  height: clamp(64px, 5.5vw, 94px);
-  border: 1px solid #8ab8ff;
-  border-radius: 50%;
-  color: #e0fbff;
-  background: radial-gradient(circle at 28% 18%, #1688ff99, #284dde9e 62%, #b133da55);
-  box-shadow: inset 0 0 20px #5796ff6b, 0 0 25px #0cbfff38;
-  transform: rotate(-5deg);
-}
-
-.boosterRocket svg { width: 62%; height: 62%; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 5px #1cebff); }
 .boosterCopy { position: relative; z-index: 2; min-width: 0; }
 .eyebrow { display: block; color: #b8dbff; font-size: 8px; font-weight: 800; line-height: 1.2; letter-spacing: .12em; }
 .boosterCopy .eyebrow { margin-bottom: 3px; color: #a5d6ff; }
@@ -161,7 +147,7 @@
   background: linear-gradient(110deg, #059eef, #484dff 56%, #c021f5);
   box-shadow: inset 0 1px 0 #ffffff20, 0 3px 14px #164ff224;
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
   line-height: 1.2;
   cursor: pointer;
@@ -188,21 +174,16 @@
 }
 
 .boosterWave { position: absolute; z-index: -1; inset: 0; width: 100%; height: 100%; opacity: .94; animation: waveBreath 9s ease-in-out infinite alternate; }
-.boosterChart { position: absolute; z-index: -1; right: 5%; bottom: 25px; display: flex; align-items: flex-end; gap: 9px; width: 118px; height: 98px; padding: 20px 17px 16px; border: 1px solid #ba81ff72; border-radius: 17px; background: linear-gradient(140deg, #2c258c4f, #ac21be42); box-shadow: inset 0 0 18px #ad68ff11, 0 10px 40px #53108230; transform: perspective(400px) rotateY(-14deg) rotateZ(7deg); }
-.boosterChart span { flex: 1; height: 34%; border-radius: 4px 4px 2px 2px; background: linear-gradient(#8dceff, #6d50eb); box-shadow: inset 0 1px 1px #ebd1ff99, 0 0 12px #a865ff33; }
-.boosterChart span:nth-child(2) { height: 58%; background: linear-gradient(#d798ff, #b837e5); }
-.boosterChart span:nth-child(3) { height: 86%; background: linear-gradient(#f5a6ff, #b83bd7); }
-.boosterChart i { position: absolute; width: 70%; height: 25px; top: 14px; left: 12px; border-bottom: 1px solid #e6b6ff99; border-radius: 0 0 50% 50%; transform: rotate(-24deg); }
-.boosterStats { position: absolute; z-index: 3; top: 11px; right: 11px; min-height: 36px; padding: 7px 11px; font-size: 11px; border-color: #a9baff99; background: #243c76de; box-shadow: inset 0 1px 0 #e5edff1c, 0 3px 14px #05133242; }
+.boosterStats { position: absolute; z-index: 3; top: 11px; right: 11px; min-height: 36px; padding: 7px 11px; font-size: 12px; border-color: #a9baff99; background: #243c76de; box-shadow: inset 0 1px 0 #e5edff1c, 0 3px 14px #05133242; }
 .boosterStats svg { width: 18px; height: 18px; color: #b9e8ff; }
 
-.creationGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; min-height: 170px; gap: 9px; }
+.creationGrid { display: grid; flex: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(164px, 1fr); min-width: 0; gap: 10px; }
 .creationCard { --accent: #859bff; position: relative; isolation: isolate; display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; min-width: 0; padding: 16px 13px 13px; border: 1px solid var(--accent); border-radius: 15px; background: linear-gradient(135deg, #123b8b, #192560 68%, #3d246e); box-shadow: inset 0 1px 0 #d2ddff14; }
 .creationCard::before { position: absolute; z-index: -1; width: 150px; height: 150px; right: -65px; bottom: -95px; border-radius: 50%; box-shadow: 0 0 65px 25px #8948ff52; content: ""; }
 .creationCard .cardLogo { position: absolute; top: 16px; left: 13px; width: 45px; height: 45px; }
 .creationCopy { min-width: 0; min-height: 98px; padding-left: 55px; }
 .creationCopy h4 { margin: 4px 0 5px; font-size: clamp(14px, 1.05vw, 18px); line-height: 1.2; letter-spacing: -.02em; font-weight: 800; }
-.creationCopy p { margin: 0; max-width: 190px; font-size: 11px; line-height: 1.4; color: #dde0fa; }
+.creationCopy p { margin: 0; max-width: 190px; font-size: 12px; line-height: 1.4; color: #dde0fa; }
 .creationCard .cardButton { margin-top: auto; min-height: 40px; padding: 9px 16px; font-size: 12px; gap: 9px; }
 .creationCard .eyebrow { font-size: 7px; letter-spacing: .1em; }
 .cardLogo { position: relative; display: grid; flex: 0 0 auto; place-items: center; width: 56px; height: 56px; overflow: hidden; border: 1px solid #bb99ffbf; border-radius: 50%; color: #eee1ff; background: radial-gradient(circle at 30% 20%, #7458ed8c, #621ac766); box-shadow: inset 0 1px 7px #ceb7ff27, 0 0 15px #8950e934; }
@@ -221,9 +202,6 @@
 .agentCard .cardLogo { background: linear-gradient(140deg, #395bf8, #5d2abe); border-color: #9695ff; }
 .agentCard .creationCopy { padding-right: 24px; }
 .agentCard .cardButton { background: linear-gradient(105deg, #7531fc, #5524ee 65%, #6146f9); border-color: #af86ffbd; }
-.ghostArt { position: absolute; z-index: -1; right: 7px; bottom: 17px; width: 57px; height: 57px; display: grid; place-items: center; border: 1px solid #a35eff50; border-radius: 10px; color: #bc77fa; background: linear-gradient(130deg, #a75afa16, #6528b844); transform: rotate(8deg); opacity: .7; }
-.ghostArt svg { width: 80%; height: 80%; }
-.adsCard .ghostArt { color: #ed7beb; width: 63px; height: 63px; bottom: 38px; right: 8px; transform: rotate(-8deg); }
 .planningButton,
 .settingsButton { position: absolute; z-index: 3; display: grid; place-items: center; width: 36px; height: 36px; padding: 8px; border: 1px solid #b5c7ff9c; border-radius: 11px; color: #edf4ff; background: #31477edb; box-shadow: inset 0 1px 0 #e3eaff1f, 0 2px 12px #020b2440; cursor: pointer; transition: background .2s; }
 .planningButton { top: 9px; right: 8px; }
@@ -234,19 +212,18 @@
 
 .pilotPanel { border-color: #9971c08c; background: radial-gradient(ellipse at 0% 0%, #0868d63b, transparent 60%), radial-gradient(ellipse at 100% 100%, #762e993d, transparent 65%), linear-gradient(120deg, #0a2048ed, #171b45ed 64%, #291746ed); }
 
-.signatureGrid { display: grid; flex: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(128px, 1fr)); gap: 9px; min-width: 0; }
-.signatureCard { --tool-accent: #3aacff; position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: 49px minmax(0, 1fr); align-content: start; align-items: center; gap: 0 12px; min-width: 0; padding: 13px 13px 47px; border: 1px solid #1d9cecac; border-radius: 14px; background: linear-gradient(120deg, #06417ec2, #0b2356c7 57%, #081e4ebd); }
-.signatureLogo { display: grid; place-items: center; grid-row: 1; width: 49px; height: 49px; border-radius: 50%; color: var(--tool-accent); filter: drop-shadow(0 0 9px #028bef3b); }
+.signatureGrid { display: grid; flex: 1; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: minmax(200px, auto) minmax(164px, 1fr); gap: 10px; min-width: 0; }
+.signatureCard { --tool-accent: #3aacff; position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: 42px minmax(0, 1fr); align-content: stretch; align-items: start; gap: 0 10px; min-width: 0; min-height: 164px; padding: 14px; border: 1px solid #1d9cecac; border-radius: 14px; background: linear-gradient(120deg, #06417ec2, #0b2356c7 57%, #081e4ebd); }
+.signatureLogo { display: grid; place-items: center; grid-row: 1; width: 42px; height: 42px; border-radius: 50%; color: var(--tool-accent); filter: drop-shadow(0 0 9px #028bef3b); }
 .signatureLogo img { width: 100%; height: 100%; object-fit: contain; }
 .signatureLogo > svg { width: 68%; height: 68%; }
 .studioCard .signatureLogo { color: #fff; border: 1px solid #70abff; background: radial-gradient(circle at 20% 15%, #487fff, #1938eb); }
-.studioCard.signatureCard { border-color: #6bafffd6; }
 .studioCard .toolButton { background: linear-gradient(105deg, #00aeed, #0054ef 70%, #452dff); border-color: #80d8ffbd; }
 .signatureCopy { align-self: start; min-width: 0; }
 .signatureCopy h4 { margin: 2px 0 6px; padding-right: 31px; font-size: 16px; font-weight: 800; line-height: 1.2; letter-spacing: -.015em; }
 .signatureCopy p { margin: 0; font-size: 12px; line-height: 1.4; color: #dce3fb; }
 .cardActions { display: flex; align-items: center; justify-content: flex-end; gap: 18px; min-width: 0; }
-.signatureCard .cardActions { position: absolute; right: 12px; bottom: 7px; left: 12px; }
+.signatureCard .cardActions { grid-column: 1 / -1; align-self: end; min-width: 0; padding-top: 16px; }
 .signatureArt { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; color: var(--tool-accent); opacity: .4; transform: rotate(8deg); pointer-events: none; }
 .signatureArt svg { width: 100%; height: 100%; }
 .settingsButton { top: 7px; right: 7px; }
@@ -268,287 +245,515 @@
 .relationshipCard .cardButton { position: relative; min-width: 112px; min-height: 39px; padding: 9px 17px; font-size: 12px; gap: 8px; }
 .relationshipCard .cardButton > span { font-size: 16px; }
 .reputationCard { background: radial-gradient(ellipse at 8% 15%, #a63c5d44, transparent 56%), linear-gradient(110deg, #4f1f4e, #351749 52%, #69185e); }
-.reputationCard.signatureCard { border-color: #d14d9ba6; }
 .reputationCard .signatureLogo { border: 1px solid #ed939bb0; color: #ffd0bc; background: radial-gradient(circle at 30% 20%, #d776616e, #ad335248); }
 .reputationCard .toolButton { border-color: #ff9bd094; background: linear-gradient(105deg, #d62a84, #b52c93); }
 .mailCampaignCard { border-color: #e49a838f; background: radial-gradient(ellipse at 0% 5%, #de824b38, transparent 63%), linear-gradient(112deg, #65404b, #58304f 55%, #782a63); }
 .mailCampaignCard .relationshipLogo { border-color: #ffc395b3; color: #ffdec6; background: radial-gradient(circle at 25% 15%, #efba655e, #bf5b464f); box-shadow: inset 0 1px 5px #ffe4ab38, 0 0 15px #eaac5235; }
 .mailCampaignCard .cardButton { border-color: #ffd3a88a; background: linear-gradient(105deg, #be723c, #d05777 68%, #ba4284); }
-.mailCampaignArt { flex: 0 0 48px; width: 48px; height: 48px; color: #f9b086; opacity: .4; transform: rotate(-14deg); pointer-events: none; }
-.mailCampaignArt svg { width: 100%; height: 100%; }
-.reputationStars { display: flex; flex-shrink: 0; align-items: baseline; gap: 2px; color: #ed438d; opacity: .5; font-size: 19px; transform: rotate(-12deg); pointer-events: none; }
-.reputationStars b:nth-of-type(1) { transform: translateY(-6px); }
-.reputationStars b:nth-of-type(2) { transform: translateY(-10px); }
 
 .lowerRow button:focus-visible { outline: 2px solid #b8f7ff; outline-offset: 3px; }
 .lowerRow button:disabled { cursor: default; opacity: .58; transform: none; filter: none; }
 
+/* Existing card graphics share the cockpit, publishing, creation and pilot areas. */
+.creationPanel { grid-area: create; }
+.pilotPanel { grid-area: pilot; }
+.panelHeader h3, .signatureCopy h4, .relationshipCopy h4 { min-width: 0; overflow-wrap: anywhere; }
+.panelCaption { text-align: end; }
+.boosterCard { padding-bottom: 84px; }
+.boosterCopy h4 { font-size: clamp(42px, 3.6vw, 62px); }
+.boosterManualActions, .manualToolActions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; }
+.boosterManualActions .boosterStats { position: static; min-height: 38px; }
+.agentControls { z-index: 3; display: flex; align-items: center; min-width: 0; }
+.publicationsAgent { position: absolute; bottom: 18px; right: 22px; }
+.modulePlanning { position: absolute; z-index: 5; top: 12px; right: 12px; }
+.modulePlanning svg { width: 100%; height: 100%; }
+.creationGrid .signatureCard .signatureCopy h4 { padding-right: 0; }
+.creationGrid .studioCard .signatureCopy { padding-right: 30px; }
+.studioLibrary { width: 30px; height: 30px; padding: 6px; border-color: #7fcbff8c; background: #17538dba; }
+.creationGrid .signatureCard .cardActions { justify-content: space-between; }
+.creationGrid .signatureCard .manualToolActions { width: 100%; justify-content: space-between; gap: 8px; }
+.creationGrid .creationCard { padding: 14px; }
+.creationGrid .creationCopy { min-height: 0; padding: 0 25px 18px 52px; }
+.creationGrid .creationCard .cardLogo { top: 14px; left: 14px; width: 40px; height: 40px; }
+.creationGrid .creationCopy h4 { margin-top: 2px; font-size: 17px; }
+.creationGrid .creationCopy p { max-width: none; font-size: 12px; }
+.creationGrid .creationCard .cardButton { min-height: 35px; max-width: 100%; padding: 8px 12px; font-size: 12px; }
+.mailCampaignCard { grid-template-columns: 40px minmax(0, 1fr); grid-template-areas: "logo copy" "manual manual" "agent agent"; align-content: stretch; align-items: start; min-height: 164px; gap: 9px; padding: 14px; }
+.mailCampaignCard .relationshipLogo { grid-area: logo; width: 40px; height: 40px; }
+.mailCampaignCard .relationshipCopy { grid-area: copy; padding-right: 28px; }
+.mailCampaignCard .relationshipCopy h4 { margin-bottom: 5px; font-size: 17px; }
+.mailCampaignCard .relationshipCopy p { font-size: 12px; }
+.mailCampaignManualActions { grid-area: manual; display: flex; align-items: center; gap: 9px; min-width: 0; }
+.mailCampaignManualActions .cardButton { min-width: 0; max-width: 100%; min-height: 35px; padding: 8px 13px; }
+.campaignsAgent { grid-area: agent; justify-content: flex-end; align-self: end; }
+.campaignsAgent > div > img { width: 40px; height: 40px; }
+.campaignsAgent > div button { min-width: 84px; min-height: 34px; padding: 7px 10px; font-size: 12px; }
+.statsCard { grid-column: 1 / -1; min-height: 200px; }
+.statsCard .cardActions { justify-content: space-between; align-items: flex-end; gap: 12px; padding-top: 12px; }
+.statsCard .manualToolActions { flex-wrap: nowrap; gap: 9px; }
+.statsCard .signatureArt { width: 28px; height: 28px; flex-basis: 28px; }
+.statsAgent { position: static; }
+.statsSettings { top: 12px; right: 54px; }
+.statsCard .signatureCopy { padding-right: 82px; }
+.statsAgent > div > img { width: 44px; height: 44px; }
+.statsAgent > div button { min-width: 84px; padding: 7px 11px; min-height: 34px; font-size: 12px; }
+.statsOverview { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 15px 0 0; min-width: 0; }
+.statsOverview > div { display: flex; flex-direction: column; justify-content: center; gap: 5px; min-width: 0; padding: 10px; border: 1px solid #ab98fb33; border-radius: 10px; background: #10234e6b; }
+.statsOverview > div:nth-child(2) { background: #39205d66; }
+.statsOverview > div:nth-child(n+3) { background: #0d35504d; }
+.statsOverview dt { color: #d3dcf3; font-size: 10px; line-height: 1.3; overflow-wrap: anywhere; }
+.statsOverview dd { margin: 0; color: #f7f4ff; font-size: clamp(19px, 1.55vw, 27px); font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.statsCard::before { content: ""; position: absolute; z-index: -1; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 8% 10%, #3a9cec30, transparent 50%), radial-gradient(ellipse at 98% 95%, #b74be129, transparent 50%); }
+.statsOverview > div { --metric-color: #9de9ff; position: relative; overflow: hidden; border-color: color-mix(in srgb, var(--metric-color) 28%, transparent); background: radial-gradient(ellipse at 100% 0, #31a8da29, transparent 85%), #132d586b; box-shadow: inset 0 1px 0 #c6efff12; }
+.statsOverview > div::after { content: ""; position: absolute; bottom: -21px; right: -15px; width: 64px; height: 64px; border: 1px solid color-mix(in srgb, var(--metric-color) 20%, transparent); border-radius: 50%; box-shadow: 0 0 0 9px color-mix(in srgb, var(--metric-color) 4%, transparent); pointer-events: none; }
+.statsOverview > div:nth-child(2) { --metric-color: #c3b5ff; background: radial-gradient(ellipse at 100% 0, #8c58ee35, transparent 85%), #35235d77; }
+.statsOverview > div:nth-child(3) { --metric-color: #9ef1d5; background: radial-gradient(ellipse at 100% 0, #45c3b02b, transparent 85%), #153d5466; }
+.statsOverview > div:nth-child(4) { --metric-color: #f6d69b; background: radial-gradient(ellipse at 100% 0, #dbad5f29, transparent 85%), #35334d77; }
+.statsOverview dd { position: relative; z-index: 1; display: flex; align-items: center; gap: 7px; color: var(--metric-color); text-shadow: 0 1px 10px #0002; }
+.statsMetricIcon { display: inline-grid; place-items: center; flex: 0 0 20px; width: 20px; height: 20px; color: var(--metric-color); filter: drop-shadow(0 0 4px color-mix(in srgb, var(--metric-color) 20%, transparent)); }
+.statsMetricIcon svg { width: 100%; height: 100%; }
+.signatureGrid > .signatureCard:not(.statsCard) { display: flex; flex-direction: column; gap: 8px; padding: 13px; }
+.signatureGrid > .signatureCard:not(.statsCard) .signatureLogo { width: 36px; height: 36px; }
+.signatureGrid > .signatureCard:not(.statsCard) .signatureCopy { width: 100%; }
+.signatureGrid > .signatureCard:not(.statsCard) .signatureCopy h4 { margin-bottom: 5px; padding-right: 0; font-size: 15px; }
+.signatureGrid > .signatureCard:not(.statsCard) .signatureCopy p { font-size: 12px; }
+.signatureGrid > .signatureCard:not(.statsCard) .cardActions { width: 100%; margin-top: auto; padding-top: 4px; }
+.signatureGrid > .signatureCard:not(.statsCard) .manualToolActions { width: 100%; justify-content: flex-end; }
+.signatureGrid > .signatureCard:not(.statsCard) .signatureArt { display: none; }
+.signatureGrid > .signatureCard:not(.statsCard) .toolButton { min-width: 0; max-width: 100%; min-height: 34px; padding: 7px 12px; font-size: 12px; }
+.signatureGrid > .signatureCard:not(.statsCard) .settingsButton { width: 30px; height: 30px; padding: 6px; }
+
 @keyframes waveBreath { from { transform: translate3d(0, 0, 0) scale(1); opacity: .78; } to { transform: translate3d(-5px, 3px, 0) scale(1.035); opacity: 1; } }
 
+/* Native illustrations stay behind the existing content and never affect card size. */
+.boosterArtwork, .creationArtwork, .adsArtwork, .mailArtwork { position: absolute; pointer-events: none; user-select: none; }
+.boosterArtwork { z-index: 0; top: -4%; right: -1%; width: 48%; height: 92%; filter: drop-shadow(0 0 16px #63b9ff36); }
+.boosterCopy { max-width: 58%; }
+.creationArtwork { z-index: 0; bottom: 8px; left: 6px; width: 116px; height: 68px; opacity: .86; }
+.creationGrid .signatureCopy, .creationGrid .signatureLogo, .creationGrid .cardActions, .creationCopy, .cardLogo, .relationshipLogo { position: relative; z-index: 1; }
+.creationGrid .signatureCard .manualToolActions { justify-content: flex-end; }
+.adsArtwork { z-index: 0; bottom: 4px; right: 3px; width: 130px; height: 80px; opacity: .7; }
+.mailArtwork { z-index: 0; right: 4px; top: 28%; width: 120px; height: 70px; opacity: .45; }
+.studioCard.signatureCard { border-color: #42b8efb3; background: radial-gradient(ellipse at 8% 0%, #1578c344, transparent 70%), linear-gradient(125deg, #0b356b, #12285b 65%, #292365); }
+.reputationCard.signatureCard { --tool-accent: #ec93ce; border-color: #cc70b5a8; background: radial-gradient(ellipse at 92% 100%, #bf3f9555, transparent 65%), linear-gradient(125deg, #3d2453, #39204d 65%, #5a2358); }
+.creationGrid > article { box-shadow: inset 0 1px 0 #e2ceff21, 0 4px 16px #050a251f; }
+
+@media (min-width: 1451px) {
+  .mailCampaignCard { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 1fr auto; grid-template-areas: "copy copy" "manual agent"; align-items: stretch; }
+  .mailCampaignCard .relationshipLogo { position: absolute; top: 14px; left: 14px; }
+  .mailCampaignCard .relationshipCopy { padding: 0 30px 12px 50px; }
+  .mailCampaignManualActions, .campaignsAgent { align-self: end; }
+}
 @media (min-width: 1900px) {
   .panel { padding: 18px; gap: 12px; }
-  .boosterCard { min-height: 215px; }
-  .creationGrid { min-height: 180px; }
-  .creationCopy p { font-size: 12px; }
-  .signatureCopy h4 { font-size: 18px; }
-  .signatureCopy p { font-size: 13px; max-width: 235px; }
-  .toolButton { min-height: 36px; }
-  .relationshipCopy h4 { font-size: 22px; }
-  .relationshipCopy p { font-size: 13px; }
-  .relationshipCard .cardButton { min-height: 36px; }
-}
-
-@media (max-width: 1450px) and (min-width: 1101px) {
-  .panel { padding: 12px; }
-  .panelHeader { gap: 5px; }
-  .panelHeader h3 { font-size: 16px; gap: 7px; }
-  .panelCaption { display: none; }
-  .creationCard { padding: 13px 10px 12px; }
-  .creationCard .cardLogo { width: 36px; height: 36px; left: 10px; top: 13px; }
-  .creationCopy { padding-left: 0; padding-top: 42px; min-height: 110px; }
-  .agentCard .creationCopy { padding-right: 0; }
-  .creationCopy .eyebrow { display: none; }
-  .creationCopy h4 { margin-top: 0; font-size: 14px; }
-  .creationCopy p { max-width: 145px; font-size: 10px; }
-  .creationCard .cardButton { font-size: 11px; padding: 8px 12px; gap: 7px; }
-  .ghostArt { right: 5px; bottom: 16px; width: 44px; height: 44px; opacity: .28; }
-  .adsCard .ghostArt { bottom: 30px; width: 50px; height: 50px; }
-  .boosterCard { padding: 19px; }
-  .boosterChart { width: 90px; height: 83px; right: 4%; opacity: .85; }
-  .signatureCard { grid-template-columns: 41px minmax(0, 1fr); gap: 0 9px; padding: 12px 10px 47px; }
-  .signatureLogo { width: 41px; height: 41px; }
-  .signatureCopy h4 { font-size: 15px; }
-  .signatureCopy p { font-size: 12px; }
-  .reputationStars { opacity: .26; }
-}
-
-@media (max-width: 1100px) {
-  .lowerRow { grid-template-columns: minmax(0, 1fr); gap: 20px; }
-  .panel { padding: 15px; }
-  .panelHeader h3 { font-size: 20px; }
-  .boosterCard { min-height: 205px; }
-  .boosterRocket { width: 88px; height: 88px; }
-  .boosterCopy h4 { font-size: 48px; }
-  .boosterCopy p { font-size: 15px; }
-  .creationGrid { min-height: 175px; }
-  .creationCopy h4 { font-size: 17px; }
-  .creationCopy p { font-size: 12px; }
-  .signatureGrid { grid-template-rows: repeat(3, minmax(128px, 1fr)); }
+  .boosterCard { min-height: 318px; padding-inline: 36px; }
   .signatureCopy h4 { font-size: 18px; }
   .signatureCopy p { font-size: 13px; }
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureCopy h4 { font-size: 17px; }
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureCopy p { font-size: 12px; }
   .toolButton { min-height: 36px; }
-  .relationshipCard { min-height: 84px; }
-  .relationshipCopy h4 { font-size: 17px; }
-  .relationshipCard .cardButton { min-height: 36px; }
 }
-
+@media (min-width: 1101px) and (max-width: 1450px) {
+  .lowerRow { column-gap: 18px; }
+  .panel { padding: 12px; }
+  .panelHeader h3 { font-size: 16px; gap: 7px; }
+  .panelCaption { display: none; }
+  .boosterCard { padding-inline: 22px; gap: 18px; }
+  .signatureCard { padding: 12px; grid-template-columns: 37px minmax(0, 1fr); gap: 0 9px; }
+  .signatureLogo { width: 37px; height: 37px; }
+  .signatureCopy h4 { font-size: 15px; }
+  .signatureCopy p { font-size: 12px; }
+  .statsOverview { gap: 7px; }
+  .statsOverview > div { padding: 9px 7px; }
+  .statsOverview dd { font-size: 20px; }
+  .statsCard .toolButton { min-width: 100px; padding-inline: 12px; }
+  .mailCampaignCard .relationshipCopy h4 { font-size: 15px; }
+  .mailCampaignCard .relationshipCopy p { font-size: 12px; }
+  .creationArtwork { width: 92px; height: 56px; bottom: 8px; left: 2px; }
+  .adsArtwork { width: 98px; height: 66px; opacity: .55; }
+  .mailArtwork { width: 98px; opacity: .3; }
+}
+/* Keep the desktop cockpit within its original one-screen reading area. */
+@media (min-width: 1101px) {
+  .signatureGrid > .signatureCard:not(.statsCard) { grid-template-rows: auto auto minmax(0, 1fr); }
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureCopy { display: contents; }
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureCopy h4 { grid-column: 2; grid-row: 1; align-self: center; }
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureCopy p { grid-column: 1 / -1; grid-row: 2; margin: 6px 0 0; min-width: 0; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .signatureGrid > .signatureCard:not(.statsCard) .cardActions { grid-row: 3; }
+  .lowerRow { grid-template-rows: clamp(238px, 29dvh, 274px) 68px auto; }
+  .panel { padding: 12px; gap: 8px; }
+  .panelHeader { min-height: 26px; padding-block: 0; }
+  .panelHeader h3 { font-size: 17px; }
+  .pilotPanel .panelHeader { padding-inline-start: 44px; }
+  .boosterCard { min-height: 0; padding: 22px 26px 66px; gap: 20px; }
+  .boosterCopy h4 { font-size: clamp(42px, 3.2vw, 58px); }
+  .boosterCopy p { margin: 5px 0 10px; font-size: 14px; line-height: 1.3; }
+  .boosterManualActions .primaryButton, .boosterManualActions .boosterStats { min-height: 36px; }
+  .publicationsAgent { right: 18px; bottom: 10px; }
+  .publicationsAgent > div > img { width: 42px; height: 42px; }
+  .publicationsAgent > div button { min-height: 34px; padding-block: 7px; }
+  .creationGrid { grid-auto-rows: minmax(144px, 1fr); gap: 8px; }
+  .creationGrid .signatureCard, .creationGrid .creationCard { min-height: 144px; padding: 12px; }
+  .creationGrid .signatureCopy h4 { margin-block: 0 5px; font-size: 16px; }
+  .creationGrid .signatureCopy p { font-size: 12px; line-height: 1.3; }
+  .creationGrid .signatureCard .cardActions { padding-top: 12px; }
+  .creationGrid .creationCard .cardLogo { top: 12px; left: 12px; width: 36px; height: 36px; }
+  .creationGrid .creationCopy { padding: 0 24px 12px 46px; }
+  .creationGrid .creationCopy p { line-height: 1.3; }
+  .mailCampaignCard { min-height: 144px; gap: 7px 9px; padding: 12px; }
+  .mailCampaignCard .relationshipLogo { width: 36px; height: 36px; }
+  .mailCampaignCard .relationshipCopy p { font-size: 12px; line-height: 1.3; }
+  .mailCampaignCard .relationshipCopy h4 { margin-bottom: 4px; font-size: 16px; }
+  .campaignsAgent > div > img { width: 36px; height: 36px; }
+  .campaignsAgent > div button { min-height: 34px; }
+  .signatureGrid { grid-template-rows: minmax(168px, auto) minmax(128px, 1fr); gap: 8px; }
+  .signatureCard { padding: 11px 12px; }
+  .statsCard { min-height: 168px; }
+  .statsCard .signatureLogo { width: 36px; height: 36px; }
+  .statsCard .signatureCopy h4 { margin: 0 0 4px; }
+  .statsCard .signatureCopy p { font-size: 12px; line-height: 1.3; }
+  .statsOverview { gap: 8px; margin-top: 9px; }
+  .statsOverview > div { padding: 6px 9px; gap: 3px; }
+  .statsOverview dt { font-size: 10px; line-height: 1.2; }
+  .statsOverview dd { font-size: clamp(19px, 1.4vw, 24px); }
+  .statsCard .cardActions { padding-top: 8px; }
+  .statsAgent > div > img { width: 38px; height: 38px; }
+  .statsAgent > div button { min-height: 34px; }
+  .signatureGrid > .signatureCard:not(.statsCard) { display: grid; grid-template-columns: 32px minmax(0, 1fr); min-height: 128px; gap: 0 8px; padding: 11px; }
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureLogo { width: 32px; height: 32px; }
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureCopy h4 { font-size: 15px; padding-right: 20px; margin-bottom: 0; }
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureCopy p { font-size: 12px; line-height: 1.3; }
+  .signatureGrid > .signatureCard:not(.statsCard) .cardActions { grid-column: 1 / -1; align-self: end; padding-top: 9px; margin-top: 0; }
+  .signatureGrid > .signatureCard:not(.statsCard) .toolButton { font-size: 12px; }
+}
+/* Short desktop windows retain full cards, readable text and all actions. */
+@media (min-width: 1101px) and (max-height: 800px) {
+  .lowerRow { grid-template-rows: 220px 60px auto; column-gap: 18px; }
+  .panel { padding: 10px; gap: 6px; }
+  .panelHeader { min-height: 24px; }
+  .panelHeader h3 { font-size: 16px; }
+  .boosterCard { padding: 18px 24px 58px; }
+  .boosterCopy h4 { font-size: 43px; }
+  .boosterCopy p { font-size: 13px; margin: 4px 0 8px; }
+  .publicationsAgent { bottom: 8px; }
+  .creationGrid { grid-auto-rows: minmax(128px, 1fr); gap: 7px; }
+  .creationGrid .signatureCard, .creationGrid .creationCard, .mailCampaignCard { min-height: 128px; padding: 10px; }
+  .creationGrid .signatureCopy h4 { font-size: 15px; }
+  .creationGrid .signatureCard .cardActions { padding-top: 7px; }
+  .creationGrid .signatureArt { width: 28px; height: 28px; flex-basis: 28px; }
+  .creationGrid .creationCard .cardLogo { top: 10px; left: 10px; width: 32px; height: 32px; }
+  .creationGrid .creationCopy { padding: 0 22px 8px 42px; }
+  .creationGrid .creationCopy h4 { font-size: 15px; }
+  .creationGrid .creationCopy p { font-size: 12px; line-height: 1.25; }
+  .mailCampaignCard { gap: 5px 7px; }
+  .mailCampaignCard .relationshipCopy h4 { font-size: 15px; }
+  .mailCampaignCard .relationshipLogo { width: 32px; height: 32px; }
+  .mailCampaignCard .relationshipCopy p { font-size: 12px; line-height: 1.25; }
+  .mailCampaignManualActions .cardButton { min-height: 34px; padding: 6px 10px; }
+  .campaignsAgent > div { gap: 7px; }
+  .campaignsAgent > div > img { width: 32px; height: 32px; }
+  .campaignsAgent > div button { min-width: 80px; min-height: 34px; padding: 6px 9px; }
+  .signatureGrid { grid-template-rows: minmax(158px, auto) minmax(108px, auto); gap: 7px; }
+  .statsCard { min-height: 158px; padding: 8px 10px; }
+  .statsCard .signatureLogo { width: 32px; height: 32px; }
+  .statsCard .signatureCopy h4 { font-size: 15px; }
+  .statsCard .signatureCopy p { font-size: 12px; }
+  .statsCard .cardActions { padding-top: 5px; gap: 9px; }
+  .statsCard .signatureArt { width: 24px; height: 24px; flex-basis: 24px; }
+  .statsOverview { margin-top: 7px; gap: 7px; }
+  .statsOverview > div { padding: 5px 8px; gap: 2px; }
+  .statsOverview dd { font-size: 20px; }
+  .statsAgent > div > img { width: 32px; height: 32px; }
+  .signatureGrid > .signatureCard:not(.statsCard) { min-height: 108px; grid-template-columns: 28px minmax(0, 1fr); gap: 0 7px; padding: 8px; }
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureLogo { width: 28px; height: 28px; }
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureCopy h4 { padding-right: 21px; margin-bottom: 0; }
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureCopy p { font-size: 12px; line-height: 1.25; }
+  .signatureGrid > .signatureCard:not(.statsCard) .cardActions { padding-top: 5px; }
+}
+@media (min-width: 1280px) and (max-width: 1450px) and (max-height: 800px) {
+  .mailCampaignCard { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 1fr auto; grid-template-areas: "copy copy" "manual agent"; align-items: stretch; }
+  .mailCampaignCard .relationshipLogo { position: absolute; top: 10px; left: 10px; }
+  .mailCampaignCard .relationshipCopy { padding: 0 28px 5px 42px; }
+  .mailCampaignManualActions, .campaignsAgent { align-self: end; }
+}
+@media (max-width: 1100px) {
+  .lowerRow { grid-template-columns: minmax(0, 1fr); grid-template-areas: "cockpit" "booster" "create" "pilot"; grid-template-rows: repeat(4, auto); row-gap: 16px; }
+  .boosterCard { min-height: 285px; }
+  .panel { padding: 15px; }
+  .panelHeader h3 { font-size: 20px; }
+  .creationGrid { grid-auto-rows: minmax(170px, 1fr); }
+  .signatureGrid { grid-template-rows: auto minmax(164px, 1fr); }
+}
+@media (min-width: 1101px) and (max-width: 1279px) {
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureCopy h4 { padding-right: 0; font-size: 14px; }
+  .signatureGrid > .signatureCard:not(.statsCard) .settingsButton { top: auto; bottom: 9px; left: 9px; right: auto; width: 28px; height: 28px; }
+  .mailCampaignCard { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 1fr auto; grid-template-areas: "copy copy" "manual agent"; align-items: stretch; }
+  .mailCampaignCard .relationshipLogo { position: absolute; top: 10px; left: 10px; }
+  .mailCampaignCard .relationshipCopy { padding: 0 28px 5px 42px; }
+  .mailCampaignCard .relationshipCopy h4 { font-size: 14px; }
+  .mailCampaignManualActions, .campaignsAgent { align-self: end; }
+  .mailCampaignManualActions .cardButton { padding-inline: 8px; }
+  .campaignsAgent > div { gap: 4px; }
+  .campaignsAgent > div > img { width: 26px; height: 26px; }
+  .campaignsAgent > div button { min-width: 64px; padding-inline: 7px; font-size: 11px; }
+}
 @media (max-width: 700px) {
   .panel { padding: 12px; border-radius: 17px; }
   .panelHeader { padding-inline: 1px; }
   .panelHeader h3 { font-size: 17px; gap: 7px; }
   .panelCaption { display: none; }
-  .boosterCard { gap: 17px; padding: 44px 18px 19px; min-height: 216px; }
-  .boosterStats { top: 9px; right: 9px; min-height: 40px; font-size: 12px; }
-  .boosterRocket { width: 68px; height: 68px; }
-  .boosterCopy h4 { font-size: 41px; }
+  .boosterCard { padding: 25px 18px 86px; min-height: 280px; gap: 17px; }
+  .boosterCopy h4 { font-size: 43px; }
   .boosterCopy p { font-size: 13px; }
   .boosterCopy .eyebrow { font-size: 7px; }
-  .boosterChart { width: 85px; height: 85px; opacity: .48; right: 4%; }
-  .primaryButton { min-width: 133px; min-height: 37px; font-size: 12px; }
-  .creationGrid { grid-template-columns: 1fr 1fr; }
-  .creationCard { min-height: 171px; padding: 16px 12px 12px; }
-  .adsCard { grid-column: 1 / -1; min-height: 120px; padding: 16px; }
-  .adsCard .cardLogo { width: 51px; height: 51px; top: 18px; left: 16px; }
-  .adsCard .creationCopy { padding-left: 64px; min-height: 50px; padding-right: 135px; }
-  .adsCard .creationCopy p { max-width: none; }
-  .adsCard .creationCopy h4 { font-size: 21px; }
-  .adsCard .cardButton { margin-top: 12px; margin-left: 64px; }
-  .adsCard .ghostArt { width: 75px; height: 75px; right: 22px; bottom: 21px; }
-  .creationCopy { padding-left: 50px; }
-  .agentCard .creationCopy { padding-left: 0; padding-top: 49px; padding-right: 0; }
-  .creationCopy h4 { font-size: 16px; }
-  .creationCopy p { font-size: 11px; }
-  .creationCard .cardLogo { width: 41px; height: 41px; }
-  .creationCard .cardButton { max-width: 100%; min-height: 40px; padding: 8px 12px; font-size: 12px; gap: 6px; }
-  .signatureCard { display: block; padding: 12px 10px 60px; }
-  .signatureLogo { width: 43px; height: 43px; margin-bottom: 9px; }
-  .signatureCopy { padding-right: 0; }
+  .primaryButton { min-width: 130px; }
+  .publicationsAgent { right: 16px; bottom: 16px; }
+  .boosterArtwork { right: -12%; top: -5%; width: 66%; height: 90%; opacity: .4; }
+  .boosterCopy { max-width: 100%; }
+  .creationArtwork { left: auto; right: -12px; bottom: 48px; width: 88px; height: 56px; opacity: .16; }
+  .adsArtwork { bottom: 32px; right: -12px; width: 100px; opacity: .22; }
+  .mailArtwork { top: auto; bottom: 70px; right: -10px; width: 100px; opacity: .2; }
+  .creationGrid { grid-auto-rows: minmax(170px, auto); }
   .signatureCopy h4 { font-size: 15px; }
   .signatureCopy p { font-size: 12px; }
-  .signatureCard .cardActions { right: 10px; bottom: 9px; left: 10px; gap: 8px; }
-  .signatureArt { flex-basis: 26px; width: 26px; height: 26px; }
-  .toolButton { min-height: 36px; min-width: 0; max-width: calc(100% - 34px); padding: 8px 10px; font-size: 11px; }
-  .settingsButton,
-  .planningButton { width: 40px; height: 40px; padding: 9px; }
-  .settingsButton { top: 9px; right: 9px; }
-  .relationshipCard { grid-template-columns: 42px minmax(0, 1fr) auto; gap: 10px; padding: 12px; }
-  .relationshipLogo { width: 42px; height: 42px; }
-  .relationshipCopy h4 { font-size: 16px; }
-  .relationshipCard .cardButton { min-width: 91px; padding: 8px 13px; min-height: 36px; font-size: 12px; }
+  .signatureCard { grid-template-columns: 38px minmax(0, 1fr); padding: 12px; gap: 0 8px; }
+  .signatureLogo { width: 38px; height: 38px; }
+  .creationGrid .signatureCard { display: flex; flex-direction: column; gap: 9px; }
+  .creationGrid .signatureCopy h4 { margin-top: 0; }
+  .creationGrid .signatureCard .cardActions { width: 100%; margin-top: auto; padding-top: 9px; }
+  .creationGrid .signatureArt { display: none; }
+  .creationGrid .signatureCard .toolButton { min-width: 0; max-width: 100%; min-height: 38px; padding: 8px 12px; font-size: 12px; }
+  .creationGrid .signatureCard .manualToolActions { justify-content: flex-end; }
+  .creationGrid .creationCard .cardLogo { position: static; margin-bottom: 9px; }
+  .creationGrid .creationCopy { padding: 0 12px 16px 0; }
+  .creationGrid .creationCopy h4 { font-size: 17px; }
+  .creationGrid .creationCopy p { font-size: 12px; }
+  .mailCampaignCard { grid-template-columns: minmax(0, 1fr); grid-template-areas: "logo" "copy" "manual" "agent"; gap: 9px; padding: 12px; }
+  .mailCampaignCard .relationshipCopy { padding-right: 0; }
+  .mailCampaignCard .relationshipCopy h4 { font-size: 16px; }
+  .mailCampaignCard .relationshipCopy p { font-size: 12px; }
+  .mailCampaignManualActions { margin-top: auto; }
+  .mailCampaignManualActions .cardButton { min-height: 38px; padding: 8px 12px; font-size: 12px; }
+  .campaignsAgent > div { gap: 5px; }
+  .campaignsAgent > div > img { width: 32px; height: 32px; }
+  .campaignsAgent > div button { min-width: 76px; padding-inline: 9px; }
+  .campaignsAgent > div > div > span { font-size: 9px; }
+  .statsOverview { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .statsOverview dd { font-size: 22px; }
+  .statsCard .cardActions { flex-wrap: wrap; gap: 12px; padding-top: 14px; }
+  .statsCard .manualToolActions { flex-wrap: wrap; }
+  .statsAgent { margin-left: auto; }
+  .signatureGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto; grid-auto-rows: minmax(164px, auto); }
+  .signatureGrid > .signatureCard:last-child { grid-column: 1 / -1; display: grid; grid-template-columns: 38px minmax(0, 1fr); }
+  .signatureGrid > .signatureCard:last-child .cardActions { grid-column: 2; padding-top: 8px; }
+  .lowerRow .primaryButton, .lowerRow .cardButton, .lowerRow .toolButton, .lowerRow .boosterStats, .lowerRow .agentControls button[data-agent-workspace] { min-height: 40px; }
+  .settingsButton, .planningButton, .signatureGrid > .signatureCard:not(.statsCard) .settingsButton { width: 40px; height: 40px; padding: 9px; }
 }
-
-@media (max-width: 540px) {
-  .relationshipLogo { grid-row: 1 / 3; }
-  .relationshipCopy { grid-column: 2 / -1; }
-  .relationshipCard .cardActions { grid-column: 2 / -1; justify-content: space-between; gap: 12px; }
-  .mailCampaignArt { flex-basis: 32px; width: 32px; height: 32px; }
-  .reputationStars { font-size: 14px; }
-  .relationshipCopy h4 { font-size: 16px; }
-  .relationshipCopy p { font-size: 12px; }
-}
-
 @media (max-width: 420px) {
-  .panel { padding: 10px; gap: 9px; }
+  .lowerRow { row-gap: 14px; }
+  .panel { padding: 10px; gap: 10px; }
   .panelHeader h3 { font-size: 16px; }
-  .boosterCard { padding: 46px 14px 19px; gap: 12px; }
-  .boosterRocket { width: 53px; height: 53px; }
+  .boosterCard { gap: 12px; padding-inline: 14px; }
   .boosterCopy h4 { font-size: 38px; }
-  .boosterChart { right: -25px; opacity: .35; }
-  .adsCard .creationCopy { padding-right: 48px; }
-  .adsCard .ghostArt { width: 55px; height: 55px; opacity: .48; right: 12px; }
-  .creationCopy { padding-left: 0; padding-top: 41px; min-height: 118px; }
-  .adsCard .creationCopy { padding-top: 0; min-height: 50px; }
-  .creationCopy .eyebrow { display: none; }
-  .creationCard .cardButton { padding-inline: 8px; font-size: 11px; gap: 4px; }
-  .signatureCard { display: block; padding: 12px 10px 60px; }
-  .signatureLogo { width: 38px; height: 38px; margin-bottom: 9px; }
-  .signatureCopy h4 { font-size: 15px; }
-  .signatureCopy p { font-size: 12px; }
+  .boosterManualActions { gap: 8px; }
+  .boosterManualActions .primaryButton { min-width: 115px; }
+  .creationGrid { gap: 8px; }
+  .creationGrid .signatureCard, .creationGrid .creationCard, .mailCampaignCard { padding: 10px; }
+  .creationGrid .signatureCard .toolButton, .creationGrid .creationCard .cardButton, .mailCampaignManualActions .cardButton { padding-inline: 8px; font-size: 12px; gap: 5px; }
+  .creationGrid .creationCopy h4, .mailCampaignCard .relationshipCopy h4 { font-size: 15px; }
+  .creationGrid .creationCopy p, .mailCampaignCard .relationshipCopy p { font-size: 12px; }
+  .campaignsAgent > div { flex-wrap: wrap; justify-content: flex-end; }
+  .campaignsAgent > div > img { width: 27px; height: 27px; }
+  .campaignsAgent > div button { min-width: 66px; padding: 6px 8px; font-size: 12px; }
+  .statsCard .signatureCopy h4 { padding-right: 26px; }
+  .statsOverview > div { padding: 9px; }
 }
-
 @media (prefers-reduced-motion: reduce) {
   .boosterWave { animation: none; }
   .lowerRow button { transition: none; }
   .lowerRow button:hover { transform: none; }
 }
 
-/* Contextual agents keep the native card design and separate, named controls. */
-.boosterManualActions, .manualToolActions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-.boosterManualActions .boosterStats { position: static; min-height: 38px; }
-.boosterCard { min-height: 245px; max-height: 335px; }
-.agentControls { z-index: 3; display: flex; align-items: center; min-width: 0; }
-.publicationsAgent { position: absolute; bottom: 14px; right: 16px; }
-.modulePlanning { position: absolute; z-index: 5; top: 12px; right: 12px; }
-.modulePlanning svg { width: 100%; height: 100%; }
+/* Secondary controls inherit the palette of their card, across all functions. */
+.lowerRow,
+.boosterCard,
+.studioCard,
+.sendCard {
+  --control-border: #8fbeff;
+  --control-icon: #e8f5ff;
+  --control-start: #2866ae;
+  --control-end: #254584;
+}
+.statsCard {
+  --control-border: #bea2f4;
+  --control-icon: #f4eaff;
+  --control-start: #645093;
+  --control-end: #39326d;
+}
+.adsCard,
+.reputationCard {
+  --control-border: #efa1d5;
+  --control-icon: #ffebf8;
+  --control-start: #a4468a;
+  --control-end: #773565;
+}
 .mailCampaignCard {
-  grid-template-columns: 44px minmax(0, 1fr);
-  grid-template-areas: "logo copy" "manual manual" "agent agent";
-  align-content: start; align-items: center; min-height: 208px; padding: 16px 14px 12px; gap: 12px;
+  --control-border: #f2bb9d;
+  --control-icon: #fff0e5;
+  --control-start: #a86a4c;
+  --control-end: #7c4c4b;
 }
-.mailCampaignCard .relationshipLogo { grid-area: logo; width: 44px; height: 44px; }
-.mailCampaignCard .relationshipCopy { grid-area: copy; padding: 0 30px 0 0; }
-.mailCampaignCard .relationshipCopy h4 { font-size: 17px; }
-.mailCampaignManualActions { grid-area: manual; display: flex; align-items: center; gap: 14px; }
-.mailCampaignManualActions .cardButton { min-width: 0; width: fit-content; min-height: 35px; padding: 7px 15px; }
-.mailCampaignCard .mailCampaignArt { width: 34px; height: 34px; flex-basis: 34px; }
-.campaignsAgent { grid-area: agent; position: static; justify-content: flex-end; padding-top: 10px; }
-.statsCard { min-height: 140px; padding-bottom: 70px; }
-.statsCard .cardActions { justify-content: space-between; gap: 12px; align-items: flex-end; }
-.statsCard .manualToolActions { flex-wrap: nowrap; gap: 10px; }
-.statsCard .signatureArt { width: 28px; height: 28px; flex-basis: 28px; }
-.statsAgent { position: static; }
-.statsAgent > div button { min-width: 84px; padding: 7px 11px; min-height: 32px; font-size: 11px; }
-.statsCard .manualToolActions .toolButton { min-width: 108px; padding-inline: 12px; }
-.signatureCard:not(.statsCard) .manualToolActions { justify-content: flex-end; width: 100%; gap: 18px; }
-@media (max-width: 760px) {
-  .creationGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .creationGrid .adsCard { grid-column: auto; padding: 16px 12px 12px; }
-  .creationGrid .adsCard .cardLogo { position: static; width: 44px; height: 44px; }
-  .creationGrid .adsCard .creationCopy { padding: 0; min-height: 0; }
-  .creationGrid .adsCard .cardButton { margin-left: 0; }
-  .creationGrid .adsCard .creationCopy h4 { font-size: 18px; }
-  .boosterCard { padding-top: 24px; padding-bottom: 82px; max-height: none; }
-  .publicationsAgent { bottom: 14px; right: 14px; }
-  .boosterCopy { min-width: 0; }
-  .boosterManualActions { gap: 8px; }
-  .boosterManualActions .primaryButton { min-width: 120px; }
-  .mailCampaignCard { padding: 16px 14px 12px; gap: 12px; }
-  .mailCampaignCard .relationshipLogo, .mailCampaignCard .relationshipCopy { grid-row: auto; grid-column: auto; }
-  .mailCampaignCard .relationshipCopy h4 { padding-right: 0; }
-  .campaignsAgent { padding-top: 10px; }
-  .signatureGrid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
-  .signatureCard { min-height: 138px; }
-  .statsCard { padding-bottom: 74px; }
-  .statsCard .manualToolActions { gap: 6px; }
-  .statsCard .signatureArt { width: 23px; height: 23px; flex-basis: 23px; }
-  .statsAgent > div { gap: 5px; }
-  .statsAgent > div button { min-width: 75px; padding: 7px 8px; }
+.calendarCard {
+  --control-border: #f1c782;
+  --control-icon: #fff1cf;
+  --control-start: #865b35;
+  --control-end: #604329;
+}
+.crmCard {
+  --control-border: #80d5e7;
+  --control-icon: #ddfaff;
+  --control-start: #24738a;
+  --control-end: #195064;
+}
+.planningButton,
+.settingsButton,
+.adsInfoButton {
+  border-color: var(--control-border);
+  color: var(--control-icon);
+  background: radial-gradient(ellipse at 25% 0%, #ffffff1f, transparent 70%), linear-gradient(140deg, var(--control-start), var(--control-end));
+  box-shadow: inset 0 1px 0 #ffffff30, 0 3px 10px #030b2b5c;
+}
+.planningButton:hover:not(:disabled),
+.settingsButton:hover:not(:disabled),
+.adsInfoButton:hover:not(:disabled) {
+  background: radial-gradient(ellipse at 25% 0%, #ffffff30, transparent 70%), linear-gradient(140deg, var(--control-start), var(--control-end));
+  box-shadow: inset 0 1px 0 #ffffff40, 0 4px 12px #030b2b70;
+}
+.planningButton:focus-visible,
+.settingsButton:focus-visible,
+.adsInfoButton:focus-visible {
+  outline: 2px solid #edfaff;
+  outline-offset: 3px;
 }
 
-@media (max-width: 540px) {
-  .creationGrid { grid-template-columns: minmax(0, 1fr); }
-  .creationGrid .adsCard { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: start; gap: 12px; min-height: 146px; }
-  .creationGrid .adsCard .cardButton { grid-column: 2; justify-self: start; margin-top: 0; }
-  .creationGrid .adsCard .ghostArt { bottom: 15px; }
-  .mailCampaignCard { min-height: 190px; }
-  .mailCampaignCard .relationshipCopy { padding-right: 32px; }
-  .mailCampaignCard .relationshipCopy h4 { font-size: 18px; }
-  .mailCampaignManualActions { align-self: center; }
-  .campaignsAgent { padding-top: 8px; }
-}
-
-/* On desktop, use the width of each card before adding another row. */
+/* Absolute controls grow inside their cards; card and row heights stay intact. */
 @media (min-width: 1101px) {
-  .lowerRow { gap: 18px; }
-  .panel { padding: 10px; gap: 8px; }
-  .panel:not(.pilotPanel) { display: grid; grid-template-rows: 26px minmax(174px, 1fr) auto; }
-  .panelHeader { min-height: 26px; padding: 0 3px; padding-inline-start: 52px; }
-  .panelHeader h3 { font-size: clamp(15px, 1.1vw, 18px); gap: 8px; }
-  .headingIcon { width: 24px; height: 26px; font-size: 29px; }
-  .headingIcon svg { width: 23px; height: 23px; }
-  .boosterCard { flex: initial; min-height: 174px; max-height: none; padding: 14px 18px; gap: 18px; }
-  .boosterRocket { width: 68px; height: 68px; }
-  .boosterCopy h4 { font-size: clamp(34px, 2.7vw, 44px); }
-  .boosterCopy p { margin: 4px 0 10px; font-size: 13px; line-height: 1.35; }
-  .boosterCopy .eyebrow { font-size: 7px; }
-  .boosterManualActions { gap: 8px; }
-  .boosterManualActions .primaryButton { min-height: 35px; min-width: 132px; font-size: 12px; }
-  .boosterManualActions .boosterStats { min-height: 34px; }
-  .boosterChart { width: 83px; height: 73px; right: 24%; top: calc(50% - 36px); bottom: auto; padding: 15px 12px 11px; gap: 6px; }
-  .publicationsAgent { bottom: 12px; right: 14px; }
-  .publicationsAgent > div > img { width: 40px; height: 40px; }
-  .publicationsAgent > div button { min-height: 32px; padding-block: 6px; }
+  .planningButton,
+  .settingsButton { width: 40px; height: 40px; padding: 9px; border-radius: 12px; }
+  .planningButton svg,
+  .settingsButton svg { stroke-width: 1.9; }
   .modulePlanning { top: 10px; right: 10px; }
-  .creationGrid { min-height: 144px; gap: 8px; }
-  .creationGrid .adsCard { min-height: 144px; padding: 12px; }
-  .creationGrid .adsCard .cardLogo { top: 12px; left: 12px; width: 38px; height: 38px; }
-  .creationGrid .adsCard .creationCopy { padding: 0 24px 0 48px; min-height: 0; }
-  .creationGrid .adsCard .creationCopy h4 { font-size: 17px; margin-block: 3px; }
-  .creationGrid .adsCard .creationCopy p { max-width: 230px; font-size: 11px; }
-  .creationGrid .adsCard .cardButton { min-height: 34px; padding: 7px 13px; font-size: 11px; }
-  .creationGrid .adsCard .ghostArt { width: 43px; height: 43px; bottom: 12px; right: 12px; }
-  .mailCampaignCard { min-height: 144px; padding: 12px; gap: 9px 12px; }
-  .mailCampaignCard .relationshipLogo { width: 38px; height: 38px; }
-  .mailCampaignCard .relationshipCopy h4 { font-size: 17px; }
-  .mailCampaignCard .relationshipCopy p { font-size: 12px; }
-  .mailCampaignManualActions { gap: 9px; }
-  .mailCampaignManualActions .cardButton { min-height: 34px; padding: 7px 12px; font-size: 12px; }
-  .mailCampaignCard .mailCampaignArt { width: 27px; height: 27px; flex-basis: 27px; }
-  .campaignsAgent > div > img { width: 40px; height: 40px; }
-  .campaignsAgent > div button { min-width: 78px; min-height: 32px; padding: 6px 11px; }
-  .signatureGrid { grid-template-rows: repeat(3, minmax(117px, 1fr)); gap: 8px; }
-  .signatureCard { min-height: 117px; grid-template-columns: 37px minmax(0, 1fr); padding: 13px 12px 46px; column-gap: 9px; }
-  .signatureLogo { width: 37px; height: 37px; }
-  .signatureCopy h4 { margin: 0 0 6px; font-size: 15px; }
-  .signatureCopy p { font-size: 12px; line-height: 1.3; max-width: none; }
-  .signatureCard .cardActions { right: 11px; bottom: 8px; left: 11px; gap: 8px; }
-  .signatureCard .toolButton { min-height: 34px; min-width: 88px; padding: 6px 12px; font-size: 11px; }
-  .signatureArt { width: 29px; height: 29px; flex-basis: 29px; }
-  .statsCard { padding-bottom: 46px; }
-  .statsCard .manualToolActions { gap: 7px; }
-  .statsCard .signatureArt { width: 23px; height: 23px; flex-basis: 23px; }
-  .statsCard .manualToolActions .toolButton { min-width: 94px; padding-inline: 11px; }
-  .statsAgent > div { gap: 7px; }
-  .statsAgent > div > img { width: 40px; height: 40px; }
-  .statsAgent > div button { min-width: 75px; min-height: 34px; padding: 6px 9px; }
-  .signatureCard .settingsButton, .signatureCard .modulePlanning { width: 30px; height: 30px; padding: 6px; top: 8px; right: 8px; }
-  .reputationStars { font-size: 16px; }
+  .statsSettings { top: 10px; right: 58px; }
+  .statsCard .signatureCopy { padding-right: 90px; }
+  .studioLibrary { top: 8px; right: 8px; width: 36px; height: 36px; padding: 8px; }
+  .adsInfoButton { width: 34px; height: 34px; font-size: 18px; }
+  .signatureGrid > .signatureCard:not(.statsCard) .settingsButton { width: 34px; height: 34px; padding: 7px; border-radius: 10px; }
 }
 
-@media (min-width: 1451px) {
-  .mailCampaignCard { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "copy copy" "manual agent"; align-content: stretch; }
-  .mailCampaignCard .relationshipLogo { position: absolute; top: 12px; left: 12px; }
-  .mailCampaignCard .relationshipCopy { min-height: 38px; padding: 0 32px 0 48px; }
-  .mailCampaignManualActions { align-self: end; }
-  .campaignsAgent { align-self: end; padding: 0 0 0 10px; }
+/* Decorative tools share the existing action row; its button keeps priority. */
+.pilotArtwork {
+  flex: 0 1 54px;
+  width: 54px;
+  min-width: 0;
+  height: 32px;
+  align-self: center;
+  opacity: .65;
+  pointer-events: none;
+  user-select: none;
+}
+.signatureGrid > .signatureCard:not(.statsCard) .manualToolActions {
+  justify-content: space-between;
+  flex-wrap: nowrap;
+}
+.signatureGrid > .signatureCard:not(.statsCard) .toolButton { flex-shrink: 0; }
+
+/* Envelopes occupy the clear space between the copy and the campaign actions. */
+@media (min-width: 1101px) {
+  .mailArtwork {
+    left: 50%;
+    right: auto;
+    top: calc(50% - 9px);
+    bottom: auto;
+    width: min(150px, 55%);
+    height: clamp(26px, calc(100% - 112px), 62px);
+    transform: translate(-50%, -50%);
+    opacity: .74;
+  }
+}
+@media (min-width: 1280px) and (max-width: 1450px) and (min-height: 801px) {
+  .mailArtwork { left: 70%; top: 76px; width: 100px; height: 30px; }
+}
+@media (min-width: 1101px) and (max-width: 1279px) {
+  .signatureGrid > .signatureCard:not(.statsCard):has(.settingsButton) .pilotArtwork { visibility: hidden; }
+}
+@media (min-width: 701px) and (max-width: 1100px) {
+  .mailArtwork { left: 70%; right: auto; top: 76px; bottom: auto; width: min(120px, 42%); height: 30px; transform: translate(-50%, -50%); opacity: .6; }
+}
+@media (max-width: 700px) {
+  .pilotArtwork { flex-basis: 38px; width: 38px; height: 28px; opacity: .5; }
+  .mailArtwork { display: none; }
+}
+
+/* Mobile and tablet use the same reading order as the desktop sections,
+   with one tool per row and height determined by each tool's content. */
+@media (max-width: 1100px) {
+  .creationGrid,
+  .signatureGrid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-auto-rows: auto;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .creationGrid .signatureCard,
+  .signatureGrid > .signatureCard:not(.statsCard),
+  .signatureGrid > .signatureCard:last-child {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    min-height: 140px;
+    padding: 14px;
+    gap: 0 11px;
+  }
+  .creationGrid .signatureLogo,
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureLogo { width: 40px; height: 40px; }
+  .creationGrid .signatureCopy,
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureCopy { display: block; width: auto; min-width: 0; }
+  .creationGrid .signatureCopy h4,
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureCopy h4 { font-size: 17px; margin: 1px 0 6px; padding-right: 36px; }
+  .creationGrid .signatureCopy p,
+  .signatureGrid > .signatureCard:not(.statsCard) .signatureCopy p { font-size: 13px; white-space: normal; }
+  .creationGrid .studioCard .signatureCopy { padding-right: 0; }
+  .creationGrid .signatureCard .cardActions,
+  .signatureGrid > .signatureCard:not(.statsCard) .cardActions,
+  .signatureGrid > .signatureCard:last-child .cardActions { grid-column: 1 / -1; grid-row: 2; margin-top: 0; padding-top: 16px; }
+  .creationGrid .signatureCard .manualToolActions { justify-content: flex-end; }
+  .creationGrid .signatureCard .toolButton,
+  .creationGrid .creationCard .cardButton { min-height: 40px; padding: 9px 15px; }
+  .creationGrid .signatureArt { display: none; }
+  .creationArtwork { left: 8px; right: auto; bottom: 10px; width: 85px; height: 48px; opacity: .55; }
+
+  .creationGrid .creationCard { min-height: 150px; padding: 14px; }
+  .creationGrid .creationCard .cardLogo { position: absolute; top: 14px; left: 14px; width: 40px; height: 40px; margin: 0; }
+  .creationGrid .creationCopy { min-height: 0; padding: 0 34px 22px 51px; }
+  .creationGrid .creationCopy h4 { font-size: 17px; }
+  .creationGrid .creationCopy p { font-size: 13px; }
+  .creationGrid .creationCard .cardButton { align-self: flex-end; }
+  .adsArtwork { left: 8px; right: auto; bottom: 8px; width: 88px; height: 50px; opacity: .5; }
+
+  .mailCampaignCard { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; grid-template-areas: "copy copy" "manual agent"; min-height: 170px; padding: 14px; gap: 18px 10px; align-items: start; }
+  .mailCampaignCard .relationshipLogo { position: absolute; top: 14px; left: 14px; width: 40px; height: 40px; }
+  .mailCampaignCard .relationshipCopy { min-height: 44px; padding: 0 36px 0 51px; }
+  .mailCampaignCard .relationshipCopy h4 { font-size: 17px; }
+  .mailCampaignCard .relationshipCopy p { font-size: 13px; }
+  .mailCampaignManualActions, .campaignsAgent { align-self: end; }
+  .mailCampaignManualActions .cardButton { min-height: 40px; padding: 9px 12px; }
+  .campaignsAgent > div { flex-wrap: nowrap; gap: 6px; }
+  .campaignsAgent > div > img { width: 34px; height: 34px; }
+  .campaignsAgent > div button { min-width: 78px; min-height: 40px; }
+  .mailArtwork { display: none; }
+  .statsCard { min-height: 0; padding: 14px; }
+  .statsOverview { margin-top: 16px; }
+  .statsCard .cardActions { padding-top: 16px; }
 }
