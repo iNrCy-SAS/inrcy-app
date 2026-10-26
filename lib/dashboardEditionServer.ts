@@ -17,6 +17,8 @@ type SubscriptionEditionRow = {
 function editionFromRow(
   row: SubscriptionEditionRow | null | undefined,
 ): DashboardEdition {
+  const known = /^(?:basic|basique|trial|standard|premium|founder|starter|accel|speed|inrcy[- _](?:basic|basique|standard|premium|founder))$/i;
+  if (!known.test(String(row?.plan ?? "").trim()) && !/^(?:basic|basique|standard|premium|founder)$/i.test(String(row?.app_edition ?? "").trim())) return "basic";
   return resolveDashboardEdition({
     edition: row?.app_edition,
     plan: row?.plan,
@@ -27,7 +29,7 @@ function editionFromRow(
 export async function getDashboardEditionForAuthUser(
   authUserId: string,
 ): Promise<DashboardEdition> {
-  if (!authUserId) return "standard";
+  if (!authUserId) return "basic";
 
   const { data, error } = await supabaseAdmin
     .from("subscriptions")
@@ -35,8 +37,8 @@ export async function getDashboardEditionForAuthUser(
     .eq("user_id", authUserId)
     .maybeSingle();
 
-  // A temporary subscription lookup failure must never unlock Premium APIs.
-  if (error || !data) return "standard";
+  // Unknown rights never grant execution, including the Basic -> Standard boundary.
+  if (error || !data) return "basic";
   const { data: profile, error: profileError } = await supabaseAdmin.from("profiles").select("role").eq("user_id", authUserId).maybeSingle();
   return resolveDashboardEditionForRole(editionFromRow(data as SubscriptionEditionRow), profileError ? null : profile?.role, authUserId);
 }
@@ -49,7 +51,7 @@ export async function getDashboardEditionsForAccountIds(
     new Set(accountIds.map((value) => String(value || "").trim()).filter(Boolean)),
   );
   const editions = new Map<string, DashboardEdition>(
-    uniqueAccountIds.map((accountId) => [accountId, "standard"]),
+    uniqueAccountIds.map((accountId) => [accountId, "basic"]),
   );
   if (!uniqueAccountIds.length) return editions;
 
@@ -112,9 +114,9 @@ export async function getDashboardEditionForAccountId(
   accountId: string,
 ): Promise<DashboardEdition> {
   const normalizedAccountId = String(accountId || "").trim();
-  if (!normalizedAccountId) return "standard";
+  if (!normalizedAccountId) return "basic";
   const editions = await getDashboardEditionsForAccountIds([normalizedAccountId]);
-  return editions.get(normalizedAccountId) || "standard";
+  return editions.get(normalizedAccountId) || "basic";
 }
 
 export function premiumRequiredApiResponse() {

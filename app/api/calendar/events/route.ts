@@ -1068,7 +1068,15 @@ async function deleteCalendarEventHandler(req: Request) {
     );
   }
 
-  const { error } = await supabase.from("agenda_events").delete().eq("id", id).eq("user_id", activeUserId);
+  const deletion = supabase.from("agenda_events").delete().eq("id", id).eq("user_id", activeUserId);
+  if (searchParams.get("requireDraft") === "true") {
+    if (!isDraftAgendaEvent(current.meta) || safeObj(current.meta).readOnly === true || safeObj(current.meta).source && safeObj(current.meta).source !== "manual") return bad("Ce rendez-vous nécessite une vérification dans l’agenda.",409);
+    const {data,error} = await deletion.eq("meta->>status","draft").eq("meta",JSON.stringify(current.meta)).select("id").maybeSingle();
+    if (error) return jsonUserFacingError(error,{status:500,extra:{ok:false}});
+    if (!data?.id) return bad("Ce rendez-vous n’est plus en brouillon.",409);
+    return NextResponse.json({ok:true});
+  }
+  const { error } = await deletion;
   if (error) return jsonUserFacingError(error, { status: 500, extra: { ok: false } });
   return NextResponse.json({ ok: true });
 }

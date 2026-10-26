@@ -2,12 +2,46 @@ import "server-only";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { inrAssistantMemoryCutoff } from "./inrAssistantMemory.ts";
+import { inrAssistantMemoryCutoff, sanitizeInrAssistantMemoryText } from "./inrAssistantMemory.ts";
+import type { InrAssistantTaskState } from "./inrAssistantTaskPolicy.ts";
 import { ASSISTANT_ATTACHMENT_BUCKET as BUCKET, ASSISTANT_ATTACHMENT_UUID as UUID, AssistantAttachmentError, assistantAttachmentFile, parseAssistantAttachments, type AssistantAttachment } from "./inrAssistantAttachments.ts";
 
 export type AssistantAttachmentScope = { accountId: string; actorUserId: string; conversationId: string };
 type Claims = AssistantAttachment & AssistantAttachmentScope & { issuedAt: string; extension: string; mime: string };
 export type AssistantFileContext = { name: string; kind: AssistantAttachment["kind"]; text?: string; image?: string; note: string };
+
+function taskPath(scope: AssistantAttachmentScope, turn: { turnId: string; createdAt: string }) {
+  scoped(scope);
+  if (!UUID.test(turn.turnId) || !Number.isFinite(Date.parse(turn.createdAt))) throw new AssistantAttachmentError("attachment_invalid");
+  return `${turn.createdAt.slice(0,10)}/${scope.accountId}_${scope.actorUserId}_${scope.conversationId}_${turn.turnId}.task.json`;
+}
+/** Private server receipts, not browser history or user-editable conversation prose. */
+export async function loadAssistantTaskState(scope: AssistantAttachmentScope, turn: { turnId: string; createdAt: string }): Promise<InrAssistantTaskState | null> {
+  try {
+    const bytes = await readStorage(BUCKET, taskPath(scope, turn), 32_000, true);
+    if (!bytes) return null;
+    const saved = JSON.parse(bytes.toString("utf8"));
+    if (saved.accountId !== scope.accountId || saved.actorUserId !== scope.actorUserId || saved.conversationId !== scope.conversationId || saved.turnId !== turn.turnId) return null;
+    const task = saved.task;
+    if (!task || task.version !== 1 || typeof task.instruction !== "string" || task.instruction.length > 4000 || typeof task.question !== "string" || task.question.length > 2000 ||
+      typeof task.actionRequestId !== "string" || !/^[a-z0-9_-]{8,180}$/i.test(task.actionRequestId) || !Number.isFinite(Date.parse(task.startedAt)) || !Number.isFinite(Date.parse(task.expiresAt)) ||
+      Date.parse(task.expiresAt) < Date.now() || !["completed","partial","needs_input","processing","blocked","failed"].includes(task.outcome) ||
+      !Array.isArray(task.requiredTools) || task.requiredTools.length > 20 || task.requiredTools.some((name: unknown)=>typeof name !== "string" || !/^[a-zA-Z]{3,60}$/.test(name)) ||
+      !Array.isArray(task.receipts) || task.receipts.length > 32 || task.receipts.some((r: Record<string,unknown>)=>!r || typeof r.tool !== "string" || typeof r.status !== "string" || typeof r.message !== "string" || typeof r.ok !== "boolean")) return null;
+    return task;
+  } catch { return null; }
+}
+export async function saveAssistantTaskState(scope: AssistantAttachmentScope, turn: { turnId: string; createdAt: string }, task: InrAssistantTaskState): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const saved = { ...scope, turnId: turn.turnId, task: { ...task, instruction: sanitizeInrAssistantMemoryText(task.instruction,4000), question: sanitizeInrAssistantMemoryText(task.question,2000), receipts: task.receipts.slice(-24).map(r=>({...r,message:sanitizeInrAssistantMemoryText(r.message,500)})) } };
+    const data = Buffer.from(JSON.stringify(saved));
+    if (data.length > 32_000) return false;
+    const result = await Promise.race([store().upload(taskPath(scope,turn), data, { contentType:"application/json", upsert:true }), new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error("Task store unavailable")),5000);timer.unref?.();})]);
+    return !result.error;
+  } catch { return false; }
+  finally { if (timer) clearTimeout(timer); }
+}
 const store = () => supabaseAdmin.storage.from(BUCKET);
 const TIMEOUT = 20_000;
 function storageStatus(error: unknown) { return error && typeof error === "object" && "statusCode" in error ? Number(error.statusCode) : 0; }

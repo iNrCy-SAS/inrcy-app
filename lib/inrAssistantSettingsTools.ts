@@ -81,7 +81,7 @@ export function createInrAssistantSettingsTools(options: { request: Request; acc
   const { request, accountId, edition } = options;
   const pending = new Map<string, Promise<Row>>();
   const scope = async (target: Tool) => {
-    if (request.signal.aborted || options.canStartWork?.() === false || target === "documents" && edition !== "founder" || target === "calendar" && edition === "standard") return false;
+    if (request.signal.aborted || options.canStartWork?.() === false || target === "documents" && edition !== "founder" || target === "calendar" && (edition === "standard" || edition === "basic")) return false;
     const auth = await requireUser(); return !auth.errorResponse && auth.activeUserId === accountId;
   };
   const fail = (target: Tool, status = "unavailable"): Row => ({ ok: false, status, nextAction: LINKS[target], message: status === "needs_instruction" ? "Précisez le réglage à modifier dans votre demande actuelle. Aucun réglage n’a changé." : "Le réglage ne peut pas être confirmé. Vérifiez le module ; aucune modification supplémentaire n’est annoncée." });
@@ -107,6 +107,7 @@ export function createInrAssistantSettingsTools(options: { request: Request; acc
       }, required: ["tool", "instructionQuote", "changes"], additionalProperties: false }),
       execute: async raw => {
         const input = strict(raw, ["tool", "instructionQuote", "changes"]); const target = parseTool(input.tool);
+        if (edition === "basic") return fail(target,"not_included");
         if (typeof input.instructionQuote !== "string" || input.instructionQuote.length > 1200 || !authorized(options.currentUserMessage, input.instructionQuote, target)) return fail(target, "needs_instruction");
         if (!Array.isArray(input.changes) || !input.changes.length || input.changes.length > 10) return fail(target, "invalid_settings");
         const key = JSON.stringify(input); if (pending.has(key)) return pending.get(key)!;

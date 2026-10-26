@@ -36,7 +36,7 @@ export function projectInrAssistantGatewayDiagnostic(value: unknown): InrAssista
     if (typeof input.model === "string" && models.has(input.model)) output.model = input.model;
     if (typeof input.finishReason === "string" && reasons.has(input.finishReason)) output.finishReason = input.finishReason;
     if (typeof input.hasText === "boolean") output.hasText = input.hasText;
-    for (const [key, maximum] of [["elapsedMs", 3_600_000], ["durationMs", 3_600_000], ["inputBytes", 1_000_000], ["historyTurns", 12], ["callCount", 4]] as const) {
+    for (const [key, maximum] of [["elapsedMs", 3_600_000], ["durationMs", 3_600_000], ["inputBytes", 1_000_000], ["historyTurns", 12], ["callCount", 12]] as const) {
       if (typeof input[key] === "number" && Number.isFinite(input[key]) && input[key] >= 0) output[key] = Math.min(maximum, Math.floor(input[key]));
     }
     if (typeof input.statusCode === "number" && Number.isInteger(input.statusCode) && input.statusCode >= 100 && input.statusCode <= 599) output.statusCode = input.statusCode;

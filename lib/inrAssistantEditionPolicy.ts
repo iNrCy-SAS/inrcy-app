@@ -14,7 +14,8 @@ export function assistantToolsForEdition<T>(tools: Record<string, T>, edition: D
 /** Questions remain support. Direct creative/execution orders require Standard. */
 export function isBasicAssistantExecutionRequest(message: string): boolean {
   const text = message.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
-  if (/^(?:comment|pourquoi|ou\b|est.ce|peux.tu m.expliquer|explique|guide|aide.moi a (?:connecter|comprendre)|how\b|why\b|where\b|como\b|wie\b)/.test(text)) return false;
+  if (/^(?:comment|pourquoi|ou\b|est.ce|peux.tu m.expliquer|explique|guide|aide.moi a (?:connecter|comprendre)|how\b|why\b|where\b|como\b|wie\b)/.test(text) ||
+    /\b(?:explique\w*|expliquer|me dire|m.apprendre|explain|teach|tell me|erklar\w*|explica\w*)\b.{0,65}\b(?:comment|how|pourquoi|why|ou|where|wie|como)\b/.test(text)) return false;
   return /\b(?:genere|generer|cree|creer|redige|rediger|ecris|ecrire|prepare|preparer|publie|publier|programme|programmer|planifie|planifier|modifie|modifier|corrige|corriger|remplis|remplir|complete|completer|mets|mettez|envoie|envoyer|supprime|supprimer|generate|create|write|publish|schedule|update|delete|send)\b/.test(text);
 }
 

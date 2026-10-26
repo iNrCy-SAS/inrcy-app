@@ -143,6 +143,12 @@ function harness(options: {
   return { tools: create(), create, runtime, calls, queries, tables, minted, observed, scheduled };
 }
 const prepare = { posts: [post], mediaIds: null, draftId: null };
+
+test("Spanish and German creation orders are accepted while help and negation remain non-executing",()=>{
+ const h=harness();
+ for(const message of ["Crea una publicación en Facebook sobre nuestros servicios.","Erstelle einen Beitrag für Facebook über unsere Leistungen."]) assert.equal(h.runtime.permitsInrAssistantPublicationAction(message,"prepare"),true,message);
+ for(const message of ["Como crear una publicación?","Wie erstelle ich einen Beitrag?","No crea una publicación.","Bitte nicht erstelle einen Beitrag."]) assert.equal(h.runtime.permitsInrAssistantPublicationAction(message,"prepare"),false,message);
+});
 const publish = { draftId: DRAFT, mode: "publish", scheduledAt: null, timezone: null };
 
 test("preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL", async () => {

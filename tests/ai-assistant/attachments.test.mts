@@ -24,9 +24,9 @@ function harness() {
       return bytes ? { data: new Response(new Uint8Array(bytes)).body, error: null } : { data: null, error: { originalError: Response.json({ statusCode: "404", code: "NoSuchKey" }, { status: 400 }) } };
     } }),
     upload: async (path: string, data: Buffer, options: { upsert: boolean; contentType: string }) => {
-      assert.equal(options.upsert, false); assert.equal(options.contentType, "application/json");
+      assert.equal(options.upsert, path.endsWith(".task.json")); assert.equal(options.contentType, "application/json");
       calls.push({ operation: "write", bucket, path }); const key = `${bucket}/${path}`;
-      if (objects.has(key)) return { error: { statusCode: "409" } };
+      if (objects.has(key) && !options.upsert) return { error: { statusCode: "409" } };
       objects.set(key, Buffer.from(data)); return { error: null };
     },
     remove: async (paths: string[]) => { paths.forEach(path => { calls.push({ operation: "remove", bucket, path }); objects.delete(`${bucket}/${path}`); }); return { error: null }; },
@@ -38,7 +38,7 @@ function harness() {
   }; } };
   const dependencies: Record<string, unknown> = {
     "server-only": {}, "node:crypto": crypto, "@/lib/supabaseAdmin": { supabaseAdmin: { storage } },
-    "./inrAssistantMemory.ts": { inrAssistantMemoryCutoff: () => cutoff.toISOString() },
+    "./inrAssistantMemory.ts": { inrAssistantMemoryCutoff: () => cutoff.toISOString(), sanitizeInrAssistantMemoryText:(value:unknown,max:number)=>String(value).slice(0,max) },
     "./inrAssistantAttachments.ts": policy, "./aiOfficeDocumentText.ts": office, "./pdfTextExtraction.ts": pdf,
     sharp: { default: sharp },
   };
@@ -52,6 +52,17 @@ function harness() {
   return { api: moduleRecord.exports as typeof Storage, objects, calls };
 }
 const code = (value: string) => (error: unknown) => Boolean(error && typeof error === "object" && "code" in error && error.code === value);
+
+test("pending tasks are private durable objects bound to the exact actor, account, discussion and turn",async()=>{
+ const h=harness(), turn={turnId:"dddddddd-dddd-4ddd-8ddd-dddddddddddd",createdAt:new Date().toISOString()};
+ const task={version:1 as const,instruction:"Configure mes CTA partout.",question:"Quel appel à l’action ?",actionRequestId:"account_turn-123",startedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+60_000).toISOString(),outcome:"needs_input" as const,requiredTools:["configureBusinessCta"],receipts:[]};
+ assert.equal(await h.api.saveAssistantTaskState(scope,turn,task),true);
+ const saved=await h.api.loadAssistantTaskState(scope,turn);assert.equal(saved?.instruction,task.instruction);
+ assert.equal(await h.api.loadAssistantTaskState({...scope,actorUserId:"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"},turn),null);
+ const objectKey=[...h.objects.keys()].find(x=>x.endsWith(".task.json"))!;
+ const data=JSON.parse(h.objects.get(objectKey)!.toString());data.actorUserId="eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";h.objects.set(objectKey,Buffer.from(JSON.stringify(data)));
+ assert.equal(await h.api.loadAssistantTaskState(scope,turn),null,"Private path alone does not replace scope checks");
+});
 
 test("file limits reject unsupported types, mismatched MIME, duplicates and excessive batches", () => {
   assert.equal(policy.assistantAttachmentFile({ name: "C:\\private\\notes.txt", size: 20, type: "text/plain" }).name, "notes.txt");

@@ -44,7 +44,7 @@ function authorized(message: string, input: Input): boolean {
   // at sentence boundaries, while preserving the same-sentence scope guard.
   const directive = value.split(/\n+|[.!?;](?=\s|$)/).map(part => part.trim()).find(part => present.test(part) && (part.includes(quote.replace(/[.!?;\n]+$/, "")) || quote.includes(part)));
   if (!directive || /\b(?:ne fonctionne pas|ne marche pas|does not work|doesn't work)\b/.test(directive)) return false;
-  if (!/\b(?:ctas?|appels? a l.action|boutons?|canaux|publications?|contenus?|partout|tous?|all|channels?)\b/.test(directive)) return false;
+  if (!/\b(?:ctas?|call to action|appels? a l.action|boutons?|canaux|publications?|contenus?|partout|tous?|all|channels?)\b/.test(directive)) return false;
   if (asksForTargetChoice(directive) || (input.target === "phone" ? !hasPhoneTarget(directive) : !hasWebsiteTarget(directive))) return false;
   if (input.channels === null) return /\b(?:partout|tous?|toutes?|all)\b/.test(directive);
   const names: Record<AiCtaChannel, RegExp> = { site_web: /\bsite(?: web)?\b/, gmb: /\b(?:google|gmb)\b/, facebook: /\b(?:facebook|fb)\b/, instagram: /\b(?:instagram|insta)\b/, threads: /\bthreads\b/, linkedin: /\blinkedin\b/, x: /\b(?:twitter|x)\b/, tiktok: /\btiktok\b/, youtube_shorts: /\byoutube\b/, pinterest: /\bpinterest\b/ };

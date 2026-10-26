@@ -93,7 +93,7 @@ const idSchema = { type: "string", pattern: UUID.source };
 /** A strict current-message guard; quoted/history instructions grant no action. */
 export function permitsInrAssistantPublicationAction(message: string, action: "prepare" | "publish" | "schedule" | "edit", channels: readonly Channel[] = []): boolean {
   const value = normalized(message.slice(0, 4_000).replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm, " "));
-  if (/^(?:comment|pourquoi|ou\b|explique|montre|what|how)\b|(?:savoir|comprendre).*comment|(?:est.ce que (?:je|on)|(?:puis|dois|peux).je|(?:je|on) (?:peux|peut|pourrais|pourrait)|can i|should i).*(?:publ|post|programm)/.test(value.trim())) return false;
+  if (/^(?:comment|pourquoi|ou\b|explique|montre|what|how|como|wie|warum)\b|(?:savoir|comprendre).*comment|(?:est.ce que (?:je|on)|(?:puis|dois|peux).je|(?:je|on) (?:peux|peut|pourrais|pourrait)|can i|should i).*(?:publ|post|programm)/.test(value.trim())) return false;
   // A polite prefix does not turn a request for instructions into permission to
   // execute the action mentioned in that question.
   if (/\b(?:expliqu\w*|montr\w*|indiqu\w*|dis|dire|show|explain|tell|teach)\b[^.!?]{0,140}\b(?:comment|ou|how|where)\b/.test(value) ||
@@ -108,7 +108,8 @@ export function permitsInrAssistantPublicationAction(message: string, action: "p
   if (action === "publish" && (/(?:ne\s+publie|ne\s+poste|sans\s+publier|(?:pas|jamais).{0,45}(?:publ|post)|do\s+not\s+(?:publish|post))/.test(value) || later && !/\b(?:maintenant|immediatement|now)\b/.test(value))) return false;
   if (action === "schedule" && /(?:ne\s+programme|sans\s+programmer|pas\s+programmer|do\s+not\s+schedule)/.test(value)) return false;
   if (action === "edit" && /(?:ne\s+modifie|sans\s+modifier|pas\s+modifier)/.test(value)) return false;
-  const intent = action === "prepare" ? /\b(?:redig\w*|ecri\w*|cree\w*|crea\w*|prepar\w*|brouillon\w*|propose\w*|publie\w*|post\w*|programm\w*|draft|write|create|publish|schedule)\b/
+  if (/\b(?:no|nicht|kein|keine|nunca|never|don't|do not)\b.{0,50}\b(?:crea\w*|erstelle\w*|publica\w*|veroffentlich\w*|create|publish)\b/.test(value)) return false;
+  const intent = action === "prepare" ? /\b(?:redig\w*|ecri\w*|cree\w*|crea\w*|erstelle\w*|prepar\w*|brouillon\w*|propose\w*|publie\w*|post\w*|programm\w*|draft|write|create|publish|schedule)\b/
     : action === "publish" ? /\b(?:publie\w*|publia\w*|poster|poste\w*|publish|post)\b/
       : action === "schedule" ? later ? /\b(?:programm\w*|planifi\w*|schedule|publie\w*|post\w*)\b/ : /\b(?:programm\w*|planifi\w*|schedule)\b/
         : /\b(?:corrig\w*|modifi\w*|remplac\w*|rectifi\w*|ajust\w*|edite\w*|edit|update|correct)\b/;

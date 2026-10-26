@@ -86,12 +86,12 @@ function parseCalendar(value: unknown): CalendarChange {
   if ([result.title, result.description, result.location, start].every(value => value === null)) throw new Error("Aucune modification.");
   return result;
 }
-function permits(message: string, quote: string, operation: "edit" | "send" | "schedule") {
+function permits(message: string, quote: string, operation: "edit" | "send" | "schedule" | "cancel") {
   if (!message.includes(quote)) return false;
   const current = normalized(message), command = normalized(quote);
   if (/\b(?:comment|pourquoi|explique|expliquer|imagine|suppose|si je|si on|si tu|ne pas|never|not)\b|\b(?:est.ce que (?:je|on|nous)|puis.je|peut.on|pouvons.nous|can i|could i|may i|can we|could we|if i|if we|if you)\b|\bne\b.{0,40}\bpas\b|n[’'](?:envoie|envoyer)|\b(?:envoie|envoyer|programme|programmer)\s+pas\b|\bsans\s+(?:envoi|envoyer|programmer)|\bpas\s+(?:envoyer|d.envoi|programmer)/.test(current)) return false;
   if (operation === "send" && /\b(?:demain|aujourd.hui|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|programme\w*|planifi\w*|semaine|mois|plus tard)\b|\b\d{1,2}\s*(?:h|:[0-5]\d)\b|\d{4}-\d{2}-\d{2}/.test(current)) return false;
-  return (operation === "edit" ? /\b(?:modifie|modifier|corrige|corriger|remplace|remplacer|mets|change|changer|ajoute|retire|update|edit)\b/
+  return (operation === "cancel" ? /\b(?:annule|annuler|supprime|supprimer|cancel|delete)\b/ : operation === "edit" ? /\b(?:modifie|modifier|corrige|corriger|remplace|remplacer|mets|change|changer|ajoute|retire|update|edit)\b/
     : operation === "send" ? /\b(?:envoie|envoyer|envoyez|diffuse|diffuser|send)\b/ : /\b(?:programme|programmer|planifie|planifier|schedule)\b/).test(command);
 }
 function recipientsExplicit(quote: string, recipients: string[]) {
@@ -121,7 +121,7 @@ async function read(operation: () => PromiseLike<unknown>): Promise<Row | null> 
     return result.error ? null : result;
   } catch { return null; } finally { if (timer) clearTimeout(timer); }
 }
-function localRequest(source: Request, path: string, method: "POST" | "PATCH", body: unknown) {
+function localRequest(source: Request, path: string, method: "POST" | "PATCH" | "DELETE", body: unknown) {
   const headers = new Headers({ accept: "application/json", "content-type": "application/json" });
   for (const name of ["cookie", "authorization"]) { const value = source.headers.get(name); if (value) headers.set(name, value); }
   return new Request(new URL(path, source.url), { method, headers, body: JSON.stringify(body), signal: source.signal });
@@ -255,6 +255,30 @@ export function createInrAssistantCommunicationTools(options: {
           }
           if (saved.success !== true || typeof saved.campaignId !== "string" || !UUID.test(saved.campaignId) || !["queued", "paused"].includes(String(saved.campaignStatus))) return fail(MAIL);
           return { ok: true, status: String(saved.campaignStatus), recordId: saved.campaignId, recipientCount: typeof saved.queued === "number" ? saved.queued : null, message: saved.campaignStatus === "paused" ? "La campagne est enregistrée en pause par les contrôles natifs. Aucun envoi n’est annoncé comme effectué." : "La campagne est mise en file dans iNr’Send ; sa livraison n’est pas encore confirmée.", nextAction: MAIL };
+        });
+      },
+    }),
+    cancelCalendarAppointment: tool({ strict:true,
+      description:"Annuler un rendez-vous NATIF encore brouillon, sur ordre actuel explicite, Premium/Founder. eventId vient de readCommunicationRecords. Un rendez-vous confirmé, une demande client et une copie Google exigent vérification dans l’agenda ; ne pas les supprimer ici. Aucun mail ni rappel envoyé.",
+      inputSchema:schema<{instructionQuote:string;eventId:string}>({instructionQuote:quoteSchema,eventId:idSchema},value=>{const input=strict(value,["instructionQuote","eventId"]);return {instructionQuote:text(input.instructionQuote,1200),eventId:id(input.eventId)};}),
+      execute:async raw=>{
+        const input=strict(raw,["instructionQuote","eventId"]), eventId=id(input.eventId), quote=text(input.instructionQuote,1200);
+        if (edition === "standard" || edition === "basic") return fail(CALENDAR,"not_included");
+        if (!permits(currentUserMessage,quote,"cancel") || !/\b(?:agenda|rendez.vous|rdv|calendar|appointment)\b/.test(normalized(currentUserMessage))) return fail(CALENDAR,"needs_instruction");
+        return once(`cancel:${eventId}`,CALENDAR,async()=>{
+          if (!await inScope()) return fail(CALENDAR,"blocked");
+          const result=await read(()=>supabase.from("agenda_events").select("id,user_id,meta").eq("user_id",accountId).eq("id",eventId).maybeSingle());
+          if (!result) return fail(CALENDAR);
+          const event=obj(result.data), meta=obj(event.meta);
+          if (!result.data) return {ok:true,status:"unchanged",eventId,message:"Ce brouillon est déjà absent de l’agenda. Aucune nouvelle suppression.",nextAction:CALENDAR};
+          if (event.user_id !== accountId || event.id !== eventId) return fail(CALENDAR,"blocked");
+          if (meta.status !== "draft" || meta.readOnly === true || meta.source != null && meta.source !== "" && meta.source !== "manual") return fail(CALENDAR,"confirmation_required");
+          if (!await inScope()) return fail(CALENDAR,"blocked");
+          const {DELETE}=await import("@/app/api/calendar/events/route");
+          const response=await DELETE(localRequest(request,`/api/calendar/events?id=${eventId}&requireDraft=true`,"DELETE",{}));
+          const saved=obj(await response.json().catch(()=>null));
+          if (!response.ok || saved.ok !== true) return fail(CALENDAR,response.status === 409?"confirmation_required":"unavailable");
+          return {ok:true,status:"cancelled",eventId,message:"Le brouillon de rendez-vous a été annulé dans l’agenda. Aucun mail ni rappel n’a été envoyé.",nextAction:CALENDAR};
         });
       },
     }),

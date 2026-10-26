@@ -30,7 +30,8 @@ import { createInrAssistantDiagnosticsTools } from "./inrAssistantDiagnosticsToo
 import { createInrAssistantWorkspaceTools } from "./inrAssistantWorkspaceTools.ts";
 import type { InrAssistantClientContext } from "./inrAssistantClientContext.ts";
 import { createInrAssistantMemoryTools, type InrAssistantMemoryReader } from "./inrAssistantMemoryTools.ts";
-import { selectInrAssistantToolFamilies } from "./inrAssistantToolRouting.ts";
+import { selectInrAssistantToolFamilies, inrAssistantRoutingText, inrAssistantRequiredTools, inrAssistantTaskOutcome, verifiedInrAssistantCapabilityLimit } from "./inrAssistantToolRouting.ts";
+import type { InrAssistantTaskState, InrAssistantTaskOutcome, InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
 import { createInrAssistantBusinessTools } from "./inrAssistantBusinessTools.ts";
 import { createInrAssistantManagementTools } from "./inrAssistantManagementTools.ts";
 import { createInrAssistantPublicationTools, type InrAssistantPublicationResult } from "./inrAssistantPublicationTools.ts";
@@ -67,7 +68,7 @@ const supportTool = tool({
   } }),
 });
 
-export type InrAssistantReply = { message: string; needsHuman?: boolean; handoffSummary?: string; media?: InrAssistantMediaResult };
+export type InrAssistantReply = { message: string; needsHuman?: boolean; handoffSummary?: string; media?: InrAssistantMediaResult; outcome?: InrAssistantTaskOutcome; taskState?: InrAssistantTaskState };
 
 export class InrAssistantUnavailableError extends Error {
   code = "assistant_unavailable";
@@ -105,6 +106,9 @@ export async function generateInrAssistantReply(args: {
   signal?: AbortSignal;
   onActivity?: InrAssistantActivityCallback;
   fileContexts?: AssistantFileContext[];
+  /** Server-resolved pending task only, never an HTTP body field. */
+  actionInstruction?: string;
+  taskContext?: InrAssistantTaskState;
 }): Promise<InrAssistantReply> {
   const diagnosticStartedAt = Date.now();
   let lastFailure: InrAssistantGatewayDiagnostic | undefined;
@@ -113,11 +117,13 @@ export async function generateInrAssistantReply(args: {
   const noteFailure = (phase: InrAssistantDiagnosticPhase, fields: Partial<InrAssistantGatewayDiagnostic> = {}) => {
     lastFailure = note(phase, fields); return lastFailure;
   };
-  const latestRequest = args.messages.at(-1)?.content ?? "";
+  const spokenRequest = args.messages.at(-1)?.content ?? "";
+  const latestRequest = args.actionInstruction ?? spokenRequest;
   if (args.edition === "basic" && isBasicAssistantExecutionRequest(latestRequest)) return { message: BASIC_ASSISTANT_EXECUTION_NOTICE };
+  const capabilityLimit = verifiedInrAssistantCapabilityLimit(latestRequest,args.edition);
+  if (capabilityLimit) return {message:capabilityLimit,outcome:"blocked"};
   const families = selectInrAssistantToolFamilies(latestRequest, args.messages.filter(message => message.role === "user").slice(0, -1).map(message => message.content));
-  // Do not even construct execution tool families for the support-only edition.
-  if (args.edition === "basic") families.clear();
+  const canExecute = args.edition !== "basic";
   const verifiedNavigation = getVerifiedInrAssistantNavigation(latestRequest);
   if (verifiedNavigation && !args.fileContexts?.length) {
     const navigationQuota = await reserveInrAssistantRequest({
@@ -134,26 +140,31 @@ export async function generateInrAssistantReply(args: {
     noteFailure("redis_reserve"); throw new AiGatewayGuardUnavailableError();
   }
   let system = buildInrAssistantSystemPrompt(args.displayName, args.accountContext, getInrAssistantAppKnowledge(latestRequest, 2_400), args.edition, args.clientContext, Boolean(args.fileContexts?.length));
-  const messages = assistantMessagesWithFiles(args.messages, args.fileContexts ?? []);
+  const messages = assistantMessagesWithFiles(args.messages.map((message,index)=>index === args.messages.length-1 && latestRequest !== spokenRequest ? {...message,content:latestRequest} : message), args.fileContexts ?? []);
   const bytes = assistantModelInputBudget;
   const complexity = classifyInrAssistantRequest(latestRequest);
+  const requiredTools = canExecute ? [...new Set([...(args.taskContext?.requiredTools ?? []), ...inrAssistantRequiredTools(latestRequest)])] : [];
+  const maxCalls = complexity === "complex" || requiredTools.length > 1 ? 12 : requiredTools.length ? 7 : 4;
   const gateway = createGateway({ apiKey: credential });
   const maxOutputTokens = complexity === "complex" ? 6_000 : 1_800;
   const started = Date.now();
-  let deadline = started + 100_000;
+  let deadline = started + (maxCalls > 7 ? 240_000 : 100_000);
   let llmCalls = 0;
   let economicFailure: unknown;
   const mediaState: { result?: InrAssistantMediaResult; requestId?: string } = {};
   const publicationResults: InrAssistantPublicationResult[] = [];
   const actionFacts = new Map<string, { message: string; label?: string; href?: string }>();
+  const receipts: InrAssistantActionReceipt[] = [...(args.taskContext?.receipts ?? [])];
+  const readCounts = new Map<string,number>();
   const observedActionNames = new Set(["updateBusinessDna", "updateAiConfiguration", "configureBusinessCta", "startBusinessDnaAnalysis", "configureAgentAutomation", "prepareSubscriptionAction", "preparePublication", "executePublication", "editPublication", "updateMediaMetadata", "prepareCampaignEmail", "prepareCalendarAppointment", "replyToGoogleReview"]);
   for (const name of ["manageCrmContact", "prepareCommercialDocument", "updateCampaignDraft", "dispatchCampaignDraft", "updateCalendarAppointment", "prepareAdvertisingCampaign", "manageAdvertisingCampaign", "updateToolSettings"]) observedActionNames.add(name);
+  for (const name of ["generateMedia","modifyMedia","mergeCrmContacts","cancelCalendarAppointment"]) observedActionNames.add(name);
   const savedActionReply = () => [...actionFacts.values()].map(fact => `${fact.message}${fact.href ? `\n\n[${fact.label ?? "Ouvrir l’outil"}](${fact.href})` : ""}`).join("\n\n");
   const followupAfterMedia = families.has("publication") || families.has("business") && /\b(?:adn|dna|configuration|reglages)\b/i.test(latestRequest);
-  const mediaTools = families.has("media") ? createInrAssistantMediaTools({
+  const mediaTools = canExecute && families.has("media") ? createInrAssistantMediaTools({
     request: args.request, requestId: args.actionRequestId ?? args.requestId,
     currentUserMessage: latestRequest,
-    canStartWork: () => Date.now() - started < 50_000,
+    canStartWork: () => deadline - Date.now() > 20_000,
     onWorkStarted: (requestId) => { mediaState.requestId = requestId; deadline = started + 780_000; },
     onResult: (result) => { mediaState.result = result; },
   }) : {};
@@ -169,9 +180,10 @@ export async function generateInrAssistantReply(args: {
   const diagnosticTools = args.supabase && /(?:erreur|error|bloqu|impossible|echec|failed|bug|ne fonctionne|probleme|diagnosti|日志|错误)/i.test(latestRequest) ? createInrAssistantDiagnosticsTools({ supabase: args.supabase, accountId: args.accountId, edition: args.edition }) : {};
   const workspaceTools = args.supabase ? createInrAssistantWorkspaceTools({ supabase: args.supabase, accountId: args.accountId, edition: args.edition, request: args.request }) : {};
   const memoryTools = args.memory ? createInrAssistantMemoryTools({ memory: args.memory, excludeTurnId: args.turnId }) : {};
-  const topic = latestRequest.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const topic = inrAssistantRoutingText(latestRequest);
+  const routingTopic = inrAssistantRoutingText([latestRequest,...args.messages.filter(m=>m.role === "user").slice(-3,-1).map(m=>m.content)].join(" "));
   const businessTools = (() => {
-    if (!args.supabase || !families.has("business")) return {};
+    if (!canExecute || !args.supabase || !families.has("business")) return {};
     const available = createInrAssistantBusinessTools({ request: args.request, accountId: args.accountId, supabase: args.supabase, edition: args.edition, currentUserMessage: latestRequest });
     return {
       ...(/(?:\badn\b|\bdna\b|entreprise|business|horaires|prestations|services|mission|valeurs)/.test(topic) && /(?:ajout|rempli|complet|modifi|mets|mettez|remplac|enrich|enregistr|sauvegard|update|fill|save)/.test(topic) ? { updateBusinessDna: available.updateBusinessDna } : {}),
@@ -179,7 +191,7 @@ export async function generateInrAssistantReply(args: {
       ...(/(?:connect|connexion)/.test(topic) ? { guideChannelConnection: available.guideChannelConnection } : {}),
     };
   })();
-  const ctaTools = args.edition !== "basic" && args.supabase && /(?:\bctas?\b|appels? a l.action|(?:telephone|numero|site|website|lien).{0,70}(?:partout|tous|toutes|contenus|publications|canaux)|(?:tous|toutes).{0,70}(?:telephone|site|website|lien))/.test(topic)
+  const ctaTools = canExecute && args.supabase && /(?:\bctas?\b|appels? a l.action|\bbouton\b.{0,70}(?:appeler|telephone|facebook|site)|(?:telephone|numero|site|website|lien).{0,70}(?:partout|tous|toutes|contenus|publications|canaux|bouton)|(?:tous|toutes).{0,70}(?:telephone|site|website|lien))/.test(routingTopic)
     ? createInrAssistantCtaTools({ request: args.request, accountId: args.accountId, supabase: args.supabase,
       currentUserMessage: latestRequest, canStartWork: () => deadline - Date.now() > 15_000 }) : {};
   const dnaAnalysisTools = args.edition !== "basic" && args.supabase && /\b(?:adn|dna)\b/.test(topic) && /(?:analys|complet|rempli|enrich|suivi|etat|resultat|termine)/.test(topic)
@@ -188,7 +200,7 @@ export async function generateInrAssistantReply(args: {
       actionStartedAt: args.actionStartedAt,
       canStartWork: () => deadline - Date.now() > 15_000 }) : {};
   const managementTools = (() => {
-    if (!args.actorUserId || !families.has("management")) return {};
+    if (!canExecute || !args.actorUserId || !families.has("management")) return {};
     const available = createInrAssistantManagementTools({ request: args.request, accountId: args.accountId, actorUserId: args.actorUserId,
       edition: args.edition, currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId });
     return {
@@ -197,19 +209,19 @@ export async function generateInrAssistantReply(args: {
     };
   })();
   const publicationTools = (() => {
-    if (!args.supabase || !families.has("publication")) return {};
+    if (!canExecute || !args.supabase || !families.has("publication")) return {};
     const available = createInrAssistantPublicationTools({ request: args.request, accountId: args.accountId, supabase: args.supabase,
       currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
       canStartWork: () => deadline - Date.now() > 15_000, onResult: result => { publicationResults.push(result); } });
     return {
       preparePublication: available.preparePublication,
-      ...(/(?:publie|publier|publish|programme|programmer|schedule)/.test(topic) ? { executePublication: available.executePublication } : {}),
+      ...(/(?:publie|publier|publish|programme|programmer|schedule)/.test(routingTopic) ? { executePublication: available.executePublication } : {}),
       ...(/(?:modifi|corrig|chang|\bedit)/.test(topic) ? { editPublication: available.editPublication } : {}),
       ...(/(?:statut|status|etat|deja|suivi|verifi|resultat|en cours)/.test(topic) ? { getPublicationStatus: available.getPublicationStatus } : {}),
     };
   })();
   const workspaceActionTools = (() => {
-    if (!args.supabase || !families.has("workspace") && !families.has("media")) return {};
+    if (!canExecute || !args.supabase || !families.has("workspace") && !families.has("media")) return {};
     const available = createInrAssistantWorkspaceActionTools({ request: args.request, accountId: args.accountId, supabase: args.supabase, edition: args.edition,
       currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId, canStartWork: () => deadline - Date.now() > 15_000 });
     return {
@@ -228,31 +240,32 @@ export async function generateInrAssistantReply(args: {
     };
   })();
   const commercialTools = (() => {
-    if (!args.supabase || !families.has("commercial")) return {};
+    if (!canExecute || !args.supabase || !families.has("commercial")) return {};
     const available = createInrAssistantCommercialTools({ request: args.request, accountId: args.accountId, supabase: args.supabase,
       edition: args.edition, currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
       canStartWork: () => deadline - Date.now() > 15_000 });
     return {
-      ...(/(?:ajout|cre|modifi|corrig|chang|supprim|effac|update|delete).{0,60}(?:contact|client|prospect)|(?:contact|client|prospect).{0,60}(?:ajout|cre|modifi|corrig|chang|supprim|effac|update|delete)/.test(topic) ? { manageCrmContact: available.manageCrmContact } : {}),
+      ...(/(?:ajout|cre|modifi|corrig|chang|supprim|effac|retire|update|delete).{0,60}(?:contact|client|prospect)|(?:contact|client|prospect).{0,60}(?:ajout|cre|modifi|corrig|chang|supprim|effac|retire|update|delete)/.test(topic) ? { manageCrmContact: available.manageCrmContact } : {}),
       ...(/(?:devis|facture|document commercial|encaisser)/.test(topic) && !/(?:facture.{0,20}abonnement|facture.{0,20}stripe)/.test(topic) ? { prepareCommercialDocument: available.prepareCommercialDocument } : {}),
     };
   })();
   const communicationTools = (() => {
-    if (!args.supabase || !families.has("workspace")) return {};
+    if (!canExecute || !args.supabase || !families.has("workspace")) return {};
     const available = createInrAssistantCommunicationTools({ request: args.request, accountId: args.accountId, actorUserId: args.actorUserId,
       supabase: args.supabase, edition: args.edition, currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
       canStartWork: () => deadline - Date.now() > 15_000 });
-    const mail = /(?:campagne|email|e-mail|\bmail|newsletter|courriel|fidelis|propuls)/.test(topic);
-    const calendar = /(?:agenda|calendar|rendez.vous|\brdv\b)/.test(topic);
+    const mail = /(?:campagne|email|e-mail|\bmail|newsletter|courriel|fidelis|propuls)/.test(routingTopic);
+    const calendar = /(?:agenda|calendar|rendez.vous|\brdv\b)/.test(routingTopic);
     return {
       ...((mail || calendar) && /(?:retrouv|recherch|consulte|lis\b|lire|liste|voir|verifi|dernier|existant|modifi|corrig|chang|deplac|envo|programm)/.test(topic) ? { readCommunicationRecords: available.readCommunicationRecords } : {}),
       ...(mail && /(?:modifi|corrig|chang|brouillon|draft)/.test(topic) ? { updateCampaignDraft: available.updateCampaignDraft } : {}),
       ...(mail && /(?:envo|expedi|programm|schedule|send)/.test(topic) && !families.has("advertising") ? { dispatchCampaignDraft: available.dispatchCampaignDraft } : {}),
-      ...(calendar && /(?:modifi|corrig|chang|deplac|report|update)/.test(topic) ? { updateCalendarAppointment: available.updateCalendarAppointment } : {}),
+      ...(calendar && /(?:modifi|corrig|chang|deplac|report|update)/.test(routingTopic) ? { updateCalendarAppointment: available.updateCalendarAppointment } : {}),
+      ...(calendar && /(?:annule|annuler|supprime|cancel)/.test(topic) ? {cancelCalendarAppointment:available.cancelCalendarAppointment,readCommunicationRecords:available.readCommunicationRecords} : {}),
     };
   })();
   const advertisingTools = (() => {
-    if (!families.has("advertising")) return {};
+    if (!canExecute || !families.has("advertising")) return {};
     const available = createInrAssistantAdvertisingTools({ request: args.request, accountId: args.accountId, edition: args.edition,
       currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
       canStartWork: () => deadline - Date.now() > 15_000 });
@@ -305,6 +318,7 @@ export async function generateInrAssistantReply(args: {
     system = buildInrAssistantSystemPrompt(args.displayName, undefined, undefined, args.edition, args.clientContext, Boolean(args.fileContexts?.length)) + (operationGuidance ? `\n${operationGuidance}` : "");
   }
   while (messages.length > 1 && bytes({ system, messages }) + schemaBytes > 31_000) messages.shift();
+  if (bytes({system,messages}) + schemaBytes > 30_500) system = buildInrAssistantSystemPrompt(args.displayName,undefined,undefined,args.edition,args.clientContext,Boolean(args.fileContexts?.length),true) + (operationGuidance ? `\n${operationGuidance}` : "");
   if (bytes({ system, messages }) + schemaBytes > 31_000) {
     noteFailure("input_limit", { inputBytes: bytes({ system, messages }) + schemaBytes, historyTurns: messages.length });
     throw new InrAssistantInputError("Votre demande et son contexte sont trop longs. Raccourcissez le message ou ouvrez une nouvelle conversation.");
@@ -314,12 +328,27 @@ export async function generateInrAssistantReply(args: {
   });
   const chain = getInrAssistantModelChain({ edition: args.edition, complexity, solReserved: quota.solReserved });
   let success = false;
+  const finishReply = (reply: InrAssistantReply): InrAssistantReply => {
+    for (const result of publicationResults) {
+      const name = result.action === "prepare" ? "preparePublication" : result.action === "edit" ? "editPublication" : result.action === "status" ? "getPublicationStatus" : "executePublication";
+      if (!receipts.some(r=>r.tool === name && r.status === result.status)) receipts.push({tool:name,ok:result.ok,status:result.status,message:result.message,...(result.draftId?{draftId:result.draftId}:{}),toolUrl:result.toolUrl});
+    }
+    if (mediaState.result && !receipts.some(r=>r.tool === "generateMedia" || r.tool === "modifyMedia")) receipts.push({tool:requiredTools.includes("modifyMedia")?"modifyMedia":"generateMedia",ok:mediaState.result.ok,status:mediaState.result.status,message:mediaState.result.message,requestId:mediaState.result.requestId,...(mediaState.result.media?.id?{id:mediaState.result.media.id}:{})});
+    const outcome = inrAssistantTaskOutcome(requiredTools,receipts,reply.message);
+    success = outcome === "completed";
+    if (!requiredTools.length) return reply;
+    const labels: Record<string,string> = {generateMedia:"créer le média",modifyMedia:"retoucher l’image",preparePublication:"préparer la publication",executePublication:"publier ou programmer la publication",editPublication:"corriger la publication",configureBusinessCta:"configurer les appels à l’action",startBusinessDnaAnalysis:"analyser l’ADN",updateBusinessDna:"compléter l’ADN",updateAiConfiguration:"appliquer les réglages IA",configureAgentAutomation:"configurer l’agent",prepareCampaignEmail:"préparer la campagne mail",dispatchCampaignDraft:"envoyer ou programmer la campagne",updateCampaignDraft:"corriger le brouillon",updateCalendarAppointment:"modifier le rendez-vous",cancelCalendarAppointment:"annuler le rendez-vous",manageCrmContact:"modifier la fiche CRM",mergeCrmContacts:"fusionner les contacts",prepareAdvertisingCampaign:"préparer la campagne publicitaire",manageAdvertisingCampaign:"modifier la campagne publicitaire"};
+    const remaining = requiredTools.filter(name=>!receipts.some(r=>r.tool === name && r.ok && !["partial","failed","unknown"].includes(r.status)));
+    const factual = [...new Set(receipts.filter(r=>r.ok).map(r=>r.message))].join("\n\n");
+    const message = outcome === "partial" ? `${factual || savedActionReply() || reply.message}\n\nIl reste à ${remaining.map(name=>labels[name]??"terminer l’action demandée").join(", ")}. Vous pouvez me demander de continuer ; les étapes déjà réalisées seront conservées.` : reply.message;
+    return {...reply,message,outcome,taskState:{version:1,instruction:latestRequest,actionRequestId:args.actionRequestId??args.requestId,startedAt:args.actionStartedAt??new Date(started).toISOString(),expiresAt:new Date(started+30*60_000).toISOString(),outcome,requiredTools,receipts:receipts.slice(-32),question:message.slice(-2000)}};
+  };
   try {
     for (const attempt of chain) {
       if (args.signal?.aborted) noteFailure("request_aborted", { model: attempt.model, callCount: llmCalls });
       args.signal?.throwIfAborted();
       const remaining = deadline - Date.now();
-      if (remaining < 1_000 || llmCalls >= 4) {
+      if (remaining < 1_000 || llmCalls >= maxCalls) {
         noteFailure(remaining < 1_000 ? "deadline" : "call_limit", { model: attempt.model, callCount: llmCalls }); break;
       }
       let reply = "";
@@ -342,8 +371,8 @@ export async function generateInrAssistantReply(args: {
               ]),
             }),
             wrapGenerate: async ({ doGenerate, params }) => {
-              if (llmCalls >= 4 || deadline - Date.now() < 1_000) {
-                throw new InrAssistantUnavailableError(noteFailure(llmCalls >= 4 ? "call_limit" : "deadline", { model: attempt.model, callCount: llmCalls }));
+              if (llmCalls >= maxCalls || deadline - Date.now() < 1_000) {
+                throw new InrAssistantUnavailableError(noteFailure(llmCalls >= maxCalls ? "call_limit" : "deadline", { model: attempt.model, callCount: llmCalls }));
               }
               const estimatedInputTokens = bytes({ prompt: params.prompt, tools: params.tools }) + 1_024;
               if (estimatedInputTokens > 32_000) {
@@ -408,9 +437,10 @@ export async function generateInrAssistantReply(args: {
         const model = guardedModel(attempt);
         const result = await generateText({
           model, system, messages, maxOutputTokens, tools,
-          stopWhen: [stepCountIs(4), () => llmCalls >= 4 || Boolean(mediaState.result) && !followupAfterMedia],
+          stopWhen: [stepCountIs(maxCalls), () => llmCalls >= maxCalls || Boolean(mediaState.result) && !followupAfterMedia],
           onStepFinish: ({ toolResults }) => {
             for (const result of toolResults) {
+              if (result && !observedActionNames.has(result.toolName)) readCounts.set(result.toolName,(readCounts.get(result.toolName)??0)+1);
               if (!result || !observedActionNames.has(result.toolName)) continue;
               const output = result.output && typeof result.output === "object" ? result.output as Record<string, unknown> : {};
               if (typeof output.message !== "string" || !output.message.trim()) continue;
@@ -429,12 +459,19 @@ export async function generateInrAssistantReply(args: {
                 });
                 message = `${output.status === "partial" ? "Réglages appliqués en partie." : message}\n\n${details.join("\n")}`.slice(0, 7_000);
               }
-              actionFacts.set(result.toolName, { message, ...(href ? { href, label: typeof next.label === "string" ? next.label.slice(0, 100) : undefined } : {}) });
+              if (!["generateMedia","modifyMedia"].includes(result.toolName)) actionFacts.set(result.toolCallId, { message, ...(href ? { href, label: typeof next.label === "string" ? next.label.slice(0, 100) : undefined } : {}) });
+              const receipt: InrAssistantActionReceipt = {tool:result.toolName,ok:output.ok === true,status:typeof output.status === "string"?output.status:"unknown",message};
+              for (const key of ["id","draftId","requestId","scheduledActionId","eventId","recordId","publicationId"] as const) if (typeof output[key] === "string" && /^[a-z0-9_-]{8,180}$/i.test(output[key])) receipt[key] = output[key];
+              const media = output.media && typeof output.media === "object" ? output.media as Record<string,unknown> : {};
+              if (typeof media.id === "string" && /^[a-f0-9-]{36}$/i.test(media.id)) receipt.id = media.id;
+              if (href) receipt.toolUrl = href;
+              receipts.push(receipt);
             }
           },
           prepareStep: ({ stepNumber, messages: stepMessages }) => {
-            const answerOnly = stepNumber > 2 || llmCalls >= 3;
-            if (stepNumber === 0 && !answerOnly) return;
+            const goalsDone = requiredTools.length > 0 && requiredTools.every(name=>receipts.some(r=>r.tool === name && r.ok && !["partial","failed","unknown"].includes(r.status)));
+            const answerOnly = goalsDone || stepNumber >= maxCalls-1 || llmCalls >= maxCalls-1;
+            if (stepNumber === 0 && !answerOnly && !args.taskContext) return;
             // Keep call/result pairs intact and discard only earlier chat text.
             // After a guide or DNA lookup, creation remains possible in step 2;
             // the last step only answers and never repeats reads or actions.
@@ -449,10 +486,11 @@ export async function generateInrAssistantReply(args: {
             return {
               ...(answerOnly ? { model: guardedModel(answerAttempt) } : {}),
               messages: stepMessages.slice(latestUser),
-              activeTools: answerOnly ? [] : Object.keys(tools).filter(name => !["getBusinessDna", "getAccountDiagnostics", "readWorkspaceSection", "recallPastDiscussions", "readStatsSnapshots"].includes(name)) as Array<keyof typeof tools>,
+              activeTools: answerOnly ? [] : Object.keys(tools).filter(name => (readCounts.get(name)??0) < 2 && !args.taskContext?.receipts.some(r=>r.tool === name && r.ok && !["partial","failed","unknown"].includes(r.status))) as Array<keyof typeof tools>,
               ...(answerOnly ? { toolChoice: "none" as const } : {}),
-              system: buildInrAssistantSystemPrompt(args.displayName, undefined, getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext, Boolean(args.fileContexts?.length))
+              system: buildInrAssistantSystemPrompt(args.displayName, undefined, getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext, Boolean(args.fileContexts?.length),schemaBytes > 14_000)
                 + (operationGuidance ? `\n${operationGuidance}` : "")
+                + (args.taskContext ? `\nReprise vérifiée de la tâche. Résultats enregistrés, à réutiliser sans refaire ces actions : ${JSON.stringify(args.taskContext.receipts).slice(0,5000)}. La précision actuelle complète seulement cette tâche. Réponds dans la langue de ce message : ${JSON.stringify(spokenRequest).slice(0,500)}` : "")
                 + (answerOnly ? "\nRépondez maintenant sans appeler d’outil. Utilisez seulement les faits déjà obtenus. Si le sujet ou une donnée indispensable manque, posez une question courte pour continuer. N’inventez ni résultat ni action exécutée." : ""),
             };
           },
@@ -494,8 +532,8 @@ export async function generateInrAssistantReply(args: {
         success = true;
         const media = mediaState.result;
         const completedActions = publicationResults.filter(result => result.action !== "status");
-        return { message: completedActions.length || actionFacts.size ? (reply || [media.message, savedActionReply() || completedActions.map(result => result.message).join("\n\n")].join("\n\n"))
-          : `${media.message}${media.status === "processing" || media.status === "ready_to_save" ? `\n\nRéférence de création : ${media.requestId}` : ""}`, media };
+        return finishReply({ message: completedActions.length || actionFacts.size ? (reply || [media.message, savedActionReply() || completedActions.map(result => result.message).join("\n\n")].join("\n\n"))
+          : `${media.message}${media.status === "processing" || media.status === "ready_to_save" ? `\n\nRéférence de création : ${media.requestId}` : ""}`, media });
       }
       // If a long-running job was dispatched, never retry creation through
       // another model. Its server identity can recover the real status later.
@@ -503,19 +541,20 @@ export async function generateInrAssistantReply(args: {
         success = true;
         const media: InrAssistantMediaResult = { ok: true, status: "processing", requestId: mediaState.requestId,
           message: "La création a été lancée. Je dois vérifier son état avant de la relancer.", libraryUrl: "/dashboard/mediatheque" };
-        return { message: `${media.message}\n\nRéférence de création : ${media.requestId}`, media };
+        receipts.push({tool:"generateMedia",ok:true,status:"processing",message:media.message,requestId:media.requestId});
+        return finishReply({ message: `${media.message}\n\nRéférence de création : ${media.requestId}`, media });
       }
       // A real action result survives a summary/provider failure. Never retry an
       // already executed mutation just to obtain a prettier answer.
       if (publicationResults.length) {
         success = true;
-        return { message: reply || publicationResults.map(result => `${result.message}\n\n[Ouvrir l’outil](${result.toolUrl})`).join("\n\n") };
+        return finishReply({ message: reply || publicationResults.map(result => `${result.message}\n\n[Ouvrir l’outil](${result.toolUrl})`).join("\n\n") });
       }
       if (actionFacts.size) {
         success = true;
-        return { message: reply || savedActionReply() };
+        return finishReply({ message: reply || savedActionReply() });
       }
-      if (reply) { success = true; return { message: reply, ...(handoffSummary ? { needsHuman: true, handoffSummary } : {}) }; }
+      if (reply) { success = true; return finishReply({ message: reply, ...(handoffSummary ? { needsHuman: true, handoffSummary } : {}) }); }
       await recordAiGatewayAccountFailure({ accountId: args.accountId, feature: "assistant.chat", model: attempt.model, status: failureStatus }).catch(() => undefined);
     }
     throw new InrAssistantUnavailableError(lastFailure ?? noteFailure("unavailable", { callCount: llmCalls }));

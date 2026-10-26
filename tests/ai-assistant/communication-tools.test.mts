@@ -75,6 +75,7 @@ function harness(options: { edition?: "standard" | "premium" | "founder"; messag
       return Response.json({ scheduledAction: record });
     }
     if (path === "/api/calendar/events") {
+      if (request.method === "DELETE") {assert.equal(new URL(request.url).searchParams.get("requireDraft"),"true");rows.agenda_events=[];return Response.json({ok:true});}
       assert.equal(request.method, "PATCH"); assert.equal(new URL(request.url).searchParams.get("id"), EVENT);
       assert.equal(body.requireDraft, true);
       const row = rows.agenda_events[0]; row.title = body.summary; row.start_at = body.start; row.end_at = body.end;
@@ -87,7 +88,7 @@ function harness(options: { edition?: "standard" | "premium" | "founder"; messag
     "server-only": {}, "node:crypto": { createHash, randomUUID }, ai: { tool, jsonSchema },
     "./requireUser": { requireUser: async () => { authCalls++; return { errorResponse: null, activeUserId: options.scopeChangeOnAuth && authCalls >= options.scopeChangeOnAuth ? OTHER : ACCOUNT, authUserId: options.actorChanged ? OTHER : ACTOR }; } },
     "@/app/api/mails/workflow-draft/route": { POST: native }, "@/app/api/crm/campaigns/route": { POST: native },
-    "@/app/api/agent/scheduled-actions/route": { POST: native }, "@/app/api/calendar/events/route": { PATCH: native },
+    "@/app/api/agent/scheduled-actions/route": { POST: native }, "@/app/api/calendar/events/route": { PATCH: native, DELETE:native },
   };
   const load = (path: string) => {
     const compiled = ts.transpileModule(readFileSync(new URL(`../../${path}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -110,6 +111,19 @@ function harness(options: { edition?: "standard" | "premium" | "founder"; messag
   return { tools, execute, create, rows, queries, apiCalls, source };
 }
 const edit = (changes: Row = {}) => ({ instructionQuote: "Modifie le brouillon de campagne.", draftId: DRAFT, subject: "Nouvel objet", bodyText: null, recipients: null, ...changes });
+
+test("cancel a native draft only on a current scoped order, never a confirmed event",async()=>{
+ const instructionQuote="Annule le rendez-vous de demain dans mon agenda.";
+ const h=harness({message:instructionQuote});
+ const result=await h.execute("cancelCalendarAppointment",{instructionQuote,eventId:EVENT});
+ assert.equal(result.status,"cancelled");assert.equal(h.apiCalls.length,1);assert.equal(h.rows.agenda_events.length,0);
+ const confirmed=harness({message:instructionQuote});confirmed.rows.agenda_events[0].meta={status:"confirmed"};
+ assert.equal((await confirmed.execute("cancelCalendarAppointment",{instructionQuote,eventId:EVENT})).status,"confirmation_required");assert.equal(confirmed.apiCalls.length,0);
+ const guidance=harness({message:"Comment annuler un rendez-vous dans mon agenda ?"});
+ assert.equal((await guidance.execute("cancelCalendarAppointment",{instructionQuote:"annuler",eventId:EVENT})).status,"needs_instruction");assert.equal(guidance.apiCalls.length,0);
+ const standard=harness({edition:"standard",message:instructionQuote});assert.equal((await standard.execute("cancelCalendarAppointment",{instructionQuote,eventId:EVENT})).status,"not_included");
+ const changed=harness({message:instructionQuote,scopeChangeOnAuth:2});await changed.execute("cancelCalendarAppointment",{instructionQuote,eventId:EVENT});assert.equal(changed.apiCalls.length,0);
+});
 const dispatch = (quote = `Envoie le brouillon à ${RECIPIENT}.`, changes: Row = {}) => ({ instructionQuote: quote, draftId: DRAFT, mode: "send", recipients: [RECIPIENT], scheduledAt: null, timezone: null, ...changes });
 const calendarEdit = (changes: Row = {}) => ({ instructionQuote: "Modifie le rendez-vous.", eventId: EVENT, title: "Visite toiture", description: null, location: null, start: null, end: null, ...changes });
 const read = (changes: Row = {}) => ({ section: "drafts", recordId: null, query: null, timeMin: null, timeMax: null, ...changes });

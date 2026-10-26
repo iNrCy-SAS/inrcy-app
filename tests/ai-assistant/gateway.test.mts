@@ -41,6 +41,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   productionNoRedis?: boolean; handoff?: boolean; media?: boolean; followup?: boolean; workflow?: boolean; failAfterPublication?: boolean;
   verifiedNavigation?: string; lookup?: "diagnostics" | "workspace" | "memory"; providerError?: Error; outputLimit?: boolean;
   emptyText?: boolean; ignoresToolChoice?: boolean; abortAfterPublication?: AbortController;
+  plan?: Array<{tool:string;input?:Record<string,unknown>}>;
   cta?: { definition: ReturnType<typeof createCtaToolFixture>["definition"]; input: { target: "phone" | "website"; instructionQuote: string; channels: string[] | null } } } = {}) {
   const generations: { model: string; params: LanguageModelV3CallOptions }[] = [];
   const reservations: { feature: string; reservedOutputTokens: number; estimatedInputTokens: number }[] = [];
@@ -61,6 +62,12 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
         doGenerate: async (params) => {
           generations.push({ model: id, params });
           if (options.providerError) throw options.providerError;
+          if (options.plan) {
+            const next=options.plan[generations.length-1];
+            const available=(params.tools??[]).filter(t=>t.type === "function").map(t=>t.name);
+            const runs=next && available.includes(next.tool);
+            return {content:runs?[{type:"tool-call",toolCallId:`plan-${generations.length}`,toolName:next.tool,input:JSON.stringify(next.input??{})}]:[{type:"text",text:next?`Outil absent : ${next.tool}`:"Les étapes demandées ont été traitées."}],finishReason:{unified:runs?"tool-calls":"stop",raw:"test"},usage:{inputTokens:{total:100,noCache:100,cacheRead:0,cacheWrite:0},outputTokens:{total:20,text:20,reasoning:0}},warnings:[]};
+          }
           if (generations.length <= (options.fail ?? 0)) throw Object.assign(new Error("Unavailable"), { statusCode: 503 });
           if (options.failAfterPublication && generations.length > 3) throw Object.assign(new Error("Summary unavailable after publication"), { statusCode: 503 });
           const callTool = options.cta ? generations.length === 1 : options.ignoresToolChoice ? id === policy.INR_ASSISTANT_MODELS.qwen : options.workflow ? generations.length <= 3 : options.handoff || options.media || ((options.followup || options.lookup) && generations.length === 1);
@@ -165,6 +172,28 @@ const basic = { accountId: "account-a", displayName: "Entreprise A", edition: "s
   requestId: "server-id", request: new Request("https://inrcy.test/api/assistant/chat"),
   messages: [{ role: "user" as const, content: "Aide-moi à connecter Facebook" }] };
 const complex = "Analyse mes résultats, compare les stratégies et prépare un calendrier de publications pour chaque canal sur un mois avec un budget maximum de 100 euros.";
+
+test("five dependent SDK tool steps complete a media and publication task without dropping late actions",async()=>{
+ const h=harness({media:true,plan:[{tool:"getBusinessDna"},{tool:"searchMedia"},{tool:"generateMedia",input:{prompt:"Une image toiture"}},{tool:"preparePublication",input:{draftId:"stored-draft",mode:"publish"}},{tool:"executePublication",input:{draftId:"stored-draft",mode:"publish"}}]});
+ const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:"Lis mon ADN, crée une image puis prépare et publie une publication Facebook maintenant."}]});
+ assert.equal(h.generations.length,6);assert.equal(h.mediaExecutions,1);assert.deepEqual(h.publicationExecutions,["preparePublication","executePublication"]);
+ assert.equal(reply.outcome,"processing");assert.equal(h.finalized[0].success,false);assert.doesNotMatch(reply.message,/Outil absent/);
+});
+test("a guide read does not remove an unused DNA read on the next SDK step",async()=>{
+ const h=harness({plan:[{tool:"readAppGuide"},{tool:"getBusinessDna"}]});
+ const reply=await h.runtime.generateInrAssistantReply({...basic,supabase:{} as never,messages:[{role:"user",content:"Lis le guide puis l’ADN de mon entreprise."}]});
+ assert.equal(h.generations.length,3);assert.doesNotMatch(reply.message,/Outil absent/);
+});
+test("a partial task returns remaining work and resumes without creating its media twice",async()=>{
+ const message="Crée une image puis prépare et publie une publication Facebook maintenant.";
+ const first=harness({media:true,plan:[{tool:"generateMedia",input:{prompt:"Une image toiture"}}]});
+ const partial=await first.runtime.generateInrAssistantReply({...basic,supabase:{} as never,messages:[{role:"user",content:message}]});
+ assert.equal(partial.outcome,"partial");assert.equal(first.finalized[0].success,false);assert.match(partial.message,/Il reste à/);assert.ok(partial.taskState);
+ const second=harness({media:true,plan:[{tool:"preparePublication",input:{draftId:"stored-draft",mode:"publish"}},{tool:"executePublication",input:{draftId:"stored-draft",mode:"publish"}}]});
+ const finished=await second.runtime.generateInrAssistantReply({...basic,supabase:{} as never,messages:[{role:"user",content:"Continue"}],actionInstruction:message,taskContext:partial.taskState});
+ assert.equal(second.mediaExecutions,0);assert.deepEqual(second.publicationExecutions,["preparePublication","executePublication"]);assert.equal(finished.outcome,"processing");
+ assert.ok(!second.generations[0].params.tools?.some(t=>t.type === "function" && t.name === "generateMedia"));
+});
 
 test("Standard routes real phone and website CTA orders through the scoped executor and returns its saved result", async () => {
   for (const [target, current] of [
@@ -435,7 +464,8 @@ test("a failed summary preserves confirmed media and publication states without 
   assert.match(reply.message, /en file d’attente/); assert.doesNotMatch(reply.message, /a été publiée/);
   assert.equal(h.generations.length, 4);
   assert.equal(h.mediaExecutions, 1); assert.deepEqual(h.publicationExecutions, ["preparePublication", "executePublication"]);
-  assert.equal(h.finalized[0].success, true);
+  assert.equal(reply.outcome,"processing");
+  assert.equal(h.finalized[0].success, false, "Queued delivery is not a completed business task");
 });
 
 test("the real SDK emits publication activity only on execution with no added generation or fabricated publication success", async () => {
@@ -543,5 +573,6 @@ test("a browser disconnection after confirmed publication retains its factual re
   assert.deepEqual(h.publicationExecutions, ["preparePublication", "executePublication"]);
   assert.equal(h.mediaExecutions, 1); assert.equal(h.generations.length, 3);
   assert.ok(h.diagnostics.some(row => row.phase === "request_aborted"));
-  assert.equal(h.finalized[0].success, true);
+  assert.equal(result.outcome,"processing");
+  assert.equal(h.finalized[0].success, false);
 });

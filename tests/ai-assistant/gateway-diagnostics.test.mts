@@ -13,7 +13,7 @@ test("diagnostics retain only bounded machine metadata, never arbitrary provider
     message: "SECRET PROMPT", headers: { authorization: "SECRET KEY" }, response: "SECRET BODY", url: "https://private.test?token=SECRET",
   });
   assert.deepEqual(safe, { requestId, phase: "provider_completed", model: INR_ASSISTANT_MODELS.qwen,
-    finishReason: "length", hasText: true, elapsedMs: 3_600_000, durationMs: 12, inputBytes: 1_000_000, historyTurns: 12, callCount: 4, statusCode: 503 });
+    finishReason: "length", hasText: true, elapsedMs: 3_600_000, durationMs: 12, inputBytes: 1_000_000, historyTurns: 12, callCount: 10, statusCode: 503 });
   assert.doesNotMatch(JSON.stringify(safe), /SECRET|authorization|private|prompt|headers|response|url/i);
   assert.ok(Buffer.byteLength(JSON.stringify(safe), "utf8") < 500);
 });

@@ -317,11 +317,11 @@ test("iNrBadge Standard utilise le mail de Mon profil et exclut entièrement la 
     selectedMailAccountEmail: "boite-connectee@example.fr",
   }), "boite-connectee@example.fr");
 
-  assert.match(badgePageSource, /dashboardEdition !== "standard" && selectedMailAccountId/);
+  assert.match(badgePageSource, /hasPremiumDashboardAccess\(dashboardEdition\) && selectedMailAccountId/);
   assert.match(badgePageSource, /canUseInrBadgeAppointments\(dashboardEdition, shareSettings\)/);
   assert.match(badgeRdvPageSource, /canUseInrBadgeAppointments\(dashboardEdition, shareSettings\)/);
-  assert.match(badgeAppointmentApiSource, /dashboardEdition === "standard"/);
-  assert.match(badgeSettingsApiSource, /dashboardEdition === "standard"/);
+  assert.match(badgeAppointmentApiSource, /!hasPremiumDashboardAccess\(dashboardEdition\)/);
+  assert.match(badgeSettingsApiSource, /isStandardDashboardEdition\(dashboardEdition\)/);
   assert.match(badgeSettingsSource, /!standardMode \? \(/);
   assert.match(badgeSettingsSource, /i18nT\("email_de_mon_profil_value_fd93f05f"/);
   assert.match(statsClientSource, /appointmentsEnabled: !standardMode/);
@@ -353,7 +353,7 @@ test("Standard et Premium partagent le même dashboard, avec un adaptateur Stand
   assert.match(standardModulesSource, /\{ onOpenPremium, \.\.\.props \}/);
   assert.match(standardModulesSource, /<DashboardModulesCard \{\.\.\.props\} standardMode openPanel=\{onOpenPremium\}/);
   assert.doesNotMatch(standardModulesSource, /module\.css|<section|<article|useState/);
-  assert.match(sharedModulesSource, /const standardMode = standardModeOverride \|\| dashboardEdition === "standard"/);
+  assert.match(sharedModulesSource, /const standardMode = standardModeOverride \|\| isStandardDashboardEdition\(dashboardEdition\)/);
 });
 
 test("Standard conserve les bulles et leurs commandes accessibles en icônes", () => {
@@ -554,13 +554,13 @@ test("les cartes Premium conservent leurs couleurs propres sans assombrissement 
 
 test("Mon inertie Standard n'active que Booster et identifie les missions Premium", () => {
   assert.match(inertiaContentSource, /i18nT\("booster_est_votre_mission_active_les_93914a0a"\)/);
-  assert.match(inertiaContentSource, /premiumOnly: edition === "standard"/);
+  assert.match(inertiaContentSource, /premiumOnly: isStandardDashboardEdition\(edition\)/);
   assert.match(inertiaContentSource, /i18nT\("forfait_premium_65aaf9d2"\)/);
   assert.match(inertiaContentSource, /PREMIUM_INERTIA_ACTION_KEYS\.has\(e\.action_key\)/);
-  assert.match(dashboardHelpModalsSource, /edition === "standard" && row\.premiumOnly/);
+  assert.match(dashboardHelpModalsSource, /isStandardDashboardEdition\(edition\) && row\.premiumOnly/);
   assert.match(dashboardHelpModalsSource, /i18nT\("forfait_premium_65aaf9d2"\)/);
-  assert.match(loyaltyAwardApiSource, /dashboardEdition === "standard" && PREMIUM_ONLY_ACTION_KEYS\.has\(actionKey\)/);
-  assert.match(loyaltySummaryApiSource, /includePremiumMissions: dashboardEdition !== "standard"/);
+  assert.match(loyaltyAwardApiSource, /isStandardDashboardEdition\(dashboardEdition\) && PREMIUM_ONLY_ACTION_KEYS\.has\(actionKey\)/);
+  assert.match(loyaltySummaryApiSource, /includePremiumMissions: hasPremiumDashboardAccess\(dashboardEdition\)/);
 });
 
 test("le GPS Standard adapte les rubriques mixtes et affiche les outils Premium en aperçu", () => {
@@ -828,7 +828,7 @@ test("iNrSend Standard n'expose que l'historique Publications", () => {
   assert.equal(isStandardApiRouteAllowed("/api/inrsend/publications/123/facebook"), true);
   assert.equal(isStandardApiRouteAllowed("/api/billing/checkout"), true);
   assert.equal(isStandardApiRouteAllowed("/api/crm/contacts"), false);
-  assert.match(inrSendFileDownloadSource, /dashboardEdition === "standard" && !isPublicationFile/);
+  assert.match(inrSendFileDownloadSource, /isStandardDashboardEdition\(dashboardEdition\) && !isPublicationFile/);
   assert.match(inrSendFileDownloadSource, /file_role/);
 });
 

@@ -10,7 +10,8 @@ import { createInrAssistantMemory, InrAssistantMemoryConflictError, InrAssistant
 import { recordCurrentAccountDiagnosticError, runWithAccountDiagnosticContext } from "@/lib/observability/accountDiagnostics";
 import { parseInrAssistantActivity, type InrAssistantActivity } from "@/lib/inrAssistantActivity";
 import { AssistantAttachmentError, parseAssistantAttachments } from "@/lib/inrAssistantAttachments";
-import { assistantTurnAttachments, loadAssistantFileContexts, type AssistantFileContext } from "@/lib/inrAssistantAttachmentStorage";
+import { assistantTurnAttachments, loadAssistantFileContexts, loadAssistantTaskState, saveAssistantTaskState, type AssistantFileContext } from "@/lib/inrAssistantAttachmentStorage";
+import { continueInrAssistantTask, type InrAssistantTaskState } from "@/lib/inrAssistantTaskPolicy";
 
 export const runtime = "nodejs";
 export const maxDuration = 800;
@@ -111,6 +112,7 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     const requestedAttachments = (body as { attachments?: unknown }).attachments;
     parseAssistantAttachments(requestedAttachments);
     let fileContexts: AssistantFileContext[] = [];
+    let continuation: { instruction: string; task: InrAssistantTaskState } | undefined;
     identity = { conversationId, turnId };
     memory = createInrAssistantMemory({ supabase: auth.supabase, accountId: auth.activeUserId, actorUserId: auth.authUserId });
     const begun = await memory.beginTurn({ ...identity, userText: messages.at(-1)!.content });
@@ -134,6 +136,12 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     if (begun.available) {
       const recent = await memory.loadRecent({ conversationId, limit: 6 });
       if (recent.available) {
+        const previous = recent.turns.filter(turn=>turn.turnId !== turnId && turn.status === "completed").at(-1);
+        if (previous) {
+          const task = await loadAssistantTaskState(attachmentScope, previous);
+          const instruction = continueInrAssistantTask(messages.at(-1)!.content, task);
+          if (task && instruction) continuation = { instruction, task };
+        }
         // Server-owned prose replaces fabricated browser assistant messages.
         // The full archive stays durable; only a bounded recent context goes to AI.
         // A failed answer must not erase the professional's preceding question.
@@ -169,16 +177,21 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
       accountId: auth.activeUserId, actorUserId: auth.authUserId, displayName: auth.activeAccount?.displayName ?? "",
       edition, accountContext, clientContext, messages, requestId, request, supabase: auth.supabase, signal: request.signal,
       memory, turnId, ...(fileContexts.length ? { fileContexts } : {}),
+      ...(continuation ? { actionInstruction: continuation.instruction, taskContext: continuation.task } : {}),
       ...(onActivity ? { onActivity } : {}),
       // Stable on explicit network retry, scoped by the server. LLM usage and
       // monthly Sol entitlement still use the fresh server requestId above.
-      actionRequestId: `${auth.activeUserId}_${turnId}`,
+      actionRequestId: continuation?.task.actionRequestId ?? `${auth.activeUserId}_${turnId}`,
       // From the saved turn, never browser/model input: a resumed ADN task can
       // recognize work that completed after this original instruction.
-      actionStartedAt: begun.turn?.createdAt,
+      actionStartedAt: continuation?.task.startedAt ?? begun.turn?.createdAt,
     });
+    const { taskState, ...publicReply } = reply;
+    const taskSaved = taskState ? await saveAssistantTaskState(attachmentScope, {turnId,createdAt:begun.turn!.createdAt}, taskState) : true;
+    if (!taskSaved && taskState && ["partial","needs_input"].includes(taskState.outcome)) publicReply.message += "\n\nPour poursuivre, reformulez la demande complète : sa reprise n’a pas pu être enregistrée. Les résultats déjà confirmés restent conservés dans vos outils.";
     const completed = claimed ? await memory.completeTurn({ ...identity, assistantText: reply.message.slice(0, INR_ASSISTANT_MEMORY_MAX_REPLY_CHARS) }) : null;
-    return NextResponse.json({ ...reply, conversationId, turnId, memorySaved: Boolean(completed?.ok), requestId, accountId: auth.activeUserId }, { headers });
+    console.info("[assistant.task]", { requestId, outcome: reply.outcome ?? "completed", taskSaved });
+    return NextResponse.json({ ...publicReply, conversationId, turnId, memorySaved: Boolean(completed?.ok), requestId, accountId: auth.activeUserId }, { headers });
   } catch (error) {
     if (claimed && memory && identity) await memory.failTurn(identity).catch(() => undefined);
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "assistant_unavailable";

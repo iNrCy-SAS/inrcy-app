@@ -21,25 +21,26 @@ function harness(options: { initialStatus?: string; confirmedAfterRead?: boolean
     if (table === "pro_tools_configs") return { select() { return this; }, eq(field: string, value: unknown) { assert.equal(field, "user_id"); assert.equal(value, ACCOUNT); return this; }, maybeSingle: async () => ({ data: { settings: { inrcalendar: { send_confirmation_on_save: false } } }, error: null }) };
     assert.equal(table, "agenda_events");
     const filters: Array<[string, unknown]> = [];
-    let patch: Row | undefined;
-    const matches = () => filters.every(([field, value]) => field === "meta->>status" ? object(record.meta).status === value : record[field] === value);
+    let patch: Row | undefined;let deleting=false;
+    const matches = () => filters.every(([field, value]) => field === "meta->>status" ? object(record.meta).status === value : field === "meta" ? JSON.stringify(record.meta) === value : record[field] === value);
     const execute = () => {
       assert.ok(filters.some(([field, value]) => field === "id" && value === EVENT));
       assert.ok(filters.some(([field, value]) => field === "user_id" && value === ACCOUNT));
-      if (!patch) {
+      if (!patch && !deleting) {
         const snapshot = JSON.parse(JSON.stringify(record)) as Row;
         if (options.confirmedAfterRead) record.meta = { ...object(record.meta), status: "confirmed" };
         return { data: snapshot, error: null };
       }
-      writes.push({ fields: patch, filters });
+      writes.push({ fields: patch??{delete:true}, filters });
       if (options.updateError) return { data: null, error: { code: "PRIVATE WRITE ERROR" } };
       if (!matches()) return { data: null, error: null };
-      record = { ...record, ...patch };
+      record = deleting?{}:{ ...record, ...patch };
       return { data: { id: EVENT }, error: null };
     };
     const builder = {
       select() { return builder; }, eq(field: string, value: unknown) { filters.push([field, value]); return builder; },
       update(fields: Row) { patch = fields; return builder; },
+      delete(){deleting=true;return builder;},
       maybeSingle: async () => execute(),
       then(resolve: (value: unknown) => unknown, reject?: (error: unknown) => unknown) { return Promise.resolve(execute()).then(resolve, reject); },
     };
@@ -67,7 +68,7 @@ function harness(options: { initialStatus?: string; confirmedAfterRead?: boolean
     assert.ok(Object.hasOwn(dependencies, name), `Unexpected native calendar dependency: ${name}`); return dependencies[name];
   }, moduleRecord, moduleRecord.exports);
   const api = moduleRecord.exports as typeof Route;
-  return { patch: api.PATCH, writes, get record() { return record; }, get notifications() { return notifications; }, get mails() { return mails; } };
+  return { patch: api.PATCH,delete:api.DELETE, writes, get record() { return record; }, get notifications() { return notifications; }, get mails() { return mails; } };
 }
 
 function request(requireDraft: boolean | "omit" = true) {
@@ -76,6 +77,14 @@ function request(requireDraft: boolean | "omit" = true) {
     inrcy: { assistantCommunicationActionKey: "trusted-communication-marker" },
   }) });
 }
+
+test("assistant cancellation compares the draft status and metadata in the SQL DELETE",async()=>{
+ for(const [options,expected] of [[{},200],[{initialStatus:"confirmed"},409],[{confirmedAfterRead:true},409]] as const){
+  const h=harness(options),response=await h.delete(new Request(`https://app.inrcy.com/api/calendar/events?id=${EVENT}&requireDraft=true`,{method:"DELETE"}));
+  assert.equal(response.status,expected);assert.equal(h.mails,0);assert.equal(h.notifications,0);
+  if(expected === 200){assert.equal(h.record.id,undefined);assert.ok(h.writes[0].filters.some(([key,value])=>key === "meta->>status" && value === "draft"));assert.ok(h.writes[0].filters.some(([key])=>key === "meta"));}
+ }
+});
 
 test("native assistant calendar edit conditions the actual SQL UPDATE on draft status and sends nothing", async () => {
   const h = harness(), response = await h.patch(request());
