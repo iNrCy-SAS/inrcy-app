@@ -140,7 +140,7 @@ function harness(options: HarnessOptions = {}) {
     if (specifier === "@/hooks/useDelayedPendingAction") return { useDelayedPendingAction: () => pending };
     if (specifier === "@/lib/inrAgentWorkspaces") return workspacePolicy;
     if (specifier === "@/lib/dashboardEdition") return editionPolicy;
-    if (specifier === "./DashboardEditionProvider") return { useDashboardEdition: () => options.edition ?? "premium" };
+    if (specifier === "./DashboardEditionProvider") return { useDashboardEdition: () => options.edition ?? "premium", useDashboardSubscriptionEdition: () => options.edition ?? "premium" };
     if (specifier === "../dashboard.scroll") return { DASHBOARD_GEARBOX_ANCHOR_ID: "dashboard-gearbox" };
     const localName = specifier.replace(/^\.\//u, "");
     assert.ok(compiled.has(localName), `Unexpected dashboard dependency: ${specifier}`);
@@ -189,18 +189,18 @@ function harness(options: HarnessOptions = {}) {
 const variants = [{ adapter: true, edition: "standard" as const }, { edition: "premium" as const }, { edition: "founder" as const }];
 
 test("Standard, Premium and Founder render the same signature cards, hierarchy and shared CSS", () => {
-  const expected = ["boosterCard", "studioCard", "reputationCard", "adsCard", "mailCampaignCard", "statsCard", "sendCard", "calendarCard", "crmCard"];
+  const expected = ["boosterCard", "statsCard", "sendCard", "studioCard", "reputationCard", "adsCard", "campaignCard", "calendarCard", "crmCard"];
   for (const variant of variants) {
     const { tree, html } = harness(variant).render();
     const cards = elements(tree).flatMap((node) => expected.filter((name) => hasClass(node, name)));
     assert.deepEqual(cards, expected);
-    assert.equal(elements(tree).filter((node) => hasClass(node, "signatureGrid")).length, 1);
+    assert.equal(elements(tree).filter((node) => hasClass(node, "signatureGrid")).length, 2);
     const toolsGrid = find(tree, (node) => node.props["data-dashboard-relationship-tools"] === "true");
-    assert.deepEqual(elements(toolsGrid).filter((node) => node.type === "article").map((node) => expected.find((name) => hasClass(node, name))), ["statsCard", "sendCard", "calendarCard", "crmCard"]);
-    const creationGrid = find(tree, (node) => hasClass(node, "creationGrid"));
-    assert.deepEqual(elements(creationGrid).filter((node) => node.type === "article").map((node) => expected.find((name) => hasClass(node, name))), ["studioCard", "reputationCard", "adsCard", "mailCampaignCard"]);
-    assert.equal(elements(creationGrid).filter((node) => hasClass(node, "boosterCard")).length, 0);
-    assert.ok(html.includes(dashboardMessages.signatureTools.createTitle));
+    assert.deepEqual(elements(toolsGrid).filter((node) => node.type === "article").map((node) => expected.find((name) => hasClass(node, name))), ["statsCard", "sendCard", "studioCard", "reputationCard"]);
+    const premiumGrid = find(tree, (node) => node.props["data-dashboard-premium-tools"] === "true");
+    assert.deepEqual(elements(premiumGrid).filter((node) => node.type === "article").map((node) => expected.find((name) => hasClass(node, name))), ["adsCard", "campaignCard", "calendarCard", "crmCard"]);
+    assert.equal(elements(premiumGrid).filter((node) => hasClass(node, "boosterCard")).length, 0);
+    assert.ok(html.includes(dashboardMessages.signatureTools.premiumTitle));
     assert.ok(html.includes(dashboardMessages.signatureTools.pilotTitle));
     assert.doesNotMatch(html, /undefined|standardActionStack|premiumDashboardList/);
   }
@@ -257,7 +257,7 @@ test("Stats settings reuse the supplied generator settings action without interc
 });
 
 test("the shared visual copy and Ads channel information are translated in all nine locales", () => {
-  const keys = ["createTitle", "pilotTitle", "mailCampaigns", "businessSpace", "amplify", "imagine", "automate", "adsDescription", "createCampaign", "comingSoon", "openStudio", "access", "manage", "open", "viewStats", "dnaDescription"].sort();
+  const keys = ["createTitle", "pilotTitle", "premiumTitle", "mailCampaigns", "mailCampaignDescription", "businessSpace", "amplify", "imagine", "automate", "adsDescription", "createCampaign", "comingSoon", "openStudio", "access", "manage", "open", "viewStats", "dnaDescription"].sort();
   const adsInfoKeys = ["open", "title", "close", "google", "pinterest", "openai", "meta", "linkedin", "tiktok", "x"].sort();
   for (const locale of ["fr-FR", "en-GB", "de-DE", "es-ES", "it-IT", "nl-NL", "pt-PT", "th-TH", "zh-CN"]) {
     const translated = messagesFor(locale).dashboard.signatureTools as Record<string, string | Record<string, string>>;
@@ -270,7 +270,7 @@ test("the shared visual copy and Ads channel information are translated in all n
     for (const variant of variants.slice(0, 2)) {
       const { tree } = harness({ ...variant, locale }).render();
       const rendered = content(tree);
-      for (const key of ["createTitle", "pilotTitle", "mailCampaigns", "adsDescription"]) {
+      for (const key of ["premiumTitle", "pilotTitle", "mailCampaigns", "adsDescription"]) {
         const expected = translated[key];
         assert.ok(typeof expected === "string" && rendered.includes(expected), `${locale} rendered ${key}`);
       }
@@ -278,11 +278,16 @@ test("the shared visual copy and Ads channel information are translated in all n
   }
 });
 
-test("Ads information opens in every edition without navigating to a locked channel", () => {
+test("Ads information stays disabled in Standard and opens without navigation for Premium and Founder", () => {
   for (const variant of variants) {
     const view = harness(variant);
     const info = find(card(view.render().tree, "adsCard"), (node) => hasClass(node, "adsInfoButton"));
     assert.equal(info.props["aria-haspopup"], "dialog");
+    if (variant.edition === "standard") {
+      assert.equal(info.props.disabled, true);
+      assert.deepEqual(view.calls.routes, []);
+      continue;
+    }
     click(info);
     const dialog = find(view.render().tree, (node) => node.props.role === "dialog" && node.props["aria-label"] === "iNr’ADS");
     assert.ok(dialog);
@@ -309,14 +314,14 @@ test("Standard Send opens publication history only without any settings control 
   }
 });
 
-test("Standard Calendar, CRM and email campaigns stay visible and locked without warming a forbidden route", () => {
-  for (const name of ["calendarCard", "crmCard", "mailCampaignCard"]) {
+test("Standard Premium tools stay disabled and the section lock opens subscriptions without warming a forbidden route", () => {
+  for (const name of ["calendarCard", "crmCard", "campaignCard"]) {
     const standard = harness(variants[0]);
     const button = action(standard.render().tree, name);
-    assert.match(content(button), /Premium/);
+    assert.equal(button.props.disabled, true);
+    assert.doesNotMatch(content(button), /Premium/);
     assert.equal(button.props["data-dashboard-prefetch"], undefined);
-    click(button);
-    assert.deepEqual(standard.calls.panels, ["abonnement"], name);
+    assert.deepEqual(standard.calls.panels, [], name);
     assert.deepEqual(standard.calls.routes, [], name);
     assert.deepEqual(standard.calls.warmups, [], name);
     assert.equal(elements(standard.render().tree).some((node) => node.props.role === "dialog"), false);
@@ -325,10 +330,11 @@ test("Standard Calendar, CRM and email campaigns stay visible and locked without
   const tree = standard.render().tree;
   const calendarSettings = elements(card(tree, "calendarCard")).filter((node) => hasClass(node, "settingsButton"));
   assert.equal(calendarSettings.length, 1);
-  assert.match(String(calendarSettings[0].props["aria-label"]), /Premium/);
-  assert.match(renderToStaticMarkup(calendarSettings[0]), /M8 10V7a4 4 0 0 1 8 0v3/);
+  assert.equal(calendarSettings[0].props.disabled, true);
   assert.equal(elements(card(tree, "crmCard")).filter((node) => hasClass(node, "settingsButton")).length, 0, "CRM must not gain a top settings lock");
-  click(calendarSettings[0]);
+  const unlock = find(tree, (node) => node.props["data-testid"] === "dashboard-premium-unlock");
+  assert.equal(unlock.props["aria-label"], dashboardMessages.helpCenter.viewOffers);
+  click(unlock);
   assert.deepEqual(standard.calls.panels, ["abonnement"]);
 });
 
@@ -343,7 +349,7 @@ test("Premium and Founder retain direct tool routes, settings panels and the rea
     for (const [name, panel] of [["sendCard", "mails"], ["calendarCard", "agenda"]]) {
       const unlocked = harness({ edition });
       const tree = unlocked.render().tree;
-      assert.equal(elements(tree).filter((node) => hasClass(node, "settingsButton")).length, 3, "Send, Calendar and the separate Studio library shortcut remain available");
+      assert.equal(elements(tree).filter((node) => hasClass(node, "settingsButton")).length, 4, "Send, Calendar, Studio library and Ads information remain available");
       const settings = find(card(tree, name), (node) => hasClass(node, "settingsButton"));
       assert.match(renderToStaticMarkup(settings), /M12 15\.5a3\.5 3\.5/);
       assert.doesNotMatch(renderToStaticMarkup(settings), /M8 10V7a4 4 0 0 1 8 0v3/);
@@ -352,7 +358,7 @@ test("Premium and Founder retain direct tool routes, settings panels and the rea
     }
     for (const path of ["/dashboard/propulser", "/dashboard/fideliser"]) {
       const campaigns = harness({ edition });
-      click(action(campaigns.render().tree, "mailCampaignCard"));
+      click(action(campaigns.render().tree, "campaignCard"));
       const chooser = campaigns.render().tree;
       assert.ok(elements(chooser).some((node) => node.props.role === "dialog"));
       campaigns.release();
@@ -457,10 +463,11 @@ test("the three contextual agents open the correct workspace and preserve campai
     for (const [workspace, path] of Object.entries(workspacePolicy.INR_AGENT_WORKSPACES)) {
       const view = harness(variant);
       const logo = find(view.render().tree, (node) => node.props["data-agent-workspace"] === workspace);
-      click(logo);
       const locked = variant.edition === "standard" && workspace === "campaigns";
+      if (locked) assert.equal(logo.props.disabled, true);
+      else click(logo);
       assert.deepEqual(view.calls.routes, locked ? [] : [path.href]);
-      assert.deepEqual(view.calls.panels, locked ? ["abonnement"] : []);
+      assert.deepEqual(view.calls.panels, []);
       assert.deepEqual(view.calls.warmups, locked ? [] : [path.href]);
     }
   }
@@ -471,10 +478,10 @@ test("planning shortcuts open a scoped read-only plan and keep Standard campaign
     for (const workspace of Object.keys(workspacePolicy.INR_AGENT_WORKSPACES)) {
       const view = harness(variant);
       const icon = find(view.render().tree, (node) => node.props["data-agent-planning-workspace"] === workspace);
-      click(icon);
       const locked = variant.edition === "standard" && workspace === "campaigns";
-      if (locked) assert.deepEqual(view.calls.panels, ["abonnement"]);
+      if (locked) { assert.equal(icon.props.disabled, true); assert.deepEqual(view.calls.panels, []); }
       else {
+        click(icon);
         const planning = find(view.render().tree, (node) => node.props["data-agent-planning"] === "true");
         assert.equal(planning.props["data-workspace"], workspace);
       }
@@ -488,15 +495,15 @@ test("available Ads opens for Premium and Founder while Standard keeps its subsc
     const unavailable = harness(variant);
     const coming = action(unavailable.render().tree, "adsCard");
     assert.equal(coming.props.disabled, true);
-    assert.equal(coming.props.onClick, undefined);
     assert.equal(coming.props["data-dashboard-prefetch"], undefined);
     assert.match(content(coming), /À venir/);
     const available = harness({ ...variant, props: { adsPilotEnabled: true } });
     const button = action(available.render().tree, "adsCard");
-    click(button);
     const standard = variant.edition === "standard";
+    if (standard) assert.equal(button.props.disabled, true);
+    else click(button);
     assert.deepEqual(available.calls.routes, standard ? [] : ["/dashboard/ads"]);
-    assert.deepEqual(available.calls.panels, standard ? ["abonnement"] : []);
+    assert.deepEqual(available.calls.panels, []);
     assert.equal(button.props["data-dashboard-prefetch"], standard ? undefined : "/dashboard/ads");
   }
   assert.equal(editionPolicy.isStandardDashboardRouteAllowed("/dashboard/ads"), false);
@@ -506,7 +513,9 @@ test("available Ads opens for Premium and Founder while Standard keeps its subsc
 test("the provider remains fail-closed when Standard is rendered directly or overrides a Founder preview", () => {
   for (const options of [{ edition: "standard" as const, props: { standardMode: false } }, { edition: "founder" as const, adapter: true }]) {
     const view = harness(options);
-    click(action(view.render().tree, "crmCard"));
+    const tree = view.render().tree;
+    assert.equal(action(tree, "crmCard").props.disabled, true);
+    click(find(tree, (node) => node.props["data-testid"] === "dashboard-premium-unlock"));
     assert.deepEqual(view.calls.panels, ["abonnement"]);
     assert.deepEqual(view.calls.routes, []);
   }
@@ -526,7 +535,7 @@ test("contextual icons remain distinct and disabled when account access is unava
       const tree = view.render().tree;
       const logos = elements(tree).filter((node) => node.props["data-testid"] === "dashboard-agent-logo");
       assert.equal(logos.length, 3);
-      logos.forEach((logo) => assert.equal(logo.props.disabled, !enabled));
+      logos.forEach((logo) => assert.equal(logo.props.disabled, !enabled || variant.edition === "standard" && logo.props["data-agent-workspace"] === "campaigns"));
       const sources = elements(tree).filter((node) => node.type === "img" && String(node.props.src).startsWith("/agent/agent-")).map((node) => node.props.src);
       assert.equal(new Set(sources).size, 3);
       // A global count must not be repeated as the count of every specialist.

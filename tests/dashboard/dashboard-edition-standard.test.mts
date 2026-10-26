@@ -493,7 +493,7 @@ test("Standard affiche un cadenas de section et des actions Premium normales dé
   assert.match(sharedModulesSource, /<fieldset disabled=\{standardMode\}/);
   assert.match(sharedModulesSource, /disabled=\{Boolean\(standardMode && tool\.premiumOnly\)/);
   assert.match(sharedModulesSource, /standardMode \? <button type="button" className=\{signatureStyles\.premiumGateLock\}[^>]*onClick=\{\(\) => startPanelOpening\("abonnement"\)\}/);
-  assert.equal((sharedModulesSource.match(/<DashboardPremiumLockIcon \/>/g) || []).length, 1);
+  assert.equal((sharedModulesSource.match(/<DashboardPremiumLockIcon variant="luxury" \/>/g) || []).length, 1);
   assert.match(sharedModulesSource, /enabled=\{inrAgentEnabled && !locked\}/);
   assert.match(sharedModulesSource, /disabled=\{locked\}/);
   assert.match(sharedModulesSource, /const openCampaignModal = \(\) => \{\s*if \(standardMode\) \{\s*startPanelOpening\("abonnement"\);\s*return;/);

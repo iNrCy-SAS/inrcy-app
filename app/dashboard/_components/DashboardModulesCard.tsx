@@ -102,6 +102,15 @@ function BoosterWave() {
   );
 }
 
+function PremiumCardAccent({ tone }: { tone: string }) {
+  return <svg className={signatureStyles.premiumCardAccent} viewBox="0 0 96 64" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {tone === "adsCard" ? <><circle cx="45" cy="35" r="18" /><circle cx="45" cy="35" r="9" /><path d="m45 35 25-23m-6 0h7v7" /></> : null}
+    {tone === "campaignCard" ? <><rect x="26" y="18" width="45" height="31" rx="6" transform="rotate(-9 48 34)" /><path d="m27 23 22 13 20-19" /></> : null}
+    {tone === "calendarCard" ? <><circle cx="49" cy="34" r="19" /><path d="M49 23v12l9 5" /></> : null}
+    {tone === "crmCard" ? <><circle cx="34" cy="39" r="11" /><circle cx="65" cy="24" r="8" /><path d="m44 34 14-7m-29 18a6 6 0 0 1 10 0m-5-10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /></> : null}
+  </svg>;
+}
+
 export default function DashboardModulesCard({ cockpit, generator, overview, goToModule, openPanel, onOpenStats, onOpenGeneratorSettings, onOpenBoosterPublish, onOpenBoosterStats, adsPilotEnabled = false, inrAgentEnabled = true, standardMode: standardModeOverride = false }: DashboardModulesCardProps) {
   const i18nT = useTranslations("shell");
   const standardT = useTranslations("dashboard.standard");
@@ -289,6 +298,7 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
   const premiumTools = ["adsCard", "campaignCard", "calendarCard", "crmCard"].map(tone => signatureTools.find(tool => tool.tone === tone)!);
   const renderSignatureTool = (tool: (typeof signatureTools)[number]) => (
     <article className={`${signatureStyles.signatureCard} ${signatureStyles[tool.tone]}`} key={tool.path}>
+      {tool.premiumOnly ? <PremiumCardAccent tone={tool.tone} /> : null}
       <span className={signatureStyles.signatureLogo} aria-hidden="true">{tool.logo ? <Image src={tool.logo} alt="" width={52} height={52} /> : <ToolGlyph kind={tool.glyph} />}</span>
       <div className={signatureStyles.signatureCopy}><h4>{tool.title}{tool.tone === "studioCard" ? <span className={signatureStyles.studioEdition} data-studio-edition={studioEdition} role="img" aria-label={`iNr’Studio — ${studioEdition === "standard" ? "Standard" : studioEdition === "founder" ? "Founder" : "Premium"}`} title={`iNr’Studio — ${studioEdition === "standard" ? "Standard" : studioEdition === "founder" ? "Founder" : "Premium"}`}>
         {studioEdition === "standard" ? <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 2 9 10-9 10L3 12 12 2Z" fill="#48baff" fillOpacity=".2" stroke="#89e4ff" strokeWidth="1.6" /><path d="m8 12 3 3 5-6" stroke="#cefbff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg> : <PremiumCrown />}
@@ -404,7 +414,7 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
               <h3 id="dashboard-premium-title">
                 <span className={`${signatureStyles.headingIcon} ${signatureStyles.premiumHeadingIcon}`} aria-hidden="true"><PremiumCrown /></span>
                 {copy.premiumTitle}
-                {standardMode ? <button type="button" className={signatureStyles.premiumGateLock} aria-label={helpT("viewOffers")} title={helpT("viewOffers")} onClick={() => startPanelOpening("abonnement")} data-testid="dashboard-premium-unlock"><DashboardPremiumLockIcon /></button> : null}
+                {standardMode ? <button type="button" className={signatureStyles.premiumGateLock} aria-label={helpT("viewOffers")} title={helpT("viewOffers")} onClick={() => startPanelOpening("abonnement")} data-testid="dashboard-premium-unlock"><DashboardPremiumLockIcon variant="luxury" /></button> : null}
               </h3>
             </header>
             <fieldset disabled={standardMode} aria-labelledby="dashboard-premium-title" className={`${signatureStyles.signatureGrid} ${signatureStyles.premiumGrid}`} data-dashboard-premium-tools="true">
