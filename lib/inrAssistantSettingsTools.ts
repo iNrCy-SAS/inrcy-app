@@ -94,7 +94,7 @@ export function createInrAssistantSettingsTools(options: { request: Request; acc
     return { data, settings: publicSettings(target, data) };
   };
   return {
-    readToolSettings: tool({ strict: true, description: "Lire les réglages ACTUELS autorisés d’iNr’Calendar, Notifications, Documents (Founder), iNr’Badge, iNr’Studio ou TikTok. Champs publics seulement, sans clés ni comptes externes. Utiliser les champs retournés pour une correction précise. Une lecture ne change aucun réglage.",
+    readToolSettings: tool({ strict: true, description: "Lire les réglages ACTUELS autorisés d’iNr’Calendar, Notifications, Documents (droits comptables requis), iNr’Badge, iNr’Studio ou TikTok. Champs publics seulement, sans clés ni comptes externes. Utiliser les champs retournés pour une correction précise. Une lecture ne change aucun réglage.",
       inputSchema: jsonSchema<{ tool: Tool }>({ type: "object", properties: { tool: { type: "string", enum: [...TOOLS] } }, required: ["tool"], additionalProperties: false }),
       execute: async raw => {
         const target = parseTool(strict(raw, ["tool"]).tool);

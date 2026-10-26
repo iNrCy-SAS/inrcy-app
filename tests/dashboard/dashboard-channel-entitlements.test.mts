@@ -167,5 +167,5 @@ test("les droits Site Web et le forfait restent indépendants", () => {
   assert.match(bubbleAccessSource, /site_web: true/);
   assert.match(adminToolsApiSource, /\.from\("app_bubble_access"\)/);
   assert.match(adminToolsApiSource, /bubble_key: bubbleKey,[\s\S]*enabled,/);
-  assert.match(dashboardClientSource, /const isStandardEdition = dashboardEdition === "standard";/);
+  assert.match(dashboardClientSource, /const isStandardEdition = isStandardDashboardEdition\(dashboardEdition\);/);
 });

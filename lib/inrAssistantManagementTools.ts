@@ -175,7 +175,7 @@ export function createInrAssistantManagementTools(options: {
     }),
     configureAgentAutomation: tool({
       strict: true,
-      description: "Modifier uniquement les réglages de l’agent explicitement demandé DANS LE DERNIER MESSAGE DU PRO : activation/pause, fréquence, horaires complets, canaux, thèmes, destinataires par catégorie ou préférence médias. Standard : publish/stats ; Premium/Founder ajoute grow/loyalty. Une nouvelle activation exige un planning complet et son fuseau actuel, sans inventer d’heure. biweekly signifie DEUX DATES PAR MOIS, pas une semaine sur deux. slots: jour0dimanche→6samedi, 1/2/3 créneaux selon fréquence ; mensualités : monthDays exacts et time. Conserve les autres agents, destinataires précis, références et métadonnées. Ne publie/envoie aucune campagne directement ; Stats activé en automatic_report peut envoyer ses bilans selon le planning. L’API garde les contrôles de crédit et de modification du planning ; une confirmation exigée reste à finaliser dans le module.",
+      description: "Modifier uniquement les réglages de l’agent explicitement demandé DANS LE DERNIER MESSAGE DU PRO : activation/pause, fréquence, horaires complets, canaux, thèmes, destinataires par catégorie ou préférence médias. Standard : publish/stats ; Premium ajoute grow/loyalty. Une nouvelle activation exige un planning complet et son fuseau actuel, sans inventer d’heure. biweekly signifie DEUX DATES PAR MOIS, pas une semaine sur deux. slots: jour0dimanche→6samedi, 1/2/3 créneaux selon fréquence ; mensualités : monthDays exacts et time. Conserve les autres agents, destinataires précis, références et métadonnées. Ne publie/envoie aucune campagne directement ; Stats activé en automatic_report peut envoyer ses bilans selon le planning. L’API garde les contrôles de crédit et de modification du planning ; une confirmation exigée reste à finaliser dans le module.",
       inputSchema: jsonSchema<AgentInput>({ type: "object", properties: {
         agent: { type: "string", enum: [...INR_AGENT_AUTOMATION_KEYS] }, enabled: { type: ["boolean", "null"] },
         schedule: { type: ["object", "null"], properties: {
@@ -191,7 +191,7 @@ export function createInrAssistantManagementTools(options: {
       }),
       execute: async value => {
         const input = parseAgent(value), link = AGENT_LINKS[input.agent];
-        if (options.edition === "standard" && (!["publish", "stats"].includes(input.agent) || input.agent === "stats" && input.themes?.includes("mails"))) return { ok: false, status: "not_included", link, message: "Cette configuration nécessite Premium/Founder. Les réglages existants restent conservés." };
+        if (options.edition === "standard" && (!["publish", "stats"].includes(input.agent) || input.agent === "stats" && input.themes?.includes("mails"))) return { ok: false, status: "not_included", link, message: "Cette configuration nécessite Premium. Les réglages existants restent conservés." };
         if (!hasAgentInstruction(options.currentUserMessage, input)) return { ok: false, status: "instruction_required", link, message: "Demandez une instruction actuelle explicite pour cet agent ; une question d’aide ou un ancien échange n’autorise pas sa modification." };
         const fingerprint = createHash("sha256").update(JSON.stringify(input)).digest("hex");
         if (!operations.has(fingerprint)) operations.set(fingerprint, (async () => {

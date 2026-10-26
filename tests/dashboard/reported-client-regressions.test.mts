@@ -131,7 +131,7 @@ test("les pastilles privilégient la connexion confirmée sur un ancien état de
     const tree = channelRuntime("app/dashboard/_components/DashboardFluxBubble.tsx").render({ item: { ...channelItem, key, connection: { accountConnected: true, resourceLabel: "Mon entreprise", value: "saved", loading: true } } });
     const nodes = channelNodes(tree);
     assert.equal(nodes.find(node => node.props.className === "centralConnectionDot")!.props["data-status"], "connected");
-    assert.equal(nodes.find(node => node.props.role === "status")!.props.hidden, true);
+    assert.equal(nodes.some(node => node.props.role === "status" && !node.props.hidden), false);
     assert.equal(nodes.find(node => node.props.className === "resourceValue")!.props.children, "Mon entreprise");
   }
 });

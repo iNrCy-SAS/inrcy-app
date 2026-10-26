@@ -41,6 +41,7 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
   };
   const modules = new Map(dependencies);
   modules.set("react", react); modules.set("react/jsx-runtime", { jsx, jsxs: jsx });
+  modules.set("./DashboardAssistantTrigger", { __esModule: true, default: "assistant-trigger" });
   modules.set("next-intl", { useLocale: () => "fr-FR", useTranslations: () => (key: string, values?: Props) => `${key}${values ? JSON.stringify(values) : ""}` });
   modules.set("@/lib/multicompte/constants", { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" });
   const output = ts.transpileModule(read(file), { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;

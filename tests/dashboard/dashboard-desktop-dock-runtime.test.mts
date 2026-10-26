@@ -58,6 +58,7 @@ function harness(edition: editionPolicy.DashboardEdition = "premium") {
   const calls = { routes: [] as string[], panels: [] as string[], warmups: [] as string[], userMenu: [] as boolean[], notificationMenu: [] as boolean[], enabled: [] as boolean[], logout: 0, gps: 0, assistant: 0 };
   const mockRequire = (specifier: string): unknown => {
     if (specifier === "react/jsx-runtime") return require(specifier);
+    if (specifier === "next/image") return { __esModule: true, default: (props: Props) => createElement("img", props) };
     if (specifier === "react") return { useEffect: (effect: Effect) => { effects.push(effect); } };
     if (specifier === "react-dom") return { createPortal: (child: ReactNode, host: unknown) => {
       portals.push({ child, host });
@@ -103,7 +104,7 @@ function harness(edition: editionPolicy.DashboardEdition = "premium") {
   return { calls, portals, props, render: (name: string, overrides: Props = {}) => component(name)({ ...props, ...overrides }), flushEffects: () => effects.forEach((effect) => effect()) };
 }
 
-for (const edition of ["standard", "premium", "founder"] as const) {
+for (const edition of ["basic", "standard", "premium", "founder"] as const) {
   for (const hosted of [false, true]) {
     for (const isAdmin of [false, true]) {
       test(`desktop header preserves actions and permissions: ${edition}, ${hosted ? "portals" : "header fallback"}, ${isAdmin ? "Admin" : "professional"}`, () => {

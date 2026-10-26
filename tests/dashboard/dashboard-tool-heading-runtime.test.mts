@@ -5,6 +5,7 @@ import test from "node:test";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
+import * as editionPolicy from "../../lib/dashboardEdition.ts";
 
 const require = createRequire(import.meta.url);
 type Props = Record<string, unknown>;
@@ -46,9 +47,10 @@ test("tool identity keeps title and robot together, with one subtitle underneath
 });
 
 test("reputation has a single description and preserves the Standard review-request gate", () => {
-  for (const edition of ["standard", "premium"]) {
+  for (const edition of ["basic", "standard", "premium", "founder"]) {
     const Reputation = load("app/dashboard/e-reputation/EReputationHeader.tsx", {
       "next/link": { __esModule: true, default: (props: Props) => createElement("a", props) },
+      "@/lib/dashboardEdition": editionPolicy,
       "../_components/DashboardToolHeading": { __esModule: true, default: Heading },
       "@/app/dashboard/_components/DashboardEditionProvider": { useDashboardEdition: () => edition },
     });
@@ -56,7 +58,7 @@ test("reputation has a single description and preserves the Standard review-requ
     assert.equal((html.match(/Tous vos avis Google/g) || []).length, 1);
     assert.ok(!html.includes("Ancienne seconde description"));
     assert.ok(html.includes("Ouvrir iNrAssistant"));
-    assert.equal(html.includes("Demander des avis"), edition === "premium");
+    assert.equal(html.includes("Demander des avis"), edition === "premium" || edition === "founder");
   }
 });
 

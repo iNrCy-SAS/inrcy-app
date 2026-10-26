@@ -100,7 +100,7 @@ test("Founder rights remain while legacy subscription plans are removed", () => 
   const subscription = read("app/dashboard/settings/_components/AbonnementContent.tsx");
   const comparison = read("app/dashboard/settings/_components/SubscriptionComparison.tsx");
 
-  assert.match(edition, /DashboardEdition = "standard" \| "premium" \| "founder"/);
+  assert.match(edition, /DashboardEdition = "basic" \| "standard" \| "premium" \| "founder"/);
   assert.match(admin, /<option value="Founder">Accès test · droits complets<\/option>/);
   assert.match(account, /plan === "founder"[\s\S]*?"iNrCy Founder"/);
   assert.match(subscription, /type InrcyPlan = "Trial" \| "Standard" \| "Premium" \| "Founder";/);

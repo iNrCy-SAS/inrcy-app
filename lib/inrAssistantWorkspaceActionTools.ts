@@ -102,7 +102,7 @@ export function createInrAssistantWorkspaceActionTools(options: {
   const writes = new Map<string, Promise<Result>>();
   const actionKey = (kind: string) => createHash("sha256").update(`${accountId}:${options.actionRequestId}:workspace:${kind}`).digest("hex");
   const fail = (nextAction: Result["nextAction"], status: Result["status"] = "unavailable"): Result => ({ ok: false, status, nextAction, message: status === "needs_instruction" ? "Précisez dans votre demande actuelle ce que vous souhaitez préparer ou modifier. Aucune action n’a été effectuée."
-    : status === "not_included" ? "Ce module nécessite Premium ou Founder. Aucun accès ni aucune action de ce module n’a été effectué."
+    : status === "not_included" ? "Ce module nécessite Premium. Aucun accès ni aucune action de ce module n’a été effectué."
       : "L’action n’a pas pu être confirmée. Vérifiez l’outil avant une nouvelle demande ; aucun envoi ni rendez-vous confirmé n’est annoncé." });
   const inScope = async () => {
     if (request.signal.aborted || options.canStartWork?.() === false) return false;
@@ -144,7 +144,7 @@ export function createInrAssistantWorkspaceActionTools(options: {
       },
     }),
     prepareCampaignEmail: tool({ strict: true,
-      description: "Préparer un brouillon de campagne Propulser ou Fidéliser demandé maintenant. Types exacts : valorize=Valoriser, review_mail=Récolter, promo_mail=Offrir ; newsletter_mail=Informer, thanks_mail=Suivre, satisfaction_mail=Enquêter. Le brouillon reste à vérifier dans iNr’Send. Aucun destinataire, compte d’envoi, envoi réel, programmation ou pièce jointe n’est sélectionné. Premium/Founder. Un seul brouillon par demande, récupération de la même clé après interruption.",
+      description: "Préparer un brouillon de campagne Propulser ou Fidéliser demandé maintenant. Types exacts : valorize=Valoriser, review_mail=Récolter, promo_mail=Offrir ; newsletter_mail=Informer, thanks_mail=Suivre, satisfaction_mail=Enquêter. Le brouillon reste à vérifier dans iNr’Send. Aucun destinataire, compte d’envoi, envoi réel, programmation ou pièce jointe n’est sélectionné. Premium. Un seul brouillon par demande, récupération de la même clé après interruption.",
       inputSchema: schema<CampaignInput>({ type: "object", properties: { instructionQuote: quoteSchema, track: { type: "string", enum: [...TRACKS] }, subject: { type: "string", minLength: 1, maxLength: 220 }, bodyText: { type: "string", minLength: 1, maxLength: 12000 } }, required: ["instructionQuote", "track", "subject", "bodyText"], additionalProperties: false }, parseCampaign),
       execute: async raw => {
         const input = parseCampaign(raw);
@@ -173,7 +173,7 @@ export function createInrAssistantWorkspaceActionTools(options: {
       },
     }),
     prepareCalendarAppointment: tool({ strict: true,
-      description: "Créer UN rendez-vous en BROUILLON dans iNr’Calendar à la demande explicite actuelle, avec dates ISO et fuseau fournis ou déterminés depuis les réglages actuels. Si jour/heure/durée manquent, demander précision. Jamais confirmer le rendez-vous : aucun contact, invité, mail ou rappel. Premium/Founder ; même demande récupère le même brouillon après interruption. Ne vérifie pas la disponibilité globale ni Google Agenda.",
+      description: "Créer UN rendez-vous en BROUILLON dans iNr’Calendar à la demande explicite actuelle, avec dates ISO et fuseau fournis ou déterminés depuis les réglages actuels. Si jour/heure/durée manquent, demander précision. Jamais confirmer le rendez-vous : aucun contact, invité, mail ou rappel. Premium ; même demande récupère le même brouillon après interruption. Ne vérifie pas la disponibilité globale ni Google Agenda.",
       inputSchema: schema<AppointmentInput>({ type: "object", properties: { instructionQuote: quoteSchema, title: { type: "string", minLength: 1, maxLength: 180 }, description: { type: ["string", "null"], maxLength: 3000 }, location: { type: ["string", "null"], maxLength: 300 }, start: { type: "string", maxLength: 40 }, end: { type: "string", maxLength: 40 } }, required: ["instructionQuote", "title", "description", "location", "start", "end"], additionalProperties: false }, parseAppointment),
       execute: async raw => {
         const input = parseAppointment(raw);
@@ -199,7 +199,7 @@ export function createInrAssistantWorkspaceActionTools(options: {
       },
     }),
     searchCrmContacts: tool({ strict: true,
-      description: "Retrouver jusqu’à cinq contacts de l’établissement actif par un nom/entreprise cité dans la demande actuelle. Retour minimal : référence, nom, entreprise, catégorie et type ; jamais notes, email, téléphone, adresse ou dossier privé. Lecture Premium/Founder. Pour créer/modifier une fiche, ouvrir iNr’CRM et la vérifier ; cet outil n’effectue aucune mutation CRM.",
+      description: "Retrouver jusqu’à cinq contacts de l’établissement actif par un nom/entreprise cité dans la demande actuelle. Retour minimal : référence, nom, entreprise, catégorie et type ; jamais notes, email, téléphone, adresse ou dossier privé. Lecture Premium. Pour créer/modifier une fiche, ouvrir iNr’CRM et la vérifier ; cet outil n’effectue aucune mutation CRM.",
       inputSchema: schema<{ query: string }>({ type: "object", properties: { query: { type: "string", minLength: 2, maxLength: 80 } }, required: ["query"], additionalProperties: false }, value => { const input = strict(value, ["query"]); const query = text(input.query, 80); if (query.length < 2) throw new Error("Nom incomplet."); return { query }; }),
       execute: async raw => {
         const input = strict(raw, ["query"]); const query = text(input.query, 80);

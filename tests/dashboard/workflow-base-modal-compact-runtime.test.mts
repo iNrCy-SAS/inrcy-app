@@ -46,6 +46,7 @@ function harness(compact: boolean, maxWidth = 760) {
       useEffect: (effect: Effect) => effects.push(effect),
     };
     if (specifier === "next-intl") return { useTranslations: () => (key: string) => key };
+    if (specifier === "./DashboardAssistantTrigger") return { __esModule: true, default: () => null };
     if (specifier.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) };
     throw new Error(`Unexpected modal dependency: ${specifier}`);
   }, loadedModule, loadedModule.exports, window, document);

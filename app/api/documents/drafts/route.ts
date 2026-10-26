@@ -18,7 +18,7 @@ async function createDraft(request: Request) {
   if (origin && origin !== new URL(request.url).origin) return error("Origine de requête non autorisée.", 403, "origin_not_allowed");
   const auth = await requireUser();
   if (auth.errorResponse) return auth.errorResponse;
-  if (await getDashboardEditionForAccountId(auth.activeUserId) !== "founder") return error("Les devis et factures nécessitent l’offre Founder.", 403, "accounting_access_required");
+  if (await getDashboardEditionForAccountId(auth.activeUserId) !== "founder") return error("Les devis et factures nécessitent un accès autorisé à la gestion commerciale.", 403, "accounting_access_required");
   const active = await getActiveSubscriptionAccountIds([auth.activeUserId]);
   if (!active.has(auth.activeUserId)) return error("Un abonnement actif est nécessaire pour enregistrer un brouillon.", 403, "subscription_inactive");
   if (request.signal.aborted) return error("La demande est interrompue.", 409, "request_interrupted");

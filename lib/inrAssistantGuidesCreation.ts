@@ -18,7 +18,7 @@ export const INR_ASSISTANT_CREATION_GUIDES: readonly InrAssistantCreationGuide[]
 3. Médias : ajouter depuis l’appareil ou la Médiathèque, générer dans iNrStudio, adapter les images/vidéos au canal. Une référence de génération et un média de publication ont des destinations différentes : vérifier l’aperçu final par canal.
 4. Validation : vérifier les alertes et aperçus. Le bouton « Publier » ouvre « Confirmer la publication ? », puis confirmer avec « Publier ». « 🕒 Programmer » ouvre le choix de date/heure ; confirmer la programmation. Ne pas annoncer une publication avant le retour effectif de l’action. TikTok peut demander ses paramètres et une validation supplémentaire ; YouTube exige une vidéo.
 5. Bilan : consulter le résultat par canal ; un succès partiel ne signifie pas que tous les canaux ont publié. Le menu Brouillons du header rouvre les brouillons ; l’icône d’enregistrement a pour libellé « Enregistrer le brouillon publication ».
-Accès : Standard (essai inclus), Premium et Founder ; les canaux utilisables dépendent des connexions, autorisations et règles du canal. La génération de médias conserve ses crédits iNrStudio.`,
+Accès : Standard (essai inclus) et Premium ; les canaux utilisables dépendent des connexions, autorisations et règles du canal. La génération de médias conserve ses crédits iNrStudio.`,
     sourceFiles: [
       "app/dashboard/_components/dashboardMobileMenuModel.ts",
       "app/dashboard/booster/publier/PublishModal.tsx",
@@ -39,7 +39,7 @@ Les sous-onglets de génération sont Prompt et Critères. Dans Prompt, remplir 
 Dans Critères, choisir le Format et, pour la vidéo, la Durée et les options disponibles. Les « Médias d’inspiration » viennent d’Importer ou Médiathèque : préciser le type et l’utilisation de chaque référence. Les compatibilités, le nombre de références et les durées dépendent du moteur affiché. Ne pas promettre qu’un moteur accepte toutes les références.
 Pour les paroles vidéo : choisir Voix off ou Personnages dans Critères, puis « Ajouter paroles » et remplir « Paroles à prononcer ». « Sans parole » désactive cette saisie. Respecter l’autorisation proposée pour l’animation des personnes et la transmission des références.
 Vérifier le coût et le solde, puis « Générer une image » ou « Générer une vidéo ». Le rendu peut rester temporaire : cliquer « Enregistrer dans la Médiathèque » pour le conserver, ou « Utiliser ce média » si Studio a été ouvert depuis un autre outil. « Réajuster » permet de reprendre la demande ; une nouvelle génération peut consommer de nouveaux crédits. « Récupérer le résultat » reprend une tentative récupérable, sans promettre un résultat terminé.
-Accès : Standard, Premium et Founder, avec les quotas/crédits et moteurs disponibles du compte. Un lancement depuis Booster/une campagne peut verrouiller le type ou le format et réinsérer le résultat dans l’outil d’origine.`,
+Accès : Standard et Premium, avec les quotas/crédits et moteurs disponibles du compte. Un lancement depuis Booster/une campagne peut verrouiller le type ou le format et réinsérer le résultat dans l’outil d’origine.`,
     sourceFiles: [
       "app/dashboard/generer-media/page.tsx",
       "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx",
@@ -60,7 +60,7 @@ MODIFIER : modification d’image par IA ; la Vidéo est désactivée dans cet o
 RETOUCHER une Image : ajouter l’image, ouvrir l’atelier de retouche et utiliser les outils disponibles (cadrage, fond, texte/lien selon l’éditeur). Enregistrer avec « Enregistrer dans la Médiathèque » ou « Utiliser ce média ». Ce parcours d’édition manuelle est distinct de la modification IA.
 RETOUCHER une Vidéo : choisir Vidéo dans le header puis une source via « Choisir sur mon appareil » ou « Choisir dans ma médiathèque ». Les outils actuels adaptent le format et le cadrage ; ils ne constituent pas un montage vidéo général. « Remplacer la vidéo » change la source. Confirmer avec « Enregistrer dans la Médiathèque » ou « Utiliser ce média ».
 Lors d’un lancement depuis un autre outil, les onglets nécessitant une source sont indisponibles tant qu’aucune source n’a été transmise ; le type peut être fixé par cet outil. Le retour conserve le contexte d’origine.
-Accès : Standard, Premium et Founder. Les modifications IA conservent leurs vérifications de crédits ; ne pas confondre retouche manuelle et nouvelle génération payante.`,
+Accès : Standard et Premium. Les modifications IA conservent leurs vérifications de crédits ; ne pas confondre retouche manuelle et nouvelle génération payante.`,
     sourceFiles: [
       "app/dashboard/_components/MediaGeneratorModal.tsx",
       "app/dashboard/_components/MediaModifier.tsx",
@@ -81,7 +81,7 @@ Retrouver : recherche par titre, tag ou fichier ; filtres Type et Statut. Sur mo
 Chaque ligne : case de sélection, miniature/aperçu, titre éditable avec son crayon, flèche « Afficher les détails », téléchargement puis suppression en dernier. Les détails contiennent tags éditables avec crayon, type, poids, format/durée et date. Cliquer sur la miniature pour agrandir/lire le média. Si « Optimiser » est proposé, il prépare une copie compatible ; vérifier le résultat.
 Cocher plusieurs fichiers ou « Tout sélectionner » / « Tout désélectionner » agit sur les éléments visibles de la liste courante. « Télécharger la sélection » prépare une archive ZIP. « Supprimer la sélection » permet la suppression en masse ; les suppressions demandent confirmation et peuvent avertir qu’un média est utilisé ailleurs. Ne pas confondre suppression d’un fichier et dépublication sur un réseau.
 Les crayons enregistrent les titres/tags de chaque média ; les actions de masse restent indisponibles pendant certaines éditions/opérations. Sur mobile, les détails sont repliés pour garder une ligne compacte.
-Accès : Standard (essai inclus), Premium et Founder ; fichiers privés du compte/établissement actif. Importer ou télécharger ne déclenche pas une génération IA.`,
+Accès : Standard (essai inclus) et Premium ; fichiers privés du compte/établissement actif. Importer ou télécharger ne déclenche pas une génération IA.`,
     sourceFiles: [
       "app/dashboard/mediatheque/page.tsx",
       "app/dashboard/mediatheque/MediaLibraryClient.tsx",
@@ -94,7 +94,7 @@ Accès : Standard (essai inclus), Premium et Founder ; fichiers privés du compt
     id: "ads",
     title: "iNr’ADS : préparer et valider une campagne publicitaire",
     keywords: ["ads", "publicité", "campagne", "budget", "google ads", "meta", "linkedin", "pinterest", "chatgpt", "tiktok ads", "enchères"],
-    content: `Ouvrir [iNr’ADS](/dashboard/ads). Accès ordinaire Premium et Founder ; Standard/essai est renvoyé vers Abonnement. Les canaux publics actuels sont Meta, Google, LinkedIn, Pinterest et OpenAI/ChatGPT. TikTok et X sont réservés au pilote ; ne pas les proposer comme accès général.
+    content: `Ouvrir [iNr’ADS](/dashboard/ads). Accès ordinaire Premium ; Standard/essai est renvoyé vers Abonnement. Les canaux publics actuels sont Meta, Google, LinkedIn, Pinterest et OpenAI/ChatGPT. TikTok et X sont réservés au pilote ; ne pas les proposer comme accès général.
 Choisir le canal et utiliser ses réglages de connexion/compte publicitaire. « Lancer une campagne » ouvre le studio : « Créer manuellement » puis « Commencer → », ou « Créer avec iNrCy » puis « Préparer l’analyse → » et « Lancer l’analyse iNrCy ».
 En mode assisté, « Mode d’analyse » propose « Analyse libre iNrADN » (iNrCy choisit le cap) ou « Analyse par objectif précis » ; ce dernier demande « Résultat recherché » avant l’analyse.
 Les étapes varient avec la plateforme et le format. Google : Votre projet → (Analyse iNrCy en mode assisté) → Campagne → Enchères → Zones géographiques → Paramètres → Mots-clés → Annonce → Destination et suivi → Budget et calendrier → Vérifier et lancer. Google Search n’a pas d’étape média dédiée. LinkedIn a Audience, Format, Annonce, Média, Diffusion et suivi. Meta/Pinterest/ChatGPT ont leurs propres étapes : suivre les noms et avertissements affichés, pas un parcours générique inventé.
@@ -116,7 +116,7 @@ Le raccourci « Voir les campagnes dans iNr’Send » ouvre [Campagnes ADS](/das
     id: "ads-platforms",
     title: "iNr’ADS : étapes propres à chaque plateforme",
     keywords: ["ads", "google", "meta", "facebook", "instagram", "linkedin", "pinterest", "chatgpt", "openai", "étapes", "ciblage", "format"],
-    content: `Ces parcours concernent iNr’ADS Premium/Founder et ses canaux publics. Choisir le canal avant « Lancer une campagne ». L’analyse assistée insère « Analyse iNrCy » après « Votre projet » ; le mode manuel ne l’affiche pas.
+    content: `Ces parcours concernent iNr’ADS Premium et ses canaux publics. Choisir le canal avant « Lancer une campagne ». L’analyse assistée insère « Analyse iNrCy » après « Votre projet » ; le mode manuel ne l’affiche pas.
 [Google Ads](/dashboard/ads?channel=google) : Votre projet → Campagne → Enchères → Zones géographiques → Paramètres → Mots-clés → Annonce → Destination et suivi → Budget et calendrier → Vérifier et lancer. Une campagne Google Search n’a pas d’étape média ; les formats nécessitant un visuel ajoutent Médias.
 [LinkedIn Ads](/dashboard/ads?channel=linkedin) : Votre projet → Campagne → Zones géographiques → Audience → Format → Annonce → Média → Diffusion et suivi → Budget et calendrier → Vérifier et lancer. Choisir les zones exactes proposées et les ressources/identité du compte ; ne pas inventer les autorisations de diffusion.
 [Meta Ads](/dashboard/ads?channel=meta) : Votre projet → Campagne → Zones géographiques → Audience → Enchères → Annonce → Média → Destination et suivi → Budget et calendrier → Vérifier et lancer. Les identités/placements Facebook et Instagram sont vérifiés ; un placement Instagram peut exiger son identité Instagram.
@@ -136,7 +136,7 @@ Les boutons de validation restent soumis à la disponibilité réelle des connec
     id: "emailing",
     title: "Campagnes mails : Propulser, Fidéliser et finalisation dans iNr’Send",
     keywords: ["emailing", "mail", "campagne", "propulser", "fidéliser", "valoriser", "récolter", "offrir", "informer", "suivre", "enquêter", "newsletter", "destinataires"],
-    content: `Depuis le menu « Campagnes mails » (/dashboard?action=campaigns), choisir le parcours ; accès Premium et Founder, pas Standard/essai.
+    content: `Depuis le menu « Campagnes mails » (/dashboard?action=campaigns), choisir le parcours ; accès Premium, pas Standard/essai.
 [Propulser](/dashboard/propulser) : Valoriser, Récolter ou Offrir, bouton « Lancer ». Accès directs : /dashboard/propulser?action=valorize ; /dashboard/propulser?action=reviews ; /dashboard/propulser?action=promo.
 [Fidéliser](/dashboard/fideliser) : Informer, Suivre ou Enquêter, bouton « Envoyer » de la carte (il ouvre d’abord le modèle). Accès directs : /dashboard/fideliser?action=inform ; /dashboard/fideliser?action=thanks ; /dashboard/fideliser?action=satisfaction.
 Dans l’action, choisir un modèle dans « Choisir un modèle », modifier Objet et Message, ou utiliser « ✨ Générer avec iNrCy ». Vérifier le texte généré, les informations de l’entreprise et les zones encore à compléter. Joindre les pièces utiles via le sélecteur de pièces jointes. Le header propose Brouillons et l’icône « Enregistrer le brouillon » ; sauvegarder permet de reprendre plus tard.
@@ -165,7 +165,7 @@ Pour les campagnes récurrentes, ouvrir [Agent Emailings](/dashboard/agent/campa
     title: "Agents IA : Publications, Emailings et Stats",
     keywords: ["agent", "agents", "automatisation", "automatique", "planning", "réglages", "idées", "publications", "emailings", "stats", "bilan", "premium", "standard"],
     content: `Les agents spécialisés ont des espaces actuels distincts, accessibles par « Agent IA »/« Piloter » depuis l’outil concerné : [Agent Publications](/dashboard/agent/publications), [Agent Emailings](/dashboard/agent/campagnes-mails), [Agent Stats](/dashboard/agent/stats). Le robot assistant de discussion est distinct de ces automatisations. Le décompte commercial Standard 3 / Premium 4 inclut l’Assistant ; il ne faut pas inventer un troisième espace d’automatisation Standard.
-Standard/essai : automatisations Publications et Stats. Premium/Founder : ajoute Emailings, avec deux modes « Prospection » et « Fidélisation ». Standard ne peut pas préparer une campagne mails automatisée ; les rubriques mails de Stats sont aussi restreintes.
+Standard/essai : automatisations Publications et Stats. Premium : ajoute Emailings, avec deux modes « Prospection » et « Fidélisation ». Standard ne peut pas préparer une campagne mails automatisée ; les rubriques mails de Stats sont aussi restreintes.
 Header Agent Publications : « Idées », « Générer », « Planning », « Réglages », interrupteur « Automatisation activée »/« Automatisation en pause ». Idées sert à préparer les sujets ; Générer prépare une publication, ce n’est pas une confirmation de publication immédiate.
 Dans Réglages Publications, les sous-onglets sont « Planning », « Canaux », « Création », « Références ». Planning règle fréquence, jours/heures et contenus préparés à l’avance (7 jours, 15 jours — recommandé, 1 mois). Canaux choisit les connexions utilisables. Création règle les sources/types de médias ; Références ajoute les personnes/décors/produits et les autorisations nécessaires. Terminer par « Enregistrer les réglages ». L’application peut demander quand appliquer le changement au planning existant.
 Emailings : choisir Prospection ou Fidélisation, « Préparer », « Planning », « Réglages ». Une boîte mail connectée et des destinataires sont requis avant envoi. Stats : « Envoyer un bilan », « Planning », « Réglages » ; cette action peut envoyer un PDF au professionnel, ce n’est pas seulement un aperçu.

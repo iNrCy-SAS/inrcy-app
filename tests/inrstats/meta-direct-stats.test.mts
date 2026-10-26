@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Runtime-transpiled modules and fluent fixtures intentionally expose dynamic shapes. */
 import assert from "node:assert/strict";
 import * as reviewerAccess from "../../lib/reviewerAccess.ts";
+import * as editionPolicy from "../../lib/dashboardEdition.ts";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import * as crypto from "node:crypto";
@@ -238,8 +239,8 @@ test("Business DNA availability and GPS expose Threads only for a trusted pilot 
   assert.equal(dna.buildBusinessDnaDashboardChannelAvailability({ channelStates: states }).some((row: any) => row.key === "threads"), false);
   assert.equal(dna.buildBusinessDnaDashboardChannelAvailability({ channelStates: states, metaPilotEnabled: true }).find((row: any) => row.key === "threads").status, "connected");
   const notice = load("app/dashboard/gps/noticeContent.ts");
-  const gps = load("app/dashboard/gps/gpsEditionPolicy.ts", { "./noticeContent": notice });
-  for (const edition of ["standard", "premium", "founder"]) {
+  const gps = load("app/dashboard/gps/gpsEditionPolicy.ts", { "./noticeContent": notice, "@/lib/dashboardEdition": editionPolicy });
+  for (const edition of ["basic", "standard", "premium", "founder"]) {
     assert.equal(gps.getGpsSectionsForEdition(edition, false).flatMap((row: any) => row.articles).some((row: any) => row.id === "canaux-threads"), false);
     assert.equal(gps.getGpsSectionsForEdition(edition, true).flatMap((row: any) => row.articles).filter((row: any) => row.id === "canaux-threads").length, 1);
   }

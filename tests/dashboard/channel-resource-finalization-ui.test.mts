@@ -27,7 +27,7 @@ for (const example of cases) {
     const select = nodes.find(node => node.type === "select")!;
     assert.equal(select.props.value, example.value);
     assert.equal(channelNodes(select).find(node => node.type === "option" && node.props.value === example.value)!.props.children, example.label);
-    assert.equal(nodes.find(node => node.props.role === "status")!.props.hidden, true, "Une liste en arrière-plan ne remplace pas la ressource enregistrée par un chargement");
+    assert.equal(nodes.some(node => node.props.role === "status" && !node.props.hidden), false, "Une liste en arrière-plan ne remplace pas la ressource enregistrée par un chargement");
     const pending = runtime.render({ item: { ...item, connection: { ...connection, busy: true } } });
     assert.equal(channelNodes(pending).find(node => node.type === "select")!.props.disabled, true);
   });

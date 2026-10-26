@@ -101,9 +101,11 @@ test("a first vague question receives current cockpit destinations", () => {
   assert.match(text, /\/dashboard\?action=publish/);
 });
 
-test("source guides keep Founder billing tools separate from subscription billing", () => {
+test("source guides keep restricted client invoices separate from subscription billing", () => {
   const invoice = runtime.INR_ASSISTANT_APP_GUIDES.find(({ id }) => id === "invoices")!;
-  assert.match(invoice.content, /Founder/);
+  assert.match(invoice.content, /outil comptable à accès restreint/);
+  assert.match(invoice.content, /droits comptables/);
+  assert.match(invoice.content, /Standard\/essai Standard ET Premium ne débloquent pas cet outil/);
   assert.match(invoice.content, /\/dashboard\/factures/);
   const account = runtime.getInrAssistantAppKnowledge("factures abonnement Stripe");
   assert.match(account, /abonnement/i);
@@ -149,7 +151,7 @@ test("Stats guidance includes real monthly Badge/Search events instead of classi
 
 test("business DNA strategy guidance matches the current Standard-accessible UI and API", () => {
   const dna = runtime.INR_ASSISTANT_APP_GUIDES.find(({ id }) => id === "business-dna")!;
-  assert.match(dna.content, /stratégie commerciale.*disponible en Standard \(essai compris\), Premium et Founder/);
+  assert.match(dna.content, /stratégie commerciale.*disponible en Standard \(essai compris\) et Premium/);
   assert.doesNotMatch(dna.content, /[Ss]tratégie commerciale.*réservée/);
   const ui = readFileSync(resolve(root, "app/dashboard/settings/_components/AiMemoryContent.tsx"), "utf8");
   const api = readFileSync(resolve(root, "app/api/ai-memory/route.ts"), "utf8");

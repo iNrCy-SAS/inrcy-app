@@ -15,7 +15,7 @@ const SOURCE_TIMEOUT_MS = 5_000;
 const GUIDES: Record<Section, { label: string; href: string; guide: string }> = {
   stats: { label: "iNr’Stats", href: "/dashboard/stats", guide: "Consulter Vue globale ou Évolution. Les vues/clics mesurés, l’indice de visibilité et le CA potentiel sont distincts. Créer un bilan envoie réellement un PDF : demander validation avant tout envoi." },
   subscription: { label: "Mon abonnement", href: "/dashboard?panel=abonnement", guide: "Comparer les offres mensuelles/annuelles puis vérifier le récapitulatif avant souscription ou changement. Le contrat réel peut différer du catalogue public. Un achat App Store/Google Play se gère dans sa boutique." },
-  agents: { label: "Agents IA", href: "/dashboard/agent/publications", guide: "Ouvrir l’Agent Publications ou Stats, puis Planning ou Réglages. Premium/Founder ajoute Agent Emailings. Une lecture ne prépare ni n’active une automatisation ; l’activation et les changements de planning doivent être revus." },
+  agents: { label: "Agents IA", href: "/dashboard/agent/publications", guide: "Ouvrir l’Agent Publications ou Stats, puis Planning ou Réglages. Premium ajoute Agent Emailings. Une lecture ne prépare ni n’active une automatisation ; l’activation et les changements de planning doivent être revus." },
   crm: { label: "iNr’CRM", href: "/dashboard/crm", guide: "Utiliser Rechercher, Filtres ou Ajouter un contact. Les compteurs ci-dessous ne révèlent aucune identité de client ; retrouver une fiche dans le module pour la modifier." },
   calendar: { label: "iNr’Calendar", href: "/dashboard/agenda", guide: "Ouvrir le jour puis l’évènement pour ses détails. Les créneaux retournés sont anonymisés, sans titre, contact ou lieu. Confirmer un rendez-vous ou le supprimer exige une action distincte." },
   reputation: { label: "Réputation", href: "/dashboard/e-reputation", guide: "Ouvrir Réputation, Actualiser les avis puis Détails. Les avis d’exemple ne sont pas de vrais clients. Préparer une réponse ne la publie pas ; vérifier l’avis réel avant Publier la réponse." },
@@ -92,7 +92,7 @@ export function createInrAssistantWorkspaceTools(options: {
           ...base, access: "not_included", known: false,
           message: section === "agents"
             ? "Les agents de réalisation sont disponibles avec Standard ou Premium. Aucune donnée privée de cette rubrique n’a été lue ; le guide public reste disponible."
-            : "Cette rubrique est réservée Premium/Founder. Aucune donnée privée de cette rubrique n’a été lue ; le guide public reste disponible.",
+            : "Cette rubrique est réservée Premium. Aucune donnée privée de cette rubrique n’a été lue ; le guide public reste disponible.",
           nextAction: { ...GUIDES[section], href: "/dashboard?help=1" },
         };
         let known = true;

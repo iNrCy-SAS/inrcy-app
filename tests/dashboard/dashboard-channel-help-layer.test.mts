@@ -55,6 +55,7 @@ function renderHelp(nativeLayer: boolean, initialOverflow: string) {
       useRef: (value: unknown) => { const ref = { current: value }; refs.push(ref); return ref; },
     };
     if (name === "next-intl") return { useTranslations: () => (key: string) => key };
+    if (name === "./DashboardAssistantTrigger") return { __esModule: true, default: () => null };
     if (name.endsWith(".module.css")) return { default: { nativeLayer: "nativeLayer" } };
     return require(name);
   };

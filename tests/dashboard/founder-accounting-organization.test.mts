@@ -59,59 +59,59 @@ test("Founder est la seule édition qui possède Encaisser, Factures et Devis", 
   );
 });
 
-test("le cockpit Premium garde Booster seul et réunit Studio, Réputation, ADS et Campagnes dans la création", () => {
+test("le cockpit validé conserve Booster distinct, les outils quotidiens et les quatre outils Premium verrouillables", () => {
   const source = read("app/dashboard/_components/DashboardModulesCard.tsx");
   const campaignChoices = read("app/dashboard/_components/DashboardCampaignChoices.tsx");
   const styles = read("app/dashboard/_components/DashboardSignatureTools.module.css");
-  const creation = source.indexOf('id="dashboard-create-title"');
   const booster = source.indexOf('"premium-booster-publish"');
-  const secondary = source.indexOf('data-dashboard-premium-secondary-tools=');
-  const ads = source.indexOf('"premium-campaign-ads"');
   const pilot = source.indexOf('id="dashboard-pilot-title"');
   const signatures = source.indexOf("{pilotTools.map");
   const relationships = source.indexOf('data-dashboard-relationship-tools="true"');
-  const mailCampaigns = source.indexOf('"premium-campaign-open"');
+  const premium = source.indexOf('id="dashboard-premium-title"');
+  const premiumGate = source.indexOf('<fieldset disabled={standardMode}');
+  const premiumTools = source.indexOf("{premiumTools.map");
 
-  assert.ok(booster >= 0 && booster < creation);
-  assert.ok(creation < secondary && secondary < ads && ads < mailCampaigns);
-  assert.ok(mailCampaigns < pilot && pilot < relationships && relationships < signatures);
+  assert.ok(booster >= 0 && booster < pilot);
+  assert.ok(pilot < relationships && relationships < signatures);
+  assert.ok(signatures < premium && premium < premiumGate && premiumGate < premiumTools);
   assert.doesNotMatch(source, /signatureStyles\.dnaCard/);
 
-  // The same six signature cards are split across creation and pilot areas;
-  // their destinations and access restrictions remain unchanged.
-  const signatureDefinitions = source.slice(source.indexOf("const signatureTools:"), creation);
+  // Assert the approved arrangement while preserving destinations and rights.
+  const signatureDefinitions = source.slice(source.indexOf("const signatureTools:"), source.indexOf("const agentControls ="));
   const signatureNames = Array.from(
     signatureDefinitions.matchAll(/tone: "([^"]+)"/g),
     (match) => match[1],
   );
-  assert.deepEqual(signatureNames, ["sendCard", "studioCard", "statsCard", "reputationCard", "calendarCard", "crmCard"]);
+  assert.deepEqual(signatureNames, ["sendCard", "studioCard", "statsCard", "reputationCard", "calendarCard", "crmCard", "adsCard", "campaignCard"]);
   assert.match(signatureDefinitions, /path: standardMode \? "\/dashboard\/mails\?folder=publications&boxView=sent" : "\/dashboard\/mails"/);
-  assert.deepEqual([...signatureDefinitions.matchAll(/\{ path: "(\/dashboard\/[^"]+)"/g)].map((match) => match[1]), ["/dashboard/stats", "/dashboard/e-reputation", "/dashboard/agenda", "/dashboard/crm"]);
+  assert.deepEqual([...signatureDefinitions.matchAll(/\{ path: "(\/dashboard[^\"]+)"/g)].map((match) => match[1]), ["/dashboard/stats", "/dashboard/e-reputation", "/dashboard/agenda", "/dashboard/crm", "/dashboard/ads", "/dashboard?action=campaigns"]);
   assert.match(source, /className=\{signatureStyles\.signatureGrid\}/);
   assert.match(source, /tone: "reputationCard"/);
-  assert.match(source, /signatureStyles\.mailCampaignCard/);
+  assert.match(source, /const premiumTools = \["adsCard", "campaignCard", "calendarCard", "crmCard"\]/);
   assert.match(styles, /\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/);
   assert.match(styles, /\.creationGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.signatureGrid\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.statsCard\s*\{[^}]*grid-column: 1 \/ -1/);
   assert.match(styles, /@media \(max-width: 1100px\)[\s\S]*?\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
-  assert.match(source, /creationTools\.map\(renderSignatureTool\)/);
+  assert.match(source, /pilotTools\.map\(renderSignatureTool\)/);
+  assert.match(source, /premiumTools\.map\(renderSignatureTool\)/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.boosterWave\s*\{\s*animation:\s*none/);
 
   // The visual regrouping must keep the existing tool entry points and access restrictions.
-  assert.match(source, /data-testid=\{standardMode \? "standard-campaign-mails" : "premium-campaign-open"\}/);
+  assert.match(source, /testId: standardMode \? "standard-campaign-mails" : "premium-campaign-open"/);
   assert.match(campaignChoices, /premium-campaign-open/);
   assert.match(source, /startModuleNavigation\("\/dashboard\/propulser"\)/);
   assert.match(source, /startModuleNavigation\("\/dashboard\/fideliser"\)/);
   assert.match(source, /accountingEnabled && cashModalOpen/);
-  assert.match(source, /disabled=\{!adsPilotEnabled \|\| isModuleLoadingVisible\("\/dashboard\/ads"\)\}/);
-  assert.match(source, /onClick=\{adsPilotEnabled \? \(\) => standardMode \? startPanelOpening\("abonnement"\) : startModuleNavigation\("\/dashboard\/ads"\) : undefined\}/);
+  assert.match(signatureDefinitions, /tone: "adsCard"[^\n]*premiumOnly: true, unavailable: !adsPilotEnabled/);
+  assert.match(source, /disabled=\{Boolean\(standardMode && tool\.premiumOnly\) \|\| tool\.unavailable/);
+  assert.match(source, /onClick=\{standardMode && tool\.premiumOnly \? \(\) => startPanelOpening\("abonnement"\)/);
   assert.match(source, /if \(onOpenBoosterPublish\) onOpenBoosterPublish\(\)/);
   assert.match(source, /if \(onOpenBoosterStats\) onOpenBoosterStats\(\)/);
   assert.match(source, /testId: standardMode \? "standard-studio-open" : "premium-studio-open"/);
   assert.match(source, /data-testid=\{tool\.testId\}/);
   assert.match(source, /const studioPath = "\/dashboard\/generer-media"/);
-  assert.match(source, /const standardMode = standardModeOverride \|\| dashboardEdition === "standard"/);
+  assert.match(source, /const standardMode = standardModeOverride \|\| isStandardDashboardEdition\(dashboardEdition\)/);
   assert.match(source, /mobile-shortcuts\/inrcalendar-bubble\.png/);
   assert.match(source, /mobile-shortcuts\/inrcrm-bubble\.png/);
   assert.match(source, /const calendarLabel = i18nT\("inr_calendar_a9473176"\)\.replace/);

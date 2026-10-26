@@ -21,6 +21,7 @@ import {
 
 test("les plafonds mensuels sont propres a chaque edition", () => {
   assert.deepEqual(AI_MEDIA_MONTHLY_LIMITS, {
+    basic: { image: 0, video: 0, studioEnabled: true, videoMaxDurationSeconds: 30 },
     standard: {
       image: 25,
       video: 56,
@@ -41,6 +42,8 @@ test("les plafonds mensuels sont propres a chaque edition", () => {
     },
   });
 
+  assert.equal(getAiMediaMonthlyLimit("basic", "image"), 0);
+  assert.equal(getAiMediaMonthlyLimit("basic", "video"), 0);
   assert.equal(getAiMediaMonthlyLimit("standard", "image"), 25);
   assert.equal(getAiMediaMonthlyLimit("standard", "video"), 56);
   assert.equal(getAiMediaMonthlyLimit("premium", "image"), 70);
@@ -54,10 +57,13 @@ test("les plafonds mensuels sont propres a chaque edition", () => {
 
 test("la cagnotte reportable est plafonnee sans modifier les recharges mensuelles", () => {
   assert.deepEqual(AI_MEDIA_ROLLOVER_CAPS, {
+    basic: { image: 0, video: 0 },
     standard: { image: 70, video: 168 },
     premium: { image: 150, video: 480 },
     founder: { image: 70, video: 480 },
   });
+  assert.equal(getAiMediaRolloverCap("basic", "image"), 0);
+  assert.equal(getAiMediaRolloverCap("basic", "video"), 0);
   assert.equal(getAiMediaRolloverCap("standard", "image"), 70);
   assert.equal(getAiMediaRolloverCap("standard", "video"), 168);
   assert.equal(getAiMediaRolloverCap("premium", "video"), 480);
@@ -82,6 +88,7 @@ test("les droits existants se convertissent sans changer la durée ni le nombre 
 });
 
 test("le studio avance est accessible a toutes les editions", () => {
+  assert.equal(hasAiMediaStudioAccess("basic"), true);
   assert.equal(hasAiMediaStudioAccess("standard"), true);
   assert.equal(hasAiMediaStudioAccess("premium"), true);
   assert.equal(hasAiMediaStudioAccess("founder"), true);
