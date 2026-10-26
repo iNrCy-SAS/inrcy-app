@@ -365,6 +365,7 @@ export default function SettingsDrawer({
             ) : (
               <h2
                 id={titleId}
+                aria-label={title}
                 style={{
                   margin: 0,
                   display: "flex",
