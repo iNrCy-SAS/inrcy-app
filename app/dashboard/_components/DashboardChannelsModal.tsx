@@ -26,7 +26,7 @@ function ChannelsIcon() {
   return <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="4" y="4" width="10" height="10" rx="3" fill="currentColor" /><rect x="18" y="4" width="10" height="10" rx="3" fill="currentColor" opacity=".65" /><rect x="4" y="18" width="10" height="10" rx="3" fill="currentColor" opacity=".65" /><rect x="18" y="18" width="10" height="10" rx="3" fill="currentColor" /></svg>;
 }
 
-export default function DashboardChannelsModal({ items, onClose, onOpenHelp, summary, initialSelectedKey = "inrbadge", renderSelected }: Props) {
+export default function DashboardChannelsModal({ items, onClose, onOpenHelp, summary, initialSelectedKey = "gmb", renderSelected }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const selectedAreaRef = useRef<HTMLDivElement>(null);
@@ -74,7 +74,10 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
     return () => observer.disconnect();
   }, []);
 
-  const filteredItems = useMemo(() => items.filter((item) => {
+  const filteredItems = useMemo(() => [...items].sort((a, b) => {
+    const priority = (key: string) => key === "gmb" ? -1 : key === "inrbadge" ? 1 : 0;
+    return priority(a.key) - priority(b.key);
+  }).filter((item) => {
     const tone = getChannelTone(item);
     return filter === "all" || (filter === "connected" ? tone === "connected" : tone === "available" || tone === "warning");
   }), [filter, items]);

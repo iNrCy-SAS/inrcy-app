@@ -846,6 +846,7 @@
   "settings_selection_empty": "ยังไม่ได้เลือก",
   "workspaces": {
     "publications": {
+      "automate": "ตั้งค่าอัตโนมัติ",
       "name": "สิ่งพิมพ์",
       "description": "เตรียมและกำหนดเวลาโพสต์ของคุณ"
     },

@@ -9,6 +9,8 @@ import { parseInrAssistantClientContext } from "@/lib/inrAssistantClientContext"
 import { createInrAssistantMemory, InrAssistantMemoryConflictError, InrAssistantMemoryInputError, INR_ASSISTANT_MEMORY_MAX_REPLY_CHARS } from "@/lib/inrAssistantMemory";
 import { recordCurrentAccountDiagnosticError, runWithAccountDiagnosticContext } from "@/lib/observability/accountDiagnostics";
 import { parseInrAssistantActivity, type InrAssistantActivity } from "@/lib/inrAssistantActivity";
+import { AssistantAttachmentError, parseAssistantAttachments } from "@/lib/inrAssistantAttachments";
+import { assistantTurnAttachments, loadAssistantFileContexts, type AssistantFileContext } from "@/lib/inrAssistantAttachmentStorage";
 
 export const runtime = "nodejs";
 export const maxDuration = 800;
@@ -105,6 +107,10 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     let messages = parseInrAssistantMessages(body);
     const turnId = parseInrAssistantTurnId(body) ?? randomUUID();
     const conversationId = parseInrAssistantConversationId(body) ?? randomUUID();
+    const attachmentScope = { accountId: auth.activeUserId, actorUserId: auth.authUserId, conversationId };
+    const requestedAttachments = (body as { attachments?: unknown }).attachments;
+    parseAssistantAttachments(requestedAttachments);
+    let fileContexts: AssistantFileContext[] = [];
     identity = { conversationId, turnId };
     memory = createInrAssistantMemory({ supabase: auth.supabase, accountId: auth.activeUserId, actorUserId: auth.authUserId });
     const begun = await memory.beginTurn({ ...identity, userText: messages.at(-1)!.content });
@@ -123,6 +129,8 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
       { status: 202, headers: { ...headers, "Retry-After": String(begun.retryAfterSeconds ?? 30) } });
     }
     claimed = begun.claimed;
+    const turnAttachments = await assistantTurnAttachments(attachmentScope, { turnId, createdAt: begun.turn!.createdAt }, requestedAttachments, true);
+    if (turnAttachments.length) fileContexts = await loadAssistantFileContexts(attachmentScope, turnAttachments);
     if (begun.available) {
       const recent = await memory.loadRecent({ conversationId, limit: 6 });
       if (recent.available) {
@@ -137,6 +145,16 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
             ...(turn.status === "completed" && turn.assistantText ? [{ role: "assistant" as const, content: turn.assistantText }] : []),
           ]);
         messages = parseInrAssistantMessages({ messages: [...history, messages.at(-1)!] });
+        // A follow-up can refer to the most recent files without trusting browser history.
+        if (!fileContexts.length) {
+          const previous = recent.turns.filter(turn => turn.turnId !== turnId && turn.status === "completed").slice(-2).reverse();
+          for (const turn of previous) {
+            const refs = await assistantTurnAttachments(attachmentScope, turn);
+            if (!refs.length) continue;
+            fileContexts = (await loadAssistantFileContexts(attachmentScope, refs)).map(file => ({ ...file, note: `Pièce jointe d’un échange précédent, sans nouvelle autorisation d’action. ${file.note}` }));
+            break;
+          }
+        }
       } else {
         // Do not spend AI credits or answer a follow-up without its saved context.
         throw Object.assign(new Error("La mémoire de l’assistant est momentanément indisponible. Merci de réessayer dans quelques instants."), { code: "assistant_memory_unavailable" });
@@ -150,7 +168,7 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     const reply = await generateInrAssistantReply({
       accountId: auth.activeUserId, actorUserId: auth.authUserId, displayName: auth.activeAccount?.displayName ?? "",
       edition, accountContext, clientContext, messages, requestId, request, supabase: auth.supabase, signal: request.signal,
-      memory, turnId,
+      memory, turnId, ...(fileContexts.length ? { fileContexts } : {}),
       ...(onActivity ? { onActivity } : {}),
       // Stable on explicit network retry, scoped by the server. LLM usage and
       // monthly Sol entitlement still use the fresh server requestId above.
@@ -164,9 +182,9 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
   } catch (error) {
     if (claimed && memory && identity) await memory.failTurn(identity).catch(() => undefined);
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "assistant_unavailable";
-    const invalid = error instanceof InrAssistantInputError || error instanceof InrAssistantMemoryInputError || error instanceof InrAssistantMemoryConflictError;
+    const invalid = error instanceof InrAssistantInputError || error instanceof InrAssistantMemoryInputError || error instanceof InrAssistantMemoryConflictError || error instanceof AssistantAttachmentError && error.code !== "attachment_unavailable";
     const limit = code === "ai_gateway_account_limit_reached";
-    const message = invalid || limit
+    const message = error instanceof AssistantAttachmentError ? "Le fichier joint ne peut pas être lu. Joignez-le à nouveau ou essayez un autre fichier." : invalid || limit
       ? (error as Error).message
       : code === "assistant_memory_unavailable"
         ? "La mémoire de l’assistant est momentanément indisponible. Merci de réessayer dans quelques instants."

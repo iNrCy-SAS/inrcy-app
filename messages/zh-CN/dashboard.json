@@ -750,6 +750,8 @@
     "aiGoalsDescription": "列出预期的结果、你的灵感以及要避免的事情。"
   },
   "signatureTools": {
+    "premiumTitle": "Premium 工具",
+    "mailCampaignDescription": "向联系人群发邮件。",
     "createTitle": "创建与发展",
     "pilotTitle": "跟踪与管理",
     "mailCampaigns": "邮件营销",
@@ -757,7 +759,7 @@
     "amplify": "扩大影响",
     "imagine": "激发创意",
     "automate": "自动执行",
-    "adsDescription": "通过多渠道营销活动吸引更多客户。",
+    "adsDescription": "创建并管理广告活动。",
     "adsInfo": {
       "open": "了解 iNr’ADS 广告渠道",
       "title": "如何选择广告渠道？",

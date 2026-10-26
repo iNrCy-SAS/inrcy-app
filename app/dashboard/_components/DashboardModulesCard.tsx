@@ -13,7 +13,7 @@ import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
 import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
-import { useDashboardEdition } from "./DashboardEditionProvider";
+import { useDashboardEdition, useDashboardSubscriptionEdition } from "./DashboardEditionProvider";
 import { DASHBOARD_GEARBOX_ANCHOR_ID } from "../dashboard.scroll";
 import signatureStyles from "./DashboardSignatureTools.module.css";
 import DashboardAgentLogoButton from "./DashboardAgentLogoButton";
@@ -52,6 +52,11 @@ type DashboardModulesCardProps = {
 
 function ArrowIcon() {
   return <span aria-hidden="true">→</span>;
+}
+
+function PremiumCrown() {
+  const gradientId = `premium-crown-${useId().replace(/:/g, "")}`;
+  return <svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id={gradientId} x1="5" y1="7" x2="28" y2="27"><stop stopColor="#fff3b0" /><stop offset=".5" stopColor="#ffc45b" /><stop offset="1" stopColor="#f36bc9" /></linearGradient></defs><path d="m4 10 6 5 6-10 6 10 6-5-3 14H7L4 10Z" fill={`url(#${gradientId})`} stroke="#ffe7a8" strokeWidth="1.4" strokeLinejoin="round" /><path d="M9 28h14" stroke="#ffd575" strokeWidth="2.5" strokeLinecap="round" /><path d="m27 2 .7 2.3L30 5l-2.3.7L27 8l-.7-2.3L24 5l2.3-.7L27 2Z" fill="#fff0c4" /><circle cx="16" cy="19" r="2" fill="#8951c3" /></svg>;
 }
 
 function SettingsIcon() {
@@ -97,6 +102,18 @@ function BoosterWave() {
   );
 }
 
+function PremiumScenery({ tone }: { tone: string }) {
+  return <svg className={signatureStyles.premiumScenery} viewBox="0 0 200 120" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+    <path d="M12 98C42 48 93 117 180 24" strokeDasharray="3 7" opacity=".65" />
+    <path d="m162 12 2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6ZM34 26l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5Z" fill="currentColor" stroke="none" />
+    {tone === "adsCard" ? <><circle cx="128" cy="59" r="30" /><circle cx="128" cy="59" r="20" /><circle cx="128" cy="59" r="9" /><path d="m128 59 44-37m-7-2 9-1-1 9" /><path d="M54 78V59m10 19V48m10 30V38" strokeWidth="5" strokeLinecap="round" /></> : null}
+    {tone === "campaignCard" ? <><rect x="96" y="30" width="70" height="46" rx="8" transform="rotate(-12 130 53)" /><path d="m98 37 35 19 29-28" /><rect x="48" y="62" width="38" height="26" rx="5" transform="rotate(9 67 75)" /><path d="m49 66 17 13 20-8M28 62h25M18 72h24M28 83h14" /></> : null}
+    {tone === "calendarCard" ? <><rect x="92" y="23" width="72" height="66" rx="10" /><path d="M92 43h72m-54-28v17m36-17v17M104 55h8m10 0h8m10 0h8m-44 14h8m10 0h8m10 0h8" strokeLinecap="round" /><circle cx="61" cy="78" r="20" /><path d="M61 65v13l10 7" strokeLinecap="round" /></> : null}
+    {tone === "crmCard" ? <><path d="m65 40 63 20-52 35m52-35 38-33m-38 33 42 32" /><circle cx="65" cy="40" r="16" /><circle cx="76" cy="95" r="12" /><circle cx="166" cy="27" r="13" /><circle cx="170" cy="92" r="14" /><circle cx="128" cy="60" r="23" fill="currentColor" fillOpacity=".12" /><circle cx="128" cy="54" r="7" /><path d="M115 74a13 13 0 0 1 26 0" /></> : null}
+    <circle cx="184" cy="88" r="3" fill="currentColor" stroke="none" /><circle cx="22" cy="48" r="2" fill="currentColor" stroke="none" />
+  </svg>;
+}
+
 export default function DashboardModulesCard({ cockpit, generator, overview, goToModule, openPanel, onOpenStats, onOpenGeneratorSettings, onOpenBoosterPublish, onOpenBoosterStats, adsPilotEnabled = false, inrAgentEnabled = true, standardMode: standardModeOverride = false }: DashboardModulesCardProps) {
   const i18nT = useTranslations("shell");
   const standardT = useTranslations("dashboard.standard");
@@ -107,6 +124,7 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const dashboardEdition = useDashboardEdition();
+  const studioEdition = useDashboardSubscriptionEdition();
   const standardMode = standardModeOverride || dashboardEdition === "standard";
   const accountingEnabled = !standardMode && hasAccountingDashboardAccess(dashboardEdition);
   const [cashModalOpen, setCashModalOpen] = useState(false);
@@ -237,24 +255,26 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
   const calendarLabel = i18nT("inr_calendar_a9473176").replace(/\s*→\s*$/u, "");
   const crmLabel = i18nT("inr_crm_aa43648a").replace(/\s*→\s*$/u, "");
   const copy = {
-    createTitle: signatureT("createTitle"), pilotTitle: signatureT("pilotTitle"), mailCampaigns: signatureT("mailCampaigns"), businessSpace: signatureT("businessSpace"),
+    createTitle: signatureT("createTitle"), pilotTitle: signatureT("pilotTitle"), premiumTitle: signatureT("premiumTitle"), mailCampaigns: signatureT("mailCampaigns"), businessSpace: signatureT("businessSpace"),
     amplify: signatureT("amplify"), imagine: signatureT("imagine"), automate: signatureT("automate"), adsDescription: signatureT("adsDescription"),
     createCampaign: signatureT("createCampaign"), comingSoon: signatureT("comingSoon"), openStudio: signatureT("openStudio"), access: signatureT("access"), manage: signatureT("manage"), open: signatureT("open"), viewStats: signatureT("viewStats"),
   };
-  const signatureTools: { path: string; title: string; description: string; logo?: string; tone: string; glyph: ToolGlyphKind; action: string; testId?: string; panel?: DashboardPanelName; settingsLabel?: string; premiumOnly?: boolean }[] = [
+  const signatureTools: { path: string; title: string; description: string; logo?: string; tone: string; glyph: ToolGlyphKind; action: string; testId?: string; panel?: DashboardPanelName; settingsLabel?: string; premiumOnly?: boolean; onOpen?: () => void; loading?: boolean; unavailable?: boolean }[] = [
     { path: standardMode ? "/dashboard/mails?folder=publications&boxView=sent" : "/dashboard/mails", title: sendLabel, description: standardT("sendDescription"), logo: "/inrsend-logo-seul.png", tone: "sendCard", glyph: "mail", action: standardMode ? standardT("sendCta") : copy.manage, panel: "mails", settingsLabel: t.modules.mailsSettingsAria },
-    { path: studioPath, title: "iNr’Studio", description: `${standardT("studioLine1")} ${standardT("studioLine2")}`, tone: "studioCard", glyph: "sparkles", action: copy.openStudio, testId: standardMode ? "standard-studio-open" : "premium-studio-open" },
+    { path: studioPath, title: "iNr’Studio", description: `${standardT("studioLine1")} ${standardT("studioLine2")}`, tone: "studioCard", glyph: "sparkles", action: copy.open, testId: standardMode ? "standard-studio-open" : "premium-studio-open" },
     { path: "/dashboard/stats", title: statsLabel, description: t.modules.statsSub, logo: "/inrstats-logo-seul.png", tone: "statsCard", glyph: "stats", action: copy.viewStats },
     { path: "/dashboard/e-reputation", title: standardT("reputationName"), description: t.modules.reputationSub, tone: "reputationCard", glyph: "trophy", action: t.modules.reputationCta },
     { path: "/dashboard/agenda", title: calendarLabel, description: t.modules.agendaSub, logo: "/mobile-shortcuts/inrcalendar-bubble.png", tone: "calendarCard", glyph: "planning", action: copy.open, panel: "agenda", settingsLabel: t.modules.agendaSettingsAria, premiumOnly: true },
     { path: "/dashboard/crm", title: crmLabel, description: t.modules.crmSub, logo: "/mobile-shortcuts/inrcrm-bubble.png", tone: "crmCard", glyph: "people", action: copy.access, premiumOnly: true },
+    { path: "/dashboard/ads", title: "iNr’ADS", description: copy.adsDescription, tone: "adsCard", glyph: "ads", action: copy.createCampaign, premiumOnly: true, unavailable: !adsPilotEnabled, testId: adsPilotEnabled ? (standardMode ? "standard-campaign-ads" : "premium-campaign-ads") : "campaign-ads-coming-soon" },
+    { path: "/dashboard?action=campaigns", title: copy.mailCampaigns, description: signatureT("mailCampaignDescription"), tone: "campaignCard", glyph: "mail", action: t.modules.campaignsCta, premiumOnly: true, onOpen: openCampaignModal, loading: isVisible("modal:campaigns"), testId: standardMode ? "standard-campaign-mails" : "premium-campaign-open" },
   ];
   const agentControls = (workspace: InrAgentWorkspace, className: string) => {
     const definition = INR_AGENT_WORKSPACES[workspace];
     const locked = workspace === "campaigns" && standardMode;
     return (
       <div className={`${signatureStyles.agentControls} ${className}`}>
-        <DashboardAgentLogoButton workspace={workspace} enabled={inrAgentEnabled} locked={locked}
+        <DashboardAgentLogoButton workspace={workspace} enabled={inrAgentEnabled && !locked}
           busy={isModuleLoadingVisible(definition.href)}
           onClick={() => locked ? startPanelOpening("abonnement") : startModuleNavigation(definition.href)} />
       </div>
@@ -265,6 +285,7 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
     return (
         <button type="button" className={`${signatureStyles.planningButton} ${signatureStyles.modulePlanning}`}
           data-agent-planning-workspace={workspace}
+          disabled={locked}
           onClick={() => locked ? startPanelOpening("abonnement") : setPlanningWorkspace(workspace)}
           aria-label={`${agentT("planning")} — ${agentT(`${workspace}.name`)}`}
           title={`${agentT("planning")} — ${agentT(`${workspace}.name`)}`}>
@@ -272,18 +293,18 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
         </button>
     );
   };
-  const creationTools = signatureTools.filter((tool) => tool.tone === "studioCard" || tool.tone === "reputationCard");
   const pilotTools = [
     ...signatureTools.filter((tool) => tool.tone === "statsCard"),
-    ...signatureTools.filter((tool) => tool.tone === "sendCard" || tool.tone === "calendarCard" || tool.tone === "crmCard"),
+    ...signatureTools.filter((tool) => tool.tone === "sendCard" || tool.tone === "studioCard" || tool.tone === "reputationCard"),
   ];
+  const premiumTools = ["adsCard", "campaignCard", "calendarCard", "crmCard"].map(tone => signatureTools.find(tool => tool.tone === tone)!);
   const renderSignatureTool = (tool: (typeof signatureTools)[number]) => (
     <article className={`${signatureStyles.signatureCard} ${signatureStyles[tool.tone]}`} key={tool.path}>
-      {tool.tone === "studioCard" || tool.tone === "reputationCard" ? (
-        <DashboardToolArtwork kind={tool.tone === "studioCard" ? "studio" : "reputation"} className={signatureStyles.creationArtwork} />
-      ) : null}
+      {tool.premiumOnly ? <PremiumScenery tone={tool.tone} /> : null}
       <span className={signatureStyles.signatureLogo} aria-hidden="true">{tool.logo ? <Image src={tool.logo} alt="" width={52} height={52} /> : <ToolGlyph kind={tool.glyph} />}</span>
-      <div className={signatureStyles.signatureCopy}><h4>{tool.title}</h4><p title={tool.description}>{tool.description}</p></div>
+      <div className={signatureStyles.signatureCopy}><h4>{tool.title}{tool.tone === "studioCard" ? <span className={signatureStyles.studioEdition} data-studio-edition={studioEdition} role="img" aria-label={`iNr’Studio — ${studioEdition === "standard" ? "Standard" : studioEdition === "founder" ? "Founder" : "Premium"}`} title={`iNr’Studio — ${studioEdition === "standard" ? "Standard" : studioEdition === "founder" ? "Founder" : "Premium"}`}>
+        {studioEdition === "standard" ? <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 2 9 10-9 10L3 12 12 2Z" fill="#48baff" fillOpacity=".2" stroke="#89e4ff" strokeWidth="1.6" /><path d="m8 12 3 3 5-6" stroke="#cefbff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg> : <PremiumCrown />}
+      </span> : null}</h4><p title={tool.description}>{tool.description}</p></div>
       {tool.tone === "studioCard" ? (
         <button type="button" className={`${signatureStyles.settingsButton} ${signatureStyles.studioLibrary}`}
           aria-label={t.userMenu.media} title={t.userMenu.media} data-dashboard-prefetch="/dashboard/mediatheque"
@@ -294,6 +315,8 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
         </button>
       ) : null}
       {tool.tone === "statsCard" ? planningControl("stats") : null}
+      {tool.tone === "campaignCard" ? planningControl("campaigns") : null}
+      {tool.tone === "adsCard" ? <button type="button" className={`${signatureStyles.settingsButton} ${signatureStyles.adsInfoButton}`} disabled={standardMode} onClick={() => setAdsInfoOpen(true)} aria-label={signatureT("adsInfo.open")} title={signatureT("adsInfo.open")} aria-haspopup="dialog">i</button> : null}
       {tool.tone === "statsCard" && onOpenGeneratorSettings ? (
         <button type="button" className={`${signatureStyles.settingsButton} ${signatureStyles.statsSettings}`}
           onClick={onOpenGeneratorSettings} aria-label={heroT("settingsAria")} title={heroT("settingsTitle")}
@@ -305,12 +328,12 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
         <button
           type="button"
           className={signatureStyles.settingsButton}
-          aria-label={standardMode ? `${tool.settingsLabel} — ${t.modules.campaignsPremiumLabel}` : tool.settingsLabel}
+          aria-label={tool.settingsLabel}
           title={t.notifications.settings}
           onClick={() => startPanelOpening(standardMode ? "abonnement" : tool.panel!)}
-          disabled={isPanelLoadingVisible(standardMode ? "abonnement" : tool.panel)}
+          disabled={standardMode && tool.premiumOnly || isPanelLoadingVisible(tool.panel)}
           aria-busy={isPanelLoadingVisible(standardMode ? "abonnement" : tool.panel) || undefined}
-        >{standardMode ? <DashboardPremiumLockIcon /> : <SettingsIcon />}</button>
+        ><SettingsIcon /></button>
       ) : null}
       {tool.tone === "statsCard" && overview ? (
         <dl className={signatureStyles.statsOverview}>
@@ -322,21 +345,20 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
       ) : null}
       <div className={signatureStyles.cardActions}>
         <div className={signatureStyles.manualToolActions}>
-        {tool.tone === "sendCard" || tool.tone === "calendarCard" || tool.tone === "crmCard" ? (
-          <DashboardToolArtwork kind={tool.tone === "sendCard" ? "send" : tool.tone === "calendarCard" ? "calendar" : "contacts"} className={signatureStyles.pilotArtwork} />
-        ) : tool.tone !== "studioCard" && tool.tone !== "reputationCard" ? <span className={signatureStyles.signatureArt} aria-hidden="true"><ToolGlyph kind={tool.glyph} /></span> : null}
+        {tool.tone !== "statsCard" ? <DashboardToolArtwork kind={tool.tone === "sendCard" ? "send" : tool.tone === "calendarCard" ? "calendar" : tool.tone === "crmCard" ? "contacts" : tool.tone === "studioCard" ? "studio" : tool.tone === "reputationCard" ? "reputation" : tool.tone === "adsCard" ? "ads" : "mail"} className={signatureStyles.pilotArtwork} /> : <span className={signatureStyles.signatureArt} aria-hidden="true"><ToolGlyph kind={tool.glyph} /></span>}
         <button
           type="button"
           className={signatureStyles.toolButton}
           data-testid={tool.testId}
-          data-dashboard-prefetch={standardMode && tool.premiumOnly ? undefined : tool.path}
-          onClick={standardMode && tool.premiumOnly ? () => startPanelOpening("abonnement") : tool.path === "/dashboard/stats" ? openStats : () => startModuleNavigation(tool.path)}
-          disabled={standardMode && tool.premiumOnly ? isPanelLoadingVisible("abonnement") : isModuleLoadingVisible(tool.path)}
-          aria-busy={(standardMode && tool.premiumOnly ? isPanelLoadingVisible("abonnement") : isModuleLoadingVisible(tool.path)) || undefined}
-          aria-label={standardMode && tool.premiumOnly ? `${tool.title} — ${t.modules.campaignsPremiumLabel}` : tool.title}
-        >{standardMode && tool.premiumOnly ? <><DashboardPremiumLockIcon />{t.modules.campaignsPremiumLabel}</> : <>{isModuleLoadingVisible(tool.path) ? i18nT("chargement_01cba1df") : tool.action}<ArrowIcon /></>}</button>
+          data-dashboard-prefetch={tool.unavailable || tool.onOpen || standardMode && tool.premiumOnly ? undefined : tool.path}
+          onClick={standardMode && tool.premiumOnly ? () => startPanelOpening("abonnement") : tool.onOpen || (tool.path === "/dashboard/stats" ? openStats : () => startModuleNavigation(tool.path))}
+          disabled={Boolean(standardMode && tool.premiumOnly) || tool.unavailable || tool.loading || isModuleLoadingVisible(tool.path)}
+          aria-busy={(standardMode && tool.premiumOnly ? isPanelLoadingVisible("abonnement") : tool.loading || isModuleLoadingVisible(tool.path)) || undefined}
+          aria-label={tool.title}
+        >{tool.unavailable ? copy.comingSoon : <>{tool.loading || isModuleLoadingVisible(tool.path) ? i18nT("chargement_01cba1df") : tool.action}<ArrowIcon /></>}</button>
         </div>
         {tool.tone === "statsCard" ? agentControls("stats", signatureStyles.statsAgent) : null}
+        {tool.tone === "campaignCard" ? agentControls("campaigns", signatureStyles.compactCampaignAgent) : null}
       </div>
     </article>
   );
@@ -345,105 +367,57 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
         <div className={signatureStyles.lowerRow} data-dashboard-standard-lower-blocks={standardMode ? "true" : undefined} data-dashboard-premium-lower-blocks={!standardMode ? "true" : undefined}>
           {cockpit}
             <article className={signatureStyles.boosterCard}>
-              {planningControl("publications")}
-              {agentControls("publications", signatureStyles.publicationsAgent)}
               <BoosterWave />
               <span className={signatureStyles.boosterAura} aria-hidden="true" />
               <DashboardToolArtwork kind="rocket" className={signatureStyles.boosterArtwork} />
               <div className={signatureStyles.boosterCopy}>
-                <span className={signatureStyles.eyebrow}>{standardT("boosterEyebrow")}</span>
                 <h4>{t.modules.publishTitle}</h4>
                 <p>{standardT("boosterLine1")}<br /><strong>{standardT("boosterLine2")}</strong></p>
-                <div className={signatureStyles.boosterManualActions}>
+              </div>
+              <div className={signatureStyles.boosterPublishAction}>
                 <button
                   type="button"
-                  className={signatureStyles.primaryButton}
+                  className={`${signatureStyles.primaryButton} ${signatureStyles.publishButton}`}
                   data-testid={standardMode ? "standard-booster-publish" : "premium-booster-publish"}
                   onClick={openPublishModal}
                   disabled={isVisible("modal:publish")}
                   aria-busy={isVisible("modal:publish") || undefined}
                   aria-label={t.modules.publishCta}
-                >{isVisible("modal:publish") ? i18nT("chargement_01cba1df") : t.modules.publishCta}<ArrowIcon /></button>
+                >{isVisible("modal:publish") ? i18nT("chargement_01cba1df") : t.modules.publishCta}</button>
+              </div>
+              <div className={signatureStyles.boosterSummaryActions}>
+                <span className={signatureStyles.eyebrow}>{standardT("boosterEyebrow")}</span>
+                <div className={signatureStyles.boosterSummaryButtons}>
               <button
                 type="button"
                 className={signatureStyles.boosterStats}
                 aria-label={t.modules.boosterStatsTitle}
                 title={t.modules.boosterStatsTitle}
                 onClick={openBoosterSummary}
-              ><ToolGlyph kind="stats" /><span>{standardT("boosterSummary")}</span></button>
+              ><ToolGlyph kind="stats" /></button>
+                  {planningControl("publications")}
                 </div>
               </div>
+              {agentControls("publications", signatureStyles.publicationsAgent)}
 
             </article>
           {generator}
-          <section className={`${signatureStyles.panel} ${signatureStyles.creationPanel}`} aria-labelledby="dashboard-create-title" id={DASHBOARD_GEARBOX_ANCHOR_ID}>
+          <section className={`${signatureStyles.panel} ${signatureStyles.creationPanel}`} aria-labelledby="dashboard-pilot-title" id={DASHBOARD_GEARBOX_ANCHOR_ID}>
             <header className={signatureStyles.panelHeader}>
-              <h3 id="dashboard-create-title"><span className={signatureStyles.headingIcon} aria-hidden="true">ϟ</span>{copy.createTitle}</h3>
+              <h3 id="dashboard-pilot-title"><span className={signatureStyles.headingIcon} aria-hidden="true"><ToolGlyph kind="stats" /></span>{copy.pilotTitle}</h3>
             </header>
-
-            <div className={signatureStyles.creationGrid} data-dashboard-standard-secondary-tools={standardMode ? "true" : undefined} data-dashboard-premium-secondary-tools={!standardMode ? "true" : undefined}>
-              {creationTools.map(renderSignatureTool)}
-              <article className={`${signatureStyles.creationCard} ${signatureStyles.adsCard}`}>
-                <span className={signatureStyles.cardLogo} aria-hidden="true"><ToolGlyph kind="ads" /></span>
-                <div className={signatureStyles.creationCopy}>
-                  <span className={signatureStyles.eyebrow}>{copy.amplify}</span>
-                  <h4>iNr’ADS</h4>
-                  <p>{copy.adsDescription}</p>
-                </div>
-                <button
-                  type="button"
-                  className={signatureStyles.adsInfoButton}
-                  onClick={() => setAdsInfoOpen(true)}
-                  aria-label={signatureT("adsInfo.open")}
-                  title={signatureT("adsInfo.open")}
-                  aria-haspopup="dialog"
-                >i</button>
-                <DashboardToolArtwork kind="ads" className={signatureStyles.adsArtwork} />
-                <button
-                  type="button"
-                  className={signatureStyles.cardButton}
-                  data-testid={adsPilotEnabled ? (standardMode ? "standard-campaign-ads" : "premium-campaign-ads") : "campaign-ads-coming-soon"}
-                  data-dashboard-prefetch={adsPilotEnabled && !standardMode ? "/dashboard/ads" : undefined}
-                  onClick={adsPilotEnabled ? () => standardMode ? startPanelOpening("abonnement") : startModuleNavigation("/dashboard/ads") : undefined}
-                  disabled={!adsPilotEnabled || isModuleLoadingVisible("/dashboard/ads")}
-                  aria-busy={isModuleLoadingVisible("/dashboard/ads") || undefined}
-                  aria-label={!adsPilotEnabled ? `iNr’ADS — ${copy.comingSoon}` : standardMode ? `iNr’ADS — ${t.modules.campaignsPremiumLabel}` : "iNr’ADS"}
-                >{!adsPilotEnabled ? copy.comingSoon : isModuleLoadingVisible("/dashboard/ads") ? i18nT("chargement_01cba1df") : standardMode ? <><DashboardPremiumLockIcon />{t.modules.campaignsPremiumLabel}</> : copy.createCampaign}{adsPilotEnabled && !standardMode ? <ArrowIcon /> : null}</button>
-              </article>
-
-              <article className={`${signatureStyles.relationshipCard} ${signatureStyles.mailCampaignCard}`}>
-                <DashboardToolArtwork kind="mail" className={signatureStyles.mailArtwork} />
-                {planningControl("campaigns")}
-                <span className={signatureStyles.relationshipLogo} aria-hidden="true"><ToolGlyph kind="mail" /></span>
-                <div className={signatureStyles.relationshipCopy}>
-                  <h4>{copy.mailCampaigns}</h4><p>{t.modules.campaignsSub}</p>
-                </div>
-                <div className={signatureStyles.mailCampaignManualActions}>
-                  <button
-                    type="button"
-                    className={signatureStyles.cardButton}
-                    data-testid={standardMode ? "standard-campaign-mails" : "premium-campaign-open"}
-                    onClick={openCampaignModal}
-                    disabled={standardMode ? isPanelLoadingVisible("abonnement") : isVisible("modal:campaigns")}
-                    aria-busy={(standardMode ? isPanelLoadingVisible("abonnement") : isVisible("modal:campaigns")) || undefined}
-                    aria-label={standardMode ? `${t.modules.mailCampaignTitle} — ${t.modules.campaignsPremiumLabel}` : t.modules.mailCampaignTitle}
-                  >{standardMode ? <><DashboardPremiumLockIcon />{t.modules.campaignsPremiumLabel}</> : <>{isVisible("modal:campaigns") ? i18nT("chargement_01cba1df") : t.modules.campaignsCta}<ArrowIcon /></>}</button>
-                </div>
-                {agentControls("campaigns", signatureStyles.campaignsAgent)}
-              </article>
-
+            <div className={signatureStyles.signatureGrid} data-dashboard-relationship-tools="true" data-dashboard-standard-secondary-tools={standardMode ? "true" : undefined} data-dashboard-premium-secondary-tools={!standardMode ? "true" : undefined}>
+              {pilotTools.map(renderSignatureTool)}
             </div>
           </section>
 
-          <section className={`${signatureStyles.panel} ${signatureStyles.pilotPanel}`} aria-labelledby="dashboard-pilot-title">
+          <section className={`${signatureStyles.panel} ${signatureStyles.pilotPanel}`} aria-labelledby="dashboard-premium-title">
             <header className={signatureStyles.panelHeader}>
-              <h3 id="dashboard-pilot-title"><span className={signatureStyles.headingIcon} aria-hidden="true"><ToolGlyph kind="stats" /></span>{copy.pilotTitle}</h3>
-              <span className={signatureStyles.panelCaption}>{copy.businessSpace}</span>
+              <h3 id="dashboard-premium-title"><span className={`${signatureStyles.headingIcon} ${signatureStyles.premiumHeadingIcon}`} aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="dashboard-premium-crown" x1="5" y1="7" x2="28" y2="27"><stop stopColor="#fff3b0" /><stop offset=".5" stopColor="#ffc45b" /><stop offset="1" stopColor="#f36bc9" /></linearGradient></defs><path d="m4 10 6 5 6-10 6 10 6-5-3 14H7L4 10Z" fill="url(#dashboard-premium-crown)" stroke="#ffe7a8" strokeWidth="1.4" strokeLinejoin="round" /><path d="M9 28h14" stroke="#ffd575" strokeWidth="2.5" strokeLinecap="round" /><path d="m27 2 .7 2.3L30 5l-2.3.7L27 8l-.7-2.3L24 5l2.3-.7L27 2Z" fill="#fff0c4" /><circle cx="16" cy="19" r="2" fill="#8951c3" /></svg></span>{copy.premiumTitle}{standardMode ? <span className={signatureStyles.premiumGateLock} role="img" aria-label={t.modules.campaignsPremiumLabel}><DashboardPremiumLockIcon /></span> : null}</h3>
             </header>
-
-            <div className={signatureStyles.signatureGrid} data-dashboard-relationship-tools="true">
-                {pilotTools.map(renderSignatureTool)}
-            </div>
+            <fieldset disabled={standardMode} aria-labelledby="dashboard-premium-title" className={`${signatureStyles.signatureGrid} ${signatureStyles.premiumGrid}`} data-dashboard-premium-tools="true">
+              {premiumTools.map(renderSignatureTool)}
+            </fieldset>
           </section>
         </div>
 

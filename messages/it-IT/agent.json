@@ -846,6 +846,7 @@
   "settings_selection_empty": "Nessuna selezione",
   "workspaces": {
     "publications": {
+      "automate": "Automatizza",
       "name": "Pubblicazioni",
       "description": "I tuoi post, preparati e programmati"
     },

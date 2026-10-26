@@ -661,6 +661,14 @@
   pointer-events: none;
   user-select: none;
 }
+.signatureGrid.premiumGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(164px, 1fr)); }
+.adsCard.signatureCard { --tool-accent: #ef8be1; border-color: #cc70b5a8; background: linear-gradient(125deg, #622452, #452367 65%, #642a84); }
+.campaignCard.signatureCard { --tool-accent: #ffc6a7; --control-border: #f2bb9d; --control-icon: #fff0e5; --control-start: #a86a4c; --control-end: #7c4c4b; border-color: #db957b9e; background: linear-gradient(125deg, #704b40, #663450 65%, #723061); }
+.campaignCard .toolButton { border-color: #f2bb9d; background: linear-gradient(105deg, #de7848, #bf4d7b); }
+.compactCampaignAgent { justify-content: flex-end; }
+.premiumGrid .campaignCard .cardActions { flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.premiumGrid .campaignCard .manualToolActions { width: auto; flex: 1; }
+.signatureGrid .studioCard .signatureCopy h4 { padding-right: 27px; }
 .signatureGrid > .signatureCard:not(.statsCard) .manualToolActions {
   justify-content: space-between;
   flex-wrap: nowrap;
@@ -757,4 +765,57 @@
   .statsCard { min-height: 0; padding: 14px; }
   .statsOverview { margin-top: 16px; }
   .statsCard .cardActions { padding-top: 16px; }
+}
+
+/* Shared compact cards: one Stats overview with three tools, four Premium tools. */
+.signatureGrid.premiumGrid > .signatureCard:last-child { grid-column: auto; }
+.signatureGrid.premiumGrid { border: 0; margin: 0; padding: 0; min-inline-size: 0; }
+.premiumGateLock { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-left: 4px; color: #ffd882; filter: drop-shadow(0 0 7px #ffd27755); }
+.premiumGateLock svg { width: 30px; height: 30px; }
+.premiumGrid:disabled button:disabled { background: #36405c !important; color: #b0b7c7 !important; border-color: #818a9d66 !important; box-shadow: none !important; filter: grayscale(1); opacity: .58; cursor: default; }
+.premiumHeadingIcon { width: 32px; height: 32px; color: #ffd67f; filter: drop-shadow(0 0 7px #ffaf5766); }
+.premiumHeadingIcon svg { width: 32px; height: 32px; }
+.signatureGrid .studioCard .signatureCopy h4 { display: inline-flex; align-items: center; gap: 6px; }
+.studioEdition { display: inline-flex; flex: 0 0 22px; width: 22px; height: 22px; color: #a5eaff; filter: drop-shadow(0 0 5px #58baff66); }
+.studioEdition svg { width: 22px; height: 22px; }
+.studioEdition[data-studio-edition="premium"], .studioEdition[data-studio-edition="founder"] { filter: drop-shadow(0 0 5px #ffd47866); }
+.premiumScenery { position: absolute; z-index: -1; right: 1%; top: 27%; width: 57%; height: 60%; color: var(--tool-accent); opacity: .24; pointer-events: none; }
+.signatureGrid > .signatureCard:not(.statsCard) .pilotArtwork { flex: 0 1 108px; width: 108px; min-width: 56px; height: 70px; opacity: .88; visibility: visible; }
+.premiumGrid > .signatureCard:not(.statsCard) .pilotArtwork { flex-basis: 128px; width: 128px; height: 82px; opacity: .92; }
+.signatureGrid > .signatureCard:not(.statsCard) .cardActions { align-items: flex-end; }
+.signatureGrid > .signatureCard:not(.statsCard) .manualToolActions { align-items: flex-end; justify-content: space-between; }
+.signatureGrid .compactCampaignAgent { align-self: flex-end; }
+.boosterCard { display: grid; box-sizing: border-box; min-height: 300px; grid-template-columns: minmax(0, 1.1fr) minmax(118px, .8fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "brand summary ." "publish summary agent"; gap: 14px 12px; align-items: start; padding-bottom: 18px; }
+.boosterCard .boosterCopy { grid-area: brand; width: 100%; max-width: 100%; text-align: left; align-self: start; }
+.boosterPublishAction { grid-area: publish; position: relative; z-index: 3; align-self: end; justify-self: start; }
+.boosterSummaryActions { grid-area: summary; position: relative; z-index: 3; align-self: start; justify-self: center; display: flex; flex-direction: column; align-items: center; gap: 12px; padding-top: 4px; }
+.boosterSummaryActions > .eyebrow { display: flex; align-items: center; justify-content: center; gap: 6px; text-align: center; font-size: 14px; font-weight: 800; line-height: 1.3; letter-spacing: .035em; color: #fff; text-shadow: 0 0 12px #bcdeff4d; }
+.boosterSummaryButtons { display: flex; align-items: center; gap: 10px; }
+.boosterSummaryButtons .boosterStats, .boosterSummaryButtons .modulePlanning { position: static; display: inline-flex; align-items: center; justify-content: center; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 10px; border-radius: 14px; }
+.boosterSummaryButtons .boosterStats > svg { width: 22px; height: 22px; }
+.boosterCard > .publicationsAgent { grid-area: agent; position: relative; bottom: auto; right: auto; align-self: end; justify-self: end; }
+.boosterCard .boosterCopy h4 { color: #fff; background: none; -webkit-text-fill-color: #fff; text-transform: none; font-style: normal; font-size: clamp(42px, 3.6vw, 62px); text-shadow: 0 1px 1px #ffffff70, 0 0 18px #b5eaff35; }
+.boosterCard .boosterCopy p { font-size: clamp(16px, 1.2vw, 20px); line-height: 1.45; }
+.boosterPublishAction .publishButton { display: inline-flex; justify-content: center; align-items: center; width: 150px; min-width: 150px; height: 54px; min-height: 54px; padding: 12px 22px; border: 2px solid #a7ecff; border-radius: 14px; background: linear-gradient(140deg, #00c6ed, #1768f1 55%, #8b32f8); box-shadow: inset 0 1px 0 #ffffff65, 0 5px 24px #008bff55; color: white; font-size: 17px; font-weight: 800; }
+.boosterPublishAction .publishButton:hover { border-color: white; box-shadow: inset 0 1px 0 #ffffff85, 0 7px 28px #3f9dff80; }
+@media (max-width: 1100px) {
+  .boosterCard { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto minmax(70px, 1fr) auto; grid-template-areas: "brand summary" "publish publish" "agent agent"; }
+  .boosterCard .boosterCopy { width: 100%; max-width: 100%; }
+  .boosterCard .boosterCopy h4 { font-size: clamp(29px, 8vw, 42px); }
+  .boosterCard .boosterCopy p { font-size: 16px; }
+  .boosterCard > .publicationsAgent { width: max-content; }
+  .boosterSummaryActions > .eyebrow { font-size: 12px; }
+  .signatureGrid > .signatureCard:not(.statsCard) .pilotArtwork { flex: 0 1 112px; width: 112px; height: 72px; visibility: visible; }
+  .boosterPublishAction { justify-self: start; align-self: center; }
+  .boosterPublishAction .publishButton { width: 180px; min-width: 180px; height: 58px; min-height: 58px; border-radius: 14px; font-size: 17px; }
+}
+@media (max-width: 700px) {
+  .signatureGrid.premiumGrid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: auto; }
+}
+@media (min-width: 1101px) {
+  .lowerRow { grid-template-rows: clamp(246px, 26dvh, 264px) 68px auto; }
+  .boosterCard { min-height: 0; padding-top: 18px; padding-bottom: 18px; row-gap: 12px; }
+  .boosterCard .boosterCopy h4 { font-size: clamp(42px, 3.2vw, 52px); }
+  .boosterCard .boosterCopy p { margin: 5px 0 7px; font-size: clamp(16px, 1.1vw, 18px); line-height: 1.35; }
+  .boosterPublishAction .publishButton { width: 150px; min-width: 150px; height: 54px; min-height: 54px; }
 }

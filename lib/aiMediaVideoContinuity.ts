@@ -25,6 +25,7 @@ export async function extractAiMediaVideoContinuityFrame(args: {
   durationSeconds: number;
   sourceStartSeconds?: number;
   signal?: AbortSignal;
+  localOnly?: boolean;
 }): Promise<AiMediaVideoContinuityFrame> {
   args.signal?.throwIfAborted();
   const sourceStart = args.sourceStartSeconds ?? 0;
@@ -48,7 +49,7 @@ export async function extractAiMediaVideoContinuityFrame(args: {
     const tailStart = sourceStart + Math.max(0, args.durationSeconds - 1);
     await execFileAsync(ffmpegPath, [
       "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
-      "-ss", tailStart.toFixed(6), "-i", sourcePath,
+      "-ss", tailStart.toFixed(6), ...(args.localOnly ? ["-protocol_whitelist", "file,pipe"] : []), "-i", sourcePath,
       "-t", Math.min(1, args.durationSeconds).toFixed(6),
       "-map", "0:v:0", "-an",
       "-vf", "scale=1280:1280:force_original_aspect_ratio=decrease,setsar=1",

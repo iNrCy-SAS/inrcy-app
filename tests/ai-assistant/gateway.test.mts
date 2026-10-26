@@ -11,6 +11,8 @@ import * as conversation from "../../lib/inrAssistantConversation.ts";
 import * as routing from "../../lib/inrAssistantToolRouting.ts";
 import * as activity from "../../lib/inrAssistantActivity.ts";
 import * as gatewayDiagnostics from "../../lib/inrAssistantGatewayDiagnostics.ts";
+import * as attachmentPolicy from "../../lib/inrAssistantAttachments.ts";
+import * as attachmentPrompt from "../../lib/inrAssistantAttachmentPrompt.ts";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
 import type { InrAssistantMediaResult } from "../../lib/inrAssistantMediaTools.ts";
 import type { InrAssistantPublicationResult } from "../../lib/inrAssistantPublicationTools.ts";
@@ -81,6 +83,8 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "@/lib/aiGatewayOperationTelemetry": { recordAiGatewayOperationCall: () => {} },
     "@/lib/upstashMode": { isUpstashEnabled: () => !options.productionNoRedis },
     "./inrAssistantPolicy.ts": policy,
+    "./inrAssistantAttachments.ts": attachmentPolicy,
+    "./inrAssistantAttachmentPrompt.ts": attachmentPrompt,
     "./inrAssistantQuota.ts": { reserveInrAssistantRequest: async () => ({ solReserved: options.sol ?? false }),
       finalizeInrAssistantRequest: async (_quota: unknown, outcome: { success: boolean }) => { finalized.push(outcome); } },
     "./inrAssistantConversation.ts": conversation,

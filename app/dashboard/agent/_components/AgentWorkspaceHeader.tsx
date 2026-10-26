@@ -29,6 +29,7 @@ type Props = {
 export default function AgentWorkspaceHeader(props: Props) {
   const t = useTranslations("agent.workspaces");
   const definition = INR_AGENT_WORKSPACES[props.workspace];
+  const prepareLabel = props.preparing ? t("preparing") : t(props.workspace === "stats" ? "sendReport" : props.workspace === "campaigns" ? "prepare" : "generate");
 
   return (
     <header className={styles.header} data-agent-workspace-header={props.workspace}>
@@ -53,14 +54,14 @@ export default function AgentWorkspaceHeader(props: Props) {
         <div className={styles.actions}>
           <span className={styles.help}><HelpButton onClick={props.onHelp} title={t("help")} size={34} /></span>
           {props.workspace === "publications" ? (
-            <button type="button" className={`${appStyles.headerScheduleButton} ${styles.ideas}`} onClick={props.onIdeas} disabled={props.busy}><span aria-hidden="true">💡</span>{t("ideas")}</button>
+            <button type="button" className={`${appStyles.headerScheduleButton} ${styles.ideas} ${styles.actionIcon}`} onClick={props.onIdeas} disabled={props.busy} aria-label={t("ideas")} title={t("ideas")}><span aria-hidden="true">💡</span><span className={styles.actionText}>{t("ideas")}</span></button>
           ) : null}
-          <button type="button" className={`${appStyles.headerToolButton} ${styles.prepare}`} onClick={props.onPrepare}
-            disabled={props.prepareDisabled} aria-busy={props.preparing} title={props.prepareHelp}>
-            <span aria-hidden="true">⚡</span>{props.preparing ? t("preparing") : t(props.workspace === "stats" ? "sendReport" : props.workspace === "campaigns" ? "prepare" : "generate")}
+          <button type="button" className={`${appStyles.headerToolButton} ${styles.prepare} ${styles.actionIcon}`} onClick={props.onPrepare}
+            disabled={props.prepareDisabled} aria-busy={props.preparing} aria-label={prepareLabel} title={props.prepareHelp || prepareLabel}>
+            <span aria-hidden="true">⚡</span><span className={styles.actionText}>{prepareLabel}</span>
           </button>
-          <button type="button" className={appStyles.headerScheduleButton} onClick={props.onPlanning}><span className={styles.icon} aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2m-8 3h2" /></svg></span>{t("planning")}</button>
-          <button type="button" className={appStyles.headerToolButton} onClick={props.onSettings} disabled={props.busy}><span className={styles.icon} aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m10 3-.7 2.2-2 .9-2.2-.5-2 3.4 1.5 1.8v2.4L3.1 15l2 3.4 2.2-.5 2 .9L10 21h4l.7-2.2 2-.9 2.2.5 2-3.4-1.5-1.8v-2.4L20.9 9l-2-3.4-2.2.5-2-.9L14 3Z" /><circle cx="12" cy="12" r="3" /></svg></span>{t("settings")}</button>
+          <button type="button" className={`${appStyles.headerScheduleButton} ${styles.actionIcon}`} onClick={props.onPlanning} aria-label={t("planning")} title={t("planning")}><span className={styles.icon} aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2m-8 3h2" /></svg></span><span className={styles.actionText}>{t("planning")}</span></button>
+          <button type="button" className={`${appStyles.headerToolButton} ${styles.actionIcon}`} onClick={props.onSettings} disabled={props.busy} aria-label={t("settings")} title={t("settings")}><span className={styles.icon} aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m10 3-.7 2.2-2 .9-2.2-.5-2 3.4 1.5 1.8v2.4L3.1 15l2 3.4 2.2-.5 2 .9L10 21h4l.7-2.2 2-.9 2.2.5 2-3.4-1.5-1.8v-2.4L20.9 9l-2-3.4-2.2.5-2-.9L14 3Z" /><circle cx="12" cy="12" r="3" /></svg></span><span className={styles.actionText}>{t("settings")}</span></button>
           <button type="button" data-enabled={props.enabled} className={`${appStyles.settingsHeaderSwitch} ${styles.toggle}`}
             onClick={props.onToggle} disabled={props.busy || props.preparing} title={t("configureAutomation")}>
             {t(props.enabled ? "enabled" : "paused")}<span className={styles.track} aria-hidden="true"><i /></span>

@@ -439,28 +439,6 @@ export default function TiktokPublicationSettingsModal({
           </div>
           {creatorInfo ? (
           <div className={reviewStyles.account}>
-                <div
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 999,
-                    overflow: "hidden",
-                    display: "grid",
-                    placeItems: "center",
-                    background: "linear-gradient(135deg, #087f96, #2968c0)",
-                    border: "1px solid rgba(255,255,255,0.16)",
-                    color: "#fff",
-                    fontWeight: 900,
-                    fontSize: 18,
-                    textTransform: "lowercase",
-                  }}
-                >
-                  {creatorInfo.avatarUrl ? (
-                    <img src={creatorInfo.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : (
-                    (accountLabel.replace(/^@/, "").slice(0, 1) || "t").toLowerCase()
-                  )}
-                </div>
                 <div className={reviewStyles.accountIdentity}>
                   <strong className={reviewStyles.accountName} title={accountLabel}>{accountLabel}</strong>
                   {showAccountDisplayName ? (

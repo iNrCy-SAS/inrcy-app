@@ -750,6 +750,8 @@
     "aiGoalsDescription": "Definisci i risultati, le ispirazioni e ciò che deve essere evitato."
   },
   "signatureTools": {
+    "premiumTitle": "Strumenti Premium",
+    "mailCampaignDescription": "Invia email di gruppo ai tuoi contatti.",
     "createTitle": "Creare e crescere",
     "pilotTitle": "Monitorare e gestire",
     "mailCampaigns": "Campagne email",
@@ -757,7 +759,7 @@
     "amplify": "AMPLIFICA",
     "imagine": "IMMAGINA",
     "automate": "AUTOMATIZZA",
-    "adsDescription": "Campagne multicanale per raggiungere più clienti.",
+    "adsDescription": "Crea e gestisci le tue campagne pubblicitarie.",
     "adsInfo": {
       "open": "Informazioni sui canali iNr’ADS",
       "title": "Quale canale scegliere per la campagna?",

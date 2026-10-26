@@ -8,6 +8,7 @@ import ts from "typescript";
 import * as conversation from "../../lib/inrAssistantConversation.ts";
 import * as clientContext from "../../lib/inrAssistantClientContext.ts";
 import * as activity from "../../lib/inrAssistantActivity.ts";
+import * as attachmentPolicy from "../../lib/inrAssistantAttachments.ts";
 import type * as Route from "../../app/api/assistant/chat/route.ts";
 
 const { NextResponse } = createRequire(import.meta.url)("next/server") as typeof import("next/server");
@@ -119,6 +120,8 @@ function harness(options: {
       return { message: "Voici la prochaine étape.", accountId: "service-cannot-replace-scope", requestId: "service-cannot-replace-trace" };
     } },
     "@/lib/inrAssistantConversation": conversation,
+    "@/lib/inrAssistantAttachments": attachmentPolicy,
+    "@/lib/inrAssistantAttachmentStorage": { assistantTurnAttachments: async () => [], loadAssistantFileContexts: async () => [] },
     "@/lib/inrAssistantClientContext": clientContext,
     "@/lib/inrAssistantActivity": activity,
     "@/lib/inrAssistantMemory": { InrAssistantMemoryConflictError: MemoryConflictError, InrAssistantMemoryInputError: MemoryInputError,

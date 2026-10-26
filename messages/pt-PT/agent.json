@@ -846,6 +846,7 @@
   "settings_selection_empty": "Sem seleção",
   "workspaces": {
     "publications": {
+      "automate": "Automatizar",
       "name": "Publicações",
       "description": "As suas publicações, preparadas e agendadas"
     },

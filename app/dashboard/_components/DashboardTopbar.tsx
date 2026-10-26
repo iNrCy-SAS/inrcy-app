@@ -266,7 +266,7 @@ export default function DashboardTopbar({
           fetchPriority="high"
         />
         <div className={styles.brandText}>
-          <div className={styles.brandTag}>{t.topbar.brandTag}</div>
+          <div className={styles.brandTag}>{t.topbar.brandTag}<svg className={styles.brandTagStar} viewBox="0 0 36 28" fill="none" aria-hidden="true"><path d="m4 22 13-8M2 16l11-5M10 26l10-8" stroke="#81e4ff" strokeWidth="1.8" strokeLinecap="round" /><path d="m25 2 2.7 6.7L35 10l-5.5 4.8.7 7.2-6.2-3.8-6.7 2.9 1.7-7-4.7-5.5 7.2-.3L25 2Z" fill="#fff0b6" stroke="#ffcafa" strokeLinejoin="round" /></svg></div>
         </div>
       </div>
 

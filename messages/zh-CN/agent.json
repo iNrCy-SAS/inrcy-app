@@ -846,6 +846,7 @@
   "settings_selection_empty": "尚未选择",
   "workspaces": {
     "publications": {
+      "automate": "自动化",
       "name": "发布",
       "description": "准备并安排您的帖子"
     },

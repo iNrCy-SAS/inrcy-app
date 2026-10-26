@@ -846,6 +846,7 @@
   "settings_selection_empty": "Niets geselecteerd",
   "workspaces": {
     "publications": {
+      "automate": "Automatiseren",
       "name": "Publicaties",
       "description": "Je berichten, voorbereid en ingepland"
     },

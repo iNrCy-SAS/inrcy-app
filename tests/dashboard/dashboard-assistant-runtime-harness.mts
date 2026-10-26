@@ -7,6 +7,8 @@ import * as clientContext from "../../lib/inrAssistantClientContext.ts";
 import * as clientStream from "../../lib/inrAssistantClientStream.ts";
 import * as errorCopy from "../../app/dashboard/_components/dashboardAssistantErrorCopy.ts";
 import * as contextualHelp from "../../lib/inrAssistantContextualHelp.ts";
+import * as attachmentPolicy from "../../lib/inrAssistantAttachments.ts";
+import * as attachmentCopy from "../../app/dashboard/_components/dashboardAssistantAttachmentCopy.ts";
 
 const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("../../app/dashboard/_components/DashboardAssistantProvider.tsx", import.meta.url), "utf8");
@@ -60,6 +62,10 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
   const mockRequire = (name: string) => {
     if (name === "react/jsx-runtime") return require(name);
     if (name === "next/image") return { __esModule: true, default: "img" };
+    if (name === "next/dynamic") return { __esModule: true, default: () => "MediaLibraryPicker" };
+    if (name === "@/lib/inrAssistantAttachments") return attachmentPolicy;
+    if (name === "./dashboardAssistantAttachmentCopy") return attachmentCopy;
+    if (name.endsWith("/useAssistantAttachments")) return { useAssistantAttachments: () => ({ attachments: [], setAttachments() {}, busy: false, error: null, menuOpen: false, setMenuOpen() {}, libraryOpen: false, setLibraryOpen() {}, inputRef: { current: null }, reset() {}, selectDevice() {}, selectLibrary() {}, addDevice() {}, addLibrary() {} }) };
     if (name === "react-dom") return { createPortal: (child: ReactNode, target: unknown) => { portalTarget = target; return child; } };
     if (name === "react") return {
       createContext: require("react").createContext,

@@ -43,6 +43,9 @@ import { createInrAssistantAdvertisingTools } from "./inrAssistantAdvertisingToo
 import { createInrAssistantSettingsTools } from "./inrAssistantSettingsTools.ts";
 import { classifyInrAssistantGatewayFailure, projectInrAssistantGatewayDiagnostic, recordInrAssistantGatewayDiagnostic,
   type InrAssistantDiagnosticPhase, type InrAssistantGatewayDiagnostic } from "./inrAssistantGatewayDiagnostics.ts";
+import { assistantModelInputBudget } from "./inrAssistantAttachments.ts";
+import { assistantMessagesWithFiles } from "./inrAssistantAttachmentPrompt.ts";
+import type { AssistantFileContext } from "./inrAssistantAttachmentStorage.ts";
 
 const supportTool = tool({
   description: "Préparer une proposition d’aide par un humain quand le pro la demande, qu’un accès administrateur est nécessaire ou qu’un blocage ne peut pas être résolu de façon fiable. Rien n’est envoyé : le pro doit vérifier le résumé et choisir de contacter l’équipe.",
@@ -99,6 +102,7 @@ export async function generateInrAssistantReply(args: {
   supabase?: Pick<SupabaseClient, "from">;
   signal?: AbortSignal;
   onActivity?: InrAssistantActivityCallback;
+  fileContexts?: AssistantFileContext[];
 }): Promise<InrAssistantReply> {
   const diagnosticStartedAt = Date.now();
   let lastFailure: InrAssistantGatewayDiagnostic | undefined;
@@ -110,7 +114,7 @@ export async function generateInrAssistantReply(args: {
   const latestRequest = args.messages.at(-1)?.content ?? "";
   const families = selectInrAssistantToolFamilies(latestRequest, args.messages.filter(message => message.role === "user").slice(0, -1).map(message => message.content));
   const verifiedNavigation = getVerifiedInrAssistantNavigation(latestRequest);
-  if (verifiedNavigation) {
+  if (verifiedNavigation && !args.fileContexts?.length) {
     const navigationQuota = await reserveInrAssistantRequest({
       billingAccountId: args.accountId, requestId: args.requestId, edition: args.edition, complexity: "routine",
     });
@@ -124,9 +128,9 @@ export async function generateInrAssistantReply(args: {
   if (process.env.NODE_ENV === "production" && !isUpstashEnabled()) {
     noteFailure("redis_reserve"); throw new AiGatewayGuardUnavailableError();
   }
-  let system = buildInrAssistantSystemPrompt(args.displayName, args.accountContext, getInrAssistantAppKnowledge(latestRequest, 2_400), args.edition, args.clientContext);
-  const messages = [...args.messages];
-  const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
+  let system = buildInrAssistantSystemPrompt(args.displayName, args.accountContext, getInrAssistantAppKnowledge(latestRequest, 2_400), args.edition, args.clientContext, Boolean(args.fileContexts?.length));
+  const messages = assistantMessagesWithFiles(args.messages, args.fileContexts ?? []);
+  const bytes = assistantModelInputBudget;
   const complexity = classifyInrAssistantRequest(latestRequest);
   const gateway = createGateway({ apiKey: credential });
   const maxOutputTokens = complexity === "complex" ? 6_000 : 1_800;
@@ -288,12 +292,12 @@ export async function generateInrAssistantReply(args: {
   if (bytes({ system, messages }) + schemaBytes > 31_000) {
     // Rich actions already have typed tools to read full business facts. Drop
     // duplicated eager context before dropping recent conversation or safety rules.
-    system = buildInrAssistantSystemPrompt(args.displayName, undefined, getInrAssistantAppKnowledge(latestRequest, 1_200), args.edition, args.clientContext) + (operationGuidance ? `\n${operationGuidance}` : "");
+    system = buildInrAssistantSystemPrompt(args.displayName, undefined, getInrAssistantAppKnowledge(latestRequest, 1_200), args.edition, args.clientContext, Boolean(args.fileContexts?.length)) + (operationGuidance ? `\n${operationGuidance}` : "");
   }
   if (bytes({ system, messages }) + schemaBytes > 31_000) {
     // Compound requests can need many real action schemas. The guide remains
     // available as a tool; remove only its duplicated eager prose, not rights.
-    system = buildInrAssistantSystemPrompt(args.displayName, undefined, undefined, args.edition, args.clientContext) + (operationGuidance ? `\n${operationGuidance}` : "");
+    system = buildInrAssistantSystemPrompt(args.displayName, undefined, undefined, args.edition, args.clientContext, Boolean(args.fileContexts?.length)) + (operationGuidance ? `\n${operationGuidance}` : "");
   }
   while (messages.length > 1 && bytes({ system, messages }) + schemaBytes > 31_000) messages.shift();
   if (bytes({ system, messages }) + schemaBytes > 31_000) {
@@ -387,7 +391,7 @@ export async function generateInrAssistantReply(args: {
                   fallbackStage: attempt === chain[0] ? "primary" : "gateway_model",
                   status: received ? "success" : "failure", statusCode, ...usage,
                   reservedOutputTokens: maxOutputTokens, costMicroUsd: cost, pricingSource: "configured", usageEstimated,
-                  durationMs: Date.now() - callStartedAt, hasImages: false, httpAttempts: 1,
+                  durationMs: Date.now() - callStartedAt, hasImages: Boolean(args.fileContexts?.some(file => file.image)), httpAttempts: 1,
                 });
               }
             },
@@ -430,7 +434,7 @@ export async function generateInrAssistantReply(args: {
               messages: stepMessages.slice(latestUser),
               activeTools: stepNumber > 2 ? [] : Object.keys(tools).filter(name => !["getBusinessDna", "getAccountDiagnostics", "readWorkspaceSection", "recallPastDiscussions", "readStatsSnapshots"].includes(name)) as Array<keyof typeof tools>,
               ...(stepNumber > 2 ? { toolChoice: "none" as const } : {}),
-              system: buildInrAssistantSystemPrompt(args.displayName, undefined, getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext),
+              system: buildInrAssistantSystemPrompt(args.displayName, undefined, getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext, Boolean(args.fileContexts?.length)),
             };
           },
           // Normal calls retain their 100s deadline in the model middleware.

@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { inrAssistantMemoryCutoff } from "@/lib/inrAssistantMemory";
+import { cleanupAssistantAttachments } from "@/lib/inrAssistantAttachmentStorage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,10 +23,11 @@ export async function GET(request: Request) {
   const cutoff = inrAssistantMemoryCutoff();
   try {
     const result = await supabaseAdmin.from("inr_assistant_turns").delete({ count: "exact" })
-      .lt("created_at", cutoff).abortSignal(AbortSignal.timeout(25_000));
+      .lt("created_at", cutoff).abortSignal(AbortSignal.timeout(12_000));
     if (result.error) return NextResponse.json({ error: "Nettoyage de la mémoire indisponible." }, { status: 503, headers });
+    const attachmentsDeleted = await cleanupAssistantAttachments(cutoff, 12_000);
     // No prose, identity or deleted row is returned or logged.
-    return NextResponse.json({ success: true, deleted: result.count ?? null, cutoff, retentionMonths: 2 }, { headers });
+    return NextResponse.json({ success: true, deleted: result.count ?? null, attachmentsDeleted, cutoff, retentionMonths: 2 }, { headers });
   } catch {
     return NextResponse.json({ error: "Nettoyage de la mémoire indisponible." }, { status: 503, headers });
   }

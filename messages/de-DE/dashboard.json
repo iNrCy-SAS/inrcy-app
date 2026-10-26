@@ -750,6 +750,8 @@
     "aiGoalsDescription": "Legen Sie Ergebnisse, Inspirationen und zu vermeidende Inhalte fest."
   },
   "signatureTools": {
+    "premiumTitle": "Premium-Werkzeuge",
+    "mailCampaignDescription": "Sende Gruppen-E-Mails an deine Kontakte.",
     "createTitle": "Erstellen und wachsen",
     "pilotTitle": "Verfolgen und steuern",
     "mailCampaigns": "E-Mail-Kampagnen",
@@ -757,7 +759,7 @@
     "amplify": "VERSTÄRKEN",
     "imagine": "GESTALTEN",
     "automate": "AUTOMATISIEREN",
-    "adsDescription": "Kanalübergreifende Kampagnen für mehr Kunden.",
+    "adsDescription": "Erstelle und verwalte deine Werbekampagnen.",
     "adsInfo": {
       "open": "Informationen zu iNr’ADS-Kanälen",
       "title": "Welcher Kanal passt zu Ihrer Kampagne?",

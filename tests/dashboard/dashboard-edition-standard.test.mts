@@ -400,7 +400,7 @@ test("les blocs inférieurs Standard conservent Stats, Publications, Réputation
   assert.match(sharedModulesSource, /testId: standardMode \? "standard-studio-open" : "premium-studio-open"/);
   assert.match(sharedModulesSource, /data-testid=\{tool\.testId\}/);
   assert.match(sharedModulesSource, /path: studioPath,[^\n]*tone: "studioCard"/);
-  assert.match(sharedModulesSource, /data-dashboard-prefetch=\{standardMode && tool\.premiumOnly \? undefined : tool\.path\}/);
+  assert.match(sharedModulesSource, /data-dashboard-prefetch=\{tool\.unavailable \|\| tool\.onOpen \|\| standardMode && tool\.premiumOnly \? undefined : tool\.path\}/);
   assert.match(dashboardI18nSource, /"boosterCta": "Créer une publication"/);
   assert.match(dashboardI18nSource, /"studioCta": "Studio Médias"/);
   assert.doesNotMatch(standardModulesSource, /dashboard\/crm/);
@@ -415,17 +415,13 @@ test("les blocs inférieurs Standard conservent Stats, Publications, Réputation
   assert.doesNotMatch(sharedModulesSource, /signatureStyles\.dnaCard/);
 });
 
-test("Standard conserve les quatre outils de création dans la même grille, avec leurs agents intégrés", () => {
+test("Standard garde le socle à gauche et un niveau Studio lié à son abonnement", () => {
   assert.match(sharedModulesSource, /data-dashboard-standard-secondary-tools=\{standardMode \? "true" : undefined\}/);
-  assert.match(sharedModulesCssSource, /\.creationGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(sharedModulesSource, /creationTools\.map\(renderSignatureTool\)/);
-  assert.match(sharedModulesSource, /const creationTools = signatureTools\.filter\(\(tool\) => tool\.tone === "studioCard" \|\| tool\.tone === "reputationCard"\)/);
-  assert.match(sharedModulesCssSource, /@media \(max-width: 700px\)[\s\S]*?\.creationGrid\s*\{[^}]*grid-auto-rows: minmax\(170px, auto\)/);
-  for (const key of ["studioEyebrow", "studioLine1", "studioLine2", "studioCta"]) {
-    assert.match(dashboardI18nSource, new RegExp(`"${key}":\\s*"[^"]+"`));
-  }
+  assert.match(sharedModulesSource, /pilotTools\.map\(renderSignatureTool\)/);
+  assert.match(sharedModulesSource, /const premiumTools = \["adsCard", "campaignCard", "calendarCard", "crmCard"\]/);
+  assert.match(sharedModulesSource, /tone: "studioCard"[^\n]*action: copy\.open/);
+  assert.match(sharedModulesSource, /const studioEdition = useDashboardSubscriptionEdition\(\)/);
 });
-
 test("les calendriers des trois agents réutilisent la modale avec le bon périmètre et les droits existants", () => {
   assert.match(sharedModulesSource, /data-agent-planning-workspace=\{workspace\}/);
   assert.doesNotMatch(
@@ -491,46 +487,23 @@ test("le CTA Booster Standard reste accessible quel que soit l'état du profil",
   assert.doesNotMatch(channelsSectionSource, /requiredSetupLockVisible/);
 });
 
-test("le tableau Standard montre tous les outils Premium, mais verrouille ceux qui demandent Premium", () => {
+test("Standard affiche un cadenas de section et des actions Premium normales désactivées", () => {
   assert.match(sharedModulesSource, /path: "\/dashboard\/agenda"[^\n]*premiumOnly: true/);
   assert.match(sharedModulesSource, /path: "\/dashboard\/crm"[^\n]*premiumOnly: true/);
-  assert.match(sharedModulesSource, /data-dashboard-prefetch=\{standardMode && tool\.premiumOnly \? undefined : tool\.path\}/);
-  assert.match(sharedModulesSource, /onClick=\{standardMode && tool\.premiumOnly \? \(\) => startPanelOpening\("abonnement"\)/);
-  assert.match(standardModulesSource, /onOpenPremium/);
-  assert.match(sharedModulesSource, /onClick=\{\(\) => startPanelOpening\(standardMode \? "abonnement" : tool\.panel!\)\}/);
-  assert.match(sharedModulesSource, /\{tool\.panel && \(!standardMode \|\| tool\.premiumOnly\) \? \(/);
-  assert.match(sharedModulesSource, /standardMode && tool\.premiumOnly \? <><DashboardPremiumLockIcon \/>\{t\.modules\.campaignsPremiumLabel\}/);
+  assert.match(sharedModulesSource, /<fieldset disabled=\{standardMode\}/);
+  assert.match(sharedModulesSource, /disabled=\{Boolean\(standardMode && tool\.premiumOnly\)/);
+  assert.match(sharedModulesSource, /standardMode \? <span className=\{signatureStyles\.premiumGateLock\}/);
+  assert.equal((sharedModulesSource.match(/<DashboardPremiumLockIcon \/>/g) || []).length, 1);
+  assert.match(sharedModulesSource, /enabled=\{inrAgentEnabled && !locked\}/);
+  assert.match(sharedModulesSource, /disabled=\{locked\}/);
   assert.match(sharedModulesSource, /const openCampaignModal = \(\) => \{\s*if \(standardMode\) \{\s*startPanelOpening\("abonnement"\);\s*return;/);
   assert.match(sharedModulesSource, /!standardMode && campaignModalOpen \?/);
-  assert.match(sharedModulesSource, /data-testid=\{standardMode \? "standard-campaign-mails" : "premium-campaign-open"\}/);
-  assert.match(sharedModulesSource, /adsPilotEnabled \? \(standardMode \? "standard-campaign-ads" : "premium-campaign-ads"\) : "campaign-ads-coming-soon"/);
-  assert.match(sharedModulesSource, /disabled=\{!adsPilotEnabled \|\| isModuleLoadingVisible\("\/dashboard\/ads"\)\}/);
-  assert.match(campaignChoicesSource, /data-testid=\{locked \? "standard-campaign-mails"/);
-  assert.match(campaignChoicesSource, /data-testid=\{adsComingSoon \? "campaign-ads-coming-soon" : locked \? "standard-campaign-ads"/);
-  assert.match(campaignChoicesSource, /DashboardPremiumLockIcon/);
-  assert.match(campaignChoicesSource, /locked \? <>\<DashboardPremiumLockIcon \/>\{premiumLabel\}<\/>/);
-  assert.match(campaignChoicesSource, /adsComingSoon \? <>À venir<\/>/);
-  assert.doesNotMatch(standardModulesSource, /lockedToolHint/);
-  assert.doesNotMatch(campaignChoicesSource, /campaignPremiumHint/);
-  assert.doesNotMatch(sharedModulesCssSource, /\.lockedToolHint|\.campaignPremiumHint/);
   assert.match(fluxBubblesSource, /const mailPremiumLocked = standardMode && m\.key === "mails";/);
-  assert.match(fluxBubblesSource, /premiumLocked: mailPremiumLocked/);
-  assert.match(fluxBubblesSource, /premiumLabel: copy\.modules\.campaignsPremiumLabel/);
-  assert.match(fluxBubblesSource, /openPanel\("abonnement"\)/);
   assert.match(fluxBubbleSource, /item\.premiumLocked/);
-  assert.match(fluxBubbleSource, /DashboardPremiumLockIcon/);
-  // The old channel pill was removed; the selected real bubble still owns the Premium lock.
-  assert.match(channelsSectionSource, /<DashboardChannelsModal items=\{fluxBubbleItems\}/);
-  assert.match(channelsModalSource, /const selectedItem = selected \? \{\s*\.\.\.selected,/);
-  assert.match(channelsModalSource, /<DashboardFluxBubble key=\{selected\.key\} item=\{selectedItem!\}/);
-  assert.doesNotMatch(channelsModalSource, /premiumLocked:\s*false/);
-  assert.match(fluxBubbleSource, /item\.premiumLocked \? <button[\s\S]*DashboardPremiumLockIcon/);
-  assert.match(fluxBubbleSource, /const disabled = item\.configureDisabled/);
 });
-
 test("le Bilan Booster reste distinct de iNrStats et ouvre la modale historique Booster", () => {
   assert.match(sharedModulesSource, /onClick=\{openBoosterSummary\}/);
-  assert.match(sharedModulesSource, /standardT\("boosterSummary"\)/);
+  assert.match(sharedModulesSource, /aria-label=\{t\.modules\.boosterStatsTitle\}/);
   assert.match(dashboardI18nSource, /"boosterSummary": "Bilan"/);
   assert.doesNotMatch(sharedModulesSource, /href="\/dashboard\/stats"[\s\S]{0,240}Bilan/);
   assert.match(boosterModalLayerSource, /aria-label=\{i18nT\("bilan_booster_f20fce08"\)\}/);

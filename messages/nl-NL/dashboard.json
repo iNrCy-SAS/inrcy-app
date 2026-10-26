@@ -750,6 +750,8 @@
     "aiGoalsDescription": "Bepaal de gewenste resultaten, inspiratie en wat vermeden moet worden."
   },
   "signatureTools": {
+    "premiumTitle": "Premium-tools",
+    "mailCampaignDescription": "Stuur groepsmails naar je contacten.",
     "createTitle": "Creëren en groeien",
     "pilotTitle": "Volgen en beheren",
     "mailCampaigns": "E-mailcampagnes",
@@ -757,7 +759,7 @@
     "amplify": "VERSTERK",
     "imagine": "ONTWERP",
     "automate": "AUTOMATISEER",
-    "adsDescription": "Multichannelcampagnes voor meer klanten.",
+    "adsDescription": "Maak en beheer je advertentiecampagnes.",
     "adsInfo": {
       "open": "Informatie over iNr’ADS-kanalen",
       "title": "Welk kanaal past bij uw campagne?",

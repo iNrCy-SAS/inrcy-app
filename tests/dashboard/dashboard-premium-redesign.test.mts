@@ -46,49 +46,30 @@ test("le dashboard conserve le cockpit et place le Générateur au centre sans s
   assert.match(dashboard, /import DashboardChannelWorkspace from "\.\/_components\/DashboardChannelWorkspace"/);
 });
 
-test("Booster reste seul en haut, la création regroupe quatre outils et le pilotage met Stats en premier", () => {
-  assertOrdered(modules, "{cockpit}", "signatureStyles.boosterCard", "{generator}", 'aria-labelledby="dashboard-create-title"', "creationTools.map(renderSignatureTool)", "signatureStyles.adsCard", "signatureStyles.mailCampaignCard", 'aria-labelledby="dashboard-pilot-title"', "pilotTools.map(renderSignatureTool)");
-  const signatureDeclaration = modules.slice(modules.indexOf("const signatureTools:"), modules.indexOf("  return (", modules.indexOf("const signatureTools:")));
-  assert.deepEqual([...signatureDeclaration.matchAll(/tone: "([^"]+)"/g)].map((match) => match[1]), ["sendCard", "studioCard", "statsCard", "reputationCard", "calendarCard", "crmCard"]);
-  assert.match(signatureDeclaration, /path: standardMode \? "\/dashboard\/mails\?folder=publications&boxView=sent" : "\/dashboard\/mails"/);
-  assert.deepEqual([...signatureDeclaration.matchAll(/path: "([^"]+)"/g)].map((match) => match[1]), ["/dashboard/stats", "/dashboard/e-reputation", "/dashboard/agenda", "/dashboard/crm"]);
-  assert.match(toolsCss, /\.lowerRow\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
-  assert.match(toolsCss, /\.lowerRow\s*\{[^}]*grid-template-areas: "cockpit booster" "generator generator" "create pilot"/);
-  assert.match(toolsCss, /\.signatureGrid\s*\{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+test("le socle réunit Stats puis Send, Studio et Réputation, et Premium regroupe quatre outils", () => {
+  assertOrdered(modules, "{cockpit}", "signatureStyles.boosterCard", "{generator}", 'aria-labelledby="dashboard-pilot-title"', "pilotTools.map(renderSignatureTool)", 'aria-labelledby="dashboard-premium-title"', "premiumTools.map(renderSignatureTool)");
+  assertOrdered(modules, "const pilotTools", 'tool.tone === "statsCard"', 'tool.tone === "sendCard"', 'tool.tone === "studioCard"', 'tool.tone === "reputationCard"');
+  assert.match(modules, /const premiumTools = \["adsCard", "campaignCard", "calendarCard", "crmCard"\]/);
+  assert.match(toolsCss, /grid-template-areas: "cockpit booster" "generator generator" "create pilot"/);
+  assert.match(toolsCss, /\.signatureGrid\.premiumGrid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(toolsCss, /\.statsCard\s*\{[^}]*grid-column: 1 \/ -1/);
-  assert.match(modules, /const creationTools = signatureTools\.filter\(\(tool\) => tool\.tone === "studioCard" \|\| tool\.tone === "reputationCard"\)/);
-  assertOrdered(modules, "const pilotTools", 'tool.tone === "statsCard"', 'tool.tone === "sendCard"');
-  assert.doesNotMatch(modules, /signatureStyles\.dnaCard/);
-  assert.doesNotMatch(modules, /Autres outils|Other tools/);
 });
-
-test("les cartes partagent leur rendu et Emailings conserve ses accès dans la grille de création", () => {
-  const relationshipRow = modules.slice(modules.indexOf('data-dashboard-relationship-tools="true"'), modules.indexOf("{!standardMode && campaignModalOpen ?"));
-  assert.match(relationshipRow, /pilotTools\.map\(renderSignatureTool\)/);
-  const sharedCard = modules.slice(modules.indexOf("const renderSignatureTool"), modules.indexOf("{cockpit}"));
-  assertOrdered(sharedCard, "signatureStyles.signatureCard", "signatureStyles.cardActions");
-  assert.doesNotMatch(relationshipRow, /studioBanner|relationshipGrid/);
-  const communicationRow = modules.slice(modules.indexOf('data-dashboard-premium-secondary-tools='), modules.indexOf('aria-labelledby="dashboard-pilot-title"'));
-  assert.match(communicationRow, /signatureStyles\.relationshipLogo[^\n]*<ToolGlyph kind="mail"/);
-  assert.match(communicationRow, /<h4>\{copy\.mailCampaigns\}<\/h4><p>\{t\.modules\.campaignsSub\}<\/p>/);
-  assert.match(communicationRow, /onClick=\{openCampaignModal\}/);
-  assert.match(communicationRow, /disabled=\{standardMode \? isPanelLoadingVisible\("abonnement"\) : isVisible\("modal:campaigns"\)\}/);
-  assert.match(communicationRow, /aria-busy=\{\(standardMode \? isPanelLoadingVisible\("abonnement"\) : isVisible\("modal:campaigns"\)\) \|\| undefined\}/);
-  assert.doesNotMatch(modules, /signatureStyles\.contextButton/);
-  assert.match(toolsCss, /\.relationshipCard\s*\{[^}]*grid-template-columns: 48px minmax\(0, 1fr\) auto/);
+test("les cartes Premium partagent le rendu, les agents et le verrouillage de section", () => {
+  assert.match(modules, /const renderSignatureTool/);
+  assert.match(modules, /tone: "campaignCard"[^\n]*premiumOnly: true[^\n]*onOpen: openCampaignModal/);
+  assert.match(modules, /<fieldset disabled=\{standardMode\}[^>]*data-dashboard-premium-tools="true"/);
+  assert.match(modules, /tool\.tone === "campaignCard" \? agentControls\("campaigns",/);
+  assert.match(modules, /tool\.tone === "campaignCard" \? planningControl\("campaigns"\)/);
+  assert.match(modules, /!standardMode && campaignModalOpen \?/);
 });
-
 test("les réglages, le planning et le bilan ont des commandes clairement visibles sur ordinateur et mobile", () => {
-  assert.match(toolsCss, /\.planningButton,\s*\.settingsButton\s*\{[^}]*width: 36px; height: 36px/);
-  const bilanStyle = [...toolsCss.matchAll(/\.boosterStats\s*\{([^}]+)\}/g)].find(([, block]) => /min-height: 36px/.test(block))?.[1];
-  assert.ok(bilanStyle);
-  assert.ok(Number(bilanStyle.match(/font-size:\s*([\d.]+)px/)?.[1]) >= 11, "Bilan must remain readable");
-  assert.match(toolsCss, /\.boosterStats svg\s*\{[^}]*width: 18px; height: 18px/);
-  assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.settingsButton,\s*\.planningButton[^{}]*\{[^}]*width: 40px; height: 40px/);
-  assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.boosterStats[^{}]*\{[^}]*min-height: 40px/);
-  assert.match(modules, /className=\{signatureStyles\.settingsButton\}[\s\S]*?aria-label=\{standardMode \? `\$\{tool\.settingsLabel\} — \$\{t\.modules\.campaignsPremiumLabel\}` : tool\.settingsLabel\}/);
+  assert.match(modules, /onClick=\{openBoosterSummary\}/);
+  assert.match(modules, /aria-label=\{t\.modules\.boosterStatsTitle\}/);
+  assert.match(modules, /planningControl\("publications"\)/);
+  assert.match(toolsCss, /\.boosterSummaryButtons \.boosterStats, \.boosterSummaryButtons \.modulePlanning[^}]*width: 44px/);
+  assert.match(toolsCss, /\.boosterCard[^}]*grid-template-areas: "brand summary \." "publish summary agent"/);
+  assert.match(modules, /aria-label=\{tool\.settingsLabel\}/);
 });
-
 test("les cartes de pilotage conservent des textes et actions lisibles à chaque breakpoint", () => {
   const readableSizes = [
     [".signatureCopy h4", 15],
@@ -132,24 +113,19 @@ test("les outils conservent leurs destinations et les callbacks de publication, 
   for (const destination of ["propulser", "fideliser"]) {
     assert.ok(modules.includes(`startModuleNavigation("/dashboard/${destination}")`), destination);
   }
-  assert.match(modules, /onClick=\{openCampaignModal\}/);
+  assert.match(modules, /onOpen: openCampaignModal/);
   assert.match(modules, /setPlanningWorkspace\(workspace\)/);
   assert.match(modules, /onClick=\{\(\) => startPanelOpening\(standardMode \? "abonnement" : tool\.panel!\)\}/);
 });
 
 test("le rendu expose les canaux Ads validés sans contourner Standard ni les droits comptables", () => {
-  assert.match(channels, /standardMode \? \(\s*<DashboardStandardModulesCard[\s\S]*?onOpenPremium=\{\(\) => openPanel\("abonnement"\)\}[\s\S]*?\) : \(\s*<DashboardModulesCard/);
-  assert.equal([...channels.matchAll(/\badsPilotEnabled\s+inrAgentEnabled=/g)].length, 2);
+  assert.match(channels, /standardMode \? \(\s*<DashboardStandardModulesCard[\s\S]*?<DashboardModulesCard/);
   assert.match(modules, /adsPilotEnabled = false/);
-  assert.match(modules, /onClick=\{adsPilotEnabled \? \(\) => standardMode \? startPanelOpening\("abonnement"\) : startModuleNavigation\("\/dashboard\/ads"\) : undefined\}/);
-  assert.match(modules, /data-dashboard-prefetch=\{adsPilotEnabled && !standardMode \? "\/dashboard\/ads" : undefined\}/);
-  assert.match(modules, /disabled=\{!adsPilotEnabled \|\| isModuleLoadingVisible\("\/dashboard\/ads"\)\}/);
-  assert.match(modules, /hasAccountingDashboardAccess\(dashboardEdition\)/);
-  assert.match(modules, /const standardMode = standardModeOverride \|\| dashboardEdition === "standard"/);
+  assert.match(modules, /path: "\/dashboard\/ads"[^\n]*premiumOnly: true[^\n]*unavailable: !adsPilotEnabled/);
+  assert.match(modules, /disabled=\{Boolean\(standardMode && tool\.premiumOnly\) \|\| tool\.unavailable/);
   assert.match(modules, /const accountingEnabled = !standardMode && hasAccountingDashboardAccess\(dashboardEdition\)/);
   assert.match(modules, /accountingEnabled && cashModalOpen \?/);
 });
-
 test("les états de connexion distinguent un canal actif d'un avertissement ou d'un canal à venir", () => {
   assert.equal(getChannelTone(channel("connected")), "connected");
   assert.equal(getChannelTone(channel("available", "À connecter")), "available");

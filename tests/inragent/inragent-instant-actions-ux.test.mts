@@ -26,7 +26,7 @@ test("each specialist exposes one guarded instant action beside its settings", (
   assert.match(controls, /selected\.key === "publish" && !manualCredits\.availability\?\.allowed/);
   assert.match(header, /onClick=\{props\.onPrepare\}/);
   assert.match(header, /disabled=\{props\.prepareDisabled\}/);
-  assert.match(header, /title=\{props\.prepareHelp\}/);
+  assert.match(header, /title=\{props\.prepareHelp \|\| prepareLabel\}/);
   assert.match(header, /<span aria-hidden="true">⚡<\/span>/);
   assert.match(header, /props\.workspace === "stats" \? "sendReport"/);
   assert.match(header, /onClick=\{props\.onSettings\}/);

@@ -750,6 +750,8 @@
     "aiGoalsDescription": "Set the expected results, your inspiration and what must be avoided."
   },
   "signatureTools": {
+    "premiumTitle": "Premium tools",
+    "mailCampaignDescription": "Send bulk emails to your contacts.",
     "createTitle": "Create and grow",
     "pilotTitle": "Track and manage",
     "mailCampaigns": "Email campaigns",
@@ -757,7 +759,7 @@
     "amplify": "AMPLIFY",
     "imagine": "IMAGINE",
     "automate": "AUTOMATE",
-    "adsDescription": "Multichannel campaigns to reach more customers.",
+    "adsDescription": "Create and manage your advertising campaigns.",
     "adsInfo": {
       "open": "Information about iNr’ADS channels",
       "title": "Which channel suits your campaign?",

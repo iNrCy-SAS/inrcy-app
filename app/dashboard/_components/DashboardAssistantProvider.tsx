@@ -6,6 +6,7 @@ import {
 } from "react";
 import { useLocale } from "next-intl";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
@@ -20,6 +21,9 @@ import { dashboardAssistantCopy } from "./dashboardAssistantCopy";
 import { dashboardAssistantErrorCopy } from "./dashboardAssistantErrorCopy";
 import DashboardAssistantMessageContent from "./DashboardAssistantMessageContent";
 import { useAssistantFirstArrival } from "../_hooks/useAssistantFirstArrival";
+import { useAssistantAttachments } from "../_hooks/useAssistantAttachments";
+import { ASSISTANT_ATTACHMENT_ACCEPT, ASSISTANT_ATTACHMENT_MAX_COUNT, ASSISTANT_ATTACHMENT_MAX_BYTES, ASSISTANT_ATTACHMENT_VIDEO_MAX_BYTES, parseAssistantAttachments, type AssistantAttachment } from "@/lib/inrAssistantAttachments";
+import { dashboardAssistantAttachmentCopy, assistantAttachmentErrorCopy } from "./dashboardAssistantAttachmentCopy";
 import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvider";
 import styles from "./DashboardAssistantProvider.module.css";
 
@@ -31,7 +35,8 @@ type AssistantMedia = {
   url?: string;
   message?: string;
 };
-type ChatMessage = { role: "user" | "assistant"; content: string; media?: AssistantMedia; turnId?: string };
+const MediaLibraryPickerModal = dynamic(() => import("./MediaLibraryPickerModal"), { ssr: false });
+type ChatMessage = { role: "user" | "assistant"; content: string; media?: AssistantMedia; turnId?: string; attachments?: AssistantAttachment[] };
 const POSITION_STORAGE_KEY = "inrcy_assistant_position_v1";
 const SESSION_STORAGE_PREFIX = "inrcy_assistant_session_v1:";
 const SESSION_TTL = 6 * 60 * 60 * 1000;
@@ -41,7 +46,7 @@ const COLLABORATION_AGENTS = {
   stats: { name: "Agent Stats", image: "/agent/agent-stats.webp" },
   emailing: { name: "Agent Emailings", image: "/agent/agent-campaigns.webp" },
 } as const;
-type StoredSession = { version: 1; actorUserId: string; accountId: string; conversationId?: string; updatedAt: number; messages: ChatMessage[]; draft: string; interrupted: boolean; retryable: boolean; visibleError?: InrAssistantClientError };
+type StoredSession = { version: 1; actorUserId: string; accountId: string; conversationId?: string; updatedAt: number; messages: ChatMessage[]; draft: string; draftAttachments?: AssistantAttachment[]; interrupted: boolean; retryable: boolean; visibleError?: InrAssistantClientError };
 
 const sessionStorageKey = (actor: string, account: string) => `${SESSION_STORAGE_PREFIX}${encodeURIComponent(actor)}:${encodeURIComponent(account)}`;
 function clearActorSessions(actor: string) {
@@ -60,7 +65,9 @@ function storedMessages(value: unknown): ChatMessage[] | null {
   for (const row of value) {
     if (!row || typeof row !== "object" || (row.role !== "user" && row.role !== "assistant") || typeof row.content !== "string" || !row.content.trim()) return null;
     if (row.role === "user" && (typeof row.turnId !== "string" || !TURN_ID_PATTERN.test(row.turnId))) return null;
-    rows.push({ role: row.role, content: row.content.slice(0, row.role === "user" ? 4000 : 60000), ...(row.role === "user" ? { turnId: row.turnId } : {}) });
+    let attachments: AssistantAttachment[] = [];
+    try { if (row.role === "user") attachments = parseAssistantAttachments(row.attachments); } catch { /* An invalid local attachment cannot become a server reference. */ }
+    rows.push({ role: row.role, content: row.content.slice(0, row.role === "user" ? 4000 : 60000), ...(row.role === "user" ? { turnId: row.turnId, ...(attachments.length ? { attachments } : {}) } : {}) });
   }
   while (rows.length > 1 && rows.reduce((total, row) => total + row.content.length, 0) > 400000) rows.shift();
   return rows;
@@ -85,7 +92,9 @@ function readStoredSession(actorUserId: string, accountId: string): StoredSessio
     const messages = storedMessages(value.messages);
     if (!messages) throw new Error("Invalid messages");
     const visibleError = parseInrAssistantClientContext({ visibleError: value.visibleError })?.visibleError;
-    return { version: 1, actorUserId, accountId, ...(typeof value.conversationId === "string" && TURN_ID_PATTERN.test(value.conversationId) ? { conversationId: value.conversationId } : {}), updatedAt: value.updatedAt, messages, draft: value.draft.slice(0, 4000), interrupted: value.interrupted === true, retryable: value.retryable === true, ...(visibleError ? { visibleError } : {}) };
+    let draftAttachments: AssistantAttachment[] = [];
+    try { draftAttachments = parseAssistantAttachments(value.draftAttachments); } catch { /* Ignore malformed browser state. */ }
+    return { version: 1, actorUserId, accountId, ...(typeof value.conversationId === "string" && TURN_ID_PATTERN.test(value.conversationId) ? { conversationId: value.conversationId } : {}), updatedAt: value.updatedAt, messages, draft: value.draft.slice(0, 4000), draftAttachments, interrupted: value.interrupted === true, retryable: value.retryable === true, ...(visibleError ? { visibleError } : {}) };
   } catch {
     try { sessionStorage.removeItem(key); } catch { /* Memory-only fallback. */ }
     return null;
@@ -285,6 +294,11 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
   const autoHistoryAttemptedRef = useRef(false);
   const latestScopeRef = useRef({ actorUserId, activeAccountId, allowed });
   const activitySeenRef = useRef(false);
+  const attachmentCopy = dashboardAssistantAttachmentCopy(locale);
+  const files = useAssistantAttachments({ accountId: activeAccountId, actorUserId, locale, ensureConversation: () => {
+    historyControllerRef.current?.abort(); localEditRevisionRef.current++; autoHistoryAttemptedRef.current = true;
+    const id = conversationId || crypto.randomUUID(); setConversationId(id); return id;
+  } });
   const portalTarget = open && typeof document !== "undefined" ? portalHost?.isConnected ? portalHost : document.body : null;
   useEffect(() => { latestScopeRef.current = { actorUserId, activeAccountId, allowed }; }, [actorUserId, activeAccountId, allowed]);
 
@@ -366,6 +380,7 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
     if (saved) {
       setMessages(saved.messages);
       setDraft(saved.draft);
+      files.setAttachments(saved.draftAttachments || []);
       if (saved.conversationId) setConversationId(saved.conversationId);
       setVisibleError(saved.visibleError);
       if ((saved.interrupted || saved.retryable) && saved.messages.at(-1)?.role === "user") {
@@ -379,10 +394,10 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
   useEffect(() => {
     if (!sessionRestored || !allowed || (getActiveBrowserUserId() || activeAccountId) !== activeAccountId) return;
     try {
-      const snapshot: StoredSession = { version: 1, actorUserId, accountId: activeAccountId, ...(conversationId ? { conversationId } : {}), updatedAt: Date.now(), messages: storedMessages(messages.slice(-12)) || [], draft: draft.slice(0, 4000), interrupted: pending, retryable: Boolean(retryMessages), ...(visibleError ? { visibleError } : {}) };
+      const snapshot: StoredSession = { version: 1, actorUserId, accountId: activeAccountId, ...(conversationId ? { conversationId } : {}), updatedAt: Date.now(), messages: storedMessages(messages.slice(-12)) || [], draft: draft.slice(0, 4000), draftAttachments: files.attachments, interrupted: pending, retryable: Boolean(retryMessages), ...(visibleError ? { visibleError } : {}) };
       sessionStorage.setItem(sessionStorageKey(actorUserId, activeAccountId), JSON.stringify(snapshot));
     } catch { /* Storage restrictions must never block an existing conversation. */ }
-  }, [actorUserId, activeAccountId, allowed, messages, draft, pending, retryMessages, visibleError, sessionRestored, conversationId]);
+  }, [actorUserId, activeAccountId, allowed, messages, draft, pending, retryMessages, visibleError, sessionRestored, conversationId, files.attachments]);
 
   const loadHistory = useCallback(async () => {
     if (!allowed || controllerRef.current || (getActiveBrowserUserId() || activeAccountId) !== activeAccountId) return;
@@ -429,13 +444,14 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
   }, [sessionRestored, open, allowed, pending, messages.length, draft, starterDraft, loadHistory]);
 
   const newConversation = () => {
-    if (pending || controllerRef.current) return;
+    if (pending || controllerRef.current || files.busy) return;
     historyControllerRef.current?.abort();
     localEditRevisionRef.current++;
     autoHistoryAttemptedRef.current = true;
     setConversationId(crypto.randomUUID());
     setMessages([]); setDraft(""); setError(null); setVisibleError(undefined); setRetryMessages(null); setHandoffSummary("");
     setActivities([]); activitySeenRef.current = false;
+    files.reset();
     composerRef.current?.focus();
   };
 
@@ -469,7 +485,7 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
       const response = await fetch("/api/assistant/chat", {
         method: "POST", credentials: "include", cache: "no-store",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, signal: controller.signal,
-        body: JSON.stringify({ conversationId: currentConversationId, turnId: conversation.findLast((message) => message.role === "user")?.turnId, messages: requestMessages(conversation), ...(clientContext ? { clientContext } : {}) }),
+        body: JSON.stringify({ conversationId: currentConversationId, turnId: conversation.findLast((message) => message.role === "user")?.turnId, attachments: conversation.findLast(message => message.role === "user")?.attachments, messages: requestMessages(conversation), ...(clientContext ? { clientContext } : {}) }),
       });
       const { payload, failed } = await readInrAssistantResponse(response, activity => {
         if (!stillCurrent()) return;
@@ -491,7 +507,7 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
         return;
       }
       if (!response.ok || failed || typeof payload?.message !== "string" || !payload.message.trim()) {
-        setError(dashboardAssistantErrorCopy(locale, payload?.code, response.status));
+        setError(typeof payload?.code === "string" && payload.code.startsWith("attachment_") ? assistantAttachmentErrorCopy(locale, payload.code) : dashboardAssistantErrorCopy(locale, payload?.code, response.status));
         setVisibleError(parseInrAssistantClientContext({ visibleError: { code: payload?.code, requestId: parseInrAssistantRequestId(payload?.requestId) || response.headers.get("X-Request-Id"), occurredAt: new Date().toISOString() } })?.visibleError);
         setRetryMessages(conversation);
         return;
@@ -521,11 +537,12 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const content = draft.trim();
-    if (!content || pending || !allowed) return;
-    const conversation: ChatMessage[] = [...messages, { role: "user", content, turnId: crypto.randomUUID() }];
+    const content = draft.trim() || (files.attachments.length ? attachmentCopy.prompt : "");
+    if (!content || pending || files.busy || !allowed) return;
+    const conversation: ChatMessage[] = [...messages, { role: "user", content, turnId: crypto.randomUUID(), ...(files.attachments.length ? { attachments: files.attachments } : {}) }];
     setMessages(conversation);
     setDraft("");
+    files.setAttachments([]);
     void send(conversation);
   };
 
@@ -544,7 +561,7 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
       data-position={position}
       data-disable-pull-refresh="true" data-testid="dashboard-assistant"
       onCancel={(event) => { event.preventDefault(); event.stopPropagation(); close(); }}
-      onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); } }}
+      onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); if (files.menuOpen) files.setMenuOpen(false); else if (files.libraryOpen) files.setLibraryOpen(false); else close(); } }}
       onClick={(event) => { if (event.target === event.currentTarget) close(); }}
     >
       <div className={styles.panel}>
@@ -561,7 +578,7 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg>
           </button>
           <button type="button" className={styles.iconButton} aria-label={copy.newChat} title={copy.newChat}
-            disabled={pending || !messages.length}
+            disabled={pending || files.busy || !messages.length}
             onClick={newConversation}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
           </button>
@@ -576,11 +593,12 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
         <div ref={transcriptRef} className={styles.transcript} role="log" aria-label="iNr’Assistant" aria-live="polite" aria-relevant="additions text" aria-busy={pending}>
           {!messages.length ? <div className={styles.welcome}>
             <h3>{onboardingWelcome ? copy.onboardingGreeting : contextHelp?.tool || copy.prompt}</h3><p>{onboardingWelcome ? copy.onboardingMessage : copy.intro}</p>
-            <div className={styles.suggestions} data-testid={contextHelp && !onboardingWelcome ? "assistant-context-help" : undefined}>{(onboardingWelcome ? [copy.onboardingConnect, ...copy.suggestions.filter(suggestion => suggestion !== copy.suggestions[1])] : contextHelp?.suggestions || copy.suggestions).map((suggestion) => <button key={suggestion} type="button"
+            <div className={styles.suggestions} data-testid={contextHelp && !onboardingWelcome ? "assistant-context-help" : undefined}>{(onboardingWelcome ? [copy.onboardingConnect] : contextHelp?.suggestions || copy.suggestions).map((suggestion) => <button key={suggestion} type="button"
               onClick={() => { localEditRevisionRef.current++; setDraft(onboardingWelcome && suggestion === copy.onboardingConnect ? copy.onboardingRequest : suggestion); composerRef.current?.focus(); }}>{suggestion}<span aria-hidden="true">↗</span></button>)}</div>
           </div> : messages.map((message, index) => <div key={index} className={`${styles.message} ${message.role === "user" ? styles.userMessage : styles.assistantMessage}`}>
             <span className={styles.speaker}>{message.role === "user" ? copy.you : "iNr’Assistant"}</span>
             {message.role === "assistant" ? <DashboardAssistantMessageContent content={message.content} onInternalNavigate={onInternalNavigate} /> : <p>{message.content}</p>}
+            {message.attachments?.length ? <ul className={styles.sentAttachments}>{message.attachments.map(file => <li key={file.id}><span aria-hidden="true">📎</span> {file.name}</li>)}</ul> : null}
             {message.media ? <div className={styles.mediaResult} data-media-status={message.media.status}>
               {message.media.status === "completed" && message.media.url && message.media.mediaType ? message.media.mediaType === "image"
                 ? <img src={message.media.url} alt={copy.mediaReady} loading="lazy" />
@@ -610,16 +628,37 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
         </div>
         {handoffSummary ? <div className={styles.humanAction}><button type="button" onClick={prepareHumanContact}>{copy.human}<span aria-hidden="true">↗</span></button></div> : null}
         {memoryUnavailable ? <p className={styles.memoryNotice} role="status">{copy.historyUnavailable}</p> : null}
+        {files.attachments.length || files.busy || files.error ? <div className={styles.attachmentTray}>
+          {files.attachments.length ? <ul>{files.attachments.map(file => <li key={file.id}><span title={file.name}>{file.name}</span><button type="button" disabled={files.busy} aria-label={`${attachmentCopy.remove} ${file.name}`} onClick={() => files.setAttachments(current => current.filter(item => item.id !== file.id))}>×</button></li>)}</ul> : null}
+          {files.busy ? <p role="status">{attachmentCopy.loading}</p> : null}
+          {files.error ? <p role="alert">{files.error}</p> : null}
+        </div> : null}
         <form className={styles.composer} onSubmit={submit}>
+          <input hidden type="file" ref={files.inputRef} multiple accept={ASSISTANT_ATTACHMENT_ACCEPT} onChange={event => { const selected = Array.from(event.target.files || []); event.target.value = ""; if (selected.length) void files.addDevice(selected); }} />
           <textarea ref={composerRef} value={draft} onChange={(event) => { localEditRevisionRef.current++; setDraft(event.target.value); }}
             rows={2} maxLength={4000} aria-label={copy.placeholder} placeholder={copy.placeholder}
             enterKeyHint="send" onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(event); }
             }} />
-          <button type="submit" className={styles.sendButton} aria-label={copy.send} title={copy.send} disabled={pending || !draft.trim()}>
+          <div className={styles.composerActions}>
+          {files.menuOpen ? <div className={styles.attachmentMenu} role="group" aria-label={attachmentCopy.attach}>
+            <button type="button" onClick={files.selectDevice}>{attachmentCopy.device}</button>
+            <button type="button" onClick={files.selectLibrary}>{attachmentCopy.library}</button>
+            <small>{attachmentCopy.limits}</small>
+          </div> : null}
+          <button type="button" className={styles.attachButton} aria-label={attachmentCopy.attach} title={attachmentCopy.attach} aria-expanded={files.menuOpen} disabled={pending || files.busy || files.attachments.length >= ASSISTANT_ATTACHMENT_MAX_COUNT} onClick={() => files.setMenuOpen(value => !value)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 13 7-7a3 3 0 0 1 4 4l-9 9a5 5 0 0 1-7-7L13 2m-7 12 9-9" /></svg>
+          </button>
+          <button type="submit" className={styles.sendButton} aria-label={copy.send} title={copy.send} disabled={pending || files.busy || (!draft.trim() && !files.attachments.length)}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 17 8-17 8 3-8-3-8Zm3 8h14" /></svg>
           </button>
+          </div>
         </form>
+        {files.libraryOpen ? createPortal(<div className={styles.pickerLayer}><MediaLibraryPickerModal open multiple maxSelection={ASSISTANT_ATTACHMENT_MAX_COUNT - files.attachments.length} title={attachmentCopy.library} confirmLabel={attachmentCopy.add} subtitle={attachmentCopy.limits}
+          maxImageBytes={ASSISTANT_ATTACHMENT_MAX_BYTES} maxVideoBytes={ASSISTANT_ATTACHMENT_VIDEO_MAX_BYTES}
+          getItemDisabledReason={item => Number(item.size_bytes) > (item.media_type === "video" ? ASSISTANT_ATTACHMENT_VIDEO_MAX_BYTES : ASSISTANT_ATTACHMENT_MAX_BYTES) ? attachmentCopy.limits : undefined}
+          onClose={() => { files.setLibraryOpen(false); composerRef.current?.focus(); }}
+          onConfirm={items => files.addLibrary(items.map(item => item.id))} /></div>, portalTarget || document.body) : null}
       </div>
     </dialog>, portalTarget || document.body) : null;
 }

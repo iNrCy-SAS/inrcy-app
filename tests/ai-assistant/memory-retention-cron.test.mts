@@ -25,6 +25,7 @@ function harness(options: { secret?: string; error?: boolean; throws?: boolean }
     "node:crypto": { timingSafeEqual }, "next/server": { NextResponse },
     "@/lib/supabaseAdmin": { supabaseAdmin: { from(table: string) { calls.push({ table }); return builder; } } },
     "@/lib/inrAssistantMemory": { inrAssistantMemoryCutoff() { return CUTOFF; } },
+    "@/lib/inrAssistantAttachmentStorage": { cleanupAssistantAttachments: async () => 3 },
   };
   const source = readFileSync(new URL("../../app/api/cron/assistant-memory-retention/route.ts", import.meta.url), "utf8");
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -50,7 +51,7 @@ test("authorized cleanup has one fixed table and calendar cutoff, ignores caller
   const h = harness();
   const response = await h.get("Bearer retention-server-secret", "?cutoff=2099-01-01&accountId=foreign&table=clients");
   assert.equal(response.status, 200); assert.equal(response.headers.get("cache-control"), "no-store, private");
-  assert.deepEqual(await response.json(), { success: true, deleted: 7, cutoff: CUTOFF, retentionMonths: 2 });
+  assert.deepEqual(await response.json(), { success: true, deleted: 7, attachmentsDeleted: 3, cutoff: CUTOFF, retentionMonths: 2 });
   assert.deepEqual(JSON.parse(JSON.stringify(h.calls)), [{ table: "inr_assistant_turns" }, { delete: { count: "exact" } }, { column: "created_at", value: CUTOFF }]);
   const config = JSON.parse(readFileSync(new URL("../../vercel.json", import.meta.url), "utf8"));
   assert.deepEqual(config.crons.filter((entry: { path: string }) => entry.path === "/api/cron/assistant-memory-retention"), [{ path: "/api/cron/assistant-memory-retention", schedule: "45 3 * * *" }]);

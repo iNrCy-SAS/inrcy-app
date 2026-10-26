@@ -103,6 +103,9 @@
     }
   ],
   "functions": {
+    "app/api/assistant/attachments/route.ts": {
+      "includeFiles": "node_modules/ffmpeg-static/**/*"
+    },
     "app/api/booster/video-transform/route.ts": {
       "includeFiles": "node_modules/ffmpeg-static/**/*"
     },

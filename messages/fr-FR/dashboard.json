@@ -750,6 +750,8 @@
     "aiGoalsDescription": "Cadrez les résultats attendus, vos inspirations et ce qu’il faut éviter."
   },
   "signatureTools": {
+    "premiumTitle": "Outils Premium",
+    "mailCampaignDescription": "Envoyez des mails groupés à vos contacts.",
     "createTitle": "Créer et développer",
     "pilotTitle": "Suivre et piloter",
     "mailCampaigns": "Campagnes mails",
@@ -757,7 +759,7 @@
     "amplify": "AMPLIFIEZ",
     "imagine": "IMAGINEZ",
     "automate": "AUTOMATISEZ",
-    "adsDescription": "Campagnes multicanales pour plus de clients.",
+    "adsDescription": "Créez et pilotez vos campagnes publicitaires.",
     "adsInfo": {
       "open": "Informations sur les canaux iNr’ADS",
       "title": "Quel canal pour votre campagne ?",

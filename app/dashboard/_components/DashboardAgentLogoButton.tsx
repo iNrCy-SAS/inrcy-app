@@ -43,7 +43,7 @@ export default function DashboardAgentLogoButton({ className, enabled = true, bu
           data-dashboard-prefetch={enabled && !locked ? definition.href : undefined}
           onClick={onClick} disabled={!enabled || busy} aria-disabled={!enabled || busy}
           aria-busy={busy || undefined} aria-label={locked ? `${actionLabel} — ${t.modules.campaignsPremiumLabel}` : actionLabel} title={actionLabel}>
-          {locked ? t.modules.campaignsPremiumLabel : t.modules.agentCta}<span aria-hidden="true">{locked ? "🔒" : "→"}</span>
+          {locked ? t.modules.campaignsPremiumLabel : workspace === "publications" ? workspaceT("publications.automate") : t.modules.agentCta}<span aria-hidden="true">{locked ? "🔒" : "→"}</span>
         </button>
         </div>
       </div>
