@@ -32,7 +32,6 @@ import { useDashboardNotifications } from "./_hooks/useDashboardNotifications";
 import { useReferralForm } from "./_hooks/useReferralForm";
 import { useDashboardPanelRouting, type DashboardPanelName } from "./_hooks/useDashboardPanelRouting";
 import { useDashboardCompletionChecks } from "./_hooks/useDashboardCompletionChecks";
-import { useDashboardSetupAlert } from "./_hooks/useDashboardSetupAlert";
 import { useDashboardMenus } from "./_hooks/useDashboardMenus";
 import { useDashboardI18n } from "./_hooks/useDashboardI18n";
 import { useDashboardPreparationScores } from "./_hooks/useDashboardPreparationScores";
@@ -320,9 +319,6 @@ export default function DashboardClient({
   const dashboardCopy = useDashboardI18n();
   const topbarT = useTranslations("dashboard.topbar");
   const { panel, openPanel, closePanel, goToModule } = useDashboardPanelRouting();
-  const openInitialChannelConnections = useCallback(() => {
-    setChannelConnectionsOpen(true);
-  }, []);
   const {
     accountId: completionAccountId,
     profileIncomplete,
@@ -332,9 +328,6 @@ export default function DashboardClient({
   const { dnaScore, aiScore } = useDashboardPreparationScores({
     accountId: completionAccountId ?? initialOfficialChannelStatesUserId,
     edition: dashboardEdition,
-  });
-  useDashboardSetupAlert({
-    onOpenChannels: openInitialChannelConnections,
   });
   const [settingsDrawerHasUnsavedChanges, setSettingsDrawerHasUnsavedChanges] = useState(false);
   const [boutiqueView, setBoutiqueView] = useState<"products" | "orders">("products");
@@ -441,7 +434,7 @@ export default function DashboardClient({
   }, [router, searchParams]);
 
   useEffect(() => {
-    if (searchParams.get("help") === "1") setHelpGeneratorOpen(true);
+    setHelpGeneratorOpen(searchParams.get("help") === "1");
   }, [searchParams]);
 
   const closeGeneratorSettings = useCallback(() => {
@@ -499,6 +492,8 @@ export default function DashboardClient({
       setDashboardBoosterModal("publish");
     } else if (stats === "1") {
       setDashboardBoosterModal("stats");
+    } else {
+      setDashboardBoosterModal(null);
     }
   }, [searchParams]);
 

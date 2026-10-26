@@ -6,6 +6,7 @@ import DetailSequenceNavigation from "../_components/DetailSequenceNavigation";
 import ResponsiveActionButton from "../_components/ResponsiveActionButton";
 import SettingsDrawer from "../SettingsDrawer";
 import HelpButton from "../_components/HelpButton";
+import DashboardToolHeading from "../_components/DashboardToolHeading";
 import AgendaSettingsContent from "../settings/_components/AgendaSettingsContent";
 import HelpModal from "../_components/HelpModal";
 import { confirmInrcy } from "@/lib/inrcyDialog";
@@ -253,6 +254,7 @@ export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettin
     <>
       <div className={styles.header}>
         <div className={styles.brand}>
+          <DashboardToolHeading subtitle={i18nT("plus_qu_un_agenda_pense_pour_3d5ee439")}>
           <div
             className={styles.brandLogoButton}
             aria-label={i18nT("inr_calendar_f5f54ab6")}
@@ -267,12 +269,7 @@ export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettin
               style={{ width: 154, height: 64 }}
             />
           </div>
-
-          <div className={styles.brandText}>
-            <div className={styles.brandRow}>
-              <span className={styles.tagline}>{i18nT("plus_qu_un_agenda_pense_pour_3d5ee439")}</span>
-            </div>
-          </div>
+          </DashboardToolHeading>
         </div>
 
         <div className={`${styles.desktopCalendarNav} ${styles.desktopOnly}`} aria-label="Navigation du calendrier">

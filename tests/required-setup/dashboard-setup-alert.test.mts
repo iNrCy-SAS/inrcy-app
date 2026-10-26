@@ -38,27 +38,15 @@ test("the former three-step startup flow is absent from the runtime", () => {
   }
 });
 
-test("the first dashboard arrival claims one durable account-scoped setup alert", () => {
-  const hook = read("app/dashboard/_hooks/useDashboardSetupAlert.ts");
+test("the legacy setup modal is removed while its durable new-account claim is preserved", () => {
   const dashboard = read("app/dashboard/DashboardClient.tsx");
   const route = read("app/api/dashboard/setup-intro/route.ts");
   const migration = read("supabase/migrations/20260928082926_dashboard_setup_intro_once.sql");
 
-  assert.match(hook, /fetch\("\/api\/dashboard\/setup-intro"/);
-  assert.match(hook, /claimsInFlight\.get\(accountId\)/);
-  assert.match(hook, /if \(!browserAccountId\) return;/);
-  assert.match(hook, /body: JSON\.stringify\(\{ accountId \}\)/);
-  assert.match(hook, /ACTIVE_INRCY_ACCOUNT_EVENT/);
-  assert.match(hook, /BROWSER_SIGN_OUT_START_EVENT/);
-  assert.doesNotMatch(hook, /readAccountCacheValue|writeAccountCacheValue|profileIncomplete|activityIncomplete/);
-  assert.match(hook, /confirmInrcy\(\{/);
-  assert.match(hook, /steps:\s*\[\s*t\("stepChannels"\),\s*t\("stepDna"\),\s*t\("stepAi"\),\s*t\("stepFirstPublication"\),\s*\]/);
-  assert.doesNotMatch(hook, /t\("stepProfile"\)/);
-  assert.match(hook, /confirmLabel: t\("confirm"\)/);
-  assert.match(hook, /cancelLabel: t\("cancel"\)/);
-  assert.match(hook, /if \(shouldOpenChannels && !cancelled && sequence === requestSequence\) onOpenChannels\(\)/);
-  assert.match(dashboard, /useDashboardSetupAlert\(\{/);
-  assert.match(dashboard, /onOpenChannels: openInitialChannelConnections/);
+  assert.equal(existsSync(join(root, "app/dashboard/_hooks/useDashboardSetupAlert.ts")), false);
+  assert.doesNotMatch(dashboard, /useDashboardSetupAlert|openInitialChannelConnections|dashboard\/setup-intro/);
+  assert.match(route, /supabase\.auth\.getUser\(\)/);
+  assert.match(route, /authError \|\| !user/);
   assert.match(route, /resolveActiveInrcyAccountId\(supabase, user\.id\)/);
   assert.match(route, /body\?\.accountId !== accountId/);
   assert.match(route, /supabaseAdmin[\s\S]*?\.from\("inrcy_accounts"\)/);
@@ -72,28 +60,15 @@ test("the first dashboard arrival claims one durable account-scoped setup alert"
   assert.match(migration, /alter column dashboard_setup_intro_seen_at drop default/);
 });
 
-test("the French setup copy follows the approved four-step order and channel CTA", () => {
-  const messages = JSON.parse(read("messages/fr-FR/dashboard.json")) as {
-    setupAlert: Record<string, string>;
-  };
-
-  assert.equal(messages.setupAlert.title, "4 étapes pour bien démarrer");
-  assert.deepEqual(
-    [
-      messages.setupAlert.stepChannels,
-      messages.setupAlert.stepDna,
-      messages.setupAlert.stepAi,
-      messages.setupAlert.stepFirstPublication,
-    ],
-    [
-      "Connecter mes canaux",
-      "Enrichir l'ADN de mon entreprise",
-      "Configurer mon IA",
-      "Publier",
-    ],
-  );
-  assert.equal(messages.setupAlert.confirm, "Connecter mes canaux");
-  assert.equal("stepProfile" in messages.setupAlert, false);
+test("the manual help remains available through its explicit action and URL", () => {
+  const dashboard = read("app/dashboard/DashboardClient.tsx");
+  const modals = read("app/dashboard/_components/DashboardHelpModals.tsx");
+  assert.match(dashboard, /const \[helpGeneratorOpen, setHelpGeneratorOpen\] = useState\(false\)/);
+  assert.match(dashboard, /const openUsageGuide = useCallback\(\(\) => \{\s*setHelpGeneratorOpen\(true\)/);
+  assert.match(dashboard, /setHelpGeneratorOpen\(searchParams\.get\("help"\) === "1"\)/);
+  assert.match(dashboard, /onOpenHelp=\{openUsageGuide\}/);
+  assert.match(modals, /open=\{helpGeneratorOpen\}/);
+  assert.match(modals, /helpGeneratorOpen \? <DashboardUsageGuide/);
 });
 
 test("the setup journey enlarges only dialogs that contain onboarding steps", () => {

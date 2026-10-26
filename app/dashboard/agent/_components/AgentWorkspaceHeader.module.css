@@ -1,9 +1,9 @@
 .header { display: flex; align-items: center; flex-wrap: wrap; gap: 14px 24px; width: 100%; padding: 0 0 5px; color: #f5f7ff; }
 .identity { display: flex; align-items: center; gap: 14px; flex: 1 0 300px; min-width: 0; }
 .identity img { width: 76px; height: 76px; object-fit: contain; filter: drop-shadow(0 0 12px #4b82ff44); }
-.identity h1 { margin: 0; font-size: clamp(24px, 2.1vw, 36px); font-weight: 850; letter-spacing: -.035em; line-height: 1.15; }
+.identity h1 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: clamp(24px, 2.1vw, 36px); font-weight: 850; letter-spacing: -.035em; line-height: 1.15; }
 .identity h1 span { color: #99c1ff; background: linear-gradient(100deg, #56e5fc, #bd86ff 70%, #ed83de); background-clip: text; -webkit-text-fill-color: transparent; }
-.identity p { margin: 7px 0 0; font-size: 12px; line-height: 1.4; color: #a8bfdf; }
+.identity p { margin: 2px 0 0; font-size: 10.5px; line-height: 1.3; color: #a8bfdf; }
 .controls { display: flex; align-items: flex-end; flex-direction: column; gap: 8px; }
 .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .actions > button { font-family: inherit; }

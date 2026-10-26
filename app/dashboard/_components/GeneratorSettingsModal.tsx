@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import DashboardAssistantTrigger from "./DashboardAssistantTrigger";
 
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -246,9 +247,9 @@ export default function GeneratorSettingsModal({
               </svg>
             </span>
             <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
-              <h2 id="generator-settings-title" style={{ margin: 0, fontSize: 20, lineHeight: 1.15 }}>
-                {i18nT("projection_8aa49fe8")}{" "}</h2>
-              <p style={{ margin: 0, color: "rgba(255,255,255,0.68)", fontSize: 12.5, lineHeight: 1.3 }}>
+              <h2 id="generator-settings-title" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8, fontSize: 20, lineHeight: 1.15 }}>
+                {i18nT("projection_8aa49fe8")}<DashboardAssistantTrigger /></h2>
+              <p style={{ margin: 0, color: "rgba(255,255,255,0.68)", fontSize: 10.5, lineHeight: 1.3 }}>
                 {i18nT("affinez_vos_estimations_1bc2b503")}{" "}</p>
             </div>
           </div>

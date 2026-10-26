@@ -13,6 +13,7 @@ import BaseModal from "../_components/WorkflowBaseModal";
 import DetailSequenceNavigation from "../_components/DetailSequenceNavigation";
 import ResponsiveActionButton from "../_components/ResponsiveActionButton";
 import HelpButton from "../_components/HelpButton";
+import DashboardToolHeading from "../_components/DashboardToolHeading";
 import HelpModal from "../_components/HelpModal";
 import { WEEKLY_GOALS, getGoalCopy } from "@/lib/weeklyGoals";
 import { PROFILE_VERSION_EVENT, type ProfileVersionChangeDetail } from "@/lib/profileVersioning";
@@ -411,8 +412,9 @@ export default function FideliserPage() {
       <div style={{ filter: active ? "blur(10px)" : "none", opacity: active ? 0.55 : 1, transition: "filter 180ms ease, opacity 180ms ease", pointerEvents: active ? "none" : "auto" }} aria-hidden={active ? true : undefined}>
         <div className={b.container}>
           <header className={b.headerRow}>
-            <div className={b.titleLine}><span aria-hidden className={b.titleIcon}>💌</span><div className={styles.title}>{i18nT("fideliser_8fa9e4f1")}</div></div>
-            <div className={b.tagline}>{i18nT("faites_revenir_vos_clients_40a33c57")}{" "}<strong>{i18nT("3_actions_997cf6ea")}</strong>{i18nT("maintenant_4590a147")}</div>
+            <DashboardToolHeading subtitle={<>{i18nT("faites_revenir_vos_clients_40a33c57")}{" "}<strong>{i18nT("3_actions_997cf6ea")}</strong>{i18nT("maintenant_4590a147")}</>}>
+              <div className={b.titleLine}><span aria-hidden className={b.titleIcon}>💌</span><div className={styles.title}>{i18nT("fideliser_8fa9e4f1")}</div></div>
+            </DashboardToolHeading>
             <div className={b.closeWrap}><div style={{ display: "flex", alignItems: "center", gap: 10 }}><HelpButton onClick={() => setHelpOpen(true)} title={i18nT("aide_fideliser_a1feee79")} /><ResponsiveActionButton desktopLabel={i18nT("propulser_2de43942")} mobileIcon="P" href="/dashboard/propulser" ariaLabel={i18nT("aller_vers_propulser_f020d44a")} title={i18nT("propulser_2de43942")} className={b.headerBtnBooster} /><Link href="/dashboard/mails?folder=fidelisations" aria-label={i18nT("aller_vers_inr_send_fidelisations_834d32a3")} title={i18nT("ouvrir_inr_send_d4b453c9")} className={`${b.inrSendHeaderShortcut} ${b.headerBtnInrSend}`}>
                     <span className={b.inrSendHeaderText}>{i18nT("inr_send_5c2a3e92")}</span>
                     <img className={b.inrSendHeaderLogo} src="/inrsend-logo-seul.png" alt="" aria-hidden />

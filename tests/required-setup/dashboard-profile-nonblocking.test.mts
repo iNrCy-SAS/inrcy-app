@@ -71,13 +71,12 @@ test("dashboard buttons and direct URLs never branch on profile completion", () 
 test("completion remains informational but does not trigger the once-only introduction", () => {
   const completion = read("lib/dashboardCompletion.ts");
   const hook = read("app/dashboard/_hooks/useDashboardCompletionChecks.ts");
-  const setupAlert = read("app/dashboard/_hooks/useDashboardSetupAlert.ts");
   const dashboard = read("app/dashboard/DashboardClient.tsx");
 
   assert.match(completion, /evaluateDashboardPreparationCompletion/);
   assert.match(hook, /informational \(onboarding and profile-dependent previews\), never an access gate/);
-  assert.doesNotMatch(setupAlert, /profileIncomplete|activityIncomplete/);
-  assert.match(setupAlert, /claimSetupIntro/);
+  assert.doesNotMatch(dashboard, /useDashboardSetupAlert|openInitialChannelConnections/);
+  assert.match(read("app/api/dashboard/setup-intro/route.ts"), /\.is\("dashboard_setup_intro_seen_at", null\)/);
   assert.match(dashboard, /const inrBadgeProfileReady = profileCheckReady/);
   assert.match(dashboard, /createInrBadgePublicUrl\(inrBadgeProfile\)/);
 });

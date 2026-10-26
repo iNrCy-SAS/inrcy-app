@@ -2,6 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
+import DashboardAssistantTrigger from "../_components/DashboardAssistantTrigger";
 import {
   useCallback,
   useEffect,
@@ -1064,7 +1065,7 @@ export default function MediaLibraryClient() {
             🖼️
           </div>
           <div className={styles.heroContent}>
-            <h1 className={styles.title}><span className={styles.desktopTitle}>{i18nT("mes_medias_0c5196c9")}</span><span className={styles.mobileTitle}>{i18nT("medias_486d82f4")}</span></h1>
+            <h1 className={styles.title}><span className={styles.desktopTitle}>{i18nT("mes_medias_0c5196c9")}</span><span className={styles.mobileTitle}>{i18nT("medias_486d82f4")}</span><DashboardAssistantTrigger /></h1>
           </div>
 
           <div className={styles.headerMetrics} aria-label={i18nT("library_statistics")}>

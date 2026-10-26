@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import styles from "../dashboard.module.css";
 import headerStyles from "./WorkflowBaseModal.module.css";
+import DashboardAssistantTrigger from "./DashboardAssistantTrigger";
 
 export default function BaseModal({
   title,
@@ -170,7 +171,7 @@ export default function BaseModal({
               {/* Left badge */}
               <div style={{ minWidth: 0 }}>
                 {headerBrand ? headerBrand : titleMovesLeft ? (
-                  <span style={isMobileHeader ? compactPillStyle : pillStyle}>{title}</span>
+                  <span style={isMobileHeader ? compactPillStyle : pillStyle}>{title}<DashboardAssistantTrigger /></span>
                 ) : showModuleLabel ? (
                   <span style={isMobileHeader ? compactPillStyle : pillStyle}>{moduleLabel}</span>
                 ) : null}
@@ -179,7 +180,7 @@ export default function BaseModal({
               {/* Center title */}
               {headerCenter ? <div className={headerStyles.center}>{headerCenter}</div> : null}
               {!headerBrand ? <div style={{ textAlign: titleMovesLeft ? "left" : "center", minWidth: 0 }}>
-                {!titleMovesLeft ? <span style={isMobileHeader ? compactPillStyle : pillStyle}>{title}</span> : null}
+                {!titleMovesLeft ? <span style={isMobileHeader ? compactPillStyle : pillStyle}>{title}<DashboardAssistantTrigger /></span> : null}
               </div> : null}
 
               {/* Right actions */}

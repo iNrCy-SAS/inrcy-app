@@ -6,6 +6,11 @@
   padding-block: clamp(0px, 1.4vh, 16px) 20px;
   color: #f4f8ff;
 }
+.assistantRequest { display: grid; gap: 12px; width: 100%; max-width: 980px; margin: 0 auto; padding: 18px; box-sizing: border-box; border: 1px solid #c59de050; border-radius: 20px; background: linear-gradient(120deg, #1a3b55, #34234c); }
+.assistantRequest h2 { margin: 0; font-size: 19px; }
+.assistantRequest p { margin: 0; color: #d0dfed; line-height: 1.5; font-size: 13px; }
+.assistantRequest textarea { width: 100%; min-height: 170px; resize: vertical; box-sizing: border-box; padding: 12px; border: 1px solid #b4cbe54a; border-radius: 13px; background: #09172a; color: #f1f6ff; font: inherit; font-size: 16px; line-height: 1.5; }
+.assistantRequest textarea:focus-visible { outline: 2px solid #a6e5ff; outline-offset: 2px; }
 
 .intro {
   text-align: center;

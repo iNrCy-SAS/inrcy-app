@@ -69,6 +69,14 @@ function buildBusinessKnowledge(
   }
 
   const professionalProfile = buildNormalizedAiGenerationProfile({ business });
+  // Generation profiles have smaller prompt limits. The editable ADN must
+  // retain its full stored lists when an unrelated field is saved partially.
+  const storedKnowledge = normalizeAiBusinessKnowledge({
+    services: business.services ?? business.services_text,
+    interventionZones: business.intervention_zones ?? business.intervention_zones_text ?? business.zones,
+    strengths: business.strengths ?? business.strengths_text,
+    customerTypes: business.customer_typologies ?? business.customer_types ?? business.audiences,
+  });
   const decodedSector = decodeBusinessSector(String(business.sector || ""));
   const jobValue = isValidJobForSector(decodedSector.sectorCategory, decodedSector.profession)
     ? decodedSector.profession
@@ -85,19 +93,25 @@ function buildBusinessKnowledge(
           memory.detailedDescription,
         companyName,
       ),
-    services: professionalProfile.business.services.length
-      ? professionalProfile.business.services
-      : defaultServices,
-    interventionZones: professionalProfile.business.interventionZones,
+    services: storedKnowledge.services.length
+      ? storedKnowledge.services
+      : professionalProfile.business.services.length
+        ? professionalProfile.business.services
+        : defaultServices,
+    interventionZones: storedKnowledge.interventionZones.length
+      ? storedKnowledge.interventionZones
+      : professionalProfile.business.interventionZones,
     weeklySchedule: decodeBusinessWeeklySchedule(
       business.opening_days,
       business.opening_hours,
     ),
     strengths: [
-      ...professionalProfile.business.strengths,
+      ...(storedKnowledge.strengths.length ? storedKnowledge.strengths : professionalProfile.business.strengths),
       ...memory.differentiators,
     ],
-    customerTypes: professionalProfile.business.customerTypologies,
+    customerTypes: storedKnowledge.customerTypes.length
+      ? storedKnowledge.customerTypes
+      : professionalProfile.business.customerTypologies,
   });
 }
 

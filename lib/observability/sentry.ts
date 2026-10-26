@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/nextjs";
 import { getRequestId, getRequestMeta } from "@/lib/observability/request";
 
 export type ApiSentryContext = {
+  requestId?: string;
   area?: string;
   operation?: string;
   statusCode?: number;
@@ -65,6 +66,7 @@ export function captureApiException(
   context: ApiSentryContext = {},
 ) {
   const requestInfo = getRequestInfo(req);
+  if (context.requestId && /^[0-9a-f-]{36}$/i.test(context.requestId)) requestInfo.requestId = context.requestId;
   const area = String(context.area || areaFromRoute(requestInfo.route));
   const operation = String(context.operation || `${requestInfo.method} ${requestInfo.route}`);
   const normalizedError = toError(error);

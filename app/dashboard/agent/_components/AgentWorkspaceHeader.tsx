@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import HelpButton from "../../_components/HelpButton";
+import DashboardAssistantTrigger from "../../_components/DashboardAssistantTrigger";
 import { INR_AGENT_WORKSPACES, type InrAgentWorkspace } from "@/lib/inrAgentWorkspaces";
 import appStyles from "../agent.module.css";
 import styles from "./AgentWorkspaceHeader.module.css";
@@ -34,7 +35,7 @@ export default function AgentWorkspaceHeader(props: Props) {
       <div className={styles.identity}>
         <img src={definition.icon} alt="" width={76} height={76} fetchPriority="high" />
         <div>
-          <h1>Agent <span>{t(`${props.workspace}.name`)}</span></h1>
+          <h1>Agent <span>{t(`${props.workspace}.name`)}</span><DashboardAssistantTrigger /></h1>
           <p>{t(`${props.workspace}.description`)}</p>
         </div>
       </div>

@@ -55,7 +55,7 @@ function click(node: Element) {
 function harness(edition: editionPolicy.DashboardEdition = "premium") {
   const effects: Effect[] = [];
   const portals: { child: ReactNode; host: unknown }[] = [];
-  const calls = { routes: [] as string[], panels: [] as string[], warmups: [] as string[], userMenu: [] as boolean[], notificationMenu: [] as boolean[], enabled: [] as boolean[], logout: 0, gps: 0 };
+  const calls = { routes: [] as string[], panels: [] as string[], warmups: [] as string[], userMenu: [] as boolean[], notificationMenu: [] as boolean[], enabled: [] as boolean[], logout: 0, gps: 0, assistant: 0 };
   const mockRequire = (specifier: string): unknown => {
     if (specifier === "react/jsx-runtime") return require(specifier);
     if (specifier === "react") return { useEffect: (effect: Effect) => { effects.push(effect); } };
@@ -74,6 +74,8 @@ function harness(edition: editionPolicy.DashboardEdition = "premium") {
     if (specifier === "../_hooks/useInrAgentPendingCount") return { useInrAgentPendingCount: (enabled: boolean) => { calls.enabled.push(enabled); return enabled ? 2 : 0; } };
     if (specifier === "@/lib/dashboardEdition") return editionPolicy;
     if (specifier === "./DashboardEditionProvider") return { useDashboardEdition: () => edition };
+    if (specifier === "./DashboardAssistantProvider") return { useDashboardAssistant: () => ({ toggleAssistant: () => { calls.assistant += 1; }, assistantOpen: false, assistantLabel: "Ouvrir iNr’Assistant", assistantUnread: false }) };
+    if (specifier === "./DashboardAssistantTrigger") return { DashboardAssistantBadge: () => null };
     if (specifier === "./NotificationMenu") return { __esModule: true, default: NotificationMenu };
     if (specifier === "./DashboardNavigationIcon") return { __esModule: true, default: (props: Props) => createElement("svg", { "data-dashboard-navigation-icon": props.kind, "aria-hidden": "true" }) };
     if (specifier === "./DashboardGeneratorOrb") return { __esModule: true, default: component("DashboardGeneratorOrb") };
@@ -123,8 +125,11 @@ for (const edition of ["standard", "premium", "founder"] as const) {
         const leftActions = elements(left).filter(node => node.type === "button");
         assert.deepEqual(leftActions.map(node => node.props["data-testid"] === "inr-assist-preview" ? "assist" : "help"), hosted ? ["assist"] : ["assist", "help"]);
         const assist = find(left, node => node.props["data-testid"] === "inr-assist-preview");
-        assert.equal(assist.props["aria-disabled"], "true");
-        assert.equal(assist.props.onClick, undefined, "The assistant remains a preview and must not trigger an unfinished workflow");
+        assert.equal(assist.props["aria-disabled"], undefined);
+        assert.equal(assist.props["aria-haspopup"], "dialog");
+        assert.equal(view.calls.assistant, 0, "Rendering must never send a chat request");
+        click(assist);
+        assert.equal(view.calls.assistant, 1, "The pink assistant icon opens the assistant panel");
         const rightActions = elements(right).flatMap(node => node.type === NotificationMenu ? ["notifications"] : node.type !== "button" ? []
           : node.props["data-dashboard-panel"] === "boutique" ? ["shop"] : node.props["data-dashboard-action"] === "cash" ? ["cash"] : ["contact"]);
         assert.deepEqual(rightActions, edition === "founder" ? ["notifications", "shop", "contact", "cash"] : ["notifications", "shop", "contact"]);

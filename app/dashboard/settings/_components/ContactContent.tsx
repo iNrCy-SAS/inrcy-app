@@ -1,7 +1,10 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
+import { useDashboardAssistant } from "../../_components/DashboardAssistantProvider";
+import { dashboardAssistantCopy } from "../../_components/dashboardAssistantCopy";
 import styles from "./ContactContent.module.css";
 
 type Props = {
@@ -29,6 +32,10 @@ function ContactIcon({ kind }: { kind: "email" | "phone" | "resources" }) {
 export default function ContactContent({ mode = "page" }: Props) {
   const i18nT = useTranslations("settings");
   const searchParams = useSearchParams();
+  const { assistantContactDraft } = useDashboardAssistant();
+  const assistantCopy = dashboardAssistantCopy(useLocale());
+  const [editedDraft, setEditedDraft] = useState<{ source: string | null; message: string }>({ source: null, message: "" });
+  const reviewedMessage = editedDraft.source === assistantContactDraft ? editedDraft.message : assistantContactDraft || "";
   const premiumRequired = searchParams.get("premium") === "required";
   const EMAIL = "contact@inrcy.com";
   const PHONE_DISPLAY = "06.31.26.08.12";
@@ -49,6 +56,16 @@ export default function ContactContent({ mode = "page" }: Props) {
 
   return (
     <div className={styles.contact} data-contact-mode={mode}>
+      {assistantContactDraft !== null ? <section className={styles.assistantRequest}>
+        <h2>{assistantCopy.reviewTitle}</h2>
+        <p>{assistantCopy.reviewNote}</p>
+        <textarea rows={7} maxLength={6000} value={reviewedMessage} aria-label={assistantCopy.reviewTitle}
+          onChange={(event) => setEditedDraft({ source: assistantContactDraft, message: event.target.value })} />
+        <div className={styles.actions}>
+          <a className={styles.primaryAction} href={`mailto:${EMAIL}?subject=${encodeURIComponent("iNr’Assistant — Accompagnement")}&body=${encodeURIComponent(reviewedMessage)}`}>{assistantCopy.emailDraft}</a>
+          <button className={styles.copyAction} type="button" onClick={() => void copy(reviewedMessage)}>{assistantCopy.copySummary}</button>
+        </div>
+      </section> : null}
       {premiumRequired ? (
         <section className={styles.premiumNotice}>
           <div className={styles.premiumLabel}>{i18nT("inrcy_premium_4c7d39c1")}</div>

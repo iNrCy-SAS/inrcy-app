@@ -9,6 +9,7 @@ import SettingsDrawer from "@/app/dashboard/SettingsDrawer";
 import { useUnsavedExitGuard } from "@/app/dashboard/_hooks/useUnsavedExitGuard";
 import { getChannelSettingsHeaderStyle } from "@/app/dashboard/channel-settings";
 import MediaGeneratorModal from "@/app/dashboard/_components/MediaGeneratorModal";
+import DashboardToolHeading from "@/app/dashboard/_components/DashboardToolHeading";
 import MediaSubjectVoiceButton from "@/app/dashboard/_components/MediaSubjectVoiceButton";
 import LocalMediaUploadChoice from "@/app/dashboard/_components/LocalMediaUploadChoice";
 import MediaLibraryPickerModal, {
@@ -4111,10 +4112,9 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
                 <path d="m44 20 8-8m-8 0h8v8" />
               </svg>
             </span>
-            <div className={styles.headerIdentity}>
-              <div className={styles.headerTitleLine}><h1>iNr’<span>ADS</span></h1><span className={styles.premiumBadge}>Premium</span></div>
-              <p>Donnez de l’élan à votre visibilité.</p>
-            </div>
+            <DashboardToolHeading subtitle="Donnez de l’élan à votre visibilité.">
+              <h1>iNr’<span>ADS</span></h1><span className={styles.premiumBadge}>Premium</span>
+            </DashboardToolHeading>
           </div>
           <nav className={styles.headerActions} aria-label="Actions iNr’ADS">
             <Link href="/dashboard/mails?folder=campagnes-ads" className={styles.trackingButton} aria-label="Voir les campagnes dans iNr’Send" title="Voir les campagnes dans iNr’Send">
@@ -4246,7 +4246,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         <button ref={launchButtonRef} type="button" onClick={startNewCampaign} disabled={!pilotChannelsEnabled && !isAdsPublicChannel(channelId)} className={`${styles.headerCta} ${styles.launchButton}`}><span aria-hidden="true">✦</span> {!pilotChannelsEnabled && !isAdsPublicChannel(channelId) ? comingSoonLabel : "Lancer une campagne"} <span aria-hidden="true">↗</span></button>
       </div>
 
-      <SettingsDrawer title={campaignCreationTitle} isOpen={creating} onClose={() => { if (!demoDialog && busy !== "demo") void confirmCampaignExit(); }} closeOnEscape={!demoDialog && busy !== "demo"} closeOnBackdrop={!demoDialog && busy !== "demo"} presentation="centered" headerLead={<div className={styles.modalBrand}>iNr’<span>ADS</span><small>STUDIO DE CAMPAGNE</small></div>} headerStyle={campaignHeaderStyle(channelId)} headerContent={<div className={styles.wizardTitle}><span className={styles.wizardChannelLogo} aria-hidden="true"><Image src={channelMeta.logo} width={34} height={34} alt="" /></span><div>{campaignCreationTitle}<small>{displayedStepNames[step]} · Étape {step + 1} / {displayedStepNames.length}</small></div></div>}>
+      <SettingsDrawer title={campaignCreationTitle} isOpen={creating} onClose={() => { if (!demoDialog && busy !== "demo") void confirmCampaignExit(); }} closeOnEscape={!demoDialog && busy !== "demo"} closeOnBackdrop={!demoDialog && busy !== "demo"} presentation="centered" headerStyle={campaignHeaderStyle(channelId)} headerContent={<div className={styles.wizardTitle}><span className={styles.wizardChannelLogo} aria-hidden="true"><Image src={channelMeta.logo} width={34} height={34} alt="" /></span><div>{campaignCreationTitle}<small>{displayedStepNames[step]} · Étape {step + 1} / {displayedStepNames.length}</small></div></div>}>
       <div data-channel={channelId} ref={studioWorkspaceRef} inert={busy === "demo" || undefined} className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) { const nextStep = step + (dx < 0 ? 1 : -1); if (dx < 0 && creationPath === "inrcy" && step === analysisStep && planProgress !== 100) return; navigateToStep(nextStep); } }}>
       <nav className={styles.stepper} aria-label="Étapes de création">{displayedStepNames.map((name, index) => {
         const warning = creationPath !== "choice" && (reachedStepKeys.includes("validation") || reachedStepKeys.includes(displayedStepKeys[index]))

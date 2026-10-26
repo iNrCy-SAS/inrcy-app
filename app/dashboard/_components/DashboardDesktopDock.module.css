@@ -3,8 +3,10 @@
   display: none;
 }
 
-.assistPreview { cursor: default; }
+.assistPreview { position: relative; cursor: pointer; }
+.assistUnread { position: absolute; top: 2px; right: 2px; width: 10px; height: 10px; border: 2px solid #0d1429; border-radius: 50%; background: #ff78d5; box-shadow: 0 0 9px #ff78d588; }
 .assistPreview img { display: block; object-fit: contain; width: 38px; height: 38px; filter: drop-shadow(0 0 6px #ff75d477); }
+.assistPreview[data-pending="true"] img { filter: drop-shadow(0 0 7px #8bdfff) drop-shadow(0 0 11px #c19bff88); }
 .centralGroup .iconButton.assistPreview.assistPreview { border-color: transparent; background: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 
 @media (min-width: 1101px) {

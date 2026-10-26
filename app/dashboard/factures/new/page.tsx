@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import DashboardAssistantTrigger from "../../_components/DashboardAssistantTrigger";
 
 
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
@@ -1613,7 +1614,7 @@ export default function NewFacturePage() {
         {/* Formulaire */}
         <div className={styles.panel}>
           <div className={styles.panelToolbar}>
-            <h1 className={styles.titleBadge}>{i18nT("creer_une_facture_13a9becd")}</h1>
+            <h1 className={styles.titleBadge}>{i18nT("creer_une_facture_13a9becd")}<DashboardAssistantTrigger /></h1>
             <button
               type="button"
               className={`${styles.closeBtn} ${styles.toolbarBtn}`}

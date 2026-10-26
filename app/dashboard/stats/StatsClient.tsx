@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import ResponsiveActionButton from "../_components/ResponsiveActionButton";
 import HelpButton from "../_components/HelpButton";
 import HelpModal from "../_components/HelpModal";
+import DashboardToolHeading from "../_components/DashboardToolHeading";
 import {
   applyStatsEditionActionPolicy,
   buildCubeModel,
@@ -508,6 +509,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       <div className={styles.header}>
         <div className={styles.headerTop}>
           <div className={styles.brand}>
+            <DashboardToolHeading subtitle={i18nT("vos_donnees_analysees_en_mode_business_11b869ec")}>
             <img
               src="/inrstats-logo.png"
               alt={i18nT("inr_stats_323b32a2")}
@@ -518,7 +520,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
               decoding="sync"
               fetchPriority="high"
             />
-            <div className={`${styles.tagline} ${styles.taglineDesktop}`}>{i18nT("vos_donnees_analysees_en_mode_business_11b869ec")}</div>
+            </DashboardToolHeading>
           </div>
 
           <div className={styles.headerActions}>
@@ -557,7 +559,6 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
             </div>
           </div>
         </div>
-        <div className={`${styles.tagline} ${styles.taglineMobile}`}>{i18nT("vos_donnees_analysees_en_mode_business_11b869ec")}</div>
         {reportNotice ? (
           <div className={styles.reportNotice} role="status">
             {reportNotice}

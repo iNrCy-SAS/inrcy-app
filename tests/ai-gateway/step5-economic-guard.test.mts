@@ -34,6 +34,7 @@ test("all Gateway feature tags have explicit economic policies", () => {
     "agent.publish",
     "agent.stats-report",
     "ads.generate",
+    "assistant.chat",
     "booster.media-understanding",
     "booster.publish",
     "booster.transcribe",

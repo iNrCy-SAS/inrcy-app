@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import DashboardToolHeading from "../_components/DashboardToolHeading";
 
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -124,14 +125,11 @@ function ListPage({ kind, title, ctaLabel, ctaHref }: Props) {
   return (
     <div className={styles.listWrap}>
       <div className={styles.listHeader}>
-        <div>
-          <h1 className={styles.listTitle}>{title}</h1>
-          <p className={styles.listSub}>
-            {storageMode === "supabase"
+        <DashboardToolHeading subtitle={storageMode === "supabase"
               ? i18nT("brouillons_et_versions_synchronises_via_inrsend_5951fef1")
-              : i18nT("affichage_de_secours_depuis_le_navigateur_7483ff1a")}
-          </p>
-        </div>
+              : i18nT("affichage_de_secours_depuis_le_navigateur_7483ff1a")}>
+          <h1 className={styles.listTitle}>{title}</h1>
+        </DashboardToolHeading>
         <button type="button" onClick={() => router.push(ctaHref)} className={styles.primaryBtn}>
           {ctaLabel}
         </button>

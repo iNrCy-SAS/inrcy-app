@@ -13,6 +13,7 @@ import BaseModal from "../_components/WorkflowBaseModal";
 import DetailSequenceNavigation from "../_components/DetailSequenceNavigation";
 import ResponsiveActionButton from "../_components/ResponsiveActionButton";
 import HelpButton from "../_components/HelpButton";
+import DashboardToolHeading from "../_components/DashboardToolHeading";
 import HelpModal from "../_components/HelpModal";
 import { getGoalCopy } from "@/lib/weeklyGoals";
 import { PROFILE_VERSION_EVENT, type ProfileVersionChangeDetail } from "@/lib/profileVersioning";
@@ -370,8 +371,9 @@ export default function PropulserPage() {
       <div style={{ filter: active ? "blur(10px)" : "none", opacity: active ? 0.55 : 1, transition: "filter 180ms ease, opacity 180ms ease", pointerEvents: active ? "none" : "auto" }} aria-hidden={active ? true : undefined}>
         <div className={b.container}>
           <header className={b.headerRow}>
-            <div className={b.titleLine}><span aria-hidden className={b.titleIcon}>🚀</span><div className={styles.title}>{i18nT("propulser_2de43942")}</div></div>
-            <div className={b.tagline}>{i18nT("lancez_une_action_business_75b7d4e1")}{" "}<strong>{i18nT("valoriser_recolter_ou_offrir_f36016e7")}</strong></div>
+            <DashboardToolHeading subtitle={<>{i18nT("lancez_une_action_business_75b7d4e1")}{" "}<strong>{i18nT("valoriser_recolter_ou_offrir_f36016e7")}</strong></>}>
+              <div className={b.titleLine}><span aria-hidden className={b.titleIcon}>🚀</span><div className={styles.title}>{i18nT("propulser_2de43942")}</div></div>
+            </DashboardToolHeading>
             <div className={b.closeWrap}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <HelpButton onClick={() => setHelpOpen(true)} title={i18nT("aide_propulser_f14568d1")} />

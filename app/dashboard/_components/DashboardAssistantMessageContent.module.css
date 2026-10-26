@@ -1,0 +1,35 @@
+.content {
+  min-width: 0;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.content.content p { margin: 0 0 .65em; white-space: pre-line; font: inherit; }
+.content > :first-child { margin-top: 0; }
+.content.content > :last-child { margin-bottom: 0; }
+.content strong { font-weight: 750; }
+.content em { font-style: italic; }
+.content del { text-decoration: line-through; }
+.content a { color: #a8e5ff; text-decoration: underline; text-underline-offset: 3px; }
+.content a:hover { color: #d0f2ff; }
+.content a:focus-visible { outline: 2px solid #a6e5ff; outline-offset: 3px; border-radius: 2px; }
+.content ul, .content ol { margin: .55em 0 .75em; padding-left: 1.45em; }
+.content ul { list-style: disc outside; }
+.content ol { list-style: decimal outside; }
+.content li { margin: .25em 0; padding-left: .1em; }
+.content li > ul, .content li > ol { margin: .25em 0; }
+.content.content li > p { margin-bottom: .2em; }
+.content h1, .content h2, .content h3, .content h4, .content h5, .content h6 { margin: .85em 0 .35em; font-size: 1em; line-height: 1.4; font-weight: 800; }
+.content h1, .content h2 { font-size: 1.1em; }
+.content blockquote { margin: .65em 0; padding: .15em 0 .15em .85em; border-left: 3px solid #a7a5df80; color: #c6d6ed; }
+.content hr { margin: .85em 0; border: 0; border-top: 1px solid #b3b7d33b; }
+.content code { padding: .1em .3em; border-radius: 4px; background: #080f2280; font-size: .9em; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.content pre { margin: .65em 0; max-width: 100%; overflow-x: auto; padding: .7em; border: 1px solid #a0b3d33b; border-radius: 9px; background: #0b1326; }
+.content pre code { display: block; padding: 0; background: transparent; white-space: pre; }
+.content [data-streamdown="table-wrapper"] { max-width: 100%; overflow-x: auto; }
+.content table { width: 100%; margin: .65em 0; border-collapse: collapse; font-size: .9em; }
+.content th, .content td { padding: .4em .55em; border: 1px solid #a0b3d33b; text-align: left; }
+.content th { font-weight: 750; background: #ffffff08; }

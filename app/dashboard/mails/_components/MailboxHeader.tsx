@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import SettingsDrawer from "../../SettingsDrawer";
 import HelpButton from "../../_components/HelpButton";
+import DashboardToolHeading from "../../_components/DashboardToolHeading";
 import HelpModal from "../../_components/HelpModal";
 import { MailSignatureSettingsContent } from "../../settings/_components/MailsSettingsContent";
 import { useUnsavedExitGuard } from "../../_hooks/useUnsavedExitGuard";
@@ -56,6 +57,9 @@ export default function MailboxHeader({
     <>
       <div className={styles.header}>
         <div className={styles.brand}>
+          <DashboardToolHeading subtitle={standardMode
+            ? i18nT("l_historique_de_toutes_vos_publications_c942d840")
+            : i18nT("toutes_vos_communications_depuis_une_seule_eecb4544")}>
           <Image
             src="/inrsend-logo.png"
             alt={i18nT("inr_send_98e1b891")}
@@ -64,16 +68,7 @@ export default function MailboxHeader({
             priority
             className={styles.brandIcon}
           />
-
-          <div className={styles.brandText}>
-            <div className={styles.brandRow}>
-              <span className={styles.tagline}>
-                {standardMode
-                  ? i18nT("l_historique_de_toutes_vos_publications_c942d840")
-                  : i18nT("toutes_vos_communications_depuis_une_seule_eecb4544")}
-              </span>
-            </div>
-          </div>
+          </DashboardToolHeading>
         </div>
 
         <div className={styles.actions}>

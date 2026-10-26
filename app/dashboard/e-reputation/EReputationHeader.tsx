@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import DashboardToolHeading from "../_components/DashboardToolHeading";
 
 import { useDashboardEdition } from "@/app/dashboard/_components/DashboardEditionProvider";
 
@@ -20,8 +21,6 @@ type Props = {
 export default function EReputationHeader({
   title,
   tagline,
-  sublineDesktop,
-  sublineMobile,
   manageLabel,
   askReviewsLabel,
   closeLabel,
@@ -41,16 +40,11 @@ export default function EReputationHeader({
             <span className={[styles.reputationBrandStar, styles.reputationBrandStarBottomLeft].join(" ")}>★</span>
           </div>
         </div>
-        <div className={styles.brandText}>
+        <DashboardToolHeading subtitle={tagline}>
           <div className={styles.brandRow}>
             <h1>{title}</h1>
-            <span className={styles.tagline}>{tagline}</span>
           </div>
-          <p className={styles.subline}>
-            <span className={styles.sublineDesktop}>{sublineDesktop}{" "}</span>
-            <span className={styles.sublineMobile}>{sublineMobile}</span>
-          </p>
-        </div>
+        </DashboardToolHeading>
       </div>
 
       <div className={styles.actions}>

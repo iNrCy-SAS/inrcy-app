@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { DrawerHeaderActionsContext, DrawerHeaderDetailsContext, DrawerHeaderTabsContext } from "./DrawerHeaderTabs";
 import headerTabsStyles from "./DrawerHeaderTabs.module.css";
 import { useDashboardI18n } from "./_hooks/useDashboardI18n";
+import DashboardAssistantTrigger from "./_components/DashboardAssistantTrigger";
 
 type Props = {
   title: string;
@@ -359,13 +360,16 @@ export default function SettingsDrawer({
                 >
                   {title}
                 </span>
-                {headerContent}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>{headerContent}<DashboardAssistantTrigger /></div>
               </>
             ) : (
               <h2
                 id={titleId}
                 style={{
                   margin: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
                   color: "var(--inrcy-theme-text-primary, white)",
                   fontSize: "clamp(18px, 2vw, 26px)",
                   fontWeight: 800,
@@ -378,6 +382,7 @@ export default function SettingsDrawer({
                 }}
               >
                 {title}
+                <DashboardAssistantTrigger />
               </h2>
             )}
             <div ref={setHeaderDetailsHost} className={headerTabsStyles.headerDetails} data-dashboard-settings-header-details />

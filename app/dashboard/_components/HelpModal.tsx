@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef } from "react";
 import nativeStyles from "./HelpModalNativeLayer.module.css";
 import styles from "./HelpModal.module.css";
+import DashboardAssistantTrigger from "./DashboardAssistantTrigger";
 
 type Props = {
   open: boolean;
@@ -128,7 +129,7 @@ export default function HelpModal({ open, title, onClose, children, nativeLayer 
             WebkitBackdropFilter: "blur(10px)",
           }}
         >
-          <div className={variant === "guide" ? styles.guideTitle : undefined} style={{ fontWeight: 800, fontSize: variant === "guide" ? undefined : 15 }}>{title}</div>
+          <div className={variant === "guide" ? styles.guideTitle : undefined} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, fontWeight: 800, fontSize: variant === "guide" ? undefined : 15 }}>{title}<DashboardAssistantTrigger /></div>
 
           {headerContent}
 

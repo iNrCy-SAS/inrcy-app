@@ -16,11 +16,13 @@ test("ADN opts into the compact two-row header with the official round IA mark a
   assert.match(page, /label:\s*copy\.drawer\.close[\s\S]*?mobileIcon:\s*"×"/);
 });
 
-test("the opt-in responsive header keeps title and controls on row one and shows the full subtitle on row two", () => {
+test("the responsive header keeps its small subtitle inside the title block beside the controls", () => {
   assert.match(header, /data-responsive-two-row=\{responsiveTwoRow \? "true" : undefined\}/);
   assert.match(header, /\[data-dashboard-workspace-action-icon\][\s\S]*?display:\s*none;[\s\S]*?@media \(max-width: 820px\)/);
   assert.match(header, /@media \(max-width: 820px\)[\s\S]*?grid-template-columns:\s*auto auto minmax\(0, 1fr\) auto/);
-  assert.match(header, /\[data-dashboard-workspace-subtitle\][\s\S]*?grid-column:\s*1 \/ -1[\s\S]*?grid-row:\s*2[\s\S]*?text-overflow:\s*clip !important[\s\S]*?white-space:\s*normal !important/);
+  assert.match(header, /\[data-dashboard-workspace-title-group\] \{\s*display: grid;\s*grid-column: 3;\s*grid-row: 1;/);
+  assert.match(header, /\[data-dashboard-workspace-subtitle\] \{\s*max-width: none !important;\s*font-size: 10px;/);
+  assert.doesNotMatch(header, /\[data-dashboard-workspace-subtitle\] \{\s*grid-column: 1 \/ -1/);
   assert.match(header, /nav button\[data-has-mobile-icon="true"\][\s\S]*?display:\s*inline-flex[\s\S]*?width:\s*38px[\s\S]*?height:\s*38px/);
   assert.match(
     header,

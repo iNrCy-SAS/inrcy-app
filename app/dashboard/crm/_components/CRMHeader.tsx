@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import HelpButton from "../../_components/HelpButton";
+import DashboardToolHeading from "../../_components/DashboardToolHeading";
 import type { ReactNode, RefObject } from "react";
 import styles from "../crm.module.css";
 
@@ -69,10 +70,10 @@ export default function CRMHeader({
     <header className={styles.header}>
       <div className={styles.titleBlock}>
         <div className={styles.titleWrap}>
+          <DashboardToolHeading subtitle={i18nT("la_centrale_de_tous_vos_contacts_ac5c0306")}>
           <img src="/inrcrm-logo.png" alt={i18nT("inr_crm_010c9ef1")} width={154} height={64} loading="eager" decoding="sync" fetchPriority="high" style={{ width: 154, height: 64, display: "block" }} />
-          {!isResponsive ? <p className={styles.subInline}>{i18nT("la_centrale_de_tous_vos_contacts_ac5c0306")}</p> : null}
+          </DashboardToolHeading>
         </div>
-        {isResponsive ? <p className={styles.mobileTagline}>{i18nT("la_centrale_de_tous_vos_contacts_ac5c0306")}</p> : null}
       </div>
 
       <div className={styles.headerRight}>

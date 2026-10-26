@@ -473,10 +473,9 @@ export default function DashboardBoosterModalLayer({
       {mode === "publish" ? (
         <BaseModal
           title={i18nT("publier_34e6b19e")}
-          headerBrand={<BoosterHeaderBrand label={i18nT("booster_8e4caec0")} />}
+          headerBrand={<BoosterHeaderBrand label={i18nT("booster_8e4caec0")} subtitle={dashboardT("standard.boosterEyebrow")} />}
           headerActionsClassName={boosterBrandStyles.actions}
           wideOnDesktop
-          headerCenter={<span className={boosterBrandStyles.descriptor}><span>{dashboardT("standard.boosterEyebrow")}</span></span>}
           stepWorkspace
           onClose={requestClosePublishModal}
           headerHidden={publishEditorOverlayOpen}

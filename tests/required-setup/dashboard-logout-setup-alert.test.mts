@@ -42,18 +42,9 @@ test("desktop and mobile logout start the guard before clearing the active accou
   }
 });
 
-test("the setup alert is cancelled and rechecked while logout is in progress", () => {
-  const hook = read("app/dashboard/_hooks/useDashboardSetupAlert.ts");
-
-  assert.match(hook, /BROWSER_SIGN_OUT_START_EVENT/);
-  assert.match(hook, /if \(isBrowserSignOutInProgress\(\)\) return;/);
-  assert.match(hook, /!claim\?\.show \|\| isBrowserSignOutInProgress\(\)/);
-  assert.match(
-    hook,
-    /window\.addEventListener\(BROWSER_SIGN_OUT_START_EVENT, cancelPendingAlert\)/,
-  );
-  assert.match(
-    hook,
-    /if \(isBrowserSignOutInProgress\(\)\) return;[\s\S]*?confirmInrcy\(\{/,
-  );
+test("DashboardClient cannot launch the old automatic modal during arrival or logout", () => {
+  const dashboard = read("app/dashboard/DashboardClient.tsx");
+  assert.doesNotMatch(dashboard, /useDashboardSetupAlert|openInitialChannelConnections|dashboard\/setup-intro/);
+  assert.match(dashboard, /beginBrowserSignOut\(\)/);
+  assert.match(dashboard, /const openUsageGuide = useCallback/);
 });

@@ -2,6 +2,7 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 import { fallbackForStatus, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { noteAccountDiagnosticErrorCode } from "@/lib/observability/accountDiagnostics";
 
 type ErrorResponseOptions = {
   status?: number;
@@ -92,6 +93,7 @@ export function buildUserFacingErrorBody(input: unknown, options: ErrorResponseO
 
 export function jsonUserFacingError(input: unknown, options: ErrorResponseOptions = {}) {
   const status = resolveKnownErrorStatus(input, options.status ?? 500);
+  noteAccountDiagnosticErrorCode(getStructuredErrorCode(input) || options.code);
   const retryAfter = getRetryAfterSeconds(input);
   return NextResponse.json(buildUserFacingErrorBody(input, { ...options, status }), {
     status,

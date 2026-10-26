@@ -58,6 +58,10 @@
       "schedule": "30 3 * * *"
     },
     {
+      "path": "/api/cron/assistant-memory-retention",
+      "schedule": "45 3 * * *"
+    },
+    {
       "path": "/api/cron/mail-bounces",
       "schedule": "*/15 * * * *"
     },

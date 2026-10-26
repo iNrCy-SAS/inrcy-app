@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 
 import type { DashboardPanelName } from "../_hooks/useDashboardPanelRouting";
 import { useTranslations } from "next-intl";
@@ -27,6 +28,8 @@ import { APP_LANGUAGE_OPTIONS, getAppLanguageOption, type AppLanguageCode } from
 import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
 import { useDashboardEdition } from "./DashboardEditionProvider";
+import { useDashboardAssistant } from "./DashboardAssistantProvider";
+import { DashboardAssistantBadge } from "./DashboardAssistantTrigger";
 
 
 const MOBILE_QUERY = "(max-width: 1100px)";
@@ -157,7 +160,6 @@ function MobileToolIcon({ tool }: { tool: DashboardMobileTool }) {
 function ResponsiveBottomNavMobile() {
   const i18nT = useTranslations("shell");
   const helpT = useTranslations("dashboard.helpCenter");
-  const heroT = useTranslations("dashboard.hero");
   const menuT = useTranslations("dashboard.mobileMenu");
   const router = useRouter();
   const pathname = usePathname();
@@ -166,6 +168,7 @@ function ResponsiveBottomNavMobile() {
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const dashboardEdition = useDashboardEdition();
   const generatorState = useDashboardGeneratorState();
+  const { toggleAssistant, assistantOpen, assistantLabel, assistantBadgeState, assistantPending } = useDashboardAssistant();
   const t = useDashboardI18n();
   const { language, setLanguage } = useDashboardLanguage();
   const labels = useMemo(() => compactLabels(t.locale, i18nT), [t.locale, i18nT]);
@@ -446,10 +449,8 @@ function ResponsiveBottomNavMobile() {
     publishModalOpen ||
     (pathname === "/dashboard" && searchParams.get("action") === "publish");
   const hasMenuWarning = profileIncomplete || activityIncomplete;
-  const generatorActionKey = resolveHrefDestination("/dashboard?generator=1").key;
   const helpActionKey = resolveHrefDestination("/dashboard?help=1").key;
   const adminActionKey = resolveHrefDestination("/dashboard/admin").key;
-  const generatorLoadingVisible = isVisible(generatorActionKey);
 
   return (
     <>
@@ -550,23 +551,20 @@ function ResponsiveBottomNavMobile() {
           </button>
 
           <button type="button" className={[styles.item, styles.assistPreview].join(" ")}
-            aria-label={helpT("assistPreview")} title={helpT("assistPreview")} aria-disabled="true">
-            <img src="/agent/agent-assist-pink.png" alt="" width={38} height={38} />
+            aria-label={assistantLabel} title={assistantLabel} aria-haspopup="dialog" aria-expanded={assistantOpen}
+            aria-busy={assistantPending || undefined} data-pending={assistantPending || undefined}
+            onClick={() => { closeMobileOverlays(); toggleAssistant(); }}>
+            <Image src="/agent/agent-assist-pink-v2.png" alt="" width={38} height={38} sizes="38px" draggable={false} />
+            <DashboardAssistantBadge state={assistantBadgeState} />
           </button>
 
-          <button
-            type="button"
+          <div
             className={styles.generatorItem}
-            aria-label={`${heroT("settingsAria")}${generatorState.isActive === null ? "" : ` · ${generatorState.isActive ? t.hero.active : t.hero.waiting}`}`}
-            title={heroT("settingsTitle")}
-            aria-haspopup="dialog"
-            aria-busy={generatorLoadingVisible || undefined}
-            aria-disabled={generatorLoadingVisible || undefined}
+            aria-hidden="true"
             data-testid="dashboard-mobile-generator"
-            onClick={() => navigate("/dashboard?generator=1")}
           >
             <DashboardGeneratorOrb isActive={generatorState.isActive} className={styles.generatorOrb} bare />
-          </button>
+          </div>
 
           <div className={styles.notificationDockWrap}>
             <NotificationMenu

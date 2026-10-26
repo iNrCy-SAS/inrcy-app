@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import DashboardAssistantTrigger from "./DashboardAssistantTrigger";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import DashboardFluxBubble, { type DashboardFluxBubbleData } from "./DashboardFluxBubble";
 import { getChannelSceneLayout, getChannelTone } from "./dashboard-channel-presentation";
@@ -118,7 +119,7 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
         <header className={styles.headerPanel}>
           <div className={styles.heading}>
             <span className={styles.headingIcon}><ChannelsIcon /></span>
-            <h2 id={titleId}>Mes canaux</h2>
+            <h2 id={titleId}>Mes canaux<DashboardAssistantTrigger /></h2>
             <p id={descriptionId} className={styles.srOnly}>Votre écosystème de visibilité. Sélectionnez une bulle pour explorer un canal.</p>
           </div>
           <div className={styles.headerInfo}>

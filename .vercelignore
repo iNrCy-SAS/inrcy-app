@@ -1,3 +1,16 @@
 .env*
 .codex-*.log
 *.tsbuildinfo
+android/
+ios/
+.git/
+.vercel/
+.next/
+node_modules/
+playwright/.auth/
+playwright-report/
+test-results/
+coverage/
+**/*.pem
+**/*.jks
+**/*.keystore

@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 
 import type { DashboardPanelName } from "../_hooks/useDashboardPanelRouting";
 import { useTranslations } from "next-intl";
@@ -18,6 +19,8 @@ import type { NotificationItem } from "../dashboard.types";
 import { useInrAgentPendingCount } from "../_hooks/useInrAgentPendingCount";
 import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
 import { useDashboardEdition } from "./DashboardEditionProvider";
+import { useDashboardAssistant } from "./DashboardAssistantProvider";
+import { DashboardAssistantBadge } from "./DashboardAssistantTrigger";
 
 const INR_AGENT_ROUTE = "/dashboard/agent";
 const INR_AGENT_PRELOAD_ASSETS = [
@@ -109,6 +112,7 @@ export default function DashboardTopbar({
   const i18nT = useTranslations("shell");
   const topbarT = useTranslations("dashboard.topbar");
   const helpT = useTranslations("dashboard.helpCenter");
+  const { toggleAssistant, assistantOpen, assistantLabel, assistantBadgeState, assistantPending } = useDashboardAssistant();
   const dashboardEdition = useDashboardEdition();
   const accountingEnabled = hasAccountingDashboardAccess(dashboardEdition);
   const router = useRouter();
@@ -178,8 +182,11 @@ export default function DashboardTopbar({
       ) : null}
 
       <button type="button" className={`${styles.ghostBtn} ${dockStyles.iconButton} ${dockStyles.assistPreview}`}
-        aria-label={helpT("assistPreview")} title={helpT("assistPreview")} aria-disabled="true" data-testid="inr-assist-preview">
-        <img src="/agent/agent-assist-pink.png" alt="" width={38} height={38} draggable={false} />
+        aria-label={assistantLabel} title={assistantLabel} aria-haspopup="dialog" aria-expanded={assistantOpen}
+        aria-busy={assistantPending || undefined} data-pending={assistantPending || undefined}
+        onClick={toggleAssistant} data-testid="inr-assist-preview">
+        <Image src="/agent/agent-assist-pink-v2.png" alt="" width={38} height={38} sizes="38px" draggable={false} />
+        <DashboardAssistantBadge state={assistantBadgeState} />
       </button>
 
       {!desktopLeftHost ? <button

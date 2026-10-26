@@ -145,6 +145,7 @@
   gap: 1px;
   letter-spacing: -0.035em;
 }
+.studioTitleRow { display: flex; align-items: center; min-width: 0; }
 
 .studioWordmark span {
   color: #f7fbff;

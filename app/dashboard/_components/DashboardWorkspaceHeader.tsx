@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
+import DashboardAssistantTrigger from "./DashboardAssistantTrigger";
 
 type WorkspaceHeaderAction = {
   label: string;
@@ -52,6 +53,7 @@ export default function DashboardWorkspaceHeader({
             {mobileTitle !== undefined ? (
               <span data-dashboard-workspace-title-mobile>{mobileTitle}</span>
             ) : null}
+            <DashboardAssistantTrigger />
           </h1>
           <span data-dashboard-workspace-subtitle style={subtitleStyle}>{subtitle}</span>
         </span>
@@ -124,13 +126,17 @@ export default function DashboardWorkspaceHeader({
           header[data-dashboard-workspace-header][data-responsive-two-row="true"] {
             display: grid !important;
             grid-template-columns: auto auto minmax(0, 1fr) auto !important;
-            grid-template-rows: auto auto !important;
+            grid-template-rows: auto !important;
             align-items: center !important;
             gap: 6px 10px !important;
           }
-          header[data-dashboard-workspace-header][data-responsive-two-row="true"] > [data-dashboard-workspace-brand],
-          header[data-dashboard-workspace-header][data-responsive-two-row="true"] [data-dashboard-workspace-title-group] {
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] > [data-dashboard-workspace-brand] {
             display: contents !important;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] [data-dashboard-workspace-title-group] {
+            display: grid;
+            grid-column: 3;
+            grid-row: 1;
           }
           header[data-dashboard-workspace-header][data-responsive-two-row="true"] [data-dashboard-workspace-logo] {
             grid-column: 1;
@@ -141,8 +147,6 @@ export default function DashboardWorkspaceHeader({
             grid-row: 1;
           }
           header[data-dashboard-workspace-header][data-responsive-two-row="true"] h1 {
-            grid-column: 3;
-            grid-row: 1;
             min-width: 0;
           }
           header[data-dashboard-workspace-header][data-responsive-two-row="true"] h1 [data-dashboard-workspace-title-mobile] {
@@ -152,13 +156,8 @@ export default function DashboardWorkspaceHeader({
             display: none;
           }
           header[data-dashboard-workspace-header][data-responsive-two-row="true"] [data-dashboard-workspace-subtitle] {
-            grid-column: 1 / -1;
-            grid-row: 2;
             max-width: none !important;
-            overflow: visible !important;
-            text-overflow: clip !important;
-            white-space: normal !important;
-            overflow-wrap: anywhere;
+            font-size: 10px;
           }
           header[data-dashboard-workspace-header][data-responsive-two-row="true"] nav {
             grid-column: 4;
@@ -289,7 +288,7 @@ const logoSlotStyle: CSSProperties = { display: "inline-flex", alignItems: "cent
 const logoStyle: CSSProperties = { width: 42, height: 42, flex: "0 0 auto", filter: "drop-shadow(0 9px 22px rgba(124,58,237,0.26))" };
 const dividerStyle: CSSProperties = { width: 1, height: 30, flex: "0 0 auto", background: "var(--inrcy-theme-border-strong, rgba(255,255,255,0.13))" };
 const titleGroupStyle: CSSProperties = { display: "grid", gap: 2, minWidth: 0 };
-const titleStyle: CSSProperties = { margin: 0, color: "var(--inrcy-theme-text-primary, white)", fontSize: "clamp(15px, 2vw, 18px)", fontWeight: 900, lineHeight: 1.15, letterSpacing: "-0.01em" };
+const titleStyle: CSSProperties = { margin: 0, display: "flex", alignItems: "center", gap: 8, minWidth: 0, color: "var(--inrcy-theme-text-primary, white)", fontSize: "clamp(15px, 2vw, 18px)", fontWeight: 900, lineHeight: 1.15, letterSpacing: "-0.01em" };
 const subtitleStyle: CSSProperties = { maxWidth: "min(52vw, 720px)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--inrcy-theme-text-muted, rgba(255,255,255,0.60))", fontSize: 10.5, lineHeight: 1.25 };
 const actionsStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flex: "0 0 auto" };
 const headerButtonBase: CSSProperties = { borderRadius: 10, padding: "7px 10px", color: "var(--inrcy-theme-text-primary, rgba(255,255,255,0.90))", cursor: "pointer", fontSize: 11.5, fontWeight: 850, whiteSpace: "nowrap" };

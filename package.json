@@ -32,7 +32,10 @@
     "test:mobile": "node --test --experimental-strip-types tests/mobile-runtime/*.test.mts",
     "test:multicompte": "node --test --experimental-strip-types tests/multicompte/*.test.mts",
     "audit:multicompte": "node scripts/audit-multicompte.mjs",
-    "prebuild": "node scripts/prebuild-clean.mjs",
+    "prebuild": "node scripts/build-assistant-code-index.mjs --check && node scripts/prebuild-clean.mjs",
+    "assistant:knowledge:index": "node scripts/build-assistant-code-index.mjs --write",
+    "assistant:knowledge:check": "node scripts/build-assistant-code-index.mjs --check",
+    "test:assistant": "node --test --test-isolation=none --experimental-strip-types tests/ai-assistant/*.test.mts tests/ai-assistant/*.test.mjs tests/dashboard/dashboard-assistant*.test.mts tests/dashboard/assistant-creation-guides-integrity.test.mts",
     "test:media-rules": "node --test tests/media-rules/media-rules.test.mjs",
     "qa:multicompte": "node scripts/qa-multicompte-final.mjs && node scripts/qa-multicompte-scope-lockdown.mjs && npm run test:multicompte",
     "test:booster-images": "node --test --experimental-strip-types tests/booster-image-decision/booster-image-decision.test.mts && node --test tests/booster-image-decision/*.test.mjs",
@@ -176,6 +179,7 @@
     "resend": "^6.28.0",
     "sharp": "0.35.3",
     "standardwebhooks": "^1.1.1",
+    "streamdown": "2.7.1",
     "twitter-text": "^3.1.0"
   },
   "devDependencies": {

@@ -4,6 +4,7 @@ import type { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { resolveInrcyAccountScopeForUser } from "@/lib/multicompte/server";
+import { registerAuthenticatedDiagnosticScope } from "@/lib/observability/accountDiagnostics";
 
 export async function requireUser() {
   const supabase = await createSupabaseServer();
@@ -23,6 +24,7 @@ export async function requireUser() {
 
   try {
     const accountScope = await resolveInrcyAccountScopeForUser(supabase, data.user);
+    registerAuthenticatedDiagnosticScope({ accountId: accountScope.activeUserId, actorUserId: data.user.id });
 
     return {
       supabase,

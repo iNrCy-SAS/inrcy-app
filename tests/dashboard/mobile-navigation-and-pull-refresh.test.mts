@@ -52,7 +52,6 @@ test("mobile navigation uses the shared 650 ms loading controller", () => {
 
   assert.match(navigation, /useDelayedPendingAction/);
   assert.match(navigation, /modal:publish/);
-  assert.match(navigation, /generatorLoadingVisible \|\| undefined/);
   assert.match(navigation, /shortcutLoadingVisible \? i18nT\("chargement_01cba1df"\)/);
   assert.match(navigation, /resolveHrefDestination\(option\.href\)/);
   assert.match(navigation, /onClick=\{\(\) => navigate\(option\.href\)\}/);
@@ -85,9 +84,13 @@ test("the tablet bottom dock keeps the real generator in its centered grid colum
 
   assert.match(
     navigation,
-    /styles\.assistPreview[\s\S]*?<button[\s\S]*?className=\{styles\.generatorItem\}/,
+    /styles\.assistPreview[\s\S]*?<div\s+className=\{styles\.generatorItem\}/,
     "the real generator follows the assistant in the third position",
   );
+  const generator = navigation.match(/<div\s+className=\{styles\.generatorItem\}([\s\S]*?)<\/div>/)?.[0];
+  assert.ok(generator);
+  assert.match(generator, /aria-hidden="true"/);
+  assert.doesNotMatch(generator, /onClick|tabIndex|<button|<a\b|href=|aria-haspopup/);
   assert.match(
     navigationStyles,
     /\.bar\s*>\s*\*\s*\{\s*order:\s*0\s*!important;/,

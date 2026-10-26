@@ -4,6 +4,7 @@ import { BUSINESS_DNA_OPERATION_MAX_DURATION_MS, BUSINESS_DNA_PRIMARY_TIMEOUT_MS
 
 export type AiGenerationFeature =
   | "booster.publish"
+  | "assistant.chat"
   | "booster.media-understanding"
   | "agent.publish"
   | "agent.media-understanding"
@@ -63,6 +64,17 @@ const DEFAULT_ALLOWED_AI_GATEWAY_TRANSCRIPTION_MODELS = [
 
 
 export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeaturePolicy>> = {
+  "assistant.chat": {
+    maxOutputTokens: 6_000,
+    maxRetries: 0,
+    maxTimeoutMs: 35_000,
+    maxInputChars: 30_000,
+    maxImages: 0,
+    maxImageDataChars: 0,
+    defaultOperationMaxCalls: 4,
+    defaultOperationMaxReservedOutputTokens: 24_000,
+    defaultOperationMaxDurationMs: 100_000,
+  },
   "booster.publish": {
     maxOutputTokens: 12_000,
     maxRetries: 1,

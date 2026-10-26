@@ -28,6 +28,7 @@ import DashboardPersistentImageCache from "./_components/DashboardPersistentImag
 import DashboardEditionProvider from "./_components/DashboardEditionProvider";
 import DashboardViewerAccessProvider from "./_components/DashboardViewerAccessProvider";
 import DashboardGeneratorStateProvider from "./_components/DashboardGeneratorStateProvider";
+import DashboardAssistantProvider from "./_components/DashboardAssistantProvider";
 import { ADMIN_USER_IDS, getMyRole, isAdminRole } from "@/lib/roles";
 import { isMetaChannelPilotEnabled } from "@/lib/metaChannelRollout";
 import { hasFullProductReviewerAccess } from "@/lib/reviewerAccess";
@@ -181,12 +182,14 @@ export default async function DashboardLayout({
 
         <DashboardCompletionBypassProvider enabled={bypassCompletionChecks}>
           <DashboardUnsavedNavigationProvider>
+            <DashboardAssistantProvider>
             <DashboardScrollMemory />
             <DashboardPullToRefresh />
             <div className={styles.mobileViewport}>
               {children}
             </div>
             <ResponsiveBottomNav />
+            </DashboardAssistantProvider>
           </DashboardUnsavedNavigationProvider>
         </DashboardCompletionBypassProvider>
       </DashboardGeneratorStateProvider>

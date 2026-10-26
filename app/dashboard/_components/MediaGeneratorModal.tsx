@@ -17,6 +17,7 @@ import type {
   MediaGeneratorStudioMode,
 } from "./MediaGenerator";
 import MediaModifier from "./MediaModifier";
+import DashboardAssistantTrigger from "./DashboardAssistantTrigger";
 import DashboardMobileSelect from "./DashboardMobileSelect";
 import MediaFreeGenerator from "./MediaFreeGenerator";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
@@ -509,6 +510,7 @@ export default function MediaGeneratorModal({
               ✦
             </span>
             <div>
+              <div className={styles.studioTitleRow}>
               <strong
                 className={styles.studioWordmark}
                 aria-label={studioWordmark}
@@ -516,6 +518,8 @@ export default function MediaGeneratorModal({
                 <span>{studioWordmark.slice(0, 4)}</span>
                 <b>{studioWordmark.slice(4)}</b>
               </strong>
+              <DashboardAssistantTrigger />
+              </div>
               <p>{t("ai_generator_made_inrcy_hint")}</p>
             </div>
           </div>

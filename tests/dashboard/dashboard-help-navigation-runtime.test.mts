@@ -131,6 +131,21 @@ test("opening and closing help changes no channel, generator or publication stat
   local.close();
   assert.deepEqual(local.history, [], "Closing a locally opened help dialog must not initiate a route change");
 });
+
+test("same-dashboard query navigation closes the old native Help when opening a different tool", () => {
+  const routeSync = findNode(client, node => ts.isCallExpression(node)
+    && node.expression.getText(client) === "useEffect"
+    && Boolean(node.arguments[0]?.getText(client).includes('setHelpGeneratorOpen(searchParams.get("help") === "1")'))) as ts.CallExpression;
+  assert.equal(routeSync.arguments[1]?.getText(client), "[searchParams]");
+  const searchParams = new URLSearchParams("help=1");
+  let open = false;
+  const sync = evaluate(routeSync.arguments[0].getText(client), { searchParams, setHelpGeneratorOpen: (value: boolean) => { open = value; } });
+  sync(); assert.equal(open, true);
+  searchParams.delete("help"); searchParams.set("action", "channels");
+  sync(); assert.equal(open, false, "Old native Help must release the top layer for Mes canaux");
+  searchParams.delete("action"); searchParams.set("help", "1");
+  sync(); assert.equal(open, true);
+});
 test("the legacy GPS URL redirects to the shared help entry", () => {
   const built = ts.transpileModule(read("app/dashboard/gps/page.tsx"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const destinations: string[] = [];
