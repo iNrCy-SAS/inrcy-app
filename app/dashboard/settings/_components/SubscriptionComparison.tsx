@@ -14,14 +14,24 @@ export function SubscriptionPlanFeatures({ edition }: { edition: AiMediaEdition 
   const styles = edition === "founder" ? compactStyles : offerStyles;
   const credits = monthlyCredits(edition);
   const standard = monthlyCredits("standard");
+  const basicRows = [
+    ["Booster", t("subscription_publication_channels", { count: STANDARD_PUBLICATION_CHANNEL_KEYS.length })],
+    ["iNr’Assistant", t("subscription_basic_assistant")],
+    ["iNrAgent IA", t("subscription_basic_no_agents")],
+    ["iNr’ADN · IA", t("subscription_business_profile")],
+    ["iNr’Badge · iNr’Stats", `${t("subscription_reputation")} · ${t("subscription_statistics")}`],
+    ["iNr’Send", t("subscription_history")],
+  ];
   const standardRows = [
     ["Booster", t("subscription_publication_channels", { count: STANDARD_PUBLICATION_CHANNEL_KEYS.length })],
+    ...(edition === "founder" ? [] : [["iNr’Assistant", t("subscription_standard_assistant")]]),
     [edition === "founder" ? "iNr’Agent" : "iNrAgent IA", edition === "founder" ? t("subscription_publications_statistics") : t("subscription_ai_agents_included", { count: 3 })],
     ["iNr’ADN · IA", t("subscription_business_profile")],
     ["iNr’Badge · iNr’Stats", `${t("subscription_reputation")} · ${t("subscription_statistics")}`],
     ["iNr’Send", t("subscription_history")],
   ];
   const premiumRows = [
+    ...(edition === "founder" ? [] : [["iNr’Assistant", t("subscription_premium_assistant")]]),
     [edition === "founder" ? "iNr’Agent" : "iNrAgent IA", edition === "founder" ? t("subscription_campaign_automation") : t("subscription_ai_agents_included", { count: 4 })],
     ["ADS", t("subscription_multichannel_ads")],
     ["iNr’CRM", t("subscription_customer_management")],
@@ -32,19 +42,19 @@ export function SubscriptionPlanFeatures({ edition }: { edition: AiMediaEdition 
     ...standardRows.map(([name, benefit]) => [name, name === "Booster" ? t("subscription_publications_statistics") : benefit]),
     ...premiumRows,
     ["Encaisser", t("subscription_quotes_invoices")],
-  ] : edition === "standard" ? standardRows : premiumRows;
-  const toolsLabel = t(edition === "founder" ? "subscription_founder_tools" : edition === "standard" ? "subscription_standard_tools" : "subscription_premium_tools");
+  ] : edition === "basic" ? basicRows : edition === "standard" ? standardRows : premiumRows;
+  const toolsLabel = t(edition === "founder" ? "subscription_founder_tools" : edition === "basic" ? "subscription_basic_tools" : edition === "standard" ? "subscription_standard_tools" : "subscription_premium_tools");
   const toolsTable = <table className={styles.planTools} aria-label={toolsLabel}><tbody>
     <tr className={styles.studioRow}>
       <th scope="row"><span className={styles.studioName}>iNr’Studio</span><small>{t("subscription_creation")}</small></th>
       <td><div className={styles.studioMetrics}>
         <div><strong>{credits}</strong><span>{t("subscription_media_month_label")}</span>
           {edition === "premium" ? <small>{t("subscription_studio_credit_gain", { count: credits - standard })}</small> : null}
-          <small>{t("subscription_media_shared_hint")}</small>
+          <small>{t(edition === "basic" ? "subscription_basic_credit_hint" : "subscription_media_shared_hint")}</small>
         </div>
       </div></td>
     </tr>
-    {rows.map(([name, benefit]) => <tr key={`${name}-${benefit}`}><th scope="row"><span className={styles.toolName}>{edition === "premium" && name !== "iNrAgent IA" ? <span className={styles.toolPlus} aria-hidden="true">+</span> : null}{name}</span></th><td>{benefit}</td></tr>)}
+    {rows.map(([name, benefit]) => <tr key={`${name}-${benefit}`}><th scope="row"><span className={styles.toolName}>{edition === "premium" && name !== "iNrAgent IA" && name !== "iNr’Assistant" ? <span className={styles.toolPlus} aria-hidden="true">+</span> : null}{name}</span></th><td>{benefit}</td></tr>)}
     </tbody></table>;
   if (edition !== "founder") return toolsTable;
 

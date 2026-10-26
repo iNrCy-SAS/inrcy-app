@@ -19,7 +19,7 @@ const PROFILE_SELECT_FALLBACK =
   "user_id,admin_email,contact_email,first_name,last_name,company_legal_name,phone,last_active_at,updated_at";
 
 const ALLOWED_ROLES = new Set(["user", "admin", "reviewer"]);
-const ALLOWED_PLANS = new Set(["Trial", "Standard", "Premium", "Founder"]);
+const ALLOWED_PLANS = new Set(["Trial", "Basic", "Standard", "Premium", "Founder"]);
 const ALLOWED_SUBSCRIPTION_STATUSES = new Set([
   "trialing",
   "active",
@@ -336,7 +336,7 @@ export async function PATCH(request: NextRequest) {
         ? cleanText(body.plan, 40)
         : legacyEdition === "founder" ? "Founder"
           : legacyEdition === "premium" ? "Premium"
-            : legacyEdition === "standard" ? "Standard" : "";
+            : legacyEdition === "basic" ? "Basic" : legacyEdition === "standard" ? "Standard" : "";
       if (!ALLOWED_PLANS.has(requestedPlan)) {
         return NextResponse.json({ error: "Plan iNrCy invalide." }, { status: 400 });
       }

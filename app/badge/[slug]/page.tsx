@@ -14,6 +14,7 @@ import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 import { getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
 import { fetchPinterestUserAccount, getPinterestAccessToken } from "@/lib/pinterestOAuth";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
+import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
 import {
   resolveProfessionalCompanyNameFromProfile,
   sanitizeProfessionalIdentityText,
@@ -423,7 +424,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const selectedMailAccountId = trim(toolSettings.inrBadgeMailAccountId);
   let selectedMailAccountEmail = "";
 
-  if (dashboardEdition !== "standard" && selectedMailAccountId) {
+  if (hasPremiumDashboardAccess(dashboardEdition) && selectedMailAccountId) {
     const selectedMailRes = await supabaseAdmin
       .from("integrations")
       .select("account_email,status,settings")

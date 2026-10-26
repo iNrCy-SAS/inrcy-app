@@ -64,13 +64,17 @@ function accountPlanPresentation(
       ? "iNrCy Trial"
       : plan === "founder"
         ? "iNrCy Founder"
+      : edition === "basic"
+      ? `iNrCy ${i18nT("subscription_basic_name")}`
       : edition === "standard"
       ? i18nT("inrcy_standard_1dd18060")
       : edition === "founder"
         ? "iNrCy Founder"
         : i18nT("inrcy_premium_4c7d39c1");
   const description =
-    edition === "standard"
+    edition === "basic"
+      ? i18nT("subscription_basic_pitch")
+      : edition === "standard"
       ? i18nT("booster_sur_10_canaux_inr_apos_38a43414")
       : edition === "founder"
         ? i18nT("passez_du_pilotage_de_votre_visibilite_37fbfe56")

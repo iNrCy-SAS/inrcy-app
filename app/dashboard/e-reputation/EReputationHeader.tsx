@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
 import DashboardToolHeading from "../_components/DashboardToolHeading";
 
 import { useDashboardEdition } from "@/app/dashboard/_components/DashboardEditionProvider";
@@ -27,7 +28,7 @@ export default function EReputationHeader({
   askReviewsHref,
 }: Props) {
   const dashboardEdition = useDashboardEdition();
-  const canAskForReviews = dashboardEdition !== "standard";
+  const canAskForReviews = hasPremiumDashboardAccess(dashboardEdition);
 
   return (
     <header className={styles.header}>

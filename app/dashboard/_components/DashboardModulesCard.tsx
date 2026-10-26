@@ -12,7 +12,7 @@ import BaseModal from "./WorkflowBaseModal";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
-import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
+import { hasAccountingDashboardAccess, isStandardDashboardEdition } from "@/lib/dashboardEdition";
 import { useDashboardEdition, useDashboardSubscriptionEdition } from "./DashboardEditionProvider";
 import { DASHBOARD_GEARBOX_ANCHOR_ID } from "../dashboard.scroll";
 import signatureStyles from "./DashboardSignatureTools.module.css";
@@ -123,7 +123,7 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
   const searchParams = useSearchParams();
   const dashboardEdition = useDashboardEdition();
   const studioEdition = useDashboardSubscriptionEdition();
-  const standardMode = standardModeOverride || dashboardEdition === "standard";
+  const standardMode = standardModeOverride || isStandardDashboardEdition(dashboardEdition);
   const accountingEnabled = !standardMode && hasAccountingDashboardAccess(dashboardEdition);
   const [cashModalOpen, setCashModalOpen] = useState(false);
   const [campaignModalOpen, setCampaignModalOpen] = useState(false);
@@ -269,7 +269,7 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
   ];
   const agentControls = (workspace: InrAgentWorkspace, className: string) => {
     const definition = INR_AGENT_WORKSPACES[workspace];
-    const locked = workspace === "campaigns" && standardMode;
+    const locked = dashboardEdition === "basic" || (workspace === "campaigns" && standardMode);
     return (
       <div className={`${signatureStyles.agentControls} ${className}`}>
         <DashboardAgentLogoButton workspace={workspace} enabled={inrAgentEnabled && !locked}
@@ -279,7 +279,7 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
     );
   };
   const planningControl = (workspace: InrAgentWorkspace) => {
-    const locked = workspace === "campaigns" && standardMode;
+    const locked = dashboardEdition === "basic" || (workspace === "campaigns" && standardMode);
     return (
         <button type="button" className={`${signatureStyles.planningButton} ${signatureStyles.modulePlanning}`}
           data-agent-planning-workspace={workspace}
@@ -300,8 +300,8 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
     <article className={`${signatureStyles.signatureCard} ${signatureStyles[tool.tone]}`} key={tool.path}>
       {tool.premiumOnly ? <PremiumCardAccent tone={tool.tone} /> : null}
       <span className={signatureStyles.signatureLogo} aria-hidden="true">{tool.logo ? <Image src={tool.logo} alt="" width={52} height={52} /> : <ToolGlyph kind={tool.glyph} />}</span>
-      <div className={signatureStyles.signatureCopy}><h4>{tool.title}{tool.tone === "studioCard" ? <span className={signatureStyles.studioEdition} data-studio-edition={studioEdition} role="img" aria-label={`iNr’Studio — ${studioEdition === "standard" ? "Standard" : studioEdition === "founder" ? "Founder" : "Premium"}`} title={`iNr’Studio — ${studioEdition === "standard" ? "Standard" : studioEdition === "founder" ? "Founder" : "Premium"}`}>
-        {studioEdition === "standard" ? <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 2 9 10-9 10L3 12 12 2Z" fill="#48baff" fillOpacity=".2" stroke="#89e4ff" strokeWidth="1.6" /><path d="m8 12 3 3 5-6" stroke="#cefbff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg> : <PremiumCrown />}
+      <div className={signatureStyles.signatureCopy}><h4>{tool.title}{tool.tone === "studioCard" ? <span className={signatureStyles.studioEdition} data-studio-edition={studioEdition} role="img" aria-label={`iNr’Studio — ${studioEdition === "basic" ? "Basique" : studioEdition === "standard" ? "Standard" : studioEdition === "founder" ? "Founder" : "Premium"}`} title={`iNr’Studio — ${studioEdition === "basic" ? "Basique" : studioEdition === "standard" ? "Standard" : studioEdition === "founder" ? "Founder" : "Premium"}`}>
+        {studioEdition === "basic" ? <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="#b6c5e3" strokeWidth="1.6" /><path d="M8 12h8M12 8v8" stroke="#dce8ff" strokeWidth="1.8" strokeLinecap="round" /></svg> : studioEdition === "standard" ? <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 2 9 10-9 10L3 12 12 2Z" fill="#48baff" fillOpacity=".2" stroke="#89e4ff" strokeWidth="1.6" /><path d="m8 12 3 3 5-6" stroke="#cefbff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg> : <PremiumCrown />}
       </span> : null}</h4><p title={tool.description}>{tool.description}</p></div>
       {tool.tone === "studioCard" ? (
         <button type="button" className={`${signatureStyles.settingsButton} ${signatureStyles.studioLibrary}`}

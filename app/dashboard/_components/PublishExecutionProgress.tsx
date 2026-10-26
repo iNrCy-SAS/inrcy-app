@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useId, type CSSProperties } from "react";
+import { useId, type CSSProperties, type ReactNode } from "react";
 import { isBoosterPublicationPendingStatus } from "@/lib/boosterPublicationStatus";
 import css from "./PublishExecutionProgress.module.css";
 
@@ -60,6 +60,7 @@ export function PublicationVisualHub({
   outcome = "neutral",
   centerLabel,
   progressLabel = "Traitement de la publication",
+  phaseSummary,
 }: {
   progress: number;
   destinations: readonly PublicationProgressDestination[];
@@ -67,6 +68,7 @@ export function PublicationVisualHub({
   outcome?: "published" | "pending" | "warning" | "failed" | "neutral";
   centerLabel?: string;
   progressLabel?: string;
+  phaseSummary?: ReactNode;
 }) {
   const progressId = useId();
   const safeProgress = Math.max(0, Math.min(100, Math.round(Number(progress) || 0)));
@@ -97,6 +99,7 @@ export function PublicationVisualHub({
           {centerLabel ? <span className={css.coreLabel}>{centerLabel}</span> : null}
         </div>
       </div>
+      {phaseSummary}
       <ul className={css.destinations} aria-label={destinations.some((destination) => destination.status) ? "Résultat par canal" : "Destinations sélectionnées"}>
         {targets.map((destination, index) => {
           const status = destination.status ? DESTINATION_STATUS[destination.status] : null;
@@ -162,8 +165,7 @@ export default function PublishExecutionProgress({
   if (variant === "immersive" && !scheduling) {
     return (
       <div className={css.immersive} data-publication-progress="immersive" data-complete={safeProgress === 100}>
-        <PublicationVisualHub progress={safeProgress} progressLabel={publishProgressLabel || "Progression de la publication"} destinations={destinations} completed={safeProgress === 100} />
-        <div className={css.details} data-publication-hub-summary aria-live="polite">
+        <PublicationVisualHub progress={safeProgress} progressLabel={publishProgressLabel || "Progression de la publication"} destinations={destinations} completed={safeProgress === 100} phaseSummary={<div className={css.details} data-publication-hub-summary aria-live="polite">
           <div className={css.heading}>
             <h2>{i18nT("publication_en_cours_58f34b8e")}</h2>
           </div>
@@ -172,7 +174,7 @@ export default function PublishExecutionProgress({
             {phaseLabel ? <strong>{phaseLabel}</strong> : null}
           </div> : null}
           <p className={css.status}>{publishProgressLabel || i18nT("publication_en_cours_09ec4187")}</p>
-        </div>
+        </div>} />
       </div>
     );
   }

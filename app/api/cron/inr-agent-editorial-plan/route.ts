@@ -10,6 +10,7 @@ import {
 } from "@/lib/inrAgentEditorialPlanServer";
 import type { InrAgentAutomationSettings } from "@/lib/inrAgentSettings";
 import { getActiveSubscriptionAccountIds } from "@/lib/accountSubscriptionAccess";
+import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -146,6 +147,7 @@ export async function POST(request: Request) {
     rows.map((row) => row.user_id),
     now.getTime(),
   );
+  const editionsByAccount = await getDashboardEditionsForAccountIds(rows.map((row) => row.user_id));
   const reconciliations: Array<Record<string, unknown>> = [];
   const enabledRows: Array<{
     userId: string;
@@ -153,6 +155,10 @@ export async function POST(request: Request) {
   }> = [];
   if (!dryRun) {
     for (const row of rows) {
+      if (editionsByAccount.get(row.user_id) === "basic") {
+        reconciliations.push({ userId: row.user_id, success: true, planned: 0, reason: "standard_required" });
+        continue;
+      }
       if (!activeAccountIds.has(row.user_id)) {
         reconciliations.push({
           userId: row.user_id,

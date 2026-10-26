@@ -1,5 +1,6 @@
 import {
   hasPremiumDashboardAccess,
+  isStandardDashboardEdition,
   type DashboardEdition,
 } from "./dashboardEdition.ts";
 import type { InrBadgeShareSettings } from "./inrBadgeSettings.ts";
@@ -33,12 +34,12 @@ export function resolveInrBadgePublicEmail({
   selectedMailAccountEmail?: unknown;
 }): string {
   const normalizedProfileEmail = clean(profileEmail);
-  if (edition === "standard") return normalizedProfileEmail;
+  if (isStandardDashboardEdition(edition)) return normalizedProfileEmail;
   return clean(selectedMailAccountEmail) || normalizedProfileEmail;
 }
 
 export function getInrBadgeLeadPresentation(edition: DashboardEdition) {
-  if (edition === "standard") {
+  if (isStandardDashboardEdition(edition)) {
     return {
       ctaLabel: "Voir mes statistiques",
       ctaPath: "/dashboard/stats",

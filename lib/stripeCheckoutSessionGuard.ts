@@ -158,7 +158,7 @@ export async function withStripeCheckoutGuard<T>(userId: string, work: (guard: S
       if (!Array.isArray(response.data) || response.has_more !== false) throw new CheckoutGuardError("CHECKOUT_STATE_UNCERTAIN");
       const items = response.data.map(row);
       const metadata = session.metadata && typeof session.metadata === "object" ? session.metadata as Row : {};
-      const ours = items.some((item) => isCommercialPrice(id(item.price))) || ["Standard", "Premium"].includes(String(metadata.plan));
+      const ours = items.some((item) => isCommercialPrice(id(item.price))) || ["Basic", "Standard", "Premium"].includes(String(metadata.plan));
       if (!ours) return false;
       validateSession(session);
       if (items.length !== 1 || items[0].quantity !== 1 || !isCommercialPrice(id(items[0].price))) throw new CheckoutGuardError("CHECKOUT_STATE_UNCERTAIN");

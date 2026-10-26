@@ -102,3 +102,18 @@ test("immersive progress reflects the real bounded percentage while scheduling r
   assert.doesNotMatch(render({}), /data-publication-visual-hub/);
   assert.match(render({}), /style="width:39%"/);
 });
+
+test("the current publication phase stays between the generator and its destination cards", () => {
+  const html = renderToStaticMarkup(createElement(subject.default, {
+    styles: {}, variant: "immersive", publishProgress: 49,
+    publishProgressLabel: "Préparation des médias", phaseIndex: 4,
+    phaseTotal: 10, phaseLabel: "Préparation des médias", destinations,
+  }));
+  const generator = html.indexOf('class="core"');
+  const phase = html.indexOf('class="details"');
+  const cards = html.indexOf('<ul class="destinations"');
+  assert.ok(generator >= 0 && phase > generator && cards > phase,
+    "the phase belongs directly below the generator, before the cards on every viewport");
+  assert.equal((html.match(/class="details"/g) || []).length, 1);
+  assert.match(html.slice(phase, cards), /Préparation des médias/);
+});

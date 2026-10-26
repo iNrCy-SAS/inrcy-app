@@ -75,5 +75,6 @@ test("the account drawer owns one invoice section and the subscription workspace
   assert.doesNotMatch(workspace, /SubscriptionInvoicesPanel|\["overview", "invoices"\]|hidden=\{view !== "invoices"\}/);
   assert.match(workspace, /\{management\}/);
   assert.match(abonnementContent, /<SubscriptionWorkspace\b[^>]*\bmanagement=\{management\}/);
-  assert.match(standardSubscriptionContent, /<SubscriptionWorkspace\b[^>]*\bmanagement=\{management\}/);
+  assert.doesNotMatch(standardSubscriptionContent, /<SubscriptionWorkspace\b[^>]*\bmanagement=\{management\}/);
+  assert.match(standardSubscriptionContent, /<SubscriptionDetails\b[^>]*>\{management\}<\/SubscriptionDetails>/);
 });

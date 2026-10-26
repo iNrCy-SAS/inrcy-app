@@ -14,6 +14,7 @@ import ChannelPublicationTypes from "./ChannelPublicationTypes";
 import ChannelBoardCreator from "./ChannelBoardCreator";
 import ChannelPublicLinkEditor from "./ChannelPublicLinkEditor";
 import ChannelMailboxConnections from "./ChannelMailboxConnections";
+import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 
 export type DashboardConfigureDestination = { kind: "panel"; value: string } | { kind: "path"; value: string };
 export type DashboardFluxBubbleData = {
@@ -53,7 +54,7 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
     if (!action || actionRef.current || busy || disabled) return;
     actionRef.current = true;
     setPending(true); setError("");
-    try { const result = await action(); if (result === false && mounted.current) setError(t("failed")); } catch (caught) { if (mounted.current) setError(caught instanceof Error ? caught.message : t("failed")); }
+    try { const result = await action(); if (result === false && mounted.current) setError(t("failed")); } catch (caught) { if (mounted.current) setError(getClientUserFacingErrorMessage(caught, t("failed"))); }
     finally { actionRef.current = false; if (mounted.current) setPending(false); }
   };
   const viewLabel = item.specialViewLabel || item.viewAction?.label || t("view");
@@ -122,9 +123,12 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
             {item.bubbleStatus === "available" && !connection?.accountConnected && item.createHref && !item.createDisabled ? <a href={item.createHref} target="_blank" rel="noreferrer" className={bubbleStyles.iconAction} title={item.createLabel || t("create")} aria-label={`${item.createLabel || t("create")} — ${item.name}`}><ChannelBubbleIcon kind="create" /></a> : null}
           </div>
         </>}
-        {feedback ? <p className={bubbleStyles.connectionFeedback} role="alert" title={feedback}>{feedback}</p> : <span hidden={!statusText} className={bubbleStyles.connectionStatus} role="status">{statusText}</span>}
       </div>
     </article>
+    {feedback || statusText ? <div data-channel-feedback={feedback ? "error" : "notice"} className={`${bubbleStyles.channelFeedback} ${feedback ? bubbleStyles.channelFeedbackError : ""}`} role={feedback ? "alert" : "status"}>
+      <svg className={bubbleStyles.channelFeedbackIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" />{feedback ? <path d="M12 7v6m0 3v1" /> : <path d="M12 11v6m0-10v.1" />}</svg>
+      <p>{feedback || statusText}</p>
+    </div> : null}
     {parametersOpen && hasParameters ? <ChannelParametersDialog name={item.name} title={`${parametersLabel} — ${item.name}`} contentOnly={connection?.parametersOwnHeading} fullScreen={connection?.parametersFullScreen} onClose={() => { void requestNavigation(() => setParametersOpen(false)); }}>{connection?.parameters}</ChannelParametersDialog> : null}
     {connectOpen ? <ChannelParametersDialog name={item.name} title={`${connectLabel} — ${item.name}`} onClose={() => setConnectOpen(false)}><div className={bubbleStyles.connectChoices}>{connection?.connectOptions?.map(option => <button key={option.label} type="button" className={styles.actionBtn + " " + styles.connectBtn} disabled={Boolean(busy)} onClick={() => void run(async () => { await option.onConnect(); setConnectOpen(false); })}><ChannelBubbleIcon kind="plug" />{option.label}</button>)}</div></ChannelParametersDialog> : null}
   </>;

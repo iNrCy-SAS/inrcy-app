@@ -624,6 +624,11 @@ export async function POST(req: Request) {
   );
 
   for (const row of rows) {
+    // Basique is the only new restriction; existing paid-plan handling stays unchanged.
+    if (editionsByAccount.get(row.user_id) === "basic") {
+      results.push({ userId: row.user_id, automationKey: row.automation_key, status: "skipped", reason: "standard_required", nextRunAt: row.next_run_at });
+      continue;
+    }
     if (!activeAccountIds.has(row.user_id)) {
       results.push({
         userId: row.user_id,

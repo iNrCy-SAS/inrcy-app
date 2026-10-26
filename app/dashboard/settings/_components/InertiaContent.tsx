@@ -10,7 +10,7 @@ import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
-import type { DashboardEdition } from "@/lib/dashboardEdition";
+import { isStandardDashboardEdition, type DashboardEdition } from "@/lib/dashboardEdition";
 import type { InertiaSnapshot } from "@/lib/loyalty/inertia";
 
 type Props = {
@@ -130,14 +130,14 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
         title: i18nT("utiliser_propulser_c4b4b56d"),
         subtitle: i18nT("10_ui_1_action_semaine_8dafdd90"),
         done: didPropulser,
-        premiumOnly: edition === "standard",
+        premiumOnly: isStandardDashboardEdition(edition),
       },
       {
         key: "weekly_fideliser_use",
         title: i18nT("utiliser_fideliser_af919842"),
         subtitle: i18nT("10_ui_1_action_semaine_8dafdd90"),
         done: didFideliser,
-        premiumOnly: edition === "standard",
+        premiumOnly: isStandardDashboardEdition(edition),
       },
     ];
   }, [edition, events, weekStart]);
@@ -295,7 +295,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
         <div style={{ color: "rgba(255,255,255,0.9)", fontWeight: 800, marginBottom: 10 }}>
           {i18nT("boosts_a_faire_cette_semaine_a0a21688")}{" "}</div>
 
-        {edition === "standard" ? (
+        {isStandardDashboardEdition(edition) ? (
           <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12.5, margin: "-2px 0 10px" }}>
             {i18nT("booster_est_votre_mission_active_les_93914a0a")}{" "}</div>
         ) : null}
@@ -389,7 +389,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
           <div style={{ display: "grid", gap: 8 }}>
             {events.map((e) => {
               const premiumHistory =
-                edition === "standard" && PREMIUM_INERTIA_ACTION_KEYS.has(e.action_key);
+                isStandardDashboardEdition(edition) && PREMIUM_INERTIA_ACTION_KEYS.has(e.action_key);
               return (
                 <div
                   key={e.id}

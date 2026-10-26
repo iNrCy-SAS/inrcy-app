@@ -53,6 +53,26 @@ test("Facebook instructions select the live direct connection flow over obsolete
   assert.ok(text.length <= 4800);
 });
 
+test("CTA guidance follows the real mode normalizer and never invents a profile fallback", async () => {
+  const cta = load("./lib/aiChannelCtaPreferences.ts") as typeof import("../../lib/aiChannelCtaPreferences.ts");
+  const guide = runtime.INR_ASSISTANT_APP_GUIDES.find(({ id }) => id === "publication-cta")!;
+  const call = { choice: "appeler", phone: "0612345678" };
+  const website = { choice: "site", url: "https://business.example.com/" };
+  for (const { key } of cta.AI_CTA_CHANNELS) assert.equal(cta.normalizeAiChannelCtaMap({ [key]: call })[key]?.mode, "call", key);
+  for (const channel of ["instagram", "tiktok", "x"] as const) assert.equal(cta.normalizeAiChannelCtaMap({ [channel]: website })[channel], undefined);
+  for (const channel of ["site_web", "gmb", "facebook", "threads", "linkedin", "youtube_shorts", "pinterest"] as const) assert.equal(cta.normalizeAiChannelCtaMap({ [channel]: website })[channel]?.mode, "website");
+  assert.match(guide.content, /Ne dites pas que Facebook, Instagram ou LinkedIn interdisent ce mode/);
+  assert.match(guide.content, /Appeler Google utilise le numéro de sa fiche Google/);
+  assert.match(guide.content, /futurs contenus.*jamais les publications ou brouillons existants/);
+  assert.match(guide.content, /Aucun repli automatique vers un profil ou À propos.*ne l’inventez jamais/);
+  assert.match(guide.content, /compatibles, bloqués ou inconnus renvoyés par l’outil/);
+  const knowledge = runtime.getInrAssistantAppKnowledge("Mon numéro de téléphone peut-il apparaître dans les CTAs Facebook, Instagram et LinkedIn ?", 1200);
+  assert.match(knowledge, /Appeler est un mode accepté/);
+  assert.match(knowledge, /Aucun repli automatique/);
+  const instructions = readFileSync(resolve(root, "lib/inrAssistantConversation.ts"), "utf8");
+  assert.match(instructions, /N’invente aucun repli vers un profil\/À propos ni bouton natif/);
+});
+
 test("exact connection navigation is reproduced from the reviewed guide without invented conditions", () => {
   const reply = runtime.getVerifiedInrAssistantNavigation("Quels sont les boutons exacts pour connecter Facebook puis choisir ma Page ?");
   assert.ok(reply);

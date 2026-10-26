@@ -9,7 +9,7 @@ import styles from "./DashboardChannelBubble.module.css";
 
 export type SiteWebBubbleProps = ReturnType<typeof buildDashboardPanelProps>["siteWebPanelProps"];
 
-export function SiteGoogleConnectionButton({ product, connected, busy, canConnect, details, onConnect, onDisconnect }: {
+export function SiteGoogleConnectionButton({ product, connected, busy, canConnect, details, onConnect, onDisconnect, onError }: {
   product: "GA4" | "GSC";
   connected: boolean;
   busy: boolean;
@@ -17,6 +17,7 @@ export function SiteGoogleConnectionButton({ product, connected, busy, canConnec
   details: { label: string; value: string }[];
   onConnect: () => unknown;
   onDisconnect: () => unknown | Promise<unknown>;
+  onError?: (error: string) => void;
 }) {
   const t = useTranslations("dashboard.channelBubble");
   const id = useId();
@@ -24,14 +25,13 @@ export function SiteGoogleConnectionButton({ product, connected, busy, canConnec
   const menu = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<CSSProperties>({});
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
   const inFlight = useRef(false);
   const place = () => { if (trigger.current) setPosition(getChannelPopoverPlacement(trigger.current, menu.current, 320)); };
   const disconnect = async () => {
     if (busy || inFlight.current) return;
-    inFlight.current = true; setPending(true); setError("");
+    inFlight.current = true; setPending(true); onError?.("");
     try { await onDisconnect(); }
-    catch { setError(t("failed")); }
+    catch { onError?.(t("failed")); }
     finally { inFlight.current = false; setPending(false); }
   };
   return <div className={styles.siteGoogleCard} data-connected={connected}>
@@ -43,18 +43,17 @@ export function SiteGoogleConnectionButton({ product, connected, busy, canConnec
       <header className={styles.popoverHeader}><strong>{product === "GA4" ? "Google Analytics 4" : "Google Search Console"}</strong><button type="button" popoverTarget={id} popoverTargetAction="hide" aria-label={t("close")}>×</button></header>
       <dl>{details.map(detail => <div key={detail.label}><dt>{detail.label}</dt><dd>{detail.value || "—"}</dd></div>)}</dl>
     </div> : null}
-    {error ? <span className={styles.typesError} role="alert">{error}</span> : null}
   </div>;
 }
 
-export default function SiteWebBubbleControls({ site, onDirtyChange }: { site: SiteWebBubbleProps; onDirtyChange: (dirty: boolean) => void }) {
+export default function SiteWebBubbleControls({ site, onDirtyChange, onError }: { site: SiteWebBubbleProps; onDirtyChange: (dirty: boolean) => void; onError?: (error: string) => void }) {
   const t = useTranslations("dashboard.channelBubble");
   const shell = useTranslations("shell");
   return <div className={styles.siteControls}>
     <div className={styles.siteUrlField}><EditableChannelUrlField channel="site_web" value={site.siteWebSavedUrl || ""} onSaved={site.applySiteWebPublicUrlSaved} onDirtyChange={onDirtyChange} ariaLabel={shell("lien_du_site_760c2d8a")} placeholder="https://votre-site.fr" viewLabel={shell("voir_le_site_5bf01317")} editorOnly={!site.hasSiteWebUrl} saveAsIcon disabled={site.siteWebUrlBusy} /></div>
     <div className={styles.siteGoogleGrid}>
-      <SiteGoogleConnectionButton product="GA4" connected={Boolean(site.siteWebGa4Connected)} busy={Boolean(site.siteWebGa4Busy)} canConnect={Boolean(site.canConnectSiteWebGoogle)} onConnect={site.connectSiteWebGa4} onDisconnect={site.disconnectSiteWebGa4} details={[{ label: shell("id_de_mesure_ex_g_xxxxxxxxxx_ab32feb7"), value: site.siteWebGa4MeasurementId || "" }, { label: shell("property_id_numerique_ex_123456789_c8dc0757"), value: site.siteWebGa4PropertyId || "" }]} />
-      <SiteGoogleConnectionButton product="GSC" connected={Boolean(site.siteWebGscConnected)} busy={Boolean(site.siteWebGscBusy)} canConnect={Boolean(site.canConnectSiteWebGoogle)} onConnect={site.connectSiteWebGsc} onDisconnect={site.disconnectSiteWebGsc} details={[{ label: shell("propriete_ex_2b3d54fc"), value: site.siteWebGscProperty || "" }]} />
+      <SiteGoogleConnectionButton product="GA4" connected={Boolean(site.siteWebGa4Connected)} busy={Boolean(site.siteWebGa4Busy)} canConnect={Boolean(site.canConnectSiteWebGoogle)} onConnect={site.connectSiteWebGa4} onDisconnect={site.disconnectSiteWebGa4} onError={onError} details={[{ label: shell("id_de_mesure_ex_g_xxxxxxxxxx_ab32feb7"), value: site.siteWebGa4MeasurementId || "" }, { label: shell("property_id_numerique_ex_123456789_c8dc0757"), value: site.siteWebGa4PropertyId || "" }]} />
+      <SiteGoogleConnectionButton product="GSC" connected={Boolean(site.siteWebGscConnected)} busy={Boolean(site.siteWebGscBusy)} canConnect={Boolean(site.canConnectSiteWebGoogle)} onConnect={site.connectSiteWebGsc} onDisconnect={site.disconnectSiteWebGsc} onError={onError} details={[{ label: shell("propriete_ex_2b3d54fc"), value: site.siteWebGscProperty || "" }]} />
     </div>
     {!site.hasSiteWebUrl ? <p className={styles.siteFirstHint}>{t("saveSiteFirst")}</p> : null}
   </div>;

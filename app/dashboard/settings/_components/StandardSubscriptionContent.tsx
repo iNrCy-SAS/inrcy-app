@@ -24,8 +24,9 @@ import {
   type StandardSubscriptionStorePrices,
 } from "@/lib/clientSubscriptionBilling";
 import { openNativeSubscriptionManagement } from "@/lib/nativeBillingManagement";
-import SubscriptionWorkspace from "./SubscriptionWorkspace";
+import SubscriptionWorkspace, { SubscriptionDetails } from "./SubscriptionWorkspace";
 import { SubscriptionPlanFeatures } from "./SubscriptionComparison";
+import BasicSubscriptionCard from "./BasicSubscriptionCard";
 import styles from "./settingsContentLayout.module.css";
 
 type Props = {
@@ -270,7 +271,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     const canStartPremiumCheckout = canStartSubscriptionCheckout(subscription, "Premium");
     const needsBillingRecovery = ["past_due", "unpaid", "incomplete"].includes(status);
     return {
-      edition: currentSubscriptionBillingPlan(subscription) === "Premium" ? "premium" : "standard",
+      edition: currentSubscriptionBillingPlan(subscription)?.toLowerCase() ?? "standard",
       status,
       hasStripeSubscription,
       hasNativeSubscription,
@@ -476,6 +477,19 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     }
   }
 
+  async function refreshBasicPlan(billingCycle: BillingCycle, priceId: string) {
+    setMessage(i18nT("subscription_change_activating"));
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const row = await loadSubscription();
+      if (isCheckoutReturnSynchronized(row, { plan: "Basic", billingCycle }) && row?.stripe_price_id === priceId) {
+        window.location.reload();
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 1200));
+    }
+    setMessage(i18nT("subscription_change_reload"));
+  }
+
   function openPremiumActivationChoice(event: React.MouseEvent<HTMLButtonElement>) {
     premiumActivationOpener.current = event.currentTarget;
     setUpgradeQuote(null);
@@ -613,7 +627,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   };
   const management = <section className={styles.managementCard}>
     <h2>{i18nT("mon_abonnement_d248414d")}</h2>
-    <strong>iNrCy {view.edition === "premium" ? "Premium" : "Standard"}</strong>
+    <strong>iNrCy {view.edition === "basic" ? i18nT("subscription_basic_name") : view.edition === "premium" ? "Premium" : "Standard"}</strong>
     <p style={{ color: view.presentation.color }}>{view.presentation.label}</p>
     {view.trialEndLabel && view.status === "trialing" ? <p>{i18nT("fin_de_votre_essai_f1bae9e9")} <strong>{view.trialEndLabel}</strong></p> : null}
     {view.renewalLabel ? <p>{i18nT("premium_next_renewal_label", { date: view.renewalLabel })}</p> : null}
@@ -621,7 +635,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     {view.cancellationScheduled && view.billingCycle === "monthly" && view.renewalLabel ? <p>{i18nT("derniere_mensualite_prevue_le_f3d69894")} <strong>{view.renewalLabel}</strong>.</p> : null}
     {(view.hasStripeSubscription || view.hasNativeSubscription) ? <button type="button" onClick={openPortal} style={secondaryButton} disabled={busyAction !== null}>{view.needsBillingRecovery ? i18nT("regulariser_mon_paiement_00ae072e") : i18nT("gerer_ma_facturation_dc5027ac")}</button> : null}
     {view.hasNativeSubscription ? <p className={styles.finePrint}>{i18nT("native_subscription_managed_by_store", { store: view.billingProvider === "app_store" ? "App Store" : "Google Play" })}</p> : null}
-    {(view.edition === "standard" || view.status === "trialing") && view.hasStripeSubscription && !view.needsBillingRecovery ? <>
+    {(view.edition === "basic" || view.edition === "standard" || view.status === "trialing") && view.hasStripeSubscription && !view.needsBillingRecovery ? <>
       <button type="button" onClick={() => updateCancellation(view.cancellationScheduled ? "uncancel" : "cancel")} style={secondaryButton} disabled={busyAction !== null}>{view.cancellationScheduled ? i18nT("annuler_ma_resiliation_902e43a0") : i18nT("programmer_ma_resiliation_d074ca2d")}</button>
       {!view.cancellationScheduled ? <p className={styles.finePrint}>{i18nT("essai_arret_sans_prelevement_mensuel_actif_32634c83")}</p> : null}
     </> : null}
@@ -693,7 +707,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   const canPreviewPlanChange = (plan: "Standard" | "Premium") => canPreviewSubscriptionPlanChange(subscription, plan, billingCycles[plan]);
   const selectedCycleDiffers = (plan: "Standard" | "Premium") => billingCycles[plan] !== (view.billingCycle === "yearly" ? "yearly" : "monthly");
 
-  return <><SubscriptionWorkspace layout="offers" management={management} notice={<div role="status" aria-live="polite">
+  return <><SubscriptionWorkspace layout="offers" notice={<div role="status" aria-live="polite">
     {checkoutState === "cancel" ? <p style={{ color: "#ffd38f", margin: "0 0 12px" }}>{i18nT("paiement_annule_aucun_changement_n_a_c603ca12")}</p> : null}
     {message ? <p style={{ color: "#8ff7d0", margin: "0 0 12px" }}>{message}</p> : null}
     {error ? <p style={{ color: "#ff9bbd", margin: "0 0 12px" }}>{error}</p> : null}
@@ -701,6 +715,10 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
 
 
     <div className={styles.plansGrid}>
+      <BasicSubscriptionCard subscription={subscription} platform={clientBillingPlatform}
+        onRefresh={() => { void loadSubscription(); }} onManageBilling={() => { void openPortal(); }}
+        onApplied={refreshBasicPlan}
+        management={view.edition === "basic" && (view.hasStripeSubscription || view.hasNativeSubscription) ? management : undefined} />
       <section className={`${styles.planCard} ${styles.standardCard}`}>
         <header className={styles.planHeader}>
           <div><span className={styles.planEyebrow}>{i18nT("subscription_standard_eyebrow")}</span><h2>iNrCy Standard</h2></div>
@@ -719,6 +737,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
           : view.edition === "standard" && view.hasNativeSubscription && selectedCycleDiffers("Standard") ? <button type="button" className={styles.standardCta} onClick={openPortal} disabled={busyAction !== null}>{i18nT("premium_native_change_button")}</button>
           : view.edition === "premium" ? <p className={styles.includedNotice}>{i18nT("subscription_included_premium")}</p> : null}
           {isNativeBillingPlatform && storePriceError ? <p className={styles.finePrint} style={{ color: "#ffe1e8" }}>{storePriceError}</p> : null}
+          {view.edition === "standard" && (view.hasStripeSubscription || view.hasNativeSubscription) ? <SubscriptionDetails title={i18nT("gerer_ma_facturation_dc5027ac")}>{management}</SubscriptionDetails> : null}
         </footer>
       </section>
 
@@ -745,6 +764,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
           : view.needsBillingRecovery && view.edition === "premium" ? <button type="button" className={styles.premiumCta} onClick={openPortal} disabled={busyAction !== null}>{i18nT("regulariser_mon_paiement_00ae072e")}</button>
           : view.edition === "premium" ? null
           : <button type="button" className={styles.quoteRefresh} onClick={onOpenContact}>{i18nT("premium_contact_change_button")}</button>}
+          {view.edition === "premium" && (view.hasStripeSubscription || view.hasNativeSubscription) ? <SubscriptionDetails title={i18nT("gerer_ma_facturation_dc5027ac")}>{management}</SubscriptionDetails> : null}
         </footer>
       </section>
     </div>

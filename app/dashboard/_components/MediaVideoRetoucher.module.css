@@ -382,3 +382,16 @@
     min-width: 0;
   }
 }
+
+/* Short desktop viewports keep source/tools at their usable sizes and let
+   Studio scroll the complete form, including the final action bar. */
+@media (min-width: 901px) and (max-height: 700px) {
+  .root { height:auto; min-height:100%; grid-template-rows:auto auto; overflow:visible; }
+  .emptyWorkspace, .editorWorkspace { height:auto; min-height:min-content; grid-template-rows:auto; overflow:visible; }
+  .sourcePanel, .toolsPanel { height:auto; min-height:min-content; grid-template-rows:auto minmax(240px, 1fr) auto; }
+  .dropzone { min-height:240px; }
+  .disabledTools { height:auto; min-height:240px; }
+  .editorHeading, .footer { flex-wrap:wrap; }
+  .videoManager { height:auto; overflow:visible; }
+  .videoManager > :first-child { height:auto; min-height:min-content; }
+}

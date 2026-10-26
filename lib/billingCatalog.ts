@@ -1,5 +1,6 @@
 import { optionalEnv } from "@/lib/env";
 import {
+  BASIC_SUBSCRIPTION_OFFER,
   PREMIUM_SUBSCRIPTION_OFFER,
   PREMIUM_SUBSCRIPTION_OFFER_V2,
   STANDARD_SUBSCRIPTION_OFFER,
@@ -10,8 +11,8 @@ import {
 } from "@/lib/subscriptionOffers";
 
 export type CommercialPriceMatch = {
-  edition: "standard" | "premium";
-  plan: "Standard" | "Premium";
+  edition: "basic" | "standard" | "premium";
+  plan: "Basic" | "Standard" | "Premium";
   billingCycle: BillingCycle;
   chargeAmountEur: number;
   monthlyReferenceEur: number;
@@ -20,6 +21,10 @@ export type CommercialPriceMatch = {
 
 function clean(value: unknown): string {
   return String(value ?? "").trim();
+}
+
+export function configuredBasicPriceId(cycle: BillingCycle): string {
+  return clean(optionalEnv(cycle === "yearly" ? "STRIPE_PRICE_BASIC_309HT_YEARLY_ID" : "STRIPE_PRICE_BASIC_29HT_MONTHLY_ID"));
 }
 
 export function configuredStandardPriceId(
@@ -80,6 +85,8 @@ export function commercialPriceFromId(priceId: unknown): CommercialPriceMatch | 
   ];
 
   const candidates: Array<[string, CommercialPriceMatch]> = [
+    candidate(configuredBasicPriceId("monthly"), BASIC_SUBSCRIPTION_OFFER, "monthly"),
+    candidate(configuredBasicPriceId("yearly"), BASIC_SUBSCRIPTION_OFFER, "yearly"),
     candidate(configuredStandardPriceId("monthly"), STANDARD_SUBSCRIPTION_OFFER, "monthly"),
     candidate(configuredStandardPriceId("yearly"), STANDARD_SUBSCRIPTION_OFFER, "yearly"),
     candidate(configuredPremiumPriceId("monthly"), PREMIUM_SUBSCRIPTION_OFFER, "monthly"),
@@ -115,6 +122,7 @@ export function commercialPriceFromId(priceId: unknown): CommercialPriceMatch | 
 
 export function configuredCommercialAnnualPriceIds(): string[] {
   return [
+    configuredBasicPriceId("yearly"),
     configuredStandardPriceId("yearly"),
     configuredPremiumPriceId("yearly"),
     configuredStandardPriceId("yearly", "international_ht_v2"),

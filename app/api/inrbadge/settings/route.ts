@@ -11,6 +11,7 @@ import {
 } from "@/lib/inrBadgeSettings";
 import { getDashboardEditionForAuthUser } from "@/lib/dashboardEditionServer";
 import { effectiveInrBadgeShareSettings } from "@/lib/inrBadgeEditionPolicy";
+import { isStandardDashboardEdition } from "@/lib/dashboardEdition";
 import {
   normalizeInrBadgeThemeSettings,
   sanitizeInrBadgeThemeSettingsPayload,
@@ -41,7 +42,7 @@ export async function GET() {
     settings: withoutThreadsData(effectiveInrBadgeShareSettings(storedShareSettings, dashboardEdition), metaPilotEnabled),
     theme: normalizeInrBadgeThemeSettings(rootSettings.inrBadgeTheme),
     appointmentSettings: resolveInrBadgeAppointmentSettings(rootSettings),
-    selectedMailAccountId: dashboardEdition === "standard"
+    selectedMailAccountId: isStandardDashboardEdition(dashboardEdition)
       ? ""
       : typeof rootSettings.inrBadgeMailAccountId === "string"
         ? rootSettings.inrBadgeMailAccountId
@@ -78,11 +79,11 @@ export async function PATCH(req: Request) {
     ? sanitizeInrBadgeShareSettingsPayload(input.settings)
     : currentShareSettings;
   if (!metaPilotEnabled) requestedShareSettings.threads = currentShareSettings.threads;
-  const nextShareSettings = dashboardEdition === "standard"
+  const nextShareSettings = isStandardDashboardEdition(dashboardEdition)
     ? { ...requestedShareSettings, appointment: currentShareSettings.appointment }
     : requestedShareSettings;
   const currentAppointmentSettings = resolveInrBadgeAppointmentSettings(currentSettings);
-  const nextAppointmentSettings = dashboardEdition === "standard"
+  const nextAppointmentSettings = isStandardDashboardEdition(dashboardEdition)
     ? currentAppointmentSettings
     : hasAppointmentSettings
       ? sanitizeInrBadgeAppointmentSettingsPayload(input.appointmentSettings)
@@ -97,7 +98,7 @@ export async function PATCH(req: Request) {
   const currentSelectedMailAccountId = typeof currentSettings.inrBadgeMailAccountId === "string"
     ? currentSettings.inrBadgeMailAccountId
     : "";
-  const nextSelectedMailAccountId = dashboardEdition === "standard"
+  const nextSelectedMailAccountId = isStandardDashboardEdition(dashboardEdition)
     ? currentSelectedMailAccountId
     : hasSelectedMailAccountId
       ? String(input.selectedMailAccountId || "").trim()
@@ -126,6 +127,6 @@ export async function PATCH(req: Request) {
     settings: withoutThreadsData(effectiveInrBadgeShareSettings(nextShareSettings, dashboardEdition), metaPilotEnabled),
     theme: nextTheme,
     appointmentSettings: nextAppointmentSettings,
-    selectedMailAccountId: dashboardEdition === "standard" ? "" : nextSelectedMailAccountId,
+    selectedMailAccountId: isStandardDashboardEdition(dashboardEdition) ? "" : nextSelectedMailAccountId,
   });
 }

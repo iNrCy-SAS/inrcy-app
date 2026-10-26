@@ -86,25 +86,25 @@ test("blocked checkout polling refreshes read-only server state, stops after 30 
     "next-intl": { useTranslations: () => (key: string) => key, useLocale: () => "fr-FR" },
     "next/navigation": { useRouter: () => router },
     "@/lib/subscriptionOffers": offers,
-    "@/lib/clientSubscriptionBilling": { startSubscriptionCheckout: () => { throw new Error("purchase is forbidden during return polling"); } },
+    "@/lib/clientSubscriptionBilling": { detectClientBillingPlatform: () => "web", startSubscriptionCheckout: () => { throw new Error("purchase is forbidden during return polling"); } },
     "./compte-bloque.module.css": { default: {} },
   }, { setInterval: (callback: () => void, delay: number) => { assert.equal(delay, 1500); tick = callback; return 1; }, clearInterval: () => { cleared = true; } });
   const rendered = actions.default({ status: "trial_expired", edition: "standard", hasStripeCustomer: true, contactHref: "mailto:contact@example.invalid", checkoutPending: true });
   const buttons = elements(rendered).filter((node) => node.type === "button");
   assert.equal(buttons.length, 1);
   assert.equal(buttons[0].props.children, "actualiser_9d3b2a7d");
-  const cleanup = effects[0]();
+  const cleanups = effects.map(effect => effect());
   while (!cleared && refreshes < 21) tick!();
   assert.equal(refreshes, 20);
   assert.equal(cleared, true);
-  cleanup?.();
+  cleanups.forEach(cleanup => cleanup?.());
 });
 
-function recoveryFixture(edition: "standard" | "premium" = "premium", status = "canceled") {
+function recoveryFixture(edition: "basic" | "standard" | "premium" = "premium", status = "canceled") {
   const state: unknown[] = [];
   let cursor = 0;
   const purchases: Row[] = [];
-  const translations: Record<string, string> = { standard_tax_exclusive_short: "HT", standard_tax_inclusive_short: "TTC", standard_per_month: "mois", standard_per_year: "an" };
+  const translations: Record<string, string> = { subscription_basic_name: "Basique", standard_tax_exclusive_short: "HT", standard_tax_inclusive_short: "TTC", standard_per_month: "mois", standard_per_year: "an" };
   const actions = load<{ default(props: Row): unknown }>("app/compte-bloque/BlockedBillingActions.tsx", {
     "react/jsx-runtime": { jsx, jsxs: jsx },
     "react": { useState: (initial: unknown) => {
@@ -115,7 +115,7 @@ function recoveryFixture(edition: "standard" | "premium" = "premium", status = "
     "next-intl": { useTranslations: () => (key: string) => translations[key] ?? key, useLocale: () => "fr-FR" },
     "next/navigation": { useRouter: () => ({ refresh() {} }) },
     "@/lib/subscriptionOffers": offers,
-    "@/lib/clientSubscriptionBilling": { startSubscriptionCheckout: async (args: Row) => { purchases.push(args); return { platform: "web" }; } },
+    "@/lib/clientSubscriptionBilling": { detectClientBillingPlatform: () => "web", startSubscriptionCheckout: async (args: Row) => { purchases.push(args); return { platform: "web" }; } },
     "./compte-bloque.module.css": { default: {} },
   });
   return { purchases, render: () => {
@@ -124,8 +124,8 @@ function recoveryFixture(edition: "standard" | "premium" = "premium", status = "
   } };
 }
 
-function offerButtons(rendered: unknown, plan: "Standard" | "Premium") {
-  const article = elements(rendered).find((node) => node.type === "article" && node.props["aria-label"] === `iNrCy ${plan}`)!;
+function offerButtons(rendered: unknown, plan: "Basic" | "Standard" | "Premium") {
+  const article = elements(rendered).find((node) => node.type === "article" && node.props["aria-label"] === `iNrCy ${plan === "Basic" ? "Basique" : plan}`)!;
   assert.ok(article, `${plan} recovery offer must be available`);
   return elements(article).filter((node) => node.type === "button");
 }
@@ -137,9 +137,11 @@ function contentText(value: unknown): string {
   return "";
 }
 
-test("expired Premium recovery displays both current HT offers with percentage savings and independent cadences", async () => {
+test("expired Premium recovery displays all three HT offers with percentage savings and independent cadences", async () => {
   const ui = recoveryFixture("premium", "trial_expired");
   const text = contentText(ui.render());
+  assert.match(text, /29 € HT \/ mois/);
+  assert.match(text, /309 € HT \/ an/);
   assert.match(text, /58 € HT \/ mois/);
   assert.match(text, /628 € HT \/ an/);
   assert.match(text, /108 € HT \/ mois/);
@@ -154,9 +156,9 @@ test("expired Premium recovery displays both current HT offers with percentage s
   assert.equal(ui.purchases[0].billingCycle, "monthly");
 });
 
-test("each recovery offer sends its own plan and cadence for former Standard and Premium accounts", async () => {
-  for (const edition of ["standard", "premium"] as const) {
-    for (const plan of ["Standard", "Premium"] as const) {
+test("each recovery offer sends its own plan and cadence for former Basic, Standard and Premium accounts", async () => {
+  for (const edition of ["basic", "standard", "premium"] as const) {
+    for (const plan of ["Basic", "Standard", "Premium"] as const) {
       for (const cycle of ["monthly", "yearly"] as const) {
         const ui = recoveryFixture(edition);
         if (cycle === "yearly") (offerButtons(ui.render(), plan)[1].props.onClick as () => void)();

@@ -215,7 +215,7 @@ test("le header est fin avec les informations au centre, les logos sont ronds et
   assertOrdered(modal, "styles.headerPanel", "styles.headerInfo", "styles.connectionCount", "styles.filters", "styles.toolbarActions", "ref={sceneRef}");
   assert.doesNotMatch(modal, /<footer/);
   assert.doesNotMatch(modal, /styles\.selectedSummary|CONNECTER · RAYONNER · GRANDIR/);
-  assert.match(modalCss, /\.headerPanel\s*\{[^}]*grid-template-columns: minmax\(0,1fr\) auto minmax\(0,1fr\)[^}]*min-height: 66px/);
+  assert.match(modalCss, /\.headerPanel\s*\{[^}]*grid-template-columns: auto minmax\(0,1fr\) auto[^}]*min-height: 66px/);
   assert.match(modalCss, /\.channelLogoMedallion\s*\{[^}]*border-radius: 50%/);
   for (const part of ["generatorCoreCenter", "miniCoreRing", "miniCoreRotor", "miniCoreGlass", "miniCoreGlow"]) assert.ok(generatorOrb.includes(`styles.${part}`), part);
 });
@@ -224,7 +224,7 @@ test("les flèches entourent la bulle centrale sans bloc dessous ni ouverture de
   assertOrdered(modal, "styles.selectedArea", "<DashboardFluxBubble", "styles.arrowPrevious", 'aria-label="Canal précédent"', "styles.arrowNext", 'aria-label="Canal suivant"', "styles.satellites");
   assert.match(modal, /"--center-y": `\$\{sceneLayout\.centerY\}px`/);
   assert.doesNotMatch(modal, /channel-details|styles\.channelDetails|styles\.channelExplanation|--info-top/);
-  assert.match(modalCss, /\.channelArrow\s*\{[^}]*top: 50%;[^}]*width: 44px; height: 44px/);
+  assert.match(modalCss, /\.channelArrow\s*\{[^}]*top: calc\(var\(--center-size,340px\) \/ 2\);[^}]*width: 44px; height: 44px/);
   assert.match(modalCss, /\.arrowPrevious\s*\{ left: -64px; \}/);
   assert.match(modalCss, /\.arrowNext\s*\{ right: -64px; \}/);
   assert.match(modal, /"--bubble-size": `\$\{size\}px`/);

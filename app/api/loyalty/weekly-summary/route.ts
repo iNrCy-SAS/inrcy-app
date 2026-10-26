@@ -6,6 +6,7 @@ import { computeInertiaSnapshot } from "@/lib/loyalty/inertia";
 import { getIsoWeekId, getIsoWeekStart } from "@/lib/weeklyGoals";
 import { repairWeeklyMissionAwardsForUser } from "@/lib/loyalty/serverAward";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
+import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
 
 type LedgerRow = {
   created_at: string;
@@ -24,7 +25,7 @@ export async function GET() {
   const dashboardEdition = await getDashboardEditionForAccountId(activeUserId);
 
   await repairWeeklyMissionAwardsForUser(activeUserId, {
-    includePremiumMissions: dashboardEdition !== "standard",
+    includePremiumMissions: hasPremiumDashboardAccess(dashboardEdition),
   }).catch(() => null);
 
   const [states, ledgerRes] = await Promise.all([

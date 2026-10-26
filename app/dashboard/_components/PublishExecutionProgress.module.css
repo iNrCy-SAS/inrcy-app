@@ -69,6 +69,11 @@ summary.destinationTrigger { cursor: pointer; }
 .phase strong { color: #d8e0f6; font-weight: 650; }
 .status { min-height: 22px; margin: 9px 0 18px; color: #9eafcc; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .phase + .status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.scene:has(> .details) { grid-template-rows: auto auto auto; gap: 18px; }
+.scene:has(> .details) .core::after { display: none; }
+.scene > .details { position: relative; margin: 0 auto; }
+.scene > .details::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 18px; background: linear-gradient(#9d8bff, #a6bdeb30); }
+.scene > .details .phase { margin-bottom: 0; }
 .scene[data-complete="true"] .core::before { animation: none; }
 
 @keyframes revolve { to { transform: rotate(360deg); } }
@@ -77,7 +82,8 @@ summary.destinationTrigger { cursor: pointer; }
 
 @media (min-width: 701px) {
   .immersive { display: flex; flex-direction: column; height: 100%; min-height: min-content; padding: 8px clamp(16px, 3vw, 48px); border: 0; border-radius: 0; background: none; box-shadow: none; }
-  .scene { --distribution-gap: 64px; flex: 1; grid-template-rows: auto auto; align-content: center; gap: var(--distribution-gap); padding-top: 24px; box-sizing: border-box; }
+  .scene { --distribution-gap: 64px; flex: 1 0 auto; grid-template-rows: auto auto; align-content: center; gap: var(--distribution-gap); padding-top: 24px; box-sizing: border-box; }
+  .scene:has(> .details) { grid-template-rows: auto auto auto; gap: 18px; }
   .core { width: 104px; height: 104px; }
   .core::after { height: 49px; }
   .coreContent { gap: 4px; }

@@ -1288,7 +1288,7 @@ export async function processPendingMailCampaigns(opts?: {
       .map((rawCampaign) => (asString(asRecord(rawCampaign).user_id) || "").trim())
       .filter(Boolean),
   ));
-  const editionByUser = new Map<string, "standard" | "premium" | "founder">(
+  const editionByUser = new Map<string, "basic" | "standard" | "premium" | "founder">(
     candidateUserIds.map((userId) => [userId, "standard"]),
   );
   try {

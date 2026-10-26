@@ -6,8 +6,9 @@ import ts from "typescript";
 import * as planChange from "../../lib/subscriptionPlanChange.ts";
 import * as subscriptionPeriods from "../../lib/stripeSubscription.ts";
 import * as subscriptionOffers from "../../lib/subscriptionOffers.ts";
+import * as changePolicy from "../../lib/subscriptionPlanChangePolicy.ts";
 
-type Plan = "Standard" | "Premium";
+type Plan = "Basic" | "Standard" | "Premium";
 type Cycle = "monthly" | "yearly";
 type Version = "legacy_ttc_v1" | "international_ht_v2";
 type ObjectRow = Record<string, unknown>;
@@ -34,7 +35,7 @@ function fixture(options: {
     price: { id, recurring: { interval: billingCycle === "yearly" ? "year" : "month", interval_count: 1 } },
   });
   const catalog = new Map<string, { plan: Plan; edition: string; billingCycle: Cycle; pricingVersion: Version }>();
-  for (const plan of ["Standard", "Premium"] as const) for (const cycle of ["monthly", "yearly"] as const) {
+  for (const plan of ["Basic", "Standard", "Premium"] as const) for (const cycle of ["monthly", "yearly"] as const) {
     for (const version of ["legacy_ttc_v1", "international_ht_v2"] as const) {
       catalog.set(price(plan, cycle, version), { plan, edition: plan.toLowerCase(), billingCycle: cycle, pricingVersion: version });
     }
@@ -57,9 +58,11 @@ function fixture(options: {
   let executions = 0;
   let previewCount = 0;
   const modules = new Map<string, unknown>([
+    ["@/lib/subscriptionPlanChangePolicy", changePolicy],
     ["node:crypto", { randomUUID }],
     ["next/server", { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
     ["@/lib/billingCatalog", {
+      configuredBasicPriceId: (cycle: Cycle) => options.targetPricesMissing ? "" : price("Basic", cycle, "international_ht_v2"),
       commercialPriceFromId: (id: string) => catalog.get(id) ?? null,
       configuredPremiumPriceId: (cycle: Cycle, version: Version) => options.targetPricesMissing ? "" : price("Premium", cycle, version),
       configuredStandardPriceId: (cycle: Cycle, version: Version) => options.targetPricesMissing ? "" : price("Standard", cycle, version),
@@ -210,6 +213,32 @@ for (const version of ["legacy_ttc_v1", "international_ht_v2"] as const) {
     assert.equal(route.posts.some((call) => /checkout|customers/.test(call.path)), false);
   });
 }
+
+for (const plan of ["Standard", "Premium"] as const) for (const cycle of ["monthly", "yearly"] as const) test(`${plan} to Basic ${cycle} preserves paid access until renewal`, async () => {
+  const route = fixture({ plan, version: "international_ht_v2" });
+  const preview = await (await route.get("Basic", cycle)).json();
+  assert.equal(preview.changeType, "scheduled");
+  const response = await route.post({ targetPlan: "Basic", billingCycle: cycle,
+    expectedCurrentPriceId: preview.currentPriceId, expectedTargetPriceId: preview.targetPriceId });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).scheduled, true);
+  const change = route.posts.find(call => call.path === "/subscription_schedules/sched_new")!;
+  assert.equal(change.params.get("phases[0][items][0][price]"), route.currentPrice);
+  assert.equal(change.params.get("phases[0][end_date]"), String(route.periodEnd));
+  assert.equal(change.params.get("phases[1][items][0][price]"), price("Basic", cycle, "international_ht_v2"));
+  assert.equal(change.params.get("phases[1][metadata][plan]"), "Basic");
+  assert.equal(route.posts.some(call => call.path.includes("invoice")), false);
+});
+
+for (const plan of ["Standard", "Premium"] as const) test(`Basic upgrades to ${plan} only after confirmed billing`, async () => {
+  const route = fixture({ plan: "Basic", version: "international_ht_v2" });
+  const preview = await (await route.get(plan, "monthly")).json();
+  assert.equal(route.executions(), 0);
+  const response = await route.post(confirmation(preview.quote));
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).applied, true);
+  assert.equal(route.posts.find(call => call.path === "/subscriptions/sub_account")?.params.get("payment_behavior"), "pending_if_incomplete");
+});
 
 test("same plan and same cadence is unchanged; an invalid cadence fails closed", async () => {
   const route = fixture();

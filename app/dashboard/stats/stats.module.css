@@ -9418,7 +9418,11 @@
   .page[data-stats-layout="panorama"] .statsPanel {
     flex: 1 1 0 !important;
     height: 100% !important;
-    overflow: hidden !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    scrollbar-width: thin;
+    overscroll-behavior-y: contain;
+    scroll-padding-block: 12px;
   }
   .page[data-stats-layout="panorama"] .channelStatsPanel {
     flex: 1 1 0 !important;
@@ -9647,5 +9651,19 @@
   }
   .page[data-stats-layout="panorama"] .channelStatsPanel .publicationTypeChip b {
     font-size: 11px !important;
+  }
+}
+
+/* The same scroll contract applies after opening a channel: its charts and
+   action blocks grow in normal flow instead of being clipped inside the cube. */
+@media (min-width: 901px) and (max-height: 820px) {
+  .page[data-stats-layout="panorama"] .channelStatsPanel,
+  .page[data-stats-layout="panorama"] .channelStatsPanel .cube,
+  .page[data-stats-layout="panorama"] .channelStatsPanel .cubeBody {
+    flex:1 0 auto !important;
+    height:auto !important;
+    min-height:min-content !important;
+    max-height:none !important;
+    overflow:visible !important;
   }
 }

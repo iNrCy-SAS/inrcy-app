@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import { isStandardDashboardEdition } from "@/lib/dashboardEdition";
 
 import { useMemo, useRef, useState } from "react";
 import styles from "./stats.module.css";
@@ -103,7 +104,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const router = useRouter();
   const dashboardEdition = useDashboardEdition();
   const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
-  const standardMode = dashboardEdition === "standard";
+  const standardMode = isStandardDashboardEdition(dashboardEdition);
   const [helpOpen, setHelpOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);

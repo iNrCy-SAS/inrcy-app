@@ -94,6 +94,8 @@ import {
   STANDARD_BONUS_CHANNEL_KEYS,
   STANDARD_PUBLICATION_CHANNEL_KEYS,
   isDashboardDestinationAllowedForEdition,
+  isStandardDashboardEdition,
+  hasAgentAutomationAccess,
 } from "@/lib/dashboardEdition";
 import { DASHBOARD_TOP_ANCHOR_ID } from "./dashboard.scroll";
 
@@ -314,7 +316,7 @@ export default function DashboardClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const dashboardEdition = useDashboardEdition();
-  const isStandardEdition = dashboardEdition === "standard";
+  const isStandardEdition = isStandardDashboardEdition(dashboardEdition);
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const dashboardCopy = useDashboardI18n();
   const topbarT = useTranslations("dashboard.topbar");
@@ -677,7 +679,7 @@ const triggerChannelRefreshRef = useRef<(channel: DashboardChannelKey) => Promis
 
 const [bubbleAccessMap, setBubbleAccessMap] = useState<AppBubbleAccessMap>(() => readCachedBubbleAccessMap());
 
-const canAccessInrAgent = isBubbleEnabled(bubbleAccessMap, "inr_agent");
+const canAccessInrAgent = hasAgentAutomationAccess(dashboardEdition) && isBubbleEnabled(bubbleAccessMap, "inr_agent");
 const canAccessPinterest = isBubbleEnabled(bubbleAccessMap, "pinterest");
 const canAccessX = isBubbleEnabled(bubbleAccessMap, "x");
 const canAccessInrSearch = isBubbleEnabled(bubbleAccessMap, "inr_search");

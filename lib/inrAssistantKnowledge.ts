@@ -80,13 +80,14 @@ function subscriptionHelp(query: string): string {
   // No Stripe identifier, balance, renewal date or customer contract is loaded here.
   const lines = [
     "Abonnement — parcours existant dans Mon compte, onglet Abonnement : /dashboard?panel=abonnement.",
-    `Comparer les cartes Standard / Premium, choisir ${settingsFrench.subscription_cycle_monthly} ou ${settingsFrench.subscription_cycle_yearly}, puis utiliser l’action proposée (${settingsFrench.subscription_subscribe_premium} ou souscription Standard).`,
+    `Comparer les trois cartes Basique / Standard / Premium, choisir ${settingsFrench.subscription_cycle_monthly} ou ${settingsFrench.subscription_cycle_yearly}, puis utiliser l’action proposée dans la carte. « Forfait actuel » identifie l’offre du compte.`,
+    "Basique : accompagnement par iNr’Assistant, sans réalisation ni agents d’automatisation et sans crédits médias inclus ; des recharges permettent de créer des médias dans iNr’Studio. Standard : accompagnement et réalisation, 735 crédits médias par mois et 3 agents. Premium : accompagnement et réalisation complexe, 2530 crédits médias par mois et 4 agents, plus les outils Premium. Les nouveaux essais restent Standard pendant 21 jours ; choisir Basique ne réduit pas l’essai.",
     `${settingsFrench.subscription_standard_plus}. Standard : ${settingsFrench.subscription_ai_agents_included.replace("{count}", "3")}; Premium : ${settingsFrench.subscription_ai_agents_included.replace("{count}", "4")}. Les outils marqués Premium dans les repères complètent Standard.`,
     `Pour changer d’offre ou de périodicité : ${settingsFrench.subscription_change_quote_notice} ${settingsFrench.subscription_confirm_change}. Ne jamais annoncer le prorata ni la date personnelle sans les données vérifiées.`,
   ];
   if (/tarif|prix|cout|combien|offre|forfait|compar|mensuel|annuel|price|cost/.test(query)) {
-    lines.push(["Standard", "Premium"].map(name => {
-      const offer = currentSubscriptionOffer(name as "Standard" | "Premium");
+    lines.push((["Basic", "Standard", "Premium"] as const).map(name => {
+      const offer = currentSubscriptionOffer(name);
       return `${name} : ${subscriptionChargeLabel("monthly", offer)} ou ${subscriptionChargeLabel("yearly", offer)}`;
     }).join("; "));
     lines.push("Ces tarifs sont le catalogue des nouvelles souscriptions web. Les contrats historiques et les prix Apple/Google peuvent différer ; le prix et les taxes présentés au paiement font foi.");

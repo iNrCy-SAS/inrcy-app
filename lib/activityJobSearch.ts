@@ -64,6 +64,7 @@ const JOB_ALIASES: Partial<
     ],
   },
   commerce_boutique: {
+    e_commerce: ["e-commerce", "ecommerce", "commerce en ligne", "boutique en ligne", "vente en ligne", "e-commerçant", "e-commerçante", "e-shop", "eshop", "site marchand"],
     magasin_vetements: [
       "boutique de vêtements",
       "boutique de prêt-à-porter",

@@ -19,11 +19,11 @@ button.button[data-agent-logo-button] { overflow: visible; padding: 0; border-ra
 .button:hover:not(:disabled) { border-color: #cfcdff; box-shadow: 0 0 23px #9b73ff80, inset 0 1px 7px #e1daff45; }
 .button:focus-visible { outline: 2px solid #c2f7ff; outline-offset: 4px; }
 .button:disabled { cursor: default; opacity: .6; }
-.contextual { display: flex; align-items: center; gap: 9px; }
+.contextual { display: flex; align-items: center; gap: 9px; min-width: 0; max-width: 100%; }
 .contextualRobot { flex-shrink: 0; width: 48px; height: 48px; object-fit: contain; filter: drop-shadow(0 2px 6px #0004); }
-.contextualCopy { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
-.agentName { color: #f5edff; font-size: 10px; font-weight: 750; line-height: 1.2; white-space: nowrap; }
-.contextual button.openAgent { position: static; min-width: 96px; padding: 8px 12px; min-height: 35px; font-size: 12px; border-radius: 999px; box-shadow: inset 0 1px 7px #c6eaff20, 0 3px 12px #0002; }
+.contextualCopy { display: flex; flex: 1 1 auto; flex-direction: column; align-items: flex-start; min-width: 0; gap: 5px; }
+.agentName { color: #f5edff; font-size: 10px; font-weight: 750; line-height: 1.2; white-space: normal; overflow-wrap: anywhere; }
+.contextual button.openAgent { position: static; min-width: min(96px, 100%); max-width: 100%; padding: 8px 12px; min-height: 35px; font-size: 12px; border-radius: 999px; white-space: normal; overflow-wrap: anywhere; box-shadow: inset 0 1px 7px #c6eaff20, 0 3px 12px #0002; }
 .contextual button.openAgent[data-agent-workspace="campaigns"] { background: linear-gradient(110deg, #bb703d, #bd4084); border-color: #ffbd9988; }
 .contextual button.openAgent[data-agent-workspace="stats"] { background: linear-gradient(110deg, #6c28bd, #7335b8); border-color: #b86ef5c7; }
 .contextual button.openAgent[data-agent-workspace="publications"] { min-width: 124px; min-height: 42px; padding: 10px 16px; font-size: 14px; }

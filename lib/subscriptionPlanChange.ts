@@ -1,4 +1,4 @@
-import type { BillingCycle } from "./subscriptionOffers.ts";
+import type { BillingCycle, CommercialPlan } from "./subscriptionOffers.ts";
 
 type LooseObject = Record<string, unknown>;
 
@@ -74,7 +74,7 @@ export const INRcy_DOWNGRADE_SCHEDULE_TAG = "premium_to_standard_at_period_end";
 export function isInrcyDowngradeSchedule(schedule: unknown, userId: string): boolean {
   const row = record(schedule);
   const metadata = record(row.metadata);
-  return metadata.inrcy_plan_change === INRcy_DOWNGRADE_SCHEDULE_TAG &&
+  return [INRcy_DOWNGRADE_SCHEDULE_TAG, "commercial_to_basic_at_period_end"].includes(String(metadata.inrcy_plan_change)) &&
     metadata.inrcy_user_id === userId &&
     row.status === "active";
 }
@@ -94,12 +94,14 @@ export function downgradeScheduleParams({
   nextPriceId,
   periodEndUnix,
   userId,
+  nextPlan = "Standard",
 }: {
   schedule: unknown;
   currentPriceId: string;
   nextPriceId: string;
   periodEndUnix: number;
   userId: string;
+  nextPlan?: CommercialPlan;
 }): URLSearchParams | null {
   const row = record(schedule);
   const phases = row.phases;
@@ -121,7 +123,7 @@ export function downgradeScheduleParams({
   const params = new URLSearchParams();
   params.set("end_behavior", "release");
   params.set("proration_behavior", "none");
-  params.set("metadata[inrcy_plan_change]", INRcy_DOWNGRADE_SCHEDULE_TAG);
+  params.set("metadata[inrcy_plan_change]", nextPlan === "Basic" ? "commercial_to_basic_at_period_end" : INRcy_DOWNGRADE_SCHEDULE_TAG);
   params.set("metadata[inrcy_user_id]", userId);
   params.set("phases[0][start_date]", String(start));
   params.set("phases[0][end_date]", String(end));
@@ -135,7 +137,7 @@ export function downgradeScheduleParams({
   params.set("phases[1][iterations]", "1");
   params.set("phases[1][proration_behavior]", "none");
   params.set("phases[1][metadata][user_id]", userId);
-  params.set("phases[1][metadata][plan]", "Standard");
-  params.set("phases[1][metadata][app_edition]", "standard");
+  params.set("phases[1][metadata][plan]", nextPlan);
+  params.set("phases[1][metadata][app_edition]", nextPlan.toLowerCase());
   return params;
 }

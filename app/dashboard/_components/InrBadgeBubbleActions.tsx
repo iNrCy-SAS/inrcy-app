@@ -71,15 +71,14 @@ export function InrBadgeDownloadButton({ publicUrl, profile }: { publicUrl: stri
   </>;
 }
 
-export function InrBadgeCopyButton({ publicUrl }: { publicUrl: string }) {
+export function InrBadgeCopyButton({ publicUrl, onNotice, onError }: { publicUrl: string; onNotice: (notice: string) => void; onError: (error: string) => void }) {
   const t = useTranslations("settings");
   const bubble = useTranslations("dashboard.channelBubble");
-  const [notice, setNotice] = useState("");
   return <div className={styles.badgeCopyAction}>
     <button type="button" className={styles.iconAction} aria-label={t("copier_le_lien_2b135d8c")} title={t("copier_le_lien_2b135d8c")} disabled={!publicUrl} onClick={async () => {
-      try { await navigator.clipboard.writeText(publicUrl); setNotice(t("lien_copie_8f514dc0")); }
-      catch { setNotice(t("impossible_de_copier_automatiquement_selectionne_df13c396")); }
+      onNotice("");
+      try { await navigator.clipboard.writeText(publicUrl); onNotice(t("lien_copie_8f514dc0")); }
+      catch { onError(t("impossible_de_copier_automatiquement_selectionne_df13c396")); }
     }}><BadgeActionIcon kind="link" /><span className={styles.actionText} aria-hidden="true">{bubble("linkShort")}</span></button>
-    {notice ? <span role="status" className={styles.badgeCopyNotice}>{notice}</span> : null}
   </div>;
 }

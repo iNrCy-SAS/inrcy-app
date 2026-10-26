@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isStandardDashboardEdition } from "@/lib/dashboardEdition";
 import { awardInertiaActionForUser, type InertiaActionKey } from "@/lib/loyalty/serverAward";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
@@ -91,7 +92,7 @@ export async function POST(req: Request) {
 
   const activeUserId = await resolveActiveInrcyAccountId(supabase, userData.user.id);
   const dashboardEdition = await getDashboardEditionForAccountId(activeUserId);
-  if (dashboardEdition === "standard" && PREMIUM_ONLY_ACTION_KEYS.has(actionKey)) {
+  if (isStandardDashboardEdition(dashboardEdition) && PREMIUM_ONLY_ACTION_KEYS.has(actionKey)) {
     return premiumRequiredApiResponse();
   }
   const sourceId = String(body.sourceId || defaultSourceId(actionKey)).trim();

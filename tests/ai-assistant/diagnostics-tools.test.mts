@@ -5,6 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import { getAiMediaGenerationPublicError } from "../../lib/aiMediaGenerationPublicErrors.ts";
 import { isStandardAgentActionDescriptor } from "../../lib/standardAgentPolicy.ts";
+import * as editionPolicy from "../../lib/dashboardEdition.ts";
 import type * as Diagnostics from "../../lib/inrAssistantDiagnosticsTools.ts";
 
 const accountA = "11111111-1111-4111-8111-111111111111";
@@ -52,7 +53,7 @@ function fixture(): Record<string, Row[]> {
 
 function harness(options: {
   rows?: Record<string, Row[]>; errors?: string[]; throwing?: string[]; stalled?: string[]; events?: Event[]; journalAvailable?: boolean;
-  dna?: Row | null; dnaThrows?: boolean; edition?: "standard" | "premium" | "founder";
+  dna?: Row | null; dnaThrows?: boolean; edition?: "basic" | "standard" | "premium" | "founder";
 } = {}) {
   const queries: Query[] = [], journalAccounts: string[] = [], dnaAccounts: string[] = [];
   const tables = options.rows ?? fixture();
@@ -75,6 +76,7 @@ function harness(options: {
     return builder;
   } };
   const stubs: Record<string, unknown> = {
+    "./dashboardEdition.ts": editionPolicy,
     "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (schema: unknown, config: unknown) => ({ schema, ...config as object }) },
     "./standardAgentPolicy.ts": { isStandardAgentActionDescriptor },
     "./adsAccessPolicy.ts": { ADS_PUBLIC_CHANNELS: ["meta", "google", "linkedin", "pinterest", "openai"] },
@@ -219,6 +221,18 @@ test("Standard cannot inspect Premium campaigns or campaign-agent descriptors", 
   assert.equal(h.queries.some((query) => /^(?:mail|ads)_campaigns$/.test(query.table)), false);
   assert.equal((result.sources as Row[]).find((source) => source.id === "campaigns")?.status, "restricted");
   assert.ok((result.items as Row[]).filter((item) => item.area === "agents").every((item) => (item.tool as Row).href !== "/dashboard/agent/campagnes-mails"));
+});
+
+test("Basique diagnostics excludes agent tables and old agent events, keeping only active-account manual support", async () => {
+  const events = ["/api/agent/publications", "/api/agent/actions/execute", "/api/ads/campaigns"].map(route => ({ occurredAt: at(1), requestId, route, statusCode: 500, errorCode: "http_500" }));
+  for (const area of ["all", "agents"] as const) {
+    const h = harness({ edition: "basic", events });
+    const result = await h.tool.execute({ area, windowHours: 168, limit: 8 });
+    assert.equal(h.queries.some(query => /^(?:inr_agent_|mail_campaigns|ads_campaigns)/.test(query.table)), false);
+    assert.equal((result.sources as Row[]).find(source => source.id === "agents")?.status, "restricted");
+    assert.equal((result.items as Row[]).some(item => item.area === "agents" || item.requestId === requestId), false);
+    assert.deepEqual(h.journalAccounts, [accountA]);
+  }
 });
 
 test("Standard also excludes old Premium campaign events from the per-account server journal", async () => {

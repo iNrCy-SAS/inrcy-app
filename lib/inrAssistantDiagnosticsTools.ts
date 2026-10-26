@@ -2,7 +2,7 @@ import "server-only";
 
 import { jsonSchema, tool } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { DashboardEdition } from "./dashboardEdition.ts";
+import { isStandardDashboardEdition, type DashboardEdition } from "./dashboardEdition.ts";
 import { isStandardAgentActionDescriptor } from "./standardAgentPolicy.ts";
 import { ADS_PUBLIC_CHANNELS } from "./adsAccessPolicy.ts";
 import { getAiMediaGenerationPublicError } from "./aiMediaGenerationPublicErrors.ts";
@@ -132,7 +132,7 @@ export function createInrAssistantDiagnosticsTools(options: {
   edition: DashboardEdition;
 }) {
   const accountId = String(options.accountId || "").trim();
-  if (!/^[a-z0-9][a-z0-9_-]{0,179}$/i.test(accountId) || !["standard", "premium", "founder"].includes(options.edition)) {
+  if (!/^[a-z0-9][a-z0-9_-]{0,179}$/i.test(accountId) || !["basic", "standard", "premium", "founder"].includes(options.edition)) {
     throw new Error("Périmètre de diagnostic indisponible.");
   }
   const { supabase, edition } = options;
@@ -164,7 +164,8 @@ export function createInrAssistantDiagnosticsTools(options: {
             if (!stored.available || !Array.isArray(stored.events)) throw new Error("unavailable");
             const events = stored.events.slice(0, 80).filter((event) => {
               const location = eventLocation(event.route);
-              if (edition === "standard" && (location.area === "campaigns" || /^\/api\/agent\/actions\/prepare-campaign(?:\/|$)/.test(event.route))) return false;
+              if (edition === "basic" && location.area === "agents") return false;
+              if (isStandardDashboardEdition(edition) && (location.area === "campaigns" || /^\/api\/agent\/actions\/prepare-campaign(?:\/|$)/.test(event.route))) return false;
               return recent(event.occurredAt, since, now) && (wants(location.area) || input.area === "all");
             });
             sources.push({ id: "server_events", status: "available", found: events.length, sampled: stored.events.length >= 80 });
@@ -233,7 +234,8 @@ export function createInrAssistantDiagnosticsTools(options: {
           })());
         }
 
-        if (wants("agents")) for (const [table, source] of [["inr_agent_actions", "agent_actions"], ["inr_agent_scheduled_actions", "agent_schedule"]] as const) tasks.push((async () => {
+        if (wants("agents") && edition === "basic") sources.push({ id: "agents", status: "restricted", found: 0, sampled: false });
+        if (wants("agents") && edition !== "basic") for (const [table, source] of [["inr_agent_actions", "agent_actions"], ["inr_agent_scheduled_actions", "agent_schedule"]] as const) tasks.push((async () => {
           const result = await read(() => supabase.from(table).select("automation_key,action_type,target_tool,status,last_error,created_at,updated_at").eq("user_id", accountId).gte("updated_at", sinceIso).order("updated_at", { ascending: false }).limit(SCAN_LIMIT));
           const visibleRows = edition === "standard" ? result.rows.filter(isStandardAgentActionDescriptor) : result.rows;
           addSource(source, { ...result, rows: visibleRows });
@@ -262,7 +264,7 @@ export function createInrAssistantDiagnosticsTools(options: {
         })());
 
         if (wants("campaigns")) {
-          if (edition === "standard") sources.push({ id: "campaigns", status: "restricted", found: 0, sampled: false });
+          if (isStandardDashboardEdition(edition)) sources.push({ id: "campaigns", status: "restricted", found: 0, sampled: false });
           else for (const table of ["mail_campaigns", "ads_campaigns"] as const) tasks.push((async () => {
             const result = await read(() => {
               let query = supabase.from(table).select(table === "ads_campaigns" ? "provider,status,last_error,created_at,updated_at" : "status,last_error,created_at,updated_at").eq("user_id", accountId).gte("updated_at", sinceIso);

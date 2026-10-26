@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { safeErrorMessage } from "@/lib/tsSafe";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
+import { isStandardDashboardEdition } from "@/lib/dashboardEdition";
 
 export const runtime = "nodejs";
 
@@ -46,7 +47,7 @@ export async function GET(_req: Request, context: RouteContext) {
     const isPublicationFile =
       String(file.category || "").trim().toLowerCase() === "publications" ||
       String(file.file_role || "").trim().toLowerCase() === "publication_media";
-    if (dashboardEdition === "standard" && !isPublicationFile) {
+    if (isStandardDashboardEdition(dashboardEdition) && !isPublicationFile) {
       return NextResponse.json({ error: "Fichier introuvable." }, { status: 404 });
     }
 

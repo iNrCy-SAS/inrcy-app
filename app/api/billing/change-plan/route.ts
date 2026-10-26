@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { commercialPriceFromId, configuredPremiumPriceId, configuredStandardPriceId } from "@/lib/billingCatalog";
+import { commercialPriceFromId, configuredBasicPriceId, configuredPremiumPriceId, configuredStandardPriceId } from "@/lib/billingCatalog";
+import { isCommercialDowngrade } from "@/lib/subscriptionPlanChangePolicy";
 import { requireUser } from "@/lib/requireUser";
 import { stripeGet, stripePost } from "@/lib/stripeRest";
 import { stripeSubscriptionPeriodEndUnix } from "@/lib/stripeSubscription";
@@ -17,7 +18,7 @@ import {
 
 export const runtime = "nodejs";
 
-type Plan = "Standard" | "Premium";
+type Plan = "Basic" | "Standard" | "Premium";
 type LooseObject = Record<string, unknown>;
 
 type SubscriptionRow = {
@@ -143,7 +144,7 @@ function requestedTrialActivation(value: unknown): TrialActivation {
 }
 
 function targetPriceId(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>, target: Plan, billingCycle = context.item.billingCycle) {
-  const configured = target === "Premium" ? configuredPremiumPriceId : configuredStandardPriceId;
+  const configured = target === "Basic" ? configuredBasicPriceId : target === "Premium" ? configuredPremiumPriceId : configuredStandardPriceId;
   const priceId = configured(billingCycle, CURRENT_COMMERCIAL_PRICING_VERSION);
   if (!priceId) throw new PlanChangeError("TARGET_PRICE_UNAVAILABLE", "Ce tarif n’est pas disponible pour le moment.", 503);
   return priceId;
@@ -208,7 +209,7 @@ async function assertLastInvoicePaid(context: Exclude<Awaited<ReturnType<typeof 
 function ownDowngrade(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>) {
   if (!context.schedule || !isInrcyDowngradeSchedule(context.schedule, context.userId)) return false;
   const scheduled = commercialPriceFromId(scheduledStandardPriceId(context.schedule));
-  return scheduled?.edition === "standard";
+  return Boolean(scheduled && isCommercialDowngrade(context.current.plan, scheduled.plan));
 }
 
 function trialChangeQuote(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>, target: Plan, billingCycle: BillingCycle, quotedAt: number) {
@@ -266,12 +267,12 @@ export async function GET(req: Request) {
     if ("errorResponse" in context) return context.errorResponse;
     const query = new URL(req.url).searchParams;
     const target = query.get("target");
-    if (target !== "Standard" && target !== "Premium") {
+    if (target !== "Basic" && target !== "Standard" && target !== "Premium") {
       throw new PlanChangeError("INVALID_TARGET", "Forfait inconnu.", 400);
     }
     const pendingDowngrade = ownDowngrade(context);
     const scheduledPriceId = pendingDowngrade ? scheduledStandardPriceId(context.schedule) : null;
-    const scheduledCycle = target === "Standard" && pendingDowngrade
+    const scheduledCycle = pendingDowngrade && commercialPriceFromId(scheduledPriceId)?.plan === target
       ? commercialPriceFromId(scheduledStandardPriceId(context.schedule))?.billingCycle
       : undefined;
     const billingCycle = requestedBillingCycle(query.get("billingCycle"), scheduledCycle ?? context.item.billingCycle);
@@ -285,7 +286,7 @@ export async function GET(req: Request) {
     const unchanged = target === context.current.plan && billingCycle === context.item.billingCycle;
     // A status read must report the offer already agreed for a scheduled change,
     // including historical prices, rather than replace it with today's catalogue.
-    const priceId = target === "Standard" && scheduledPriceId && !query.has("billingCycle")
+    const priceId = commercialPriceFromId(scheduledPriceId)?.plan === target && scheduledPriceId && !query.has("billingCycle")
       ? scheduledPriceId
       : unchanged ? context.item.priceId : targetPriceId(context, target, billingCycle);
     const common = { currentPlan: context.current.plan, currentBillingCycle: context.item.billingCycle, currentPriceId: context.item.priceId,
@@ -305,7 +306,7 @@ export async function GET(req: Request) {
       const quote = trialChangeQuote(context, target, billingCycle, Math.floor(Date.now() / 1000));
       return result({ ...common, changeType: "trial", quote, renewalAt: quote.renewalAt });
     }
-    if (target === "Standard" && context.current.edition === "premium") {
+    if (isCommercialDowngrade(context.current.plan, target)) {
       if (pendingDowngrade && scheduledStandardPriceId(context.schedule) !== priceId) {
         throw new PlanChangeError("SCHEDULE_MANAGED", "Annulez le changement programmé avant de choisir une autre offre ou cadence.");
       }
@@ -335,7 +336,7 @@ export async function POST(req: Request) {
     if ("errorResponse" in context) return context.errorResponse;
     const body = record(await req.json().catch(() => ({})));
     const target = body.targetPlan;
-    if (target !== "Standard" && target !== "Premium") {
+    if (target !== "Basic" && target !== "Standard" && target !== "Premium") {
       throw new PlanChangeError("INVALID_TARGET", "Forfait inconnu.", 400);
     }
     const billingCycle = requestedBillingCycle(body.billingCycle, context.item.billingCycle);
@@ -352,7 +353,7 @@ export async function POST(req: Request) {
     if (target === context.current.plan && billingCycle === context.item.billingCycle && activation !== "now") {
       throw new PlanChangeError("ALREADY_ON_PLAN", `Vous êtes déjà sur l’offre ${target} avec cette cadence de facturation.`);
     }
-    if (context.trialEndUnix === null && target === "Standard" && context.current.edition === "premium" && ownDowngrade(context) && body.billingCycle == null) {
+    if (context.trialEndUnix === null && isCommercialDowngrade(context.current.plan, target) && ownDowngrade(context) && commercialPriceFromId(scheduledStandardPriceId(context.schedule))?.plan === target && body.billingCycle == null) {
       return result({ scheduled: true, renewalAt: new Date(context.periodEndUnix * 1000).toISOString() });
     }
     const priceId = targetPriceId(context, target, billingCycle);
@@ -419,7 +420,7 @@ export async function POST(req: Request) {
         billingCycle, renewalAt: quote.renewalAt, trialEndUnix: quote.trialEndUnix, trialChange: true });
     }
 
-    if (target !== "Standard" || context.current.edition !== "premium") {
+    if (!isCommercialDowngrade(context.current.plan, target)) {
       if (context.scheduleId) {
         throw new PlanChangeError("SCHEDULE_MANAGED", "Une modification d’abonnement existe déjà dans Stripe.");
       }
@@ -504,6 +505,7 @@ export async function POST(req: Request) {
       nextPriceId: priceId,
       periodEndUnix: context.periodEndUnix,
       userId: context.userId,
+      nextPlan: target,
     });
     if (!scheduleParams) {
       await stripePost(`/subscription_schedules/${encodeURIComponent(createdId)}/release`, new URLSearchParams());
@@ -531,8 +533,8 @@ export async function DELETE() {
   try {
     const context = await loadContext();
     if ("errorResponse" in context) return context.errorResponse;
-    if (!context.scheduleId || !ownDowngrade(context) || context.current.edition !== "premium") {
-      throw new PlanChangeError("NO_DOWNGRADE_SCHEDULED", "Aucun passage à Standard n’est programmé.");
+    if (!context.scheduleId || !ownDowngrade(context)) {
+      throw new PlanChangeError("NO_DOWNGRADE_SCHEDULED", "Aucun changement à échéance n’est programmé.");
     }
     await stripePost(`/subscription_schedules/${encodeURIComponent(context.scheduleId)}/release`,
       new URLSearchParams());

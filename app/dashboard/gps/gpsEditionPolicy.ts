@@ -1,4 +1,4 @@
-import type { DashboardEdition } from "@/lib/dashboardEdition";
+import { isStandardDashboardEdition, type DashboardEdition } from "@/lib/dashboardEdition";
 
 import {
   GPS_SECTIONS,
@@ -227,11 +227,11 @@ export function getGpsSectionsForEdition(edition: DashboardEdition, metaPilotEna
     .map((section) => ({
       ...section,
       description:
-        edition === "standard"
+        isStandardDashboardEdition(edition)
           ? STANDARD_SECTION_DESCRIPTIONS[section.id] ?? section.description
           : section.description,
       articles: section.articles
         .map(applyNonFounderArticleOverride)
-        .map((article) => edition === "standard" ? applyStandardArticleOverride(article) : article),
+        .map((article) => isStandardDashboardEdition(edition) ? applyStandardArticleOverride(article) : article),
     }));
 }

@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import HelpModal from "./HelpModal";
 import dynamic from "next/dynamic";
 import type { DashboardUsageGuideProps } from "./DashboardUsageGuide";
-import type { DashboardEdition } from "@/lib/dashboardEdition";
+import { isStandardDashboardEdition, type DashboardEdition } from "@/lib/dashboardEdition";
 
 const DashboardUsageGuide = dynamic(() => import("./DashboardUsageGuide"));
 
@@ -69,7 +69,7 @@ export default function DashboardHelpModals({
   const i18nT = useTranslations("shell");
   const channelHelp = useTranslations("dashboard.channelHelp");
   const usageGuideT = useTranslations("dashboard.helpCenter");
-  const standardMode = edition === "standard";
+  const standardMode = isStandardDashboardEdition(edition);
 
   return (
     <>
@@ -595,7 +595,7 @@ export default function DashboardHelpModals({
         <p style={{ marginTop: 0 }}>
           {i18nT("voici_les_actions_qui_rapportent_des_9bee48b5")}{" "}<strong>UI</strong> {" "}{i18nT("unites_d_inertie_489e60cb")}{" "}</p>
 
-        {edition === "standard" ? (
+        {isStandardDashboardEdition(edition) ? (
           <p style={{ marginTop: -4, color: "rgba(255,255,255,0.66)", fontSize: 13 }}>
             {i18nT("les_actions_grisees_sont_disponibles_avec_92d9fcc5")}{" "}</p>
         ) : null}
@@ -638,7 +638,7 @@ export default function DashboardHelpModals({
             </thead>
             <tbody>
               {INERTIA_ROWS.map((row) => {
-                const premiumLocked = edition === "standard" && row.premiumOnly;
+                const premiumLocked = isStandardDashboardEdition(edition) && row.premiumOnly;
                 return (
                   <tr
                     key={row.aKey}

@@ -2,7 +2,7 @@ import "server-only";
 
 import { jsonSchema, tool } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { DashboardEdition } from "./dashboardEdition.ts";
+import { hasPremiumDashboardAccess, type DashboardEdition } from "./dashboardEdition.ts";
 import { currentSubscriptionOffer } from "./subscriptionOffers.ts";
 import { VISIBILITY_INDEX_MODEL } from "./inrstats/visibilityIndexModel.ts";
 
@@ -65,7 +65,7 @@ export function createInrAssistantWorkspaceTools(options: {
 }) {
   const { supabase, edition } = options;
   const accountId = String(options.accountId || "").trim();
-  if (!accountId || accountId.length > 180 || !["standard", "premium", "founder"].includes(edition)) throw new Error("Invalid assistant workspace scope.");
+  if (!accountId || accountId.length > 180 || !["basic", "standard", "premium", "founder"].includes(edition)) throw new Error("Invalid assistant workspace scope.");
   const query = (table: string, select: string) => supabase.from(table).select(select).eq("user_id", accountId);
   const countQuery = (table: string) => supabase.from(table).select("id", { count: "exact", head: true }).eq("user_id", accountId);
   const count = (table: string, configure?: (builder: ReturnType<typeof countQuery>) => ReturnType<typeof countQuery>) => {
@@ -88,9 +88,11 @@ export function createInrAssistantWorkspaceTools(options: {
         const since = new Date(now.getTime() - 30 * 86_400_000).toISOString();
         const future = new Date(now.getTime() + 30 * 86_400_000).toISOString();
         const base = { source: "active_account_database", readOnly: true, untrustedContent: true, section, asOf, edition, nextAction: GUIDES[section] };
-        if (edition === "standard" && PREMIUM.has(section)) return {
+        if ((!hasPremiumDashboardAccess(edition) && PREMIUM.has(section)) || (edition === "basic" && section === "agents")) return {
           ...base, access: "not_included", known: false,
-          message: "Cette rubrique est réservée Premium/Founder. Aucune donnée privée de cette rubrique n’a été lue ; le guide public reste disponible.",
+          message: section === "agents"
+            ? "Les agents de réalisation sont disponibles avec Standard ou Premium. Aucune donnée privée de cette rubrique n’a été lue ; le guide public reste disponible."
+            : "Cette rubrique est réservée Premium/Founder. Aucune donnée privée de cette rubrique n’a été lue ; le guide public reste disponible.",
           nextAction: { ...GUIDES[section], href: "/dashboard?help=1" },
         };
         let known = true;
@@ -102,7 +104,7 @@ export function createInrAssistantWorkspaceTools(options: {
           known = !result.error && result.data !== null;
           data = { verifiedEdition: edition, status: known ? enumValue(row.status, ["trial", "trialing", "active", "past_due", "canceled", "cancelled", "unpaid", "expired", "incomplete", "paused", "inactive"]) : null,
             billingProvider: known ? enumValue(row.billing_provider, ["stripe", "app_store", "play_store"]) : null, trialEndAt: known ? date(row.trial_end_at) : null,
-            publicCatalogue: (["Standard", "Premium"] as const).map(plan => { const offer = currentSubscriptionOffer(plan); return { plan, currency: "EUR", monthly: offer.monthlyPriceEur, yearly: offer.yearlyPriceEur, taxBehavior: offer.taxBehavior, source: "public_catalogue_not_personal_contract" }; }) };
+            publicCatalogue: (["Basic", "Standard", "Premium"] as const).map(plan => { const offer = currentSubscriptionOffer(plan); return { plan, currency: "EUR", monthly: offer.monthlyPriceEur, yearly: offer.yearlyPriceEur, taxBehavior: offer.taxBehavior, source: "public_catalogue_not_personal_contract" }; }) };
           limitations.push("Aucun prix, identifiant Stripe, document, moyen de paiement ou engagement du contrat personnel n’est lu. Sans ligne liée à l’établissement actif, l’état de l’abonnement du titulaire reste inconnu.");
         } else if (section === "crm") {
           const types = ["client", "prospect", "fournisseur", "partenaire", "autre"] as const;

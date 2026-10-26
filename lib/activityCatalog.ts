@@ -168,6 +168,7 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
   commerce_boutique: {
     label: 'Commerce / Boutique',
     jobs: {
+      e_commerce: { label: 'E-commerce / Boutique en ligne', services: ['Vente en ligne', 'Catalogue produits', 'Nouveautés et collections', 'Conseils produits', 'Livraison de commandes', 'Suivi de commande', 'Service après-vente', 'Offres promotionnelles'] },
       bijouterie: { label: 'Bijouterie', services: ['Bijoux', 'Montres', 'Réparation bijou', 'Création personnalisée', 'Gravure', 'Conseil cadeau', 'Entretien', 'Commande spéciale'] },
       boulangerie: { label: 'Boulangerie / Pâtisserie', services: ['Pain du jour', 'Pâtisseries', 'Commande spéciale', 'Pièces montées', 'Snacking', 'Traiteur sucré / salé', 'Livraison', 'Formules entreprise'] },
       boutique_mode: { label: 'Boutique mode', services: ['Nouvelle collection', 'Conseil style', 'Essayage', 'Retouches', 'Accessoires', 'Sélection saisonnière', 'Carte cadeau', 'Privatisation boutique'] },
@@ -552,6 +553,16 @@ const AGRICULTURE_PRODUCTEURS_JOB_ALIASES: Record<string, string> = {
 };
 
 const COMMERCE_BOUTIQUE_JOB_ALIASES: Record<string, string> = {
+  'e commerce': 'e_commerce',
+  'ecommerce': 'e_commerce',
+  'boutique en ligne': 'e_commerce',
+  'commerce en ligne': 'e_commerce',
+  'vente en ligne': 'e_commerce',
+  'e commercant': 'e_commerce',
+  'e commercante': 'e_commerce',
+  'e shop': 'e_commerce',
+  'eshop': 'e_commerce',
+  'site marchand': 'e_commerce',
   'boutique de vetements': 'magasin_vetements',
   'boutique de pret a porter': 'magasin_vetements',
   'boutique pret a porter': 'magasin_vetements',

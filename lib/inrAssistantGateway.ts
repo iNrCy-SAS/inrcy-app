@@ -3,6 +3,7 @@ import "server-only";
 import { asSchema, createGateway, generateText, jsonSchema, stepCountIs, tool, wrapLanguageModel } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DashboardEdition } from "./dashboardEdition.ts";
+import { assistantToolsForEdition, isBasicAssistantExecutionRequest, BASIC_ASSISTANT_EXECUTION_NOTICE } from "./inrAssistantEditionPolicy.ts";
 import { getAiGatewayCredential } from "@/lib/aiGatewayConfig";
 import {
   AiGatewayGuardUnavailableError,
@@ -16,6 +17,7 @@ import { isUpstashEnabled } from "@/lib/upstashMode";
 import {
   classifyInrAssistantRequest,
   getInrAssistantModelChain,
+  INR_ASSISTANT_MODELS,
   INR_ASSISTANT_MODEL_PRICING,
   type InrAssistantModel,
 } from "./inrAssistantPolicy.ts";
@@ -112,7 +114,10 @@ export async function generateInrAssistantReply(args: {
     lastFailure = note(phase, fields); return lastFailure;
   };
   const latestRequest = args.messages.at(-1)?.content ?? "";
+  if (args.edition === "basic" && isBasicAssistantExecutionRequest(latestRequest)) return { message: BASIC_ASSISTANT_EXECUTION_NOTICE };
   const families = selectInrAssistantToolFamilies(latestRequest, args.messages.filter(message => message.role === "user").slice(0, -1).map(message => message.content));
+  // Do not even construct execution tool families for the support-only edition.
+  if (args.edition === "basic") families.clear();
   const verifiedNavigation = getVerifiedInrAssistantNavigation(latestRequest);
   if (verifiedNavigation && !args.fileContexts?.length) {
     const navigationQuota = await reserveInrAssistantRequest({
@@ -156,7 +161,7 @@ export async function generateInrAssistantReply(args: {
     if (!args.supabase) return {};
     const available = createInrAssistantAccountTools({ supabase: args.supabase, accountId: args.accountId });
     return {
-      ...(families.has("business") || families.has("media") || families.has("publication") ? { getBusinessDna: available.getBusinessDna } : {}),
+      ...(args.edition === "basic" || families.has("business") || families.has("media") || families.has("publication") ? { getBusinessDna: available.getBusinessDna } : {}),
       ...(families.has("media") || families.has("publication") ? { searchMedia: available.searchMedia } : {}),
       ...(families.has("publication") ? { getRecentPublications: available.getRecentPublications } : {}),
     };
@@ -174,10 +179,10 @@ export async function generateInrAssistantReply(args: {
       ...(/(?:connect|connexion)/.test(topic) ? { guideChannelConnection: available.guideChannelConnection } : {}),
     };
   })();
-  const ctaTools = args.supabase && /(?:\bcta\b|appels? a l.action|(?:telephone|numero|site|website|lien).{0,70}(?:partout|tous|toutes|contenus|publications|canaux)|(?:tous|toutes).{0,70}(?:telephone|site|website|lien))/.test(topic)
+  const ctaTools = args.edition !== "basic" && args.supabase && /(?:\bctas?\b|appels? a l.action|(?:telephone|numero|site|website|lien).{0,70}(?:partout|tous|toutes|contenus|publications|canaux)|(?:tous|toutes).{0,70}(?:telephone|site|website|lien))/.test(topic)
     ? createInrAssistantCtaTools({ request: args.request, accountId: args.accountId, supabase: args.supabase,
       currentUserMessage: latestRequest, canStartWork: () => deadline - Date.now() > 15_000 }) : {};
-  const dnaAnalysisTools = args.supabase && /\b(?:adn|dna)\b/.test(topic) && /(?:analys|complet|rempli|enrich|suivi|etat|resultat|termine)/.test(topic)
+  const dnaAnalysisTools = args.edition !== "basic" && args.supabase && /\b(?:adn|dna)\b/.test(topic) && /(?:analys|complet|rempli|enrich|suivi|etat|resultat|termine)/.test(topic)
     ? createInrAssistantDnaAnalysisTools({ request: args.request, accountId: args.accountId, supabase: args.supabase,
       currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
       actionStartedAt: args.actionStartedAt,
@@ -215,7 +220,7 @@ export async function generateInrAssistantReply(args: {
     };
   })();
   const insightsTools = (() => {
-    if (!args.supabase) return {};
+    if (args.edition === "basic" || !args.supabase) return {};
     const available = createInrAssistantInsightsTools({ request: args.request, accountId: args.accountId, supabase: args.supabase, currentUserMessage: latestRequest });
     return {
       ...(/(?:stats|statisti|resultat|impression|performan)/.test(topic) ? { readStatsSnapshots: available.readStatsSnapshots } : {}),
@@ -278,9 +283,9 @@ export async function generateInrAssistantReply(args: {
       mutationTail = next.catch(() => undefined); return next;
     } }];
   })) as T;
-  const tools = withInrAssistantToolActivities(serializeMutations({ proposeHumanSupport: supportTool, readAppGuide: createInrAssistantAppGuideTool(), ...mediaTools, ...accountTools, ...diagnosticTools,
+  const tools = withInrAssistantToolActivities(serializeMutations(assistantToolsForEdition({ proposeHumanSupport: supportTool, readAppGuide: createInrAssistantAppGuideTool(), ...mediaTools, ...accountTools, ...diagnosticTools,
     ...workspaceTools, ...memoryTools, ...businessTools, ...ctaTools, ...dnaAnalysisTools, ...managementTools, ...publicationTools, ...workspaceActionTools, ...insightsTools,
-    ...commercialTools, ...communicationTools, ...advertisingTools, ...settingsTools }),
+    ...commercialTools, ...communicationTools, ...advertisingTools, ...settingsTools }, args.edition)),
   { requestId: args.requestId, onActivity: args.onActivity });
   const schemas = await Promise.all(Object.entries(tools).map(async ([name, definition]) => ({
     type: "function", name, description: definition.description,
@@ -321,7 +326,9 @@ export async function generateInrAssistantReply(args: {
       let handoffSummary = "";
       let failureStatus: number | undefined;
       try {
-        const model = wrapLanguageModel({
+        const guardedModel = (selected: typeof attempt) => {
+          const attempt = selected;
+          return wrapLanguageModel({
           model: gateway(attempt.model),
           middleware: {
             specificationVersion: "v3",
@@ -396,7 +403,9 @@ export async function generateInrAssistantReply(args: {
               }
             },
           },
-        });
+          });
+        };
+        const model = guardedModel(attempt);
         const result = await generateText({
           model, system, messages, maxOutputTokens, tools,
           stopWhen: [stepCountIs(4), () => llmCalls >= 4 || Boolean(mediaState.result) && !followupAfterMedia],
@@ -424,17 +433,27 @@ export async function generateInrAssistantReply(args: {
             }
           },
           prepareStep: ({ stepNumber, messages: stepMessages }) => {
-            if (stepNumber === 0) return;
+            const answerOnly = stepNumber > 2 || llmCalls >= 3;
+            if (stepNumber === 0 && !answerOnly) return;
             // Keep call/result pairs intact and discard only earlier chat text.
             // After a guide or DNA lookup, creation remains possible in step 2;
             // the last step only answers and never repeats reads or actions.
             let latestUser = 0;
             stepMessages.forEach((message, index) => { if (message.role === "user") latestUser = index; });
+            // Some Qwen tool-call responses ignore toolChoice:none. Do not spend
+            // the fourth and final call on another tool loop: reserve it for the
+            // existing economical fallback, with its own real cost accounting.
+            const answerAttempt = answerOnly && attempt.model === INR_ASSISTANT_MODELS.qwen
+              ? chain.find(candidate => candidate.model === INR_ASSISTANT_MODELS.luna) ?? attempt
+              : attempt;
             return {
+              ...(answerOnly ? { model: guardedModel(answerAttempt) } : {}),
               messages: stepMessages.slice(latestUser),
-              activeTools: stepNumber > 2 ? [] : Object.keys(tools).filter(name => !["getBusinessDna", "getAccountDiagnostics", "readWorkspaceSection", "recallPastDiscussions", "readStatsSnapshots"].includes(name)) as Array<keyof typeof tools>,
-              ...(stepNumber > 2 ? { toolChoice: "none" as const } : {}),
-              system: buildInrAssistantSystemPrompt(args.displayName, undefined, getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext, Boolean(args.fileContexts?.length)),
+              activeTools: answerOnly ? [] : Object.keys(tools).filter(name => !["getBusinessDna", "getAccountDiagnostics", "readWorkspaceSection", "recallPastDiscussions", "readStatsSnapshots"].includes(name)) as Array<keyof typeof tools>,
+              ...(answerOnly ? { toolChoice: "none" as const } : {}),
+              system: buildInrAssistantSystemPrompt(args.displayName, undefined, getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext, Boolean(args.fileContexts?.length))
+                + (operationGuidance ? `\n${operationGuidance}` : "")
+                + (answerOnly ? "\nRépondez maintenant sans appeler d’outil. Utilisez seulement les faits déjà obtenus. Si le sujet ou une donnée indispensable manque, posez une question courte pour continuer. N’inventez ni résultat ni action exécutée." : ""),
             };
           },
           // Normal calls retain their 100s deadline in the model middleware.

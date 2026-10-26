@@ -1,4 +1,4 @@
-import type { BillingCycle } from "./subscriptionOffers.ts";
+import type { BillingCycle, CommercialPlan } from "./subscriptionOffers.ts";
 import { Capacitor } from "@capacitor/core";
 import {
   getNativeSubscriptionPriceLabels,
@@ -120,7 +120,7 @@ export async function startSubscriptionCheckout({
   fetchImpl = fetch,
   runtime = currentBrowserRuntime(),
 }: {
-  plan: NativeSubscriptionPlan;
+  plan: CommercialPlan;
   billingCycle: BillingCycle;
   premiumActivation?: "now" | "trial_end";
   fallbackError: string;
@@ -130,6 +130,7 @@ export async function startSubscriptionCheckout({
 }): Promise<SubscriptionCheckoutResult> {
   const platform = detectClientBillingPlatform(runtime);
   if (platform !== "web") {
+    if (plan === "Basic") throw new Error("Cette offre n’est pas encore disponible dans votre boutique d’applications.");
     return startNativeSubscriptionPurchase({
       platform,
       plan,

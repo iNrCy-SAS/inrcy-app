@@ -8,6 +8,7 @@ import { createInrBadgeQrTrackingUrl, type InrBadgeProfileSummary } from "@/lib/
 import { effectiveInrBadgeShareSettings } from "@/lib/inrBadgeEditionPolicy";
 import { useDashboardViewerAccess } from "@/app/dashboard/_components/DashboardViewerAccessProvider";
 import { useDashboardEdition } from "@/app/dashboard/_components/DashboardEditionProvider";
+import { isStandardDashboardEdition } from "@/lib/dashboardEdition";
 import {
   DEFAULT_INRBADGE_APPOINTMENT_SETTINGS,
   DEFAULT_INRBADGE_SHARE_SETTINGS,
@@ -519,7 +520,7 @@ export default function InrBadgeSettingsContent({
   const i18nT = useTranslations("settings");
   const dashboardEdition = useDashboardEdition();
   const { metaPilotEnabled } = useDashboardViewerAccess();
-  const standardMode = dashboardEdition === "standard";
+  const standardMode = isStandardDashboardEdition(dashboardEdition);
   const storageKey = useMemo(() => getStorageKey(profile, publicUrl), [profile, publicUrl]);
   const [settings, setSettings] = useState<ShareSettings>(() =>
     effectiveInrBadgeShareSettings(loadShareSettings(storageKey), dashboardEdition));

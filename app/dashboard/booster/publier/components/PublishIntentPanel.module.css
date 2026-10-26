@@ -94,6 +94,9 @@
   .referenceAction { min-height: 32px; padding: 5px 8px; }
 }
 @media (max-height: 800px) and (min-width: 701px) {
+  .intent { height: auto; min-height: 100%; grid-template-rows: auto auto; }
+  .panels { grid-template-rows: auto auto; }
+  .textareaWrap { min-height: 180px; }
   .panels { gap: 16px; } .writing { gap: 18px; }
   .fieldHeading label { font-size: 16px; }
   .references { padding: 9px 12px; min-height: 64px; }

@@ -1,4 +1,4 @@
-export const AI_MEDIA_EDITIONS = ["standard", "premium", "founder"] as const;
+export const AI_MEDIA_EDITIONS = ["basic", "standard", "premium", "founder"] as const;
 export const AI_MEDIA_KINDS = ["image", "video"] as const;
 export const AI_MEDIA_SURFACES = ["booster", "studio"] as const;
 export const AI_MEDIA_VIDEO_MIN_DURATION_SECONDS = 4;
@@ -47,6 +47,7 @@ export const AI_MEDIA_QUOTA_UNITS: Readonly<Record<AiMediaKind, AiMediaQuotaUnit
 export const AI_MEDIA_ROLLOVER_CAPS: Readonly<
   Record<AiMediaEdition, Readonly<Record<AiMediaKind, number>>>
 > = Object.freeze({
+  basic: Object.freeze({ image: 0, video: 0 }),
   standard: Object.freeze({ image: 70, video: 168 }),
   premium: Object.freeze({ image: 150, video: 480 }),
   founder: Object.freeze({ image: 70, video: 480 }),
@@ -61,6 +62,7 @@ export type AiMediaPlanLimits = Readonly<{
 
 export const AI_MEDIA_MONTHLY_LIMITS: Readonly<Record<AiMediaEdition, AiMediaPlanLimits>> =
   Object.freeze({
+    basic: Object.freeze({ image: 0, video: 0, studioEnabled: true, videoMaxDurationSeconds: 30 }),
     standard: Object.freeze({
       image: 25,
       video: 56,

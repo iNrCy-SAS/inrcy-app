@@ -55,7 +55,7 @@ function assertUuid(value: string, label: string) {
 }
 
 function normalizeEdition(value: unknown): BusinessDnaAnalysisQuotaEdition {
-  if (value === "standard" || value === "premium" || value === "founder" || value === "admin") return value;
+  if (value === "basic" || value === "standard" || value === "premium" || value === "founder" || value === "admin") return value;
   throw new BusinessDnaAnalysisQuotaError(
     "business_dna_quota_invalid_response",
     "L’édition du quota d’analyse est invalide.",

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { commercialPriceFromId, configuredPremiumPriceId, configuredStandardPriceId } from "@/lib/billingCatalog";
+import { commercialPriceFromId, configuredBasicPriceId, configuredPremiumPriceId, configuredStandardPriceId } from "@/lib/billingCatalog";
 import { resolveDashboardEdition } from "@/lib/dashboardEdition";
 import { requireUser } from "@/lib/requireUser";
 import { getAppUrl, stripeGet, stripePost } from "@/lib/stripeRest";
@@ -55,8 +55,9 @@ function normalizeBillingCycle(value: unknown): BillingCycle {
   return String(value ?? "").trim().toLowerCase() === "yearly" ? "yearly" : "monthly";
 }
 
-function requestedCommercialPlan(value: unknown): "Standard" | "Premium" | null {
+function requestedCommercialPlan(value: unknown): "Basic" | "Standard" | "Premium" | null {
   const normalized = String(value ?? "Standard").trim().toLowerCase();
+  if (["basic", "basique", "inrcy basique", "inrcy basic"].includes(normalized)) return "Basic";
   if (["standard", "inrcy standard", "inrcy-standard"].includes(normalized)) return "Standard";
   if (["premium", "inrcy premium", "inrcy-premium"].includes(normalized)) return "Premium";
   return null;
@@ -98,7 +99,7 @@ export async function POST(req: Request) {
     }
 
     const pricingVersion = CURRENT_COMMERCIAL_PRICING_VERSION;
-    const priceForCycle = requestedPlan === "Premium" ? configuredPremiumPriceId : configuredStandardPriceId;
+    const priceForCycle = requestedPlan === "Basic" ? configuredBasicPriceId : requestedPlan === "Premium" ? configuredPremiumPriceId : configuredStandardPriceId;
     const monthlyPriceId = priceForCycle("monthly", pricingVersion);
     const yearlyPriceId = priceForCycle("yearly", pricingVersion);
     if (!process.env.STRIPE_SECRET_KEY || !monthlyPriceId || !yearlyPriceId) {

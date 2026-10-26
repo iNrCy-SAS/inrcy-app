@@ -2,10 +2,11 @@ export type BillingCycle = "monthly" | "yearly";
 
 export type PricingVersion = "legacy_ttc_v1" | "international_ht_v2";
 export type TaxBehavior = "inclusive" | "exclusive";
+export type CommercialPlan = "Basic" | "Standard" | "Premium";
 
 export type SubscriptionOffer = {
-  edition: "standard" | "premium";
-  plan: "Standard" | "Premium";
+  edition: "basic" | "standard" | "premium";
+  plan: CommercialPlan;
   monthlyPriceEur: number;
   yearlyPriceEur: number;
   annualSavingPercent: number;
@@ -65,7 +66,14 @@ export const PREMIUM_SUBSCRIPTION_OFFER_V2: SubscriptionOffer = {
  */
 export const CURRENT_COMMERCIAL_PRICING_VERSION: PricingVersion = "international_ht_v2";
 
-export function currentSubscriptionOffer(plan: "Standard" | "Premium"): SubscriptionOffer {
+/** Basic commercial prices approved independently from historic contracts. */
+export const BASIC_SUBSCRIPTION_OFFER: SubscriptionOffer = {
+  edition: "basic", plan: "Basic", monthlyPriceEur: 29, yearlyPriceEur: 309,
+  annualSavingPercent: 11, pricingVersion: "international_ht_v2", taxBehavior: "exclusive",
+};
+
+export function currentSubscriptionOffer(plan: CommercialPlan): SubscriptionOffer {
+  if (plan === "Basic") return BASIC_SUBSCRIPTION_OFFER;
   return plan === "Premium" ? PREMIUM_SUBSCRIPTION_OFFER_V2 : STANDARD_SUBSCRIPTION_OFFER_V2;
 }
 

@@ -68,18 +68,24 @@
   gap: 2px;
 }
 
-.account > div:first-child {
-  flex: 0 0 34px;
+.account .accountIdentity {
+  flex: 1 1 auto;
+  max-width: min(260px, 40vw);
 }
 
 .accountName {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: #f8fafc;
   font-size: 13px;
 }
 
 .accountDisplayName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: #aac4d2;
   font-size: 12px;
 }
@@ -260,10 +266,13 @@
 
 .footerActions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-left: auto;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .footerActions button {
@@ -322,6 +331,7 @@
   }
 
   .header .accountIdentity {
+    max-width: 100%;
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;

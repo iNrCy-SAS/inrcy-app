@@ -1,6 +1,6 @@
 import type { BillingCycle } from "./subscriptionOffers.ts";
 
-type CommercialPlan = "Standard" | "Premium";
+type CommercialPlan = "Basic" | "Standard" | "Premium";
 export type CheckoutReturnTarget = { plan: CommercialPlan | null; billingCycle: BillingCycle | null };
 type CheckoutSubscription = {
   app_edition?: string | null;
@@ -17,7 +17,7 @@ export function parseCheckoutReturnTarget(params: { get(name: string): string | 
   const plan = params.get("checkout_plan");
   const cycle = params.get("billing");
   return {
-    plan: plan === "Standard" || plan === "Premium" ? plan : null,
+    plan: plan === "Basic" || plan === "Standard" || plan === "Premium" ? plan : null,
     billingCycle: cycle === "monthly" || cycle === "yearly" ? cycle : null,
   };
 }
@@ -32,7 +32,7 @@ export function isCheckoutReturnSynchronized(
   // Compatibility for earlier Checkout links: only a persisted requested plan
   // can supply the missing target, never the account's previous edition.
   const plan = target.plan ?? subscription.scheduled_plan;
-  if (plan !== "Standard" && plan !== "Premium") return false;
+  if (plan !== "Basic" && plan !== "Standard" && plan !== "Premium") return false;
   if (!target.billingCycle || subscription.billing_cycle !== target.billingCycle) return false;
   if (subscription.status === "trialing" && subscription.plan?.toLowerCase() === "trial") {
     const trialEnd = Date.parse(subscription.trial_end_at ?? "");

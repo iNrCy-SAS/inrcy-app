@@ -9,7 +9,7 @@ import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient
 import type { AiBusinessKnowledge } from "@/lib/aiMemory";
 
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
-import { confirmInrcy } from "@/lib/inrcyDialog";
+import { chooseInrcy, confirmInrcy } from "@/lib/inrcyDialog";
 import {
   forwardRef,
   useEffect,
@@ -119,6 +119,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
   const [manualSelectionOpen, setManualSelectionOpen] = useState(false);
   const activityBaselineRef = useRef("");
   const loadSucceededRef = useRef(false);
+  const professionChoicePendingRef = useRef(false);
   const isProfileCore = contentScope === "profile-core";
 
   const activitySnapshot = (value: BusinessActivityForm) => JSON.stringify(value);
@@ -133,10 +134,6 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
     return [...base, { value: form.sector, label: fallbackLabel }];
   }, [form.sectorCategory, form.sector]);
 
-  const currentServiceOptions = useMemo(
-    () => getServicesForSectorAndJob(form.sectorCategory, form.sector),
-    [form.sectorCategory, form.sector],
-  );
   const isCustomJobSector = form.sectorCategory === "autre";
   const selectedJobLabel = useMemo(
     () => getJobLabel(form.sectorCategory, form.sector) || form.sector,
@@ -368,30 +365,30 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
     setForm((p) => ({ ...p, [key]: value }));
   };
 
-  const confirmServiceReplacement = async () => {
-    if (!form.services.length) return true;
-    const normalizeForComparison = (values: string[]) =>
-      values.map((value) => value.trim().toLocaleLowerCase("fr")).sort();
-    const currentValues = normalizeForComparison(form.services);
-    const recommendations = normalizeForComparison(currentServiceOptions);
-    const usesOnlyRecommendations =
-      currentValues.length === recommendations.length &&
-      currentValues.every((value, index) => value === recommendations[index]);
-    if (usesOnlyRecommendations) return true;
-    return confirmInrcy({
-      eyebrow: i18nT("mon_activite_7732bf80"),
-      title: i18nT("adapter_les_prestations_au_nouveau_metier_4600da94"),
-      message:
-        i18nT("vos_prestations_actuelles_seront_remplacees_par_e147469e"),
-      confirmLabel: i18nT("adapter_les_prestations_c904a349"),
-      cancelLabel: i18nT("conserver_mon_metier_4aa6ce68"),
-      variant: "warning",
-    });
+  const chooseServiceReplacement = async (recommendations: string[]) => {
+    if (!form.services.length) return "replace";
+    if (!recommendations.length) return "keep";
+    if (professionChoicePendingRef.current) return null;
+    professionChoicePendingRef.current = true;
+    try {
+      return await chooseInrcy({
+        eyebrow: i18nT("mon_activite_7732bf80"),
+        title: i18nT("activity_job_services_choice_title"),
+        message: i18nT("activity_job_services_choice_message"),
+        defaultValue: "keep",
+        choices: [
+          { value: "keep", label: i18nT("activity_job_services_keep"), tone: "primary" },
+          { value: "replace", label: i18nT("adapter_les_prestations_c904a349"), tone: "secondary" },
+          { value: "cancel", label: i18nT("annuler_49ba3292"), tone: "secondary" },
+        ],
+      });
+    } finally {
+      professionChoicePendingRef.current = false;
+    }
   };
 
   const handleSectorChange = async (sectorCategory: string) => {
     if (sectorCategory === form.sectorCategory) return;
-    if (!(await confirmServiceReplacement())) return;
     setSaved(false);
     setError("");
     setJobSearch("");
@@ -399,7 +396,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
       ...p,
       sectorCategory,
       sector: "",
-      services: [],
+      services: p.services,
     }));
   };
 
@@ -408,23 +405,27 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
     options?: { preserveServices?: boolean },
   ) => {
     if (sector === form.sector) return;
-    if (!options?.preserveServices && !(await confirmServiceReplacement())) return;
+    const recommendations = getServicesForSectorAndJob(form.sectorCategory, sector);
+    const serviceChoice = options?.preserveServices ? "keep" : await chooseServiceReplacement(recommendations);
+    if (!serviceChoice || serviceChoice === "cancel") return;
     setSaved(false);
     setError("");
     setJobSearch(getJobLabel(form.sectorCategory, sector) || sector);
     setForm((p) => ({
       ...p,
       sector,
-      services: options?.preserveServices
+      services: serviceChoice === "keep"
         ? p.services
-        : getServicesForSectorAndJob(p.sectorCategory, sector),
+        : recommendations,
     }));
   };
 
   const handleSearchSelection = async (result: ActivityJobSearchResult) => {
     const keepsCurrentSelection =
       form.sectorCategory === result.sectorCategory && form.sector === result.job;
-    if (!keepsCurrentSelection && !(await confirmServiceReplacement())) return;
+    const recommendations = getServicesForSectorAndJob(result.sectorCategory, result.job);
+    const serviceChoice = keepsCurrentSelection ? "keep" : await chooseServiceReplacement(recommendations);
+    if (!serviceChoice || serviceChoice === "cancel") return;
     setSaved(false);
     setError("");
     setJobSearch(result.jobLabel);
@@ -434,9 +435,9 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
       ...p,
       sectorCategory: result.sectorCategory,
       sector: result.job,
-      services: keepsCurrentSelection
+      services: serviceChoice === "keep"
         ? p.services
-        : getServicesForSectorAndJob(result.sectorCategory, result.job),
+        : recommendations,
     }));
   };
 

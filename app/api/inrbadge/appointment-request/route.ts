@@ -8,6 +8,7 @@ import { upsertCrmContactWithoutDuplicate } from "@/lib/crmContactDedupe";
 import { recordInrBadgeEvent } from "@/lib/inrBadgeAnalytics";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { canUseInrBadgeAppointments } from "@/lib/inrBadgeEditionPolicy";
+import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
 import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
 
@@ -123,7 +124,7 @@ export async function POST(req: Request) {
   if (rateLimited) return rateLimited;
 
   const dashboardEdition = await getDashboardEditionForAccountId(userId);
-  if (dashboardEdition === "standard") {
+  if (!hasPremiumDashboardAccess(dashboardEdition)) {
     return bad("La prise de RDV est réservée à iNrCy Premium", 403);
   }
 

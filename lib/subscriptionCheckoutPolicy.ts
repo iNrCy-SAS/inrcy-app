@@ -11,7 +11,7 @@ type CheckoutSubscription = {
 
 export function canStartSubscriptionCheckout(
   subscription: CheckoutSubscription | null | undefined,
-  targetPlan: "Standard" | "Premium",
+  targetPlan: "Basic" | "Standard" | "Premium",
 ): boolean {
   if (!subscription) return false;
   const status = String(subscription.status ?? "").trim().toLowerCase();
@@ -25,5 +25,5 @@ export function canStartSubscriptionCheckout(
   if (status === "trialing") return true;
   // A complimentary Standard account has access, but no paid contract to amend.
   // The server still checks Stripe before creating its first paid subscription.
-  return status === "active" && edition === "standard" && (targetPlan === "Standard" || targetPlan === "Premium");
+  return status === "active" && (edition === "basic" || edition === "standard") && ["Basic", "Standard", "Premium"].includes(targetPlan);
 }

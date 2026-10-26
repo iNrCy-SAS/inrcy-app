@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { isStandardDashboardEdition } from "@/lib/dashboardEdition";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import styles from "./gps.module.css";
@@ -75,7 +76,7 @@ export default function GpsClient() {
   const translateKey = useCallback<GpsTranslator>((key) => i18nT(key as never), [i18nT]);
   const dashboardEdition = useDashboardEdition();
   const { metaPilotEnabled } = useDashboardViewerAccess();
-  const standardMode = dashboardEdition === "standard";
+  const standardMode = isStandardDashboardEdition(dashboardEdition);
   const gpsSections = useMemo(
     () => getGpsSectionsForEdition(dashboardEdition, metaPilotEnabled).map((section) => ({
       ...section,

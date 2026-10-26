@@ -6,8 +6,9 @@ import ts from "typescript";
 import * as planChange from "../../lib/subscriptionPlanChange.ts";
 import * as periods from "../../lib/stripeSubscription.ts";
 import * as offers from "../../lib/subscriptionOffers.ts";
+import * as changePolicy from "../../lib/subscriptionPlanChangePolicy.ts";
 
-type Plan = "Standard" | "Premium";
+type Plan = "Basic" | "Standard" | "Premium";
 type Cycle = "monthly" | "yearly";
 type Row = Record<string, unknown>;
 const price = (plan: Plan, cycle: Cycle, legacy = false) => `price_${plan}_${cycle}_${legacy ? "v1" : "v2"}`;
@@ -22,7 +23,7 @@ function fixture(options: { plan?: Plan; cycle?: Cycle; legacy?: boolean; subscr
   const currentCycle = options.cycle ?? "monthly";
   const currentPrice = price(currentPlan, currentCycle, options.legacy);
   const catalog = new Map<string, { plan: Plan; edition: string; billingCycle: Cycle; pricingVersion: string }>();
-  for (const plan of ["Standard", "Premium"] as const) for (const cycle of ["monthly", "yearly"] as const) for (const legacy of [false, true]) {
+  for (const plan of ["Basic", "Standard", "Premium"] as const) for (const cycle of ["monthly", "yearly"] as const) for (const legacy of [false, true]) {
     catalog.set(price(plan, cycle, legacy), { plan, edition: plan.toLowerCase(), billingCycle: cycle,
       pricingVersion: legacy ? "legacy_ttc_v1" : "international_ht_v2" });
   }
@@ -36,9 +37,11 @@ function fixture(options: { plan?: Plan; cycle?: Cycle; legacy?: boolean; subscr
   const posts: Array<{ path: string; params: URLSearchParams; idempotencyKey?: string }> = [];
   const gets: string[] = [];
   const modules = new Map<string, unknown>([
+    ["@/lib/subscriptionPlanChangePolicy", changePolicy],
     ["node:crypto", { randomUUID }],
     ["next/server", { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
     ["@/lib/billingCatalog", {
+      configuredBasicPriceId: (cycle: Cycle) => price("Basic", cycle),
       commercialPriceFromId: (id: string) => catalog.get(id) ?? null,
       configuredPremiumPriceId: (cycle: Cycle, version: string) => price("Premium", cycle, version === "legacy_ttc_v1"),
       configuredStandardPriceId: (cycle: Cycle, version: string) => price("Standard", cycle, version === "legacy_ttc_v1"),
@@ -94,8 +97,9 @@ function confirmation(quote: Row) {
     expectedTrialEndUnix: quote.trialEndUnix, trialChange: quote.trialChange };
 }
 
-for (const legacy of [false, true]) for (const plan of ["Standard", "Premium"] as const) for (const cycle of ["monthly", "yearly"] as const) {
-  for (const target of ["Standard", "Premium"] as const) for (const targetCycle of ["monthly", "yearly"] as const) {
+for (const legacy of [false, true]) for (const plan of ["Basic", "Standard", "Premium"] as const) for (const cycle of ["monthly", "yearly"] as const) {
+  if (legacy && plan === "Basic") continue;
+  for (const target of ["Basic", "Standard", "Premium"] as const) for (const targetCycle of ["monthly", "yearly"] as const) {
     if (plan === target && cycle === targetCycle) continue;
     test(`${legacy ? "legacy" : "HT"} trial ${plan}/${cycle} → ${target}/${targetCycle}: one contract, no debit, exact trial end`, async () => {
       const route = fixture({ plan, cycle, legacy });

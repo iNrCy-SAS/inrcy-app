@@ -388,7 +388,8 @@ export default function TiktokPublicationSettingsModal({
         alignItems: "flex-start",
         justifyContent: "center",
         padding: isMobile ? 10 : 18,
-        overflow: "hidden",
+        overflowY: "auto",
+        overflowX: "hidden",
         overscrollBehavior: "contain",
         WebkitOverflowScrolling: "touch",
       }}
@@ -402,7 +403,7 @@ export default function TiktokPublicationSettingsModal({
         style={{
           width: isMobile ? "min(100%, 720px)" : showPreview ? "min(1110px, calc(100vw - 36px))" : "min(800px, calc(100vw - 36px))",
           minWidth: 0,
-          maxHeight: isMobile ? "calc(100dvh - 20px)" : "calc(100dvh - 36px)",
+          flexShrink: 0,
           boxSizing: "border-box",
           overflow: "hidden",
           display: "flex",
@@ -457,7 +458,7 @@ export default function TiktokPublicationSettingsModal({
             minWidth: 0,
             padding: isMobile ? 12 : 14,
             background: "#111827",
-            overflowY: "auto",
+            overflowY: "visible",
             overscrollBehavior: "contain",
           }}
         >

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { useId, useMemo, useRef, useState } from "react";
-import { isDashboardDestinationAllowedForEdition, type DashboardEdition } from "@/lib/dashboardEdition";
+import { isDashboardDestinationAllowedForEdition, isStandardDashboardEdition, type DashboardEdition } from "@/lib/dashboardEdition";
 import type { GpsArticle, GpsMessageKey } from "../gps/noticeContent";
 import {
   HELP_GOALS, HELP_SETUP, getHelpArticles,
@@ -157,7 +157,7 @@ export default function DashboardUsageGuide({ edition, metaPilotEnabled, inrAgen
     contacts: goalContent("contacts", [
       checks([...items("crm-express", "checks", [0, 2]), ...items("agenda-express", "checks", [1, 2])]),
       reflexes(items("crm-express", "pitfalls", [0, 1])),
-      card(source("inrsend-express")?.title ?? t("overview"), [intro("inrsend-express"), ...items("inrsend-express", "checks", edition === "standard" ? [1, 2] : [2, 3])]),
+      card(source("inrsend-express")?.title ?? t("overview"), [intro("inrsend-express"), ...items("inrsend-express", "checks", isStandardDashboardEdition(edition) ? [1, 2] : [2, 3])]),
     ]),
     stats: goalContent("stats", [
       checks(items("inrstats-express", "checks", [0, 1, 2, 3])),

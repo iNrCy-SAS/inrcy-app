@@ -7,6 +7,7 @@ import ts from "typescript";
 import { asSchema, generateText, jsonSchema, stepCountIs, tool, wrapLanguageModel } from "ai";
 import type { LanguageModelV3, LanguageModelV3CallOptions } from "@ai-sdk/provider";
 import * as policy from "../../lib/inrAssistantPolicy.ts";
+import * as editionPolicy from "../../lib/inrAssistantEditionPolicy.ts";
 import * as conversation from "../../lib/inrAssistantConversation.ts";
 import * as routing from "../../lib/inrAssistantToolRouting.ts";
 import * as activity from "../../lib/inrAssistantActivity.ts";
@@ -18,6 +19,7 @@ import type { InrAssistantMediaResult } from "../../lib/inrAssistantMediaTools.t
 import type { InrAssistantPublicationResult } from "../../lib/inrAssistantPublicationTools.ts";
 import type * as Memory from "../../lib/inrAssistantMemory.ts";
 import type * as MemoryTools from "../../lib/inrAssistantMemoryTools.ts";
+import { createCtaToolFixture, CTA_TEST_ACCOUNT_ID } from "./helpers/cta-runtime.mts";
 
 function loadClosedModule<T>(file: string, stubs: Record<string, unknown>): T {
   const source = ts.transpileModule(readFileSync(new URL(`../../lib/${file}`, import.meta.url), "utf8"), {
@@ -38,14 +40,17 @@ const memoryToolsRuntime = loadClosedModule<typeof MemoryTools>("inrAssistantMem
 function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; failCommit?: boolean;
   productionNoRedis?: boolean; handoff?: boolean; media?: boolean; followup?: boolean; workflow?: boolean; failAfterPublication?: boolean;
   verifiedNavigation?: string; lookup?: "diagnostics" | "workspace" | "memory"; providerError?: Error; outputLimit?: boolean;
-  emptyText?: boolean; abortAfterPublication?: AbortController } = {}) {
+  emptyText?: boolean; ignoresToolChoice?: boolean; abortAfterPublication?: AbortController;
+  cta?: { definition: ReturnType<typeof createCtaToolFixture>["definition"]; input: { target: "phone" | "website"; instructionQuote: string; channels: string[] | null } } } = {}) {
   const generations: { model: string; params: LanguageModelV3CallOptions }[] = [];
   const reservations: { feature: string; reservedOutputTokens: number; estimatedInputTokens: number }[] = [];
-  const commits: { usage: { inputTokens: number; outputTokens: number; totalTokens: number } }[] = [];
+  const commits: { model: string; usage: { inputTokens: number; outputTokens: number; totalTokens: number } }[] = [];
   const finalized: { success: boolean }[] = [];
   const factories: string[] = [];
+  const actionFactories: string[] = [];
   const publicationExecutions: string[] = [];
   const toolScopes: { tool: string; accountId: string; edition: string }[] = [];
+  const ctaScopes: { accountId: string; currentUserMessage: string }[] = [];
   const diagnostics: gatewayDiagnostics.InrAssistantGatewayDiagnostic[] = [];
   let mediaExecutions = 0;
   const stubs: Record<string, unknown> = {
@@ -58,9 +63,9 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
           if (options.providerError) throw options.providerError;
           if (generations.length <= (options.fail ?? 0)) throw Object.assign(new Error("Unavailable"), { statusCode: 503 });
           if (options.failAfterPublication && generations.length > 3) throw Object.assign(new Error("Summary unavailable after publication"), { statusCode: 503 });
-          const callTool = options.workflow ? generations.length <= 3 : options.handoff || options.media || ((options.followup || options.lookup) && generations.length === 1);
-          const toolName = options.workflow ? ["generateMedia", "preparePublication", "executePublication"][generations.length - 1] : options.lookup === "memory" ? "recallPastDiscussions" : options.lookup === "diagnostics" ? "getAccountDiagnostics" : options.lookup === "workspace" ? "readWorkspaceSection" : options.handoff ? "proposeHumanSupport" : "generateMedia";
-          const input = options.workflow && generations.length > 1 ? { draftId: "stored-draft", mode: "publish" } : options.lookup === "memory" ? { query: "campagne de Noël", limit: 4 } : options.lookup === "diagnostics" ? { area: "all" } : options.lookup === "workspace" ? { section: "stats" } : options.handoff ? { message: "Vous pouvez faire vérifier ce blocage.", summary: "Blocage de connexion à vérifier." } : { prompt: "Une image" };
+          const callTool = options.cta ? generations.length === 1 : options.ignoresToolChoice ? id === policy.INR_ASSISTANT_MODELS.qwen : options.workflow ? generations.length <= 3 : options.handoff || options.media || ((options.followup || options.lookup) && generations.length === 1);
+          const toolName = options.cta ? "configureBusinessCta" : options.ignoresToolChoice ? "readAppGuide" : options.workflow ? ["generateMedia", "preparePublication", "executePublication"][generations.length - 1] : options.lookup === "memory" ? "recallPastDiscussions" : options.lookup === "diagnostics" ? "getAccountDiagnostics" : options.lookup === "workspace" ? "readWorkspaceSection" : options.handoff ? "proposeHumanSupport" : "generateMedia";
+          const input = options.cta ? options.cta.input : options.workflow && generations.length > 1 ? { draftId: "stored-draft", mode: "publish" } : options.lookup === "memory" ? { query: "campagne de Noël", limit: 4 } : options.lookup === "diagnostics" ? { area: "all" } : options.lookup === "workspace" ? { section: "stats" } : options.handoff ? { message: "Vous pouvez faire vérifier ce blocage.", summary: "Blocage de connexion à vérifier." } : { prompt: "Une image" };
           return {
             content: callTool ? [{ type: "tool-call", toolCallId: "call-1", toolName, input: JSON.stringify(input) }]
               : [{ type: "text", text: options.emptyText ? "" : "Voici la prochaine étape." }],
@@ -76,13 +81,14 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
       reserveAiGatewayAccountAttempt: async (_id: string, args: { feature: string; reservedOutputTokens: number; estimatedInputTokens: number }) => {
         if (options.guardError) throw new Error("guard unavailable");
         reservations.push(args); return { id: reservations.length };
-      }, commitAiGatewayAccountAttempt: async (args: { usage: { inputTokens: number; outputTokens: number; totalTokens: number } }) => {
+      }, commitAiGatewayAccountAttempt: async (args: { model: string; usage: { inputTokens: number; outputTokens: number; totalTokens: number } }) => {
         commits.push(args); if (options.failCommit) throw new Error("commit unavailable");
       }, recordAiGatewayAccountFailure: async () => {} },
     "@/lib/aiGatewayEconomics": { getConfiguredAiGatewayModelPricing: () => null },
     "@/lib/aiGatewayOperationTelemetry": { recordAiGatewayOperationCall: () => {} },
     "@/lib/upstashMode": { isUpstashEnabled: () => !options.productionNoRedis },
     "./inrAssistantPolicy.ts": policy,
+    "./inrAssistantEditionPolicy.ts": editionPolicy,
     "./inrAssistantAttachments.ts": attachmentPolicy,
     "./inrAssistantAttachmentPrompt.ts": attachmentPrompt,
     "./inrAssistantQuota.ts": { reserveInrAssistantRequest: async () => ({ solReserved: options.sol ?? false }),
@@ -95,8 +101,8 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
       if (safe) diagnostics.push(safe); return safe ?? undefined;
     } },
     "./inrAssistantBusinessTools.ts": { createInrAssistantBusinessTools: () => Object.fromEntries(["updateBusinessDna", "updateAiConfiguration", "guideChannelConnection"].map(name => [name, tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ available: true }) })])) },
-    "./inrAssistantCtaTools.ts": { createInrAssistantCtaTools: () => ({}) },
-    "./inrAssistantDnaAnalysisTools.ts": { createInrAssistantDnaAnalysisTools: () => ({}) },
+    "./inrAssistantCtaTools.ts": { createInrAssistantCtaTools: (args: { accountId: string; currentUserMessage: string }) => { actionFactories.push("cta"); ctaScopes.push(args); return options.cta ? { configureBusinessCta: options.cta.definition } : {}; } },
+    "./inrAssistantDnaAnalysisTools.ts": { createInrAssistantDnaAnalysisTools: () => { actionFactories.push("dna-analysis"); return {}; } },
     "./inrAssistantManagementTools.ts": { createInrAssistantManagementTools: () => ({}) },
     "./inrAssistantCommercialTools.ts": { createInrAssistantCommercialTools: () => ({}) },
     "./inrAssistantCommunicationTools.ts": { createInrAssistantCommunicationTools: () => ({}) },
@@ -114,7 +120,10 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
       } }),
     ])) },
     "./inrAssistantWorkspaceActionTools.ts": { createInrAssistantWorkspaceActionTools: () => ({}) },
-    "./inrAssistantInsightsTools.ts": { createInrAssistantInsightsTools: () => Object.fromEntries(["readStatsSnapshots", "readGoogleReviews", "replyToGoogleReview"].map(name => [name, tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ available: true }) })])) },
+    "./inrAssistantInsightsTools.ts": { createInrAssistantInsightsTools: () => {
+      actionFactories.push("insights");
+      return Object.fromEntries(["readStatsSnapshots", "readGoogleReviews", "replyToGoogleReview"].map(name => [name, tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ available: true }) })]));
+    } },
     "./inrAssistantAppGuides.ts": { getInrAssistantAppKnowledge: () => "Documentation officielle : /dashboard?action=publish", getVerifiedInrAssistantNavigation: () => options.verifiedNavigation ?? null, createInrAssistantAppGuideTool: () => tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ found: true }) }) },
     "./inrAssistantAccountTools.ts": { createInrAssistantAccountTools: () => Object.fromEntries(["getBusinessDna", "searchMedia", "getRecentPublications"].map(name => [name,
       tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ available: true }) }),
@@ -149,13 +158,95 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, {
     Date, TextEncoder, AbortSignal, console, process: { env: { NODE_ENV: options.productionNoRedis ? "production" : "test" } },
   })((name: string) => { if (!(name in stubs)) throw new Error(`Unexpected dependency: ${name}`); return stubs[name]; }, moduleRecord, moduleRecord.exports);
-  return { runtime: moduleRecord.exports as typeof Gateway, generations, reservations, commits, finalized, factories, toolScopes, publicationExecutions, diagnostics, get mediaExecutions() { return mediaExecutions; } };
+  return { runtime: moduleRecord.exports as typeof Gateway, generations, reservations, commits, finalized, factories, actionFactories, toolScopes, ctaScopes, publicationExecutions, diagnostics, get mediaExecutions() { return mediaExecutions; } };
 }
 
 const basic = { accountId: "account-a", displayName: "Entreprise A", edition: "standard" as const,
   requestId: "server-id", request: new Request("https://inrcy.test/api/assistant/chat"),
   messages: [{ role: "user" as const, content: "Aide-moi à connecter Facebook" }] };
 const complex = "Analyse mes résultats, compare les stratégies et prépare un calendrier de publications pour chaque canal sur un mois avec un budget maximum de 100 euros.";
+
+test("Standard routes real phone and website CTA orders through the scoped executor and returns its saved result", async () => {
+  for (const [target, current] of [
+    ["phone", "Mets mon téléphone 06.12.34.56.78 dans tous mes CTAs."],
+    ["website", "Fais tous mes CTA avec mon site https://atelier.example.com/offres."],
+  ] as const) {
+    const fixture = createCtaToolFixture({ current, pilot: true, website: "https://atelier.example.com/offres" });
+    const h = harness({ cta: { definition: fixture.definition, input: { target, instructionQuote: current, channels: null } } });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, accountId: CTA_TEST_ACCOUNT_ID,
+      supabase: {} as never, messages: [{ role: "user", content: current }] });
+    assert.ok(reply.message.length > 0);
+    assert.equal(h.ctaScopes[0].accountId, CTA_TEST_ACCOUNT_ID);
+    assert.equal(h.ctaScopes[0].currentUserMessage, current);
+    const map = fixture.tables.business_profiles.ai_channel_ctas as Record<string, { choice: string; phone: string; url: string }>;
+    const channels = target === "phone" ? ["site_web", "gmb", "facebook", "instagram", "threads", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"] : ["site_web", "gmb", "facebook", "threads", "linkedin", "youtube_shorts", "pinterest"];
+    for (const channel of channels) assert.equal(map[channel].choice, target === "phone" ? "appeler" : "site", channel);
+    if (target === "website") assert.equal(map.instagram.choice, "message");
+    assert.equal(fixture.calls.filter(call => call.patch).length, 2);
+    const transcript = JSON.stringify(h.generations[1].params.prompt);
+    assert.match(transcript, /configureBusinessCta/);
+    assert.match(transcript, /applied/);
+    assert.ok(h.generations.every(generation => generation.model !== policy.INR_ASSISTANT_MODELS.sol));
+  }
+});
+
+test("Standard CTA guidance and ambiguous destination never persist a guessed configuration", async () => {
+  for (const current of ["Comment mettre mon téléphone dans tous mes CTAs ?", "Configure tous mes CTAs avec mon site web ou mon téléphone."]) {
+    const fixture = createCtaToolFixture({ current });
+    const h = harness({ cta: { definition: fixture.definition, input: { target: "phone", instructionQuote: current, channels: null } } });
+    await h.runtime.generateInrAssistantReply({ ...basic, accountId: CTA_TEST_ACCOUNT_ID,
+      supabase: {} as never, messages: [{ role: "user", content: current }] });
+    assert.equal(fixture.calls.length, 0);
+    assert.match(JSON.stringify(h.generations[1].params.prompt), /needs_instruction/);
+  }
+});
+
+test("Basique refuses execution before constructing action tools or calling a model", async () => {
+  const h = harness({ media: true });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", messages: [{ role: "user", content: "Génère une image pour ma publication" }] });
+  assert.match(reply.message, /Basique.*accompagnement/);
+  assert.equal(h.generations.length, 0);
+  assert.equal(h.factories.length, 0);
+  assert.equal(h.mediaExecutions, 0);
+  assert.equal(h.publicationExecutions.length, 0);
+});
+
+test("Basique tool catalogue denies new and renamed execution tools by default", () => {
+  const result = editionPolicy.assistantToolsForEdition({
+    readAppGuide: {}, getBusinessDna: {}, getAccountDiagnostics: {}, recallPastDiscussions: {},
+    generateMedia: {}, preparePublication: {}, executePublication: {}, updateToolSettings: {},
+    readAndModifyEverything: {}, newFutureTool: {},
+  }, "basic");
+  assert.deepEqual(Object.keys(result), ["readAppGuide", "getBusinessDna", "getAccountDiagnostics", "recallPastDiscussions"]);
+});
+
+test("Basique can ask how to use a tool, with no execution capability exposed", async () => {
+  const h = harness();
+  await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", messages: [{ role: "user", content: "Comment modifier mon ADN et mes appels à l’action ?" }] });
+  assert.ok(h.generations.length > 0);
+  for (const generation of h.generations) {
+    for (const tool of generation.params.tools ?? []) {
+      if (tool.type === "function") assert.ok(!/generate|execute|update|configure|prepare|send|reply|delete/i.test(tool.name), tool.name);
+    }
+  }
+  assert.equal(h.mediaExecutions, 0);
+  assert.equal(h.publicationExecutions.length, 0);
+});
+
+test("Basique support questions do not construct CTA, DNA analysis or review execution tools", async () => {
+  const h = harness();
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic",
+    messages: [{ role: "user", content: "Comment compléter mon ADN, mettre mon téléphone en CTA et consulter mes avis et statistiques ?" }],
+    supabase: { from: () => assert.fail("No unrequested database operation") } as never,
+  });
+  assert.equal(reply.message, "Voici la prochaine étape.");
+  assert.deepEqual(h.actionFactories, []);
+  assert.deepEqual(h.factories, []);
+  assert.equal(h.mediaExecutions, 0);
+  assert.equal(h.publicationExecutions.length, 0);
+  assert.ok(h.generations[0].params.tools?.some(definition => definition.type === "function" && definition.name === "getBusinessDna"));
+  assert.ok(h.generations[0].params.tools?.every(definition => definition.type !== "function" || ["proposeHumanSupport", "readAppGuide", "getBusinessDna", "readWorkspaceSection"].includes(definition.name)));
+});
 
 test("a reviewed navigation answer is delivered without any provider call or economic reservation", async () => {
   const h = harness({ verifiedNavigation: "Cliquez sur Connecter.", productionNoRedis: true, sol: true });
@@ -174,6 +265,26 @@ test("ordinary assistance starts with Qwen and includes canonical product knowle
   assert.equal(h.generations[0].model, policy.INR_ASSISTANT_MODELS.qwen);
   assert.ok(JSON.stringify(h.generations[0].params.prompt).includes("/dashboard?action=publish"));
   assert.equal(h.reservations[0].feature, "assistant.chat");
+  assert.equal(h.finalized[0].success, true);
+});
+
+test("Qwen tool loops leave the fourth call to a tool-free economical answer, with actual model accounting", async () => {
+  const h = harness({ ignoresToolChoice: true });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic,
+    messages: [{ role: "user", content: "AIDE MOI A FAIRE UNE PUBLICATION" }],
+  });
+  assert.equal(reply.message, "Voici la prochaine étape.");
+  assert.deepEqual(h.generations.map(row => row.model), [
+    policy.INR_ASSISTANT_MODELS.qwen, policy.INR_ASSISTANT_MODELS.qwen,
+    policy.INR_ASSISTANT_MODELS.qwen, policy.INR_ASSISTANT_MODELS.luna,
+  ]);
+  assert.equal(h.generations[3].params.tools?.length ?? 0, 0);
+  assert.equal(h.generations[3].params.toolChoice?.type, "none");
+  assert.match(JSON.stringify(h.generations[3].params.prompt), /posez une question courte/);
+  assert.equal(h.reservations.length, 4);
+  assert.deepEqual(h.commits.map(row => row.model), h.generations.map(row => row.model));
+  assert.equal(h.publicationExecutions.length, 0);
+  assert.equal(h.mediaExecutions, 0);
   assert.equal(h.finalized[0].success, true);
 });
 

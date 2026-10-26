@@ -849,6 +849,11 @@ async function processDueScheduledActions(args: { origin: string; maxRows: numbe
   );
 
   for (const row of rows) {
+    if (editionsByAccount.get(row.user_id) === "basic") {
+      results.push({ ok: true, status: "skipped", scheduledActionId: row.id,
+        targetTool: String(row.target_tool || "agent"), detail: "standard_required" });
+      continue;
+    }
     if (!activeAccountIds.has(row.user_id)) {
       if (!args.dryRun) {
         const { error: inactiveError } = await supabaseAdmin

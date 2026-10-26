@@ -10,8 +10,9 @@ import {
   currentSubscriptionOffer,
   annualSubscriptionSavingRate,
   type BillingCycle,
+  type CommercialPlan,
 } from "@/lib/subscriptionOffers";
-import { startSubscriptionCheckout } from "@/lib/clientSubscriptionBilling";
+import { detectClientBillingPlatform, startSubscriptionCheckout } from "@/lib/clientSubscriptionBilling";
 import styles from "./compte-bloque.module.css";
 
 type Props = {
@@ -32,12 +33,13 @@ export default function BlockedBillingActions({ status, edition, hasStripeCustom
   const settingsT = useTranslations("settings");
   const locale = useLocale();
   const router = useRouter();
-  const [cycles, setCycles] = useState<Record<"Standard" | "Premium", BillingCycle>>({ Standard: "monthly", Premium: "monthly" });
+  const [cycles, setCycles] = useState<Record<CommercialPlan, BillingCycle>>({ Basic: "monthly", Standard: "monthly", Premium: "monthly" });
+  const [nativeBilling, setNativeBilling] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const normalizedStatus = status.trim().toLowerCase();
   const canSubscribe =
-    (edition === "standard" || edition === "premium") &&
+    (edition === "basic" || edition === "standard" || edition === "premium") &&
     ["trial_expired", "trial-expired", "canceled", "cancelled", "incomplete_expired"].includes(normalizedStatus);
   const canOpenPortal =
     hasStripeCustomer && ["past_due", "unpaid", "incomplete"].includes(normalizedStatus);
@@ -45,6 +47,10 @@ export default function BlockedBillingActions({ status, edition, hasStripeCustom
     minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(value);
+
+  useEffect(() => {
+    setNativeBilling(detectClientBillingPlatform() !== "web");
+  }, []);
 
   useEffect(() => {
     if (!checkoutPending) return;
@@ -57,7 +63,7 @@ export default function BlockedBillingActions({ status, edition, hasStripeCustom
     return () => window.clearInterval(timer);
   }, [checkoutPending, router]);
 
-  async function startCheckout(plan: "Standard" | "Premium") {
+  async function startCheckout(plan: CommercialPlan) {
     setBusy(true);
     setError("");
     try {
@@ -98,12 +104,14 @@ export default function BlockedBillingActions({ status, edition, hasStripeCustom
       ) : canSubscribe ? (
         <>
           <div className={styles.recoveryOffers}>
-            {(["Standard", "Premium"] as const).map((plan) => {
+            {(["Basic", "Standard", "Premium"] as const).map((plan) => {
               const offer = currentSubscriptionOffer(plan);
+              const planName = plan === "Basic" ? settingsT("subscription_basic_name") : plan;
+              const unavailable = plan === "Basic" && nativeBilling;
               const taxLabel = i18nT(offer.taxBehavior === "exclusive" ? "standard_tax_exclusive_short" : "standard_tax_inclusive_short");
               const savingPercent = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(annualSubscriptionSavingRate(offer));
-              return <article key={plan} aria-label={`iNrCy ${plan}`} className={`${styles.recoveryOffer} ${plan === "Premium" ? styles.recoveryOfferPremium : styles.recoveryOfferStandard}`}>
-                <h2>iNrCy {plan}</h2>
+              return <article key={plan} aria-label={`iNrCy ${planName}`} className={`${styles.recoveryOffer} ${plan === "Premium" ? styles.recoveryOfferPremium : styles.recoveryOfferStandard}`}>
+                <h2>iNrCy {planName}</h2>
                 <div className={styles.cyclePicker} role="group" aria-label={`${plan} · ${i18nT("periodicite_de_l_abonnement_625a0573")}`}>
                   {(["monthly", "yearly"] as const).map((cycle) => <button
                     key={cycle}
@@ -117,8 +125,8 @@ export default function BlockedBillingActions({ status, edition, hasStripeCustom
                     {cycle === "yearly" ? <small>≈ −{savingPercent}</small> : null}
                   </button>)}
                 </div>
-                <button type="button" className={styles.primaryBtn} onClick={() => startCheckout(plan)} disabled={busy}>
-                  {busy ? i18nT("ouverture_3333ad14") : plan === "Premium" ? settingsT("subscription_subscribe_premium") : i18nT("reactiver_avec_inrcy_standard_fa0d9b86")}
+                <button type="button" className={styles.primaryBtn} onClick={() => startCheckout(plan)} disabled={busy || unavailable} title={unavailable ? settingsT("subscription_basic_native_unavailable") : undefined}>
+                  {busy ? i18nT("ouverture_3333ad14") : plan === "Basic" ? settingsT("standard_subscribe_price", { price: `${formatEur(cycles[plan] === "yearly" ? offer.yearlyPriceEur : offer.monthlyPriceEur)} € ${taxLabel} / ${i18nT(cycles[plan] === "yearly" ? "standard_per_year" : "standard_per_month")}` }) : plan === "Premium" ? settingsT("subscription_subscribe_premium") : i18nT("reactiver_avec_inrcy_standard_fa0d9b86")}
                 </button>
               </article>;
             })}

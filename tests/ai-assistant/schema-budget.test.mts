@@ -10,6 +10,7 @@ import * as sdk from "ai";
 import { normalizeAiMemory } from "../../lib/aiMemory.ts";
 import { fitPromptPayloadToJsonBudget } from "../../lib/aiPromptBudget.ts";
 import { getAssistantInternalDestination } from "../../lib/inrAssistantNavigation.ts";
+import * as editionPolicy from "../../lib/dashboardEdition.ts";
 import type { LanguageModelV3, LanguageModelV3CallOptions } from "@ai-sdk/provider";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
 import type * as Conversation from "../../lib/inrAssistantConversation.ts";
@@ -110,6 +111,7 @@ function harness(options: { guideFollowup?: boolean; dnaFollowup?: boolean; dnaL
     const moduleRecord = { exports: {} as Row }; modules.set(path, moduleRecord.exports);
     const dependency = (id: string): unknown => {
       if (id === "ai") return ai;
+      if (id === "./dashboardEdition.ts") return editionPolicy;
       if (Object.hasOwn(common, id)) return common[id];
       if (id.startsWith(".")) {
         if (/^\.\.\/messages\/fr-FR\/[a-zA-Z-]+\.json$/.test(id)) return { default: JSON.parse(readFileSync(resolve(dirname(path), id), "utf8")) };

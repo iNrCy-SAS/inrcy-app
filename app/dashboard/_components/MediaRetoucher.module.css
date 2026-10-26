@@ -1292,3 +1292,20 @@
     transition: none;
   }
 }
+
+/* Preserve both editing panels on a short desktop; the Studio body owns
+   scrolling, so no upload zone or editing action is squeezed out of reach. */
+@media (min-width: 901px) and (max-height: 700px) {
+  .workspace { height:auto; min-height:100%; overflow:visible; }
+  .formContent { flex:1 0 auto; height:auto; min-height:min-content; grid-template-rows:auto; overflow:visible; }
+  .panel { height:auto; min-height:min-content; grid-template-rows:auto minmax(230px, 1fr) auto; }
+  .dropZone, .toolsEmpty { min-height:230px; }
+  .toolGrid { height:auto; min-height:min-content; grid-template-rows:repeat(2, minmax(96px, 1fr)); }
+  .toolCard { min-height:96px; }
+  .inlineEditorPanel { height:auto; min-height:440px; grid-template-rows:auto minmax(360px, 1fr); overflow:visible; }
+  .inlineEditorToolbar, .inlineEditorActions { flex-wrap:wrap; }
+  .actionBar { flex-wrap:wrap; }
+}
+@media (min-width: 901px) and (max-width: 1120px) and (max-height: 700px) {
+  .toolGrid { grid-template-rows:repeat(4, minmax(96px, 1fr)); }
+}

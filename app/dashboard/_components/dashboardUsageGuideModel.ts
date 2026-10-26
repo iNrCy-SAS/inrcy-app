@@ -1,5 +1,7 @@
 import {
   isDashboardDestinationAllowedForEdition,
+  hasPremiumDashboardAccess,
+  isStandardDashboardEdition,
   type DashboardEdition,
 } from "../../../lib/dashboardEdition.ts";
 import { INR_AGENT_WORKSPACES, type InrAgentWorkspace } from "../../../lib/inrAgentWorkspaces.ts";
@@ -88,11 +90,11 @@ export function getHelpGoalTools(goal: HelpGoal, edition: DashboardEdition, inrA
       tool("iNr’ADS", "/dashboard/ads"),
       tool("Propulser", "/dashboard/propulser"),
       tool("Fidéliser", "/dashboard/fideliser"),
-      ...(inrAgentEnabled && edition !== "standard" ? [agent("campaigns", "iNr’Agent Campagnes mails")] : []),
+      ...(inrAgentEnabled && hasPremiumDashboardAccess(edition) ? [agent("campaigns", "iNr’Agent Campagnes mails")] : []),
     ];
     case "reviews": return [tool("Réputation", "/dashboard/e-reputation")];
     case "contacts": return [
-      tool("iNr’Send", edition === "standard" ? "/dashboard/mails?folder=publications&boxView=sent" : "/dashboard/mails"),
+      tool("iNr’Send", isStandardDashboardEdition(edition) ? "/dashboard/mails?folder=publications&boxView=sent" : "/dashboard/mails"),
       tool("iNr’CRM", "/dashboard/crm"),
       tool("iNr’Calendar", "/dashboard/agenda"),
     ];

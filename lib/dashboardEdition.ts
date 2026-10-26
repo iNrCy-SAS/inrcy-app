@@ -1,6 +1,8 @@
 import { hasFullProductReviewerAccess } from "./reviewerAccess.ts";
 
-export type DashboardEdition = "standard" | "premium" | "founder";
+export type DashboardEdition = "basic" | "standard" | "premium" | "founder";
+
+const BASIC_PLAN_VALUES = new Set(["basic", "basique", "inrcy basic", "inrcy basique", "inrcy-basic", "inrcy_basic"]);
 
 const STANDARD_PLAN_VALUES = new Set([
   "trial",
@@ -115,6 +117,7 @@ function pathMatches(pathname: string, candidate: string): boolean {
  */
 export function resolveDashboardEditionFromPlan(plan: unknown): DashboardEdition {
   const normalizedPlan = normalizePlan(plan);
+  if (BASIC_PLAN_VALUES.has(normalizedPlan)) return "basic";
   if (STANDARD_PLAN_VALUES.has(normalizedPlan)) return "standard";
   if (FOUNDER_PLAN_VALUES.has(normalizedPlan)) return "founder";
   if (PREMIUM_PLAN_VALUES.has(normalizedPlan) || LEGACY_PLAN_VALUES.has(normalizedPlan)) return "premium";
@@ -123,13 +126,19 @@ export function resolveDashboardEditionFromPlan(plan: unknown): DashboardEdition
 
 export function resolveDashboardEditionFromEdition(edition: unknown): DashboardEdition {
   const normalizedEdition = normalizePlan(edition);
+  if (BASIC_PLAN_VALUES.has(normalizedEdition)) return "basic";
   if (normalizedEdition === "founder") return "founder";
   if (normalizedEdition === "premium") return "premium";
   return "standard";
 }
 
 export function isStandardDashboardEdition(edition: DashboardEdition): boolean {
-  return edition === "standard";
+  return edition === "basic" || edition === "standard";
+}
+
+/** Basic keeps manual tools and support, but no agent may execute work for it. */
+export function hasAgentAutomationAccess(edition: DashboardEdition): boolean {
+  return edition !== "basic";
 }
 
 /**
@@ -164,13 +173,13 @@ export function resolveDashboardEdition({
 }): DashboardEdition {
   if (!production) {
     const override = normalizePlan(developmentOverride);
-    if (override === "standard" || override === "premium" || override === "founder") return override;
+    if (override === "basic" || override === "standard" || override === "premium" || override === "founder") return override;
   }
 
   // Le plan commercial pilote les droits. Avant la normalisation des anciens
   // forfaits, app_edition conserve leur droit historique comme fallback.
   const normalizedPlan = normalizePlan(plan);
-  if (STANDARD_PLAN_VALUES.has(normalizedPlan) || FOUNDER_PLAN_VALUES.has(normalizedPlan) ||
+  if (BASIC_PLAN_VALUES.has(normalizedPlan) || STANDARD_PLAN_VALUES.has(normalizedPlan) || FOUNDER_PLAN_VALUES.has(normalizedPlan) ||
       PREMIUM_PLAN_VALUES.has(normalizedPlan)) {
     return resolveDashboardEditionFromPlan(plan);
   }
@@ -215,7 +224,8 @@ export function isDashboardRouteAllowedForEdition(
   searchParams: URLSearchParams | undefined,
   edition: DashboardEdition,
 ): boolean {
-  if (edition === "standard" && !isStandardDashboardRouteAllowed(pathname, searchParams)) {
+  if (edition === "basic" && pathMatches(pathname, "/dashboard/agent")) return false;
+  if (isStandardDashboardEdition(edition) && !isStandardDashboardRouteAllowed(pathname, searchParams)) {
     return false;
   }
 
@@ -285,6 +295,7 @@ export function isApiRouteAllowedForEdition(
   searchParams: URLSearchParams | undefined,
   edition: DashboardEdition,
 ): boolean {
+  if (edition === "basic" && pathMatches(pathname, "/api/agent")) return false;
   if (
     edition !== "founder" &&
     FOUNDER_ONLY_API_PREFIXES.some((candidate) => pathMatches(pathname, candidate))
@@ -297,5 +308,5 @@ export function isApiRouteAllowedForEdition(
     if (folder === "factures" || folder === "devis") return false;
   }
 
-  return edition !== "standard" || isStandardApiRouteAllowed(pathname, searchParams);
+  return !isStandardDashboardEdition(edition) || isStandardApiRouteAllowed(pathname, searchParams);
 }

@@ -19,7 +19,7 @@
 .pageTrack { position:absolute; display:flex; justify-content:center; gap:5px; bottom:0; left:22%; width:56%; transform:translateY(50%); }
 .pageTrack span { width:6px; height:4px; border-radius:5px; background:#334963; box-shadow:0 0 0 3px #0e172a; transition:width .2s,background .2s; }
 .pageTrack span[data-active="true"] { width:25px; background:linear-gradient(90deg,#45d8f2,#b18bff); box-shadow:0 0 12px #55c9e553,0 0 0 3px #0e172a; }
-.overview { display:flex; flex-direction:column; flex:1 1 0; min-height:0; min-width:0; overflow:visible; padding:3px 2px 2px; }
+.overview { display:flex; flex-direction:column; flex:1 0 auto; min-height:min-content; min-width:0; overflow:visible; padding:3px 2px 2px; }
 .overviewIntro { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin:3px 0 17px; padding:0 3px; }
 .eyebrow { color:#88cce9; font-size:10px; font-weight:700; letter-spacing:1.8px; text-transform:uppercase; }
 .overviewIntro p { margin:0; color:#90a6c3; font-size:12px; }
@@ -141,9 +141,9 @@
 .distributionInline { display:flex; align-items:center; justify-content:center; gap:8px; color:#8ca6c4; font-size:10px; }
 .distributionInline > svg { width:16px; height:16px; color:#a5b5f8; }
 .distributionInline .histogram { flex:0 1 175px; width:175px; height:27px; min-height:0; margin:0 0 0 10px; background:none; }
-.channelGrid { flex:1 1 0; min-height:0; align-content:stretch; }
-.channelCard { display:flex; flex-direction:column; min-height:0; height:calc((100% - (var(--rows) - 1) * var(--card-gap)) / var(--rows)); }
-.cardOpen { display:flex; flex-direction:column; justify-content:space-between; flex:1 1 0; min-height:0; padding:16px 18px 12px; }
+.channelGrid { flex:1 0 auto; min-height:min-content; align-content:stretch; }
+.channelCard { display:flex; flex-direction:column; min-height:min-content; height:auto; }
+.cardOpen { display:flex; flex-direction:column; justify-content:space-between; flex:1 0 auto; min-height:min-content; padding:16px 18px 12px; }
 .cardMetrics { margin:10px 0 8px; }
 .detailHint { display:none; }
 .cardFooter { flex:0 0 auto; min-height:34px; padding:7px 15px; }
@@ -174,7 +174,7 @@
   .channelAction { min-height:23px; padding:3px 7px; }
 }
 @media(min-width:1600px) {
-  .channelCard { flex-basis:calc((100% - 60px)/5); height:calc((100% - (var(--rows-wide) - 1) * var(--card-gap)) / var(--rows-wide)); }
+  .channelCard { flex-basis:calc((100% - 60px)/5); }
 }
 @media(min-width:901px) and (max-width:1250px) {
   .navigator { grid-template-columns:44px minmax(230px,.8fr) minmax(410px,1.2fr); gap:15px; padding-inline:14px; }
@@ -509,22 +509,21 @@
   .evolutionToolbarUnified .indexChannelFilter { justify-content: flex-end; }
 }
 
-/* Keep every overview detail above its footer on short desktop viewports. */
-@media (min-width: 1200px) and (max-width: 1599px) and (max-height: 820px) {
-  .channelCard { flex-basis: calc((100% - 40px) / 5); height: calc((100% - (var(--rows-wide) - 1) * var(--card-gap)) / var(--rows-wide)); }
+/* Short screens scroll the overview instead of squeezing whole cards into
+   the remaining viewport height. Keep text and actions usable when zoomed. */
+@media (min-width: 901px) and (max-height: 820px) {
+  .cardOpen { padding:12px; gap:10px; }
+  .cardHeading { min-height:30px; gap:8px; }
+  .cardHeading h3 { font-size:13px; }
+  .cardMetrics dt, .cardInsight .contribution { font-size:10px; line-height:1.4; }
+  .cardMetrics dd { font-size:22px; line-height:1.25; }
+  .cardInsight .contribution > b { font-size:12px; }
+  .cardFooter { padding:8px 10px; min-height:40px; flex-wrap:wrap; }
+  .connectionStatus, .channelAction { font-size:10px; }
+  .channelAction { min-height:30px; padding:5px 8px; }
 }
-@media (min-width: 901px) and (max-width: 1199px) and (max-height: 820px) {
-  .cardOpen { padding: 5px 9px; gap: 3px; }
-  .cardHeading { min-height: 24px; gap: 6px; }
-  .channelLogo { width: 24px; height: 24px; flex-basis: 24px; border-radius: 8px; }
-  .channelLogo img { width: 20px; height: 20px; }
-  .cardMetrics dt { font-size: 8px; line-height: 1.2; }
-  .cardMetrics dd { font-size: 16px; line-height: 1.2; }
-  .cardInsight .contribution { font-size: 8px; line-height: 1.2; }
-  .cardInsight .contribution > b { font-size: 10px; line-height: 1.2; }
-  .cardFooter { padding: 3px 9px; min-height: 26px; gap: 5px; }
-  .connectionStatus, .channelAction { font-size: 8px; }
-  .channelAction { min-height: 20px; padding: 2px 5px; }
+@media (min-width: 901px) and (max-width: 1199px) {
+  .channelCard { flex-basis:calc((100% - 2 * var(--card-gap)) / 3); }
 }
 
 @media (max-width: 1100px) {
@@ -537,4 +536,14 @@
 
 @media (max-width: 900px) {
   .evolutionToolbarUnified .evolutionViewNavigation { grid-row:2; }
+}
+
+/* Preserve the existing full-height panorama on a spacious desktop. The
+   intrinsic minimum still wins if enlarged text needs more room. */
+@media (min-width: 1251px) and (min-height: 821px) {
+  .overview, .channelGrid { flex:1 1 0; }
+  .channelCard { height:calc((100% - (var(--rows) - 1) * var(--card-gap)) / var(--rows)); }
+}
+@media (min-width: 1600px) and (min-height: 821px) {
+  .channelCard { height:calc((100% - (var(--rows-wide) - 1) * var(--card-gap)) / var(--rows-wide)); }
 }

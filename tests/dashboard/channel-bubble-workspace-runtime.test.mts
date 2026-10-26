@@ -150,12 +150,12 @@ test("an empty resource selector shows one loading message during discovery and 
     const tree = h.render("default", { item: { ...item, connection: { accountConnected: true, value: "", onSelect() {}, ...operation } } });
     const select = nodes(tree).find(node => node.type === "select")!;
     assert.equal(nodes(select).find(node => node.type === "option")!.props.children, labels.loading);
-    assert.equal(nodes(tree).find(node => node.props.role === "status")!.props.hidden, true);
+    assert.ok(!nodes(tree).some(node => node.props.role === "status"));
     assert.equal(renderToStaticMarkup(tree).split(labels.loading).length - 1, 1);
   }
   const selected = h.render("default", { item: { ...item, connection: { accountConnected: true, value: "locations/1", resourceLabel: "iNrCy", onSelect() {}, busy: true } } });
   assert.equal(nodes(selected).find(node => node.type === "select")!.props.value, "locations/1");
-  assert.equal(nodes(selected).find(node => node.props.role === "status")!.props.children, labels.loading);
+  assert.equal(nodes(selected).find(node => node.type === "p" && node.props.children === labels.loading)!.props.children, labels.loading);
 });
 
 test("reconnect stays in the main action without a duplicate subtitle and preserves operation feedback", () => {
@@ -165,14 +165,28 @@ test("reconnect stays in the main action without a duplicate subtitle and preser
   const action = nodes(tree).find(node => node.props["aria-label"] === `${labels.reconnect} — ${item.name}`)!;
   assert.ok(action, "The main reconnect action remains available");
   assert.match(String(action.props.className), /actionMainReconnect/);
-  assert.equal(nodes(tree).find(node => node.props.role === "status")!.props.hidden, true);
+  assert.ok(!nodes(tree).some(node => node.props.role === "status"));
   assert.ok(!nodes(tree).some(node => node.props.role === "alert"));
   const failed = h.render("default", { item: { ...reconnect, connection: { ...reconnect.connection, error: "Impossible de mettre à jour le lien." } } });
-  assert.equal(nodes(failed).find(node => node.props.role === "alert")!.props.children, "Impossible de mettre à jour le lien.");
+  assert.equal(nodes(nodes(failed).find(node => node.props.role === "alert")!).find(node => node.type === "p")!.props.children, "Impossible de mettre à jour le lien.");
   const saved = h.render("default", { item: { ...reconnect, connection: { ...reconnect.connection, notice: "Lien mis à jour." } } });
   const notice = nodes(saved).find(node => node.props.role === "status")!;
-  assert.equal(notice.props.hidden, false);
-  assert.equal(notice.props.children, "Lien mis à jour.");
+  assert.equal(nodes(notice).find(node => node.type === "p")!.props.children, "Lien mis à jour.");
+});
+
+test("channel errors and confirmations remain readable below the main bubble, never inside its controls", () => {
+  const h = runtime("app/dashboard/_components/DashboardFluxBubble.tsx");
+  for (const feedback of [{ error: "Votre compte Instagram doit être Professionnel ou Créateur et associé à votre Page Facebook professionnelle." }, { notice: "Tableau « Actualités » créé sur Pinterest." }]) {
+    const tree = h.render("default", { item: { ...item, connection: { accountConnected: true, ...feedback } } });
+    const article = nodes(tree).find(node => node.type === "article")!;
+    const message = nodes(tree).find(node => node.props["data-channel-feedback"])!;
+    assert.ok(message);
+    assert.ok(!nodes(article).includes(message));
+    assert.ok(!nodes(article).some(node => node.props.role === "alert" || node.props.role === "status"));
+    assert.equal(message.props.role, feedback.error ? "alert" : "status");
+    const text = feedback.error || feedback.notice;
+    assert.equal(renderToStaticMarkup(tree).split(text!).length - 1, 1, "The entire message is shown once without a duplicate tooltip");
+  }
 });
 
 test("Google Business prevents a disconnect from racing the automatic selection write", () => {
@@ -185,7 +199,7 @@ test("Google Business prevents a disconnect from racing the automatic selection 
   assert.equal(nodes(pending).find(node => String(node.props["aria-label"]).startsWith("Déconnecter —"))!.props.disabled, true);
 });
 
-test("Google Business, Facebook and Instagram show account-operation errors inside the bubble", () => {
+test("Google Business, Facebook and Instagram forward account-operation errors to the channel workspace", () => {
   const cases = [
     { key: "gmb", props: { gmbPanelProps: { gmbLocations: [], gmbUrlError: "Compte Google non déconnecté", gmbListError: "Old list warning" } }, error: "Compte Google non déconnecté" },
     { key: "facebook", props: { facebookPanelProps: { fbPages: [], facebookUrlError: "Compte Facebook non déconnecté", fbPagesError: "Old list warning" } }, error: "Compte Facebook non déconnecté" },
@@ -357,8 +371,7 @@ test("selecting a known bubble never reloads its resource list; opening its sele
   assert.equal(loads, 1, "Pointer and focus must not issue duplicate reads");
   tree = h.render("default", { item: { ...props.item, connection: { ...props.item.connection, loading: true } } });
   assert.equal(nodes(tree).find(node => node.type === "select")!.props.disabled, false);
-  const status = nodes(tree).find(node => node.props.role === "status")!;
-  assert.equal(status.props.hidden, true, "A background list refresh must not change the bubble layout");
+  assert.ok(!nodes(tree).some(node => node.props.role === "status"), "A background list refresh must not change the bubble layout");
   assert.match(renderToStaticMarkup(tree), /iNrCy/);
 });
 
@@ -379,7 +392,7 @@ test("known connected accounts do not show a loading label while refreshing publ
   for (const resourceLabel of ["@iNrCyTeam", ""]) {
     const tree = h.render("default", { item: { ...item, connection: { accountConnected: true, resourceLabel, loading: true } } });
     assert.doesNotMatch(renderToStaticMarkup(tree), /Chargement/);
-    assert.equal(nodes(tree).find(node => node.props.role === "status")!.props.hidden, true);
+    assert.ok(!nodes(tree).some(node => node.props.role === "status"));
   }
 });
 

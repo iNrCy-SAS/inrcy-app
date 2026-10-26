@@ -10,7 +10,7 @@ import {
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { useDashboardEdition } from "./DashboardEditionProvider";
 import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
-import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
+import { hasAccountingDashboardAccess, isStandardDashboardEdition } from "@/lib/dashboardEdition";
 
 export const DASHBOARD_TOOL_WARMUP_EVENT = "inrcy:dashboard-tool-warmup";
 export const DASHBOARD_PREFETCH_ATTRIBUTE = "data-dashboard-prefetch";
@@ -109,7 +109,7 @@ export default function DashboardToolWarmup() {
   const router = useRouter();
   const edition = useDashboardEdition();
   const { actorUserId, activeAccountId, metaPilotEnabled } = useDashboardViewerAccess();
-  const standardMode = edition === "standard";
+  const standardMode = isStandardDashboardEdition(edition);
   const accountingEnabled = hasAccountingDashboardAccess(edition);
 
   useEffect(() => {

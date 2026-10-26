@@ -25,7 +25,7 @@ type AgentInput = {
   planningHorizonDays?: 7 | 15 | 30 | null;
 };
 const BILLING_ACTIONS = ["compare", "subscribe", "change_plan", "manage", "cancel", "invoices"] as const;
-type BillingInput = { action: typeof BILLING_ACTIONS[number]; plan?: "Standard" | "Premium" | null; billingCycle?: "monthly" | "yearly" | null };
+type BillingInput = { action: typeof BILLING_ACTIONS[number]; plan?: "Basic" | "Standard" | "Premium" | null; billingCycle?: "monthly" | "yearly" | null };
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MARKER = "assistantManagementAction";
@@ -45,7 +45,7 @@ const invalid = () => new ManagementInputError("Précisez les réglages demandé
 function parseBilling(value: unknown): BillingInput {
   const input = record(value);
   if (!keys(input, ["action", "plan", "billingCycle"]) || !member(input.action, BILLING_ACTIONS) ||
-    (input.plan != null && !member(input.plan, ["Standard", "Premium"])) ||
+    (input.plan != null && !member(input.plan, ["Basic", "Standard", "Premium"])) ||
     (input.billingCycle != null && !member(input.billingCycle, ["monthly", "yearly"]))) throw invalid();
   return input as BillingInput;
 }
@@ -151,16 +151,16 @@ export function createInrAssistantManagementTools(options: {
     prepareSubscriptionAction: tool({
       strict: true,
       description: "Préparer le parcours public d’abonnement, comparaison, souscription/changement, factures ou résiliation demandé maintenant. Retourne le vrai lien Mon abonnement/Factures et un récapitulatif du catalogue web ; aucun checkout, paiement, changement ou résiliation n’est exécuté. Le pro finalise dans les confirmations existantes ou chez Apple/Google. Un tarif de catalogue ne remplace jamais son contrat.",
-      inputSchema: jsonSchema<BillingInput>({ type: "object", properties: { action: { type: "string", enum: [...BILLING_ACTIONS] }, plan: nullableEnum(["Standard", "Premium"]), billingCycle: nullableEnum(["monthly", "yearly"]) }, required: ["action", "plan", "billingCycle"], additionalProperties: false }, {
+      inputSchema: jsonSchema<BillingInput>({ type: "object", properties: { action: { type: "string", enum: [...BILLING_ACTIONS] }, plan: nullableEnum(["Basic", "Standard", "Premium"]), billingCycle: nullableEnum(["monthly", "yearly"]) }, required: ["action", "plan", "billingCycle"], additionalProperties: false }, {
         validate: input => { try { return { success: true, value: parseBilling(input) }; } catch (error) { return { success: false, error: error as Error }; } },
       }),
       execute: async value => {
         const input = parseBilling(value);
         await assertScope();
-        if (!/abonn|offre|premium|standard|factur|souscri|resili|cancel|subscription|billing/i.test(normalized(options.currentUserMessage))) return { ok: false, status: "instruction_required", message: "Demandez au pro quel parcours d’abonnement il souhaite ouvrir." };
+        if (!/abonn|offre|basic|basique|premium|standard|factur|souscri|resili|cancel|subscription|billing/i.test(normalized(options.currentUserMessage))) return { ok: false, status: "instruction_required", message: "Demandez au pro quel parcours d’abonnement il souhaite ouvrir." };
         const link = input.action === "invoices" ? { label: "Factures d’abonnement", href: "/dashboard?panel=factures" } : { label: "Mon abonnement", href: "/dashboard?panel=abonnement" };
         if (["subscribe", "change_plan"].includes(input.action) && (!input.plan || !input.billingCycle)) return { ok: false, status: "details_required", link, message: "Demandez le forfait et le choix mensuel ou annuel avant de préparer la souscription." };
-        const catalogue = (input.plan ? [input.plan] : ["Standard", "Premium"] as const).map(plan => {
+        const catalogue = (input.plan ? [input.plan] : ["Basic", "Standard", "Premium"] as const).map(plan => {
           const offer = currentSubscriptionOffer(plan);
           return { plan, monthlyEur: offer.monthlyPriceEur, yearlyEur: offer.yearlyPriceEur, taxBehavior: offer.taxBehavior, currency: "EUR", source: "public_web_catalogue_not_personal_contract" };
         });

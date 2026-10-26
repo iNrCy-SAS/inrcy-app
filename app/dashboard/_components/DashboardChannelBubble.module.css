@@ -633,8 +633,11 @@
 .disconnectIcon { color: #ff718f; border-color: #ff718f99; background: radial-gradient(circle at 25% 15%,#ff9cbd30,transparent 65%),linear-gradient(130deg,#8f224a77,#67296c99); box-shadow: inset 0 1px 2px #ffd4e850,0 0 15px #ed416a24; }
 .disconnectIcon:hover { color: #ffbdc8; border-color: #ff9eb2; background-color: #b62b566e; }
 .iconAction:disabled,.iconAction[aria-disabled="true"] { opacity: .4; cursor: default; transform: none; }
-.connectionStatus,.connectionFeedback { width: 100%; min-width: 0; margin: 0; color: #b7d0f2; font-size: 10px; line-height: 1.2; text-align: center; }
-.connectionFeedback { color: #ffc4cc; max-height: 28px; overflow-y: auto; }
+.channelFeedback { box-sizing: border-box; display: flex; align-items: flex-start; gap: 10px; width: 100%; min-width: 0; margin: 20px 0 0; padding: 13px 16px; border: 1px solid #64d9c859; border-radius: 16px; background: linear-gradient(120deg,#0e3047f5,#152844f5); box-shadow: 0 8px 25px #020a202e; color: #d8f6ee; text-align: left; }
+.channelFeedbackError { border-color: #f7b16770; background: linear-gradient(120deg,#33283ff5,#24243ff5); color: #ffe7d3; }
+.channelFeedbackIcon { flex: 0 0 20px; width: 20px; height: 20px; margin-top: 1px; color: #7de3cc; }
+.channelFeedbackError .channelFeedbackIcon { color: #ffc67f; }
+.channelFeedback p { margin: 0; min-width: 0; font-size: 13px; font-weight: 550; line-height: 1.55; overflow-wrap: anywhere; white-space: pre-line; }
 .workspaceCard { container-type: inline-size; }
 .connectChoices { display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:center; min-height:180px; }
 .connectChoices svg { width:24px; height:24px; }

@@ -43,14 +43,17 @@ export default function DashboardChannelWorkspace(props: Props) {
   const [organizationLinkDirty, setOrganizationLinkDirty] = useState(false);
   const [widgetDirty, setWidgetDirty] = useState(false);
   const [revision, setRevision] = useState(0);
+  const [actionFeedback, setActionFeedback] = useState<{ channel: string; error?: string; notice?: string } | null>(null);
+  const onActionError = (error: string) => setActionFeedback({ channel: item.key, error });
+  const onActionNotice = (notice: string) => setActionFeedback({ channel: item.key, notice });
   const hasUnsavedChanges = dirty || profileLinkDirty || organizationLinkDirty || widgetDirty;
   useUnsavedExitGuard({ active: hasUnsavedChanges, shouldBlock: hasUnsavedChanges, onConfirmExit: () => { setDirty(false); setProfileLinkDirty(false); setOrganizationLinkDirty(false); setWidgetDirty(false); setRevision(value => value + 1); } });
   const knownConnection = getKnownChannelConnection(item);
-  const renderBubble: ChannelBubbleRenderer = connection => <DashboardFluxBubble key={revision} item={{ ...item, connection: connection.loading && knownConnection.accountConnected ? {
+  const renderBubble: ChannelBubbleRenderer = connection => <DashboardFluxBubble key={revision} item={{ ...item, connection: { ...(connection.loading && knownConnection.accountConnected ? {
     ...connection,
     accountConnected: connection.accountConnected || knownConnection.accountConnected,
     resourceLabel: connection.resourceLabel || knownConnection.resourceLabel,
-  } : connection }} />;
+  } : connection), ...(actionFeedback?.channel === item.key ? { error: actionFeedback.error || connection.error, notice: actionFeedback.notice || connection.notice } : {}) } }} />;
   const publicLink = (channel: EditableChannelPublicUrlChannel, value: string, onSaved: (url: string) => void, canEdit: boolean, target?: LinkedinPublicUrlTarget) => <EditableChannelUrlField channel={channel} target={target} value={value || ""} onSaved={onSaved} onDirtyChange={target === "profile" ? setProfileLinkDirty : target === "organization" ? setOrganizationLinkDirty : setDirty} ariaLabel={`${t("publicLink")} — ${item.name}${target ? ` — ${shell(target === "profile" ? "profil_personnel_8e5d4316" : "page_entreprise_a6ed751d")}` : ""}`} viewLabel={t("view")} editorOnly disabled={!canEdit} />;
 
   // Access checks run before mounting a controller or exposing any mutation.
@@ -150,7 +153,7 @@ export default function DashboardChannelWorkspace(props: Props) {
     case "site_web":
       connection = {
         accountConnected: site.hasSiteWebUrl, resourceLabel: site.siteWebSavedUrl,
-        resourceContent: <SiteWebBubbleControls site={site} onDirtyChange={setDirty} />,
+        resourceContent: <SiteWebBubbleControls site={site} onDirtyChange={setDirty} onError={onActionError} />,
         busy: site.siteWebUrlBusy,
         error: site.siteWebSettingsError,
         notice: site.siteWebUrlNotice || site.siteWebGa4Notice || site.siteWebGscNotice,
@@ -162,7 +165,7 @@ export default function DashboardChannelWorkspace(props: Props) {
         accountConnected: props.inrBadgeSettingsProps.profileReady,
         resourceLabel: props.inrBadgeSettingsProps.profile?.companyLegalName || item.name,
         resourceContent: <InrBadgeQrButton publicUrl={props.inrBadgeSettingsProps.publicUrl} companyName={props.inrBadgeSettingsProps.profile?.companyLegalName || item.name} />,
-        extraActions: <><InrBadgeDownloadButton publicUrl={props.inrBadgeSettingsProps.publicUrl} profile={props.inrBadgeSettingsProps.profile} /><InrBadgeCopyButton publicUrl={props.inrBadgeSettingsProps.publicUrl} /></>,
+        extraActions: <><InrBadgeDownloadButton publicUrl={props.inrBadgeSettingsProps.publicUrl} profile={props.inrBadgeSettingsProps.profile} /><InrBadgeCopyButton publicUrl={props.inrBadgeSettingsProps.publicUrl} onNotice={onActionNotice} onError={onActionError} /></>,
         parameters: <InrBadgeSettingsContent {...props.inrBadgeSettingsProps} />,
         parametersFullScreen: true,
       }; break;

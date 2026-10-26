@@ -5,6 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import { asSchema, jsonSchema, tool } from "ai";
 import { currentSubscriptionOffer } from "../../lib/subscriptionOffers.ts";
+import * as editionPolicy from "../../lib/dashboardEdition.ts";
 import { VISIBILITY_INDEX_MODEL } from "../../lib/inrstats/visibilityIndexModel.ts";
 import type * as Workspace from "../../lib/inrAssistantWorkspaceTools.ts";
 
@@ -16,7 +17,7 @@ const now = Date.now();
 const recent = new Date(now - 3_600_000).toISOString();
 const next = new Date(now + 3_600_000).toISOString();
 
-function harness(options: { edition?: "standard" | "premium" | "founder"; overrides?: Record<string, Row[]>; errors?: string[]; scope?: string; blockedTables?: string[];
+function harness(options: { edition?: "basic" | "standard" | "premium" | "founder"; overrides?: Record<string, Row[]>; errors?: string[]; scope?: string; blockedTables?: string[];
   clock?: { schedule: (callback: () => void, delay: number) => unknown; cancel: (timer: unknown) => void } } = {}) {
   const queries: Query[] = [];
   const tables: Record<string, Row[]> = {
@@ -59,7 +60,7 @@ function harness(options: { edition?: "standard" | "premium" | "founder"; overri
     };
     return builder;
   } };
-  const dependencies: Record<string, unknown> = { "server-only": {}, ai: { jsonSchema, tool }, "./subscriptionOffers.ts": { currentSubscriptionOffer }, "./inrstats/visibilityIndexModel.ts": { VISIBILITY_INDEX_MODEL } };
+  const dependencies: Record<string, unknown> = { "server-only": {}, ai: { jsonSchema, tool }, "./dashboardEdition.ts": editionPolicy, "./subscriptionOffers.ts": { currentSubscriptionOffer }, "./inrstats/visibilityIndexModel.ts": { VISIBILITY_INDEX_MODEL } };
   const compiled = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantWorkspaceTools.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const mod = { exports: {} };
   vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, { Date, setTimeout: options.clock?.schedule ?? setTimeout, clearTimeout: options.clock?.cancel ?? clearTimeout,
@@ -99,6 +100,18 @@ test("edition gates prevent private reads without forcing subscription changes o
   assert.equal((agents.data as Row).globalEnabled, false, "Individually enabled agents must not imply global automation is running");
   assert.deepEqual(JSON.parse(JSON.stringify(((agents.data as Row).items as Row[]).map(row => row.automation))), ["publish", "stats"]);
   for (const section of ["stats", "subscription", "reputation"]) assert.equal((await h.execute(section)).access, "allowed");
+});
+
+test("Basique workspace support cannot read agent or Premium data, including records left from an older paid plan", async () => {
+  const h = harness({ edition: "basic" });
+  for (const section of ["agents", "crm", "calendar", "campaigns", "mail"]) {
+    const result = await h.execute(section);
+    assert.equal(result.access, "not_included");
+    assert.equal(h.queries.length, 0);
+    if (section === "agents") assert.match(String(result.message), /Standard ou Premium/);
+  }
+  for (const section of ["stats", "subscription", "reputation"]) assert.equal((await h.execute(section)).access, "allowed");
+  assert.ok(h.queries.every(query => query.filters.some(([kind, key, value]) => kind === "eq" && key === "user_id" && value === a)));
 });
 
 test("precise aggregates ignore foreign accounts, old messages and non-mail billing documents", async () => {

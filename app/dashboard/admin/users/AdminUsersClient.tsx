@@ -429,10 +429,11 @@ export default function AdminUsersClient() {
                               disabled={isSaving || !subscription}
                               onChange={(event) => patchUser(user.user_id, { plan: event.target.value }, "Plan iNrCy mis à jour.")}
                             >
-                              {subscription?.plan && !["Trial", "Standard", "Premium", "Founder"].includes(subscription.plan) ? (
+                              {subscription?.plan && !["Trial", "Basic", "Standard", "Premium", "Founder"].includes(subscription.plan) ? (
                                 <option value={subscription.plan}>{subscription.plan} · ancien plan</option>
                               ) : null}
                               <option value="Trial">Trial</option>
+                              <option value="Basic">Basique</option>
                               <option value="Standard">Standard</option>
                               <option value="Premium">Premium</option>
                               <option value="Founder">Accès test · droits complets</option>
