@@ -85,6 +85,24 @@ test("actual failures and thrown exceptions stay failures without leaking error 
   assert.doesNotMatch(JSON.stringify(rows), /PRIVATE_URL_AND_TOKEN/);
 });
 
+test("mail collaboration tracks real draft updates and distinguishes a queue from delivery", async () => {
+  for (const [name, input, output, expected] of [
+    ["readCommunicationRecords", { section: "drafts" }, { ok: true, status: "read" }, "Campagnes mails enregistrées consultées"],
+    ["updateCampaignDraft", {}, { ok: true, status: "updated" }, "Brouillon de campagne mail mis à jour"],
+    ["dispatchCampaignDraft", { mode: "send" }, { ok: true, status: "queued" }, "Campagne mail mise en file"],
+    ["dispatchCampaignDraft", { mode: "schedule" }, { ok: true, status: "scheduled" }, "Campagne mail programmée"],
+  ] as const) {
+    const rows: InrAssistantActivity[] = [];
+    await wrap(name, async () => output, rows)(input);
+    assert.equal(rows[0].agent, "emailing"); assert.equal(rows[1].label, expected);
+    assert.equal(rows[1].status, "completed");
+    assert.doesNotMatch(rows[1].label, /livré|destinataires contactés/i);
+  }
+  const rows: InrAssistantActivity[] = [];
+  await wrap("readCommunicationRecords", async () => ({ ok: true, status: "read" }), rows)({ section: "calendar" });
+  assert.equal(rows.length, 0, "Reading the agenda must not invent an Emailings collaboration");
+});
+
 test("Stats activity requires a real statistics tool invocation and respects its data availability", async () => {
   const rows: InrAssistantActivity[] = [];
   await wrap("readStatsSnapshots", async () => ({ ok: true, snapshots: [], liveVerified: false }), rows)();

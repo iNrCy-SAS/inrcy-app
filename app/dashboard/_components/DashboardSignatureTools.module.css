@@ -690,7 +690,6 @@
   .mailArtwork { left: 70%; right: auto; top: 76px; bottom: auto; width: min(120px, 42%); height: 30px; transform: translate(-50%, -50%); opacity: .6; }
 }
 @media (max-width: 700px) {
-  .pilotArtwork { flex-basis: 38px; width: 38px; height: 28px; opacity: .5; }
   .mailArtwork { display: none; }
 }
 
@@ -728,6 +727,8 @@
   .creationGrid .signatureCard .cardActions,
   .signatureGrid > .signatureCard:not(.statsCard) .cardActions,
   .signatureGrid > .signatureCard:last-child .cardActions { grid-column: 1 / -1; grid-row: 2; margin-top: 0; padding-top: 16px; }
+  /* The artwork grows inside the existing 40px action row, without moving its CTA. */
+  .pilotArtwork { flex-basis: 84px; width: 84px; height: 40px; transform: scale(1.2); transform-origin: left center; opacity: .8; }
   .creationGrid .signatureCard .manualToolActions { justify-content: flex-end; }
   .creationGrid .signatureCard .toolButton,
   .creationGrid .creationCard .cardButton { min-height: 40px; padding: 9px 15px; }

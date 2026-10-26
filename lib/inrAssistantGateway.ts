@@ -37,6 +37,10 @@ import { createInrAssistantInsightsTools } from "./inrAssistantInsightsTools.ts"
 import { createInrAssistantCtaTools } from "./inrAssistantCtaTools.ts";
 import { createInrAssistantDnaAnalysisTools } from "./inrAssistantDnaAnalysisTools.ts";
 import { withInrAssistantToolActivities, type InrAssistantActivityCallback } from "./inrAssistantActivity.ts";
+import { createInrAssistantCommercialTools } from "./inrAssistantCommercialTools.ts";
+import { createInrAssistantCommunicationTools } from "./inrAssistantCommunicationTools.ts";
+import { createInrAssistantAdvertisingTools } from "./inrAssistantAdvertisingTools.ts";
+import { createInrAssistantSettingsTools } from "./inrAssistantSettingsTools.ts";
 
 const supportTool = tool({
   description: "Préparer une proposition d’aide par un humain quand le pro la demande, qu’un accès administrateur est nécessaire ou qu’un blocage ne peut pas être résolu de façon fiable. Rien n’est envoyé : le pro doit vérifier le résumé et choisir de contacter l’équipe.",
@@ -118,6 +122,7 @@ export async function generateInrAssistantReply(args: {
   const publicationResults: InrAssistantPublicationResult[] = [];
   const actionFacts = new Map<string, { message: string; label?: string; href?: string }>();
   const observedActionNames = new Set(["updateBusinessDna", "updateAiConfiguration", "configureBusinessCta", "startBusinessDnaAnalysis", "configureAgentAutomation", "prepareSubscriptionAction", "preparePublication", "executePublication", "editPublication", "updateMediaMetadata", "prepareCampaignEmail", "prepareCalendarAppointment", "replyToGoogleReview"]);
+  for (const name of ["manageCrmContact", "prepareCommercialDocument", "updateCampaignDraft", "dispatchCampaignDraft", "updateCalendarAppointment", "prepareAdvertisingCampaign", "manageAdvertisingCampaign", "updateToolSettings"]) observedActionNames.add(name);
   const savedActionReply = () => [...actionFacts.values()].map(fact => `${fact.message}${fact.href ? `\n\n[${fact.label ?? "Ouvrir l’outil"}](${fact.href})` : ""}`).join("\n\n");
   const followupAfterMedia = families.has("publication") || families.has("business") && /\b(?:adn|dna|configuration|reglages)\b/i.test(latestRequest);
   const mediaTools = families.has("media") ? createInrAssistantMediaTools({
@@ -197,8 +202,65 @@ export async function generateInrAssistantReply(args: {
       ...(/(?:reputation|\bavis\b|review)/.test(topic) ? { readGoogleReviews: available.readGoogleReviews, replyToGoogleReview: available.replyToGoogleReview } : {}),
     };
   })();
-  const tools = withInrAssistantToolActivities({ proposeHumanSupport: supportTool, readAppGuide: createInrAssistantAppGuideTool(), ...mediaTools, ...accountTools, ...diagnosticTools,
-    ...workspaceTools, ...memoryTools, ...businessTools, ...ctaTools, ...dnaAnalysisTools, ...managementTools, ...publicationTools, ...workspaceActionTools, ...insightsTools },
+  const commercialTools = (() => {
+    if (!args.supabase || !families.has("commercial")) return {};
+    const available = createInrAssistantCommercialTools({ request: args.request, accountId: args.accountId, supabase: args.supabase,
+      edition: args.edition, currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
+      canStartWork: () => deadline - Date.now() > 15_000 });
+    return {
+      ...(/(?:ajout|cre|modifi|corrig|chang|supprim|effac|update|delete).{0,60}(?:contact|client|prospect)|(?:contact|client|prospect).{0,60}(?:ajout|cre|modifi|corrig|chang|supprim|effac|update|delete)/.test(topic) ? { manageCrmContact: available.manageCrmContact } : {}),
+      ...(/(?:devis|facture|document commercial|encaisser)/.test(topic) && !/(?:facture.{0,20}abonnement|facture.{0,20}stripe)/.test(topic) ? { prepareCommercialDocument: available.prepareCommercialDocument } : {}),
+    };
+  })();
+  const communicationTools = (() => {
+    if (!args.supabase || !families.has("workspace")) return {};
+    const available = createInrAssistantCommunicationTools({ request: args.request, accountId: args.accountId, actorUserId: args.actorUserId,
+      supabase: args.supabase, edition: args.edition, currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
+      canStartWork: () => deadline - Date.now() > 15_000 });
+    const mail = /(?:campagne|email|e-mail|\bmail|newsletter|courriel|fidelis|propuls)/.test(topic);
+    const calendar = /(?:agenda|calendar|rendez.vous|\brdv\b)/.test(topic);
+    return {
+      ...((mail || calendar) && /(?:retrouv|recherch|consulte|lis\b|lire|liste|voir|verifi|dernier|existant|modifi|corrig|chang|deplac|envo|programm)/.test(topic) ? { readCommunicationRecords: available.readCommunicationRecords } : {}),
+      ...(mail && /(?:modifi|corrig|chang|brouillon|draft)/.test(topic) ? { updateCampaignDraft: available.updateCampaignDraft } : {}),
+      ...(mail && /(?:envo|expedi|programm|schedule|send)/.test(topic) && !families.has("advertising") ? { dispatchCampaignDraft: available.dispatchCampaignDraft } : {}),
+      ...(calendar && /(?:modifi|corrig|chang|deplac|report|update)/.test(topic) ? { updateCalendarAppointment: available.updateCalendarAppointment } : {}),
+    };
+  })();
+  const advertisingTools = (() => {
+    if (!families.has("advertising")) return {};
+    const available = createInrAssistantAdvertisingTools({ request: args.request, accountId: args.accountId, edition: args.edition,
+      currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
+      canStartWork: () => deadline - Date.now() > 15_000 });
+    return {
+      readAdvertisingCampaigns: available.readAdvertisingCampaigns,
+      ...(/(?:cre|prepar|brouillon|draft)/.test(topic) ? { prepareAdvertisingCampaign: available.prepareAdvertisingCampaign } : {}),
+      ...(/(?:pause|arret|suspend|repren|repri|reactiv|modifi|corrig|chang|budget|supprim|effac|update)/.test(topic) ? { manageAdvertisingCampaign: available.manageAdvertisingCampaign } : {}),
+    };
+  })();
+  const settingsTools = families.has("settings") ? createInrAssistantSettingsTools({ request: args.request, accountId: args.accountId,
+    edition: args.edition, currentUserMessage: latestRequest, canStartWork: () => deadline - Date.now() > 15_000 }) : {};
+  const operationGuidance = [
+    Object.keys(commercialTools).length ? "CRM : retrouve les IDs avec searchCrmContacts ; manageCrmContact ne change que la fiche demandée. prepareCommercialDocument enregistre seulement un brouillon : quantité, prix HT et TVA explicites, renseignements manquants signalés, jamais de numéro officiel, finalisation ou envoi. Documents commerciaux distincts des factures d’abonnement." : "",
+    Object.keys(communicationTools).length ? "readCommunicationRecords retrouve les éléments actuels ; updateCampaignDraft corrige le brouillon. dispatchCampaignDraft exige les destinataires littéraux du dernier ordre ; programmation = date/heure/fuseau explicites. queued ne prouve pas livraison. updateCalendarAppointment modifie un rendez-vous encore brouillon ; rendez-vous confirmé et validation nécessaire restent dans l’outil natif. Préparer n’autorise pas envoyer." : "",
+    Object.keys(advertisingTools).length ? "ADS : vérifie les campagnes/prérequis avec readAdvertisingCampaigns. prepareAdvertisingCampaign prépare un brouillon avec budget/date explicitement demandés. manageAdvertisingCampaign respecte les actions disponibles et validations natives ; un brouillon ou un lien ne lance jamais une campagne facturée." : "",
+    Object.keys(settingsTools).length ? "Réglages : readToolSettings puis updateToolSettings changent seulement les valeurs demandées et relisent le résultat. Présente les résultats partiels/inconnus comme tels ; ne devine aucune déclaration légale ni identité." : "",
+  ].filter(Boolean).join("\n");
+  system += operationGuidance ? `\n${operationGuidance}` : "";
+  // Native settings endpoints merge the active account's existing configuration.
+  // Serialize writes in one turn so parallel model tool calls cannot overwrite
+  // a sibling tool's freshly saved fields. Read-only tools remain concurrent.
+  let mutationTail: Promise<unknown> = Promise.resolve();
+  const serializeMutations = <T extends Record<string, unknown>>(available: T): T => Object.fromEntries(Object.entries(available).map(([name, definition]) => {
+    if (!observedActionNames.has(name) || !definition || typeof definition !== "object" || !("execute" in definition) || typeof definition.execute !== "function") return [name, definition];
+    const execute = definition.execute;
+    return [name, { ...definition, execute: (...input: unknown[]) => {
+      const next = mutationTail.then(() => Reflect.apply(execute, definition, input));
+      mutationTail = next.catch(() => undefined); return next;
+    } }];
+  })) as T;
+  const tools = withInrAssistantToolActivities(serializeMutations({ proposeHumanSupport: supportTool, readAppGuide: createInrAssistantAppGuideTool(), ...mediaTools, ...accountTools, ...diagnosticTools,
+    ...workspaceTools, ...memoryTools, ...businessTools, ...ctaTools, ...dnaAnalysisTools, ...managementTools, ...publicationTools, ...workspaceActionTools, ...insightsTools,
+    ...commercialTools, ...communicationTools, ...advertisingTools, ...settingsTools }),
   { requestId: args.requestId, onActivity: args.onActivity });
   const schemas = await Promise.all(Object.entries(tools).map(async ([name, definition]) => ({
     type: "function", name, description: definition.description,
@@ -210,12 +272,12 @@ export async function generateInrAssistantReply(args: {
   if (bytes({ system, messages }) + schemaBytes > 31_000) {
     // Rich actions already have typed tools to read full business facts. Drop
     // duplicated eager context before dropping recent conversation or safety rules.
-    system = buildInrAssistantSystemPrompt(args.displayName, undefined, getInrAssistantAppKnowledge(latestRequest, 1_200), args.edition, args.clientContext);
+    system = buildInrAssistantSystemPrompt(args.displayName, undefined, getInrAssistantAppKnowledge(latestRequest, 1_200), args.edition, args.clientContext) + (operationGuidance ? `\n${operationGuidance}` : "");
   }
   if (bytes({ system, messages }) + schemaBytes > 31_000) {
     // Compound requests can need many real action schemas. The guide remains
     // available as a tool; remove only its duplicated eager prose, not rights.
-    system = buildInrAssistantSystemPrompt(args.displayName, undefined, undefined, args.edition, args.clientContext);
+    system = buildInrAssistantSystemPrompt(args.displayName, undefined, undefined, args.edition, args.clientContext) + (operationGuidance ? `\n${operationGuidance}` : "");
   }
   while (messages.length > 1 && bytes({ system, messages }) + schemaBytes > 31_000) messages.shift();
   if (bytes({ system, messages }) + schemaBytes > 31_000) {

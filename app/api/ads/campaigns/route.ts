@@ -70,6 +70,35 @@ export async function POST(request: Request) {
   if (limited) return limited;
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+  // Optional for assistant retries. A primary-key insert, never an upsert,
+  // prevents simultaneous requests from creating or overwriting two drafts.
+  const idempotencyKey = request.headers.get("Idempotency-Key");
+  if (idempotencyKey !== null && (!/^[A-Za-z0-9_-]{16,128}$/.test(idempotencyKey) || body?.id != null)) {
+    return NextResponse.json({ error: "Clé de création de brouillon invalide." }, { status: 400 });
+  }
+  let deterministicId: string | null = null;
+  if (idempotencyKey) {
+    const { createHash } = await import("node:crypto");
+    const bytes = createHash("sha256").update(`inrcy:ads-draft:v1:${user.activeUserId}:${idempotencyKey}`).digest().subarray(0, 16);
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    const hex = bytes.toString("hex");
+    deterministicId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+  const replay = async () => {
+    try {
+      const { data, error } = await supabaseAdmin.from("ads_campaigns").select("id,provider,status")
+        .eq("id", deterministicId!).eq("user_id", user.activeUserId).maybeSingle();
+      if (error) return { response: NextResponse.json({ error: "Impossible de vérifier la création précédente." }, { status: 503 }) };
+      if (!data) return { response: null };
+      if (!isAdsChannelId(data.provider) || !(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, data.provider))) return { response: adsPilotOnlyResponse() };
+      return { response: NextResponse.json({ campaign: { id: data.id, status: data.status }, replayed: true }) };
+    } catch { return { response: NextResponse.json({ error: "Impossible de vérifier la création précédente." }, { status: 503 }) }; }
+  };
+  if (deterministicId) {
+    const previous = await replay();
+    if (previous.response) return previous.response;
+  }
   const { draft, error: validationError } = parseAdsCampaignInput(body, { purpose: "draft" });
   if (!draft) return NextResponse.json({ error: validationError }, { status: 400 });
   if (!(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, draft.provider))) return adsPilotOnlyResponse();
@@ -132,10 +161,14 @@ export async function POST(request: Request) {
       if (!savedId) return NextResponse.json({ error: "Ce brouillon a changé entre-temps. Actualisez le suivi." }, { status: 409 });
       return NextResponse.json({ campaign: { id: savedId, status: "draft" } });
     }
-    const saved = await supabaseAdmin.from("ads_campaigns").insert(payload).select("id,status").single();
-    if (saved.error || !saved.data) return NextResponse.json({ error: "Le brouillon n’a pas pu être enregistré." }, { status: 503 });
+    const saved = await supabaseAdmin.from("ads_campaigns").insert(deterministicId ? { ...payload, id: deterministicId } : payload).select("id,status").single();
+    if (saved.error || !saved.data) {
+      if (deterministicId) { const previous = await replay(); if (previous.response) return previous.response; }
+      return NextResponse.json({ error: "Le brouillon n’a pas pu être enregistré." }, { status: 503 });
+    }
     return NextResponse.json({ campaign: saved.data });
   } catch (error) {
+    if (deterministicId) { const previous = await replay(); if (previous.response) return previous.response; }
     return NextResponse.json({ error: error instanceof Error ? error.message : "Connexion publicitaire indisponible." }, { status: 502 });
   }
 }

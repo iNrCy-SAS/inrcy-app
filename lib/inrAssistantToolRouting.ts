@@ -1,4 +1,4 @@
-export type InrAssistantToolFamily = "media" | "publication" | "business" | "management" | "workspace";
+export type InrAssistantToolFamily = "media" | "publication" | "business" | "management" | "workspace" | "commercial" | "advertising" | "settings";
 
 /** This only limits schema cost. It never grants a right or authorizes an action. */
 export function selectInrAssistantToolFamilies(latest: string, recentUserMessages: string[] = []): Set<InrAssistantToolFamily> {
@@ -11,5 +11,8 @@ export function selectInrAssistantToolFamilies(latest: string, recentUserMessage
     /\b(?:complete|remplis|modifie|ajoute|change|mets).{0,60}\b(?:entreprise|business|services|prestations|ton|tone|style)\b/.test(text)) families.add("business");
   if (/\b(?:abonnement|abonner|souscrire|souscription|resilier|resiliation|facturation|standard|premium|founder|stripe|agents?|automatisation|planning|rapport|bilan|active|desactive)\b|订阅|สมัคร/.test(text)) families.add("management");
   if (/\b(?:crm|clients?|prospects?|contacts?|agenda|rendez.vous|rdv|calendar|campagnes?|email|emails?|mail|mails|newsletter|courriel|fidelis|propuls|reputation|avis|mediatheque|tags?)\b|评论|邮件|客户|อีเมล/.test(text)) families.add("workspace");
+  if (/\b(?:crm|devis|factures?|encaisser|clients?|prospects?|contacts?)\b/.test(text)) families.add("commercial");
+  if (/\bads\b|publicit|publicitair|annonceur|campagne sponsoris/.test(text)) families.add("advertising");
+  if (/notification|inr.?badge|qr.code|\bpreferences\b|(?:reglag|parametr|configur|criteres?|defaut).{0,65}(?:studio|generateur|calendar|agenda|devis|facture|tiktok)|(?:studio|generateur|calendar|agenda|devis|facture|tiktok).{0,65}(?:reglag|parametr|configur|criteres?|defaut)/.test(text)) families.add("settings");
   return families;
 }

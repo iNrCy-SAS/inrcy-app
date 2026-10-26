@@ -30,6 +30,9 @@ import {
  */
 
 type CreateEventBody = {
+  // Assistant edits must remain drafts even if another tab confirms the event.
+  // Ordinary agenda callers keep the existing update/confirmation behavior.
+  requireDraft?: boolean;
   summary?: string;
   description?: string;
   location?: string;
@@ -936,6 +939,9 @@ async function updateCalendarEventHandler(req: Request) {
 
   if (currentError) return jsonUserFacingError(currentError, { status: 500, extra: { ok: false } });
   if (!current) return bad("Rendez-vous introuvable", 404);
+  if (body.requireDraft === true && !isDraftAgendaEvent(current.meta)) {
+    return bad("Ce rendez-vous n’est plus en brouillon. Vérifiez sa modification dans l’agenda.", 409);
+  }
   if (isGoogleSyncedAgendaEvent(current.meta)) {
     return bad(
       "Ce rendez-vous est synchronisé depuis Google Agenda. Modifiez-le dans Google Agenda.",
@@ -1008,9 +1014,17 @@ async function updateCalendarEventHandler(req: Request) {
     meta: nextMeta,
   };
 
-  const { error } = await supabase.from("agenda_events").update(patch).eq("id", id).eq("user_id", activeUserId);
-
-  if (error) return jsonUserFacingError(error, { status: 500, extra: { ok: false } });
+  const update = supabase.from("agenda_events").update(patch).eq("id", id).eq("user_id", activeUserId);
+  if (body.requireDraft === true) {
+    // Compare the status in the same SQL UPDATE, not only in the read above.
+    // A concurrent confirmation must never be overwritten or trigger mail.
+    const { data, error } = await update.eq("meta->>status", "draft").select("id").maybeSingle();
+    if (error) return jsonUserFacingError(error, { status: 500, extra: { ok: false } });
+    if (!data?.id) return bad("Ce rendez-vous n’est plus en brouillon. Vérifiez sa modification dans l’agenda.", 409);
+  } else {
+    const { error } = await update;
+    if (error) return jsonUserFacingError(error, { status: 500, extra: { ok: false } });
+  }
   if (!isDraftAgendaEvent(nextMeta)) {
     await createAgendaConfirmationNotification(activeUserId, String(nextTitle), startAt, safeObj(nextMeta.reminders).enabled !== false).catch(() => null);
     if (eventChanged) {

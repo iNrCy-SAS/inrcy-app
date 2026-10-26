@@ -55,6 +55,10 @@ function harness(options: { guideFollowup?: boolean; dnaFollowup?: boolean; dnaL
     "./channelPublicUrl.ts": { normalizeChannelPublicUrl: untouched },
     "./metaChannelRolloutServer": { isMetaChannelPilotEnabledForActorAndAccount: untouched },
     "@/lib/accountSubscriptionAccess": { getActiveSubscriptionAccountIds: untouched },
+    "@/lib/dashboardEditionServer": { getDashboardEditionForAccountId: untouched },
+    "./adsValidation.ts": { parseAdsCampaignInput: untouched },
+    "./adsCampaignMetrics.ts": { isAdsCampaignMetrics: untouched },
+    "./adsCampaignLifecycle.ts": { parseAdsCampaignLifecycleRequest: untouched },
   };
   const ai = {
     ...sdk,
@@ -111,7 +115,7 @@ function harness(options: { guideFollowup?: boolean; dnaFollowup?: boolean; dnaL
         if (/^\.\.\/messages\/fr-FR\/[a-zA-Z-]+\.json$/.test(id)) return { default: JSON.parse(readFileSync(resolve(dirname(path), id), "utf8")) };
         const target = resolve(dirname(path), id.endsWith(".ts") ? id : `${id}.ts`);
         const name = basename(target);
-        assert.ok(/^inrAssistant[A-Za-z.]+\.ts$/.test(name) || ["inrAgentSettings.ts", "inrAgentMonthSchedule.ts", "siteWebChannel.ts", "subscriptionOffers.ts", "boosterPublicationPolicy.ts", "boosterChannelRules.ts", "boosterPublicationOutcome.ts", "aiContentLength.ts", "aiInstructionSections.ts", "dashboard.channel-setup.ts", "aiChannelCtaPreferences.ts", "boosterWhatsappCta.ts"].includes(name), `Unexpected dependency ${id}`);
+        assert.ok(/^inrAssistant[A-Za-z.]+\.ts$/.test(name) || ["commercialDocumentDraft.ts", "inrAgentSettings.ts", "inrAgentMonthSchedule.ts", "siteWebChannel.ts", "subscriptionOffers.ts", "boosterPublicationPolicy.ts", "boosterChannelRules.ts", "boosterPublicationOutcome.ts", "aiContentLength.ts", "aiInstructionSections.ts", "dashboard.channel-setup.ts", "aiChannelCtaPreferences.ts", "boosterWhatsappCta.ts"].includes(name), `Unexpected dependency ${id}`);
         return load(target);
       }
       assert.fail(`Unexpected schema dependency ${id}`);
@@ -174,6 +178,12 @@ function harness(options: { guideFollowup?: boolean; dnaFollowup?: boolean; dnaL
 
 const scenarios = [
   { name: "routine", prompt: "Que dois-je faire maintenant pour commencer dans mon compte ?", required: ["readWorkspaceSection"] },
+  { name: "crm-write", prompt: "Ajoute un contact CRM : Claire, claire@example.invalid, téléphone 0102030405.", required: ["manageCrmContact", "searchCrmContacts"] },
+  { name: "commercial-draft", prompt: "Prépare un devis de rénovation pour mon client avec une ligne à 300 euros HT et TVA 20 %.", required: ["prepareCommercialDocument"] },
+  { name: "campaign-dispatch", prompt: "Retrouve mon brouillon de campagne mail puis envoie-le à claire@example.invalid.", required: ["readCommunicationRecords", "dispatchCampaignDraft"] },
+  { name: "calendar-edit", prompt: "Déplace le rendez-vous de demain dans mon agenda à 15h00.", required: ["readCommunicationRecords", "updateCalendarAppointment"] },
+  { name: "studio-settings", prompt: "Modifie les réglages par défaut du Studio : format portrait et couleurs de marque.", required: ["readToolSettings", "updateToolSettings"] },
+  { name: "ads-draft", prompt: "Prépare un brouillon ADS sur Google avec un budget de 20 euros par jour jusqu’au 2026-12-01.", required: ["readAdvertisingCampaigns", "prepareAdvertisingCampaign"] },
   { name: "business-dna", prompt: "Complète l’ADN de mon entreprise et règle son ton chaleureux avec les services de rénovation de toiture.", required: ["updateBusinessDna", "updateAiConfiguration"] },
   { name: "cta-phone", prompt: "Mets mon numéro professionnel comme CTA dans toutes mes publications.", required: ["configureBusinessCta"] },
   { name: "cta-website", prompt: "Configure les appels à l’action vers mon site dans tous les canaux.", required: ["configureBusinessCta"] },

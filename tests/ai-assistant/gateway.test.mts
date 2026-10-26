@@ -85,6 +85,10 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantCtaTools.ts": { createInrAssistantCtaTools: () => ({}) },
     "./inrAssistantDnaAnalysisTools.ts": { createInrAssistantDnaAnalysisTools: () => ({}) },
     "./inrAssistantManagementTools.ts": { createInrAssistantManagementTools: () => ({}) },
+    "./inrAssistantCommercialTools.ts": { createInrAssistantCommercialTools: () => ({}) },
+    "./inrAssistantCommunicationTools.ts": { createInrAssistantCommunicationTools: () => ({}) },
+    "./inrAssistantAdvertisingTools.ts": { createInrAssistantAdvertisingTools: () => ({}) },
+    "./inrAssistantSettingsTools.ts": { createInrAssistantSettingsTools: () => ({}) },
     "./inrAssistantPublicationTools.ts": { createInrAssistantPublicationTools: (args: { onResult?: (result: InrAssistantPublicationResult) => void }) => Object.fromEntries(["preparePublication", "executePublication"].map(name => [name,
       tool({ inputSchema: jsonSchema({ type: "object", properties: { draftId: { type: "string" }, mode: { type: "string" } }, required: ["draftId", "mode"] }), execute: async () => {
         publicationExecutions.push(name);

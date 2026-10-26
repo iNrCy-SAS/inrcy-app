@@ -40,7 +40,7 @@ const TOOL_ROUTES: Readonly<Record<string, string>> = {
 const PANEL_NAMES: Readonly<Record<string, string>> = {
   compte: "Mon compte", abonnement: "Mon abonnement", factures: "Factures d’abonnement",
   parrainage: "Parrainage", preferences: "Préférences", legal: "Infos légales", rgpd: "Données RGPD",
-  boutique: "Boutique", inertie: "Mon inertie", contact: "Nous contacter", documents: "Documents",
+  boutique: "Boutique", inertie: "Mon inertie", contact: "Nous contacter", documents: "Documents", notifications: "Notifications",
   profil: "ADN de l’entreprise", activite: "ADN de l’entreprise", ai_memory: "ADN de l’entreprise",
   ia: "Configuration IA", agenda: "iNr’Calendar", mails: "Messagerie",
   site_web: "Site web", site_inrcy: "Site web", gmb: "Google Business", facebook: "Facebook",

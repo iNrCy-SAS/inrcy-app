@@ -3,6 +3,7 @@ import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
 import { withApi } from "@/lib/observability/withApi";
+import { commercialIdempotencyKey, commercialMutationId } from "@/lib/commercialMutationIdempotency";
 
 type Category = "particulier" | "professionnel" | "collectivite_publique";
 type ContactType = "client" | "prospect" | "fournisseur" | "partenaire" | "autre";
@@ -482,10 +483,15 @@ async function createContactHandler(req: Request) {
 
   const activeUserId = await resolveActiveInrcyAccountId(supabase, userData.user.id);
 
+  let idempotencyKey: string | null;
+  try { idempotencyKey = commercialIdempotencyKey(req); }
+  catch { return NextResponse.json({ error: "Clé de sauvegarde invalide." }, { status: 400 }); }
+
   const body = await req.json().catch(() => ({}));
 
   // ✅ Bulk import: POST { contacts: [...] }
   if (Array.isArray(body?.contacts)) {
+    if (idempotencyKey) return NextResponse.json({ error: "Cette clé concerne une seule fiche contact." }, { status: 400 });
     const { payloads, stats } = await prepareBulkImportPayloads(supabase, activeUserId, body.contacts, {
       includeNotes: true,
       includeImportant: true,
@@ -535,8 +541,23 @@ async function createContactHandler(req: Request) {
     );
   }
 
+  const stableId = idempotencyKey ? commercialMutationId(activeUserId, idempotencyKey, "contact") : null;
+  const recoverContact = async () => {
+    const read = await supabase.from("crm_contacts").select(CONTACT_SELECT).eq("user_id", activeUserId).eq("id", stableId!).maybeSingle();
+    if (read.error) return { response: jsonUserFacingError(read.error, { status: 500 }), found: false };
+    if (!read.data) return { response: null, found: false };
+    const saved = read.data as unknown as Record<string, unknown>;
+    const same = Object.entries(payload).every(([field, value]) => typeof value === "boolean" ? saved[field] === value : cleanString(saved[field]) === value);
+    return { found: true, response: same
+      ? NextResponse.json({ ok: true, id: stableId, idempotent: true })
+      : NextResponse.json({ error: "Cette demande a déjà enregistré une fiche différente. Vérifiez le CRM avant une nouvelle demande." }, { status: 409 }) };
+  };
+  if (stableId) {
+    const recovered = await recoverContact();
+    if (recovered.response) return recovered.response;
+  }
   const insertContact = () =>
-    supabase.from("crm_contacts").insert(payload).select("id").single();
+    supabase.from("crm_contacts").insert(stableId ? { ...payload, id: stableId } : payload).select("id").single();
 
   let result = await insertContact();
   if (isTransientPostgresTimeout(result.error)) {
@@ -549,6 +570,10 @@ async function createContactHandler(req: Request) {
   }
 
   if (result.error) {
+    if (stableId) {
+      const recovered = await recoverContact();
+      if (recovered.response) return recovered.response;
+    }
     return jsonUserFacingError(result.error, { status: 500 });
   }
 

@@ -39,6 +39,9 @@ function targetFor(name: string, input: unknown): Target | null {
     case "readStatsSnapshots": return { agent: "stats", label: "Lecture des statistiques enregistrées" };
     case "readWorkspaceSection": return data.section === "stats" ? { agent: "stats", label: "Lecture des statistiques enregistrées" } : null;
     case "prepareCampaignEmail": return { agent: "emailing", label: "Préparation du brouillon de campagne mail" };
+    case "updateCampaignDraft": return { agent: "emailing", label: "Correction du brouillon de campagne mail" };
+    case "dispatchCampaignDraft": return { agent: "emailing", label: data.mode === "schedule" ? "Programmation de la campagne mail" : "Transmission de la campagne mail" };
+    case "readCommunicationRecords": return data.section !== "calendar" ? { agent: "emailing", label: "Lecture des campagnes mails enregistrées" } : null;
     case "configureAgentAutomation": {
       const agent = data.agent === "publish" ? "publications" : data.agent === "stats" ? "stats" : data.agent === "grow" || data.agent === "loyalty" ? "emailing" : null;
       return agent ? { agent, label: "Enregistrement des réglages de l’agent" } : null;
@@ -63,6 +66,12 @@ function outcomeFor(name: string, result: unknown): Outcome {
   if (name === "prepareCampaignEmail") return status === "draft" || status === "already_processed"
     ? { status: "completed", label: status === "draft" ? "Brouillon de campagne mail enregistré" : "Campagne existante retrouvée" }
     : { status: "blocked", label: "L’état de la campagne reste à vérifier" };
+  if (name === "readCommunicationRecords") return status === "read" ? { status: "completed", label: "Campagnes mails enregistrées consultées" } : { status: "blocked", label: "La lecture des campagnes reste à vérifier" };
+  if (name === "updateCampaignDraft") return ["draft", "updated", "unchanged"].includes(status) ? { status: "completed", label: "Brouillon de campagne mail mis à jour" } : { status: "blocked", label: "Le brouillon reste à vérifier" };
+  if (name === "dispatchCampaignDraft") {
+    const labels: Record<string, string> = { queued: "Campagne mail mise en file", paused: "Campagne enregistrée en attente", scheduled: "Campagne mail programmée", already_processed: "État de la campagne existante retrouvé" };
+    return labels[status] ? { status: "completed", label: labels[status] } : { status: "blocked", label: "L’envoi reste à vérifier dans iNr’Send" };
+  }
   if (name === "configureAgentAutomation") return ["saved", "saved_with_adjustments", "already_configured", "previous_attempt_recorded"].includes(status)
     ? { status: "completed", label: status === "saved_with_adjustments" ? "Réglages de l’agent enregistrés avec ajustements" : status === "already_configured" || status === "previous_attempt_recorded" ? "Réglages de l’agent déjà enregistrés" : "Réglages de l’agent enregistrés" }
     : { status: "blocked", label: "Les réglages de l’agent restent à vérifier" };
