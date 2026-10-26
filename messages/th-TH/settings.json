@@ -835,5 +835,10 @@
   "media_credit_held": "{credits} เครดิตถูกระงับระหว่างตรวจสอบการชำระเงิน",
   "subscription_media_month_label": "เครดิตสำหรับสื่อ / เดือน",
   "subscription_studio_credit_gain": "+{count} เครดิตต่อเดือน",
-  "subscription_media_shared_hint": "ใช้สำหรับภาพและวิดีโอ ตามโมเดลที่เลือก"
+  "subscription_media_shared_hint": "ใช้สำหรับภาพและวิดีโอ ตามโมเดลที่เลือก",
+  "media_credit_pack_saving": "ประหยัด ≈ {percent}%",
+  "media_credit_pack_base": "ตามการใช้งาน",
+  "media_credit_pack_unit": "เครดิต",
+  "media_credit_pack_unit_price": "{price} {tax} / {credits} เครดิต",
+  "media_credit_pack_reference": "คำนวณส่วนลดจากราคาต่อเครดิตของแพ็ก {credits} เครดิต"
 }

@@ -139,7 +139,7 @@ function clientHarness({ platform = "web", catalogueOrders = [], settingsMessage
     fetch: async (url, init) => {
       calls.push({ url, init });
       if (init?.method === "POST") { actions.push(["post", url]); return environment.checkout(url, init); }
-      if (url === "/api/media-generation/quota") return response(environment.quota);
+      if (url === "/api/media-generation/quota") return environment.readQuota();
       if (/^\/api\/boutique\/(?:image|video)-credits\/orders\//.test(url)) return environment.readOrder(url, init);
       const packs = url === "/api/boutique/image-credits" ? modules.get("@/lib/boutique/imageCreditPacks").IMAGE_CREDIT_PACKS : modules.get("@/lib/boutique/videoCreditPacks").VIDEO_CREDIT_PACKS;
       assert.ok(["/api/boutique/image-credits", "/api/boutique/video-credits"].includes(url), `unexpected request: ${url}`);
@@ -147,6 +147,7 @@ function clientHarness({ platform = "web", catalogueOrders = [], settingsMessage
     },
     checkout: async () => response({ url: "https://checkout.stripe.com/c/pay/test" }),
     readOrder: async () => response({ order: { granted: false } }),
+    readQuota: async () => response(environment.quota),
     quota: { quota: { unlimited: false, creditsReady: true, credits: { unit: "credit", remaining: 700, includedRemaining: 500, purchasedRemaining: 200, purchasedDebt: 20, purchasedHeld: 30 }, image: { remaining: 17, includedRemaining: 10, purchasedRemaining: 7, purchasedDebt: 2, purchasedHeld: 3 }, video: { remaining: 96, includedRemaining: 46, purchasedRemaining: 50, purchasedDebt: 0, purchasedHeld: 0 } } },
   };
   const require = (name) => {
@@ -157,6 +158,7 @@ function clientHarness({ platform = "web", catalogueOrders = [], settingsMessage
     if (name === "next-intl") return { useLocale: () => "fr-FR", useTranslations: () => translate };
     if (name === "next/navigation") return { useSearchParams: () => searchParams };
     if (name === "next/link") return { __esModule: true, default: "a" };
+    if (name === "@/app/dashboard/_components/DashboardToolHeading") return { __esModule: true, default: "tool-heading" };
     if (name === "@/lib/clientSubscriptionBilling") return { detectClientBillingPlatform: () => platform };
     if (name === "@/lib/multicompte/constants") return { ACTIVE_INRCY_ACCOUNT_EVENT: "active-account" };
     if (name.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
@@ -185,6 +187,7 @@ function clientHarness({ platform = "web", catalogueOrders = [], settingsMessage
     },
     setSearchParams(value) { searchParams = new URLSearchParams(value); },
     focused: () => focusedId, dialog: dialogNode,
+    focus() { for (const listener of listeners.get("focus") ?? []) listener(); },
     changeAccount(next) { accountId = next; for (const listener of listeners.get("active-account") ?? []) listener(); },
   };
 }
@@ -203,9 +206,11 @@ test("four shared credit packs replace the image catalogue while legacy image hi
   assert.deepEqual(packs.map((node) => node.key), ["video_50", "video_100", "video_200", "video_500"]);
   for (const [index, credits] of [500,1000,2000,5000].entries()) {
     const label=h.find(packs[index],(node)=>node.type==="strong").props.children;
-    assert.equal(label,'media_credit_quantity '+JSON.stringify({credits}));
-    const price=h.find(packs[index],(node)=>node.type==="span").props.children;
-    assert.equal(price[0],new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR",maximumFractionDigits:0}).format([19,35,65,155][index]));
+    assert.equal(label,new Intl.NumberFormat("fr-FR").format(credits));
+    const price=h.find(packs[index],(node)=>node.props.className==="packPrice");
+    assert.equal(price.props.children[0].props.children,new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR",maximumFractionDigits:0}).format([19,35,65,155][index]));
+    const saving=h.find(packs[index],(node)=>node.props.className==="saving").props.children;
+    assert.equal(saving,index===0 ? "media_credit_pack_base" : "media_credit_pack_saving "+JSON.stringify({percent:[0,8,14,18][index]}));
   }
   assert.ok(JSON.stringify(owner.tree).includes("video_credit_disputed"), "shared history uses normalized heldCredits from an old image order");
   h.packButton(owner, "video_50").props.onClick(); await owner.flush();
@@ -265,22 +270,77 @@ test("images and videos read one credit allowance with purchased debt and disput
  assert.ok(!JSON.stringify(owner.tree).includes('image_credit_quantity'));owner.dispose();
 });
 
-test("the recharge dialog presents the same media catalogue from either kind and remains accessible", async () => {
+test("the recharge dialog loads its catalogue only when opened and remains accessible from either media kind", async () => {
  const h=clientHarness();assert.equal(h.components.VideoCreditRechargeButton,h.components.MediaCreditRechargeButton);
  const owner=h.render(h.components.MediaCreditRechargeButton,{mediaKind:"image"});
  const dialog=h.find(owner.tree,(node)=>node.type==="dialog");assert.ok(h.find(owner.tree,(node)=>node.props.id===dialog.props["aria-labelledby"]));
  assert.equal([...h.walk(owner.tree)].filter((node)=>node.props.role==="tab").length,0);
+ assert.equal(h.find(owner.tree,(node)=>typeof node.type==="function"&&node.props.mediaKind==="video"),undefined);
+ assert.equal(h.calls.length,0,"arriving on Studio must not fetch a hidden recharge catalogue");
+ const trigger=h.find(owner.tree,(node)=>node.type==="button"&&node.props["aria-haspopup"]==="dialog");trigger.props.onClick();await owner.flush();assert.equal(h.dialog.open,true);
  assert.ok(h.find(owner.tree,(node)=>typeof node.type==="function"&&node.props.mediaKind==="video"));
- const trigger=h.find(owner.tree,(node)=>node.type==="button"&&node.props["aria-haspopup"]==="dialog");trigger.props.onClick();await owner.flush();assert.equal(h.dialog.open,true);owner.dispose();
+ h.dialog.close();dialog.props.onClose();await owner.flush();
+ assert.equal(h.find(owner.tree,(node)=>typeof node.type==="function"&&node.props.mediaKind==="video"),undefined);
+ owner.dispose();
  const native=clientHarness({platform:"ios"}),nativeOwner=native.render(native.components.MediaCreditRechargeButton,{mediaKind:"image"});assert.equal(nativeOwner.tree,null);assert.equal(native.calls.length,0);nativeOwner.dispose();
 });
 
 test("the recharge dialog close action stays locked until the current checkout completes", async () => {
  const h=clientHarness(),modal=h.render(h.components.MediaCreditRechargeButton,{mediaKind:"video"});
+ h.find(modal.tree,(node)=>node.type==="button"&&node.props["aria-haspopup"]==="dialog").props.onClick();await modal.flush();
  const panelElement=h.find(modal.tree,(node)=>typeof node.type==="function"&&node.props.mediaKind==="video"),panel=h.render(panelElement.type,panelElement.props);await panel.flush();
  const checkout=deferred();h.environment.checkout=()=>checkout.promise;h.packButton(panel,"video_50").props.onClick();await panel.flush();await modal.flush();
  const close=()=>h.find(modal.tree,(node)=>node.type==="button"&&node.props["aria-label"]==="video_credit_close");assert.equal(close().props.disabled,true);
+ let cancelled=false;h.find(modal.tree,(node)=>node.type==="dialog").props.onCancel({preventDefault(){cancelled=true;}});assert.equal(cancelled,true,"Escape cannot discard an in-flight checkout request");
  checkout.resolve({ok:true,json:async()=>({url:"https://checkout.stripe.com/c/pay/test"})});await panel.flush();await modal.flush();assert.equal(close().props.disabled,false);assert.equal(h.paymentTabs[0].closed,false);assert.equal(h.paymentTabs[0].location.href,"https://checkout.stripe.com/c/pay/test");panel.dispose();modal.dispose();
+});
+
+test("switching browser tabs keeps the recharge balance and catalogue without repeating requests", async () => {
+  const h=clientHarness(),panel=h.panel("video");await panel.flush();
+  const balanceElement=h.find(panel.tree,(node)=>typeof node.type==="function"&&node.props.refreshKey===0);
+  const balance=h.render(balanceElement.type,balanceElement.props);await balance.flush();
+  assert.deepEqual(h.calls.map(call=>call.url),["/api/boutique/video-credits","/api/media-generation/quota"]);
+  const displayed=JSON.stringify(balance.tree);
+  h.focus();h.focus();await panel.flush();await balance.flush();
+  assert.equal(h.calls.length,2,"ordinary tab focus must not fetch either endpoint");
+  assert.equal(JSON.stringify(balance.tree),displayed);
+  h.changeAccount("account-b");await panel.flush();await balance.flush();
+  assert.equal(h.calls.length,4,"switching the active business still reloads its private catalogue and balance");
+  panel.dispose();balance.dispose();
+});
+
+test("a payment return refreshes credits while retaining the displayed balance until the response arrives", async () => {
+  const orders=[],h=clientHarness({catalogueOrders:orders}),panel=h.panel("video");await panel.flush();
+  const balanceElement=h.find(panel.tree,(node)=>typeof node.type==="function"&&node.props.refreshKey===0);
+  const balance=h.render(balanceElement.type,balanceElement.props);await balance.flush();
+  h.packButton(panel,"video_50").props.onClick();await panel.flush();
+  const requestKey=JSON.parse(h.calls.find(call=>call.init?.method==="POST").init.body).requestKey;
+  orders.push({id:"paid-order",request_key:requestKey,pack_key:"video_50",status:"paid",granted_at:"2026-10-26T12:00:00Z",created_at:"2026-10-26T12:00:00Z",credits:500});
+  const waiting=deferred();h.environment.readQuota=()=>waiting.promise;
+  h.focus();await panel.flush();
+  const refreshed=h.find(panel.tree,(node)=>typeof node.type==="function"&&node.props.refreshKey===1);
+  assert.ok(refreshed,"returning from checkout must request an explicit balance refresh");
+  balance.props=refreshed.props;balance.render();
+  assert.ok(balance.tree,"the old same-business balance stays visible during a payment refresh");
+  waiting.resolve({ok:true,json:async()=>({quota:{unlimited:false,creditsReady:true,credits:{includedRemaining:500,purchasedRemaining:700,remaining:1200}}})});await balance.flush();
+  const labels=[...h.walk(balance.tree)].filter(node=>node.type==="dd").map(node=>node.props.children);
+  assert.deepEqual(labels,['media_credit_quantity '+JSON.stringify({credits:500}),'media_credit_quantity '+JSON.stringify({credits:700})]);
+  const settled=h.calls.length;h.focus();await panel.flush();await balance.flush();
+  assert.equal(h.calls.length,settled,"a confirmed payment must not leave permanent focus refreshes enabled");
+  panel.dispose();balance.dispose();
+});
+
+test("the Studio payment-return callback runs once instead of on every future tab focus", async () => {
+  const h=clientHarness();let refreshed=0;
+  const modal=h.render(h.components.MediaCreditRechargeButton,{onRefresh:()=>{refreshed++;}});
+  h.focus();assert.equal(refreshed,0);
+  h.find(modal.tree,node=>node.type==="button"&&node.props["aria-haspopup"]==="dialog").props.onClick();await modal.flush();
+  const panelElement=h.find(modal.tree,node=>typeof node.type==="function"&&node.props.mediaKind==="video");
+  const panel=h.render(panelElement.type,panelElement.props);await panel.flush();
+  h.packButton(panel,"video_50").props.onClick();await panel.flush();await modal.flush();
+  h.focus();await panel.flush();await modal.flush();assert.equal(refreshed,1);
+  h.focus();await panel.flush();await modal.flush();assert.equal(refreshed,1);
+  panel.dispose();modal.dispose();
 });
 
 test("image checkout return waits for confirmation, refreshes image credits and clears a cancelled notice", async () => {

@@ -835,5 +835,10 @@
   "media_credit_held": "付款核验期间，{credits} 积分暂时被冻结。",
   "subscription_media_month_label": "媒体积分 / 月",
   "subscription_studio_credit_gain": "每月增加 {count} 积分",
-  "subscription_media_shared_hint": "用于图片和视频，消耗量取决于所选模型。"
+  "subscription_media_shared_hint": "用于图片和视频，消耗量取决于所选模型。",
+  "media_credit_pack_saving": "约省 {percent}%",
+  "media_credit_pack_base": "按需购买",
+  "media_credit_pack_unit": "积分",
+  "media_credit_pack_unit_price": "{price} {tax} / {credits} 积分",
+  "media_credit_pack_reference": "优惠按 {credits} 积分套餐的单积分价格计算。"
 }

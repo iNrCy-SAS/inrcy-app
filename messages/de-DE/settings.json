@@ -835,5 +835,10 @@
   "media_credit_held": "{credits} Credits sind während der Zahlungsprüfung gesperrt.",
   "subscription_media_month_label": "Medien-Credits / Monat",
   "subscription_studio_credit_gain": "+{count} Credits pro Monat",
-  "subscription_media_shared_hint": "Für Bilder und Videos, je nach ausgewähltem Generator."
+  "subscription_media_shared_hint": "Für Bilder und Videos, je nach ausgewähltem Generator.",
+  "media_credit_pack_saving": "≈ {percent} % Ersparnis",
+  "media_credit_pack_base": "Nach Bedarf",
+  "media_credit_pack_unit": "Credits",
+  "media_credit_pack_unit_price": "{price} {tax} / {credits} Credits",
+  "media_credit_pack_reference": "Ersparnis gegenüber dem Preis pro Credit im Paket mit {credits} Credits."
 }

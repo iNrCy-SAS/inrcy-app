@@ -835,5 +835,10 @@
   "media_credit_held": "{credits} crediti sono sospesi durante la verifica del pagamento.",
   "subscription_media_month_label": "crediti per i media / mese",
   "subscription_studio_credit_gain": "+{count} crediti al mese",
-  "subscription_media_shared_hint": "Per immagini e video, in base al motore scelto."
+  "subscription_media_shared_hint": "Per immagini e video, in base al motore scelto.",
+  "media_credit_pack_saving": "≈ {percent}% di risparmio",
+  "media_credit_pack_base": "Su richiesta",
+  "media_credit_pack_unit": "crediti",
+  "media_credit_pack_unit_price": "{price} {tax} / {credits} crediti",
+  "media_credit_pack_reference": "Risparmio calcolato sul prezzo per credito del pacchetto da {credits} crediti."
 }

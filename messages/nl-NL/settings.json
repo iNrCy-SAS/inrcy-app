@@ -835,5 +835,10 @@
   "media_credit_held": "{credits} credits zijn geblokkeerd tijdens de betalingscontrole.",
   "subscription_media_month_label": "mediacredits / maand",
   "subscription_studio_credit_gain": "+{count} credits per maand",
-  "subscription_media_shared_hint": "Voor afbeeldingen en video’s, afhankelijk van de gekozen generator."
+  "subscription_media_shared_hint": "Voor afbeeldingen en video’s, afhankelijk van de gekozen generator.",
+  "media_credit_pack_saving": "≈ {percent}% besparing",
+  "media_credit_pack_base": "Naar behoefte",
+  "media_credit_pack_unit": "credits",
+  "media_credit_pack_unit_price": "{price} {tax} / {credits} credits",
+  "media_credit_pack_reference": "Besparing berekend op basis van de prijs per credit van het pakket met {credits} credits."
 }

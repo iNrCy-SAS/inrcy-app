@@ -835,5 +835,10 @@
   "media_credit_held": "{credits} credits are on hold pending payment verification.",
   "subscription_media_month_label": "media credits / month",
   "subscription_studio_credit_gain": "+{count} credits per month",
-  "subscription_media_shared_hint": "For images and videos, depending on your selected engine."
+  "subscription_media_shared_hint": "For images and videos, depending on your selected engine.",
+  "media_credit_pack_saving": "≈ {percent}% saving",
+  "media_credit_pack_base": "Pay as you go",
+  "media_credit_pack_unit": "credits",
+  "media_credit_pack_unit_price": "{price} {tax} / {credits} credits",
+  "media_credit_pack_reference": "Savings based on the per-credit price of the {credits}-credit pack."
 }
