@@ -788,39 +788,6 @@
 .signatureGrid > .signatureCard:not(.statsCard) .manualToolActions { align-items: flex-end; justify-content: space-between; }
 .signatureGrid .compactCampaignAgent { align-self: flex-end; }
 
-/* Cards react to their own width, including a desktop narrowed by browser zoom. */
-.signatureCard { container-type: inline-size; }
-.signatureCard .cardActions { flex-wrap: wrap; }
-.signatureCard .manualToolActions { min-width: 0; max-width: 100%; }
-.signatureGrid > .signatureCard:not(.statsCard) .manualToolActions { flex-wrap: wrap; }
-.signatureGrid > .signatureCard:not(.statsCard) .toolButton {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 100%;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  text-align: center;
-}
-.signatureGrid > .signatureCard:not(.statsCard) .pilotArtwork { min-width: 0; }
-.premiumGrid .campaignCard .manualToolActions { flex: 1 1 130px; }
-.signatureGrid .compactCampaignAgent { flex: 0 1 auto; max-width: 100%; margin-left: auto; }
-
-@container (max-width: 260px) {
-  .signatureGrid > .signatureCard:not(.statsCard) .cardActions { gap: 10px; }
-  .signatureGrid > .signatureCard:not(.statsCard) .manualToolActions { gap: 8px; }
-  .signatureGrid > .signatureCard:not(.statsCard) .pilotArtwork { flex-basis: 44px; width: 44px; height: 40px; }
-  .signatureGrid > .signatureCard:not(.statsCard) .toolButton { padding-inline: 10px; }
-  .signatureGrid > .signatureCard:not(.statsCard) .settingsButton { top: 8px; right: 8px; bottom: auto; left: auto; }
-  .signatureGrid > .signatureCard:not(.statsCard):has(.settingsButton, .planningButton) .signatureCopy h4 { padding-right: 30px; }
-  .signatureGrid > .signatureCard:not(.statsCard) .signatureCopy p { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
-}
-
-@container (max-width: 360px) {
-  .premiumGrid .campaignCard .manualToolActions { flex: 1 1 100%; }
-  .statsOverview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .statsCard .cardActions { align-items: flex-end; gap: 14px; }
-}
-
 .boosterCard { display: grid; box-sizing: border-box; min-height: 300px; grid-template-columns: minmax(0, 1.1fr) minmax(118px, .8fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "brand summary ." "publish summary agent"; gap: 14px 12px; align-items: start; padding-bottom: 18px; }
 .boosterCard .boosterCopy { grid-area: brand; width: 100%; max-width: 100%; text-align: left; align-self: start; }
 .boosterPublishAction { grid-area: publish; position: relative; z-index: 3; align-self: end; justify-self: start; }
