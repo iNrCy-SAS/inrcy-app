@@ -102,22 +102,11 @@ function BoosterWave() {
   );
 }
 
-function PremiumScenery({ tone }: { tone: string }) {
-  return <svg className={signatureStyles.premiumScenery} viewBox="0 0 200 120" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
-    <path d="M12 98C42 48 93 117 180 24" strokeDasharray="3 7" opacity=".65" />
-    <path d="m162 12 2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6ZM34 26l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5Z" fill="currentColor" stroke="none" />
-    {tone === "adsCard" ? <><circle cx="128" cy="59" r="30" /><circle cx="128" cy="59" r="20" /><circle cx="128" cy="59" r="9" /><path d="m128 59 44-37m-7-2 9-1-1 9" /><path d="M54 78V59m10 19V48m10 30V38" strokeWidth="5" strokeLinecap="round" /></> : null}
-    {tone === "campaignCard" ? <><rect x="96" y="30" width="70" height="46" rx="8" transform="rotate(-12 130 53)" /><path d="m98 37 35 19 29-28" /><rect x="48" y="62" width="38" height="26" rx="5" transform="rotate(9 67 75)" /><path d="m49 66 17 13 20-8M28 62h25M18 72h24M28 83h14" /></> : null}
-    {tone === "calendarCard" ? <><rect x="92" y="23" width="72" height="66" rx="10" /><path d="M92 43h72m-54-28v17m36-17v17M104 55h8m10 0h8m10 0h8m-44 14h8m10 0h8m10 0h8" strokeLinecap="round" /><circle cx="61" cy="78" r="20" /><path d="M61 65v13l10 7" strokeLinecap="round" /></> : null}
-    {tone === "crmCard" ? <><path d="m65 40 63 20-52 35m52-35 38-33m-38 33 42 32" /><circle cx="65" cy="40" r="16" /><circle cx="76" cy="95" r="12" /><circle cx="166" cy="27" r="13" /><circle cx="170" cy="92" r="14" /><circle cx="128" cy="60" r="23" fill="currentColor" fillOpacity=".12" /><circle cx="128" cy="54" r="7" /><path d="M115 74a13 13 0 0 1 26 0" /></> : null}
-    <circle cx="184" cy="88" r="3" fill="currentColor" stroke="none" /><circle cx="22" cy="48" r="2" fill="currentColor" stroke="none" />
-  </svg>;
-}
-
 export default function DashboardModulesCard({ cockpit, generator, overview, goToModule, openPanel, onOpenStats, onOpenGeneratorSettings, onOpenBoosterPublish, onOpenBoosterStats, adsPilotEnabled = false, inrAgentEnabled = true, standardMode: standardModeOverride = false }: DashboardModulesCardProps) {
   const i18nT = useTranslations("shell");
   const standardT = useTranslations("dashboard.standard");
   const signatureT = useTranslations("dashboard.signatureTools");
+  const helpT = useTranslations("dashboard.helpCenter");
   const heroT = useTranslations("dashboard.hero");
   const t = useDashboardI18n();
   const router = useRouter();
@@ -300,7 +289,6 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
   const premiumTools = ["adsCard", "campaignCard", "calendarCard", "crmCard"].map(tone => signatureTools.find(tool => tool.tone === tone)!);
   const renderSignatureTool = (tool: (typeof signatureTools)[number]) => (
     <article className={`${signatureStyles.signatureCard} ${signatureStyles[tool.tone]}`} key={tool.path}>
-      {tool.premiumOnly ? <PremiumScenery tone={tool.tone} /> : null}
       <span className={signatureStyles.signatureLogo} aria-hidden="true">{tool.logo ? <Image src={tool.logo} alt="" width={52} height={52} /> : <ToolGlyph kind={tool.glyph} />}</span>
       <div className={signatureStyles.signatureCopy}><h4>{tool.title}{tool.tone === "studioCard" ? <span className={signatureStyles.studioEdition} data-studio-edition={studioEdition} role="img" aria-label={`iNr’Studio — ${studioEdition === "standard" ? "Standard" : studioEdition === "founder" ? "Founder" : "Premium"}`} title={`iNr’Studio — ${studioEdition === "standard" ? "Standard" : studioEdition === "founder" ? "Founder" : "Premium"}`}>
         {studioEdition === "standard" ? <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 2 9 10-9 10L3 12 12 2Z" fill="#48baff" fillOpacity=".2" stroke="#89e4ff" strokeWidth="1.6" /><path d="m8 12 3 3 5-6" stroke="#cefbff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg> : <PremiumCrown />}
@@ -413,7 +401,11 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
 
           <section className={`${signatureStyles.panel} ${signatureStyles.pilotPanel}`} aria-labelledby="dashboard-premium-title">
             <header className={signatureStyles.panelHeader}>
-              <h3 id="dashboard-premium-title"><span className={`${signatureStyles.headingIcon} ${signatureStyles.premiumHeadingIcon}`} aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="dashboard-premium-crown" x1="5" y1="7" x2="28" y2="27"><stop stopColor="#fff3b0" /><stop offset=".5" stopColor="#ffc45b" /><stop offset="1" stopColor="#f36bc9" /></linearGradient></defs><path d="m4 10 6 5 6-10 6 10 6-5-3 14H7L4 10Z" fill="url(#dashboard-premium-crown)" stroke="#ffe7a8" strokeWidth="1.4" strokeLinejoin="round" /><path d="M9 28h14" stroke="#ffd575" strokeWidth="2.5" strokeLinecap="round" /><path d="m27 2 .7 2.3L30 5l-2.3.7L27 8l-.7-2.3L24 5l2.3-.7L27 2Z" fill="#fff0c4" /><circle cx="16" cy="19" r="2" fill="#8951c3" /></svg></span>{copy.premiumTitle}{standardMode ? <span className={signatureStyles.premiumGateLock} role="img" aria-label={t.modules.campaignsPremiumLabel}><DashboardPremiumLockIcon /></span> : null}</h3>
+              <h3 id="dashboard-premium-title">
+                <span className={`${signatureStyles.headingIcon} ${signatureStyles.premiumHeadingIcon}`} aria-hidden="true"><PremiumCrown /></span>
+                {copy.premiumTitle}
+                {standardMode ? <button type="button" className={signatureStyles.premiumGateLock} aria-label={helpT("viewOffers")} title={helpT("viewOffers")} onClick={() => startPanelOpening("abonnement")} data-testid="dashboard-premium-unlock"><DashboardPremiumLockIcon /></button> : null}
+              </h3>
             </header>
             <fieldset disabled={standardMode} aria-labelledby="dashboard-premium-title" className={`${signatureStyles.signatureGrid} ${signatureStyles.premiumGrid}`} data-dashboard-premium-tools="true">
               {premiumTools.map(renderSignatureTool)}

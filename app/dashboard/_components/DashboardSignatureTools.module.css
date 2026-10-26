@@ -770,8 +770,10 @@
 /* Shared compact cards: one Stats overview with three tools, four Premium tools. */
 .signatureGrid.premiumGrid > .signatureCard:last-child { grid-column: auto; }
 .signatureGrid.premiumGrid { border: 0; margin: 0; padding: 0; min-inline-size: 0; }
-.premiumGateLock { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-left: 4px; color: #ffd882; filter: drop-shadow(0 0 7px #ffd27755); }
-.premiumGateLock svg { width: 30px; height: 30px; }
+.premiumGateLock { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 6px; margin-left: 4px; border: 1px solid #ffd88280; border-radius: 12px; background: #ad79232b; color: #ffd882; cursor: pointer; filter: drop-shadow(0 0 7px #ffd27755); }
+.premiumGateLock svg { width: 30px; height: 30px; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.premiumGateLock:hover { background: #ad79234d; border-color: #ffd882; }
+.premiumGateLock:focus-visible { outline: 2px solid #fff1ba; outline-offset: 3px; }
 .premiumGrid:disabled button:disabled { background: #36405c !important; color: #b0b7c7 !important; border-color: #818a9d66 !important; box-shadow: none !important; filter: grayscale(1); opacity: .58; cursor: default; }
 .premiumHeadingIcon { width: 32px; height: 32px; color: #ffd67f; filter: drop-shadow(0 0 7px #ffaf5766); }
 .premiumHeadingIcon svg { width: 32px; height: 32px; }
@@ -779,7 +781,6 @@
 .studioEdition { display: inline-flex; flex: 0 0 22px; width: 22px; height: 22px; color: #a5eaff; filter: drop-shadow(0 0 5px #58baff66); }
 .studioEdition svg { width: 22px; height: 22px; }
 .studioEdition[data-studio-edition="premium"], .studioEdition[data-studio-edition="founder"] { filter: drop-shadow(0 0 5px #ffd47866); }
-.premiumScenery { position: absolute; z-index: -1; right: 1%; top: 27%; width: 57%; height: 60%; color: var(--tool-accent); opacity: .24; pointer-events: none; }
 .signatureGrid > .signatureCard:not(.statsCard) .pilotArtwork { flex: 0 1 108px; width: 108px; min-width: 56px; height: 70px; opacity: .88; visibility: visible; }
 .premiumGrid > .signatureCard:not(.statsCard) .pilotArtwork { flex-basis: 128px; width: 128px; height: 82px; opacity: .92; }
 .signatureGrid > .signatureCard:not(.statsCard) .cardActions { align-items: flex-end; }
