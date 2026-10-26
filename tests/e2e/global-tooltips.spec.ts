@@ -30,6 +30,29 @@ test("native titles become one designed tooltip while accessible names remain in
   expect(await bubble.evaluate((element) => element.parentElement === document.body)).toBe(true);
 });
 
+test("text buttons have no duplicate tooltip on hover or keyboard focus", async ({ page }) => {
+  await fixture(page, '<button id="before">Avant</button><button id="close" title="Fermer">Fermer</button><button id="next" title="Continuer">Continuer →</button><button id="save" title="Enregistrer">💾 Enregistrer</button><button id="old-css" data-tooltip="Fermer">Fermer</button>');
+  for (const id of ["close", "next", "save", "old-css"]) {
+    await page.locator(`#${id}`).hover();
+    await page.waitForTimeout(430);
+    await expect(page.locator(bubbleSelector)).toHaveCount(0);
+    await expect(page.locator(`#${id}`)).not.toHaveAttribute("aria-description");
+  }
+  await page.locator("#before").focus(); await page.keyboard.press("Tab");
+  await expect(page.locator("#close")).toBeFocused();
+  await page.waitForTimeout(130);
+  await expect(page.locator(bubbleSelector)).toHaveCount(0);
+});
+
+test("icon labels, useful explanations and clipped text keep their tooltip", async ({ page }) => {
+  await fixture(page, '<button id="icon-close" title="Fermer"><svg width="20" height="20"><title>Fermer</title><path d="M2 2L18 18M18 2L2 18" stroke="white"/></svg></button><button id="helpful" title="Enregistrer" data-tooltip-description="Conserve le brouillon sans le publier.">Enregistrer</button><button id="clipped" title="Document commercial très long" style="width:90px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Document commercial très long</button><button id="hidden" title="Fermer"><span hidden>Fermer</span>×</button>');
+  const bubble = page.locator(bubbleSelector);
+  for (const [id, text] of [["icon-close", "Fermer"], ["helpful", "Conserve le brouillon sans le publier."], ["clipped", "Document commercial très long"], ["hidden", "Fermer"]]) {
+    await page.locator(`#${id}`).hover();
+    await expect(bubble).toContainText(text);
+  }
+});
+
 test("keyboard focus opens the tooltip, Escape closes it and clicks reach the control", async ({ page }) => {
   await fixture(page, '<button id="before">Avant</button><button id="action" title="Ouvrir le studio" onclick="this.dataset.clicks=String(Number(this.dataset.clicks||0)+1)">✦</button>');
   await page.locator("#before").focus();

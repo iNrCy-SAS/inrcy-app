@@ -113,6 +113,59 @@ function localDom() {
   return { doc, win, timers, frames, button, controller, flushMutations, hover };
 }
 
+for (const [title, visible] of [["Fermer", "Fermer"], ["Continuer", "Continuer →"], ["Enregistrer", "💾 Enregistrer"], ["Tout sélectionner", "TOUT SÉLECTIONNER"], ["Close", "Close ×"], ["Cancelar", "Cancelar"]]) {
+  test(`visible label ${visible} has no redundant ${title} tooltip or accessible description`, () => {
+    const dom = localDom(); const button = dom.button(title, visible); const controller = dom.controller();
+    dom.hover(button);
+    assert.deepEqual(controller.changes, []);
+    assert.equal(button.getAttribute("title"), "");
+    assert.equal(button.hasAttribute("aria-label"), false);
+    assert.equal(button.hasAttribute("aria-description"), false);
+    controller.destroy();
+    assert.equal(button.getAttribute("title"), title);
+  });
+}
+
+test("metadata-only duplicates also suppress the older local CSS tooltip", () => {
+  const dom = localDom(); const button = dom.button("", "Fermer");
+  button.setAttribute("data-tooltip", "Fermer"); button.setAttribute("data-tooltip-description", "Fermer.");
+  const controller = dom.controller(); dom.hover(button);
+  assert.deepEqual(controller.changes, []);
+  assert.equal(button.hasAttribute("data-inrcy-tooltip-managed"), true);
+  assert.equal(button.hasAttribute("aria-description"), false);
+  controller.destroy();
+});
+
+test("a real explanation remains available on a text button", () => {
+  const dom = localDom(); const button = dom.button("Enregistrer", "Enregistrer");
+  button.setAttribute("data-tooltip-description", "Conserve le brouillon sans le publier.");
+  const controller = dom.controller(); dom.hover(button);
+  assert.equal(controller.changes.at(-1)?.description, "Conserve le brouillon sans le publier.");
+  assert.equal(button.getAttribute("aria-description"), "Conserve le brouillon sans le publier.");
+  controller.destroy();
+});
+
+test("clipped labels keep the full tooltip", () => {
+  const dom = localDom(); const button = dom.button("Document commercial très long", "Document commercial très long");
+  Object.assign(button, { clientWidth: 100, scrollWidth: 280 });
+  const controller = dom.controller(); dom.hover(button);
+  assert.equal(controller.changes.at(-1)?.label, "Document commercial très long");
+  controller.destroy();
+});
+
+test("an active tooltip disappears when the same label becomes visible", () => {
+  const dom = localDom(); const button = dom.button("Fermer", "×"); const controller = dom.controller();
+  dom.hover(button); assert.equal(controller.changes.at(-1)?.label, "Fermer");
+  button.setText("Fermer"); dom.flushMutations();
+  assert.equal(controller.changes.at(-1), null);
+  assert.equal(button.hasAttribute("aria-label"), false);
+  assert.equal(button.hasAttribute("aria-description"), false);
+  button.setText("×"); dom.flushMutations(); dom.hover(button);
+  assert.equal(controller.changes.at(-1)?.label, "Fermer");
+  assert.equal(button.getAttribute("aria-label"), "Fermer");
+  controller.destroy();
+});
+
 for (const clear of ["empty", "remove"] as const) {
   test(`React ${clear === "empty" ? "empty title" : "removed title"} removes stale tooltip and injected accessible name`, () => {
     const dom = localDom();

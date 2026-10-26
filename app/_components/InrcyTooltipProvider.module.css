@@ -32,11 +32,6 @@
 .label { display: block; min-width: 0; font-size: inherit; font-weight: 680; }
 .description { display: block; min-width: 0; color: #b8cce6; font-size: 11px; font-weight: 450; }
 
-/* These three older local CSS tooltips use data-tooltip. The controller takes
-   over their labels so a native, local and global bubble cannot coexist. */
-:global(html[data-inrcy-tooltips-ready] [data-inrcy-tooltip-managed][data-tooltip])::before,
-:global(html[data-inrcy-tooltips-ready] [data-inrcy-tooltip-managed][data-tooltip])::after { content: none !important; display: none !important; }
-
 @keyframes tooltipAppear { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .bubble[data-positioned="true"] { animation: none; } }
 @media (forced-colors: active) { .bubble { border-color: CanvasText; color: CanvasText; background: Canvas; box-shadow: none; } .description { color: CanvasText; } .accent { display: none; } }

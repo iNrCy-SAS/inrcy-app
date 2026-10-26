@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* The delegated controller owns these older CSS tooltip sources, including
+   labels suppressed because they already appear on the control. */
+html[data-inrcy-tooltips-ready] [data-inrcy-tooltip-managed][data-tooltip]::before,
+html[data-inrcy-tooltips-ready] [data-inrcy-tooltip-managed][data-tooltip]::after {
+  content: none !important;
+  display: none !important;
+}
+
 /* Base (variables globales utilisables partout) */
 :root {
   --bg-0: #070a16;

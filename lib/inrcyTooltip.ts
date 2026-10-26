@@ -48,6 +48,22 @@ function isElement(value: EventTarget | Node | null): value is Element {
   return Boolean(value && "nodeType" in value && value.nodeType === 1);
 }
 
+function comparableText(value: string) {
+  return value.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+function repeatsVisibleText(element: Element, text: string) {
+  const tag = element.tagName.toLowerCase();
+  const visibleText = tag === "input" && ["button", "submit", "reset"].includes((element as HTMLInputElement).type)
+    ? (element as HTMLInputElement).value
+    : (element as HTMLElement).innerText ?? element.textContent ?? "";
+  const visible = comparableText(visibleText);
+  if (!visible || visible !== comparableText(text)) return false;
+  // A full title remains useful when the label is clipped (for example a long
+  // document name). Icon-only controls have no visible words to repeat.
+  return ![element, ...element.querySelectorAll("span, p, div")].some((part) => part.clientWidth > 0 && part.scrollWidth > part.clientWidth + 1);
+}
+
 function needsAccessibleName(element: Element, ownedLabel?: string) {
   const explicitLabel = element.getAttribute("aria-label")?.trim();
   if (explicitLabel && explicitLabel !== ownedLabel?.trim()) return false;
@@ -121,14 +137,20 @@ export function createInrcyTooltipController({
     }
   }
 
+  function sourceLabelFor(element: Element) {
+    return (element.getAttribute("data-inrcy-tooltip-title") || element.getAttribute("data-tooltip-title") || element.getAttribute("data-inrcy-tooltip") || element.getAttribute("data-tooltip") || records.get(element)?.nativeTitle || "").trim();
+  }
+
   function contentFor(element: Element): InrcyTooltipContent | null {
-    const label = (element.getAttribute("data-inrcy-tooltip-title") || element.getAttribute("data-tooltip-title") || element.getAttribute("data-inrcy-tooltip") || element.getAttribute("data-tooltip") || records.get(element)?.nativeTitle || "").trim();
+    const label = sourceLabelFor(element);
     if (!label || element.closest(EXCLUDED_SELECTOR)) return null;
     // Existing interactive warning popovers retain their own interaction model.
     const describedBy = (element.getAttribute("aria-describedby") ?? "").split(/\s+/u);
     if (describedBy.some((id) => id && doc.getElementById(id)?.getAttribute("role") === "tooltip" && !doc.getElementById(id)?.hasAttribute("data-inrcy-tooltip-bubble"))) return null;
     const description = (element.getAttribute("data-inrcy-tooltip-description") || element.getAttribute("data-tooltip-description") || "").trim();
-    return { label, ...(description && description !== label ? { description } : {}) };
+    const extraDescription = description && comparableText(description) !== comparableText(label) && !repeatsVisibleText(element, description) ? description : undefined;
+    if (!extraDescription && repeatsVisibleText(element, label)) return null;
+    return { label, ...(extraDescription ? { description: extraDescription } : {}) };
   }
 
   function enhance(element: Element) {
@@ -151,12 +173,14 @@ export function createInrcyTooltipController({
       // aria-describedby already takes priority over aria-description. Keeping
       // this fallback also preserves the native title's semantics after our
       // temporary tooltip relationship is removed.
-      setOwnedAttribute(element, record, "description", !ownsName ? content?.description || accessibleLabel : null);
+      setOwnedAttribute(element, record, "description", !ownsName && content ? content.description || content.label : null);
     } else {
       setOwnedAttribute(element, record, "label", null);
       setOwnedAttribute(element, record, "description", null);
     }
-    if (content || record.nativeTitle) element.setAttribute(MANAGED_ATTRIBUTE, "");
+    // Suppressed duplicate labels still belong to the controller: leaving an
+    // older CSS tooltip enabled would bring the same redundant bubble back.
+    if (sourceLabelFor(element)) element.setAttribute(MANAGED_ATTRIBUTE, "");
     else element.removeAttribute(MANAGED_ATTRIBUTE);
   }
 
