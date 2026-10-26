@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 export type SignupFailureStage =
   | "account_lookup"
   | "auth_invitation"
+  | "auth_account_creation"
+  | "welcome_email"
   | "bubble_access"
   | "profile_bootstrap"
   | "profile_update"
@@ -36,6 +38,8 @@ export type SignupFailureAlertInput = {
 const STAGE_LABELS: Record<SignupFailureStage, string> = {
   account_lookup: "Vérification du compte existant",
   auth_invitation: "Création de l’invitation Supabase",
+  auth_account_creation: "Création du compte et des accès provisoires",
+  welcome_email: "Envoi des accès de bienvenue",
   bubble_access: "Provisionnement des accès",
   profile_bootstrap: "Initialisation du profil",
   profile_update: "Enregistrement des coordonnées",

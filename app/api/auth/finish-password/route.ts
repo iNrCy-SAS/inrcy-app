@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { TEMPORARY_PASSWORD_METADATA_KEY } from "@/lib/temporaryPasswordPolicy";
 import {
   createClient,
   type EmailOtpType,
@@ -575,22 +576,34 @@ export async function POST(req: NextRequest) {
       }) : response;
     }
 
+    const temporarySignupPassword = Boolean(authUser.app_metadata?.[TEMPORARY_PASSWORD_METADATA_KEY]);
+    let temporaryPasswordSession: Session | null = null;
+    const writeAdminPassword = async () => {
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+        password,
+        ...(temporarySignupPassword ? { app_metadata: { [TEMPORARY_PASSWORD_METADATA_KEY]: null } } : {}),
+        ...(mode === "invite" ? { email_confirm: true } : {}),
+      });
+      if (!error && temporarySignupPassword && verifiedEmail) {
+        // The verified recovery link authorizes this write. Restore the session
+        // after Auth revokes the old credential; expiration is removed atomically.
+        const restored = await supabaseAuth.auth.signInWithPassword({ email: verifiedEmail, password })
+          .catch(() => ({ data: { session: null } }));
+        temporaryPasswordSession = restored.data.session;
+      }
+      return { error };
+    };
     const passwordWrite = await writeVerifiedPassword({
       // This client owns only the session created from the current email link:
       // other accounts open in other browser tabs cannot affect this write.
       writeWithVerifiedSession: async () => {
+        if (temporarySignupPassword) return writeAdminPassword();
         const { error } = await supabaseAuth.auth.updateUser({ password });
         return { error };
       },
       // The signed server continuation authorizes a service-role fallback only
       // when the verified session endpoint has a transient infrastructure error.
-      writeWithAdminFallback: async () => {
-        const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-          password,
-          ...(mode === "invite" ? { email_confirm: true } : {}),
-        });
-        return { error };
-      },
+      writeWithAdminFallback: writeAdminPassword,
     });
 
     if (!passwordWrite.ok) {
@@ -673,7 +686,7 @@ export async function POST(req: NextRequest) {
     const { data: finalSessionData } = await supabaseAuth.auth
       .getSession()
       .catch(() => ({ data: { session: null } }));
-    const finalSession = finalSessionData.session || session;
+    const finalSession = temporarySignupPassword ? temporaryPasswordSession : finalSessionData.session || session;
 
     await ensureProfileRow(authUser).catch(() => null);
     await ensureNotificationPreferences(userId).catch(() => null);

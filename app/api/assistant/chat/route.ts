@@ -75,6 +75,7 @@ function streamReply(request: Request, requestId: string) {
         const payload: unknown = await response.json();
         emit({ type: response.ok ? "result" : "error", payload });
       } catch {
+        console.info("[assistant.chat] request ended", { requestId, code: "assistant_unavailable", phase: "stream_response" });
         emit({ type: "error", payload: { error: "L’assistant est momentanément indisponible. Merci de réessayer dans quelques instants.", code: "assistant_unavailable", requestId } });
       } finally {
         if (heartbeat) clearInterval(heartbeat);
@@ -127,10 +128,13 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
       if (recent.available) {
         // Server-owned prose replaces fabricated browser assistant messages.
         // The full archive stays durable; only a bounded recent context goes to AI.
-        const history: InrAssistantMessage[] = recent.turns.filter((turn) => turn.turnId !== turnId && turn.status === "completed" && turn.assistantText)
-          .slice(-5).flatMap((turn) => [
-            { role: "user" as const, content: turn.userText },
-            { role: "assistant" as const, content: turn.assistantText! },
+        // A failed answer must not erase the professional's preceding question.
+        // Never include its partial assistant text or another pending operation;
+        // only the current final user message can authorize an action.
+        const history: InrAssistantMessage[] = recent.turns.filter((turn) => turn.turnId !== turnId && (turn.status === "failed" || (turn.status === "completed" && turn.assistantText)))
+          .slice(-5).flatMap((turn): InrAssistantMessage[] => [
+            { role: "user", content: turn.userText },
+            ...(turn.status === "completed" && turn.assistantText ? [{ role: "assistant" as const, content: turn.assistantText }] : []),
           ]);
         messages = parseInrAssistantMessages({ messages: [...history, messages.at(-1)!] });
       } else {

@@ -83,7 +83,6 @@ test("already-sent links recover token_hash from the malformed lang value", () =
 
 test("all invitation and recovery senders use the query-free builder", () => {
   for (const sourcePath of [
-    "app/api/public/trial-signup/route.ts",
     "app/api/auth/resend-link/route.ts",
     "app/api/admin/create-trial/route.ts",
     "app/login/page.tsx",

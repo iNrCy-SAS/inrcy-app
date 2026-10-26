@@ -29,6 +29,11 @@
 .welcome { padding: 6px 0; }
 .welcome h3 { margin: 0 0 8px; font-size: 21px; line-height: 1.3; }
 .welcome p { margin: 0; color: #b7c9e0; font-size: 14px; line-height: 1.6; }
+.contextHelp { flex: 0 0 auto; min-width: 0; padding: 9px 14px; border-bottom: 1px solid #c6a7f51f; }
+.contextHelp p { margin: 0 0 6px; color: #dcbbe8; font-size: 11px; font-weight: 750; }
+.contextHelp > div { display: flex; flex-wrap: wrap; gap: 5px; }
+.contextHelp button { max-width: 100%; padding: 6px 8px; border: 1px solid #b58ac73a; border-radius: 10px; background: #b878ce0e; color: #dbe6f6; font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
+.contextHelp button:focus-visible { outline: 2px solid #ed94d9; outline-offset: 2px; }
 .suggestions { display: grid; gap: 9px; margin-top: 22px; }
 .suggestions button { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 13px; border: 1px solid #b58ac747; border-radius: 14px; background: linear-gradient(120deg, #16334566, #4b275266); color: #e8efff; text-align: left; font: inherit; font-size: 13px; cursor: pointer; }
 .suggestions span { color: #f99cdd; font-size: 19px; }
@@ -66,8 +71,6 @@
 .collaborationList [data-state="failed"] .activityStatus { color: #edacbc; }
 .error { padding: 11px 12px; border: 1px solid #f190b44d; border-radius: 13px; color: #ffd4e2; background: #6c243633; }
 .error p { margin: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
-.error .errorReference { margin-top: 7px; font-size: 11px; color: #d4bdcd; }
-.errorReference span { user-select: all; overflow-wrap: anywhere; }
 .error button { margin-top: 9px; padding: 6px 10px; border: 1px solid #f5bad451; border-radius: 9px; background: #f5bad414; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
 .errorActions { display: flex; flex-wrap: wrap; gap: 7px; }
 .memoryNotice { flex: 0 0 auto; margin: 7px 0 0; padding: 0 12px 8px; font-size: 11px; line-height: 1.5; color: #c6bfd6; }

@@ -27,7 +27,8 @@ import {
   SIGNUP_RECOVERY_METADATA_KEY,
 } from "@/lib/signupRecoveryProof";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
-import { buildSupabaseEmailRedirectUrl } from "@/lib/authEmailLinks";
+import { TEMPORARY_PASSWORD_METADATA_KEY } from "@/lib/temporaryPasswordPolicy";
+import { prepareSignupWelcome, attachSignupWelcome, completeSignupWelcome, deliverSignupWelcome } from "@/lib/signupWelcomeMail";
 import { createVisioBookingToken } from "@/lib/visioBookingToken";
 import { ensurePendingSignupCalendarReminder } from "@/lib/visioBookingGoogle";
 import {
@@ -50,6 +51,7 @@ import {
 } from "@/lib/signupAttribution";
 import {
   buildMetaConversionEventId,
+  enqueueMetaConversionEvent,
   processMetaConversionEvents,
 } from "@/lib/metaConversionOutbox";
 import { persistSignupAttribution } from "@/lib/signupAttributionPersistence";
@@ -511,13 +513,6 @@ export async function POST(req: Request) {
     }
 
     acceptedAttempt = true;
-    const appOrigin = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://app.inrcy.com").replace(/\/$/, "");
-    const inviteRedirectUrl = buildSupabaseEmailRedirectUrl(
-      appOrigin,
-      "/auth/finish-invite",
-      payload.language,
-    );
-
     stage = "account_lookup";
     if (await hasKnownInrcyAccountForEmail(payload.email)) {
       return jsonResponse(
@@ -545,9 +540,14 @@ export async function POST(req: Request) {
       { issuedAt: new Date().toISOString(), trialDays: signedTrialDays },
     );
 
-    stage = "auth_invitation";
-    const { data: invite, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(payload.email, {
-      data: {
+    stage = "auth_account_creation";
+    const welcome = await prepareSignupWelcome({ email: payload.email, firstName: payload.firstName, language: payload.language });
+    const { data: invite, error: inviteError } = await supabaseAdmin.auth.admin.createUser({
+      email: payload.email,
+      password: welcome.password,
+      email_confirm: true,
+      app_metadata: { [TEMPORARY_PASSWORD_METADATA_KEY]: welcome.metadata },
+      user_metadata: {
         first_name: payload.firstName || undefined,
         last_name: payload.lastName || undefined,
         company_legal_name: payload.companyName || undefined,
@@ -559,7 +559,6 @@ export async function POST(req: Request) {
         [SIGNUP_RECOVERY_METADATA_KEY]: signupRecoveryProof,
         [SIGNUP_ATTRIBUTION_METADATA_KEY]: payload.attribution,
       },
-      redirectTo: inviteRedirectUrl,
     });
 
     if (inviteError) {
@@ -578,12 +577,13 @@ export async function POST(req: Request) {
 
     const invitedUser = invite.user;
     userId = invitedUser?.id || null;
-    if (!userId) throw new Error("supabase_invitation_user_missing");
+    if (!userId) throw new Error("supabase_signup_user_missing");
     const signupUserId = userId;
     authUserCreated = true;
+    await attachSignupWelcome(welcome.metadata.welcome_id, userId);
     const nowIso = new Date().toISOString();
 
-    // Postcondition obligatoire : l'invitation ne peut être déclarée réussie
+    // Postcondition obligatoire : la création ne peut être déclarée réussie
     // sans établissement principal, membership ni configuration multicompte.
     stage = "profile_bootstrap";
     await ensurePrincipalInrcyAccountProvisioned(invitedUser);
@@ -632,6 +632,10 @@ export async function POST(req: Request) {
     stage = "trial_subscription";
     const { edition, trialDays, end } = await ensureTrialSubscription(userId, payload.email, signedTrialDays);
     await markPublicSignupTrialCompleted(userId);
+    // Only send credentials once the account, access and trial really exist.
+    stage = "welcome_email";
+    await completeSignupWelcome(welcome.metadata.welcome_id, userId);
+    await deliverSignupWelcome(welcome.metadata.welcome_id);
 
     let attributionPersisted = false;
     let persistedAttributionEventId = payload.attribution.eventId;
@@ -652,6 +656,14 @@ export async function POST(req: Request) {
     // The insert trigger creates the durable Lead event atomically with its
     // consent record. Try it immediately; the cron worker owns every retry.
     if (attributionPersisted) {
+      await enqueueMetaConversionEvent({
+        userId,
+        eventName: "CompleteRegistration",
+        occurredAt: nowIso,
+        source: "public_signup_temporary_password",
+      }).catch((error: unknown) => {
+        console.error("[trial-signup][meta-registration]", getSignupFailureErrorCode(error));
+      });
       const leadEventId = buildMetaConversionEventId(
         "Lead",
         userId,
@@ -727,7 +739,7 @@ export async function POST(req: Request) {
       trial_days: trialDays,
       trial_end_at: end.toISOString(),
       booking_token: bookingToken,
-      message: "Invitation prise en charge. Le lien de création du mot de passe est en cours d'acheminement ; sa réception reste à confirmer.",
+      message: "Votre compte est prêt. L’e-mail de bienvenue avec votre mot de passe provisoire valable 30 jours est en cours d’acheminement.",
     });
   } catch (error: unknown) {
     const errorCode = getSignupFailureErrorCode(error);

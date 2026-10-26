@@ -7,6 +7,7 @@ import { useEffect, useId, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 import { evaluatePassword } from "@/lib/passwordPolicy";
+import { getTemporaryPasswordMetadata } from "@/lib/temporaryPasswordPolicy";
 import styles from "./settingsContentLayout.module.css";
 import accountStyles from "./AccountContent.module.css";
 
@@ -121,6 +122,7 @@ export default function AccountContent({
   const accountId = useId();
   const [email, setEmail] = useState<string>("");
   const [createdAt, setCreatedAt] = useState<string>("");
+  const [temporaryPasswordExpiresAt, setTemporaryPasswordExpiresAt] = useState<string | null>(null);
   const [subscriptionSummary, setSubscriptionSummary] = useState<AccountSubscriptionSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -146,6 +148,7 @@ export default function AccountContent({
         if (error) throw new Error(error.message);
         const user = data.user;
         setEmail(user?.email || "");
+        setTemporaryPasswordExpiresAt(getTemporaryPasswordMetadata(user?.app_metadata)?.expires_at || null);
         if (user) {
           const { data: subscriptionData } = await supabase
             .from("subscriptions")
@@ -198,33 +201,23 @@ export default function AccountContent({
     try {
       const supabase = createClient();
 
-      // 🔐 Vérifier le mot de passe actuel (ré-auth)
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password: currentPassword,
+      const response = await fetch("/api/auth/change-password", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, password: newPassword }),
       });
-      if (signInError) {
-        const signInFailure = `${String(signInError.code || "")} ${signInError.message}`.toLowerCase();
-        if (signInFailure.includes("invalid_credentials") || signInFailure.includes("invalid login credentials")) {
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        if (result.code === "current_password_incorrect") {
           setMsg(passwordT("currentIncorrect"));
           return;
         }
-        throw signInError;
+        throw new Error("password_update_failed");
       }
-
-      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
-      if (updateError) {
-        // Une réponse réseau peut être perdue après l’écriture. Vérifier le
-        // résultat rend le changement idempotent au lieu d’afficher un faux
-        // échec alors que le nouveau mot de passe est déjà actif.
-        const verification = await supabase.auth.signInWithPassword({
-          email,
-          password: newPassword,
-        });
-        if (verification.error) throw updateError;
-      }
+      if (result.requires_login) window.location.assign(`/login?email=${encodeURIComponent(email)}`);
+      else await supabase.auth.getUser();
 
       setOk(passwordT("updateSuccess"));
+      setTemporaryPasswordExpiresAt(null);
       setCurrentPassword("");
       setNewPassword("");
       setConfirm("");
@@ -285,6 +278,11 @@ export default function AccountContent({
             <span className={accountStyles.securityIcon}><AccountIcon kind="security" /></span>
             <h2 id={`${accountId}-security`}>{i18nT("modifier_le_mot_de_passe_b6eec6a6")}</h2>
           </div>
+          {temporaryPasswordExpiresAt ? (
+            <p className={accountStyles.description} role="status">
+              {passwordT("temporaryPasswordNotice", { date: new Date(temporaryPasswordExpiresAt).toLocaleDateString(locale) })}
+            </p>
+          ) : null}
           <div className={accountStyles.passwordFields}>
             <label className={`${accountStyles.field} ${accountStyles.fullWidth}`} htmlFor={`${accountId}-current`}>
               <span>{i18nT("mot_de_passe_actuel_f9242976")}</span>

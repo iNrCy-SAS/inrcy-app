@@ -2,6 +2,39 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ReactNode } from "react";
 import { elements, find, invoke, harness, type Props } from "./dashboard-assistant-runtime-harness.mts";
+import { getInrAssistantContextualHelp } from "../../lib/inrAssistantContextualHelp.ts";
+import { getInrAssistantClientScreen } from "../../lib/inrAssistantClientContext.ts";
+
+test("tool-specific help only fills the composer and follows navigation without losing the exchange", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: { init?: RequestInit; resolve: (response: Response) => void }[] = [];
+  globalThis.fetch = ((_input: unknown, init?: RequestInit) => new Promise<Response>(resolve => requests.push({ init, resolve }))) as typeof fetch;
+  const options = { pathname: "/dashboard/stats", query: "token=PRIVATE" };
+  const view = harness(false, undefined, undefined, options);
+  const help = (pathname: string) => getInrAssistantContextualHelp(getInrAssistantClientScreen(pathname, new URLSearchParams()), "en-GB")!;
+  try {
+    let tree = view.render();
+    const statsHelp = help(options.pathname);
+    assert.equal(elements(find(tree, node => node.props["data-testid"] === "assistant-context-help").props.children as ReactNode).filter(node => node.type === "button").length, 3);
+    invoke(find(tree, node => node.type === "button" && Array.isArray(node.props.children) && node.props.children[0] === statsHelp.suggestions[0]), "onClick");
+    assert.equal(find(view.render(), node => node.type === "textarea").props.value, statsHelp.suggestions[0]);
+    assert.equal(requests.length, 0, "Opening or choosing tool help must never start a model call or business action");
+    view.submit("Explain these results");
+    assert.equal(JSON.parse(String(requests[0].init?.body)).clientContext.screen.tool, "iNr’Stats");
+    requests[0].resolve(Response.json({ message: "Your measured results", accountId: "account-a" }));
+    await new Promise(resolve => setImmediate(resolve));
+    invoke(find(view.render(), node => node.type === "textarea"), "onChange", { target: { value: "Keep my draft" } });
+    options.pathname = "/dashboard/mediatheque";
+    tree = view.render(false);
+    tree = view.render(true);
+    assert.ok(elements(tree).some(node => node.props.content === "Your measured results"));
+    assert.equal(find(tree, node => node.type === "textarea").props.value, "Keep my draft");
+    const mediaHelp = help(options.pathname);
+    invoke(find(tree, node => node.type === "button" && node.props.children === mediaHelp.suggestions[0]), "onClick");
+    assert.equal(find(view.render(), node => node.type === "textarea").props.value, mediaHelp.suggestions[0]);
+    assert.equal(requests.length, 1, "Restoring from another tool must not automatically call the model");
+  } finally { view.cleanup(); globalThis.fetch = originalFetch; }
+});
 test("assistant submits user text without client model or plan and retries only on a user action", async () => {
   const originalFetch = globalThis.fetch;
   const requests: { init?: RequestInit; resolve: (response: Response) => void }[] = [];
@@ -92,7 +125,8 @@ test("streamed failures retain real collaboration status and diagnostics without
     assert.equal(requests, 1);
     assert.equal(find(tree, node => node.props["data-activity-id"] === "mail-1").props["data-state"], "blocked");
     assert.ok(elements(tree).some(node => node.type === "img" && node.props.src === "/agent/agent-campaigns.webp"));
-    assert.ok(elements(tree).some(node => node.props.children === "request-mail-1"));
+    assert.equal(elements(tree).some(node => node.props.children === "request-mail-1"), false, "Keep diagnostic identifiers out of the customer conversation");
+    assert.equal(elements(tree).some(node => node.props.children === "The draft needs your input"), false, "Do not display arbitrary stream error text");
     assert.equal(elements(tree).some(node => node.props.content), false, "An error must not create a fake assistant reply");
     assert.ok(find(tree, node => node.type === "button" && node.props.children === "Retry"));
   } finally { view.cleanup(); globalThis.fetch = originalFetch; }
@@ -436,7 +470,7 @@ test("session restoration rejects another actor/account and expired data; logout
   } finally { view.cleanup(); globalThis.fetch = originalFetch; }
 });
 
-test("a public response reference is copyable and the next request only sends bounded diagnostic metadata", async () => {
+test("errors stay conversational while the hidden reference is preserved for a safe retry", async () => {
   const originalFetch = globalThis.fetch;
   const requests: { init?: RequestInit; resolve: (response: Response) => void }[] = [];
   globalThis.fetch = ((_input: unknown, init?: RequestInit) => new Promise<Response>(resolve => requests.push({ init, resolve }))) as typeof fetch;
@@ -445,7 +479,10 @@ test("a public response reference is copyable and the next request only sends bo
     view.submit("What is this error?");
     requests[0].resolve(Response.json({ error: "Public error with private details excluded from future context", code: "assistant_unavailable" }, { status: 503, headers: { "X-Request-Id": "dd122b0a-27a7-4a37-8cd3-3b97ab4c2f11" } }));
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(find(view.render(), node => node.props.className === "errorReference").props.children !== undefined, true);
+    const tree = view.render();
+    assert.equal(elements(tree).some(node => node.props.className === "errorReference"), false);
+    assert.equal(elements(tree).some(node => typeof node.props.children === "string" && /private details|dd122b0a|Reference:/.test(node.props.children)), false);
+    assert.ok(elements(find(tree, node => node.props.role === "alert").props.children as ReactNode).some(node => node.type === "p" && /Your request is saved/.test(String(node.props.children))));
     invoke(find(view.render(), node => node.type === "button" && node.props.children === "Retry"), "onClick");
     const context = JSON.parse(String(requests[1].init?.body)).clientContext;
     assert.equal(context.source, "untrusted_client");

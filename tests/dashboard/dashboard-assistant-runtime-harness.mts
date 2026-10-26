@@ -5,6 +5,8 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import ts from "typescript";
 import * as clientContext from "../../lib/inrAssistantClientContext.ts";
 import * as clientStream from "../../lib/inrAssistantClientStream.ts";
+import * as errorCopy from "../../app/dashboard/_components/dashboardAssistantErrorCopy.ts";
+import * as contextualHelp from "../../lib/inrAssistantContextualHelp.ts";
 
 const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("../../app/dashboard/_components/DashboardAssistantProvider.tsx", import.meta.url), "utf8");
@@ -76,6 +78,7 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
     if (name.endsWith("/useAssistantFirstArrival")) return { useAssistantFirstArrival: (value: typeof arrivalOptions) => { arrivalOptions = value; } };
     if (name === "@/lib/inrAssistantClientContext") return clientContext;
     if (name === "@/lib/inrAssistantClientStream") return clientStream;
+    if (name === "@/lib/inrAssistantContextualHelp") return contextualHelp;
     if (name === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => activeAccountId };
     if (name === "@/lib/multicompte/constants") return { ACTIVE_INRCY_ACCOUNT_EVENT: "account-changed" };
     if (name === "@/lib/supabaseClient") return {};
@@ -91,6 +94,7 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
       return true;
     } }) };
     if (name === "./dashboardAssistantCopy") return { dashboardAssistantCopy: () => copy };
+    if (name === "./dashboardAssistantErrorCopy") return errorCopy;
     if (name === "./DashboardAssistantMessageContent") return { __esModule: true, default: () => null };
     if (name.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) };
     assert.fail(`Unexpected dependency ${name}`);
@@ -99,7 +103,7 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
   let restored = false;
   const render = (open = true) => {
     stateIndex = 0; refIndex = 0; effects = [];
-    const tree = moduleRecord.exports.TestSession({ ...scope, onboardingWelcome: options.onboardingWelcome === true, allowed: true, open, close: () => { actions.close += 1; }, minimize: () => { actions.minimize += 1; }, onReply: () => { actions.replies += 1; }, onHumanContact: (message: string) => { handoffs.push(message); }, onInternalNavigate: (href: string) => { navigations.push(href); }, onOpenMediaLibrary: () => { navigations.push("/dashboard/mediatheque"); }, screen: clientContext.getInrAssistantClientScreen("/dashboard", new URLSearchParams("action=publish&token=secret")) });
+    const tree = moduleRecord.exports.TestSession({ ...scope, onboardingWelcome: options.onboardingWelcome === true, allowed: true, open, close: () => { actions.close += 1; }, minimize: () => { actions.minimize += 1; }, onReply: () => { actions.replies += 1; }, onHumanContact: (message: string) => { handoffs.push(message); }, onInternalNavigate: (href: string) => { navigations.push(href); }, onOpenMediaLibrary: () => { navigations.push("/dashboard/mediatheque"); }, screen: clientContext.getInrAssistantClientScreen(options.pathname || "/dashboard", new URLSearchParams(options.query ?? "action=publish&token=secret")) });
     if (restored) effects[9]();
     return tree;
   };

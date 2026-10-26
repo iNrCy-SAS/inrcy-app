@@ -23,7 +23,7 @@ const MAX_EVENTS = 80;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const PUBLIC_CODES = new Set([
   "auth_required", "account_scope_unavailable", "subscription_required", "quota_exceeded",
-  "assistant_unavailable", "assistant_invalid_request", "ai_gateway_rate_limit", "ai_gateway_unavailable",
+  "assistant_unavailable", "assistant_invalid_request", "assistant_memory_unavailable", "ai_gateway_rate_limit", "ai_gateway_unavailable",
   "ai_gateway_request_failed", "ai_gateway_invalid_request", "ai_gateway_account_limit_reached",
   "ai_operation_budget_exceeded", "ai_operation_deadline_exceeded", "ai_gateway_guard_unavailable",
   "ai_gateway_transcription_unavailable", "ai_gateway_transcription_protocol_unsupported", "fetch_timeout",

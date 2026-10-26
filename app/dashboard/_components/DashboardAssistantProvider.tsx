@@ -13,9 +13,11 @@ import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { createClient } from "@/lib/supabaseClient";
 import { getInrAssistantClientScreen, parseInrAssistantClientContext, parseInrAssistantRequestId, type InrAssistantClientError, type InrAssistantClientScreen } from "@/lib/inrAssistantClientContext";
 import { readInrAssistantResponse } from "@/lib/inrAssistantClientStream";
+import { getInrAssistantContextualHelp } from "@/lib/inrAssistantContextualHelp";
 import type { InrAssistantActivity } from "@/lib/inrAssistantActivity";
 import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import { dashboardAssistantCopy } from "./dashboardAssistantCopy";
+import { dashboardAssistantErrorCopy } from "./dashboardAssistantErrorCopy";
 import DashboardAssistantMessageContent from "./DashboardAssistantMessageContent";
 import { useAssistantFirstArrival } from "../_hooks/useAssistantFirstArrival";
 import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvider";
@@ -259,6 +261,7 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
 }) {
   const locale = useLocale();
   const copy = dashboardAssistantCopy(locale);
+  const contextHelp = getInrAssistantContextualHelp(screen, locale);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
@@ -488,7 +491,7 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
         return;
       }
       if (!response.ok || failed || typeof payload?.message !== "string" || !payload.message.trim()) {
-        setError(typeof payload?.error === "string" && payload.error.trim() ? payload.error : copy.unavailable);
+        setError(dashboardAssistantErrorCopy(locale, payload?.code, response.status));
         setVisibleError(parseInrAssistantClientContext({ visibleError: { code: payload?.code, requestId: parseInrAssistantRequestId(payload?.requestId) || response.headers.get("X-Request-Id"), occurredAt: new Date().toISOString() } })?.visibleError);
         setRetryMessages(conversation);
         return;
@@ -499,11 +502,11 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
       setHandoffSummary(payload.needsHuman === true ? typeof payload.handoffSummary === "string" && payload.handoffSummary.trim() ? payload.handoffSummary.slice(0, 4500) : payload.message.slice(0, 4500) : "");
     } catch {
       if (controller.signal.reason === "timeout") {
-        setError(copy.timeout);
+        setError(dashboardAssistantErrorCopy(locale, "assistant_client_timeout"));
         setVisibleError({ code: "assistant_client_timeout", occurredAt: new Date().toISOString() });
         setRetryMessages(conversation);
       } else if (stillCurrent()) {
-        setError(copy.unavailable);
+        setError(dashboardAssistantErrorCopy(locale));
         setVisibleError({ code: "assistant_client_network", occurredAt: new Date().toISOString() });
         setRetryMessages(conversation);
       }
@@ -566,10 +569,14 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg>
           </button>
         </header>
+        {messages.length > 0 && contextHelp && !pending ? <aside className={styles.contextHelp} aria-label={contextHelp.tool} data-testid="assistant-context-help">
+          <p>{contextHelp.tool}</p><div>{contextHelp.suggestions.map(suggestion => <button type="button" key={suggestion}
+            onClick={() => { localEditRevisionRef.current++; setDraft(suggestion); composerRef.current?.focus(); }}>{suggestion}</button>)}</div>
+        </aside> : null}
         <div ref={transcriptRef} className={styles.transcript} role="log" aria-label="iNr’Assistant" aria-live="polite" aria-relevant="additions text" aria-busy={pending}>
           {!messages.length ? <div className={styles.welcome}>
-            <h3>{onboardingWelcome ? copy.onboardingGreeting : copy.prompt}</h3><p>{onboardingWelcome ? copy.onboardingMessage : copy.intro}</p>
-            <div className={styles.suggestions}>{(onboardingWelcome ? [copy.onboardingConnect, ...copy.suggestions.filter(suggestion => suggestion !== copy.suggestions[1])] : copy.suggestions).map((suggestion) => <button key={suggestion} type="button"
+            <h3>{onboardingWelcome ? copy.onboardingGreeting : contextHelp?.tool || copy.prompt}</h3><p>{onboardingWelcome ? copy.onboardingMessage : copy.intro}</p>
+            <div className={styles.suggestions} data-testid={contextHelp && !onboardingWelcome ? "assistant-context-help" : undefined}>{(onboardingWelcome ? [copy.onboardingConnect, ...copy.suggestions.filter(suggestion => suggestion !== copy.suggestions[1])] : contextHelp?.suggestions || copy.suggestions).map((suggestion) => <button key={suggestion} type="button"
               onClick={() => { localEditRevisionRef.current++; setDraft(onboardingWelcome && suggestion === copy.onboardingConnect ? copy.onboardingRequest : suggestion); composerRef.current?.focus(); }}>{suggestion}<span aria-hidden="true">↗</span></button>)}</div>
           </div> : messages.map((message, index) => <div key={index} className={`${styles.message} ${message.role === "user" ? styles.userMessage : styles.assistantMessage}`}>
             <span className={styles.speaker}>{message.role === "user" ? copy.you : "iNr’Assistant"}</span>
@@ -599,7 +606,7 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
               })}
             </ul>
           </section> : null}
-          {error ? <div className={styles.error} role="alert"><p>{error}</p>{visibleError?.requestId ? <p className={styles.errorReference}>{copy.reference} <span>{visibleError.requestId}</span></p> : null}<div className={styles.errorActions}>{retryMessages ? <button type="button" onClick={() => void send(retryMessages)}>{copy.retry}</button> : null}</div></div> : null}
+          {error ? <div className={styles.error} role="alert"><p>{error}</p><div className={styles.errorActions}>{retryMessages ? <button type="button" onClick={() => void send(retryMessages)}>{copy.retry}</button> : null}</div></div> : null}
         </div>
         {handoffSummary ? <div className={styles.humanAction}><button type="button" onClick={prepareHumanContact}>{copy.human}<span aria-hidden="true">↗</span></button></div> : null}
         {memoryUnavailable ? <p className={styles.memoryNotice} role="status">{copy.historyUnavailable}</p> : null}

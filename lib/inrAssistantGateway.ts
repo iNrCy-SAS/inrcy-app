@@ -41,6 +41,8 @@ import { createInrAssistantCommercialTools } from "./inrAssistantCommercialTools
 import { createInrAssistantCommunicationTools } from "./inrAssistantCommunicationTools.ts";
 import { createInrAssistantAdvertisingTools } from "./inrAssistantAdvertisingTools.ts";
 import { createInrAssistantSettingsTools } from "./inrAssistantSettingsTools.ts";
+import { classifyInrAssistantGatewayFailure, projectInrAssistantGatewayDiagnostic, recordInrAssistantGatewayDiagnostic,
+  type InrAssistantDiagnosticPhase, type InrAssistantGatewayDiagnostic } from "./inrAssistantGatewayDiagnostics.ts";
 
 const supportTool = tool({
   description: "Préparer une proposition d’aide par un humain quand le pro la demande, qu’un accès administrateur est nécessaire ou qu’un blocage ne peut pas être résolu de façon fiable. Rien n’est envoyé : le pro doit vérifier le résumé et choisir de contacter l’équipe.",
@@ -64,7 +66,12 @@ export type InrAssistantReply = { message: string; needsHuman?: boolean; handoff
 
 export class InrAssistantUnavailableError extends Error {
   code = "assistant_unavailable";
-  constructor() { super("L’assistant est momentanément indisponible. Merci de réessayer dans quelques instants."); }
+  declare readonly diagnostic?: InrAssistantGatewayDiagnostic;
+  constructor(diagnostic?: InrAssistantGatewayDiagnostic) {
+    super("L’assistant est momentanément indisponible. Merci de réessayer dans quelques instants.");
+    const safeDiagnostic = projectInrAssistantGatewayDiagnostic(diagnostic);
+    if (safeDiagnostic) Object.defineProperty(this, "diagnostic", { value: safeDiagnostic, enumerable: false });
+  }
 }
 
 function guardCost(model: InrAssistantModel, inputTokens: number, outputTokens: number) {
@@ -93,6 +100,13 @@ export async function generateInrAssistantReply(args: {
   signal?: AbortSignal;
   onActivity?: InrAssistantActivityCallback;
 }): Promise<InrAssistantReply> {
+  const diagnosticStartedAt = Date.now();
+  let lastFailure: InrAssistantGatewayDiagnostic | undefined;
+  const note = (phase: InrAssistantDiagnosticPhase, fields: Partial<InrAssistantGatewayDiagnostic> = {}) =>
+    recordInrAssistantGatewayDiagnostic({ ...fields, requestId: args.requestId, phase, elapsedMs: Date.now() - diagnosticStartedAt });
+  const noteFailure = (phase: InrAssistantDiagnosticPhase, fields: Partial<InrAssistantGatewayDiagnostic> = {}) => {
+    lastFailure = note(phase, fields); return lastFailure;
+  };
   const latestRequest = args.messages.at(-1)?.content ?? "";
   const families = selectInrAssistantToolFamilies(latestRequest, args.messages.filter(message => message.role === "user").slice(0, -1).map(message => message.content));
   const verifiedNavigation = getVerifiedInrAssistantNavigation(latestRequest);
@@ -104,10 +118,12 @@ export async function generateInrAssistantReply(args: {
     return { message: verifiedNavigation };
   }
   const credential = getAiGatewayCredential();
-  if (!credential) throw new InrAssistantUnavailableError();
+  if (!credential) throw new InrAssistantUnavailableError(noteFailure("credential_missing"));
   // The shared guard permits local development without Redis. Production
   // Assistant must never silently disable economic limits when Redis is absent.
-  if (process.env.NODE_ENV === "production" && !isUpstashEnabled()) throw new AiGatewayGuardUnavailableError();
+  if (process.env.NODE_ENV === "production" && !isUpstashEnabled()) {
+    noteFailure("redis_reserve"); throw new AiGatewayGuardUnavailableError();
+  }
   let system = buildInrAssistantSystemPrompt(args.displayName, args.accountContext, getInrAssistantAppKnowledge(latestRequest, 2_400), args.edition, args.clientContext);
   const messages = [...args.messages];
   const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
@@ -281,6 +297,7 @@ export async function generateInrAssistantReply(args: {
   }
   while (messages.length > 1 && bytes({ system, messages }) + schemaBytes > 31_000) messages.shift();
   if (bytes({ system, messages }) + schemaBytes > 31_000) {
+    noteFailure("input_limit", { inputBytes: bytes({ system, messages }) + schemaBytes, historyTurns: messages.length });
     throw new InrAssistantInputError("Votre demande et son contexte sont trop longs. Raccourcissez le message ou ouvrez une nouvelle conversation.");
   }
   const quota = await reserveInrAssistantRequest({
@@ -290,9 +307,12 @@ export async function generateInrAssistantReply(args: {
   let success = false;
   try {
     for (const attempt of chain) {
+      if (args.signal?.aborted) noteFailure("request_aborted", { model: attempt.model, callCount: llmCalls });
       args.signal?.throwIfAborted();
       const remaining = deadline - Date.now();
-      if (remaining < 1_000 || llmCalls >= 4) break;
+      if (remaining < 1_000 || llmCalls >= 4) {
+        noteFailure(remaining < 1_000 ? "deadline" : "call_limit", { model: attempt.model, callCount: llmCalls }); break;
+      }
       let reply = "";
       let handoffSummary = "";
       let failureStatus: number | undefined;
@@ -311,14 +331,22 @@ export async function generateInrAssistantReply(args: {
               ]),
             }),
             wrapGenerate: async ({ doGenerate, params }) => {
-              if (llmCalls >= 4 || deadline - Date.now() < 1_000) throw new InrAssistantUnavailableError();
+              if (llmCalls >= 4 || deadline - Date.now() < 1_000) {
+                throw new InrAssistantUnavailableError(noteFailure(llmCalls >= 4 ? "call_limit" : "deadline", { model: attempt.model, callCount: llmCalls }));
+              }
               const estimatedInputTokens = bytes({ prompt: params.prompt, tools: params.tools }) + 1_024;
-              if (estimatedInputTokens > 32_000) throw new InrAssistantInputError("Le contexte est trop long. Ouvrez une nouvelle conversation pour cette demande.");
+              if (estimatedInputTokens > 32_000) {
+                noteFailure("input_limit", { model: attempt.model, inputBytes: estimatedInputTokens - 1_024, callCount: llmCalls });
+                throw new InrAssistantInputError("Le contexte est trop long. Ouvrez une nouvelle conversation pour cette demande.");
+              }
               const callStartedAt = Date.now();
               const estimatedCost = guardCost(attempt.model, estimatedInputTokens, maxOutputTokens);
               const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
                 feature: "assistant.chat", estimatedInputTokens, reservedOutputTokens: maxOutputTokens, estimatedCostMicroUsd: estimatedCost,
-              }).catch((error: unknown) => { economicFailure = error; throw error; });
+              }).catch((error: unknown) => {
+                noteFailure("redis_reserve", { model: attempt.model, durationMs: Date.now() - callStartedAt, callCount: llmCalls });
+                economicFailure = error; throw error;
+              });
               llmCalls++;
               let usage = { inputTokens: estimatedInputTokens, outputTokens: maxOutputTokens, totalTokens: estimatedInputTokens + maxOutputTokens };
               let usageEstimated = true;
@@ -336,16 +364,24 @@ export async function generateInrAssistantReply(args: {
                   usage = { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
                   usageEstimated = false;
                 }
+                note("provider_completed", { model: attempt.model, durationMs: Date.now() - callStartedAt, callCount: llmCalls,
+                  finishReason: output.finishReason.unified, hasText: output.content.some(part => part.type === "text" && Boolean(part.text.trim())) });
                 return output;
               } catch (error) {
                 statusCode = error && typeof error === "object" && "statusCode" in error ? Number(error.statusCode) || undefined : undefined;
+                noteFailure(classifyInrAssistantGatewayFailure(error, args.signal?.aborted), {
+                  model: attempt.model, statusCode, durationMs: Date.now() - callStartedAt, callCount: llmCalls,
+                });
                 throw error;
               } finally {
                 const cost = usageEstimated ? estimatedCost : guardCost(attempt.model, usage.inputTokens, usage.outputTokens);
                 // Account each LLM step before tools run. Never charge result.usage
                 // a second time: it only represents the last step of the SDK loop.
                 await commitAiGatewayAccountAttempt({ reservation, feature: "assistant.chat", model: attempt.model, usage, actualCostMicroUsd: cost })
-                  .catch((error: unknown) => { economicFailure = error; throw error; });
+                  .catch((error: unknown) => {
+                    noteFailure("redis_commit", { model: attempt.model, durationMs: Date.now() - callStartedAt, callCount: llmCalls });
+                    economicFailure = error; throw error;
+                  });
                 recordAiGatewayOperationCall({
                   feature: "assistant.chat", model: attempt.model, transport: "vercel_ai_gateway",
                   fallbackStage: attempt === chain[0] ? "primary" : "gateway_model",
@@ -414,12 +450,22 @@ export async function generateInrAssistantReply(args: {
             break;
           }
         }
-        if (result.finishReason === "length") reply = "";
+        if (result.finishReason === "length") {
+          noteFailure("output_limit", { model: attempt.model, finishReason: result.finishReason, hasText: Boolean(reply), callCount: llmCalls });
+          reply = "";
+        } else if (!reply) {
+          noteFailure("empty_output", { model: attempt.model, finishReason: result.finishReason, hasText: false, callCount: llmCalls });
+        }
       } catch (error) {
         if (economicFailure && !actionFacts.size && !mediaState.result && !publicationResults.length) throw economicFailure;
         if (error instanceof InrAssistantInputError && !actionFacts.size && !mediaState.result && !publicationResults.length) throw error;
         failureStatus = error && typeof error === "object" && "statusCode" in error ? Number(error.statusCode) || undefined : undefined;
-        if (args.signal?.aborted) throw error;
+        if (args.signal?.aborted) {
+          noteFailure("request_aborted", { model: attempt.model, callCount: llmCalls });
+          // A disconnected browser does not undo an already confirmed action.
+          // The factual branches below return it without another model or mutation.
+          if (!actionFacts.size && !publicationResults.length && !mediaState.result && !mediaState.requestId) throw error;
+        }
       }
       if (mediaState.result) {
         success = true;
@@ -449,8 +495,10 @@ export async function generateInrAssistantReply(args: {
       if (reply) { success = true; return { message: reply, ...(handoffSummary ? { needsHuman: true, handoffSummary } : {}) }; }
       await recordAiGatewayAccountFailure({ accountId: args.accountId, feature: "assistant.chat", model: attempt.model, status: failureStatus }).catch(() => undefined);
     }
-    throw new InrAssistantUnavailableError();
+    throw new InrAssistantUnavailableError(lastFailure ?? noteFailure("unavailable", { callCount: llmCalls }));
   } finally {
+    note("quota_finalize_started", { callCount: llmCalls });
     await finalizeInrAssistantRequest(quota, { success });
+    note("quota_finalize_completed", { callCount: llmCalls });
   }
 }

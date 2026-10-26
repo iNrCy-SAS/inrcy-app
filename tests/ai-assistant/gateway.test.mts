@@ -10,6 +10,7 @@ import * as policy from "../../lib/inrAssistantPolicy.ts";
 import * as conversation from "../../lib/inrAssistantConversation.ts";
 import * as routing from "../../lib/inrAssistantToolRouting.ts";
 import * as activity from "../../lib/inrAssistantActivity.ts";
+import * as gatewayDiagnostics from "../../lib/inrAssistantGatewayDiagnostics.ts";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
 import type { InrAssistantMediaResult } from "../../lib/inrAssistantMediaTools.ts";
 import type { InrAssistantPublicationResult } from "../../lib/inrAssistantPublicationTools.ts";
@@ -33,7 +34,9 @@ const memoryToolsRuntime = loadClosedModule<typeof MemoryTools>("inrAssistantMem
 });
 
 function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; failCommit?: boolean;
-  productionNoRedis?: boolean; handoff?: boolean; media?: boolean; followup?: boolean; workflow?: boolean; failAfterPublication?: boolean; verifiedNavigation?: string; lookup?: "diagnostics" | "workspace" | "memory" } = {}) {
+  productionNoRedis?: boolean; handoff?: boolean; media?: boolean; followup?: boolean; workflow?: boolean; failAfterPublication?: boolean;
+  verifiedNavigation?: string; lookup?: "diagnostics" | "workspace" | "memory"; providerError?: Error; outputLimit?: boolean;
+  emptyText?: boolean; abortAfterPublication?: AbortController } = {}) {
   const generations: { model: string; params: LanguageModelV3CallOptions }[] = [];
   const reservations: { feature: string; reservedOutputTokens: number; estimatedInputTokens: number }[] = [];
   const commits: { usage: { inputTokens: number; outputTokens: number; totalTokens: number } }[] = [];
@@ -41,6 +44,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   const factories: string[] = [];
   const publicationExecutions: string[] = [];
   const toolScopes: { tool: string; accountId: string; edition: string }[] = [];
+  const diagnostics: gatewayDiagnostics.InrAssistantGatewayDiagnostic[] = [];
   let mediaExecutions = 0;
   const stubs: Record<string, unknown> = {
     "server-only": {}, "./dashboardEdition.ts": {},
@@ -49,6 +53,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
         specificationVersion: "v3", provider: "test", modelId: id, supportedUrls: {},
         doGenerate: async (params) => {
           generations.push({ model: id, params });
+          if (options.providerError) throw options.providerError;
           if (generations.length <= (options.fail ?? 0)) throw Object.assign(new Error("Unavailable"), { statusCode: 503 });
           if (options.failAfterPublication && generations.length > 3) throw Object.assign(new Error("Summary unavailable after publication"), { statusCode: 503 });
           const callTool = options.workflow ? generations.length <= 3 : options.handoff || options.media || ((options.followup || options.lookup) && generations.length === 1);
@@ -56,8 +61,8 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
           const input = options.workflow && generations.length > 1 ? { draftId: "stored-draft", mode: "publish" } : options.lookup === "memory" ? { query: "campagne de Noël", limit: 4 } : options.lookup === "diagnostics" ? { area: "all" } : options.lookup === "workspace" ? { section: "stats" } : options.handoff ? { message: "Vous pouvez faire vérifier ce blocage.", summary: "Blocage de connexion à vérifier." } : { prompt: "Une image" };
           return {
             content: callTool ? [{ type: "tool-call", toolCallId: "call-1", toolName, input: JSON.stringify(input) }]
-              : [{ type: "text", text: "Voici la prochaine étape." }],
-            finishReason: { unified: callTool ? "tool-calls" : "stop", raw: "test" },
+              : [{ type: "text", text: options.emptyText ? "" : "Voici la prochaine étape." }],
+            finishReason: { unified: options.outputLimit ? "length" : callTool ? "tool-calls" : "stop", raw: "test" },
             usage: { inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
               outputTokens: { total: 40, text: 10, reasoning: 30 } }, warnings: [],
           };
@@ -81,6 +86,10 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantConversation.ts": conversation,
     "./inrAssistantToolRouting.ts": routing,
     "./inrAssistantActivity.ts": activity,
+    "./inrAssistantGatewayDiagnostics.ts": { ...gatewayDiagnostics, recordInrAssistantGatewayDiagnostic: (value: unknown) => {
+      const safe = gatewayDiagnostics.projectInrAssistantGatewayDiagnostic(value);
+      if (safe) diagnostics.push(safe); return safe ?? undefined;
+    } },
     "./inrAssistantBusinessTools.ts": { createInrAssistantBusinessTools: () => Object.fromEntries(["updateBusinessDna", "updateAiConfiguration", "guideChannelConnection"].map(name => [name, tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ available: true }) })])) },
     "./inrAssistantCtaTools.ts": { createInrAssistantCtaTools: () => ({}) },
     "./inrAssistantDnaAnalysisTools.ts": { createInrAssistantDnaAnalysisTools: () => ({}) },
@@ -95,7 +104,9 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
         const result: InrAssistantPublicationResult = { action: name === "preparePublication" ? "prepare" : "publish", ok: true,
           status: name === "preparePublication" ? "draft" : "queued", message: name === "preparePublication" ? "Le brouillon est enregistré." : "La publication est en file d’attente.",
           toolUrl: "/dashboard/send", checkedAt: "2026-10-26T12:00:00Z", draftId: "stored-draft" };
-        args.onResult?.(result); return result;
+        args.onResult?.(result);
+        if (name === "executePublication") options.abortAfterPublication?.abort(new Error("Disconnected browser"));
+        return result;
       } }),
     ])) },
     "./inrAssistantWorkspaceActionTools.ts": { createInrAssistantWorkspaceActionTools: () => ({}) },
@@ -134,7 +145,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, {
     Date, TextEncoder, AbortSignal, console, process: { env: { NODE_ENV: options.productionNoRedis ? "production" : "test" } },
   })((name: string) => { if (!(name in stubs)) throw new Error(`Unexpected dependency: ${name}`); return stubs[name]; }, moduleRecord, moduleRecord.exports);
-  return { runtime: moduleRecord.exports as typeof Gateway, generations, reservations, commits, finalized, factories, toolScopes, publicationExecutions, get mediaExecutions() { return mediaExecutions; } };
+  return { runtime: moduleRecord.exports as typeof Gateway, generations, reservations, commits, finalized, factories, toolScopes, publicationExecutions, diagnostics, get mediaExecutions() { return mediaExecutions; } };
 }
 
 const basic = { accountId: "account-a", displayName: "Entreprise A", edition: "standard" as const,
@@ -346,4 +357,76 @@ test("complete provider context is bounded before dispatch", async () => {
   await assert.rejects(h.runtime.generateInrAssistantReply({ ...basic,
     messages: [{ role: "user", content: "界".repeat(20_000) }] }));
   assert.equal(h.generations.length, 0);
+});
+
+test("provider timeout diagnostics preserve the original fallback policy and keep the cause private", async () => {
+  const providerError = Object.assign(new Error("PRIVATE provider message, https://secret.test?key=SECRET"), { name: "TimeoutError", statusCode: 504 });
+  const h = harness({ providerError });
+  const requestId = randomUUID();
+  await assert.rejects(h.runtime.generateInrAssistantReply({ ...basic, requestId }), error => {
+    assert.ok(error instanceof h.runtime.InrAssistantUnavailableError);
+    assert.equal(error.diagnostic?.phase, "provider_timeout");
+    assert.equal(error.diagnostic?.requestId, requestId);
+    assert.equal(error.diagnostic?.statusCode, 504);
+    assert.equal(Object.prototype.propertyIsEnumerable.call(error, "diagnostic"), false);
+    assert.doesNotMatch(JSON.stringify(error), /provider_timeout|PRIVATE|secret.test|SECRET/);
+    return true;
+  });
+  assert.deepEqual(h.generations.map(row => row.model), policy.getInrAssistantModelChain({ edition: "standard", complexity: "routine", solReserved: false }).map(row => row.model));
+  assert.equal(h.commits.length, h.generations.length);
+  const timeouts = h.diagnostics.filter(row => row.phase === "provider_timeout");
+  assert.equal(timeouts.length, h.generations.length);
+  assert.ok(timeouts.every(row => row.requestId === requestId && row.statusCode === 504 && typeof row.durationMs === "number"));
+  assert.doesNotMatch(JSON.stringify(h.diagnostics), /PRIVATE|secret.test|SECRET|account-a|Facebook/);
+  assert.equal(h.finalized[0].success, false);
+});
+
+test("a length-limited provider response is distinguished from an empty output without changing usage", async () => {
+  for (const [options, phase, hasText] of [[{ outputLimit: true }, "output_limit", true], [{ emptyText: true }, "empty_output", false]] as const) {
+    const h = harness(options);
+    await assert.rejects(h.runtime.generateInrAssistantReply({ ...basic, requestId: randomUUID() }), error => {
+      assert.ok(error instanceof h.runtime.InrAssistantUnavailableError);
+      assert.equal(error.diagnostic?.phase, phase); assert.equal(error.diagnostic?.hasText, hasText); return true;
+    });
+    assert.ok(h.diagnostics.some(row => row.phase === "provider_completed" && row.hasText === hasText));
+    assert.equal(h.diagnostics.filter(row => row.phase === phase).length, h.generations.length);
+    assert.equal(h.commits.length, h.generations.length);
+    assert.ok(h.commits.every(row => row.usage.totalTokens === 140));
+  }
+});
+
+test("Redis commit and reservation failures are identified without a paid fallback or changed exception", async () => {
+  for (const [options, phase, calls] of [[{ failCommit: true }, "redis_commit", 1], [{ guardError: true }, "redis_reserve", 0]] as const) {
+    const h = harness(options);
+    await assert.rejects(h.runtime.generateInrAssistantReply({ ...basic, requestId: randomUUID() }), /unavailable/);
+    assert.equal(h.generations.length, calls);
+    assert.ok(h.diagnostics.some(row => row.phase === phase));
+    assert.doesNotMatch(JSON.stringify(h.diagnostics), /commit unavailable|guard unavailable/);
+    assert.equal(h.finalized[0].success, false);
+  }
+});
+
+test("an aborted request before dispatch is diagnosed and never calls a provider", async () => {
+  const controller = new AbortController(); controller.abort(new Error("PRIVATE disconnected request"));
+  const h = harness();
+  await assert.rejects(h.runtime.generateInrAssistantReply({ ...basic, requestId: randomUUID(), signal: controller.signal }), /PRIVATE disconnected request/);
+  assert.equal(h.generations.length, 0);
+  assert.ok(h.diagnostics.some(row => row.phase === "request_aborted"));
+  assert.doesNotMatch(JSON.stringify(h.diagnostics), /PRIVATE|disconnected/);
+  assert.equal(h.finalized[0].success, false);
+});
+
+test("a browser disconnection after confirmed publication retains its factual result without repeating the action", async () => {
+  const controller = new AbortController();
+  const h = harness({ workflow: true, abortAfterPublication: controller });
+  const result = await h.runtime.generateInrAssistantReply({ ...basic, requestId: randomUUID(), signal: controller.signal,
+    messages: [{ role: "user", content: "Crée une image de mon atelier et publie ce visuel sur Facebook maintenant" }],
+    supabase: { from: () => { throw new Error("No database access expected from synthetic tools"); } } as never });
+  assert.equal(controller.signal.aborted, true);
+  assert.match(result.message, /en file d’attente/); assert.doesNotMatch(result.message, /a été publiée/);
+  assert.equal(result.media?.status, "completed");
+  assert.deepEqual(h.publicationExecutions, ["preparePublication", "executePublication"]);
+  assert.equal(h.mediaExecutions, 1); assert.equal(h.generations.length, 3);
+  assert.ok(h.diagnostics.some(row => row.phase === "request_aborted"));
+  assert.equal(h.finalized[0].success, true);
 });

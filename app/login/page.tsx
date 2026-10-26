@@ -15,6 +15,7 @@ import {
 import { waitForServerAuthSession } from "@/lib/browserAuthSessionReady";
 import { buildSupabaseEmailRedirectUrl } from "@/lib/authEmailLinks";
 import { classifyLoginError } from "@/lib/loginAuthError";
+import { isTemporaryPasswordExpiredError } from "@/lib/temporaryPasswordPolicy";
 import {
   reportLoginFailure,
   reportLoginSuccess,
@@ -96,10 +97,22 @@ export default function LoginPage() {
   const [redirectingToDashboard, setRedirectingToDashboard] = useState(false);
   const [error, setError] = useState<LoginErrorState | null>(null);
 
+  useEffect(() => {
+    const prefilled = new URLSearchParams(window.location.search).get("email")?.trim() || "";
+    if (prefilled.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(prefilled)) {
+      setEmail((current) => current || prefilled);
+    }
+  }, []);
+
   const friendlyLoginError = (
     input: unknown,
     fallback = t("errors.defaultLogin"),
   ): LoginErrorState => {
+    if (isTemporaryPasswordExpiredError(input)) {
+      return makeLoginError(t("errors.temporaryPasswordExpiredTitle"), t("errors.temporaryPasswordExpiredMessage"), {
+        hint: t("errors.temporaryPasswordExpiredHint"),
+      });
+    }
     switch (classifyLoginError(input)) {
       case "invalidCredentials":
         return makeLoginError(

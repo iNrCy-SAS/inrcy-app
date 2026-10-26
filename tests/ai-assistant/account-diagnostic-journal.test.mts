@@ -61,6 +61,18 @@ test("diagnostic traces are attached only to server-authenticated scope and isol
   assert.equal(await runtime.recordCurrentAccountDiagnosticError(500), false);
 });
 
+test("a memory outage retains its actionable public category and server trace for support", async () => {
+  const { runtime } = harness();
+  await runtime.runWithAccountDiagnosticContext({ route: "/api/assistant/chat", requestId: REQUEST }, async () => {
+    runtime.registerAuthenticatedDiagnosticScope({ accountId: ACCOUNT_A, actorUserId: ACTOR });
+    await runtime.recordCurrentAccountDiagnosticError(503, "assistant_memory_unavailable");
+  });
+  const { events } = await runtime.readAccountDiagnosticEvents(ACCOUNT_A);
+  assert.equal(events[0].errorCode, "assistant_memory_unavailable");
+  assert.equal(events[0].requestId, REQUEST);
+  assert.equal(events[0].route, "/api/assistant/chat");
+});
+
 test("the journal retains only bounded public facts, not payloads, credentials, identities or private routes", async () => {
   const { runtime, writes } = harness();
   const error = { accountId: ACCOUNT_A, requestId: REQUEST, route: `/api/booster/posts/${ACCOUNT_B}?token=never-record-this`, statusCode: 500, errorCode: "Bearer never-record-this" };

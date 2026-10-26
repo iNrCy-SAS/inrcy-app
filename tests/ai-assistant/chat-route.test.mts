@@ -624,7 +624,7 @@ test("a leased pending turn returns 202 with retry guidance and cannot start dup
   assert.equal(h.memoryFailures.length, 0);
 });
 
-test("authenticated stored history replaces forged browser history and excludes failed or pending replies", async () => {
+test("authenticated history keeps a failed question but excludes failed or pending assistant replies", async () => {
   const previousId = "ff666666-6666-4666-8666-666666666666";
   const h = harness({ history: [
     { conversationId, turnId: previousId, status: "completed", userText: "Notre entreprise vend des meubles.", assistantText: "Préparons votre publication meubles." },
@@ -643,6 +643,7 @@ test("authenticated stored history replaces forged browser history and excludes 
   assert.deepEqual(JSON.parse(JSON.stringify(h.gatewayCalls[0].messages)), [
     { role: "user", content: "Notre entreprise vend des meubles." },
     { role: "assistant", content: "Préparons votre publication meubles." },
+    { role: "user", content: "Ancienne demande échouée" },
     { role: "user", content: "Écris le texte final." },
   ]);
   assert.doesNotMatch(JSON.stringify(h.gatewayCalls[0].messages), /FORGED|PRIVATE|DUPLICATE/);

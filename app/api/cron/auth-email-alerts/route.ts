@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { processDueAuthEmailFailureAlerts } from "@/lib/authMailDelivery";
 import { isAuthorizedCronRequest } from "@/lib/cronAuth";
+import { processPendingSignupWelcomes } from "@/lib/signupWelcomeMail";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,9 +27,10 @@ export async function GET(request: Request) {
 
   try {
     const alerts = await processDueAuthEmailFailureAlerts({ limit: 10 });
+    const welcomes = await processPendingSignupWelcomes();
     console.info("[auth-mail][alert-cron-complete]", alerts);
     return NextResponse.json(
-      { ok: true, alerts },
+      { ok: true, alerts, welcomes },
       { status: 200, headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

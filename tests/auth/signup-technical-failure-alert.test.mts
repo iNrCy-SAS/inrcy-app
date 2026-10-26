@@ -194,7 +194,8 @@ test("la route câble l'alerte uniquement dans son catch technique", () => {
   assert.match(route, /await sendSignupFailureAlert\(alertInput\)/);
   assert.match(route, /"X-InrCy-Signup-Alert": alertDelivery/);
   assert.doesNotMatch(route, /after\(async/);
-  assert.match(route, /stage = "auth_invitation"/);
+  assert.match(route, /stage = "auth_account_creation"/);
+  assert.match(route, /stage = "welcome_email"/);
   assert.match(route, /authUserCreated = true/);
   assert.match(route, /captureApiException\(req, error/);
   assert.match(helper, /nx: true/);
