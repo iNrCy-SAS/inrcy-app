@@ -295,13 +295,23 @@ export function MediaCreditQuoteSummary({ status, quota }: { status: ReturnType<
       </span>
     </summary>
     <div className={styles.quoteDetails}>
+    <h3 className={styles.quoteTitle}>{t("ai_generator_credit_info_title")}</h3>
     {(status.quote?.breakdown ?? status.estimate?.breakdown)?.map((line) => <div key={line.key} className={styles.breakdown}>
       <small>{t(`ai_generator_credit_line_${line.key}`)}</small><small>{t("ai_generator_credit_quantity", { credits: number(line.credits) })}</small>
     </div>)}
     {quota?.creditsReady === false ? <small>{t("ai_generator_credits_unavailable")}</small> : status.loading ? <small>{t("ai_generator_credit_quote_loading")}</small> : !status.ready ? <div><small>{status.error || t("ai_generator_credit_quote_error")}</small><button type="button" onClick={status.retry}>{t("ai_generator_credit_quote_retry")}</button></div> : <>
-      {typeof status.remainingAfter === "number" ? <small>{t("ai_generator_credit_after", { credits: number(status.remainingAfter) })}</small> : null}
-      <small>{t("ai_generator_credit_charge_hint")}</small>
+      {typeof status.remainingAfter === "number" ? <small className={styles.quoteBalance}>{t("ai_generator_credit_after", { credits: number(status.remainingAfter) })}</small> : null}
     </>}
+    <section className={styles.quoteExplanation}>
+      <h4>{t("ai_generator_credit_generation_title")}</h4>
+      <p>{t("ai_generator_credit_result_variability")}</p>
+      <p><strong>{t("ai_generator_credit_result_consumption")}</strong></p>
+      <p className={styles.quoteProviderCost}>{t("ai_generator_credit_provider_cost")}</p>
+    </section>
+    <section className={`${styles.quoteExplanation} ${styles.quoteFailure}`}>
+      <h4>{t("ai_generator_credit_failure_title")}</h4>
+      <p>{t("ai_generator_credit_charge_hint")}</p>
+    </section>
     {status.insufficient ? <p className={styles.notice}>{t("ai_generator_credit_insufficient")}</p> : null}
     </div>
   </details>;
