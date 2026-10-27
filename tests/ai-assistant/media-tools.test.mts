@@ -5,6 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import { normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
 import * as catalogue from "../../lib/aiMediaModelCatalog.ts";
+import * as mediaIntent from "../../lib/inrAssistantMediaIntent.ts";
 import type * as MediaTools from "../../lib/inrAssistantMediaTools.ts";
 
 const mediaId = "20000000-0000-4000-8000-000000000001";
@@ -26,6 +27,7 @@ function harness(options: HarnessOptions = {}) {
     ai: { tool: (value: unknown) => value, jsonSchema: (schema: unknown, config: unknown) => ({ schema, ...config as object }) },
     "./aiMediaGenerationContracts.ts": { normalizeAiMediaGenerationRequest },
     "./aiMediaModelCatalog.ts": catalogue,
+    "./inrAssistantMediaIntent.ts": mediaIntent,
     "./inrAssistantMediaSource.ts": { loadInrAssistantImageReference: async (id: string) => {
       calls.push({ stage: "source", id });
       if (options.sourceUnavailable) throw new Error("Private Storage path users/other-account/secret.png unavailable");

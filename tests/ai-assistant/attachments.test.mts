@@ -10,6 +10,7 @@ import * as office from "../../lib/aiOfficeDocumentText.ts";
 import * as pdf from "../../lib/pdfTextExtraction.ts";
 import { assistantMessagesWithFiles } from "../../lib/inrAssistantAttachmentPrompt.ts";
 import type * as Storage from "../../lib/inrAssistantAttachmentStorage.ts";
+import * as taskPolicy from "../../lib/inrAssistantTaskPolicy.ts";
 
 const scope = { accountId: "11111111-1111-4111-8111-111111111111", actorUserId: "22222222-2222-4222-8222-222222222222", conversationId: "33333333-3333-4333-8333-333333333333" };
 const now = new Date();
@@ -40,6 +41,7 @@ function harness() {
     "server-only": {}, "node:crypto": crypto, "@/lib/supabaseAdmin": { supabaseAdmin: { storage } },
     "./inrAssistantMemory.ts": { inrAssistantMemoryCutoff: () => cutoff.toISOString(), sanitizeInrAssistantMemoryText:(value:unknown,max:number)=>String(value).slice(0,max) },
     "./inrAssistantAttachments.ts": policy, "./aiOfficeDocumentText.ts": office, "./pdfTextExtraction.ts": pdf,
+    "./inrAssistantTaskPolicy.ts": taskPolicy,
     sharp: { default: sharp },
   };
   const source = readFileSync(new URL("../../lib/inrAssistantAttachmentStorage.ts", import.meta.url), "utf8");
@@ -62,6 +64,30 @@ test("pending tasks are private durable objects bound to the exact actor, accoun
  const objectKey=[...h.objects.keys()].find(x=>x.endsWith(".task.json"))!;
  const data=JSON.parse(h.objects.get(objectKey)!.toString());data.actorUserId="eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";h.objects.set(objectKey,Buffer.from(JSON.stringify(data)));
  assert.equal(await h.api.loadAssistantTaskState(scope,turn),null,"Private path alone does not replace scope checks");
+});
+
+test("private task roundtrips retain all 24 distinct confirmations despite repeated events and long Unicode prose",async()=>{
+ const h=harness();
+ const confirmed=Array.from({length:23},(_,index)=>({tool:"manageCrmContact",ok:true,status:"created",id:`10000000-0000-4000-8000-${String(index+1).padStart(12,"0")}`,message:"😀".repeat(500)}));
+ const task={version:1 as const,instruction:"😀".repeat(2000),question:"😀".repeat(1000),actionRequestId:"account_turn-123",startedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+60_000).toISOString(),outcome:"partial" as const,requiredTools:["manageCrmContact"],requiredCalls:{manageCrmContact:24},receipts:[...confirmed,...Array.from({length:50},()=>confirmed[0]),...Array.from({length:30},()=>({tool:"manageCrmContact",ok:false,status:"unavailable",message:"Nouvelle tentative non confirmée"}))]};
+ assert.equal(await h.api.saveAssistantTaskState(scope,turn,task),true);
+ const saved=await h.api.loadAssistantTaskState(scope,turn);
+ assert.ok(saved);
+ assert.equal(saved.receipts.length,24);
+ assert.equal(taskPolicy.inrAssistantGoalCompleted("manageCrmContact",saved.receipts,saved.requiredCalls),false);
+ assert.deepEqual(new Set(saved.receipts.filter(receipt=>receipt.ok).map(receipt=>receipt.id)),new Set(confirmed.map(receipt=>receipt.id)));
+ assert.ok([...h.objects.values()].every(bytes=>bytes.length<=32_000));
+ const completed={...saved,outcome:"completed" as const,receipts:[...saved.receipts,{...confirmed[0],id:"10000000-0000-4000-8000-000000000024"}]};
+ assert.equal(await h.api.saveAssistantTaskState(scope,turn,completed),true);
+ const final=await h.api.loadAssistantTaskState(scope,turn);
+ assert.ok(final);
+ assert.equal(final.receipts.length,24);
+ assert.equal(taskPolicy.inrAssistantGoalCompleted("manageCrmContact",final.receipts,final.requiredCalls),true);
+ assert.equal(await h.api.loadAssistantTaskState({...scope,conversationId:"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"},turn),null);
+ const oversized={...task,requiredCalls:{manageCrmContact:26}};
+ const writes=h.calls.filter(call=>call.operation==="write").length;
+ assert.equal(await h.api.saveAssistantTaskState(scope,turn,oversized),false);
+ assert.equal(h.calls.filter(call=>call.operation==="write").length,writes);
 });
 
 test("file limits reject unsupported types, mismatched MIME, duplicates and excessive batches", () => {

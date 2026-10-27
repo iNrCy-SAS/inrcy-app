@@ -114,7 +114,12 @@ test("les références précomposées ne bloquent pas artificiellement la résol
 function freeEditor(options: { kind?: "image" | "video"; engine?: models.AiMediaVideoEngine; imageEngine?: models.AiMediaImageEngine; references?: Reference[]; prompt?: string; busy?: boolean; remaining?: number; quoteReady?: boolean } = {}) {
   const slots: unknown[] = []; let cursor = 0;
   const modules = new Map(commonModules);
-  modules.set("react", { useId: () => "reason-free", useRef: (value: unknown) => ({ current: value }), useEffect() {}, useLayoutEffect() {}, useState: (initial: unknown) => {
+  modules.set("react", { useId: () => "reason-free", useRef: (value: unknown) => ({ current: value }), useEffect() {}, useLayoutEffect() {}, useCallback(callback: unknown, deps: unknown[]) {
+    const index = cursor++;
+    const slot = slots[index] as { callback: unknown; deps: unknown[] } | undefined;
+    if (!slot || slot.deps.length !== deps.length || deps.some((value, at) => value !== slot.deps[at])) slots[index] = { callback, deps };
+    return (slots[index] as { callback: unknown }).callback;
+  }, useState: (initial: unknown) => {
     const index = cursor++;
     if (!(index in slots)) slots[index] = Array.isArray(initial) ? options.references || [] : typeof initial === "function" ? (initial as () => unknown)() : initial;
     return [slots[index], (next: unknown) => { slots[index] = typeof next === "function" ? (next as (current: unknown) => unknown)(slots[index]) : next; }];

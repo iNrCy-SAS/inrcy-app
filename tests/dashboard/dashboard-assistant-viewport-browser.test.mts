@@ -24,12 +24,15 @@ const sources = {
   "./dashboardAssistantAttachmentCopy": compile("app/dashboard/_components/dashboardAssistantAttachmentCopy.ts"),
   "@/lib/inrAssistantAttachments": compile("lib/inrAssistantAttachments.ts"),
   "@/lib/inrAssistantClientContext": compile("lib/inrAssistantClientContext.ts"),
+  "@/lib/inrAssistantStudioDraft": compile("lib/inrAssistantStudioDraft.ts"),
+  "@/lib/inrAssistantStudioHandoff": compile("lib/inrAssistantStudioHandoff.ts"),
   "./inrAssistantNavigation.ts": compile("lib/inrAssistantNavigation.ts"),
 };
 const fixture = `
 const sources=${JSON.stringify(sources)}, loaded={};
 function require(name) {
   if(name.endsWith('.css')) return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
+  if(name==='./inrAssistantStudioDraft.ts') return require('@/lib/inrAssistantStudioDraft');
   if(name==='next-intl') return {useLocale:()=> 'fr-FR'};
   if(name==='next/image') return {__esModule:true,default:props=>require('react').createElement('img',props)};
   if(name==='next/dynamic') return {__esModule:true,default:()=>()=>null};
@@ -63,6 +66,55 @@ function Fixture() {
 require('react-dom/client').createRoot(document.getElementById('root')).render(React.createElement(Fixture));
 `;
 const css = read("app/dashboard/_components/DashboardAssistantProvider.module.css");
+const studioSources = {
+  ...sources,
+  studio: compile("app/dashboard/generer-media/MediaGeneratorStudioClient.tsx"),
+  "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
+  "./MediaFreeGenerator": compile("app/dashboard/_components/MediaFreeGenerator.tsx"),
+  ...Object.fromEntries(["aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
+};
+const studioFixture = `
+const sources=${JSON.stringify(studioSources)}, loaded={};
+window.fixtureAccount='account-fixture';window.generationCalls=0;window.networkCalls=0;window.transferResult=null;
+const hook={quota:{accountId:'account-fixture',creditsReady:true,credits:{remaining:697},videoMaxDurationSeconds:30},quotaLoading:false,canRecover:false,recoveryContext:null,result:null,busy:false,progress:0,loadQuota(){},reset(){},generate(){window.generationCalls++;throw Error('A free prompt transfer must not generate')}};
+const preference={imageEngine:'recraft',videoEngine:'omni',videoResolution:'720p',update(){}};
+const quote={ready:true,insufficient:false,quote:{totalCredits:4},authorization:{}};
+function require(name){
+ if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
+ if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
+ if(name==='./inrAssistantStudioDraft.ts')return require('@/lib/inrAssistantStudioDraft');
+ if(name==='next/navigation')return {useRouter:()=>({replace(){},push(){}})};
+ if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:()=>key=>key};
+ if(name==='@/app/dashboard/_components/DashboardViewerAccessProvider')return {useDashboardViewerAccess:()=>({actorUserId:'actor-fixture',activeAccountId:window.fixtureAccount})};
+ if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.fixtureAccount};
+ if(name==='@/lib/inrStudioNavigation')return {readInrStudioHandoff:()=>null,getInrStudioOriginLabel:()=>null};
+ if(name==='@/lib/multicompte/constants')return {ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};
+ if(name==='@/app/dashboard/_hooks/useMediaGeneration')return {__esModule:true,default:()=>hook,discardMediaGenerationDraft:async()=>{},MediaGenerationAccountChangedError:Error,MediaGenerationCancelledError:Error};
+ if(name==='../_hooks/useMediaEnginePreference')return {__esModule:true,default:()=>preference};
+ if(name==='../_hooks/useMediaCreditQuote')return {__esModule:true,default:()=>quote};
+ if(name==='./MediaGenerationCreationWorkspace')return {__esModule:true,default:()=>null,MediaGenerationSettingsTabs:()=>null};
+ if(name==='./MediaEngineCreditControls')return {__esModule:true,default:()=>null,isMediaVideoReferenceCompatible:()=>true,MediaCreditQuoteSummary:()=>null,MediaRecoveredCreditSummary:()=>null,MediaGenerationActions:()=>null};
+ if(name==='@/lib/aiMediaModelRecommendation')return {recommendAiMediaModel:()=>null};
+ if(['next/link','./DashboardAssistantTrigger','./DashboardMobileSelect','./MediaModifier','./MediaRetoucher','./MediaVideoRetoucher','./MediaLibraryPickerModal','./MediaSubjectVoiceButton','./MediaPromptHelp','./MediaQuotaSummary','./MediaCharacterVoiceInput'].includes(name))return {__esModule:true,default:()=>null};
+ if(['@/lib/imageOverlay','@/lib/imageInteractions','@/lib/mediaLibraryUploadClient','@/lib/mediaRetoucherRenderClient','@/lib/boosterVideoTransformClient','@/app/dashboard/booster/publier/publishModal.shared','@/lib/mediaGenerationReferenceClient'].includes(name))return {};
+ if(loaded[name])return loaded[name].exports;
+ if(!sources[name])throw Error('Unexpected Studio fixture module '+name);
+ const module=loaded[name]={exports:{}};new Function('require','module','exports',sources[name])(require,module,module.exports);return module.exports;
+}
+window.fetch=async()=>{window.networkCalls++;throw Error('No provider or generation request allowed')};
+const React=require('react'),handoff=require('@/lib/inrAssistantStudioHandoff');
+if(location.search.includes('prefillVideo')){
+ const staged=handoff.stageInrAssistantStudioDraft({actorUserId:'actor-fixture',accountId:'account-fixture'},{version:1,mediaType:'video',prompt:'Vidéo préparée depuis une autre page',format:null,durationSeconds:null});
+ history.replaceState(null,'','/dashboard/generer-media?assistant_draft='+staged.id);
+}
+window.beginTransfer=(mediaType,prompt)=>{
+ const scope={actorUserId:'actor-fixture',accountId:'account-fixture'};
+ const staged=handoff.stageInrAssistantStudioDraft(scope,{version:1,mediaType,prompt,format:null,durationSeconds:null});
+ window.transferResult=null;
+ handoff.requestInrAssistantStudioDraft(scope,staged.id).then(value=>{window.transferResult=value},error=>{window.transferResult=error.message});
+};
+require('react-dom/client').createRoot(document.getElementById('root')).render(React.createElement(require('studio').default));
+`;
 const avatar = readFileSync(new URL("../../public/agent/agent-assist-pink-v2.png", import.meta.url));
 const html = `<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 ${css}
@@ -148,5 +200,62 @@ test("mobile assistant fills the visible viewport across keyboard resize, browse
     await desktop.getByRole("dialog").waitFor({ state: "visible" });
     const rect = await desktop.getByRole("dialog").boundingBox();
     assert.ok(rect && rect.x > 800 && rect.y === 16 && Math.abs(rect.height - 868) <= 2, "Desktop retains its floating window layout");
+  } finally { await browser.close(); }
+});
+
+test("free assistant insertion fills the actual Studio prompt and video tab while protecting existing edits", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    const errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await page.route("**/*", route => route.fulfill({ contentType: "text/html", body: '<html><body><div id="root"></div></body></html>' }));
+    await page.goto("https://fixture.invalid/dashboard/generer-media");
+    await page.addScriptTag({ content: studioFixture });
+    await page.getByRole("textbox", { name: "ai_generator_free_prompt_label" }).waitFor();
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    const begin = (kind: string, prompt: string) => page.evaluate(({ kind, prompt }) => (window as unknown as { beginTransfer: (kind: string, prompt: string) => void }).beginTransfer(kind, prompt), { kind, prompt });
+    await begin("video", "Vidéo de mon atelier avec lumière naturelle et une caméra lente.");
+    await page.waitForFunction(() => (window as unknown as { transferResult: unknown }).transferResult !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as { transferResult: unknown }).transferResult), true, errors.join("\n"));
+    assert.equal(await page.getByRole("radio", { name: "video_304f6ca4" }).getAttribute("aria-checked"), "true");
+    assert.equal(await page.getByRole("textbox", { name: "ai_generator_free_prompt_label" }).inputValue(), "Vidéo de mon atelier avec lumière naturelle et une caméra lente.");
+    await page.getByRole("textbox", { name: "ai_generator_free_prompt_label" }).fill("Mon brouillon à conserver");
+    await page.getByRole("radio", { name: "image_50e19fda" }).click();
+    assert.equal(await page.getByRole("textbox", { name: "ai_generator_free_prompt_label" }).inputValue(), "Mon brouillon à conserver");
+    await page.getByRole("radio", { name: "video_304f6ca4" }).click();
+    assert.equal(await page.getByRole("textbox", { name: "ai_generator_free_prompt_label" }).inputValue(), "Mon brouillon à conserver");
+    await begin("image", "Un chat rouge sur fond blanc");
+    await page.getByRole("alertdialog").waitFor();
+    await page.getByRole("button", { name: "ai_generator_workspace_reset_cancel", exact: true }).click();
+    await page.waitForFunction(() => (window as unknown as { transferResult: unknown }).transferResult === false);
+    assert.equal(await page.getByRole("textbox", { name: "ai_generator_free_prompt_label" }).inputValue(), "Mon brouillon à conserver");
+    await begin("image", "Un chat rouge sur fond blanc");
+    await page.getByRole("alertdialog").waitFor();
+    await page.getByRole("button", { name: "ai_generator_workspace_reset_action", exact: true }).click();
+    await page.waitForFunction(() => (window as unknown as { transferResult: unknown }).transferResult === true);
+    assert.equal(await page.getByRole("radio", { name: "image_50e19fda" }).getAttribute("aria-checked"), "true");
+    assert.equal(await page.getByRole("textbox", { name: "ai_generator_free_prompt_label" }).inputValue(), "Un chat rouge sur fond blanc");
+    await begin("video", "Vidéo qui appartient au compte précédent");
+    await page.getByRole("alertdialog").waitFor();
+    await page.evaluate(() => { (window as unknown as { fixtureAccount: string }).fixtureAccount = "account-other"; window.dispatchEvent(new Event("fixture-account-change")); });
+    await page.waitForFunction(() => (window as unknown as { transferResult: unknown }).transferResult === false);
+    assert.notEqual(await page.getByRole("textbox", { name: "ai_generator_free_prompt_label" }).inputValue(), "Vidéo qui appartient au compte précédent");
+    assert.deepEqual(await page.evaluate(() => ({ generations: (window as unknown as { generationCalls: number }).generationCalls, network: (window as unknown as { networkCalls: number }).networkCalls })), { generations: 0, network: 0 });
+    assert.deepEqual(errors, []);
+    await page.close();
+
+    const navigation = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    const navigationErrors: string[] = [];
+    navigation.on("pageerror", error => navigationErrors.push(error.message));
+    await navigation.route("**/*", route => route.fulfill({ contentType: "text/html", body: '<html><body><div id="root"></div></body></html>' }));
+    await navigation.goto("https://fixture.invalid/dashboard/generer-media?prefillVideo");
+    await navigation.addScriptTag({ content: studioFixture });
+    await navigation.waitForFunction(() => document.querySelector<HTMLTextAreaElement>('textarea')?.value === "Vidéo préparée depuis une autre page");
+    assert.equal(await navigation.getByRole("radio", { name: "video_304f6ca4" }).getAttribute("aria-checked"), "true");
+    assert.match(navigation.url(), /\?assistant_draft=[\da-f-]{36}$/);
+    assert.equal(await navigation.getByRole("alertdialog").count(), 0, "An empty Studio needs no draft replacement confirmation");
+    assert.deepEqual(await navigation.evaluate(() => ({ generations: (window as unknown as { generationCalls: number }).generationCalls, network: (window as unknown as { networkCalls: number }).networkCalls })), { generations: 0, network: 0 });
+    assert.deepEqual(navigationErrors, []);
   } finally { await browser.close(); }
 });

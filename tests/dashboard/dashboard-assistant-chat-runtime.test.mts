@@ -5,6 +5,58 @@ import { elements, find, invoke, harness, type Props } from "./dashboard-assista
 import { getInrAssistantContextualHelp } from "../../lib/inrAssistantContextualHelp.ts";
 import { getInrAssistantClientScreen } from "../../lib/inrAssistantClientContext.ts";
 
+test("a prepared prompt offers free Studio insertion and never sends a generation request", async () => {
+  const original = globalThis.fetch;
+  const requests: string[] = [];
+  const studioDraft = { version: 1, mediaType: "video", prompt: "Une vidéo verticale de mon atelier en lumière naturelle.", format: "story", durationSeconds: 8 };
+  globalThis.fetch = (async input => { requests.push(String(input)); return Response.json({ message: "Voici votre prompt.", studioDraft, accountId: "account-a" }); }) as typeof fetch;
+  const view = harness();
+  try {
+    view.submit("Prépare un prompt pour une vidéo de mon atelier.");
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(view.studioInsertions.length, 0);
+    const button = find(view.render(), node => node.props["data-testid"] === "assistant-studio-draft");
+    assert.equal((button.props.children as unknown[])[0], "Insert into iNrStudio — Video");
+    invoke(button, "onClick"); await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(view.studioInsertions, [studioDraft]);
+    assert.ok(elements(view.render()).some(node => node.props.content === "Video prompt inserted; choose when to generate."));
+    assert.deepEqual(requests, ["/api/assistant/chat"]);
+    view.submit("Merci"); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(view.studioInsertions.length, 1, "Restoring or continuing does not insert the prompt again");
+  } finally { view.cleanup(); globalThis.fetch = original; }
+});
+
+test("server-confirmed free insertion runs after the chat controller releases and ignores late account changes", async () => {
+  const original = globalThis.fetch;
+  const studioDraft = { version: 1, mediaType: "image", prompt: "Un chat rouge sur fond blanc", format: null, durationSeconds: null };
+  globalThis.fetch = (async () => Response.json({ message: "Je l’insère dans Studio.", studioDraft, insertStudioDraft: true, accountId: "account-a" })) as typeof fetch;
+  const view = harness();
+  let complete!: (value: boolean) => void;
+  view.onStudioInsert(() => new Promise(resolve => { complete = resolve; }));
+  try {
+    view.submit("Oui"); await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(view.studioInsertions, [studioDraft], "The freed controller must allow the authorized UI insertion");
+    invoke(find(view.render(), node => node.type === "textarea"), "onChange", { target: { value: "Another request" } });
+    assert.equal(find(view.render(), node => node.props.type === "submit").props.disabled, false, "Insertion does not keep the paid chat pending");
+    view.switchAccount(); complete(true); await new Promise(resolve => setImmediate(resolve));
+    assert.ok(!elements(view.render()).some(node => node.props.content === "Image prompt inserted; choose when to generate."));
+  } finally { view.cleanup(); globalThis.fetch = original; }
+});
+
+test("legacy prompt replies retain a free insertion button and cancellation never claims success", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => Response.json({ message: "> Un chat rouge sur fond blanc", accountId: "account-a" })) as typeof fetch;
+  const view = harness();
+  view.onStudioInsert(async () => false);
+  try {
+    view.submit("Écris un prompt pour une image de chat."); await new Promise(resolve => setImmediate(resolve));
+    invoke(find(view.render(), node => node.props["data-testid"] === "assistant-studio-draft"), "onClick");
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(view.studioInsertions[0]?.prompt, "Un chat rouge sur fond blanc");
+    assert.ok(!elements(view.render()).some(node => node.props.content === "Image prompt inserted; choose when to generate."));
+  } finally { view.cleanup(); globalThis.fetch = original; }
+});
+
 test("tool-specific help only fills the composer and follows navigation without losing the exchange", async () => {
   const originalFetch = globalThis.fetch;
   const requests: { init?: RequestInit; resolve: (response: Response) => void }[] = [];

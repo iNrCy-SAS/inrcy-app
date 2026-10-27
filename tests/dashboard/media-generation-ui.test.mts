@@ -407,7 +407,11 @@ test("iNrStudio reçoit le handoff et retourne le média avec son contexte", () 
   assert.match(studio, /source="studio"/);
   assert.match(studio, /readInrStudioHandoff/);
   assert.match(studio, /loadInrStudioHandoffSourceFile/);
-  assert.match(studio, /initialTab=\{initialTab\}/);
+  assert.match(studio, /const scopedAssistantDraft = !handoff && !embeddedHandoff && assistantDraft\?\.actorUserId === actorUserId && assistantDraft\.accountId === activeAccountId \? assistantDraft : null/);
+  assert.match(studio, /initialTab=\{scopedAssistantDraft \? "generate" : initialTab\}/);
+  assert.match(studio, /initialFreePrompt=\{scopedAssistantDraft\?\.draft\.prompt \|\| ""\}/);
+  assert.match(studio, /initialMediaType=\{scopedAssistantDraft\?\.draft\.mediaType \|\| handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : "image"\)\}/);
+  assert.match(studio, /setInitialTab\(nextHandoff\?\.tab \|\| fallbackTab\)/);
   assert.match(studio, /initialSource=\{initialSource\}/);
   assert.match(studio, /acceptMode=\{handoff \? "insert" : "library"\}/);
   assert.match(studio, /context: handoff\.context/);

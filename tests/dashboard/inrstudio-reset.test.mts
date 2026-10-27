@@ -7,7 +7,7 @@ const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta
 const modalPath = "app/dashboard/_components/MediaGeneratorModal.tsx";
 const source = ts.createSourceFile(modalPath, read(modalPath), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 
-function handler(name: string, context: Record<string, unknown>) {
+function handler<T = void>(name: string, context: Record<string, unknown>) {
   let expression: ts.Expression | undefined;
   function visit(node: ts.Node) {
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name) expression = node.initializer;
@@ -20,7 +20,7 @@ function handler(name: string, context: Record<string, unknown>) {
   }).outputText;
   return new Function("useCallback", ...Object.keys(context), `${code}; return run;`)(
     (callback: unknown) => callback, ...Object.values(context),
-  ) as () => Promise<void>;
+  ) as () => Promise<T>;
 }
 
 function deferred() {
@@ -34,15 +34,18 @@ function context(draft = true) {
   const state: Record<string, unknown> = {
     currentResult: { draft, item: { id: "owned-preview" } }, generationPrompt: "Keep this until confirmed",
     freeMediaType: "video", visitedFreeTypes: ["image", "video"], generationSession: 4,
-    studioTab: "generate", closeConfirmOpen: false, resetRequested: false, locked: false,
+    studioTab: "generate", closeConfirmOpen: false, resetRequested: false, locked: false, pendingRecovery: false,
   };
   const set = (name: string) => (value: unknown) => {
     state[name] = typeof value === "function" ? value(state[name]) : value;
     events.push(`set:${name}`);
   };
+  const draftReplacementResolutionRef: { current: ((approved: boolean) => void) | null } = { current: null };
   return {
-    state, events, locked: false, activeMediaType: "video",
+    state, events, locked: false, activeMediaType: "video", studioTab: "generate", pendingRecovery: false,
+    hasExternalHandoff: false, hasWorkspaceDraft: true, workspaceBusy: false, closeConfirmOpen: false,
     closeInFlightRef: { current: false }, sessionVersionRef: { current: 2 },
+    draftReplacementResolutionRef,
     openedRef: { current: true }, currentResultRef: { current: state.currentResult },
     discardMediaGenerationDraft: async (id: string) => { events.push(`discard:${id}`); },
     setLocked: set("locked"), setCurrentResult: set("currentResult"), setGenerationPrompt: set("generationPrompt"),
@@ -50,6 +53,7 @@ function context(draft = true) {
     setGenerationSession: set("generationSession"), setStudioTab: set("studioTab"),
     setMediaTypeByTab: set("mediaTypeByTab"), setRetoucherDirty: set("retoucherDirty"),
     setResetRequested: set("resetRequested"), setCloseConfirmOpen: set("closeConfirmOpen"),
+    setPendingRecovery: set("pendingRecovery"),
     window: { requestAnimationFrame(callback: () => void) { callback(); } },
     dialogRef: { current: { querySelector() { return { focus() { events.push("focus:generate"); } }; } } },
   };
@@ -164,11 +168,16 @@ test("all Studio locales provide help and reset warnings, including the unsaved 
 /** Execute the actual component effect callbacks, including their cleanups. */
 function mountLifecycle(ctx: ReturnType<typeof context>) {
   const listeners = new Map<string, Set<() => void>>();
+  const workspaceStates: Array<{ busy: boolean; hasDraft: boolean }> = [];
+  let replacementRequest: (() => Promise<boolean>) | null = null;
   const environment = {
     ...ctx, open: true, mounted: false, embedded: false, hasPendingWork: true,
     hasExternalHandoff: false, closeConfirmOpen: false, initialFreeMediaType: "image",
     initialGenerationPrompt: "", initialTab: "generate", initialMediaType: "image",
     ACTIVE_INRCY_ACCOUNT_EVENT: "account-changed", setMounted() {}, layerRef: { current: null },
+    onWorkspaceStateChange(value: { busy: boolean; hasDraft: boolean }) { workspaceStates.push(value); },
+    registerDraftReplacementRequest(value: (() => Promise<boolean>) | null) { replacementRequest = value; },
+    requestDraftReplacement: handler<boolean>("requestDraftReplacement", ctx),
     window: {
       ...ctx.window,
       addEventListener(name: string, listener: () => void) {
@@ -194,6 +203,8 @@ function mountLifecycle(ctx: ReturnType<typeof context>) {
   }
   visit(source);
   return {
+    workspaceStates,
+    get replacementRequest() { return replacementRequest; },
     emit(name: string) { for (const listener of listeners.get(name) || []) listener(); },
     unmount() { for (const cleanup of cleanups.reverse()) cleanup(); },
   };
@@ -203,24 +214,33 @@ test("page reload and React unmount preserve a paid draft for authenticated reco
   for (const event of ["pagehide", "unmount"]) {
     const ctx = context();
     const lifecycle = mountLifecycle(ctx);
+    const approvals: boolean[] = [];
+    ctx.draftReplacementResolutionRef.current = (approved) => { approvals.push(approved); };
+    assert.deepEqual(lifecycle.workspaceStates, [{ busy: false, hasDraft: true }]);
+    assert.equal(typeof lifecycle.replacementRequest, "function");
     if (event === "pagehide") lifecycle.emit("pagehide");
     lifecycle.unmount();
     await Promise.resolve();
     assert.equal(ctx.events.some((entry) => entry.startsWith("discard:")), false, event);
     assert.equal(ctx.currentResultRef.current, ctx.state.currentResult);
     assert.notEqual(ctx.currentResultRef.current, null);
+    assert.deepEqual(approvals, [false], "React cleanup cancels only the free insertion approval, preserving the paid preview");
+    assert.equal(lifecycle.replacementRequest, null, "The real registration effect releases its handler on unmount");
   }
 });
 
 test("changing establishment drops local preview state without deleting the prior account's draft", async () => {
   const ctx = context();
   const lifecycle = mountLifecycle(ctx);
+  const approvals: boolean[] = [];
+  ctx.draftReplacementResolutionRef.current = (approved) => { approvals.push(approved); };
   lifecycle.emit("account-changed");
   lifecycle.unmount();
   await Promise.resolve();
   assert.equal(ctx.currentResultRef.current, null);
   assert.equal(ctx.state.currentResult, null);
   assert.equal(ctx.events.some((entry) => entry.startsWith("discard:")), false);
+  assert.deepEqual(approvals, [false], "An account change invalidates the pending free prompt replacement");
 });
 
 test("explicit confirmed close and handoff abandonment still discard only temporary drafts", async () => {

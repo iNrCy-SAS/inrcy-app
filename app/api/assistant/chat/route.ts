@@ -136,8 +136,8 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     if (begun.available) {
       const recent = await memory.loadRecent({ conversationId, limit: 6 });
       if (recent.available) {
-        const previous = recent.turns.filter(turn=>turn.turnId !== turnId && turn.status === "completed").at(-1);
-        if (previous) {
+        const previous = recent.turns.filter(turn=>turn.turnId !== turnId).at(-1);
+        if (previous?.status === "completed") {
           const task = await loadAssistantTaskState(attachmentScope, previous);
           const instruction = continueInrAssistantTask(messages.at(-1)!.content, task);
           if (task && instruction) continuation = { instruction, task };

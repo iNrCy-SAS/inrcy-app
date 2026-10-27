@@ -15,6 +15,9 @@ import * as gatewayDiagnostics from "../../lib/inrAssistantGatewayDiagnostics.ts
 import * as attachmentPolicy from "../../lib/inrAssistantAttachments.ts";
 import * as attachmentPrompt from "../../lib/inrAssistantAttachmentPrompt.ts";
 import * as promptContext from "../../lib/inrAssistantPromptContext.ts";
+import * as mediaIntent from "../../lib/inrAssistantMediaIntent.ts";
+import * as studioDraft from "../../lib/inrAssistantStudioDraft.ts";
+import * as taskPolicy from "../../lib/inrAssistantTaskPolicy.ts";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
 import type { InrAssistantMediaResult } from "../../lib/inrAssistantMediaTools.ts";
 import type { InrAssistantPublicationResult } from "../../lib/inrAssistantPublicationTools.ts";
@@ -42,6 +45,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   productionNoRedis?: boolean; handoff?: boolean; media?: boolean; followup?: boolean; workflow?: boolean; failAfterPublication?: boolean;
   verifiedNavigation?: string; lookup?: "diagnostics" | "workspace" | "memory"; providerError?: Error; outputLimit?: boolean;
   emptyText?: boolean; ignoresToolChoice?: boolean; abortAfterPublication?: AbortController;
+  textReply?: string; unexpectedHandoff?: boolean; mediaMetadata?: boolean; crmIds?: string[];
   plan?: Array<{tool:string;input?:Record<string,unknown>}>;
   cta?: { definition: ReturnType<typeof createCtaToolFixture>["definition"]; input: { target: "phone" | "website"; instructionQuote: string; channels: string[] | null } } } = {}) {
   const generations: { model: string; params: LanguageModelV3CallOptions }[] = [];
@@ -51,6 +55,9 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   const factories: string[] = [];
   const actionFactories: string[] = [];
   const publicationExecutions: string[] = [];
+  const metadataExecutions: unknown[] = [];
+  const crmExecutions: unknown[] = [];
+  const mediaScopes: Array<{ requestId: string; currentUserMessage?: string }> = [];
   const toolScopes: { tool: string; accountId: string; edition: string }[] = [];
   const ctaScopes: { accountId: string; currentUserMessage: string }[] = [];
   const diagnostics: gatewayDiagnostics.InrAssistantGatewayDiagnostic[] = [];
@@ -63,11 +70,17 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
         doGenerate: async (params) => {
           generations.push({ model: id, params });
           if (options.providerError) throw options.providerError;
+          if (options.unexpectedHandoff && generations.length === 1) return {
+            content: [{ type: "tool-call", toolCallId: "unexpected-support", toolName: "proposeHumanSupport", input: JSON.stringify({ message: "Contactez l’équipe pour valider cette création.", summary: "Un transfert non sollicité." }) },
+              { type: "text", text: options.textReply ?? "Voici votre brouillon." }],
+            finishReason: { unified: "tool-calls", raw: "test" },
+            usage: { inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 20, text: 20, reasoning: 0 } }, warnings: [],
+          };
           if (options.plan) {
             const next=options.plan[generations.length-1];
             const available=(params.tools??[]).filter(t=>t.type === "function").map(t=>t.name);
             const runs=next && available.includes(next.tool);
-            return {content:runs?[{type:"tool-call",toolCallId:`plan-${generations.length}`,toolName:next.tool,input:JSON.stringify(next.input??{})}]:[{type:"text",text:next?`Outil absent : ${next.tool}`:"Les étapes demandées ont été traitées."}],finishReason:{unified:runs?"tool-calls":"stop",raw:"test"},usage:{inputTokens:{total:100,noCache:100,cacheRead:0,cacheWrite:0},outputTokens:{total:20,text:20,reasoning:0}},warnings:[]};
+            return {content:runs?[{type:"tool-call",toolCallId:`plan-${generations.length}`,toolName:next.tool,input:JSON.stringify(next.input??{})}]:[{type:"text",text:next?`Outil absent : ${next.tool}`:options.textReply ?? "Les étapes demandées ont été traitées."}],finishReason:{unified:runs?"tool-calls":"stop",raw:"test"},usage:{inputTokens:{total:100,noCache:100,cacheRead:0,cacheWrite:0},outputTokens:{total:20,text:20,reasoning:0}},warnings:[]};
           }
           if (generations.length <= (options.fail ?? 0)) throw Object.assign(new Error("Unavailable"), { statusCode: 503 });
           if (options.failAfterPublication && generations.length > 3) throw Object.assign(new Error("Summary unavailable after publication"), { statusCode: 503 });
@@ -76,7 +89,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
           const input = options.cta ? options.cta.input : options.workflow && generations.length > 1 ? { draftId: "stored-draft", mode: "publish" } : options.lookup === "memory" ? { query: "campagne de Noël", limit: 4 } : options.lookup === "diagnostics" ? { area: "all" } : options.lookup === "workspace" ? { section: "stats" } : options.handoff ? { message: "Vous pouvez faire vérifier ce blocage.", summary: "Blocage de connexion à vérifier." } : { prompt: "Une image" };
           return {
             content: callTool ? [{ type: "tool-call", toolCallId: "call-1", toolName, input: JSON.stringify(input) }]
-              : [{ type: "text", text: options.emptyText ? "" : "Voici la prochaine étape." }],
+              : [{ type: "text", text: options.emptyText ? "" : options.textReply ?? "Voici la prochaine étape." }],
             finishReason: { unified: options.outputLimit ? "length" : callTool ? "tool-calls" : "stop", raw: "test" },
             usage: { inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
               outputTokens: { total: 40, text: 10, reasoning: 30 } }, warnings: [],
@@ -100,6 +113,9 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantAttachments.ts": attachmentPolicy,
     "./inrAssistantAttachmentPrompt.ts": attachmentPrompt,
     "./inrAssistantPromptContext.ts": promptContext,
+    "./inrAssistantMediaIntent.ts": mediaIntent,
+    "./inrAssistantStudioDraft.ts": studioDraft,
+    "./inrAssistantTaskPolicy.ts": taskPolicy,
     "./inrAssistantQuota.ts": { reserveInrAssistantRequest: async () => ({ solReserved: options.sol ?? false }),
       finalizeInrAssistantRequest: async (_quota: unknown, outcome: { success: boolean }) => { finalized.push(outcome); } },
     "./inrAssistantConversation.ts": conversation,
@@ -113,7 +129,15 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantCtaTools.ts": { createInrAssistantCtaTools: (args: { accountId: string; currentUserMessage: string }) => { actionFactories.push("cta"); ctaScopes.push(args); return options.cta ? { configureBusinessCta: options.cta.definition } : {}; } },
     "./inrAssistantDnaAnalysisTools.ts": { createInrAssistantDnaAnalysisTools: () => { actionFactories.push("dna-analysis"); return {}; } },
     "./inrAssistantManagementTools.ts": { createInrAssistantManagementTools: () => ({}) },
-    "./inrAssistantCommercialTools.ts": { createInrAssistantCommercialTools: () => ({}) },
+    "./inrAssistantCommercialTools.ts": { createInrAssistantCommercialTools: () => options.crmIds ? {
+      manageCrmContact: tool({ inputSchema: jsonSchema({ type: "object", properties: {
+        action: { type: "string", enum: ["create", "update", "delete"] }, instructionQuote: { type: "string" }, reference: { type: "string" }, contactId: { type: ["string", "null"] }, fields: { type: "object" },
+      }, required: ["action", "instructionQuote", "reference", "contactId", "fields"], additionalProperties: false }), execute: async input => {
+        const id = options.crmIds![Math.min(crmExecutions.length, options.crmIds!.length - 1)];
+        crmExecutions.push(input);
+        return { ok: true, status: "created", id, message: `Fiche CRM enregistrée : ${id}.`, nextAction: { label: "iNr’CRM", href: "/dashboard/crm" } };
+      } }),
+    } : {} },
     "./inrAssistantCommunicationTools.ts": { createInrAssistantCommunicationTools: () => ({}) },
     "./inrAssistantAdvertisingTools.ts": { createInrAssistantAdvertisingTools: () => ({}) },
     "./inrAssistantSettingsTools.ts": { createInrAssistantSettingsTools: () => ({}) },
@@ -128,7 +152,16 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
         return result;
       } }),
     ])) },
-    "./inrAssistantWorkspaceActionTools.ts": { createInrAssistantWorkspaceActionTools: () => ({}) },
+    "./inrAssistantWorkspaceActionTools.ts": { createInrAssistantWorkspaceActionTools: () => ({ ...(options.crmIds ? {
+      searchCrmContacts: tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ available: true, contacts: [] }) }),
+    } : {}), ...(options.mediaMetadata ? {
+      updateMediaMetadata: tool({ inputSchema: jsonSchema({ type: "object", properties: {
+        instructionQuote: { type: "string" }, mediaId: { type: "string" }, title: { type: "string" },
+        tags: { type: ["array", "null"], items: { type: "string" } }, tagsMode: { type: ["string", "null"] }, isActive: { type: ["boolean", "null"] },
+      }, required: ["instructionQuote", "mediaId", "title", "tags", "tagsMode", "isActive"], additionalProperties: false }),
+        execute: async input => { metadataExecutions.push(input); return { ok: true, status: "updated", message: "Le titre de l’image a été enregistré.", nextAction: { label: "Mes médias", href: "/dashboard/mediatheque" } }; },
+      }),
+    } : {}) }) },
     "./inrAssistantInsightsTools.ts": { createInrAssistantInsightsTools: () => {
       actionFactories.push("insights");
       return Object.fromEntries(["readStatsSnapshots", "readGoogleReviews", "replyToGoogleReview"].map(name => [name, tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ available: true }) })]));
@@ -146,15 +179,18 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
       toolScopes.push({ tool: "workspace", accountId: args.accountId, edition: args.edition });
       return { readWorkspaceSection: tool({ inputSchema: jsonSchema({ type: "object", properties: { section: { type: "string" } } }), execute: async () => ({ available: true, measured: true, count: 12 }) }) };
     } },
-    "./inrAssistantMediaTools.ts": { createInrAssistantMediaTools: (args: { requestId: string;
+    "./inrAssistantMediaTools.ts": { createInrAssistantMediaTools: (args: { requestId: string; currentUserMessage?: string;
       onWorkStarted: (id: string) => void; onResult: (result: InrAssistantMediaResult) => void }) => {
       factories.push(args.requestId);
+      mediaScopes.push({ requestId: args.requestId, currentUserMessage: args.currentUserMessage });
       return { generateMedia: tool({ inputSchema: jsonSchema<{ prompt: string }>({ type: "object", properties: { prompt: { type: "string" } }, required: ["prompt"] }),
         execute: async () => {
           mediaExecutions++;
           args.onWorkStarted("assistant-server-id-media");
           const result: InrAssistantMediaResult = { ok: true, status: "completed", requestId: "assistant-server-id-media",
-            message: "Votre média est enregistré.", libraryUrl: "/dashboard/mediatheque", mediaType: "image" };
+            message: "Votre média est enregistré.", libraryUrl: "/dashboard/mediatheque", mediaType: "image",
+            ...(options.mediaMetadata ? { media: { id: "10000000-0000-4000-8000-000000000001", title: "Image", mediaType: "image" as const, url: "https://fixture.invalid/image.png", mimeType: "image/png", width: 1024, height: 1024, durationSeconds: null } } : {}),
+          };
           if (!options.followup) args.onResult(result);
           return result;
         } }) };
@@ -167,13 +203,198 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, {
     Date, TextEncoder, AbortSignal, console, process: { env: { NODE_ENV: options.productionNoRedis ? "production" : "test" } },
   })((name: string) => { if (!(name in stubs)) throw new Error(`Unexpected dependency: ${name}`); return stubs[name]; }, moduleRecord, moduleRecord.exports);
-  return { runtime: moduleRecord.exports as typeof Gateway, generations, reservations, commits, finalized, factories, actionFactories, toolScopes, ctaScopes, publicationExecutions, diagnostics, get mediaExecutions() { return mediaExecutions; } };
+  return { runtime: moduleRecord.exports as typeof Gateway, generations, reservations, commits, finalized, factories, actionFactories, toolScopes, ctaScopes, publicationExecutions, metadataExecutions, crmExecutions, mediaScopes, diagnostics, get mediaExecutions() { return mediaExecutions; } };
 }
 
 const basic = { accountId: "account-a", displayName: "Entreprise A", edition: "standard" as const,
   requestId: "server-id", request: new Request("https://inrcy.test/api/assistant/chat"),
   messages: [{ role: "user" as const, content: "Aide-moi à connecter Facebook" }] };
 const complex = "Analyse mes résultats, compare les stratégies et prépare un calendrier de publications pour chaque canal sur un mois avec un budget maximum de 100 euros.";
+
+const studioPromptRequest = "Écris un prompt pour créer une image de flyer présentant les offres de mon entreprise.";
+const studioPrompt = "Crée un flyer professionnel pour mon entreprise, dans un style moderne bleu et violet, avec un titre lisible et une présentation claire de mes services.";
+const studioPromptReply = `Voici le prompt préparé :\n\n> ${studioPrompt}\n\nFormat recommandé : landscape.\n\nVous pouvez l’insérer dans Studio puis vérifier les critères avant de générer.`;
+const toolNames = (params: LanguageModelV3CallOptions) => (params.tools ?? []).filter(tool => tool.type === "function").map(tool => tool.name);
+
+for (const edition of ["basic", "standard", "premium"] as const) test(`${edition}: a requested prompt is a free Studio draft with read-only tools, never an executed generation`, async () => {
+  const h = harness({ textReply: studioPromptReply });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition, supabase: {} as never, messages: [{ role: "user", content: studioPromptRequest }] });
+  assert.equal(h.generations.length, 1);
+  const available = toolNames(h.generations[0].params);
+  assert.ok(available.includes("readAppGuide"));
+  assert.ok(available.every(name => name === "prepareStudioPrompt" || /^(?:read|get|search|recall|guide)/.test(name)), JSON.stringify(available));
+  assert.equal(available.includes("generateMedia"), false);
+  assert.equal(available.includes("proposeHumanSupport"), false);
+  assert.equal(h.mediaExecutions, 0);
+  assert.deepEqual(h.publicationExecutions, []);
+  assert.equal(reply.needsHuman, undefined);
+  assert.equal(reply.taskState, undefined, "A prompt draft is not a pending paid task");
+  assert.deepEqual(reply.studioDraft, { version: 1, mediaType: "image", prompt: studioPrompt, format: "landscape", durationSeconds: null });
+});
+
+test("the read-only Studio preparation tool returns an insertable draft without calling native generation", async () => {
+  const draft = { version: 1, mediaType: "image", prompt: studioPrompt, format: "landscape", durationSeconds: null };
+  const h = harness({ plan: [{ tool: "prepareStudioPrompt", input: draft }] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", supabase: {} as never, messages: [{ role: "user", content: studioPromptRequest }] });
+  assert.deepEqual(reply.studioDraft, draft);
+  assert.equal(h.finalized.at(-1)?.success, true);
+  assert.equal(reply.taskState, undefined);
+  assert.equal(reply.needsHuman, undefined);
+  assert.equal(h.mediaExecutions, 0);
+  assert.deepEqual(h.publicationExecutions, []);
+  assert.ok(toolNames(h.generations[0].params).includes("prepareStudioPrompt"));
+  assert.equal(toolNames(h.generations[0].params).includes("generateMedia"), false);
+});
+
+test("yes after a server prompt draft requests free insertion without a model or native generation", async () => {
+  const h = harness();
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, messages: [
+    { role: "user", content: studioPromptRequest }, { role: "assistant", content: studioPromptReply }, { role: "user", content: "oui" },
+  ] });
+  assert.equal(reply.insertStudioDraft, true);
+  assert.deepEqual(reply.studioDraft, { version: 1, mediaType: "image", prompt: studioPrompt, format: "landscape", durationSeconds: null });
+  assert.equal(reply.taskState, undefined);
+  assert.equal(h.generations.length, 0);
+  assert.equal(h.reservations.length, 0);
+  assert.equal(h.commits.length, 0);
+  assert.equal(h.mediaExecutions, 0);
+});
+
+test("an unsolicited human-support call cannot replace a supported Studio prompt or invent a handoff", async () => {
+  const h = harness({ unexpectedHandoff: true, textReply: studioPromptReply });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, messages: [{ role: "user", content: studioPromptRequest }] });
+  assert.equal(toolNames(h.generations[0].params).includes("proposeHumanSupport"), false);
+  assert.equal(reply.needsHuman, undefined);
+  assert.equal(reply.handoffSummary, undefined);
+  assert.ok(reply.studioDraft);
+  assert.match(reply.message, /flyer/i);
+  assert.doesNotMatch(reply.message, /Contactez l’équipe|transfert non sollicité/);
+  assert.equal(h.mediaExecutions, 0);
+});
+
+test("insertion advice stays conversational and an intervening user request cuts off an old Studio draft", async () => {
+  for (const content of ["Explique-moi comment insérer ce prompt dans Studio", "Est-ce que je dois insérer ce prompt dans Studio ?", "Comment insérer ce prompt dans Studio ?"]) {
+    const h = harness({ textReply: "Vous pouvez utiliser le bouton Insérer dans iNrStudio." });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, messages: [
+      { role: "user", content: studioPromptRequest }, { role: "assistant", content: studioPromptReply }, { role: "user", content },
+    ] });
+    assert.equal(reply.insertStudioDraft, undefined, content);
+    assert.equal(h.generations.length, 1, content);
+    assert.equal(h.mediaExecutions, 0);
+  }
+  for (const content of ["non, ne l’insère pas", "Retrouve ma dernière publication."]) {
+    const h = harness({ textReply: "Quelle action souhaitez-vous réaliser ?" });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, messages: [
+      { role: "user", content: studioPromptRequest }, { role: "assistant", content: studioPromptReply },
+      { role: "user", content }, { role: "user", content: "oui" },
+    ] });
+    assert.equal(reply.insertStudioDraft, undefined, content);
+    assert.equal(h.generations.length, 1, content);
+    assert.equal(h.mediaExecutions, 0);
+  }
+});
+
+test("customer contact wording inside a creative brief does not request iNrCy support", async () => {
+  for (const content of [
+    "Crée une image pour inviter les clients à contacter notre équipe.",
+    "Crée un flyer avec un appel à contacter le support de notre entreprise.",
+    "Create an image inviting customers to contact our support team.",
+    "Crée une image et ne contacte pas le support.",
+  ]) {
+    const h = harness({ media: true });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, messages: [{ role: "user", content }] });
+    assert.equal(toolNames(h.generations[0].params).includes("proposeHumanSupport"), false, content);
+    assert.equal(reply.needsHuman, undefined, content);
+    assert.equal(h.mediaExecutions, 1, content);
+  }
+});
+
+test("a server-confirmed real media order passes its effective instruction and stable identity to the media guard", async () => {
+  const instruction = "Crée une image carrée de mon atelier.";
+  const actionRequestId = "account-a_original-media-turn";
+  const startedAt = new Date().toISOString();
+  const taskContext = { version: 1 as const, instruction, actionRequestId, startedAt, expiresAt: new Date(Date.now() + 60_000).toISOString(), outcome: "needs_input" as const, requiredTools: ["generateMedia"], receipts: [], question: "Confirmez-vous la création de cette image ?" };
+  const h = harness({ media: true });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, actionRequestId, actionInstruction: instruction, taskContext, messages: [{ role: "user", content: "oui" }] });
+  assert.equal(h.mediaExecutions, 1);
+  assert.deepEqual(h.mediaScopes, [{ requestId: actionRequestId, currentUserMessage: instruction }]);
+  assert.equal(reply.media?.status, "completed");
+  assert.equal(reply.needsHuman, undefined);
+  assert.equal(toolNames(h.generations[0].params).includes("proposeHumanSupport"), false);
+});
+
+const mediaAndMetadataRequest = "Crée une image de mon atelier puis renomme cette image « Atelier rénové » dans Mes médias.";
+const metadataInput = { instructionQuote: mediaAndMetadataRequest, mediaId: "10000000-0000-4000-8000-000000000001", title: "Atelier rénové", tags: null, tagsMode: null, isActive: null };
+
+test("a media creation followed by metadata update continues until both requested actions are confirmed", async () => {
+  const h = harness({ mediaMetadata: true, plan: [{ tool: "generateMedia", input: { prompt: "Mon atelier rénové" } }, { tool: "updateMediaMetadata", input: metadataInput }] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, messages: [{ role: "user", content: mediaAndMetadataRequest }] });
+  assert.equal(h.generations.length, 3);
+  assert.equal(h.mediaExecutions, 1);
+  assert.equal(h.metadataExecutions.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.metadataExecutions[0])), metadataInput);
+  assert.equal(reply.outcome, "completed");
+  assert.deepEqual(new Set(reply.taskState?.receipts.map(receipt => receipt.tool)), new Set(["generateMedia", "updateMediaMetadata"]));
+});
+
+test("an unfinished metadata step stays partial and a resumed task never creates the same media twice", async () => {
+  const first = harness({ mediaMetadata: true, plan: [{ tool: "generateMedia", input: { prompt: "Mon atelier rénové" } }] });
+  const partial = await first.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, messages: [{ role: "user", content: mediaAndMetadataRequest }] });
+  assert.equal(partial.outcome, "partial");
+  assert.ok(partial.taskState);
+  assert.equal(first.finalized[0].success, false);
+  assert.equal(first.mediaExecutions, 1);
+  assert.equal(first.metadataExecutions.length, 0);
+  const second = harness({ mediaMetadata: true, plan: [{ tool: "updateMediaMetadata", input: metadataInput }] });
+  const completed = await second.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, actionInstruction: mediaAndMetadataRequest, taskContext: partial.taskState, messages: [{ role: "user", content: "Continue" }] });
+  assert.equal(completed.outcome, "completed");
+  assert.equal(second.mediaExecutions, 0);
+  assert.equal(second.metadataExecutions.length, 1);
+  assert.equal(toolNames(second.generations[0].params).includes("generateMedia"), false);
+});
+
+const twoContactRequest = "Ajoute deux contacts CRM : Alice avec alice@example.invalid et Bob avec bob@example.invalid.";
+const contactFields = { displayName: null, companyName: null, email: null, phone: null, address: null, billingAddress: null, deliveryAddress: null, postalCode: null, city: null, siret: null, vatNumber: null, category: null, contactType: null, notes: null, important: null };
+const contactPlan = ["Alice", "Bob"].map(reference => ({ tool: "manageCrmContact", input: { action: "create", instructionQuote: twoContactRequest, reference, contactId: null, fields: { ...contactFields, displayName: reference, email: `${reference.toLowerCase()}@example.invalid` } } }));
+const contactIds = ["10000000-0000-4000-8000-000000000001", "20000000-0000-4000-8000-000000000002"];
+
+test("oversized contact batches are blocked before model reservations or native tool construction",async()=>{
+  const h=harness({crmIds:contactIds,plan:contactPlan});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:"Crée 26 contacts CRM pour mon entreprise."}]});
+  assert.equal(reply.outcome,"blocked");
+  assert.match(reply.message,/24 actions/);
+  assert.equal(h.generations.length,0);
+  assert.equal(h.reservations.length,0);
+  assert.equal(h.finalized.length,0);
+  assert.equal(h.crmExecutions.length,0);
+  assert.deepEqual(h.factories,[]);
+  assert.deepEqual(h.actionFactories,[]);
+  assert.deepEqual(h.toolScopes,[]);
+});
+
+test("a request for two contacts continues until two distinct native CRM receipts are confirmed", async () => {
+  const h = harness({ crmIds: contactIds, plan: contactPlan });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, messages: [{ role: "user", content: twoContactRequest }] });
+  assert.equal(h.crmExecutions.length, 2);
+  assert.equal(h.generations.length, 3);
+  assert.equal(toolNames(h.generations[1].params).includes("manageCrmContact"), true, "One completed contact must not remove the second requested operation");
+  assert.equal(reply.outcome, "completed");
+  assert.deepEqual({ ...reply.taskState?.requiredCalls }, { manageCrmContact: 2 });
+  assert.deepEqual(new Set(reply.taskState?.receipts.filter(receipt => receipt.tool === "manageCrmContact").map(receipt => receipt.id)), new Set(contactIds));
+});
+
+test("repeated receipts for one contact stay partial and resumption can finish the missing contact", async () => {
+  const first = harness({ crmIds: [contactIds[0], contactIds[0]], plan: contactPlan });
+  const partial = await first.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, messages: [{ role: "user", content: twoContactRequest }] });
+  assert.equal(partial.outcome, "partial");
+  assert.ok(partial.taskState);
+  assert.equal(first.finalized[0].success, false);
+  const second = harness({ crmIds: [contactIds[1]], plan: [contactPlan[1]] });
+  const completed = await second.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, actionInstruction: twoContactRequest, taskContext: partial.taskState, messages: [{ role: "user", content: "Continue" }] });
+  assert.equal(second.crmExecutions.length, 1);
+  assert.equal(completed.outcome, "completed");
+  assert.deepEqual(new Set(completed.taskState?.receipts.filter(receipt => receipt.tool === "manageCrmContact").map(receipt => receipt.id)), new Set(contactIds));
+});
 
 test("five dependent SDK tool steps complete a media and publication task without dropping late actions",async()=>{
  const h=harness({media:true,plan:[{tool:"getBusinessDna"},{tool:"searchMedia"},{tool:"generateMedia",input:{prompt:"Une image toiture"}},{tool:"preparePublication",input:{draftId:"stored-draft",mode:"publish"}},{tool:"executePublication",input:{draftId:"stored-draft",mode:"publish"}}]});
@@ -414,11 +635,14 @@ test("a commit failure stops rather than spending through a provider fallback", 
 });
 
 test("human support remains an explicit proposal without execution or notification", async () => {
-  const h = harness({ handoff: true });
-  const reply = await h.runtime.generateInrAssistantReply({ ...basic, messages: [{ role: "user", content: "Je veux parler à une personne" }] });
-  assert.equal(reply.needsHuman, true);
-  assert.equal(reply.handoffSummary, "Blocage de connexion à vérifier.");
-  assert.equal(h.generations.length, 1);
+  for (const edition of ["basic", "standard"] as const) {
+    const h = harness({ handoff: true });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition, messages: [{ role: "user", content: "Je veux parler à une personne" }] });
+    assert.equal(reply.needsHuman, true);
+    assert.equal(reply.handoffSummary, "Blocage de connexion à vérifier.");
+    assert.equal(h.generations.length, 1);
+    assert.equal(h.mediaExecutions, 0);
+  }
 });
 
 test("a confirmed media result ends the SDK loop without paying for a redundant summary", async () => {

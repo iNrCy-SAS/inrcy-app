@@ -25,6 +25,8 @@ import { useAssistantAttachments } from "../_hooks/useAssistantAttachments";
 import { ASSISTANT_ATTACHMENT_ACCEPT, ASSISTANT_ATTACHMENT_MAX_COUNT, ASSISTANT_ATTACHMENT_MAX_BYTES, ASSISTANT_ATTACHMENT_VIDEO_MAX_BYTES, parseAssistantAttachments, type AssistantAttachment } from "@/lib/inrAssistantAttachments";
 import { dashboardAssistantAttachmentCopy, assistantAttachmentErrorCopy } from "./dashboardAssistantAttachmentCopy";
 import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvider";
+import { deriveInrAssistantStudioDraft, parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "@/lib/inrAssistantStudioDraft";
+import { clearInrAssistantStudioDraft, inrAssistantStudioDraftHref, requestInrAssistantStudioDraft, stageInrAssistantStudioDraft, waitForInrAssistantStudioDraft } from "@/lib/inrAssistantStudioHandoff";
 import styles from "./DashboardAssistantProvider.module.css";
 
 type AssistantMedia = {
@@ -36,7 +38,7 @@ type AssistantMedia = {
   message?: string;
 };
 const MediaLibraryPickerModal = dynamic(() => import("./MediaLibraryPickerModal"), { ssr: false });
-type ChatMessage = { role: "user" | "assistant"; content: string; media?: AssistantMedia; turnId?: string; attachments?: AssistantAttachment[] };
+type ChatMessage = { role: "user" | "assistant"; content: string; media?: AssistantMedia; studioDraft?: InrAssistantStudioDraft; turnId?: string; attachments?: AssistantAttachment[] };
 const POSITION_STORAGE_KEY = "inrcy_assistant_position_v1";
 const SESSION_STORAGE_PREFIX = "inrcy_assistant_session_v1:";
 const SESSION_TTL = 6 * 60 * 60 * 1000;
@@ -67,7 +69,8 @@ function storedMessages(value: unknown): ChatMessage[] | null {
     if (row.role === "user" && (typeof row.turnId !== "string" || !TURN_ID_PATTERN.test(row.turnId))) return null;
     let attachments: AssistantAttachment[] = [];
     try { if (row.role === "user") attachments = parseAssistantAttachments(row.attachments); } catch { /* An invalid local attachment cannot become a server reference. */ }
-    rows.push({ role: row.role, content: row.content.slice(0, row.role === "user" ? 4000 : 60000), ...(row.role === "user" ? { turnId: row.turnId, ...(attachments.length ? { attachments } : {}) } : {}) });
+    const studioDraft = row.role === "assistant" ? parseInrAssistantStudioDraft(row.studioDraft) : null;
+    rows.push({ role: row.role, content: row.content.slice(0, row.role === "user" ? 4000 : 60000), ...(studioDraft ? { studioDraft } : {}), ...(row.role === "user" ? { turnId: row.turnId, ...(attachments.length ? { attachments } : {}) } : {}) });
   }
   while (rows.length > 1 && rows.reduce((total, row) => total + row.content.length, 0) > 400000) rows.shift();
   return rows;
@@ -203,6 +206,39 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     });
   }, [requestNavigation, router, actorUserId, activeAccountId]);
   const openMediaLibrary = useCallback(() => navigateInternally("/dashboard/mediatheque"), [navigateInternally]);
+  const insertStudioDraft = useCallback(async (value: InrAssistantStudioDraft) => {
+    const currentScope = () => {
+      const scope = navigationScopeRef.current;
+      return scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId && (getActiveBrowserUserId() || activeAccountId) === activeAccountId;
+    };
+    if (!currentScope()) return false;
+    const scope = { actorUserId, accountId: activeAccountId };
+    let inserted = false;
+    minimize();
+    try {
+      await requestNavigation(async () => {
+        if (!currentScope()) return;
+        const staged = stageInrAssistantStudioDraft(scope, value);
+        if (!staged) throw new Error("studio_draft_unavailable");
+        try {
+          const handled = await requestInrAssistantStudioDraft(scope, staged.id);
+          if (!currentScope()) return;
+          if (handled !== null) { inserted = handled; return; }
+          const href = inrAssistantStudioDraftHref(staged.id);
+          if (!href) throw new Error("studio_draft_unavailable");
+          const acknowledged = waitForInrAssistantStudioDraft(scope, staged.id);
+          router.push(href);
+          inserted = await acknowledged && currentScope();
+          if (!inserted && currentScope()) throw new Error("studio_draft_unavailable");
+        } finally {
+          clearInrAssistantStudioDraft(scope, staged.id);
+        }
+      });
+      return inserted;
+    } finally {
+      if (!inserted && currentScope()) openAssistant();
+    }
+  }, [actorUserId, activeAccountId, minimize, openAssistant, requestNavigation, router]);
 
   useEffect(() => {
     const syncAccount = () => {
@@ -253,12 +289,13 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
       onPendingChange={setAssistantPending}
       onOpenMediaLibrary={openMediaLibrary}
       onInternalNavigate={navigateInternally}
+      onInsertStudioDraft={insertStudioDraft}
       screen={screen}
     />
   </AssistantContext.Provider>;
 }
 
-function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, minimize, onHumanContact, starterDraft, onStarterConsumed, onboardingWelcome = false, onReply, onPendingChange, onOpenMediaLibrary, onInternalNavigate, screen }: {
+function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, minimize, onHumanContact, starterDraft, onStarterConsumed, onboardingWelcome = false, onReply, onPendingChange, onOpenMediaLibrary, onInternalNavigate, onInsertStudioDraft, screen }: {
   actorUserId: string; activeAccountId: string; allowed: boolean; open: boolean; close: () => void;
   minimize: () => void; onHumanContact: (message: string) => void;
   starterDraft?: string; onStarterConsumed?: () => void;
@@ -266,6 +303,7 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
   onReply?: () => void; onPendingChange?: (pending: boolean) => void;
   onOpenMediaLibrary?: () => void;
   onInternalNavigate?: (href: string) => void;
+  onInsertStudioDraft?: (draft: InrAssistantStudioDraft) => Promise<boolean>;
   screen?: InrAssistantClientScreen;
 }) {
   const locale = useLocale();
@@ -294,6 +332,7 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
   const autoHistoryAttemptedRef = useRef(false);
   const latestScopeRef = useRef({ actorUserId, activeAccountId, allowed });
   const activitySeenRef = useRef(false);
+  const studioInsertionRef = useRef(false);
   const attachmentCopy = dashboardAssistantAttachmentCopy(locale);
   const files = useAssistantAttachments({ accountId: activeAccountId, actorUserId, locale, ensureConversation: () => {
     historyControllerRef.current?.abort(); localEditRevisionRef.current++; autoHistoryAttemptedRef.current = true;
@@ -458,6 +497,20 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
     composerRef.current?.focus();
   };
 
+  const insertDraft = async (value: InrAssistantStudioDraft, sourceMessage: ChatMessage) => {
+    const current = () => latestScopeRef.current.allowed && latestScopeRef.current.actorUserId === actorUserId
+      && latestScopeRef.current.activeAccountId === activeAccountId && (getActiveBrowserUserId() || activeAccountId) === activeAccountId;
+    if (controllerRef.current || files.busy || studioInsertionRef.current || !onInsertStudioDraft || !current()) return;
+    studioInsertionRef.current = true;
+    setError(null);
+    try {
+      const inserted = await onInsertStudioDraft(value);
+      if (inserted && current()) setMessages(rows => rows.includes(sourceMessage) ? [...rows, { role: "assistant", content: value.mediaType === "video" ? copy.studioDraftInsertedVideo : copy.studioDraftInsertedImage }] : rows);
+    } catch (cause) {
+      if (current()) setError(cause instanceof Error && cause.message === "studio_draft_busy" ? copy.studioDraftBusy : copy.studioDraftUnavailable);
+    } finally { studioInsertionRef.current = false; }
+  };
+
   const send = async (conversation: ChatMessage[]) => {
     if (controllerRef.current || !allowed) return;
     const accountAtStart = getActiveBrowserUserId() || activeAccountId;
@@ -484,6 +537,7 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
       && latestScopeRef.current.actorUserId === actorUserId
       && latestScopeRef.current.activeAccountId === accountAtStart
       && (getActiveBrowserUserId() || activeAccountId) === accountAtStart;
+    let autoInsertMessage: ChatMessage | null = null;
     try {
       const response = await fetch("/api/assistant/chat", {
         method: "POST", credentials: "include", cache: "no-store",
@@ -516,7 +570,10 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
         return;
       }
       const media = parseAssistantMedia(payload.media);
-      setMessages([...conversation, { role: "assistant", content: payload.message, ...(media ? { media } : {}) }]);
+      const studioDraft = parseInrAssistantStudioDraft(payload.studioDraft);
+      const assistantMessage: ChatMessage = { role: "assistant", content: payload.message, ...(media ? { media } : {}), ...(studioDraft ? { studioDraft } : {}) };
+      setMessages([...conversation, assistantMessage]);
+      if (studioDraft && payload.insertStudioDraft === true) autoInsertMessage = assistantMessage;
       onReply?.();
       setHandoffSummary(payload.needsHuman === true ? typeof payload.handoffSummary === "string" && payload.handoffSummary.trim() ? payload.handoffSummary.slice(0, 4500) : payload.message.slice(0, 4500) : "");
     } catch {
@@ -536,6 +593,9 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
         setPending(false);
       }
     }
+    // Insertion is a free UI operation. Wait until the chat request has released
+    // its controller, then let Studio apply its own pending/unsaved guard.
+    if (autoInsertMessage?.studioDraft && stillCurrent()) await insertDraft(autoInsertMessage.studioDraft, autoInsertMessage);
   };
 
   const submit = (event: FormEvent) => {
@@ -598,7 +658,10 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
             <h3>{onboardingWelcome ? copy.onboardingGreeting : contextHelp?.tool || copy.prompt}</h3><p>{onboardingWelcome ? copy.onboardingMessage : copy.intro}</p>
             <div className={styles.suggestions} data-testid={contextHelp && !onboardingWelcome ? "assistant-context-help" : undefined}>{(onboardingWelcome ? [copy.onboardingConnect] : contextHelp?.suggestions || copy.suggestions).map((suggestion) => <button key={suggestion} type="button"
               onClick={() => { localEditRevisionRef.current++; setDraft(onboardingWelcome && suggestion === copy.onboardingConnect ? copy.onboardingRequest : suggestion); composerRef.current?.focus(); }}>{suggestion}<span aria-hidden="true">↗</span></button>)}</div>
-          </div> : messages.map((message, index) => <div key={index} className={`${styles.message} ${message.role === "user" ? styles.userMessage : styles.assistantMessage}`}>
+          </div> : messages.map((message, index) => {
+            const previous = messages[index - 1];
+            const studioDraft = message.role === "assistant" ? message.studioDraft || (previous?.role === "user" ? deriveInrAssistantStudioDraft(previous.content, message.content) : null) : null;
+            return <div key={index} className={`${styles.message} ${message.role === "user" ? styles.userMessage : styles.assistantMessage}`}>
             <span className={styles.speaker}>{message.role === "user" ? copy.you : "iNr’Assistant"}</span>
             {message.role === "assistant" ? <DashboardAssistantMessageContent content={message.content} onInternalNavigate={onInternalNavigate} /> : <p>{message.content}</p>}
             {message.attachments?.length ? <ul className={styles.sentAttachments}>{message.attachments.map(file => <li key={file.id}><span aria-hidden="true">📎</span> {file.name}</li>)}</ul> : null}
@@ -609,7 +672,8 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
               <p role={message.media.status === "processing" ? "status" : undefined}>{message.media.message || (message.media.status === "processing" ? copy.mediaProcessing : message.media.status === "failed" ? copy.mediaFailed : copy.mediaReady)}</p>
               {message.media.status === "completed" ? <button type="button" onClick={onOpenMediaLibrary}>{copy.mediaLibrary}<span aria-hidden="true">↗</span></button> : null}
             </div> : null}
-          </div>)}
+            {studioDraft && onInsertStudioDraft ? <button type="button" className={styles.studioDraftButton} data-testid="assistant-studio-draft" disabled={pending || files.busy} onClick={() => void insertDraft(studioDraft, message)}>{studioDraft.mediaType === "video" ? copy.insertStudioVideo : copy.insertStudioImage}<span aria-hidden="true">↗</span></button> : null}
+          </div>; })}
           {pending ? <div className={styles.pendingStatus}><p className={styles.pending} role="status"><span aria-hidden="true" />{copy.pending}</p>{!activities.length ? <p className={styles.pendingHint}>{copy.keepWorking}</p> : null}</div> : null}
           {activities.length ? <section className={styles.collaboration} aria-label={copy.collaboration} data-testid="assistant-collaboration">
             <button type="button" className={styles.collaborationHeading} aria-expanded={collaborationExpanded} aria-controls="inrcy-assistant-collaboration" onClick={() => setCollaborationExpanded(value => !value)}>

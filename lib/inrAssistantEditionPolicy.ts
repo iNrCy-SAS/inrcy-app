@@ -4,7 +4,7 @@ import type { DashboardEdition } from "./dashboardEdition.ts";
 const BASIC_SUPPORT_TOOLS = new Set([
   "proposeHumanSupport", "readAppGuide", "getBusinessDna", "searchMedia", "getRecentPublications",
   "getAccountDiagnostics", "readWorkspaceSection", "recallPastDiscussions", "guideChannelConnection",
-  "readToolSettings", "getPublicationStatus", "getBusinessDnaAnalysis",
+  "readToolSettings", "getPublicationStatus", "getBusinessDnaAnalysis", "prepareStudioPrompt",
 ]);
 
 export function assistantToolsForEdition<T>(tools: Record<string, T>, edition: DashboardEdition): Record<string, T> {

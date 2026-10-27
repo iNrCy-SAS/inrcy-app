@@ -47,6 +47,8 @@
 .mediaResult p { font-size: 12px; color: #c6d6ed; }
 .mediaResult[data-media-status="failed"] p { color: #ffc9d5; }
 .mediaResult button { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border: 1px solid #cea2e95e; border-radius: 11px; background: #9b57bf25; color: #f0e0ff; font: inherit; font-size: 12px; cursor: pointer; }
+.studioDraftButton { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; margin-top: 12px; padding: 10px 12px; border: 1px solid #68cde078; border-radius: 11px; background: linear-gradient(120deg, #167a9c44, #9b57bf30); color: #e9faff; font: inherit; font-size: 12px; font-weight: 700; text-align: left; cursor: pointer; }
+.studioDraftButton:disabled { opacity: .45; cursor: default; }
 .pendingHint { margin: 0 0 8px; color: #aabbd4; font-size: 11px; line-height: 1.5; }
 .pending { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; color: #d7bfe7; font-size: 13px; }
 .pending span { width: 7px; height: 7px; border-radius: 50%; background: #ed94d9; animation: pulse 1.3s ease-in-out infinite; }

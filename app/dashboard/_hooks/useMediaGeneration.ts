@@ -730,9 +730,19 @@ function mediaDraftEndpoint(mediaId: string) {
  * Best-effort safe for page teardown thanks to keepalive. The server contract
  * is idempotent, and a draft which was already promoted must never be deleted.
  */
-export async function discardMediaGenerationDraft(mediaId: string) {
+export async function discardMediaGenerationDraft(mediaId: string, recoveryScope?: {
+  accountId: string | null;
+  kind: MediaGenerationKind;
+  /** A late DELETE acknowledgement cannot clear a different workspace/account. */
+  isCurrent: () => boolean;
+}) {
   const normalizedId = String(mediaId || "").trim();
-  if (!normalizedId) return;
+  if (!normalizedId) return false;
+  const storage = recoveryScope ? recoveryStorage() : null;
+  const accountId = recoveryScope?.accountId || "";
+  const pointer = recoveryScope?.isCurrent()
+    ? readAiMediaGenerationRecovery(storage, accountId)
+    : null;
 
   const response = await fetch(mediaDraftEndpoint(normalizedId), {
     method: "DELETE",
@@ -749,6 +759,15 @@ export async function discardMediaGenerationDraft(mediaId: string) {
       )
     );
   }
+  const confirmed = response.ok && payload && typeof payload === "object" &&
+    payload.ok === true && payload.discarded === true;
+  if (confirmed && recoveryScope?.isCurrent() && pointer?.mediaId === normalizedId && pointer.kind === recoveryScope.kind) {
+    const current = readAiMediaGenerationRecovery(storage, accountId);
+    if (current?.requestId === pointer.requestId && current.mediaId === normalizedId && current.kind === pointer.kind) {
+      clearAiMediaGenerationRecovery(storage, accountId, pointer.requestId);
+    }
+  }
+  return Boolean(confirmed);
 }
 
 export default function useMediaGeneration() {
@@ -1655,9 +1674,15 @@ export default function useMediaGeneration() {
     async (candidate?: MediaGenerationResult | null) => {
       const requested = candidate || resultRef.current;
       if (!requested || !requested.draft) return;
-
-      await discardMediaGenerationDraft(requested.item.id);
-      clearAiMediaGenerationRecoveryForMedia(recoveryStorage(), quotaRef.current?.accountId || "", requested.item.id);
+      const requestEpoch = accountEpochRef.current;
+      const discardAccountId = requested.quota?.accountId || quotaRef.current?.accountId || null;
+      const confirmed = await discardMediaGenerationDraft(requested.item.id, {
+        accountId: discardAccountId,
+        kind: requested.item.media_type === "video" ? "video" : "image",
+        isCurrent: () => mountedRef.current && requestEpoch === accountEpochRef.current && quotaRef.current?.accountId === discardAccountId,
+      });
+      if (!mountedRef.current || requestEpoch !== accountEpochRef.current) return;
+      if (!confirmed) throw new Error("La suppression du brouillon n’a pas encore pu être confirmée. Réessayez avant de générer un autre média.");
       if (resultRef.current?.item.id === requested.item.id) {
         resultRef.current = null;
         setResult(null);

@@ -3,7 +3,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { inrAssistantMemoryCutoff, sanitizeInrAssistantMemoryText } from "./inrAssistantMemory.ts";
-import type { InrAssistantTaskState } from "./inrAssistantTaskPolicy.ts";
+import { compactInrAssistantTaskReceipts, inrAssistantTaskTrackingLimit, type InrAssistantTaskState, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
 import { ASSISTANT_ATTACHMENT_BUCKET as BUCKET, ASSISTANT_ATTACHMENT_UUID as UUID, AssistantAttachmentError, assistantAttachmentFile, parseAssistantAttachments, type AssistantAttachment } from "./inrAssistantAttachments.ts";
 
 export type AssistantAttachmentScope = { accountId: string; actorUserId: string; conversationId: string };
@@ -28,14 +28,33 @@ export async function loadAssistantTaskState(scope: AssistantAttachmentScope, tu
       Date.parse(task.expiresAt) < Date.now() || !["completed","partial","needs_input","processing","blocked","failed"].includes(task.outcome) ||
       !Array.isArray(task.requiredTools) || task.requiredTools.length > 20 || task.requiredTools.some((name: unknown)=>typeof name !== "string" || !/^[a-zA-Z]{3,60}$/.test(name)) ||
       !Array.isArray(task.receipts) || task.receipts.length > 32 || task.receipts.some((r: Record<string,unknown>)=>!r || typeof r.tool !== "string" || typeof r.status !== "string" || typeof r.message !== "string" || typeof r.ok !== "boolean")) return null;
+    if (task.requiredCalls !== undefined && (!task.requiredCalls || typeof task.requiredCalls !== "object" || Array.isArray(task.requiredCalls) || Object.keys(task.requiredCalls).length > 20 ||
+      Object.entries(task.requiredCalls).some(([name,count])=>!task.requiredTools.includes(name) || !Number.isSafeInteger(count) || Number(count) < 1 || Number(count) > 1_000_000))) return null;
     return task;
   } catch { return null; }
 }
 export async function saveAssistantTaskState(scope: AssistantAttachmentScope, turn: { turnId: string; createdAt: string }, task: InrAssistantTaskState): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const saved = { ...scope, turnId: turn.turnId, task: { ...task, instruction: sanitizeInrAssistantMemoryText(task.instruction,4000), question: sanitizeInrAssistantMemoryText(task.question,2000), receipts: task.receipts.slice(-24).map(r=>({...r,message:sanitizeInrAssistantMemoryText(r.message,500)})) } };
-    const data = Buffer.from(JSON.stringify(saved));
+    if (inrAssistantTaskTrackingLimit(task.requiredTools, task.requiredCalls)) return false;
+    const receipts = compactInrAssistantTaskReceipts(task.receipts, task.requiredTools, task.requiredCalls);
+    if (receipts.length > 32) return false;
+    const saved = { ...scope, turnId: turn.turnId, task: { ...task, instruction: sanitizeInrAssistantMemoryText(task.instruction,4000), question: sanitizeInrAssistantMemoryText(task.question,2000), receipts: receipts.map(r=>({...r,message:sanitizeInrAssistantMemoryText(r.message,500)})) } };
+    let data = Buffer.from(JSON.stringify(saved));
+    if (data.length > 32_000) {
+      // Prose and links may be shortened; confirmations and stable native IDs
+      // may not. This also keeps non-Latin summaries inside the byte budget.
+      saved.task.question = sanitizeInrAssistantMemoryText(task.question.slice(-256),256);
+      saved.task.receipts = receipts.map(r => {
+        const compact = {tool:r.tool,ok:r.ok,status:r.status,message:""} as InrAssistantActionReceipt;
+        const primary = ["id","recordId","eventId","draftId","scheduledActionId","publicationId"] as const;
+        const key = primary.find(name => typeof r[name] === "string");
+        if (key) compact[key] = r[key];
+        if (typeof r.requestId === "string") compact.requestId = r.requestId;
+        return compact;
+      });
+      data = Buffer.from(JSON.stringify(saved));
+    }
     if (data.length > 32_000) return false;
     const result = await Promise.race([store().upload(taskPath(scope,turn), data, { contentType:"application/json", upsert:true }), new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error("Task store unavailable")),5000);timer.unref?.();})]);
     return !result.error;

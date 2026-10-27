@@ -3,6 +3,8 @@ import "server-only";
 import { jsonSchema, tool } from "ai";
 import { normalizeAiMediaGenerationRequest, type AiMediaLibraryPickerItem, type AiMediaOutputFormat } from "./aiMediaGenerationContracts.ts";
 import { getAiMediaImageModel, getAiMediaVideoModel, isAiMediaVideoEngineAvailable, type AiMediaImageEngine, type AiMediaVideoEngine } from "./aiMediaModelCatalog.ts";
+import { permitsInrAssistantMediaAction } from "./inrAssistantMediaIntent.ts";
+export { permitsInrAssistantMediaAction } from "./inrAssistantMediaIntent.ts";
 
 type JsonRecord = Record<string, unknown>;
 type MediaInput = {
@@ -66,25 +68,6 @@ function parseModification(value: unknown): ModificationInput {
     throw new MediaToolError("Précisez l’image de Mes médias et la modification souhaitée.");
   }
   return { sourceMediaId: input.sourceMediaId.toLowerCase(), instruction: input.instruction.trim() };
-}
-
-/** Only the latest server-supplied user text may authorize a paid media action. */
-export function permitsInrAssistantMediaAction(message: string, action: "generate" | "modify", mediaType: "image" | "video" = "image"): boolean {
-  if (typeof message !== "string") return false;
-  const value = message.slice(0, 4_000).replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm, " ")
-    .normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
-  if (!value || /^(?:comment|pourquoi|ou|how|where|what)\b|\b(?:expliqu\w*|montr\w*|comprendre|savoir|explain|show|teach)\b|\b(?:comment|how|where)\b/.test(value) ||
-    /\b(?:puis.je|dois.je|(?:je|on) (?:peux|peut|dois|doit)|can i|should i)\b/.test(value) ||
-    /\b(?:prepare|redige|ecris|write|draft|propose)\w*\b.{0,70}\b(?:prompt|brief|instructions?|consignes?)\b/.test(value)) return false;
-  const verbs = action === "generate"
-    ? "(?:cree\\w*|gener\\w*|fais|faire|faites|fass\\w*|realise\\w*|produi\\w*|dessin\\w*|anime\\w*|create|generate|make|produce|draw)"
-    : "(?:modifi\\w*|retouch\\w*|corrig\\w*|remplac\\w*|retir\\w*|enlev\\w*|supprim\\w*|recadr\\w*|eclairci\\w*|assombri\\w*|ajout\\w*|mets|mettre|rends|rendre|ameliore\\w*|augment\\w*|redui\\w*|edit|modify|retouch|remove|replace|brighten|crop|add)";
-  if (new RegExp(`\\b(?:ne|sans|pas|jamais|not|never|don't|do not)\\b.{0,60}\\b${verbs}\\b|\\b${verbs}\\b.{0,18}\\b(?:pas|jamais|not|never)\\b`).test(value)) return false;
-  const direct = new RegExp(`(?:^|[.!?;,:]\\s*|\\b(?:et|puis|ensuite|please|stp)\\s+)\\s*${verbs}\\b|\\b(?:(?:peux|pourrais|voudrais)[- ]tu|tu (?:peux|pourrais)|je (?:veux|souhaite|voudrais) que tu|j.aimerais que tu|(?:can|could|would) you|i want you to)\\s+(?:me\\s+|please\\s+)?${verbs}\\b`).test(value);
-  if (action === "modify") return direct;
-  const need = /\b(?:je (?:veux|souhaite|voudrais)|j.aimerais|j.ai besoin d.|i (?:want|need))\s+(?:(?:une?|des?|an?|the|some)\s+)?(?:(?:nouvelle?|belle?|new)\s+)?(?:image|photo|video|visuel|illustration|affiche|flyer|media|clip|picture)\b/.test(value);
-  const subject = mediaType === "video" ? /\b(?:videos?|clips?|films?|animations?)\b|视频|วิดีโอ/ : /\b(?:images?|photos?|visuels?|illustrations?|affiches?|flyers?|medias?|dessins?|logos?|pictures?|posters?)\b|图片|รูป/;
-  return (direct || need) && subject.test(value);
 }
 
 /** Provider choice stays server-owned and uses the existing Studio catalogue and tariffs. */

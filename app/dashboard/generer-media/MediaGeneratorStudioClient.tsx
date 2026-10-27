@@ -4,6 +4,13 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import MediaGeneratorModal from "@/app/dashboard/_components/MediaGeneratorModal";
+import { useDashboardViewerAccess } from "@/app/dashboard/_components/DashboardViewerAccessProvider";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+import {
+  acknowledgeInrAssistantStudioDraft, clearInrAssistantStudioDraft,
+  INR_ASSISTANT_STUDIO_DRAFT_EVENT, readInrAssistantStudioDraft,
+  type InrAssistantStudioDraftRequest, type InrAssistantStudioHandoff,
+} from "@/lib/inrAssistantStudioHandoff";
 import type {
   MediaRetoucherSavedValue,
   MediaStudioInitialPreview,
@@ -144,6 +151,7 @@ export default function MediaGeneratorStudioClient({
   onEmbeddedClose,
 }: StudioClientProps = {}) {
   const router = useRouter();
+  const { actorUserId, activeAccountId } = useDashboardViewerAccess();
   const [ready, setReady] = useState(false);
   const [handoff, setHandoff] = useState<InrStudioHandoff | null>(null);
   const [initialTab, setInitialTab] = useState<InrStudioTab>("generate");
@@ -151,6 +159,28 @@ export default function MediaGeneratorStudioClient({
   const [initialPreview, setInitialPreview] =
     useState<MediaStudioInitialPreview | null>(null);
   const [initialSourceLoading, setInitialSourceLoading] = useState(false);
+  const [assistantDraft, setAssistantDraft] = useState<InrAssistantStudioHandoff | null>(null);
+  const scopedAssistantDraft = !handoff && !embeddedHandoff && assistantDraft?.actorUserId === actorUserId && assistantDraft.accountId === activeAccountId ? assistantDraft : null;
+  const [workspaceReady, setWorkspaceReady] = useState(false);
+  const [workspaceBusy, setWorkspaceBusy] = useState(true);
+  const workspaceRef = useRef({ busy: true, hasDraft: false });
+  const replacementRef = useRef<(() => Promise<boolean>) | null>(null);
+  const insertionRef = useRef(false);
+  const seenDraftRef = useRef("");
+  const scopeRef = useRef({ actorUserId, activeAccountId, mounted: true });
+  useEffect(() => {
+    scopeRef.current = { actorUserId, activeAccountId, mounted: true };
+    setAssistantDraft(null);
+    return () => { scopeRef.current = { ...scopeRef.current, mounted: false }; };
+  }, [actorUserId, activeAccountId, handoff, embeddedHandoff]);
+  const onWorkspaceStateChange = useCallback((state: { busy: boolean; hasDraft: boolean }) => {
+    workspaceRef.current = state;
+    setWorkspaceBusy(state.busy);
+  }, []);
+  const registerDraftReplacementRequest = useCallback((request: (() => Promise<boolean>) | null) => {
+    replacementRef.current = request;
+    setWorkspaceReady(Boolean(request));
+  }, []);
   const sourceLoadRef = useRef<{
     handoffKey: string;
     promise: Promise<File | null>;
@@ -197,6 +227,50 @@ export default function MediaGeneratorStudioClient({
       active = false;
     };
   }, [embeddedHandoff]);
+
+  const applyAssistantDraft = useCallback(async (id: string): Promise<boolean> => {
+    const scope = { actorUserId, accountId: activeAccountId };
+    const current = () => scopeRef.current.mounted && scopeRef.current.actorUserId === actorUserId
+      && scopeRef.current.activeAccountId === activeAccountId && (getActiveBrowserUserId() || activeAccountId) === activeAccountId;
+    if (!current() || handoff || embeddedHandoff || insertionRef.current) return false;
+    if (!replacementRef.current || workspaceRef.current.busy) throw new Error("studio_draft_busy");
+    const staged = readInrAssistantStudioDraft(scope, id);
+    if (!staged) return false;
+    insertionRef.current = true;
+    let accepted = false;
+    try {
+      // Native Reset owns confirmation and rechecks recovery, account and work
+      // in progress. The creative draft can never trigger the generation hook.
+      if (!await replacementRef.current() || !current() || workspaceRef.current.busy || !readInrAssistantStudioDraft(scope, id)) return false;
+      setAssistantDraft(staged);
+      setInitialTab("generate");
+      accepted = true;
+      clearInrAssistantStudioDraft(scope, id);
+      return true;
+    } finally {
+      insertionRef.current = false;
+      acknowledgeInrAssistantStudioDraft(scope, id, accepted && current());
+    }
+  }, [actorUserId, activeAccountId, handoff, embeddedHandoff]);
+
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const detail = (event as CustomEvent<InrAssistantStudioDraftRequest>).detail;
+      if (!detail || detail.actorUserId !== actorUserId || detail.accountId !== activeAccountId || typeof detail.id !== "string") return;
+      detail.result = applyAssistantDraft(detail.id);
+    };
+    window.addEventListener(INR_ASSISTANT_STUDIO_DRAFT_EVENT, listener);
+    return () => window.removeEventListener(INR_ASSISTANT_STUDIO_DRAFT_EVENT, listener);
+  }, [actorUserId, activeAccountId, applyAssistantDraft]);
+
+  useEffect(() => {
+    if (!ready || !workspaceReady || workspaceBusy || !actorUserId || !activeAccountId) return;
+    const id = new URLSearchParams(window.location.search).get("assistant_draft");
+    const scopedId = `${actorUserId}:${activeAccountId}:${id}`;
+    if (!id || seenDraftRef.current === scopedId) return;
+    seenDraftRef.current = scopedId;
+    void applyAssistantDraft(id).catch(() => acknowledgeInrAssistantStudioDraft({ actorUserId, accountId: activeAccountId }, id, false));
+  }, [ready, workspaceReady, workspaceBusy, actorUserId, activeAccountId, applyAssistantDraft]);
 
   const closeStudio = useCallback(() => {
     if (!handoff) {
@@ -444,6 +518,7 @@ export default function MediaGeneratorStudioClient({
       {!embeddedHandoff ? <main className={styles.page} aria-hidden="true" /> : null}
       {ready ? (
         <MediaGeneratorModal
+          key={`${actorUserId}:${activeAccountId}:${scopedAssistantDraft?.id || handoff?.key || "standalone-studio"}`}
           open
           embedded={Boolean(embeddedHandoff)}
           source="studio"
@@ -460,12 +535,13 @@ export default function MediaGeneratorStudioClient({
               ? "inragent"
               : "menu"
           }
-          initialTab={initialTab}
+          initialTab={scopedAssistantDraft ? "generate" : initialTab}
+          initialFreePrompt={scopedAssistantDraft?.draft.prompt || ""}
           initialSource={initialSource}
           initialPreview={initialPreview}
           initialSourceLoading={initialSourceLoading}
           initialSourceAvailable={Boolean(handoff?.source)}
-          initialMediaType={handoff?.source?.mediaType || (handoff?.context.mediaType === "video" ? "video" : "image")}
+          initialMediaType={scopedAssistantDraft?.draft.mediaType || handoff?.source?.mediaType || (handoff?.context.mediaType === "video" ? "video" : "image")}
           initialVideoContext={getInitialVideoContext(handoff)}
           publicationBrief={handoff?.publicationBrief || ""}
           acceptMode={handoff ? "insert" : "library"}
@@ -475,6 +551,8 @@ export default function MediaGeneratorStudioClient({
           onAccepted={returnAcceptedMedia}
           onRetouched={saveRetouchedMedia}
           onVideoRetouched={saveRetouchedVideo}
+          onWorkspaceStateChange={onWorkspaceStateChange}
+          registerDraftReplacementRequest={registerDraftReplacementRequest}
         />
       ) : null}
     </>

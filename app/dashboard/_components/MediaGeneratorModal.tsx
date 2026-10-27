@@ -63,6 +63,9 @@ type MediaGeneratorModalProps = {
   onVideoRetouched?: (
     value: MediaVideoRetoucherSavedValue
   ) => void | Promise<void>;
+  onWorkspaceStateChange?: (state: { busy: boolean; hasDraft: boolean }) => void;
+  /** Reuse the native reset confirmation before replacing a Studio brief. */
+  registerDraftReplacementRequest?: (request: (() => Promise<boolean>) | null) => void;
 };
 
 type StudioMediaType = "image" | "video";
@@ -100,18 +103,22 @@ export default function MediaGeneratorModal({
   onAccepted,
   onRetouched,
   onVideoRetouched,
+  onWorkspaceStateChange,
+  registerDraftReplacementRequest,
 }: MediaGeneratorModalProps) {
   const t = useTranslations("media");
   const closeTitleId = useId();
   const closeDescriptionId = useId();
   const [mounted, setMounted] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [pendingRecovery, setPendingRecovery] = useState(initialTab === "generate");
   const [retoucherDirty, setRetoucherDirty] = useState(false);
   const [currentResult, setCurrentResult] =
     useState<MediaGenerationResult | null>(null);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [resetRequested, setResetRequested] = useState(false);
   const sessionVersionRef = useRef(0);
+  const draftReplacementResolutionRef = useRef<((approved: boolean) => void) | null>(null);
   const [studioTab, setStudioTab] =
     useState<MediaGeneratorStudioMode>(initialTab);
   const initialFreeMediaType = initialTab === "generate" ? initialMediaType : "image";
@@ -125,6 +132,12 @@ export default function MediaGeneratorModal({
   const [freeMediaType, setFreeMediaType] = useState<StudioMediaType>(initialFreeMediaType);
   const [visitedFreeTypes, setVisitedFreeTypes] = useState<StudioMediaType[]>([initialFreeMediaType]);
   const [generationSession, setGenerationSession] = useState(0);
+  const handleGenerationPromptChange = useCallback((prompt: string) => {
+    // Delayed dictation or another old Activity callback cannot restore a brief
+    // after closing, resetting or switching the active account.
+    if (!openedRef.current || sessionVersionRef.current !== generationSession) return;
+    setGenerationPrompt(prompt);
+  }, [generationSession]);
   const [mediaTypeByTab, setMediaTypeByTab] = useState<
     Record<MediaGeneratorStudioMode, StudioMediaType>
   >(() => ({
@@ -143,6 +156,10 @@ export default function MediaGeneratorModal({
   const closeInFlightRef = useRef(false);
   const hasResult = Boolean(currentResult);
   const hasPendingWork = hasResult || retoucherDirty;
+  // Modification/retouch forms also own local source and edit state. Let their
+  // native reset confirmation review replacement before remounting Studio.
+  const hasWorkspaceDraft = Boolean(generationPrompt.trim() || hasPendingWork || studioTab !== "generate");
+  const workspaceBusy = locked || (studioTab === "generate" && pendingRecovery);
   const hasExternalHandoff = Boolean(
     handoffOriginLabel && onAbandonHandoff
   );
@@ -156,6 +173,15 @@ export default function MediaGeneratorModal({
 
   useEffect(() => setMounted(true), []);
 
+  useEffect(() => {
+    onWorkspaceStateChange?.({ busy: open && workspaceBusy, hasDraft: open && hasWorkspaceDraft });
+  }, [hasWorkspaceDraft, onWorkspaceStateChange, open, workspaceBusy]);
+
+  useEffect(() => () => {
+    draftReplacementResolutionRef.current?.(false);
+    draftReplacementResolutionRef.current = null;
+  }, []);
+
   useLayoutEffect(() => {
     if (!embedded || !mounted || !open || !layerRef.current) return;
     const background = Array.from(document.body.children)
@@ -168,12 +194,17 @@ export default function MediaGeneratorModal({
   useLayoutEffect(() => {
     const newOpening = open && !openedRef.current;
     openedRef.current = open;
+    if (!open) {
+      draftReplacementResolutionRef.current?.(false);
+      draftReplacementResolutionRef.current = null;
+    }
     // The originating subject fills the prompt only when the Studio opens.
     // A later change outside the Studio must not replace the pro's edits.
     if (!newOpening) return;
     sessionVersionRef.current += 1;
     setResetRequested(false);
     setStudioTab(initialTab);
+    setPendingRecovery(initialTab === "generate");
     setGenerationPrompt(initialGenerationPrompt);
     setGenerationSession((value) => value + 1);
     setFreeMediaType(initialFreeMediaType);
@@ -190,6 +221,8 @@ export default function MediaGeneratorModal({
     // Hidden Activity forms suspend their listeners: invalidate all of them
     // here so an establishment change can never restore another account's brief.
     const resetGenerationSession = () => {
+      draftReplacementResolutionRef.current?.(false);
+      draftReplacementResolutionRef.current = null;
       sessionVersionRef.current += 1;
       setResetRequested(false);
       setGenerationSession((value) => value + 1);
@@ -199,6 +232,7 @@ export default function MediaGeneratorModal({
       currentResultRef.current = null;
       setCurrentResult(null);
       setLocked(false);
+      setPendingRecovery(true);
       setCloseConfirmOpen(false);
     };
     window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, resetGenerationSession);
@@ -287,24 +321,54 @@ export default function MediaGeneratorModal({
     setCloseConfirmOpen(true);
   }, [locked]);
 
+  const requestDraftReplacement = useCallback((): Promise<boolean> => {
+    if (!openedRef.current || workspaceBusy || hasExternalHandoff || closeInFlightRef.current || closeConfirmOpen || draftReplacementResolutionRef.current) return Promise.resolve(false);
+    if (!hasWorkspaceDraft) return Promise.resolve(true);
+    return new Promise(resolve => {
+      draftReplacementResolutionRef.current = resolve;
+      setResetRequested(true);
+      setCloseConfirmOpen(true);
+    });
+  }, [closeConfirmOpen, hasExternalHandoff, hasWorkspaceDraft, workspaceBusy]);
+
+  useEffect(() => {
+    registerDraftReplacementRequest?.(requestDraftReplacement);
+    return () => registerDraftReplacementRequest?.(null);
+  }, [registerDraftReplacementRequest, requestDraftReplacement]);
+
   const confirmReset = useCallback(async () => {
     if (locked || closeInFlightRef.current) return;
+    // A paid recovery may hydrate while the replacement confirmation is open.
+    // Keep its owning Activity mounted until that attempt has been reviewed.
+    if (draftReplacementResolutionRef.current && ((studioTab === "generate" && pendingRecovery) || hasExternalHandoff)) {
+      draftReplacementResolutionRef.current(false);
+      draftReplacementResolutionRef.current = null;
+      setCloseConfirmOpen(false);
+      setResetRequested(false);
+      return;
+    }
     closeInFlightRef.current = true;
     setLocked(true);
     const sessionVersion = sessionVersionRef.current;
+    const replacementResolution = draftReplacementResolutionRef.current;
     const resultToDiscard = currentResultRef.current;
     try {
       // Saved media stay in the library. Only the private temporary preview
       // belongs to this reset; its already-consumed credits are unchanged.
       if (resultToDiscard?.draft) {
-        await discardMediaGenerationDraft(resultToDiscard.item.id);
+        await discardMediaGenerationDraft(resultToDiscard.item.id, {
+          accountId: resultToDiscard.quota?.accountId || null,
+          kind: resultToDiscard.item.media_type === "video" ? "video" : "image",
+          isCurrent: () => sessionVersionRef.current === sessionVersion && openedRef.current,
+        });
       }
     } catch {
       // Keep reset available during a cleanup outage, like closing Studio.
       // The server purges any remaining private draft after 24 hours.
     } finally {
       closeInFlightRef.current = false;
-      if (sessionVersionRef.current === sessionVersion && openedRef.current) {
+      const approved = sessionVersionRef.current === sessionVersion && openedRef.current;
+      if (approved) {
         sessionVersionRef.current += 1;
         currentResultRef.current = null;
         setCurrentResult(null);
@@ -318,15 +382,20 @@ export default function MediaGeneratorModal({
         setResetRequested(false);
         setCloseConfirmOpen(false);
         setLocked(false);
+        setPendingRecovery(true);
         window.requestAnimationFrame(() => dialogRef.current
           ?.querySelector<HTMLButtonElement>('[data-studio-tab="generate"]')
           ?.focus({ preventScroll: true }));
       }
+      if (draftReplacementResolutionRef.current === replacementResolution) draftReplacementResolutionRef.current = null;
+      replacementResolution?.(approved);
     }
-  }, [activeMediaType, locked]);
+  }, [activeMediaType, hasExternalHandoff, locked, pendingRecovery, studioTab]);
 
   const cancelClose = useCallback(() => {
     if (closeInFlightRef.current) return;
+    draftReplacementResolutionRef.current?.(false);
+    draftReplacementResolutionRef.current = null;
     setCloseConfirmOpen(false);
     setResetRequested(false);
   }, []);
@@ -707,11 +776,14 @@ export default function MediaGeneratorModal({
                     mediaType={kind}
                     imageOnly={imageOnly}
                     initialPrompt={generationPrompt}
+                    sharedPrompt={generationPrompt}
+                    onSharedPromptChange={handleGenerationPromptChange}
                     requiredPromptSuffix={requiredFreePromptSuffix}
                     fixedFormat={fixedFreeFormat}
                     onAccepted={onAccepted}
                     onResultChange={handleResultChange}
                     onBusyChange={setLocked}
+                    onPendingRecoveryChange={setPendingRecovery}
                     onRecoveryKind={handleRecoveryKind}
                     onReset={requestReset}
                   />

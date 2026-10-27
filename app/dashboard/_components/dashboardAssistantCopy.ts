@@ -20,6 +20,14 @@ type CollaborationCopy = {
   activityStatuses: Record<"running" | "completed" | "blocked" | "failed", string>;
 };
 type OnboardingCopy = { onboardingGreeting: string; onboardingMessage: string; onboardingConnect: string; onboardingRequest: string };
+type AssistantLanguage = "fr" | "en" | "es" | "it" | "de" | "nl" | "pt" | "th" | "zh";
+type UtilityCopy = Record<"minimize" | "restore" | "human" | "reviewTitle" | "reviewNote" | "copySummary" | "emailDraft" | "requestLabel" | "exchangeLabel", string>;
+type StudioDraftCopy = Record<"insertStudioImage" | "insertStudioVideo" | "studioDraftInsertedImage" | "studioDraftInsertedVideo" | "studioDraftUnavailable" | "studioDraftBusy", string>;
+type RecoveryCopy = Record<"reference" | "interrupted", string>;
+type HistoryCopy = Record<"history" | "historyLoading" | "historyEmpty" | "historyUnavailable" | "historyOlder" | "replaceDraft" | "openConversation" | "keepDraft", string>;
+type PositionCopy = Record<"moveLeft" | "moveRight", string>;
+type MediaCopy = Record<"mediaProcessing" | "mediaFailed" | "mediaReady" | "mediaLibrary" | "keepWorking", string>;
+type DashboardAssistantCopy = AssistantCopy & CollaborationCopy & OnboardingCopy & UtilityCopy & StudioDraftCopy & RecoveryCopy & HistoryCopy & PositionCopy & MediaCopy & Record<"inProgress" | "nextSteps" | "newReply", string>;
 const ONBOARDING_COPY: Record<string, OnboardingCopy> = {
   fr: { onboardingGreeting: "Bonjour et bienvenue chez iNrCy ! 👋", onboardingMessage: "Je suis iNr’Assistant. La première chose à faire est de connecter vos canaux. Je vous accompagne pas à pas : commençons par Google Business si vous avez une fiche, puis vos autres canaux. Nous compléterons l’ADN ensuite, et terminerons par iNr’Badge.", onboardingConnect: "Connecter mes canaux", onboardingRequest: "Aidez-moi à connecter mes canaux, en commençant par Google Business si j’ai une fiche." },
   en: { onboardingGreeting: "Hello and welcome to iNrCy! 👋", onboardingMessage: "I’m iNr’Assistant. The first step is to connect your channels. I’ll guide you, starting with Google Business if you have a profile, then your other channels. We’ll complete your business DNA afterwards and finish with iNr’Badge.", onboardingConnect: "Connect my channels", onboardingRequest: "Help me connect my channels, starting with Google Business if I have a profile." },
@@ -91,7 +99,7 @@ const COPY: Record<string, AssistantCopy> = {
   },
 };
 
-const UTILITY_COPY = {
+const UTILITY_COPY: Record<AssistantLanguage, UtilityCopy> = {
   fr: { minimize: "Réduire la conversation", restore: "Reprendre la conversation", human: "Contacter l’équipe iNrCy", reviewTitle: "Votre demande à l’équipe iNrCy", reviewNote: "Relisez et ajustez ce message avant de l’envoyer. Rien n’est envoyé automatiquement.", copySummary: "Copier le message", emailDraft: "Ouvrir mon email", requestLabel: "Ma demande", exchangeLabel: "Dernier échange avec iNr’Assistant" },
   en: { minimize: "Minimize conversation", restore: "Resume conversation", human: "Contact the iNrCy team", reviewTitle: "Your request to the iNrCy team", reviewNote: "Review and edit this message before sending it. Nothing is sent automatically.", copySummary: "Copy message", emailDraft: "Open my email", requestLabel: "My request", exchangeLabel: "Last exchange with iNr’Assistant" },
   es: { minimize: "Minimizar conversación", restore: "Retomar conversación", human: "Contactar al equipo iNrCy", reviewTitle: "Tu solicitud al equipo iNrCy", reviewNote: "Revisa y edita el mensaje antes de enviarlo. No se envía nada automáticamente.", copySummary: "Copiar mensaje", emailDraft: "Abrir mi correo", requestLabel: "Mi solicitud", exchangeLabel: "Último intercambio con iNr’Assistant" },
@@ -103,11 +111,22 @@ const UTILITY_COPY = {
   zh: { minimize: "最小化对话", restore: "继续对话", human: "联系 iNrCy 团队", reviewTitle: "你向 iNrCy 团队的请求", reviewNote: "发送前请检查并修改消息。不会自动发送任何内容。", copySummary: "复制消息", emailDraft: "打开我的邮件", requestLabel: "我的请求", exchangeLabel: "与 iNr’Assistant 的最近交流" },
 };
 
-export function dashboardAssistantCopy(locale: string) {
+export function dashboardAssistantCopy(locale: string): DashboardAssistantCopy {
   const language = locale.toLowerCase().split("-")[0] as keyof typeof UTILITY_COPY;
+  const studioDraft: Record<AssistantLanguage, StudioDraftCopy> = {
+    fr: { insertStudioImage: "Insérer dans iNrStudio — Image", insertStudioVideo: "Insérer dans iNrStudio — Vidéo", studioDraftInsertedImage: "Le prompt est inséré dans iNrStudio — Image. Vérifiez les critères, puis lancez la génération quand vous le souhaitez.", studioDraftInsertedVideo: "Le prompt est inséré dans iNrStudio — Vidéo. Vérifiez les critères, puis lancez la génération quand vous le souhaitez.", studioDraftUnavailable: "Le prompt n’a pas pu être inséré dans iNrStudio. Réessayez ; aucune génération n’a été lancée.", studioDraftBusy: "iNrStudio est en cours de chargement ou de création. Réessayez une fois l’opération terminée." },
+    en: { insertStudioImage: "Insert into iNrStudio — Image", insertStudioVideo: "Insert into iNrStudio — Video", studioDraftInsertedImage: "The prompt is inserted into iNrStudio — Image. Review the settings, then start generation whenever you are ready.", studioDraftInsertedVideo: "The prompt is inserted into iNrStudio — Video. Review the settings, then start generation whenever you are ready.", studioDraftUnavailable: "The prompt could not be inserted into iNrStudio. Try again; no generation was started.", studioDraftBusy: "iNrStudio is loading or creating media. Try again once the operation is complete." },
+    es: { insertStudioImage: "Insertar en iNrStudio — Imagen", insertStudioVideo: "Insertar en iNrStudio — Vídeo", studioDraftInsertedImage: "El prompt está insertado en iNrStudio — Imagen. Revisa los ajustes e inicia la generación cuando quieras.", studioDraftInsertedVideo: "El prompt está insertado en iNrStudio — Vídeo. Revisa los ajustes e inicia la generación cuando quieras.", studioDraftUnavailable: "No se ha podido insertar el prompt en iNrStudio. Reintenta; no se ha iniciado ninguna generación.", studioDraftBusy: "iNrStudio está cargando o creando contenido. Reintenta cuando termine la operación." },
+    it: { insertStudioImage: "Inserisci in iNrStudio — Immagine", insertStudioVideo: "Inserisci in iNrStudio — Video", studioDraftInsertedImage: "Il prompt è inserito in iNrStudio — Immagine. Controlla le impostazioni, poi avvia la generazione quando vuoi.", studioDraftInsertedVideo: "Il prompt è inserito in iNrStudio — Video. Controlla le impostazioni, poi avvia la generazione quando vuoi.", studioDraftUnavailable: "Non è stato possibile inserire il prompt in iNrStudio. Riprova; nessuna generazione è stata avviata.", studioDraftBusy: "iNrStudio sta caricando o creando contenuti. Riprova al termine dell’operazione." },
+    de: { insertStudioImage: "In iNrStudio einfügen — Bild", insertStudioVideo: "In iNrStudio einfügen — Video", studioDraftInsertedImage: "Der Prompt wurde in iNrStudio — Bild eingefügt. Prüfe die Einstellungen und starte die Generierung, wenn du bereit bist.", studioDraftInsertedVideo: "Der Prompt wurde in iNrStudio — Video eingefügt. Prüfe die Einstellungen und starte die Generierung, wenn du bereit bist.", studioDraftUnavailable: "Der Prompt konnte nicht in iNrStudio eingefügt werden. Versuche es erneut; es wurde keine Generierung gestartet.", studioDraftBusy: "iNrStudio lädt oder erstellt gerade Medien. Versuche es nach Abschluss des Vorgangs erneut." },
+    nl: { insertStudioImage: "Invoegen in iNrStudio — Afbeelding", insertStudioVideo: "Invoegen in iNrStudio — Video", studioDraftInsertedImage: "De prompt staat in iNrStudio — Afbeelding. Controleer de instellingen en start de generatie wanneer je wilt.", studioDraftInsertedVideo: "De prompt staat in iNrStudio — Video. Controleer de instellingen en start de generatie wanneer je wilt.", studioDraftUnavailable: "De prompt kon niet in iNrStudio worden ingevoegd. Probeer opnieuw; er is geen generatie gestart.", studioDraftBusy: "iNrStudio laadt of maakt media. Probeer het opnieuw zodra de bewerking klaar is." },
+    pt: { insertStudioImage: "Inserir no iNrStudio — Imagem", insertStudioVideo: "Inserir no iNrStudio — Vídeo", studioDraftInsertedImage: "O prompt foi inserido no iNrStudio — Imagem. Reveja os critérios e inicie a geração quando quiser.", studioDraftInsertedVideo: "O prompt foi inserido no iNrStudio — Vídeo. Reveja os critérios e inicie a geração quando quiser.", studioDraftUnavailable: "Não foi possível inserir o prompt no iNrStudio. Tente novamente; nenhuma geração foi iniciada.", studioDraftBusy: "O iNrStudio está a carregar ou a criar conteúdos. Tente novamente quando a operação terminar." },
+    th: { insertStudioImage: "แทรกใน iNrStudio — รูปภาพ", insertStudioVideo: "แทรกใน iNrStudio — วิดีโอ", studioDraftInsertedImage: "แทรกพรอมต์ใน iNrStudio — รูปภาพแล้ว ตรวจสอบการตั้งค่าแล้วเริ่มสร้างเมื่อคุณพร้อม", studioDraftInsertedVideo: "แทรกพรอมต์ใน iNrStudio — วิดีโอแล้ว ตรวจสอบการตั้งค่าแล้วเริ่มสร้างเมื่อคุณพร้อม", studioDraftUnavailable: "แทรกพรอมต์ใน iNrStudio ไม่สำเร็จ โปรดลองอีกครั้ง ยังไม่ได้เริ่มสร้างสื่อ", studioDraftBusy: "iNrStudio กำลังโหลดหรือสร้างสื่อ โปรดลองอีกครั้งเมื่อเสร็จสิ้น" },
+    zh: { insertStudioImage: "插入 iNrStudio — 图片", insertStudioVideo: "插入 iNrStudio — 视频", studioDraftInsertedImage: "提示词已插入 iNrStudio — 图片。请检查设置，并在准备好后开始生成。", studioDraftInsertedVideo: "提示词已插入 iNrStudio — 视频。请检查设置，并在准备好后开始生成。", studioDraftUnavailable: "无法将提示词插入 iNrStudio。请重试；尚未开始任何生成。", studioDraftBusy: "iNrStudio 正在加载或创建媒体。请在操作完成后重试。" },
+  };
   const nextSteps = { fr: "Je dois faire quoi ?", en: "What should I do next?", es: "¿Qué debo hacer ahora?", it: "Cosa devo fare adesso?", de: "Was soll ich als Nächstes tun?", nl: "Wat moet ik nu doen?", pt: "O que devo fazer agora?", th: "ฉันควรทำอะไรต่อ?", zh: "接下来我该做什么？" };
   const newReply = { fr: "Nouvelle réponse", en: "New reply", es: "Nueva respuesta", it: "Nuova risposta", de: "Neue Antwort", nl: "Nieuw antwoord", pt: "Nova resposta", th: "คำตอบใหม่", zh: "新回复" };
-  const recovery = {
+  const recovery: Record<AssistantLanguage, RecoveryCopy> = {
     fr: { reference: "Référence :", interrupted: "La conversation a été restaurée. La réponse a été interrompue ; réessayez pour vérifier ou reprendre la même demande." },
     en: { reference: "Reference:", interrupted: "Your conversation was restored. The reply was interrupted; retry to check or resume the same request." },
     es: { reference: "Referencia:", interrupted: "Se ha restaurado la conversación. La respuesta se interrumpió; reintenta para comprobar o retomar la misma solicitud." },
@@ -129,7 +148,7 @@ export function dashboardAssistantCopy(locale: string) {
     th: "คำขอของคุณยังอยู่ระหว่างดำเนินการ โปรดลองอีกครั้งในอีกสักครู่เพื่อตรวจสอบคำตอบ",
     zh: "你的请求仍在处理中。请稍后重试以检查回复。",
   };
-  const history = {
+  const history: Record<AssistantLanguage, HistoryCopy> = {
     fr: { history: "Historique des conversations", historyLoading: "Chargement de l’historique…", historyEmpty: "Aucune conversation enregistrée pour le moment.", historyUnavailable: "L’historique du compte est momentanément indisponible. Cette conversation reste ouverte.", historyOlder: "Les 20 conversations récentes sont affichées. L’assistant peut retrouver les échanges plus anciens.", replaceDraft: "Votre brouillon sera remplacé. Voulez-vous ouvrir cette conversation ?", openConversation: "Ouvrir", keepDraft: "Garder mon brouillon" },
     en: { history: "Conversation history", historyLoading: "Loading history…", historyEmpty: "No saved conversations yet.", historyUnavailable: "Account history is temporarily unavailable. This conversation remains open.", historyOlder: "The 20 most recent conversations are shown. The assistant can find older exchanges.", replaceDraft: "Your draft will be replaced. Open this conversation?", openConversation: "Open", keepDraft: "Keep my draft" },
     es: { history: "Historial de conversaciones", historyLoading: "Cargando el historial…", historyEmpty: "Todavía no hay conversaciones guardadas.", historyUnavailable: "El historial de la cuenta no está disponible temporalmente. Esta conversación sigue abierta.", historyOlder: "Se muestran las 20 conversaciones más recientes. El asistente puede encontrar intercambios anteriores.", replaceDraft: "Se reemplazará tu borrador. ¿Abrir esta conversación?", openConversation: "Abrir", keepDraft: "Conservar mi borrador" },
@@ -140,7 +159,7 @@ export function dashboardAssistantCopy(locale: string) {
     th: { history: "ประวัติบทสนทนา", historyLoading: "กำลังโหลดประวัติ…", historyEmpty: "ยังไม่มีบทสนทนาที่บันทึกไว้", historyUnavailable: "ประวัติบัญชีไม่พร้อมใช้งานชั่วคราว บทสนทนานี้ยังเปิดอยู่", historyOlder: "แสดงบทสนทนาล่าสุด 20 รายการ ผู้ช่วยสามารถค้นหาบทสนทนาที่เก่ากว่าได้", replaceDraft: "ข้อความร่างจะถูกแทนที่ ต้องการเปิดบทสนทนานี้ไหม?", openConversation: "เปิด", keepDraft: "เก็บข้อความร่างไว้" },
     zh: { history: "对话历史", historyLoading: "正在加载历史记录…", historyEmpty: "尚无已保存的对话。", historyUnavailable: "账户历史记录暂时不可用。当前对话仍保持打开。", historyOlder: "显示最近20段对话。助手可以查找更早的交流。", replaceDraft: "你的草稿将被替换。要打开此对话吗？", openConversation: "打开", keepDraft: "保留草稿" },
   };
-  const position = {
+  const position: Record<AssistantLanguage, PositionCopy> = {
     fr: { moveLeft: "Placer la fenêtre à gauche", moveRight: "Placer la fenêtre à droite" },
     en: { moveLeft: "Move window to the left", moveRight: "Move window to the right" },
     es: { moveLeft: "Mover la ventana a la izquierda", moveRight: "Mover la ventana a la derecha" },
@@ -151,7 +170,7 @@ export function dashboardAssistantCopy(locale: string) {
     th: { moveLeft: "ย้ายหน้าต่างไปทางซ้าย", moveRight: "ย้ายหน้าต่างไปทางขวา" },
     zh: { moveLeft: "将窗口移到左侧", moveRight: "将窗口移到右侧" },
   };
-  const media = {
+  const media: Record<AssistantLanguage, MediaCopy> = {
     fr: { mediaProcessing: "Votre média est en cours de création.", mediaFailed: "La création du média n’a pas abouti.", mediaReady: "Média créé", mediaLibrary: "Voir dans mes médias", keepWorking: "Vous pouvez réduire cette fenêtre et continuer dans l’application." },
     en: { mediaProcessing: "Your media is being created.", mediaFailed: "Media creation failed.", mediaReady: "Created media", mediaLibrary: "View in my media", keepWorking: "You can minimize this window and continue using the app." },
     es: { mediaProcessing: "Tu contenido multimedia se está creando.", mediaFailed: "No se ha podido crear el contenido multimedia.", mediaReady: "Contenido creado", mediaLibrary: "Ver en mis medios", keepWorking: "Puedes minimizar esta ventana y seguir usando la aplicación." },
@@ -173,5 +192,5 @@ export function dashboardAssistantCopy(locale: string) {
     th: { collaboration: "การทำงานร่วมกัน", collaborating: "ทำงานร่วมกับ", activityUnconfirmed: "ตรวจสอบสถานะ", activityStatuses: { running: "กำลังทำงาน", completed: "เสร็จแล้ว", blocked: "ต้องการข้อมูล", failed: "ไม่สำเร็จ" } },
     zh: { collaboration: "协作", collaborating: "正在协作：", activityUnconfirmed: "待确认", activityStatuses: { running: "进行中", completed: "已完成", blocked: "需补充", failed: "失败" } },
   };
-  return { ...(COPY[language] || COPY.fr), ...(UTILITY_COPY[language] || UTILITY_COPY.fr), ...(media[language] || media.fr), ...(position[language] || position.fr), ...(recovery[language] || recovery.fr), ...(history[language] || history.fr), ...(collaboration[language] || collaboration.fr), ...(ONBOARDING_COPY[language] || ONBOARDING_COPY.fr), inProgress: inProgress[language] || inProgress.fr, nextSteps: nextSteps[language] || nextSteps.fr, newReply: newReply[language] || newReply.fr };
+  return { ...(COPY[language] || COPY.fr), ...(UTILITY_COPY[language] || UTILITY_COPY.fr), ...(media[language] || media.fr), ...(studioDraft[language] || studioDraft.fr), ...(position[language] || position.fr), ...(recovery[language] || recovery.fr), ...(history[language] || history.fr), ...(collaboration[language] || collaboration.fr), ...(ONBOARDING_COPY[language] || ONBOARDING_COPY.fr), inProgress: inProgress[language] || inProgress.fr, nextSteps: nextSteps[language] || nextSteps.fr, newReply: newReply[language] || newReply.fr };
 }

@@ -38,6 +38,14 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
       return [slot.value, slot.setter];
     },
     useRef(initial: unknown) { const index = cursor++; return (slots[index] ||= { value: { current: initial } }).value; },
+    useCallback(callback: unknown, deps: unknown[]) {
+      const slot = slots[cursor++] ||= {};
+      if (!slot.deps || slot.deps.length !== deps.length || deps.some((value, at) => value !== slot.deps![at])) {
+        slot.deps = deps;
+        slot.value = callback;
+      }
+      return slot.value;
+    },
     useEffect(callback: () => void | (() => void), deps: unknown[]) {
       const slot = slots[cursor++] ||= {};
       if (!slot.deps || deps.some((value, at) => value !== slot.deps![at])) {

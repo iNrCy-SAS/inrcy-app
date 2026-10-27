@@ -302,7 +302,7 @@ test("le header iNrStudio centralise Action et Image ou Vidéo", () => {
   assert.match(modal, /\["image", "video"\] as const/);
   assert.match(
     studio,
-    /initialMediaType=\{handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : "image"\)\}/
+    /initialMediaType=\{scopedAssistantDraft\?\.draft\.mediaType \|\| handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : "image"\)\}/
   );
   assert.match(modal, /activeMediaType === "video"/);
   assert.match(modal, /studioTab === "generate"\s*\? freeMediaType/);
@@ -333,19 +333,37 @@ test("le handoff transporte images et vidéos sans télécharger les vidéos dis
   assert.match(navigation, /if \(source\.mediaType === "video"\) return null/);
   assert.match(
     studio,
-    /initialMediaType=\{handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : "image"\)\}/
+    /initialMediaType=\{scopedAssistantDraft\?\.draft\.mediaType \|\| handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : "image"\)\}/
   );
+  assert.match(studio, /if \(!current\(\) \|\| handoff \|\| embeddedHandoff \|\| insertionRef\.current\) return false/,
+    "An assistant prompt cannot replace a native publication/source handoff");
 });
 
 test("le média source reste prioritaire et une génération sans source conserve le type demandé", () => {
   const expression = studio.match(/initialMediaType=\{([^\r\n]+)\}/)?.[1];
+  const scopeExpression = studio.match(/const scopedAssistantDraft = ([^\r\n]+);/)?.[1];
   assert.ok(expression, "Le studio doit transmettre le type du média initial");
-  const resolveInitialMediaType = new Function("handoff", `return (${expression});`);
+  assert.ok(scopeExpression, "Le brouillon assistant doit être filtré avant de choisir le type");
+  const resolve = new Function("handoff", "embeddedHandoff", "assistantDraft", "actorUserId", "activeAccountId", `const scopedAssistantDraft = (${scopeExpression}); return (${expression});`);
+  const resolveInitialMediaType = (handoff: unknown, assistantDraft: unknown = null, embeddedHandoff: unknown = null) => resolve(handoff, embeddedHandoff, assistantDraft, "actor-a", "account-a");
+  const imageDraft = { actorUserId: "actor-a", accountId: "account-a", draft: { mediaType: "image" } };
+  const videoDraft = { ...imageDraft, draft: { mediaType: "video" } };
 
-  assert.equal(resolveInitialMediaType(null), "image");
-  assert.equal(resolveInitialMediaType({ context: {} }), "image");
-  assert.equal(resolveInitialMediaType({ context: { mediaType: "image" } }), "image");
-  assert.equal(resolveInitialMediaType({ context: { mediaType: "video" } }), "video");
-  assert.equal(resolveInitialMediaType({ source: { mediaType: "image" }, context: { mediaType: "video" } }), "image");
-  assert.equal(resolveInitialMediaType({ source: { mediaType: "video" }, context: { mediaType: "image" } }), "video");
+  assert.equal(resolveInitialMediaType(null, null), "image");
+  assert.equal(resolveInitialMediaType({ context: {} }, null), "image");
+  assert.equal(resolveInitialMediaType({ context: { mediaType: "image" } }, null), "image");
+  assert.equal(resolveInitialMediaType({ context: { mediaType: "video" } }, null), "video");
+  assert.equal(resolveInitialMediaType({ source: { mediaType: "image" }, context: { mediaType: "video" } }, null), "image");
+  assert.equal(resolveInitialMediaType({ source: { mediaType: "video" }, context: { mediaType: "image" } }, null), "video");
+  assert.equal(resolveInitialMediaType(null, imageDraft), "image");
+  assert.equal(resolveInitialMediaType(null, videoDraft), "video");
+  assert.equal(resolveInitialMediaType({ source: { mediaType: "image" }, context: { mediaType: "video" } }, videoDraft), "image", "A later native image handoff overrides the previously applied video prompt");
+  assert.equal(resolveInitialMediaType({ context: { mediaType: "video" } }, imageDraft), "video", "A later native creation handoff keeps its requested video tab");
+  assert.equal(resolveInitialMediaType(null, videoDraft, { key: "native-handoff-loading" }), "image", "A newly embedded handoff blocks a stale draft before its source finishes loading");
+  assert.equal(resolveInitialMediaType(null, { ...videoDraft, actorUserId: "actor-b" }), "image");
+  assert.equal(resolveInitialMediaType(null, { ...videoDraft, accountId: "account-b" }), "image");
+  assert.match(studio, /assistantDraft\?\.actorUserId === actorUserId && assistantDraft\.accountId === activeAccountId/,
+    "Only the active actor/account's free Studio draft can choose its media tab");
+  assert.match(studio, /useEffect\(\(\) => \{\s*scopeRef\.current = \{ actorUserId, activeAccountId, mounted: true \};\s*setAssistantDraft\(null\);[\s\S]*?\}, \[actorUserId, activeAccountId, handoff, embeddedHandoff\]\)/,
+    "Changing or removing a native handoff clears the previous assistant brief instead of resurrecting it");
 });

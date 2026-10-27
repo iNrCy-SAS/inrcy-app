@@ -220,6 +220,7 @@ const scenarios = [
   { name: "studio-settings", prompt: "Modifie les réglages par défaut du Studio : format portrait et couleurs de marque.", required: ["readToolSettings", "updateToolSettings"] },
   { name: "ads-draft", prompt: "Prépare un brouillon ADS sur Google avec un budget de 20 euros par jour jusqu’au 2026-12-01.", required: ["readAdvertisingCampaigns", "prepareAdvertisingCampaign"] },
   { name: "business-dna", prompt: "Complète l’ADN de mon entreprise et règle son ton chaleureux avec les services de rénovation de toiture.", required: ["updateBusinessDna", "updateAiConfiguration"] },
+  { name: "business-name-change", prompt: "Change le nom de mon entreprise en Atelier Martin.", required: ["updateBusinessDna"] },
   { name: "cta-phone", prompt: "Mets mon numéro professionnel comme CTA dans toutes mes publications.", required: ["configureBusinessCta"] },
   { name: "cta-website", prompt: "Configure les appels à l’action vers mon site dans tous les canaux.", required: ["configureBusinessCta"] },
   { name: "dna-source-analysis", prompt: "Complète automatiquement mon ADN en analysant mes canaux, puis indique-moi ce qui manque.", required: ["startBusinessDnaAnalysis", "getBusinessDnaAnalysis", "getBusinessDna"] },

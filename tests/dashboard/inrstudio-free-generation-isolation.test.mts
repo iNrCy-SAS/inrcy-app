@@ -99,7 +99,9 @@ function resultContext() {
 
 test("le parcours unique garde ses brouillons image/vidéo et ne lit aucun réglage Guidé", () => {
   const modal = read("app/dashboard/_components/MediaGeneratorModal.tsx");
-  assert.match(source, /const \[prompt, setPrompt\] = useState\(initialPrompt\)/);
+  assert.match(source, /const \[localPrompt, setLocalPrompt\] = useState\(initialPrompt\)/);
+  assert.match(source, /const prompt = sharedPrompt \?\? localPrompt/);
+  assert.match(source, /const setPrompt = useCallback\(\(value: string\) => \{\s*setLocalPrompt\(value\);\s*onSharedPromptChange\?\.\(value\);/);
   assert.match(source, /const effectivePrompt = \[prompt\.trim\(\), requiredPromptSuffix\.trim\(\)\]/);
   assert.match(source, /const \[references, setReferences\] = useState<Reference\[\]>\(\[\]\)/);
   assert.doesNotMatch(source, /localStorage|sessionStorage|loadPreferences|savePreferences|publicationBrief|from ["']\.\/MediaGenerator["']/);
@@ -109,6 +111,7 @@ test("le parcours unique garde ses brouillons image/vidéo et ne lit aucun régl
   assert.match(modal, /visitedFreeTypes\.map\(\(kind\) =>/);
   assert.match(modal, /<Activity key=\{kind\} mode=\{freeMediaType === kind/);
   assert.match(modal, /<MediaFreeGenerator[\s\S]*?mediaType=\{kind\}/);
+  assert.match(modal, /sharedPrompt=\{generationPrompt\}[\s\S]*?onSharedPromptChange=\{handleGenerationPromptChange\}/);
 });
 
 test("un changement de compte invalide aussi les formulaires Libre masqués", () => {

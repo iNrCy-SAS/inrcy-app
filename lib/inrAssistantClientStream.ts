@@ -1,9 +1,11 @@
 import { parseInrAssistantActivity, type InrAssistantActivity } from "./inrAssistantActivity.ts";
+import { parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "./inrAssistantStudioDraft.ts";
 
 export type InrAssistantClientReply = {
   pending?: unknown; message?: unknown; error?: unknown; code?: unknown;
   requestId?: unknown; accountId?: unknown; conversationId?: unknown;
   memorySaved?: unknown; needsHuman?: unknown; handoffSummary?: unknown; media?: unknown;
+  studioDraft?: InrAssistantStudioDraft; insertStudioDraft?: boolean;
 };
 
 const MAX_RESPONSE_BYTES = 2_000_000;
@@ -18,6 +20,11 @@ function parseReply(value: unknown): InrAssistantClientReply | null {
   }
   for (const key of ["pending", "memorySaved", "needsHuman"] as const) if (typeof input[key] === "boolean") reply[key] = input[key];
   if (input.media && typeof input.media === "object" && !Array.isArray(input.media)) reply.media = input.media;
+  const studioDraft = parseInrAssistantStudioDraft(input.studioDraft);
+  if (studioDraft) {
+    reply.studioDraft = studioDraft;
+    if (typeof input.insertStudioDraft === "boolean") reply.insertStudioDraft = input.insertStudioDraft;
+  }
   return reply;
 }
 

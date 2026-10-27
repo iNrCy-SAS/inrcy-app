@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import useMediaGeneration, {
   MediaGenerationAccountChangedError,
   MediaGenerationCancelledError,
@@ -65,11 +65,15 @@ type Props = {
   mediaType?: MediaGenerationKind;
   imageOnly?: boolean;
   initialPrompt?: string;
+  /** Studio shares only this editable brief; media settings and jobs stay local. */
+  sharedPrompt?: string;
+  onSharedPromptChange?: (prompt: string) => void;
   requiredPromptSuffix?: string;
   fixedFormat?: MediaGenerationFormat;
   onAccepted: (result: MediaGenerationResult) => void | Promise<void>;
   onResultChange?: (result: MediaGenerationResult | null) => void;
   onBusyChange?: (busy: boolean) => void;
+  onPendingRecoveryChange?: (pending: boolean) => void;
   /** Select the owning panel before recovering; changing it afterwards hides its result. */
   onRecoveryKind?: (kind: MediaGenerationKind) => void;
   onReset?: () => void;
@@ -123,11 +127,14 @@ export default function MediaFreeGenerator({
   mediaType = "image",
   imageOnly = false,
   initialPrompt = "",
+  sharedPrompt,
+  onSharedPromptChange,
   requiredPromptSuffix = "",
   fixedFormat,
   onAccepted,
   onResultChange,
   onBusyChange,
+  onPendingRecoveryChange,
   onRecoveryKind,
   onReset,
 }: Props) {
@@ -160,7 +167,13 @@ export default function MediaFreeGenerator({
   const recoveredFormat = result?.recovered ? result.format : recoveryContext?.format;
   const enginePreference = useMediaEnginePreference(quota?.accountId);
   const imageModel = getAiMediaImageModel(enginePreference.imageEngine);
-  const [prompt, setPrompt] = useState(initialPrompt);
+  const [localPrompt, setLocalPrompt] = useState(initialPrompt);
+  const [recoveryAccountChecked, setRecoveryAccountChecked] = useState<string | null>(null);
+  const prompt = sharedPrompt ?? localPrompt;
+  const setPrompt = useCallback((value: string) => {
+    setLocalPrompt(value);
+    onSharedPromptChange?.(value);
+  }, [onSharedPromptChange]);
   const [spokenScript, setSpokenScript] = useState("");
   const [spokenScriptOpen, setSpokenScriptOpen] = useState(false);
   const explicitlyEmptySpokenScript = kind === "video" && spokenScriptOpen && !spokenScript.trim();
@@ -329,6 +342,19 @@ export default function MediaFreeGenerator({
     return () => onBusyChange?.(false);
   }, [onBusyChange, operationLocked]);
 
+  useEffect(() => {
+    // The hook's earlier effect hydrates the scoped recovery pointer once quota
+    // identifies the account. Do not permit replacement before that first check.
+    if (quota?.accountId && !quotaLoading) setRecoveryAccountChecked(quota.accountId);
+  }, [quota?.accountId, quotaLoading]);
+
+  const recoveryGuardPending = !quota?.accountId || quotaLoading ||
+    recoveryAccountChecked !== quota.accountId || Boolean(canRecover || recoveryContext);
+  useLayoutEffect(() => {
+    onPendingRecoveryChange?.(recoveryGuardPending);
+    return () => onPendingRecoveryChange?.(false);
+  }, [onPendingRecoveryChange, recoveryGuardPending]);
+
   useLayoutEffect(() => {
     onResultChange?.(result);
   }, [onResultChange, result]);
@@ -343,6 +369,7 @@ export default function MediaFreeGenerator({
     const clearAccountState = () => {
       sequence.current += 1;
       setPrompt("");
+      setRecoveryAccountChecked(null);
       setSpokenScript("");
       setSpokenScriptOpen(false);
       setUseBusinessDna(false);
@@ -373,7 +400,7 @@ export default function MediaFreeGenerator({
       sequence.current += 1;
       window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, clearAccountState);
     };
-  }, [fixedFormat, kind]);
+  }, [fixedFormat, kind, setPrompt]);
 
   const resetConsent = () => {
     setIdentityConsent(false);
