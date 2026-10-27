@@ -810,6 +810,8 @@
     "studioCta": "สตูดิโอสื่อ"
   },
   "channelBubble": {
+    "instagramProfessionalRequired": "ต้องใช้บัญชี Instagram แบบมืออาชีพ (Business) หรือ Creator เพื่อเชื่อมต่อ",
+    "facebookPageRequired": "เชื่อมต่อเพจ Facebook สำหรับธุรกิจผ่านบัญชีส่วนตัวที่ดูแลเพจ โพสต์จะเผยแพร่บนเพจ",
     "directConnection": "เชื่อมต่อโดยตรง",
     "facebookConnection": "เชื่อมต่อผ่าน Facebook",
     "classicConnection": "การเชื่อมต่อมาตรฐาน",

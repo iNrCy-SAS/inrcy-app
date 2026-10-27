@@ -14,6 +14,7 @@ import * as activity from "../../lib/inrAssistantActivity.ts";
 import * as gatewayDiagnostics from "../../lib/inrAssistantGatewayDiagnostics.ts";
 import * as attachmentPolicy from "../../lib/inrAssistantAttachments.ts";
 import * as attachmentPrompt from "../../lib/inrAssistantAttachmentPrompt.ts";
+import * as promptContext from "../../lib/inrAssistantPromptContext.ts";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
 import type { InrAssistantMediaResult } from "../../lib/inrAssistantMediaTools.ts";
 import type { InrAssistantPublicationResult } from "../../lib/inrAssistantPublicationTools.ts";
@@ -98,6 +99,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantEditionPolicy.ts": editionPolicy,
     "./inrAssistantAttachments.ts": attachmentPolicy,
     "./inrAssistantAttachmentPrompt.ts": attachmentPrompt,
+    "./inrAssistantPromptContext.ts": promptContext,
     "./inrAssistantQuota.ts": { reserveInrAssistantRequest: async () => ({ solReserved: options.sol ?? false }),
       finalizeInrAssistantRequest: async (_quota: unknown, outcome: { success: boolean }) => { finalized.push(outcome); } },
     "./inrAssistantConversation.ts": conversation,

@@ -810,6 +810,8 @@
     "studioCta": "Media Studio"
   },
   "channelBubble": {
+    "instagramProfessionalRequired": "An Instagram Business or Creator account is required to connect.",
+    "facebookPageRequired": "Connect a professional Facebook Page using the personal account that manages it. Posts will be published on the Page.",
     "directConnection": "Direct connection",
     "facebookConnection": "Connect via Facebook",
     "classicConnection": "Standard connection",

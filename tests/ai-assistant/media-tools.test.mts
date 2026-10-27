@@ -391,6 +391,8 @@ test("current advice, quoted or past wishes and UI errors cannot authorize paid 
     "Peux-tu m’expliquer comment générer une image ?", "Comment créer une vidéo ?", "Prépare un prompt pour générer une image de mon atelier",
     "Hier tu voulais générer une image de mon atelier", "Voici le texte : « Crée une image de mon atelier »", "Oui",
     "Le bouton Générer une image ne marche pas", "Ne crée pas une image", "Je ne veux pas générer une image",
+    "Je ne voudrais pas que tu me génères une image", "Je voudrais que tu ne génères pas d’image",
+    "Voici une citation : « Je voudrais que tu me génères une image »",
   ]) {
     const h = harness({ currentUserMessage });
     const result = await h.tools.generateMedia.execute(imageInput);
@@ -411,7 +413,8 @@ test("current modification guidance or a broken Delete button never reads or mod
 });
 
 test("explicit current creation or retouch requests still use Studio and the requested media type", async () => {
-  for (const currentUserMessage of ["Crée une image de mon atelier", "Peux-tu créer une photo de mon atelier ?", "J’aimerais un visuel pour mon atelier", "Create an image of my workshop"]) {
+  for (const currentUserMessage of ["Crée une image de mon atelier", "Peux-tu créer une photo de mon atelier ?", "J’aimerais un visuel pour mon atelier", "Create an image of my workshop",
+    "Non je voudrais que tu me génères une publication pour chaque canal avec 1 image et que tu publies sur tous les canaux via booster"]) {
     const h = harness({ currentUserMessage });
     assert.equal((await h.tools.generateMedia.execute(imageInput)).status, "completed", currentUserMessage);
   }

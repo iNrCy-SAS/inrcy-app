@@ -103,13 +103,13 @@
 @keyframes pulse { 50% { opacity: .35; } }
 @media (max-width: 1100px) {
   .positionButton { display: none; }
-  .dialog { inset: calc(var(--assistant-viewport-top, 0px) + max(8px, var(--inrcy-safe-area-top, 0px))) 8px auto; width: calc(100vw - 16px); height: calc(var(--assistant-viewport-height, 100dvh) - var(--inrcy-mobile-bottom-nav-total-height, 50px) - max(8px, var(--inrcy-safe-area-top, 0px)) - 8px); border-radius: 21px; }
-  .header { padding: 9px 10px; gap: 6px; }
+  .dialog { inset: var(--assistant-viewport-top, 0px) auto auto var(--assistant-viewport-left, 0px); width: var(--assistant-viewport-width, 100vw); height: var(--assistant-viewport-height, 100dvh); box-sizing: border-box; border: 0; border-radius: 0; }
+  .header { flex-shrink: 0; padding: max(9px, var(--inrcy-safe-area-top, 0px)) max(10px, var(--inrcy-safe-area-right, 0px)) 9px max(10px, var(--inrcy-safe-area-left, 0px)); gap: 6px; }
   .header h2 { font-size: 16px; }
   .header .iconButton { width: 32px; height: 32px; flex-basis: 32px; border-radius: 11px; }
   .avatar { width: 36px; height: 36px; }
   .transcript { padding: 14px 12px; }
-  .composer { padding: 10px; }
+  .composer { flex-shrink: 0; padding: 10px max(10px, var(--inrcy-safe-area-right, 0px)) max(10px, var(--inrcy-safe-area-bottom, 0px)) max(10px, var(--inrcy-safe-area-left, 0px)); }
   .composer textarea { font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .pending span, .collaborationList [data-state] .activityStatus::before { animation: none; } }

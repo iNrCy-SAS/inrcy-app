@@ -810,6 +810,8 @@
     "studioCta": "Estudio de medios"
   },
   "channelBubble": {
+    "instagramProfessionalRequired": "Para conectarte necesitas una cuenta profesional de Instagram (Business) o de creador (Creator).",
+    "facebookPageRequired": "Conecta una página profesional de Facebook con la cuenta personal que la administra. Las publicaciones se enviarán a la página.",
     "directConnection": "Conexión directa",
     "facebookConnection": "Conexión mediante Facebook",
     "classicConnection": "Conexión clásica",

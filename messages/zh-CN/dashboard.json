@@ -810,6 +810,8 @@
     "studioCta": "媒体工作室"
   },
   "channelBubble": {
+    "instagramProfessionalRequired": "连接需要 Instagram 专业账户（Business）或创作者账户（Creator）。",
+    "facebookPageRequired": "请使用管理该主页的个人账户连接 Facebook 专业主页。内容将发布到该主页。",
     "directConnection": "直接连接",
     "facebookConnection": "通过 Facebook 连接",
     "classicConnection": "标准连接",

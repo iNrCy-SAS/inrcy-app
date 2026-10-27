@@ -810,6 +810,8 @@
     "studioCta": "Mediastudio"
   },
   "channelBubble": {
+    "instagramProfessionalRequired": "Je hebt een professioneel Instagram-account (Business) of Creator-account nodig om te verbinden.",
+    "facebookPageRequired": "Verbind een professionele Facebook-pagina via het persoonlijke account dat de pagina beheert. Berichten worden op de pagina gepubliceerd.",
     "directConnection": "Direct verbinden",
     "facebookConnection": "Verbinden via Facebook",
     "classicConnection": "Standaardverbinding",

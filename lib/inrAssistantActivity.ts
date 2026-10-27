@@ -112,7 +112,11 @@ export function withInrAssistantToolActivities<T extends Record<string, unknown>
           // A guide only credits an expert after its real result names a verified topic.
           const data = record(result);
           const guide = data.found === true && Array.isArray(data.guides) ? data.guides.map(record).find(item => typeof item.id === "string" && GUIDE_AGENTS[item.id]) : undefined;
-          if (guide && typeof guide.id === "string") emit({ id, agent: GUIDE_AGENTS[guide.id], label: "Guide de l’outil consulté", status: "completed" });
+          if (guide && typeof guide.id === "string") {
+            const agent = GUIDE_AGENTS[guide.id];
+            // Repeated reads of the same expert's guide update one visible row.
+            emit({ id: `${seed}_guide_${agent}`, agent, label: "Guide de l’outil consulté", status: "completed" });
+          }
         }
         return result;
       } catch (error) {

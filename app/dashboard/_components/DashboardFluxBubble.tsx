@@ -138,6 +138,7 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
     </div> : null}
     {parametersOpen && hasParameters ? <ChannelParametersDialog name={item.name} title={`${parametersLabel} — ${item.name}`} contentOnly={connection?.parametersOwnHeading} fullScreen={connection?.parametersFullScreen} onClose={() => { void requestNavigation(() => setParametersOpen(false)); }}>{connection?.parameters}</ChannelParametersDialog> : null}
     {connectOpen ? <ChannelParametersDialog name={item.name} title={`${connectLabel} — ${item.name}`} onClose={() => setConnectOpen(false)}>
+      {connection?.connectNotice ? <p className={bubbleStyles.connectNotice}>{connection.connectNotice}</p> : null}
       <div className={bubbleStyles.connectChoices}>
         {connection?.connectOptions?.filter(option => !option.menu).map(option => <button key={option.label} type="button" className={`${styles.actionBtn} ${styles.connectBtn} ${option.primary ? bubbleStyles.connectPrimary : ""}`} disabled={Boolean(busy || disabled)} onClick={() => chooseConnection(option)}><ChannelBubbleIcon kind="plug" />{option.label}</button>)}
         {connectMenus.map(label => <ChannelConnectionMenu key={label} label={label} options={connection?.connectOptions?.filter(option => option.menu === label) ?? []} disabled={Boolean(busy || disabled)} onChoose={chooseConnection} icon={<ChannelBubbleIcon kind="plug" />} />)}

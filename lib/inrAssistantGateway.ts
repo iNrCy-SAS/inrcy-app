@@ -49,6 +49,7 @@ import { classifyInrAssistantGatewayFailure, projectInrAssistantGatewayDiagnosti
 import { assistantModelInputBudget } from "./inrAssistantAttachments.ts";
 import { assistantMessagesWithFiles } from "./inrAssistantAttachmentPrompt.ts";
 import type { AssistantFileContext } from "./inrAssistantAttachmentStorage.ts";
+import { compactInrAssistantGuideContext } from "./inrAssistantPromptContext.ts";
 
 const supportTool = tool({
   description: "Préparer une proposition d’aide par un humain quand le pro la demande, qu’un accès administrateur est nécessaire ou qu’un blocage ne peut pas être résolu de façon fiable. Rien n’est envoyé : le pro doit vérifier le résumé et choisir de contacter l’équipe.",
@@ -321,7 +322,7 @@ export async function generateInrAssistantReply(args: {
   if (bytes({system,messages}) + schemaBytes > 30_500) system = buildInrAssistantSystemPrompt(args.displayName,undefined,undefined,args.edition,args.clientContext,Boolean(args.fileContexts?.length),true) + (operationGuidance ? `\n${operationGuidance}` : "");
   if (bytes({ system, messages }) + schemaBytes > 31_000) {
     noteFailure("input_limit", { inputBytes: bytes({ system, messages }) + schemaBytes, historyTurns: messages.length });
-    throw new InrAssistantInputError("Votre demande et son contexte sont trop longs. Raccourcissez le message ou ouvrez une nouvelle conversation.");
+    throw new InrAssistantUnavailableError(lastFailure);
   }
   const quota = await reserveInrAssistantRequest({
     billingAccountId: args.accountId, requestId: args.requestId, edition: args.edition, complexity,
@@ -377,7 +378,7 @@ export async function generateInrAssistantReply(args: {
               const estimatedInputTokens = bytes({ prompt: params.prompt, tools: params.tools }) + 1_024;
               if (estimatedInputTokens > 32_000) {
                 noteFailure("input_limit", { model: attempt.model, inputBytes: estimatedInputTokens - 1_024, callCount: llmCalls });
-                throw new InrAssistantInputError("Le contexte est trop long. Ouvrez une nouvelle conversation pour cette demande.");
+                throw new InrAssistantUnavailableError(lastFailure);
               }
               const callStartedAt = Date.now();
               const estimatedCost = guardCost(attempt.model, estimatedInputTokens, maxOutputTokens);
@@ -485,10 +486,10 @@ export async function generateInrAssistantReply(args: {
               : attempt;
             return {
               ...(answerOnly ? { model: guardedModel(answerAttempt) } : {}),
-              messages: stepMessages.slice(latestUser),
+              messages: compactInrAssistantGuideContext(stepMessages.slice(latestUser)),
               activeTools: answerOnly ? [] : Object.keys(tools).filter(name => (readCounts.get(name)??0) < 2 && !args.taskContext?.receipts.some(r=>r.tool === name && r.ok && !["partial","failed","unknown"].includes(r.status))) as Array<keyof typeof tools>,
               ...(answerOnly ? { toolChoice: "none" as const } : {}),
-              system: buildInrAssistantSystemPrompt(args.displayName, undefined, getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext, Boolean(args.fileContexts?.length),schemaBytes > 14_000)
+              system: buildInrAssistantSystemPrompt(args.displayName, undefined, readCounts.has("readAppGuide") ? undefined : getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext, Boolean(args.fileContexts?.length), true)
                 + (operationGuidance ? `\n${operationGuidance}` : "")
                 + (args.taskContext ? `\nReprise vérifiée de la tâche. Résultats enregistrés, à réutiliser sans refaire ces actions : ${JSON.stringify(args.taskContext.receipts).slice(0,5000)}. La précision actuelle complète seulement cette tâche. Réponds dans la langue de ce message : ${JSON.stringify(spokenRequest).slice(0,500)}` : "")
                 + (answerOnly ? "\nRépondez maintenant sans appeler d’outil. Utilisez seulement les faits déjà obtenus. Si le sujet ou une donnée indispensable manque, posez une question courte pour continuer. N’inventez ni résultat ni action exécutée." : ""),

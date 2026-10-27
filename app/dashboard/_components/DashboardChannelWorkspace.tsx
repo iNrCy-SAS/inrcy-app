@@ -93,6 +93,7 @@ export default function DashboardChannelWorkspace(props: Props) {
         options: fb.fbPages.map((page: { id: string; name?: string }) => ({ value: page.id, label: page.name || page.id })),
         onSelect: fb.saveFacebookPage, onLoad: () => fb.loadFacebookPages({ autoSelect: !fb.facebookPageConnected }),
         connectOptions: [{ label: "Connexion Facebook", onConnect: fb.connectFacebookAccount }, { label: "Connexion Business", onConnect: fb.connectFacebookBusinessAccount }],
+        connectNotice: t("facebookPageRequired"),
         onDisconnect: fb.facebookPageConnected ? fb.disconnectFacebookPage : fb.disconnectFacebookAccount,
         onDisconnectAccount: fb.facebookPageConnected ? fb.disconnectFacebookAccount : undefined,
         publicLinks: publicLink("facebook", fb.facebookUrl, fb.setFacebookUrl, fb.facebookPageConnected),
@@ -109,6 +110,7 @@ export default function DashboardChannelWorkspace(props: Props) {
           options: ig.igAccounts.map((account: { page_id: string; username?: string; page_name?: string }) => ({ value: account.page_id, label: account.username ? `@${account.username}` : account.page_name || account.page_id })),
           onSelect: ig.saveInstagramProfile, onLoad: () => ig.loadInstagramAccounts({ autoSelect: !ig.instagramConnected }),
         }),
+        connectNotice: t("instagramProfessionalRequired"),
         connectOptions: [
           ...(metaPilotEnabled ? [{ label: t("directConnection"), primary: true, onConnect: ig.connectInstagramDirectAccount }] : []),
           { label: t("classicConnection"), menu: t("facebookConnection"), onConnect: item.bubbleStatus === "reconnect" ? () => ig.connectInstagramAccount({ repair: true }) : ig.connectInstagramAccount },

@@ -810,6 +810,8 @@
     "studioCta": "Studio Médias"
   },
   "channelBubble": {
+    "instagramProfessionalRequired": "Un compte Instagram professionnel (Business) ou Creator est nécessaire pour se connecter.",
+    "facebookPageRequired": "Connectez une Page Facebook professionnelle avec le compte personnel qui l’administre. Les publications seront envoyées sur la Page.",
     "directConnection": "Connexion directe",
     "facebookConnection": "Connexion via Facebook",
     "classicConnection": "Connexion classique",

@@ -146,6 +146,24 @@ test("a guide credits only a real, found and allowlisted topic rather than the s
   assert.deepEqual(rows, []);
 });
 
+test("related guide consultations update one specialist row while distinct business operations retain their own progress", async () => {
+  const events: InrAssistantActivity[] = [];
+  const tools = withInrAssistantToolActivities({
+    readAppGuide: { execute: async ({ topic }: { topic: string }) => ({ found: true, guides: [{ id: topic, content: "Public guide" }] }) },
+    preparePublication: { execute: async () => ({ ok: true, status: "draft" }) },
+  }, { requestId: "request-a", onActivity: event => { events.push(event); } });
+  await tools.readAppGuide.execute({ topic: "booster" });
+  await tools.readAppGuide.execute({ topic: "publications" });
+  await tools.readAppGuide.execute({ topic: "booster" });
+  await tools.preparePublication.execute();
+  await tools.readAppGuide.execute({ topic: "stats" });
+  const visible = new Map(events.map(event => [event.id, event]));
+  assert.equal(visible.size, 3);
+  assert.deepEqual([...visible.values()].map(event => [event.agent, event.label]), [
+    ["publications", "Guide de l’outil consulté"], ["publications", "Brouillon de publication enregistré"], ["stats", "Guide de l’outil consulté"],
+  ]);
+});
+
 test("stream callback failures or an absent stream never affect a successful business write", async () => {
   const result = { ok: true, status: "draft" };
   let calls = 0;

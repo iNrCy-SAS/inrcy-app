@@ -80,7 +80,7 @@ export function permitsInrAssistantMediaAction(message: string, action: "generat
     ? "(?:cree\\w*|gener\\w*|fais|faire|faites|fass\\w*|realise\\w*|produi\\w*|dessin\\w*|anime\\w*|create|generate|make|produce|draw)"
     : "(?:modifi\\w*|retouch\\w*|corrig\\w*|remplac\\w*|retir\\w*|enlev\\w*|supprim\\w*|recadr\\w*|eclairci\\w*|assombri\\w*|ajout\\w*|mets|mettre|rends|rendre|ameliore\\w*|augment\\w*|redui\\w*|edit|modify|retouch|remove|replace|brighten|crop|add)";
   if (new RegExp(`\\b(?:ne|sans|pas|jamais|not|never|don't|do not)\\b.{0,60}\\b${verbs}\\b|\\b${verbs}\\b.{0,18}\\b(?:pas|jamais|not|never)\\b`).test(value)) return false;
-  const direct = new RegExp(`(?:^|[.!?;,:]\\s*|\\b(?:et|puis|ensuite|please|stp)\\s+)\\s*${verbs}\\b|\\b(?:(?:peux|pourrais|voudrais)[- ]tu|tu (?:peux|pourrais)|je (?:veux|souhaite) que tu|j.aimerais que tu|(?:can|could|would) you|i want you to)\\s+(?:me\\s+|please\\s+)?${verbs}\\b`).test(value);
+  const direct = new RegExp(`(?:^|[.!?;,:]\\s*|\\b(?:et|puis|ensuite|please|stp)\\s+)\\s*${verbs}\\b|\\b(?:(?:peux|pourrais|voudrais)[- ]tu|tu (?:peux|pourrais)|je (?:veux|souhaite|voudrais) que tu|j.aimerais que tu|(?:can|could|would) you|i want you to)\\s+(?:me\\s+|please\\s+)?${verbs}\\b`).test(value);
   if (action === "modify") return direct;
   const need = /\b(?:je (?:veux|souhaite|voudrais)|j.aimerais|j.ai besoin d.|i (?:want|need))\s+(?:(?:une?|des?|an?|the|some)\s+)?(?:(?:nouvelle?|belle?|new)\s+)?(?:image|photo|video|visuel|illustration|affiche|flyer|media|clip|picture)\b/.test(value);
   const subject = mediaType === "video" ? /\b(?:videos?|clips?|films?|animations?)\b|视频|วิดีโอ/ : /\b(?:images?|photos?|visuels?|illustrations?|affiches?|flyers?|medias?|dessins?|logos?|pictures?|posters?)\b|图片|รูป/;

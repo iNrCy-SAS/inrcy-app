@@ -641,6 +641,7 @@
 .workspaceCard { container-type: inline-size; }
 .connectChoices { display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:center; min-height:180px; }
 .connectChoices svg { width:24px; height:24px; }
+.connectNotice { margin:8px 0 0; color:#c7d3e6; font-size:14px; line-height:1.6; text-align:center; }
 .connectChoices:has(.connectMenu) { box-sizing:border-box; min-height:230px; align-items:flex-start; padding-top:48px; }
 .connectPrimary { border-color:#65d9ff !important; box-shadow:0 0 0 1px #65d9ff40,0 5px 20px #0989be25; }
 .connectMenu { position:relative; }

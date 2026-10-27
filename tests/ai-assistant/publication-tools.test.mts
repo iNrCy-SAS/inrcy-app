@@ -151,6 +151,15 @@ test("Spanish and German creation orders are accepted while help and negation re
 });
 const publish = { draftId: DRAFT, mode: "publish", scheduledAt: null, timezone: null };
 
+test("the reported Standard request authorizes preparing and publishing to the connected channels", async () => {
+  const message = "Non je voudrais que tu me génères une publication pour chaque canal avec 1 image et que tu publies sur tous les canaux via booster";
+  const h = harness({ message });
+  assert.equal(h.runtime.permitsInrAssistantPublicationAction(message, "prepare"), true);
+  assert.equal(h.runtime.permitsInrAssistantPublicationAction(message, "publish", ["facebook", "instagram", "threads"]), true);
+  assert.equal((await h.tools.preparePublication.execute({ ...prepare, mediaIds: [IMAGE] })).status, "draft");
+  assert.equal((await h.tools.executePublication.execute(publish)).status, "queued");
+});
+
 test("preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL", async () => {
   const h = harness({ drafts: false });
   const result = await h.tools.preparePublication.execute({ ...prepare, mediaIds: [IMAGE] });

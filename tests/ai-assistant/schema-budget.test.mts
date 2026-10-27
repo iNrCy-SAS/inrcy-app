@@ -19,16 +19,18 @@ import type { InrAssistantActivity } from "../../lib/inrAssistantActivity.ts";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const ACCOUNT = "10000000-0000-4000-8000-000000000001", ACTOR = "20000000-0000-4000-8000-000000000001";
+const MEDIA = "30000000-0000-4000-8000-000000000001", DRAFT = "40000000-0000-4000-8000-000000000001";
 const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
 type Row = Record<string, unknown>;
 
 /** Only local schema factories/public guides run; no action executor, DB or paid provider. */
-function harness(options: { guideFollowup?: boolean; dnaFollowup?: boolean; dnaLanguage?: "fr" | "zh"; actionThenInputError?: boolean; ctaPartialThenInputError?: boolean } = {}) {
+function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: boolean; dnaFollowup?: boolean; dnaLanguage?: "fr" | "zh"; actionThenInputError?: boolean; ctaPartialThenInputError?: boolean } = {}) {
   const modules = new Map<string, Row>();
   const definitions = new Map<unknown, { name: string; description?: string }>();
   const schemas: Array<{ name: string; description?: string; schema: unknown }> = [];
   const providerCalls: LanguageModelV3CallOptions[] = [], reservations: Row[] = [];
   const generatedInputs: Array<{ system?: string; messages?: unknown }> = [];
+  const publicationActions: Array<{ name: string; input: unknown }> = [];
   let actionExecutions = 0;
   const untouched = () => { assert.fail("Schema budget matrix must not execute a private operation or provider request"); };
   const common: Record<string, unknown> = {
@@ -81,6 +83,22 @@ function harness(options: { guideFollowup?: boolean; dnaFollowup?: boolean; dnaL
     createGateway: () => (modelId: string): LanguageModelV3 => ({ specificationVersion: "v3", provider: "schema-matrix", modelId, supportedUrls: {},
       doGenerate: async params => {
         providerCalls.push(params);
+        if (options.publicationGuideFollowup && providerCalls.length === 1) return {
+          content: ["booster", "publications", "studio-create", "assistant-capabilities"].map((topic, index) => ({ type: "tool-call" as const, toolCallId: `publication-guide-${index}`, toolName: "readAppGuide", input: JSON.stringify({ topic }) })),
+          finishReason: { unified: "tool-calls" as const, raw: "test" },
+          usage: { inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 20, text: 20, reasoning: 0 } }, warnings: [],
+        };
+        if (options.publicationGuideFollowup && providerCalls.length < 5) {
+          const actions = [
+            { toolName: "generateMedia", input: { mediaType: "image", prompt: "Une illustration annonçant Threads dans iNrCy", format: "square", durationSeconds: null } },
+            { toolName: "preparePublication", input: { posts: ["facebook", "instagram", "threads"].map(channel => ({ channel, title: "Threads arrive", content: "Threads est disponible dans iNrCy. Connectez votre compte pour communiquer avec votre communauté.", cta: null, hashtags: [] })), mediaIds: [MEDIA], draftId: null } },
+            { toolName: "executePublication", input: { draftId: DRAFT, mode: "publish", scheduledAt: null, timezone: null } },
+          ];
+          const action = actions[providerCalls.length - 2];
+          return { content: [{ type: "tool-call", toolCallId: `publication-action-${providerCalls.length}`, toolName: action.toolName, input: JSON.stringify(action.input) }],
+            finishReason: { unified: "tool-calls", raw: "test" },
+            usage: { inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 20, text: 20, reasoning: 0 } }, warnings: [] };
+        }
         if (options.actionThenInputError || options.ctaPartialThenInputError) {
           if (providerCalls.length > 1) {
             const errors = load("lib/inrAssistantConversation.ts") as typeof Conversation;
@@ -147,6 +165,21 @@ function harness(options: { guideFollowup?: boolean; dnaFollowup?: boolean; dnaL
           args[0] = { ...args[0] as Row, supabase: synthetic };
         }
         const result = factory(...args) as Row;
+        if (options.publicationGuideFollowup) {
+          // Keep the real schemas/validators and SDK orchestration; replace only
+          // the side-effect executors so this test cannot post or buy an image.
+          const callbacks = args[0] as { onResult?: (result: unknown) => void };
+          const fixtures: Record<string, Row> = name === "createInrAssistantMediaTools" ? {
+            generateMedia: { ok: true, status: "completed", requestId: "synthetic-media", message: "Image enregistrée.", libraryUrl: "/dashboard/mediatheque", mediaType: "image",
+              media: { id: MEDIA, title: "Threads", mediaType: "image", url: "https://fixture.invalid/threads.png", mimeType: "image/png", width: 1024, height: 1024, durationSeconds: null } },
+          } : name === "createInrAssistantPublicationTools" ? {
+            preparePublication: { action: "prepare", ok: true, status: "draft", draftId: DRAFT, checkedAt: "2026-10-27T09:00:00.000Z", message: "Brouillon enregistré.", toolUrl: "/dashboard/mails?folder=publications" },
+            executePublication: { action: "publish", ok: true, status: "queued", draftId: DRAFT, checkedAt: "2026-10-27T09:00:01.000Z", message: "Publication mise en file.", toolUrl: "/dashboard/mails?folder=publications", channels: ["facebook", "instagram", "threads"].map(channel => ({ channel, status: "queued" })) },
+          } : {};
+          for (const [toolName, output] of Object.entries(fixtures)) result[toolName] = { ...result[toolName] as object, execute: async (input: unknown) => {
+            publicationActions.push({ name: toolName, input }); callbacks.onResult?.(output); return output;
+          } };
+        }
         if (options.actionThenInputError && name === "createInrAssistantWorkspaceActionTools") result.prepareCampaignEmail = {
           ...result.prepareCampaignEmail as object,
           execute: async () => { actionExecutions++; return { ok: true, status: "draft", draftId: "30000000-0000-4000-8000-000000000001",
@@ -173,7 +206,7 @@ function harness(options: { guideFollowup?: boolean; dnaFollowup?: boolean; dnaL
     modules.set(path, moduleRecord.exports); return moduleRecord.exports;
   }
   const runtime = load("lib/inrAssistantGateway.ts") as typeof Gateway;
-  return { runtime, providerCalls, reservations, schemas, generatedInputs, get actionExecutions() { return actionExecutions; },
+  return { runtime, providerCalls, reservations, schemas, generatedInputs, publicationActions, get actionExecutions() { return actionExecutions; },
     conversation: load("lib/inrAssistantConversation.ts") as typeof Conversation,
     guides: load("lib/inrAssistantAppGuides.ts") as typeof Guides };
 }
@@ -245,6 +278,28 @@ test("real guide result fits the second SDK step without losing its call/result 
   assert.match(second, /business-dna/); assert.match(second, /toiture/);
   const sizes = h.providerCalls.map(params => bytes({ prompt: params.prompt, tools: params.tools }) + 1024);
   t.diagnostic(JSON.stringify({ guideFollowupProviderBytes: sizes }));
+  assert.ok(sizes.every(size => size <= 32_000));
+});
+
+test("Standard publication continues after real Booster and Publications guide results without blaming the short request", async t => {
+  const h = harness({ publicationGuideFollowup: true });
+  const prompt = "Non je voudrais que tu me génères une publication pour chaque canal avec 1 image et que tu publies sur tous les canaux via booster";
+  const reply = await h.runtime.generateInrAssistantReply({ accountId: ACCOUNT, actorUserId: ACTOR, displayName: "Entreprise Toitures", edition: "standard",
+    requestId: randomUUID(), actionRequestId: `${ACCOUNT}_${randomUUID()}`, request: new Request("https://app.inrcy.com/api/assistant/chat"),
+    supabase: { from: () => assert.fail("No private SQL or external publication in the incident regression") } as never,
+    messages: [{ role: "user", content: "Je veux communiquer sur Threads qui arrive dans l’application." }, { role: "assistant", content: "Je peux préparer une communication adaptée aux canaux connectés." }, { role: "user", content: prompt }],
+    accountContext: { source: "authenticated_account", setup: { channels: { connected: 8, total: 13 }, dna: { readiness: "ready" } } },
+  });
+  assert.equal(h.providerCalls.length, 5, "Continue through guides, image, draft, dispatch and final reply");
+  assert.deepEqual(h.publicationActions.map(action => action.name), ["generateMedia", "preparePublication", "executePublication"]);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.publicationActions[1].input)), { posts: ["facebook", "instagram", "threads"].map(channel => ({ channel, title: "Threads arrive", content: "Threads est disponible dans iNrCy. Connectez votre compte pour communiquer avec votre communauté.", cta: "", hashtags: [] })), mediaIds: [MEDIA] });
+  assert.equal(reply.outcome, "processing", "A queued publication must not claim delivery before the worker confirms it");
+  assert.ok(reply.taskState?.receipts.some(receipt => receipt.tool === "executePublication"));
+  const second = JSON.stringify(h.providerCalls[1].prompt);
+  assert.match(second, /publication-guide-0/);
+  assert.match(second, /publication-guide-1/);
+  const sizes = h.providerCalls.map(params => bytes({ prompt: params.prompt, tools: params.tools }) + 1024);
+  t.diagnostic(JSON.stringify({ standardPublicationGuideProviderBytes: sizes }));
   assert.ok(sizes.every(size => size <= 32_000));
 });
 

@@ -350,18 +350,21 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
     if (ownsScrollLock) document.body.style.overflow = "hidden";
     const viewport = window.visualViewport;
     const syncViewport = () => {
-      if (!viewport) return;
-      dialog.style.setProperty("--assistant-viewport-height", `${viewport.height}px`);
-      dialog.style.setProperty("--assistant-viewport-top", `${viewport.offsetTop}px`);
+      dialog.style.setProperty("--assistant-viewport-height", `${viewport?.height || window.innerHeight}px`);
+      dialog.style.setProperty("--assistant-viewport-width", `${viewport?.width || window.innerWidth}px`);
+      dialog.style.setProperty("--assistant-viewport-top", `${Math.max(0, viewport?.offsetTop || 0)}px`);
+      dialog.style.setProperty("--assistant-viewport-left", `${Math.max(0, viewport?.offsetLeft || 0)}px`);
     };
     syncViewport();
     viewport?.addEventListener("resize", syncViewport);
     viewport?.addEventListener("scroll", syncViewport);
+    window.addEventListener("resize", syncViewport);
     const frame = requestAnimationFrame(() => composerRef.current?.focus({ preventScroll: true }));
     return () => {
       cancelAnimationFrame(frame);
       viewport?.removeEventListener("resize", syncViewport);
       viewport?.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("resize", syncViewport);
       dialog.close();
       if (ownsScrollLock) document.body.style.overflow = previousOverflow;
       if (opener?.isConnected) opener.focus({ preventScroll: true });

@@ -81,8 +81,10 @@ test("Collaboration only follows real streamed activity and keeps updating while
     assert.equal(elements(view.render()).some(node => node.props["data-testid"] === "assistant-collaboration"), false, "A pending request alone must not invent a specialist");
     await new Promise(resolve => setImmediate(resolve));
     await emit({ type: "activity", activity: { id: "pub-1", agent: "publications", label: "Preparing draft", status: "running" } });
+    await emit({ type: "activity", activity: { id: "guide_publications", agent: "publications", label: "Guide de l’outil consulté", status: "completed" } });
+    await emit({ type: "activity", activity: { id: "guide_publications", agent: "publications", label: "Guide de l’outil consulté", status: "completed" } });
     let tree = view.render();
-    assert.equal(rows(tree).length, 1); assert.equal(rows(tree)[0].props["data-state"], "running");
+    assert.equal(rows(tree).length, 2, "Repeated guide events must appear once alongside the business operation"); assert.equal(rows(tree)[0].props["data-state"], "running");
     assert.ok(elements(tree).some(node => node.type === "img" && node.props.src === "/agent/agent-publications.webp"));
     const heading = find(tree, node => node.props["aria-controls"] === "inrcy-assistant-collaboration");
     assert.equal(heading.props["aria-expanded"], true);
@@ -93,7 +95,7 @@ test("Collaboration only follows real streamed activity and keeps updating while
     await emit({ type: "activity", activity: { id: "stats-1", agent: "stats", label: "Reading measured data", status: "running" } });
     assert.equal(signal?.aborted, false, "Reducing the assistant must keep its collaboration alive");
     tree = view.render(true);
-    assert.equal(rows(tree).length, 2, "Updates with the same id must update the original row");
+    assert.equal(rows(tree).length, 3, "Updates with the same id must update the original row");
     assert.equal(rows(tree)[0].props["data-state"], "completed");
     assert.ok(elements(tree).some(node => node.type === "img" && node.props.src === "/agent/agent-stats.webp"));
     await emit({ type: "activity", activity: { id: "stats-1", agent: "stats", label: "Data read", status: "completed" } });
