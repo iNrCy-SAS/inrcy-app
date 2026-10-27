@@ -10,6 +10,7 @@ import {
 } from "../../lib/aiMediaGenerationContracts.ts";
 import { bufferFromUint8ArrayView } from "../../lib/aiMediaBuffer.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
+import { getMetaImageMotionDuration, META_IMAGE_SOUNDTRACK_ASSET_SECONDS } from "../../lib/metaImageMotionTiming.ts";
 import {
   AI_MEDIA_SOUNDTRACKS,
   selectAiMediaSoundtrack,
@@ -723,7 +724,13 @@ test("la rotation musicale est propre à chaque génération et évite l'histori
     motionVideo,
     /selectionKey: `\$\{args\.accountId\}:\$\{args\.publicationId\}:\$\{args\.placement\}`/,
   );
-  assert.match(motionVideo, /durationSeconds: OUTPUT_DURATION_SECONDS/);
+  assert.match(motionVideo, /durationSeconds: META_IMAGE_SOUNDTRACK_ASSET_SECONDS/);
+  assert.equal(META_IMAGE_SOUNDTRACK_ASSET_SECONDS, 24, "Meta previews and photo videos must select the same original soundtrack asset");
+  assert.match(motionVideo, /getMetaImageMotionDuration\(imageStoragePaths\.length, args\.placement\)/);
+  for (const count of [1, 2, 3, 5]) {
+    assert.equal(getMetaImageMotionDuration(count, "reel"), count * 3);
+    assert.equal(getMetaImageMotionDuration(count, "story"), 4);
+  }
 });
 
 test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée et le logo officiel", () => {

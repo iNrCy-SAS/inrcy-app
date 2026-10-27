@@ -7,6 +7,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import * as policy from "../../lib/storageDeliveryPolicy.ts";
 import * as payloads from "../../lib/inrAgentScheduledPayload.ts";
+import * as metaImageMotionTiming from "../../lib/metaImageMotionTiming.ts";
 
 const account = "11111111-1111-4111-8111-111111111111";
 const other = "22222222-2222-4222-8222-222222222222";
@@ -19,7 +20,7 @@ function load(file: string, dependencies: Record<string, unknown> = {}) {
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const record = { exports: {} as AnyRecord };
   const modules = { "server-only": {}, "./storageDeliveryPolicy": policy, "@/lib/storageDeliveryPolicy": policy,
-    "@/lib/inrAgentScheduledPayload": payloads, "./tiktokMediaUrl": { getAppBaseUrl: () => "https://app.test" },
+    "@/lib/inrAgentScheduledPayload": payloads, "@/lib/metaImageMotionTiming": metaImageMotionTiming, "./tiktokMediaUrl": { getAppBaseUrl: () => "https://app.test" },
     "next/server": { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }, ...dependencies };
   vm.runInNewContext(`(function(require,module,exports){${js}\n})`, {
     Buffer, URL, URLSearchParams, Response, Headers, console, setTimeout,
