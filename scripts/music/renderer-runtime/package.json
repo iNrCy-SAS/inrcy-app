@@ -1,0 +1,9 @@
+{
+  "name": "inrcy-music-render-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "spessasynth_core": "4.4.1"
+  }
+}

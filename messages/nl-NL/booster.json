@@ -908,5 +908,6 @@
   "publication_music_reserved_hint": "Alleen voor Stories en Reels",
   "publication_music_preview_choose": "Kies een nummer om het te beluisteren.",
   "publication_reel_duration_hint": "Reel: {duration} s in totaal ({secondsPerImage} s per afbeelding, inclusief overgangen)",
-  "publication_story_duration_hint": "Story: {secondsPerImage} s per afbeelding"
+  "publication_story_duration_hint": "Story: {secondsPerImage} s per afbeelding",
+  "publication_music_previous": "Vorige keuze"
 }

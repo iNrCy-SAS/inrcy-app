@@ -1,4 +1,4 @@
-import { AI_MEDIA_SOUNDTRACKS } from "@/lib/aiMediaSoundtrackCatalog";
+import { AI_MEDIA_SOUNDTRACKS, findAiMediaSoundtrack } from "@/lib/aiMediaSoundtrackCatalog";
 import { META_IMAGE_SOUNDTRACK_ASSET_SECONDS } from "@/lib/metaImageMotionTiming";
 
 export type BoosterSoundtrackChannel = "facebook" | "instagram";
@@ -7,7 +7,7 @@ export type BoosterSoundtrackByChannel = Partial<Record<BoosterSoundtrackChannel
 /** Only bundled original tracks may be selected; null/omission keeps Auto. */
 export function normalizeBoosterSoundtrackId(value: unknown): string | null {
   if (value === undefined || value === null) return null;
-  if (typeof value !== "string" || !AI_MEDIA_SOUNDTRACKS.some(track => track.id === value)) {
+  if (typeof value !== "string" || !findAiMediaSoundtrack(value)) {
     throw new Error("booster_soundtrack_invalid");
   }
   return value;

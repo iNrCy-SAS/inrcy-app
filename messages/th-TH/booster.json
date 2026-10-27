@@ -908,5 +908,6 @@
   "publication_music_reserved_hint": "สำหรับ Stories และ Reels เท่านั้น",
   "publication_music_preview_choose": "เลือกเพลงเพื่อฟังตัวอย่าง",
   "publication_reel_duration_hint": "Reel: รวม {duration} วินาที (รูปละ {secondsPerImage} วินาที รวมช่วงเปลี่ยนภาพแล้ว)",
-  "publication_story_duration_hint": "Story: รูปละ {secondsPerImage} วินาที"
+  "publication_story_duration_hint": "Story: รูปละ {secondsPerImage} วินาที",
+  "publication_music_previous": "เพลงที่เลือกไว้ก่อนหน้า"
 }

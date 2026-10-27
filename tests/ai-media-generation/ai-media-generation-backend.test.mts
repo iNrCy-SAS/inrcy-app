@@ -13,6 +13,7 @@ import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.
 import { getMetaImageMotionDuration, META_IMAGE_SOUNDTRACK_ASSET_SECONDS } from "../../lib/metaImageMotionTiming.ts";
 import {
   AI_MEDIA_SOUNDTRACKS,
+  LEGACY_AI_MEDIA_SOUNDTRACKS,
   selectAiMediaSoundtrack,
 } from "../../lib/aiMediaSoundtrackCatalog.ts";
 import {
@@ -617,7 +618,7 @@ test("la consigne ponctuelle et l'identité image/vidéo sont normalisées sans 
   assert.equal(professionalImage.inspirationImages.length, 1);
 });
 
-test("les 24 univers musicaux possèdent chacun des versions natives de 8, 16 et 24 secondes", () => {
+test("les 24 univers musicaux historiques gardent leurs versions natives de 8, 16 et 24 secondes", () => {
   const manifest = JSON.parse(
     read("assets/media-generation/soundtracks/manifest.json")
   ) as {
@@ -633,8 +634,8 @@ test("les 24 univers musicaux possèdent chacun des versions natives de 8, 16 et
     }>;
   };
 
-  assert.equal(AI_MEDIA_SOUNDTRACKS.length, 24);
-  assert.equal(new Set(AI_MEDIA_SOUNDTRACKS.map((item) => item.id)).size, 24);
+  assert.equal(LEGACY_AI_MEDIA_SOUNDTRACKS.length, 24);
+  assert.equal(new Set(LEGACY_AI_MEDIA_SOUNDTRACKS.map((item) => item.id)).size, 24);
   assert.equal(manifest.generatedBy, "inrcy-procedural-synth");
   assert.equal(manifest.tracks.length, 72);
   assert.equal(new Set(manifest.tracks.map((track) => track.id)).size, 72);
@@ -655,7 +656,7 @@ test("les 24 univers musicaux possèdent chacun des versions natives de 8, 16 et
       [24, 24],
     ],
   );
-  for (const soundtrackId of AI_MEDIA_SOUNDTRACKS.map((item) => item.id)) {
+  for (const soundtrackId of LEGACY_AI_MEDIA_SOUNDTRACKS.map((item) => item.id)) {
     assert.deepEqual(
       manifest.tracks
         .filter((track) => track.soundtrackId === soundtrackId)
@@ -706,6 +707,33 @@ test("les 24 univers musicaux possèdent chacun des versions natives de 8, 16 et
       track.sha256,
       createHash("sha256").update(buffer).digest("hex")
     );
+  }
+});
+
+test("les 30 arrangements instrumentaux sont versionnés avec leurs propres variantes WAV sans remplacer les pistes historiques", () => {
+  const manifest = JSON.parse(read("assets/media-generation/soundtracks/v2/manifest.json")) as {
+    tracks: Array<{ id: string; soundtrackId: string; fileName: string; durationSeconds: number; sizeBytes: number; sha256: string; license: string }>;
+  };
+  assert.equal(AI_MEDIA_SOUNDTRACKS.length, 30);
+  assert.equal(new Set(AI_MEDIA_SOUNDTRACKS.map(track => track.id)).size, 30);
+  assert.equal(manifest.tracks.length, 90);
+  assert.equal(new Set(manifest.tracks.map(track => track.id)).size, 90);
+  assert.equal(new Set(manifest.tracks.map(track => track.sha256)).size, 90);
+  for (const definition of AI_MEDIA_SOUNDTRACKS) {
+    assert.equal(definition.assetVersion, 2);
+    assert.equal(definition.license, "inrcy-original-instrumental-v2");
+    assert.ok(!LEGACY_AI_MEDIA_SOUNDTRACKS.some(track => track.id === definition.id));
+    assert.deepEqual(manifest.tracks.filter(track => track.soundtrackId === definition.id).map(track => track.durationSeconds), [8, 16, 24]);
+  }
+  for (const track of manifest.tracks) {
+    assert.equal(track.fileName, `${track.soundtrackId}-${track.durationSeconds}s.wav`);
+    const bytes = readFileSync(path.join(ROOT, "assets/media-generation/soundtracks/v2", track.fileName));
+    assert.equal(bytes.toString("ascii", 0, 4), "RIFF");
+    assert.equal(bytes.toString("ascii", 8, 12), "WAVE");
+    assert.equal(bytes.readUInt32LE(40) / (bytes.readUInt32LE(24) * bytes.readUInt16LE(22) * bytes.readUInt16LE(34) / 8), track.durationSeconds);
+    assert.equal(track.sizeBytes, bytes.byteLength);
+    assert.equal(track.sha256, createHash("sha256").update(bytes).digest("hex"));
+    assert.equal(track.license, "inrcy-original-instrumental-v2");
   }
 });
 

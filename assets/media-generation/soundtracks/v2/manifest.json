@@ -1,0 +1,3880 @@
+{
+  "version": 2,
+  "generatedBy": "inrcy-instrumental-scores",
+  "renderer": "spessasynth_core@4.4.1",
+  "instrumentBank": "GeneralUser GS v2.0.3",
+  "instrumentBankSha256": "9575028c7a1f589f5770fccc8cff2734566af40cd26ed836944e9a5152688cfe",
+  "source": "scripts/music/instrumental-compositions.mjs",
+  "tracks": [
+    {
+      "id": "piano-serein-8s",
+      "soundtrackId": "piano-serein",
+      "fileName": "piano-serein-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "a1e4aec20a5733a601d2e68221e389437c38626fd97fb2345a6ad7e8e4d66037",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Piano solo",
+      "bpm": 70,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 72
+    },
+    {
+      "id": "piano-serein-16s",
+      "soundtrackId": "piano-serein",
+      "fileName": "piano-serein-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "8b8d88d7758dc6f8124317efaf5a7278cf286442db8331f87302364413868077",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Piano solo",
+      "bpm": 70,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 137
+    },
+    {
+      "id": "piano-serein-24s",
+      "soundtrackId": "piano-serein",
+      "fileName": "piano-serein-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "a93b7461a50740a64ea928ea140065aa62fb6615c5f0bbc3ab528a85f4f4bcf9",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Piano solo",
+      "bpm": 70,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 206
+    },
+    {
+      "id": "guitare-solaire-8s",
+      "soundtrackId": "guitare-solaire",
+      "fileName": "guitare-solaire-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "11a8b84242ae6f7bb6f5063803932360363fd7c03559367ac1a465525fb58ff9",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Guitare acoustique",
+      "bpm": 92,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 24,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 24,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 69
+    },
+    {
+      "id": "guitare-solaire-16s",
+      "soundtrackId": "guitare-solaire",
+      "fileName": "guitare-solaire-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "bf48dd01e9d0851cea1223abc3bfc97662bdfb92d65bcfc76c636249dbea71cd",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Guitare acoustique",
+      "bpm": 92,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 24,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 24,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 137
+    },
+    {
+      "id": "guitare-solaire-24s",
+      "soundtrackId": "guitare-solaire",
+      "fileName": "guitare-solaire-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "0645d764426e764b79bcc121fcfb795b87c1a0496497d3f6c126eecfb08f129c",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Guitare acoustique",
+      "bpm": 92,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 24,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 24,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 204
+    },
+    {
+      "id": "ukulele-souriant-8s",
+      "soundtrackId": "ukulele-souriant",
+      "fileName": "ukulele-souriant-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "872b274e9dbb433b08c78a20fafba189fee7ef8e21d079f0d7094598c1417c59",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Pop acoustique",
+      "bpm": 112,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 10,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 24,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 237
+    },
+    {
+      "id": "ukulele-souriant-16s",
+      "soundtrackId": "ukulele-souriant",
+      "fileName": "ukulele-souriant-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "9203aa5f38ba4b7727867f6c74753d04296fd4f7e488614a459c16833d34886f",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Pop acoustique",
+      "bpm": 112,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 10,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 24,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 488
+    },
+    {
+      "id": "ukulele-souriant-24s",
+      "soundtrackId": "ukulele-souriant",
+      "fileName": "ukulele-souriant-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "f57dce877a0bbe363fff7ece84ea0a02eeda76c8de3f1bfcdb2536861b2e864d",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Pop acoustique",
+      "bpm": 112,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 10,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 24,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 740
+    },
+    {
+      "id": "folk-en-route-8s",
+      "soundtrackId": "folk-en-route",
+      "fileName": "folk-en-route-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "a6fc517e84a9dd646000b8a6616f2bf087ccb8e98e10accc67ad937fbf8edfbc",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Folk et harmonica",
+      "bpm": 106,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 22,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 25,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 160
+    },
+    {
+      "id": "folk-en-route-16s",
+      "soundtrackId": "folk-en-route",
+      "fileName": "folk-en-route-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "8fdcc9faf748973a3a3db6784c65a9e6d21edd393f2fde35002669f1d5b097f4",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Folk et harmonica",
+      "bpm": 106,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 22,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 25,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 326
+    },
+    {
+      "id": "folk-en-route-24s",
+      "soundtrackId": "folk-en-route",
+      "fileName": "folk-en-route-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "3b3c07541dc7703cb7ef83914d2cd8d1153db5e2dbd131ccd5652220b28a1ca4",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Folk et harmonica",
+      "bpm": 106,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 22,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 25,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 491
+    },
+    {
+      "id": "bossa-terrasse-8s",
+      "soundtrackId": "bossa-terrasse",
+      "fileName": "bossa-terrasse-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "7bfdcac3b5727421f9e53b8108cd42ac8558f4aa8e67747e82f25947f467aecd",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Bossa nova",
+      "bpm": 126,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 73,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 24,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 243
+    },
+    {
+      "id": "bossa-terrasse-16s",
+      "soundtrackId": "bossa-terrasse",
+      "fileName": "bossa-terrasse-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "4b747657c396add6eb75dd6c8b75c5377473b9c4cd1478808f4d397dd640e7e9",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Bossa nova",
+      "bpm": 126,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 73,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 24,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 516
+    },
+    {
+      "id": "bossa-terrasse-24s",
+      "soundtrackId": "bossa-terrasse",
+      "fileName": "bossa-terrasse-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "5a479afb226ec3c51cb078e109420881f2f5160d9348b2b4d92dab8984218ba7",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Bossa nova",
+      "bpm": 126,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 73,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 24,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 779
+    },
+    {
+      "id": "jazz-velours-8s",
+      "soundtrackId": "jazz-velours",
+      "fileName": "jazz-velours-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "9f4bff1cc5d99bd3d96a4819d37d4aad85cd194cd6e61d1ddfaa5aa944287547",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Jazz swing",
+      "bpm": 104,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 59,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 194
+    },
+    {
+      "id": "jazz-velours-16s",
+      "soundtrackId": "jazz-velours",
+      "fileName": "jazz-velours-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "60d91de2bad01a673d102e53a380d5473cf0c3cf3182d1211046e61f60860ef9",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Jazz swing",
+      "bpm": 104,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 59,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 400
+    },
+    {
+      "id": "jazz-velours-24s",
+      "soundtrackId": "jazz-velours",
+      "fileName": "jazz-velours-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "babaf777402e9caf49d555f3d4dbd16b35e5b30f1c9ed95603c988e0c5e7c76c",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Jazz swing",
+      "bpm": 104,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 59,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 602
+    },
+    {
+      "id": "funk-boutique-8s",
+      "soundtrackId": "funk-boutique",
+      "fileName": "funk-boutique-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "890c42c7e6c3e3834bfb4258bb1aa6a0471eee659d45004fa30338472fc61eb0",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Funk et clavinet",
+      "bpm": 112,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 61,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 7,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 36,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 381
+    },
+    {
+      "id": "funk-boutique-16s",
+      "soundtrackId": "funk-boutique",
+      "fileName": "funk-boutique-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "2ddac24f28f9ff87e2e238c4d7878069e3a865560843e022d6c708eb95641b81",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Funk et clavinet",
+      "bpm": 112,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 61,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 7,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 36,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 793
+    },
+    {
+      "id": "funk-boutique-24s",
+      "soundtrackId": "funk-boutique",
+      "fileName": "funk-boutique-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "23a549e0a95fe84f4704c847a58cd58da3be52cb69143465e49bb5eb591d94fa",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Funk et clavinet",
+      "bpm": 112,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 61,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 7,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 36,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 1203
+    },
+    {
+      "id": "disco-lumiere-8s",
+      "soundtrackId": "disco-lumiere",
+      "fileName": "disco-lumiere-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "9312ca22628b92b19ae109c43be85414f928521479f763219d7eb1dc236bfea2",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Disco orchestral",
+      "bpm": 120,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 45,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 34,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 289
+    },
+    {
+      "id": "disco-lumiere-16s",
+      "soundtrackId": "disco-lumiere",
+      "fileName": "disco-lumiere-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "5e6a9c348207ce242eca16082f1c2024018a5d4c4f6229ffad89d3efe1871d55",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Disco orchestral",
+      "bpm": 120,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 45,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 34,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 597
+    },
+    {
+      "id": "disco-lumiere-24s",
+      "soundtrackId": "disco-lumiere",
+      "fileName": "disco-lumiere-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "6c163f0ca40b03dc12312cf0d409cdd436f3e863a34da72679befd646480d6a7",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Disco orchestral",
+      "bpm": 120,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 45,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 34,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 905
+    },
+    {
+      "id": "house-elan-8s",
+      "soundtrackId": "house-elan",
+      "fileName": "house-elan-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "c5199588669756e343331415258864baca1b112a5358c3383d004fa1249eba2f",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "House",
+      "bpm": 124,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 16,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 4,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 38,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 301
+    },
+    {
+      "id": "house-elan-16s",
+      "soundtrackId": "house-elan",
+      "fileName": "house-elan-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "976ee87a510d2e811bcf953f2bb3d6d9a62a0ce6626ea8ee7bb06538fed3918a",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "House",
+      "bpm": 124,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 16,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 4,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 38,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 623
+    },
+    {
+      "id": "house-elan-24s",
+      "soundtrackId": "house-elan",
+      "fileName": "house-elan-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "a9ac3d78484779c11e921647ba1e03c08863801563d9ee3667d55a052b967337",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "House",
+      "bpm": 124,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 16,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 4,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 38,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 945
+    },
+    {
+      "id": "electro-neon-8s",
+      "soundtrackId": "electro-neon",
+      "fileName": "electro-neon-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "f0be0aaaad19427d30bc2a7e3bfc143f7fdf9ceca68b6a26b6b6ce6dd248f0ed",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Électro séquencée",
+      "bpm": 132,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 81,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 80,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 38,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 25,
+          "drums": true
+        }
+      ],
+      "noteEvents": 381
+    },
+    {
+      "id": "electro-neon-16s",
+      "soundtrackId": "electro-neon",
+      "fileName": "electro-neon-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "f89eff1777679dd4faf357c91ad6da2b5fbe464740ffb1353332a4b27a393c42",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Électro séquencée",
+      "bpm": 132,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 81,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 80,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 38,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 25,
+          "drums": true
+        }
+      ],
+      "noteEvents": 793
+    },
+    {
+      "id": "electro-neon-24s",
+      "soundtrackId": "electro-neon",
+      "fileName": "electro-neon-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "fe6066410d5d3a06b8f298318e4d1e2511d3f7e2e5fba91fa2d3d6061c894484",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Électro séquencée",
+      "bpm": 132,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 81,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 80,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 38,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 25,
+          "drums": true
+        }
+      ],
+      "noteEvents": 1200
+    },
+    {
+      "id": "chill-lofi-8s",
+      "soundtrackId": "chill-lofi",
+      "fileName": "chill-lofi-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "81785aaa3de025340f456e5b924a06af65900170cb74be929ac879b2741d75c5",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Lo-fi feutré",
+      "bpm": 78,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 11,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 4,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 124
+    },
+    {
+      "id": "chill-lofi-16s",
+      "soundtrackId": "chill-lofi",
+      "fileName": "chill-lofi-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "735a01255aed0533f98bf551ecdbf521a0d33607585e2d785cd185f74f659ce6",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Lo-fi feutré",
+      "bpm": 78,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 11,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 4,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 246
+    },
+    {
+      "id": "chill-lofi-24s",
+      "soundtrackId": "chill-lofi",
+      "fileName": "chill-lofi-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "c02cf260e1970f1d703eab692b2764614767b55d94eb5966a38108e773d98912",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Lo-fi feutré",
+      "bpm": 78,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 11,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 4,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 368
+    },
+    {
+      "id": "hiphop-pulsation-8s",
+      "soundtrackId": "hiphop-pulsation",
+      "fileName": "hiphop-pulsation-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "679e53bbb69c65ee72a9a1848c13068840f876f06c7a252afc80a19aa9bbf90d",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Hip-hop",
+      "bpm": 88,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 5,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 5,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 39,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 25,
+          "drums": true
+        }
+      ],
+      "noteEvents": 181
+    },
+    {
+      "id": "hiphop-pulsation-16s",
+      "soundtrackId": "hiphop-pulsation",
+      "fileName": "hiphop-pulsation-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "a92b9fdb2367c353e16ee508886647766574b9807a7ff439386e7eeab5b43666",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Hip-hop",
+      "bpm": 88,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 5,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 5,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 39,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 25,
+          "drums": true
+        }
+      ],
+      "noteEvents": 368
+    },
+    {
+      "id": "hiphop-pulsation-24s",
+      "soundtrackId": "hiphop-pulsation",
+      "fileName": "hiphop-pulsation-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "eea55324e59eb3eb016972e5af74a5d2bcbafc1f19f2f038efd0a17e63279203",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Hip-hop",
+      "bpm": 88,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 5,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 5,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 39,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 25,
+          "drums": true
+        }
+      ],
+      "noteEvents": 555
+    },
+    {
+      "id": "afro-percussions-8s",
+      "soundtrackId": "afro-percussions",
+      "fileName": "afro-percussions-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "edd7ba4326e49ff64f99ace0073ba0ff59f535774d0527682b81930f0cad1cb8",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Afro et kalimba",
+      "bpm": 110,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 108,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 12,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 34,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 228
+    },
+    {
+      "id": "afro-percussions-16s",
+      "soundtrackId": "afro-percussions",
+      "fileName": "afro-percussions-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "c22c3d3f2a2c816d8faab8abfe08f3e72210f3ec09c83ff2283b5aba1bdf41af",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Afro et kalimba",
+      "bpm": 110,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 108,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 12,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 34,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 467
+    },
+    {
+      "id": "afro-percussions-24s",
+      "soundtrackId": "afro-percussions",
+      "fileName": "afro-percussions-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "b2e4b62354779576f19018a55d283c72093e823362d6ed6eddde82c899428990",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Afro et kalimba",
+      "bpm": 110,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 108,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 12,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 34,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 703
+    },
+    {
+      "id": "reggae-soleil-8s",
+      "soundtrackId": "reggae-soleil",
+      "fileName": "reggae-soleil-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "023f7608089a38d234ffbbbf2f6465a3bdc508c0287313b21885fc7c140923ff",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Reggae",
+      "bpm": 84,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 27,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 16,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 33,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 153
+    },
+    {
+      "id": "reggae-soleil-16s",
+      "soundtrackId": "reggae-soleil",
+      "fileName": "reggae-soleil-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "726d6a6cdd8222468540f50ce7deec03ff9fd83721318ebc5c744a5d78f24deb",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Reggae",
+      "bpm": 84,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 27,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 16,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 33,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 312
+    },
+    {
+      "id": "reggae-soleil-24s",
+      "soundtrackId": "reggae-soleil",
+      "fileName": "reggae-soleil-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "591929e1efbdc3e07029c6f30870cafd89a74e48acd8215f18617e3d5f0086fa",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Reggae",
+      "bpm": 84,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 27,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 16,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 33,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 480
+    },
+    {
+      "id": "latin-fiesta-8s",
+      "soundtrackId": "latin-fiesta",
+      "fileName": "latin-fiesta-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "9827cf13dd4358dc9745eb135d61419f166b199a5ddf5b0acb833b6b3d3c80f1",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Salsa et cuivres",
+      "bpm": 122,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 56,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 235
+    },
+    {
+      "id": "latin-fiesta-16s",
+      "soundtrackId": "latin-fiesta",
+      "fileName": "latin-fiesta-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "c38516d117f0778ee746ecec2a513149e7b25a7d00a8da7f24cb06b399787437",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Salsa et cuivres",
+      "bpm": 122,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 56,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 484
+    },
+    {
+      "id": "latin-fiesta-24s",
+      "soundtrackId": "latin-fiesta",
+      "fileName": "latin-fiesta-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "2ec0bb31d00e6e7d543ed171adc747c61a8cce712783f1f4b95df0c3df744988",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Salsa et cuivres",
+      "bpm": 122,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 56,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 730
+    },
+    {
+      "id": "pop-optimiste-8s",
+      "soundtrackId": "pop-optimiste",
+      "fileName": "pop-optimiste-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "e0f9215de5fefe8a6d649109580f2060ce6697ce708160edb420a6bb0deb53b7",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Pop lumineuse",
+      "bpm": 116,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 27,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 34,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 190
+    },
+    {
+      "id": "pop-optimiste-16s",
+      "soundtrackId": "pop-optimiste",
+      "fileName": "pop-optimiste-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "80338bec1e6861aac638e805983242461714df4a44985ca9580ded77e191e8ac",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Pop lumineuse",
+      "bpm": 116,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 27,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 34,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 384
+    },
+    {
+      "id": "pop-optimiste-24s",
+      "soundtrackId": "pop-optimiste",
+      "fileName": "pop-optimiste-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "8f215576669473cd1a3bc2f84d6cd40576fac4795a516167adb192e7c566611d",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Pop lumineuse",
+      "bpm": 116,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 27,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 34,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 581
+    },
+    {
+      "id": "rock-atelier-8s",
+      "soundtrackId": "rock-atelier",
+      "fileName": "rock-atelier-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "a6130614ef5eb22aa708f69d8d1b579e90eb9a7c9462d4d3a8b5817a1ee6c522",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Rock",
+      "bpm": 134,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 30,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 29,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 34,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 410
+    },
+    {
+      "id": "rock-atelier-16s",
+      "soundtrackId": "rock-atelier",
+      "fileName": "rock-atelier-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "3409cc32f3f593583b62bb1cf5ae5d76a02a78f8f1ca39c42ae89191515ec4e7",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Rock",
+      "bpm": 134,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 30,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 29,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 34,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 857
+    },
+    {
+      "id": "rock-atelier-24s",
+      "soundtrackId": "rock-atelier",
+      "fileName": "rock-atelier-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "37e7d3f48be9ff0c26fc97bff41953b4411e268f368899780b39f96c49b19f99",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Rock",
+      "bpm": 134,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 30,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 29,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 34,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 1303
+    },
+    {
+      "id": "blues-garage-8s",
+      "soundtrackId": "blues-garage",
+      "fileName": "blues-garage-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "3e419cf4c3b5ab8966602d77769b70fc1d9abb5c61d239906fbff0f8e4db9680",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Blues shuffle",
+      "bpm": 94,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 26,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 3,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 33,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 268
+    },
+    {
+      "id": "blues-garage-16s",
+      "soundtrackId": "blues-garage",
+      "fileName": "blues-garage-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "f64fc3570f0ad042936b141b9c5262d6a1cc9da3b59b8cfe630b4c4aa157d655",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Blues shuffle",
+      "bpm": 94,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 26,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 3,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 33,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 540
+    },
+    {
+      "id": "blues-garage-24s",
+      "soundtrackId": "blues-garage",
+      "fileName": "blues-garage-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "408ade5cb25a1bccf66a5b0cb47cc6f969272f158fbf31dcf8956d5deaa81194",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Blues shuffle",
+      "bpm": 94,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 26,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 3,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 33,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 822
+    },
+    {
+      "id": "cordes-cinema-8s",
+      "soundtrackId": "cordes-cinema",
+      "fileName": "cordes-cinema-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "a3df4aed9d255d62851f442b9775721e72c9addadd2dc1f50898c2fbc8dfc558",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Cordes cinématiques",
+      "bpm": 72,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 60,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 42,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 70
+    },
+    {
+      "id": "cordes-cinema-16s",
+      "soundtrackId": "cordes-cinema",
+      "fileName": "cordes-cinema-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "1222fb21aa5874593bb555bc36ca8959db81a66097a59435ce2a2a52edad3ddb",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Cordes cinématiques",
+      "bpm": 72,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 60,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 42,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 116
+    },
+    {
+      "id": "cordes-cinema-24s",
+      "soundtrackId": "cordes-cinema",
+      "fileName": "cordes-cinema-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "ae41f34b038794659cb6b8ffe4f0a2778d6a3be8ab3d6565d2c3aa5d4f890436",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Cordes cinématiques",
+      "bpm": 72,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 60,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 42,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 168
+    },
+    {
+      "id": "valse-elegante-8s",
+      "soundtrackId": "valse-elegante",
+      "fileName": "valse-elegante-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "e77a172c03050755b9f9f7f12bb62c7a2a7fe6796f9a96999a64d7e8e61e2d22",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Valse à l’accordéon",
+      "bpm": 96,
+      "metre": 3,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 40,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 21,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 82
+    },
+    {
+      "id": "valse-elegante-16s",
+      "soundtrackId": "valse-elegante",
+      "fileName": "valse-elegante-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "03c480c8e60205da5e919725fbf899017a7d4941da9a82c5b12ddeb0a6aef642",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Valse à l’accordéon",
+      "bpm": 96,
+      "metre": 3,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 40,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 21,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 162
+    },
+    {
+      "id": "valse-elegante-24s",
+      "soundtrackId": "valse-elegante",
+      "fileName": "valse-elegante-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "8f3bdb732922a65655434cd6baaa0296ba9ba2ae9095908bc1b6342f92e576b9",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Valse à l’accordéon",
+      "bpm": 96,
+      "metre": 3,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 40,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 21,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 245
+    },
+    {
+      "id": "harpe-nature-8s",
+      "soundtrackId": "harpe-nature",
+      "fileName": "harpe-nature-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "6b4194abd007fe4ab157b6bce06c9abab6cc76ace632aeea995595b80939bab7",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Harpe et flûte",
+      "bpm": 60,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 75,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 46,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 40
+    },
+    {
+      "id": "harpe-nature-16s",
+      "soundtrackId": "harpe-nature",
+      "fileName": "harpe-nature-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "d125a34cccc789d9d28b13ff441a4807cdaa3b9e957a3d294de25fc8811beff4",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Harpe et flûte",
+      "bpm": 60,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 75,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 46,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 76
+    },
+    {
+      "id": "harpe-nature-24s",
+      "soundtrackId": "harpe-nature",
+      "fileName": "harpe-nature-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "f904080fff8e3263e3f5a4373dbe1062e7a0c04da922e9bd35afe5baf7e015c8",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Harpe et flûte",
+      "bpm": 60,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 75,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 46,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 112
+    },
+    {
+      "id": "ambient-espace-8s",
+      "soundtrackId": "ambient-espace",
+      "fileName": "ambient-espace-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "e04d21209a515986e1f069873e23f154bdd40aa2739e1168bd2dd174f17c1d8f",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Ambient aérien",
+      "bpm": 54,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 98,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 89,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 18
+    },
+    {
+      "id": "ambient-espace-16s",
+      "soundtrackId": "ambient-espace",
+      "fileName": "ambient-espace-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "9cbffa29506fc9b40674f73f7066e052ee7fa9fac62f6fa2b79434644be2fc6c",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Ambient aérien",
+      "bpm": 54,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 98,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 89,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 30
+    },
+    {
+      "id": "ambient-espace-24s",
+      "soundtrackId": "ambient-espace",
+      "fileName": "ambient-espace-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "d13ac32d2f29d355e09e057afcf2e7b2e03a297644ba680ae1b7fcf477da7fad",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Ambient aérien",
+      "bpm": 54,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 98,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 89,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 41
+    },
+    {
+      "id": "marimba-tropicale-8s",
+      "soundtrackId": "marimba-tropicale",
+      "fileName": "marimba-tropicale-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "b095c103dd1f306b0615ef124e99b8ddba9f737869b5b39f1691a71f6ead36f2",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Marimba tropicale",
+      "bpm": 104,
+      "metre": 6,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 12,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 10,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 35,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 152
+    },
+    {
+      "id": "marimba-tropicale-16s",
+      "soundtrackId": "marimba-tropicale",
+      "fileName": "marimba-tropicale-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "8f5e33234820a86ada3c7a2af83b1c61c637c5ca907837fd72218105cef50994",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Marimba tropicale",
+      "bpm": 104,
+      "metre": 6,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 12,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 10,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 35,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 311
+    },
+    {
+      "id": "marimba-tropicale-24s",
+      "soundtrackId": "marimba-tropicale",
+      "fileName": "marimba-tropicale-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "5888cfb3014ff473f5abb31b4d865207a28e701ade87ab1f0528d9e3b6458e68",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Marimba tropicale",
+      "bpm": 104,
+      "metre": 6,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 12,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 10,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 35,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 466
+    },
+    {
+      "id": "cloches-hiver-8s",
+      "soundtrackId": "cloches-hiver",
+      "fileName": "cloches-hiver-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "74e148dc830538e8c8ef2b7b828a4a2ee2e6f1d4a642375d63e7674b6b202ce6",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Célesta et clochettes",
+      "bpm": 100,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 8,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 9,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 43,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 118
+    },
+    {
+      "id": "cloches-hiver-16s",
+      "soundtrackId": "cloches-hiver",
+      "fileName": "cloches-hiver-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "191ceefab02fc0cebd38700cdfc29d62c18d3baa0e82fa2027042fce23950b04",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Célesta et clochettes",
+      "bpm": 100,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 8,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 9,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 43,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 239
+    },
+    {
+      "id": "cloches-hiver-24s",
+      "soundtrackId": "cloches-hiver",
+      "fileName": "cloches-hiver-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "6bf81a09b74ac92cc9d9888f7386a67f25fa85a13f67cd0e957ec718a7dd9060",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Célesta et clochettes",
+      "bpm": 100,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 8,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 9,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 43,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 360
+    },
+    {
+      "id": "country-banjo-8s",
+      "soundtrackId": "country-banjo",
+      "fileName": "country-banjo-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "b884ab50e79750e613f45d5ad05b2b6e49e5d0b0e4b62234c9c40670e4a00b54",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Country et banjo",
+      "bpm": 138,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 105,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 25,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 173
+    },
+    {
+      "id": "country-banjo-16s",
+      "soundtrackId": "country-banjo",
+      "fileName": "country-banjo-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "8d6c07cfc6eab8513cb33fb6ca9404ddca44488f80375ff5f0a13813eb76420b",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Country et banjo",
+      "bpm": 138,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 105,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 25,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 362
+    },
+    {
+      "id": "country-banjo-24s",
+      "soundtrackId": "country-banjo",
+      "fileName": "country-banjo-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "cc8fbf41686408821754f8afea6e6904d6c0520e8406dd27cff2d46d67c553dd",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Country et banjo",
+      "bpm": 138,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 105,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 25,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 548
+    },
+    {
+      "id": "celtique-flute-8s",
+      "soundtrackId": "celtique-flute",
+      "fileName": "celtique-flute-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "44beec4f1f980d759cc92a9fe031fad5c20c2cc6e025a5d57a5f68efc5463271",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Jig celtique",
+      "bpm": 112,
+      "metre": 6,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 72,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 46,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 40,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 145
+    },
+    {
+      "id": "celtique-flute-16s",
+      "soundtrackId": "celtique-flute",
+      "fileName": "celtique-flute-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "a6697fb27ebd6685cf14223d6396615dc7e6fffce2ea9cc83d0a3f023e2c308d",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Jig celtique",
+      "bpm": 112,
+      "metre": 6,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 72,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 46,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 40,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 295
+    },
+    {
+      "id": "celtique-flute-24s",
+      "soundtrackId": "celtique-flute",
+      "fileName": "celtique-flute-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "2bfa203c30a43bcfb14f82face2157315702bf9f0ec72604c7478fbf4b50addd",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Jig celtique",
+      "bpm": 112,
+      "metre": 6,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 72,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 46,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 40,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 445
+    },
+    {
+      "id": "tango-passion-8s",
+      "soundtrackId": "tango-passion",
+      "fileName": "tango-passion-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "b9a20dfc4e24e3ae7f5920a9381fb88dc1d630140675a03d27095798bb8662a5",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Tango",
+      "bpm": 112,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 23,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 168
+    },
+    {
+      "id": "tango-passion-16s",
+      "soundtrackId": "tango-passion",
+      "fileName": "tango-passion-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "bdaa74a1e7e025020ee8aa025d4704fdb062a2b27e0afa4249b81fd901d1c562",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Tango",
+      "bpm": 112,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 23,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 338
+    },
+    {
+      "id": "tango-passion-24s",
+      "soundtrackId": "tango-passion",
+      "fileName": "tango-passion-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "b49078acfb8854f96094ddc6d9a08712deb68d52f7f211763a01b9b8f6f27619",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Tango",
+      "bpm": 112,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 23,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 0,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 32,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 512
+    },
+    {
+      "id": "synthwave-retro-8s",
+      "soundtrackId": "synthwave-retro",
+      "fileName": "synthwave-retro-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "4e6e93c7ef38220d78df118c77c22f8b5d21d9eafd3fa1c62fa1280ac9b077cc",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Synthwave rétro",
+      "bpm": 96,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 80,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 90,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 38,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 225
+    },
+    {
+      "id": "synthwave-retro-16s",
+      "soundtrackId": "synthwave-retro",
+      "fileName": "synthwave-retro-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "8faaece0a5fc29cc72f213d886bfd568056556ca2d4e0527e586241acf19b958",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Synthwave rétro",
+      "bpm": 96,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 80,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 90,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 38,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 469
+    },
+    {
+      "id": "synthwave-retro-24s",
+      "soundtrackId": "synthwave-retro",
+      "fileName": "synthwave-retro-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "918457659fa4df30b39eb530900886f5839ce4a425455bfa6a8ae2c476b038ca",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Synthwave rétro",
+      "bpm": 96,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 80,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 90,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 38,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 0,
+          "drums": true
+        }
+      ],
+      "noteEvents": 705
+    },
+    {
+      "id": "chiptune-arcade-8s",
+      "soundtrackId": "chiptune-arcade",
+      "fileName": "chiptune-arcade-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "b9a108286958c6d410a8ad9c946a8ab37c90d938cf571e81474f27202229865b",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Chiptune arcade",
+      "bpm": 156,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 80,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 81,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 38,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 25,
+          "drums": true
+        }
+      ],
+      "noteEvents": 495
+    },
+    {
+      "id": "chiptune-arcade-16s",
+      "soundtrackId": "chiptune-arcade",
+      "fileName": "chiptune-arcade-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "521f5a4d8d5fc1dcbc0af2dfe82b083d6bf410caa55591c8baf101fdb3ec3350",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Chiptune arcade",
+      "bpm": 156,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 80,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 81,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 38,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 25,
+          "drums": true
+        }
+      ],
+      "noteEvents": 1021
+    },
+    {
+      "id": "chiptune-arcade-24s",
+      "soundtrackId": "chiptune-arcade",
+      "fileName": "chiptune-arcade-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "519be4fa1b91b99037ea9acb6056ea3698490fe6c9e7f1783583d1fc33b96977",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Chiptune arcade",
+      "bpm": 156,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 80,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 81,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 38,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 25,
+          "drums": true
+        }
+      ],
+      "noteEvents": 1554
+    },
+    {
+      "id": "drum-bass-rapide-8s",
+      "soundtrackId": "drum-bass-rapide",
+      "fileName": "drum-bass-rapide-8s.wav",
+      "durationSeconds": 8,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 384044,
+      "sha256": "dfdbfbb0b3831747764dd56929f814897f5a10dff149d3d02e6add0d116c4e0a",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Drum and bass",
+      "bpm": 172,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 85,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 4,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 39,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 25,
+          "drums": true
+        }
+      ],
+      "noteEvents": 287
+    },
+    {
+      "id": "drum-bass-rapide-16s",
+      "soundtrackId": "drum-bass-rapide",
+      "fileName": "drum-bass-rapide-16s.wav",
+      "durationSeconds": 16,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 768044,
+      "sha256": "51a9238b4ba28472a24dd0573b5cba3cfc994df75435ad9dbf0b8eaa5126455f",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Drum and bass",
+      "bpm": 172,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 85,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 4,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 39,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 25,
+          "drums": true
+        }
+      ],
+      "noteEvents": 590
+    },
+    {
+      "id": "drum-bass-rapide-24s",
+      "soundtrackId": "drum-bass-rapide",
+      "fileName": "drum-bass-rapide-24s.wav",
+      "durationSeconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 1152044,
+      "sha256": "13e33b18d04bf198f746cb21c17fc5e8ec2c84d6be073835521187af71093589",
+      "license": "inrcy-original-instrumental-v2",
+      "genre": "Drum and bass",
+      "bpm": 172,
+      "metre": 4,
+      "programs": [
+        {
+          "channel": 0,
+          "program": 85,
+          "drums": false
+        },
+        {
+          "channel": 1,
+          "program": 4,
+          "drums": false
+        },
+        {
+          "channel": 2,
+          "program": 39,
+          "drums": false
+        },
+        {
+          "channel": 3,
+          "program": 48,
+          "drums": false
+        },
+        {
+          "channel": 9,
+          "program": 25,
+          "drums": true
+        }
+      ],
+      "noteEvents": 896
+    }
+  ]
+}

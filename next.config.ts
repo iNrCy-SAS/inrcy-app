@@ -73,7 +73,12 @@ const nextConfig: NextConfig = {
     "/api/cron/media-generation-recovery": aiMediaGenerationRuntimeFiles,
     "/api/agent/**/*": sharpRuntimeFiles,
     "/api/booster/**/*": sharpRuntimeFiles,
-    "/api/booster/soundtracks/*/preview": ["assets/media-generation/soundtracks/*-24s.wav"],
+    // These entry points encode photo Stories/Reels, including direct calls
+    // from Agent execution. Trace the native encoder and immutable music too.
+    "/api/booster/publish-now": aiMediaGenerationRuntimeFiles,
+    "/api/agent/actions/execute": aiMediaGenerationRuntimeFiles,
+    "/api/agent/scheduled-actions/*/execute": aiMediaGenerationRuntimeFiles,
+    "/api/booster/soundtracks/*/preview": ["assets/media-generation/soundtracks/*-24s.wav", "assets/media-generation/soundtracks/v2/*-24s.wav"],
     "/api/media-generation/**/*": aiMediaGenerationRuntimeFiles,
     "/api/media-pipeline/**/*": sharpRuntimeFiles,
     "/api/media-library/**/*": sharpRuntimeFiles,

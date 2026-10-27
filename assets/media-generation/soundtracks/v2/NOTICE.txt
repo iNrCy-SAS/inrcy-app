@@ -1,0 +1,34 @@
+iNrCy instrumental catalogue v2
+
+Thirty original short scores are authored in:
+  scripts/music/instrumental-compositions.mjs
+They are rendered as 8-, 16- and 24-second PCM recordings. The internal
+"inrcy-original-instrumental-v2" identifier describes this catalogue version;
+it does not grant exclusive rights to the underlying instrument sounds.
+
+Instrument bank: GeneralUser GS v2.0.3, by S. Christian Collins.
+Official project: https://github.com/mrbumpy409/GeneralUser-GS
+Author's site: https://www.schristiancollins.com/generaluser.php
+Reviewed source revision: 684543d5e5efaef08d02be50dcda8d552478fa60
+Exact bank source:
+https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS/684543d5e5efaef08d02be50dcda8d552478fa60/GeneralUser-GS.sf2
+SHA-256:
+9575028c7a1f589f5770fccc8cff2734566af40cd26ed836944e9a5152688cfe
+
+The author's GeneralUser GS License v2.0 permits private and commercial music
+creation, subject to its actual terms and sample-provenance qualifications.
+The complete author's license is retained in GeneralUser-GS-LICENSE.txt.
+No exclusivity, ownership of third-party samples, or additional warranty is
+claimed here. The SF2 bank itself is an offline authoring input and is not
+included in the application runtime.
+
+Renderer: spessasynth_core 4.4.1, Apache-2.0, by spessasus.
+Official source: https://github.com/spessasus/spessasynth_core
+Pinned offline dependency package and lockfile:
+  scripts/music/renderer-runtime/
+The renderer dependency and instrument bank are not application dependencies.
+The release recordings and their exact SHA-256 values are in manifest.json.
+Legacy soundtrack files outside v2/ are preserved for saved publications.
+
+These recordings are project-authored instrumental arrangements; they do not
+contain any prerecorded song, purchased track, or claimed imitation of an artist.

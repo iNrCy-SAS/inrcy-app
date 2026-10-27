@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import type * as Recovery from "../../lib/aiMediaCompositionRecovery.ts";
+import * as soundtrackCatalog from "../../lib/aiMediaSoundtrackCatalog.ts";
+import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 
 const accountId = "11111111-1111-4111-8111-111111111111", jobId = "22222222-2222-4222-8222-222222222222", authUserId = "33333333-3333-4333-8333-333333333333";
 function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; leaseLost?: boolean; cleanupRows?: Array<{storage_bucket:string;storage_path:string}> } = {}) {
@@ -14,6 +17,7 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
   const removed: Array<{bucket:string;paths:string[]}> = [];
   let record: Record<string, unknown> | undefined;
   let composed: Recovery.AiMediaCompositionInput | undefined;
+  let composedSoundtrack: Buffer | undefined;
   let savedMetadata: Record<string, unknown> | undefined;
   const runtimeModule = { exports: {} };
   const supabaseAdmin = {
@@ -51,6 +55,7 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
     "server-only": {}, "@/lib/supabaseAdmin": { supabaseAdmin },
     "@/lib/aiMediaGeneratedVideo": { composeOriginalAiVideo: async (input: Recovery.AiMediaCompositionInput) => {
       events.push("compose"); composed = input;
+      if (input.soundtrack) composedSoundtrack = readFileSync(input.soundtrack.absolutePath);
       return { kind: "video", buffer: Buffer.from("recovered-mp4"), extension: "mp4", mimeType: "video/mp4", width: input.width, height: input.height, durationSeconds: input.durationSeconds };
     } },
     "@/lib/aiGeneratedMediaRegistry": {
@@ -60,7 +65,7 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
     "@/lib/aiMediaGenerationQuota": {
       completeAiMediaGeneration: async () => { events.push("complete"); }, expireAiMediaGenerationReservations: async () => { events.push("expire"); },
     },
-    "@/lib/aiMediaSoundtrackCatalog": { AI_MEDIA_SOUNDTRACKS: [] },
+    "@/lib/aiMediaSoundtrackCatalog": soundtrackCatalog,
     "@/lib/aiMediaVideoLocalQa": { inspectAiMediaVideoBufferLocally: async () => ({ status: "ok", advisories: [] }) },
   };
   const source = readFileSync(new URL("../../lib/aiMediaCompositionRecovery.ts", import.meta.url), "utf8");
@@ -71,7 +76,7 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
     if (!(id in stubs)) throw new Error(`Unexpected dependency (provider imports forbidden): ${id}`);
     return stubs[id];
   }, runtimeModule, runtimeModule.exports);
-  return { runtime: runtimeModule.exports as typeof Recovery, objects, events, warnings, removed, get record(){return record;}, get composed() { return composed; }, get metadata() { return savedMetadata; } };
+  return { runtime: runtimeModule.exports as typeof Recovery, objects, events, warnings, removed, get record(){return record;}, get composed() { return composed; }, get composedSoundtrack(){return composedSoundtrack;}, get metadata() { return savedMetadata; } };
 }
 const input: Recovery.AiMediaCompositionInput = {
   clips: [{ buffer: Buffer.from("paid-video-bytes"), durationSeconds: 8 }], overlays: [Buffer.from("rendered-overlay")],
@@ -147,4 +152,57 @@ test("cleanup targets both recorded buckets while rejecting unrelated paths and 
     {bucket:"inrcy-ai-composition",paths:[`${scoped}/manifest.json`]},
     {bucket:"inrcy-pro-media",paths:[`${scoped}/clip-0.mp4`]},
   ]);
+});
+
+test("Studio composition checkpoints preserve the actual legacy or versioned audio bytes without selecting or regenerating music on recovery", async () => {
+  const load = runtimeModules();
+  const assets = load<typeof import("../../lib/aiMediaGenerationSoundtracks.ts")>("lib/aiMediaGenerationSoundtracks.ts");
+  for (const id of ["cinema-inspirant", "piano-serein"]) for (const durationSeconds of [8, 24]) {
+    const soundtrack = await assets.loadAiMediaSoundtrack("", { soundtrackId: id, durationSeconds });
+    const h = harness();
+    await h.runtime.persistAiMediaCompositionCheckpoint({ accountId, jobId, authUserId, input: { ...input, soundtrack }, metadata: { soundtrack } });
+    const storedAudio = [...h.objects.entries()].find(([key]) => key.endsWith("/soundtrack.wav"))![1];
+    const savedManifest = JSON.parse([...h.objects.entries()].find(([key]) => key.endsWith("/manifest.json"))![1].toString());
+    assert.equal(savedManifest.metadata.soundtrack_id, id);
+    assert.equal(createHash("sha256").update(storedAudio).digest("hex"), soundtrack.sha256);
+    assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status, "completed");
+    assert.deepEqual(h.composedSoundtrack, storedAudio);
+    assert.equal(h.composed!.soundtrack!.id, id);
+    assert.equal(h.composed!.soundtrack!.durationSeconds, durationSeconds);
+    assert.equal(h.composed!.soundtrack!.sha256, soundtrack.sha256);
+    assert.equal(h.composed!.soundtrack!.license, soundtrack.license);
+    const finalSoundtrack = h.metadata!.soundtrack as { id: string; sha256: string };
+    assert.equal(finalSoundtrack.id, id);
+    assert.equal(finalSoundtrack.sha256, soundtrack.sha256);
+    assert.ok(h.events.includes("complete"));
+  }
+});
+
+test("composition persistence rejects a forged asset path even for a registered current or historical ID", async () => {
+  const load = runtimeModules();
+  const assets = load<typeof import("../../lib/aiMediaGenerationSoundtracks.ts")>("lib/aiMediaGenerationSoundtracks.ts");
+  for (const id of ["cinema-inspirant", "piano-serein"]) {
+    const soundtrack = await assets.loadAiMediaSoundtrack("", { soundtrackId: id, durationSeconds: 24 });
+    const h = harness();
+    await assert.rejects(h.runtime.persistAiMediaCompositionCheckpoint({ accountId, jobId, authUserId, input: { ...input, soundtrack: { ...soundtrack, absolutePath: "/untrusted/signed-audio.wav" } }, metadata: {} }), /ai_media_composition_soundtrack_invalid/);
+    assert.ok(![...h.objects.keys()].some(key => key.endsWith("/soundtrack.wav")));
+    assert.ok(!h.events.includes("ready_ai_media_composition_checkpoint"));
+    assert.ok(!h.events.includes("compose"));
+    assert.ok(!h.events.includes("complete"));
+    assert.ok(h.events.includes("abandon_ai_media_composition_checkpoint"));
+  }
+});
+
+test("corrupt saved soundtrack bytes block recovery before composition, saving or charging", async () => {
+  const load = runtimeModules();
+  const assets = load<typeof import("../../lib/aiMediaGenerationSoundtracks.ts")>("lib/aiMediaGenerationSoundtracks.ts");
+  const soundtrack = await assets.loadAiMediaSoundtrack("", { soundtrackId: "piano-serein", durationSeconds: 24 });
+  const h = harness();
+  await h.runtime.persistAiMediaCompositionCheckpoint({ accountId, jobId, authUserId, input: { ...input, soundtrack }, metadata: {} });
+  const [key, bytes] = [...h.objects.entries()].find(([entry]) => entry.endsWith("/soundtrack.wav"))!;
+  const corrupted = Buffer.from(bytes); corrupted[corrupted.length - 1] ^= 1; h.objects.set(key, corrupted);
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status, "retry_pending");
+  assert.ok(!h.events.includes("compose"));
+  assert.ok(!h.events.includes("save"));
+  assert.ok(!h.events.includes("complete"));
 });

@@ -908,5 +908,6 @@
   "publication_music_reserved_hint": "仅限 Story 和 Reel",
   "publication_music_preview_choose": "选择一首音乐进行试听。",
   "publication_reel_duration_hint": "Reel：总计 {duration} 秒（每张图片 {secondsPerImage} 秒，包含转场）",
-  "publication_story_duration_hint": "Story：每张图片 {secondsPerImage} 秒"
+  "publication_story_duration_hint": "Story：每张图片 {secondsPerImage} 秒",
+  "publication_music_previous": "先前的选择"
 }

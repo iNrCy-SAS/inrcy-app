@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
-import { chromium } from "playwright";
+import { chromium, type Locator, type Page } from "playwright";
 import ts from "typescript";
 import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 import { normalizeMediaSoundtrackByChannel } from "../../lib/mediaSoundtrackSelection.ts";
@@ -29,7 +29,7 @@ HTMLMediaElement.prototype.pause=function(){window.audioEvents.push({kind:'pause
 HTMLMediaElement.prototype.load=function(){this.currentTime=0};
 window.fetch=async(url,options)=>{if(url!=='/api/booster/soundtracks'){window.otherCalls.push(url);throw Error('No generation, media upload or native publication request allowed')}window.catalogueCalls++;if(options.credentials!=='same-origin')throw Error('Catalogue must use same-origin credentials');return Response.json(window.catalogueFailure?{ok:false}: {ok:true,soundtracks:catalogue},{status:window.catalogueFailure?503:200})};
 let config={scopeKey:'actor:account-a',disabled:false,selectionLocked:false};
-function Fixture(props){const [id,setId]=React.useState(null);return React.createElement(Selector,{...props,soundtrackId:id,onChange:value=>{window.selectionEvents.push(value);setId(value)}})}
+function Fixture(props){const [id,setId]=React.useState(null);window.restoreSoundtrack=value=>setId(value);return React.createElement(Selector,{...props,soundtrackId:id,onChange:value=>{window.selectionEvents.push(value);setId(value)}})}
 function PairFixture(props){const [selection,setSelection]=React.useState({facebook:null,instagram:null});return React.createElement('div',null,['facebook','instagram'].map(channel=>React.createElement('section',{'data-music-channel':channel,key:channel},React.createElement(Selector,{...props,compact:true,channelLabel:channel==='facebook'?'Facebook':'Instagram',scopeKey:props.scopeKey+':'+channel,selectionLocked:props.lockedChannel===channel,soundtrackId:selection[channel],onChange:id=>{window.channelSelectionEvents.push({channel,id});setSelection(previous=>({...previous,[channel]:id}))}}))))}
 window.configure=patch=>{config={...config,...patch};root.render(React.createElement(config.paired?PairFixture:Fixture,config))};window.unmountFixture=()=>root.unmount();window.configure({});
 `;
@@ -37,38 +37,45 @@ const css=read("app/dashboard/_components/MediaSoundtrackSelector.module.css");
 // Match the application's reset instead of accidentally relying on the user
 // agent's dialog margin:auto, which hid the production top-left positioning bug.
 const html=`<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*,::before,::after{box-sizing:border-box;margin:0;padding:0}dialog{margin:0}${css}body{margin:0;padding:24px;background:#080c22;color:white;font:14px Arial}button,select{font-family:inherit}</style></head><body><div id="root"></div></body></html>`;
-type FixtureState={activeAudio:Set<HTMLAudioElement>;audioEvents:Array<{kind:string;src:string|null}>;selectionEvents:Array<string|null>;channelSelectionEvents:Array<{channel:string;id:string|null}>;catalogueCalls:number;otherCalls:string[];failPreview:boolean;catalogueFailure:boolean;maxPlaying:number;configure:(patch:Record<string,unknown>)=>void;unmountFixture:()=>void};
+type FixtureState={activeAudio:Set<HTMLAudioElement>;audioEvents:Array<{kind:string;src:string|null}>;selectionEvents:Array<string|null>;channelSelectionEvents:Array<{channel:string;id:string|null}>;catalogueCalls:number;otherCalls:string[];failPreview:boolean;catalogueFailure:boolean;maxPlaying:number;configure:(patch:Record<string,unknown>)=>void;restoreSoundtrack:(id:string)=>void;unmountFixture:()=>void};
 
-test("the real compact selector stays centered under the app reset, offers Auto plus 24 tracks and stops previews on every lifecycle boundary",async()=>{
+async function waitForCatalogue(page: Page) { await page.waitForFunction(expected => document.querySelector('dialog [role="listbox"]')?.querySelectorAll('[role="option"]').length === expected, catalogue.length + 1); }
+async function chooseTrack(dialog: Locator, id: string | null) {
+ const control=dialog.getByRole("combobox"); await control.click();
+ await dialog.getByRole("option",{name:id?catalogue.find(track=>track.id===id)!.label:"Auto",exact:true}).click();
+}
+async function selectedText(dialog: Locator) { return (await dialog.getByRole("combobox").textContent())?.trim(); }
+
+test("the real compact selector stays centered under the app reset, offers Auto plus the full catalogue and stops previews on every lifecycle boundary",async()=>{
  const browser=await chromium.launch({headless:true});
  try{for(const viewport of [{width:1280,height:900},{width:390,height:844}]){
   const page=await browser.newPage({viewport}),errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));await page.route("**/*",route=>route.abort());await page.setContent(html);await page.addScriptTag({content:fixture});
   const trigger=page.locator('button[aria-haspopup="dialog"]'),dialog=page.getByRole("dialog");await trigger.waitFor();
   assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).catalogueCalls),0);
-  await trigger.click();await dialog.waitFor();await page.waitForFunction(()=>document.querySelector('dialog select')?.querySelectorAll('option').length===25);
+  await trigger.click();await dialog.waitFor();await waitForCatalogue(page);
   const select=dialog.getByRole("combobox"),preview=dialog.locator(".preview");
-  assert.equal(await select.inputValue(),"");assert.equal(await dialog.getByRole("radio").count(),0);assert.equal(await preview.count(),1);assert.equal(await preview.isDisabled(),true);
+  assert.equal(await selectedText(dialog),"Auto");assert.equal(await dialog.getByRole("radio").count(),0);assert.equal(await preview.count(),1);assert.equal(await preview.isDisabled(),true);
   const bounds=await dialog.boundingBox();assert.ok(bounds);
   assert.ok(Math.abs(bounds.x+bounds.width/2-viewport.width/2)<=3,`Dialog must be horizontally centered after margin reset: ${JSON.stringify(bounds)}`);
   assert.ok(Math.abs(bounds.y+bounds.height/2-viewport.height/2)<=3,`Dialog must be vertically centered after margin reset: ${JSON.stringify(bounds)}`);
   assert.ok(bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=viewport.width+1&&bounds.y+bounds.height<=viewport.height+1);
-  assert.ok(bounds.height<=Math.min(600,viewport.height-24),"The collapsed 24-track list must fit in a compact modal");
-  assert.equal(await select.evaluate(element=>(element as HTMLSelectElement).size<=1),true);
+  assert.ok(bounds.height<=Math.min(600,viewport.height-24),"The collapsed music catalogue must fit in a compact modal");
+  assert.equal(await select.getAttribute("aria-expanded"),"false");
   assert.equal(await dialog.evaluate(element=>element.scrollWidth<=element.clientWidth+1),true);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   if(process.env.INRCY_MUSIC_LAYOUT_PROOF)await page.screenshot({path:`${process.env.INRCY_MUSIC_LAYOUT_PROOF}-${viewport.width}.png`});
-  await select.selectOption(catalogue[0].id);await preview.click();assert.equal(await preview.getAttribute("aria-pressed"),"true");
+  await chooseTrack(dialog,catalogue[0].id);await preview.click();assert.equal(await preview.getAttribute("aria-pressed"),"true");
   await preview.click();assert.equal(await preview.getAttribute("aria-pressed"),"false");assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),0);
-  await preview.click();await select.selectOption(catalogue[1].id);assert.equal(await preview.getAttribute("aria-pressed"),"false");assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),0);await preview.click();
+  await preview.click();await chooseTrack(dialog,catalogue[1].id);assert.equal(await preview.getAttribute("aria-pressed"),"false");assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),0);await preview.click();
   assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),1);assert.equal(await page.locator("audio").count(),1);
   assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).selectionEvents),[catalogue[0].id,catalogue[1].id]);
   await page.keyboard.press("Escape");await dialog.waitFor({state:"hidden"});
   assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),0);assert.equal(await trigger.evaluate(element=>element===document.activeElement),true);
-  await trigger.click();await dialog.waitFor();assert.equal(await select.inputValue(),catalogue[1].id);
+  await trigger.click();await dialog.waitFor();assert.equal(await selectedText(dialog),catalogue[1].label);
   assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).catalogueCalls),1,"A reopened selector retains its validated catalogue");
-  await select.selectOption("");assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).selectionEvents),[catalogue[0].id,catalogue[1].id,null]);assert.equal(await preview.isDisabled(),true);
-  await select.selectOption(catalogue[0].id);await preview.click();await page.evaluate(()=>(window as unknown as FixtureState).configure({scopeKey:"actor:account-b"}));await dialog.waitFor({state:"hidden"});
+  await chooseTrack(dialog,null);assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).selectionEvents),[catalogue[0].id,catalogue[1].id,null]);assert.equal(await preview.isDisabled(),true);
+  await chooseTrack(dialog,catalogue[0].id);await preview.click();await page.evaluate(()=>(window as unknown as FixtureState).configure({scopeKey:"actor:account-b"}));await dialog.waitFor({state:"hidden"});
   assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),0);
-  await trigger.click();await dialog.waitFor();await page.waitForFunction(()=>document.querySelector('dialog select')?.querySelectorAll('option').length===25);await preview.click();
+  await trigger.click();await dialog.waitFor();await waitForCatalogue(page);await preview.click();
   await page.evaluate(()=>(window as unknown as FixtureState).configure({disabled:true}));await dialog.waitFor({state:"hidden"});assert.equal(await trigger.isDisabled(),true);assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),0);
   await page.evaluate(()=>(window as unknown as FixtureState).configure({disabled:false,selectionLocked:true}));await trigger.click();await dialog.waitFor();
   assert.equal(await select.isDisabled(),true);
@@ -79,15 +86,57 @@ test("the real compact selector stays centered under the app reset, offers Auto 
  }}finally{await browser.close()}
 });
 
+test("the music menu opens downward inside the modal, exposes four rows and scrolls through all tracks with pointer or keyboard",async t=>{
+ const browser=await chromium.launch({headless:true});
+ try{for(const viewport of [{width:1280,height:900},{width:1280,height:720},{width:390,height:844},{width:844,height:390}]){
+  const page=await browser.newPage({viewport,hasTouch:true}),errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));await page.route("**/*",route=>route.abort());await page.setContent(html);await page.addScriptTag({content:fixture});
+  await page.locator('button[aria-haspopup="dialog"]').click();const dialog=page.getByRole("dialog");await dialog.waitFor();await waitForCatalogue(page);
+  const control=dialog.getByRole("combobox"),list=dialog.getByRole("listbox");await control.click();await list.waitFor();
+  const controlBounds=await control.boundingBox(),listBounds=await list.boundingBox(),dialogBounds=await dialog.boundingBox();assert.ok(controlBounds&&listBounds&&dialogBounds);
+  assert.ok(listBounds.y>=controlBounds.y+controlBounds.height,"The menu always unfolds below its control, never upward");
+  assert.ok(listBounds.x>=dialogBounds.x&&listBounds.x+listBounds.width<=dialogBounds.x+dialogBounds.width&&listBounds.y>=dialogBounds.y&&listBounds.y+listBounds.height<=dialogBounds.y+dialogBounds.height,"The entire dropdown remains inside the modal");
+  assert.ok(listBounds.y>=0&&listBounds.y+listBounds.height<=viewport.height,"The dropdown cannot extend outside the screen");
+  assert.ok(listBounds.height<=176,"At most four full music rows and a small scroll cue are visible");
+  const dimensions=await list.evaluate(element=>({client:element.clientHeight,scroll:element.scrollHeight,visible:[...element.children].filter(option=>{const row=option.getBoundingClientRect(),box=element.getBoundingClientRect();return row.top>=box.top&&row.bottom<=box.bottom}).length}));
+  assert.ok(dimensions.scroll>dimensions.client,"All catalogue choices are available through an internal scrollbar");assert.ok(dimensions.visible<=4);if(viewport.height>=720)assert.equal(dimensions.visible,4);
+  assert.equal(await dialog.locator("select").count(),0,"The operating system cannot replace this bounded list with an oversized native popup");
+  await control.press("End");assert.ok(await list.evaluate(element=>element.scrollTop>0));await control.press("Enter");await list.waitFor({state:"hidden"});assert.equal(await selectedText(dialog),catalogue.at(-1)!.label);
+  assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).selectionEvents),[catalogue.at(-1)!.id]);
+  await control.click();await control.press("Home");await control.press("ArrowDown");await control.press("Enter");assert.equal(await selectedText(dialog),catalogue[0].label);
+  await control.click();await control.press("Escape");assert.equal(await dialog.isVisible(),true,"Escape first dismisses only the dropdown");assert.equal(await control.getAttribute("aria-expanded"),"false");assert.equal(await control.evaluate(element=>element===document.activeElement),true);
+  await control.click();await page.keyboard.type(catalogue[2].label.slice(0,3));await control.press("Enter");assert.equal(await selectedText(dialog),catalogue[2].label,"Typing a track prefix moves to that choice without selecting it before Enter");
+  await control.click();const target=dialog.getByRole("option",{name:catalogue[1].label,exact:true});await target.scrollIntoViewIfNeeded();const targetBounds=await target.boundingBox();assert.ok(targetBounds);await page.touchscreen.tap(targetBounds.x+targetBounds.width/2,targetBounds.y+targetBounds.height/2);assert.equal(await selectedText(dialog),catalogue[1].label);
+  t.diagnostic(JSON.stringify({viewport,list:listBounds,visibleRows:dimensions.visible}));await control.click();if(process.env.INRCY_MUSIC_DROPDOWN_PROOF)await page.screenshot({path:`${process.env.INRCY_MUSIC_DROPDOWN_PROOF}-${viewport.width}-${viewport.height}.png`});
+  await control.press("Escape");await control.press("Escape");await dialog.waitFor({state:"hidden"});assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).otherCalls),[]);await page.close();
+ }}finally{await browser.close()}
+});
+
+test("a saved track outside the current catalogue remains explicit and unchanged until an enabled choice is selected",async()=>{
+ const browser=await chromium.launch({headless:true});
+ try{
+  const page=await browser.newPage();await page.route("**/*",route=>route.abort());await page.setContent(html);await page.addScriptTag({content:fixture});
+  await page.evaluate(()=>(window as unknown as FixtureState).restoreSoundtrack("legacy-saved-track"));await page.locator('button[aria-haspopup="dialog"]').click();const dialog=page.getByRole("dialog");await dialog.waitFor();
+  await page.waitForFunction(expected=>document.querySelector('dialog [role="listbox"]')?.querySelectorAll('[role="option"]').length===expected,catalogue.length+2);
+  const marker=JSON.parse(read("messages/fr-FR/booster.json")).publication_music_previous;assert.equal(await selectedText(dialog),marker);
+  assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).selectionEvents),[],"A catalogue update cannot silently replace a saved soundtrack");
+  const control=dialog.getByRole("combobox");await control.click();assert.equal(await dialog.getByRole("option",{name:marker,exact:true}).getAttribute("aria-disabled"),"true");
+  await control.press("Home");await control.press("ArrowDown");await control.press("Enter");assert.equal(await selectedText(dialog),catalogue[0].label,"Keyboard navigation skips the unavailable marker");
+  assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).selectionEvents),[catalogue[0].id]);
+  await page.evaluate(()=>(window as unknown as FixtureState).restoreSoundtrack("legacy-saved-track"));await page.evaluate(()=>(window as unknown as FixtureState).configure({selectionLocked:true}));await page.waitForFunction(()=>document.querySelector('dialog [role="combobox"]')?.matches(':disabled'));
+  assert.equal(await control.isDisabled(),true);assert.equal(await selectedText(dialog),marker);assert.equal(await dialog.locator(".preview").isDisabled(),true);assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).selectionEvents),[catalogue[0].id]);
+  assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).otherCalls),[]);await page.close();
+ }finally{await browser.close()}
+});
+
 test("preview or catalogue failures remain local and cannot trigger generation or publish requests",async()=>{
  const browser=await chromium.launch({headless:true});
  try{
   const page=await browser.newPage();await page.route("**/*",route=>route.abort());await page.setContent(html);await page.addScriptTag({content:fixture});
-  await page.locator('button[aria-haspopup="dialog"]').click();const dialog=page.getByRole("dialog");await dialog.waitFor();await page.waitForFunction(()=>document.querySelector('dialog select')?.querySelectorAll('option').length===25);
-  await dialog.getByRole("combobox").selectOption(catalogue[0].id);await page.evaluate(()=>(window as unknown as FixtureState).failPreview=true);await dialog.locator(".preview").click();await dialog.getByRole("alert").waitFor();
+  await page.locator('button[aria-haspopup="dialog"]').click();const dialog=page.getByRole("dialog");await dialog.waitFor();await waitForCatalogue(page);
+  await chooseTrack(dialog,catalogue[0].id);await page.evaluate(()=>(window as unknown as FixtureState).failPreview=true);await dialog.locator(".preview").click();await dialog.getByRole("alert").waitFor();
   assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),0);assert.equal(await dialog.locator('.preview[aria-pressed="true"]').count(),0);
   await dialog.locator("header button").click();await page.evaluate(()=>{const fixture=window as unknown as FixtureState;fixture.catalogueFailure=true;fixture.configure({scopeKey:"failed-catalogue"})});
-  await page.locator('button[aria-haspopup="dialog"]').click();await dialog.waitFor();await dialog.getByRole("alert").waitFor();assert.equal(await dialog.locator("select option").count(),2);assert.equal(await dialog.locator(`select option[value="${catalogue[0].id}"]`).isDisabled(),true,"A failed reload retains the saved selection marker without offering an unverified track");assert.equal(await dialog.locator(".preview").isDisabled(),true);
+  await page.locator('button[aria-haspopup="dialog"]').click();await dialog.waitFor();await dialog.getByRole("alert").waitFor();await dialog.getByRole("combobox").click();assert.equal(await dialog.getByRole("option").count(),2);assert.equal(await dialog.getByRole("option",{name:JSON.parse(read("messages/fr-FR/booster.json")).publication_music_selected,exact:true}).getAttribute("aria-disabled"),"true","A failed reload retains the saved selection marker without offering an unverified track");assert.equal(await dialog.locator(".preview").isDisabled(),true);
   assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).selectionEvents),[catalogue[0].id]);assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).otherCalls),[]);
   await page.close();
  }finally{await browser.close()}
@@ -98,13 +147,13 @@ test("Facebook and Instagram selectors preserve independent choices and only one
  try{for(const viewport of [{width:1280,height:900},{width:390,height:844}]){
   const page=await browser.newPage({viewport}),errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));await page.route("**/*",route=>route.abort());await page.setContent(html);await page.addScriptTag({content:fixture});await page.evaluate(()=>(window as unknown as FixtureState).configure({paired:true}));
   const facebook=page.locator('[data-music-channel="facebook"] button[aria-haspopup="dialog"]'),instagram=page.locator('[data-music-channel="instagram"] button[aria-haspopup="dialog"]');await facebook.waitFor();
-  await facebook.click();let dialog=page.getByRole("dialog");await page.waitForFunction(()=>document.querySelector('dialog select')?.querySelectorAll('option').length===25);
-  await dialog.getByRole("combobox").selectOption(catalogue[0].id);await dialog.locator(".preview").click();assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),1);
+  await facebook.click();let dialog=page.getByRole("dialog");await waitForCatalogue(page);
+  await chooseTrack(dialog,catalogue[0].id);await dialog.locator(".preview").click();assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),1);
   await instagram.evaluate(element=>(element as HTMLButtonElement).click());await page.waitForFunction(()=>document.querySelector('dialog[open] h2')?.textContent?.includes('Instagram'));
   assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),0,"Opening the other channel stops and closes the first preview");assert.equal(await page.locator('dialog[open]').count(),1);
-  dialog=page.getByRole("dialog");await page.waitForFunction(()=>document.querySelector('dialog select')?.querySelectorAll('option').length===25);await dialog.getByRole("combobox").selectOption(catalogue[1].id);await dialog.locator(".preview").click();
-  await dialog.locator("header button").click();await facebook.click();dialog=page.getByRole("dialog");assert.equal(await dialog.getByRole("combobox").inputValue(),catalogue[0].id);await dialog.locator("header button").click();
-  await instagram.click();dialog=page.getByRole("dialog");assert.equal(await dialog.getByRole("combobox").inputValue(),catalogue[1].id);await dialog.getByRole("combobox").selectOption("");await dialog.locator("header button").click();
+  dialog=page.getByRole("dialog");await waitForCatalogue(page);await chooseTrack(dialog,catalogue[1].id);await dialog.locator(".preview").click();
+  await dialog.locator("header button").click();await facebook.click();dialog=page.getByRole("dialog");assert.equal(await selectedText(dialog),catalogue[0].label);await dialog.locator("header button").click();
+  await instagram.click();dialog=page.getByRole("dialog");assert.equal(await selectedText(dialog),catalogue[1].label);await chooseTrack(dialog,null);await dialog.locator("header button").click();
   assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).channelSelectionEvents),[{channel:"facebook",id:catalogue[0].id},{channel:"instagram",id:catalogue[1].id},{channel:"instagram",id:null}]);
   await page.evaluate(()=>(window as unknown as FixtureState).configure({lockedChannel:"facebook"}));await facebook.click();dialog=page.getByRole("dialog");assert.equal(await dialog.getByRole("combobox").isDisabled(),true);await dialog.locator("header button").click();await instagram.click();dialog=page.getByRole("dialog");assert.equal(await dialog.getByRole("combobox").isDisabled(),false);await dialog.locator("header button").click();
   assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).maxPlaying),1);assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),0);assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).otherCalls),[]);assert.deepEqual(errors,[]);await page.close();

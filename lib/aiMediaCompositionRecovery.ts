@@ -8,7 +8,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { composeOriginalAiVideo } from "@/lib/aiMediaGeneratedVideo";
 import { getExistingGeneratedAiMedia, saveGeneratedAiMediaDraft } from "@/lib/aiGeneratedMediaRegistry";
 import { completeAiMediaGeneration, expireAiMediaGenerationReservations } from "@/lib/aiMediaGenerationQuota";
-import { AI_MEDIA_SOUNDTRACKS } from "@/lib/aiMediaSoundtrackCatalog";
+import { findAiMediaSoundtrack, getAiMediaSoundtrackAssetRelativePath } from "@/lib/aiMediaSoundtrackCatalog";
 import { inspectAiMediaVideoBufferLocally } from "@/lib/aiMediaVideoLocalQa";
 
 export type AiMediaCompositionInput = Omit<Parameters<typeof composeOriginalAiVideo>[0], "signal">;
@@ -61,7 +61,8 @@ function safeMetadata(input: Record<string, unknown>) {
   for (const key of ["native_character_dialogue_preserved", "native_voiceover_preserved"]) if (typeof input[key] === "boolean") output[key] = input[key];
   if (typeof input.estimated_cost_micro_usd === "number" && Number.isSafeInteger(input.estimated_cost_micro_usd) && input.estimated_cost_micro_usd >= 0) output.estimated_cost_micro_usd = input.estimated_cost_micro_usd;
   const soundtrack = input.soundtrack as { id?: unknown } | undefined;
-  if (typeof soundtrack?.id === "string" && AI_MEDIA_SOUNDTRACKS.some(s => s.id === soundtrack.id)) output.soundtrack_id = soundtrack.id;
+  const definition = findAiMediaSoundtrack(soundtrack?.id);
+  if (definition) output.soundtrack_id = definition.id;
   if (input.pipeline_timings_ms && typeof input.pipeline_timings_ms === "object") {
     output.pipeline_timings_ms = Object.fromEntries(Object.entries(input.pipeline_timings_ms).filter(([key, value]) =>
       /^[a-z0-9_]{1,80}$/i.test(key) && typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 3_600_000));
@@ -124,8 +125,9 @@ export async function persistAiMediaCompositionCheckpoint(args: {
     if (args.input.soundtrack) {
       stage = "soundtrack";
       const track = args.input.soundtrack;
-      const expectedPath = path.resolve(process.cwd(), "assets", "media-generation", "soundtracks", `${track.id}-${track.durationSeconds}s.wav`);
-      if (!AI_MEDIA_SOUNDTRACKS.some(s => s.id === track.id) || path.resolve(track.absolutePath) !== expectedPath) throw new Error("ai_media_composition_soundtrack_invalid");
+      if (!findAiMediaSoundtrack(track.id) || ![8,16,24].includes(track.durationSeconds)) throw new Error("ai_media_composition_soundtrack_invalid");
+      const expectedPath = path.resolve(process.cwd(), "assets", "media-generation", "soundtracks", getAiMediaSoundtrackAssetRelativePath(track.id, track.durationSeconds));
+      if (path.resolve(track.absolutePath) !== expectedPath) throw new Error("ai_media_composition_soundtrack_invalid");
       const audio = await readFile(expectedPath);
       if (hash(audio) !== track.sha256) throw new Error("ai_media_composition_soundtrack_changed");
       soundtrack = { ...await upload("soundtrack.wav", audio, "audio/wav"), id: track.id, durationSeconds: track.durationSeconds };
@@ -212,7 +214,7 @@ export async function recoverNextAiMediaCompositionCheckpoint(): Promise<AiMedia
     let soundtrack: AiMediaCompositionInput["soundtrack"] = null;
     if (manifest.soundtrack) {
       const track = manifest.soundtrack;
-      const definition = AI_MEDIA_SOUNDTRACKS.find(s => s.id === track.id);
+      const definition = findAiMediaSoundtrack(track.id);
       if (!definition || ![8,16,24].includes(track.durationSeconds)) throw new Error("ai_media_composition_soundtrack_invalid");
       directory = await mkdtemp(path.join(tmpdir(), "inrcy-composition-recovery-"));
       const absolutePath = path.join(directory, "soundtrack.wav");

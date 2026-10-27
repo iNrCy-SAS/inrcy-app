@@ -14,7 +14,7 @@ const execute = promisify(execFile);
 test("five four-second Stories and one fifteen-second Reel preserve the same original music asset and cached retries", { timeout: 240_000 }, async () => {
   const actual = runtimeModules();
   const { loadAiMediaSoundtrack } = actual<typeof import("../../lib/aiMediaGenerationSoundtracks.ts")>("lib/aiMediaGenerationSoundtracks.ts");
-  const desiredSoundtrackId = "nocturne-elegant";
+  const desiredSoundtrackId = "jazz-velours";
   const soundtrack = await loadAiMediaSoundtrack("Une ambiance chaleureuse pour un café artisanal", { selectionKey: "one-stable-story-series", durationSeconds: 24, soundtrackId: desiredSoundtrackId });
   assert.equal(soundtrack.id, desiredSoundtrackId);
   const media = new Map<string, { bytes: Buffer; type: string }>();

@@ -39,8 +39,8 @@ function series(){
  return {rows,renders,native,loads,args,fail(index:number){failAt=index},run(overrides:Partial<Omit<typeof args,"channel">>&{channel?:"facebook"|"instagram";soundtrackId?:string|null;resumeRef?:unknown}={}){return api.publishPersistedMetaStorySequence({...args,...overrides})},get databaseCalls(){return databaseCalls},get leaseCalls(){return leaseCalls}};
 }
 
-test("the public catalogue contains 24 bundled tracks and only exact IDs or Auto are accepted",()=>{
- const catalogue=soundtracks.getBoosterSoundtrackCatalog();assert.equal(catalogue.length,24);assert.equal(new Set(catalogue.map(track=>track.id)).size,24);
+test("the public catalogue contains 30 current bundled tracks and only registered current or saved legacy IDs or Auto are accepted",()=>{
+ const catalogue=soundtracks.getBoosterSoundtrackCatalog();assert.equal(catalogue.length,30);assert.equal(new Set(catalogue.map(track=>track.id)).size,30);
  assert.equal(soundtracks.normalizeBoosterSoundtrackId(undefined),null);assert.equal(soundtracks.normalizeBoosterSoundtrackId(null),null);
  for(const track of catalogue){assert.equal(soundtracks.normalizeBoosterSoundtrackId(track.id),track.id);assert.equal(track.durationSeconds,24);assert.equal(track.audioPreview,`/api/booster/soundtracks/${track.id}/preview?v=24`);assert.ok(track.label&&track.description);assert.deepEqual(Object.keys(track).sort(),["audioPreview","description","durationSeconds","id","label"])}
  for(const invalid of ["",`${manualId} `,manualId.toUpperCase(),"../secret","https://attacker.invalid/audio.wav",{},[],12])assert.throws(()=>soundtracks.normalizeBoosterSoundtrackId(invalid),/booster_soundtrack_invalid/);
@@ -63,7 +63,7 @@ test("channel choices reject unknown channels and malformed values, while explic
 test("catalogue and preview routes return actual original WAV assets and reject traversal before filesystem access",async()=>{
  const load=runtimeModules({"next/server":{NextResponse:{json:(body:unknown,options?:ResponseInit)=>Response.json(body,options)}}});
  const catalog=load<typeof import("../../app/api/booster/soundtracks/route.ts")>("app/api/booster/soundtracks/route.ts");
- const response=await catalog.GET();assert.equal(response.status,200);assert.equal((await response.json()).soundtracks.length,24);
+ const response=await catalog.GET();assert.equal(response.status,200);assert.equal((await response.json()).soundtracks.length,30);
  const preview=load<typeof import("../../app/api/booster/soundtracks/[id]/preview/route.ts")>("app/api/booster/soundtracks/[id]/preview/route.ts");
  const audio=await preview.GET(new Request("https://fixture.invalid"),{params:Promise.resolve({id:manualId})});assert.equal(audio.status,200);assert.equal(audio.headers.get("content-type"),"audio/wav");assert.equal(audio.headers.get("x-content-type-options"),"nosniff");
  const bytes=Buffer.from(await audio.arrayBuffer());assert.equal(bytes.toString("ascii",0,4),"RIFF");assert.equal(bytes.toString("ascii",8,12),"WAVE");

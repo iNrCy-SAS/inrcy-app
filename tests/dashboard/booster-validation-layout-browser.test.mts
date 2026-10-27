@@ -138,11 +138,11 @@ test("Meta cards always show music, explain Classic or imported video restrictio
   assert.equal(await page.getByRole("dialog").count(),0);assert.equal(await page.evaluate(()=>(window as unknown as {catalogueCalls:number}).catalogueCalls),0,"Unavailable cards cannot request a catalogue or open a chooser");
   await page.evaluate(()=>(window as unknown as {renderFixture:(count:number,patch:Record<string,unknown>)=>void}).renderFixture(3,{modes:{facebook:"images",instagram:"images"},eligible:{facebook:true,instagram:true}}));
   await page.waitForFunction(()=>document.querySelector('[data-channel="facebook"] button[aria-haspopup="dialog"]')?.getAttribute("aria-disabled")!=="true");
-  await facebook.click();const dialog=page.getByRole("dialog");await dialog.waitFor();await page.waitForFunction(()=>document.querySelector('dialog select')?.querySelectorAll('option').length===25);
+  await facebook.click();const dialog=page.getByRole("dialog");await dialog.waitFor();await page.waitForFunction(expected=>document.querySelector('dialog [role="listbox"]')?.querySelectorAll('[role="option"]').length===expected,catalogue.length+1);
   const bounds=await dialog.boundingBox();assert.ok(bounds);assert.ok(Math.abs(bounds.x+bounds.width/2-viewport.width/2)<=3);assert.ok(Math.abs(bounds.y+bounds.height/2-viewport.height/2)<=3);
-  assert.ok(bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=viewport.width+1&&bounds.y+bounds.height<=viewport.height+1);assert.ok(bounds.height<=400,"A native collapsed select keeps the modal compact");
+  assert.ok(bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=viewport.width+1&&bounds.y+bounds.height<=viewport.height+1);assert.ok(bounds.height<=400,"A collapsed music picker keeps the modal compact");
   assert.equal(await page.locator('dialog input[type="radio"]').count(),0);assert.equal(await dialog.locator('button[aria-pressed]').count(),1);assert.equal(await dialog.evaluate(element=>element.scrollWidth<=element.clientWidth+1),true);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-  if(process.env.INRCY_VALIDATION_LAYOUT_PROOF)await page.screenshot({path:`${process.env.INRCY_VALIDATION_LAYOUT_PROOF}-music-${viewport.width}.png`});
+  if(process.env.INRCY_VALIDATION_LAYOUT_PROOF){await page.screenshot({path:`${process.env.INRCY_VALIDATION_LAYOUT_PROOF}-music-${viewport.width}.png`});await dialog.getByRole("combobox").click();await page.screenshot({path:`${process.env.INRCY_VALIDATION_LAYOUT_PROOF}-music-open-${viewport.width}.png`});await page.keyboard.press("Escape");}
   await dialog.locator("header button").click();assert.deepEqual(errors,[]);assert.equal(await page.evaluate(()=>(window as unknown as {nativeCalls:number}).nativeCalls),0);await page.close();
  }}finally{await browser.close()}
 });

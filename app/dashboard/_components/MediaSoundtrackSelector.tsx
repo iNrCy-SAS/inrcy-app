@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { parseMediaSoundtrackOptions, type MediaSoundtrackOption } from "@/lib/mediaSoundtrackSelection";
@@ -20,19 +20,24 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
   const [loadError, setLoadError] = useState(false);
   const [previewError, setPreviewError] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [listOpen, setListOpen] = useState(false);
+  const [activeChoice, setActiveChoice] = useState(0);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const playingRef = useRef<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const loadedScopeRef = useRef<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const searchRef = useRef({ text: "", at: 0 });
   const stopPreview = useCallback(() => {
     playingRef.current = null;
     const audio = audioRef.current;
     if (audio) { audio.pause(); audio.removeAttribute("src"); audio.load(); }
     setPlayingId(null);
   }, []);
-  const close = useCallback(() => { stopPreview(); setOpen(false); setShowUnavailableHint(false); }, [stopPreview]);
+  const close = useCallback(() => { stopPreview(); setListOpen(false); setOpen(false); setShowUnavailableHint(false); }, [stopPreview]);
   const activate = () => window.dispatchEvent(new CustomEvent(ACTIVATION_EVENT, { detail: titleId }));
 
   useEffect(() => {
@@ -42,7 +47,7 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
   }, [titleId, close]);
 
   useEffect(() => {
-    stopPreview(); setOpen(false); setShowUnavailableHint(false); setTracks([]); setLoadError(false); setPreviewError(false);
+    stopPreview(); setListOpen(false); setOpen(false); setShowUnavailableHint(false); setTracks([]); setLoadError(false); setPreviewError(false);
     loadedScopeRef.current = null;
     controllerRef.current?.abort(); controllerRef.current = null;
     const audio = audioRef.current;
@@ -52,9 +57,9 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
     };
   }, [scopeKey, stopPreview]);
 
-  useEffect(() => { stopPreview(); setPreviewError(false); }, [soundtrackId, stopPreview]);
+  useEffect(() => { stopPreview(); setListOpen(false); setPreviewError(false); }, [soundtrackId, stopPreview]);
   useEffect(() => { if (disabled || unavailableHint) close(); }, [disabled, unavailableHint, close]);
-  useEffect(() => { if (selectionLocked) stopPreview(); }, [selectionLocked, stopPreview]);
+  useEffect(() => { if (selectionLocked) { stopPreview(); setListOpen(false); } }, [selectionLocked, stopPreview]);
 
   useEffect(() => {
     if (!showUnavailableHint) return;
@@ -101,7 +106,54 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
     catch { if (playingRef.current === track.id) { stopPreview(); setPreviewError(true); } }
   };
   const selected = tracks.find(track => track.id === soundtrackId);
-  const selectedLabel = soundtrackId ? selected?.label || t("publication_music_selected") : t("publication_music_auto");
+  const previousSelection = soundtrackId && !selected && tracks.length > 0 && !loading && !loadError;
+  const savedSelectionLabel = t(previousSelection ? "publication_music_previous" : "publication_music_selected");
+  const selectedLabel = soundtrackId ? selected?.label || savedSelectionLabel : t("publication_music_auto");
+  const choices = [
+    { id: null, label: t("publication_music_auto"), disabled: false },
+    ...(soundtrackId && !selected ? [{ id: soundtrackId, label: savedSelectionLabel, disabled: true }] : []),
+    ...tracks.map(track => ({ id: track.id, label: track.label, disabled: false })),
+  ];
+  const listId = `${selectionId}-list`;
+  const openList = () => { searchRef.current = { text: "", at: 0 }; setActiveChoice(Math.max(0, choices.findIndex(choice => choice.id === soundtrackId))); setListOpen(true); };
+  const pickChoice = (index: number) => { const choice = choices[index]; if (!choice || choice.disabled) return; choose(choice.id); setListOpen(false); };
+  const moveChoice = (direction: number, edge?: "first" | "last") => {
+    let next = edge === "first" ? 0 : edge === "last" ? choices.length - 1 : activeChoice;
+    for (let step = 0; step < choices.length; step++) {
+      if (!edge || step > 0) next = (next + direction + choices.length) % choices.length;
+      if (!choices[next].disabled) { setActiveChoice(next); break; }
+    }
+  };
+  const pickerKey = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (["ArrowDown", "ArrowUp", "Home", "End", "Enter", " ", "Escape"].includes(event.key)) {
+      if (event.key === "Escape") { if (listOpen) { event.preventDefault(); event.stopPropagation(); setListOpen(false); } return; }
+      event.preventDefault(); event.stopPropagation();
+      if (event.key === "Enter" || event.key === " ") { if (listOpen) pickChoice(activeChoice); else openList(); return; }
+      if (!listOpen) { openList(); if (event.key === "Home") moveChoice(1, "first"); if (event.key === "End") moveChoice(-1, "last"); return; }
+      moveChoice(event.key === "ArrowUp" || event.key === "End" ? -1 : 1, event.key === "Home" ? "first" : event.key === "End" ? "last" : undefined);
+      return;
+    }
+    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault();
+      const now = Date.now(), text = `${now - searchRef.current.at < 700 ? searchRef.current.text : ""}${event.key.toLocaleLowerCase()}`;
+      searchRef.current = { text, at: now };
+      const index = choices.findIndex(choice => !choice.disabled && choice.label.toLocaleLowerCase().startsWith(text));
+      if (index >= 0) { setListOpen(true); setActiveChoice(index); }
+    }
+  };
+  useEffect(() => {
+    if (!listOpen) return;
+    const dismiss = (event: PointerEvent) => { if (event.target instanceof Node && !pickerRef.current?.contains(event.target)) setListOpen(false); };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, [listOpen]);
+  useEffect(() => {
+    if (!listOpen) return;
+    const list = listRef.current, option = list?.children[activeChoice] as HTMLElement | undefined;
+    if (!list || !option) return;
+    if (option.offsetTop < list.scrollTop) list.scrollTop = option.offsetTop;
+    else if (option.offsetTop + option.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = option.offsetTop + option.offsetHeight - list.clientHeight;
+  }, [listOpen, activeChoice]);
   const title = channelLabel ? `${t("publication_music_label")} · ${channelLabel}` : t("publication_music_title");
   const hintId = `${titleId}-unavailable`;
   return <span className={styles.root}
@@ -117,9 +169,9 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
     </button>
     {unavailableHint ? <span id={hintId} role="tooltip" className={styles.unavailableHint} hidden={!showUnavailableHint}>{unavailableHint}</span> : null}
     <audio ref={audioRef} preload="none" onEnded={() => { playingRef.current = null; setPlayingId(null); }} />
-    {open && typeof document !== "undefined" ? createPortal(<dialog ref={dialogRef} className={styles.dialog} style={channelStyle} aria-labelledby={titleId}
-      onCancel={event => { event.preventDefault(); event.stopPropagation(); close(); }}
-      onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); } }}
+    {open && typeof document !== "undefined" ? createPortal(<dialog ref={dialogRef} className={styles.dialog} data-picker-open={listOpen} style={channelStyle} aria-labelledby={titleId}
+      onCancel={event => { event.preventDefault(); event.stopPropagation(); if (listOpen) setListOpen(false); else close(); }}
+      onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); if (listOpen) setListOpen(false); else close(); } }}
       onClick={event => { if (event.target === event.currentTarget) close(); }}>
       <header className={styles.header}><h2 id={titleId}>{title}</h2><button type="button" className={styles.close} onClick={close} aria-label={t("publication_music_close")}>×</button></header>
       <p className={styles.description}>{t("publication_music_scope")}</p>
@@ -127,11 +179,21 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
       <fieldset className={styles.options} disabled={disabled || selectionLocked || Boolean(unavailableHint)}>
         <legend className={styles.srOnly}>{t("publication_music_title")}</legend>
         <div className={styles.selection}>
-          <select id={selectionId} aria-label={t("publication_music_label")} value={soundtrackId || ""} disabled={loading} onChange={event => choose(event.currentTarget.value || null)}>
-            <option value="">{t("publication_music_auto")}</option>
-            {soundtrackId && !selected ? <option value={soundtrackId} disabled>{t("publication_music_selected")}</option> : null}
-            {tracks.map(track => <option key={track.id} value={track.id}>{track.label}</option>)}
-          </select>
+          <div className={styles.picker} ref={pickerRef}>
+            <button id={selectionId} type="button" className={styles.combobox} role="combobox" aria-label={t("publication_music_label")}
+              aria-controls={listId} aria-expanded={listOpen} aria-haspopup="listbox" aria-autocomplete="none"
+              aria-activedescendant={listOpen ? `${selectionId}-choice-${activeChoice}` : undefined} disabled={loading}
+              onClick={() => { if (listOpen) setListOpen(false); else openList(); }} onKeyDown={pickerKey}
+              onBlur={() => setListOpen(false)}>
+              <span>{selectedLabel}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+            </button>
+            <ul ref={listRef} id={listId} role="listbox" aria-label={t("publication_music_label")} className={styles.trackList} hidden={!listOpen}>
+              {choices.map((choice, index) => <li key={choice.id || "auto"} id={`${selectionId}-choice-${index}`} role="option"
+                aria-selected={soundtrackId === choice.id} aria-disabled={choice.disabled || undefined} data-active={activeChoice === index}
+                onMouseDown={event => event.preventDefault()} onPointerMove={event => { if (event.pointerType === "mouse" && !choice.disabled) setActiveChoice(index); }}
+                onClick={() => pickChoice(index)}>{choice.label}<span aria-hidden="true">{soundtrackId === choice.id ? "✓" : ""}</span></li>)}
+            </ul>
+          </div>
           <button type="button" className={styles.preview} disabled={!selected}
             aria-label={selected ? t(playingId === selected.id ? "publication_music_stop_track" : "publication_music_preview_track", { name: selected.label }) : t("publication_music_preview_choose")}
             aria-pressed={Boolean(selected && playingId === selected.id)} onClick={() => { if (selected) void preview(selected); }}>{selected && playingId === selected.id ? "■" : "▶"}</button>

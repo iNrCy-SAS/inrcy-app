@@ -6,7 +6,8 @@ import path from "node:path";
 
 import {
   selectAiMediaSoundtrack,
-  AI_MEDIA_SOUNDTRACKS,
+  findAiMediaSoundtrack,
+  getAiMediaSoundtrackAssetRelativePath,
   type AiMediaSoundtrackDefinition,
   type AiMediaSoundtrackDuration,
   type AiMediaSoundtrackSelectionOptions,
@@ -35,12 +36,12 @@ export async function loadAiMediaSoundtrack(
   prompt: string,
   options: AiMediaSoundtrackLoadOptions = {},
 ): Promise<LoadedAiMediaSoundtrack> {
-  const definition = options.soundtrackId ? AI_MEDIA_SOUNDTRACKS.find(track => track.id === options.soundtrackId) : selectAiMediaSoundtrack(prompt, options);
+  const definition = options.soundtrackId ? findAiMediaSoundtrack(options.soundtrackId) : selectAiMediaSoundtrack(prompt, options);
   if (!definition) throw new Error("ai_soundtrack_id_invalid");
   const requestedDuration = options.durationSeconds ?? 24;
   // The compositor loops/trims this original asset to the requested duration.
   const durationSeconds = requestedDuration <= 8 ? 8 : requestedDuration <= 16 ? 16 : 24;
-  const fileName = `${definition.id}-${durationSeconds}s.wav`;
+  const fileName = getAiMediaSoundtrackAssetRelativePath(definition.id, durationSeconds);
   const absolutePath = path.join(
     process.cwd(),
     "assets",

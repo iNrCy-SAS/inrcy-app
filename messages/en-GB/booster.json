@@ -908,5 +908,6 @@
   "publication_music_reserved_hint": "For Stories and Reels only",
   "publication_music_preview_choose": "Choose a track to preview it.",
   "publication_reel_duration_hint": "Reel: {duration} s in total ({secondsPerImage} s per image, including transitions)",
-  "publication_story_duration_hint": "Story: {secondsPerImage} s per image"
+  "publication_story_duration_hint": "Story: {secondsPerImage} s per image",
+  "publication_music_previous": "Previous selection"
 }
