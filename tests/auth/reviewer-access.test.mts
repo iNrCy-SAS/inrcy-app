@@ -66,7 +66,7 @@ test("USER/staff cannot enter reviewer pilots, and reviewer does not authorize a
     assert.equal((await roles.getMyRole()).isReviewer, true, "classification stays generic while pilot eligibility is narrow");
     assert.equal(await gate.isMetaChannelPilotEnabledForActorAndAccount(accountDatabase, accountId), false);
   }
-  assert.equal(isMetaChannelPilotEnabled(false), false);
+  assert.equal(isMetaChannelPilotEnabled(false), true, "Public channel availability grants no reviewer/admin privileges");
 });
 
 test("Role read errors and user-editable metadata cannot grant reviewer or admin permissions", async () => {

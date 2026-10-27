@@ -683,7 +683,7 @@ test("Instagram repair belongs to reconnecting and preserves the chosen authenti
     const h = runtime("app/dashboard/_components/DashboardChannelWorkspace.tsx", { "./DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ metaPilotEnabled: true }) } });
     const tree = h.render("default", { item: { ...item, key: "instagram", bubbleStatus: "reconnect" }, instagramPanelProps: { igAccounts: [], instagramAuthMode: direct ? "instagram_login" : "facebook_login", connectInstagramAccount: (options: unknown) => calls.push(options), connectInstagramDirectAccount: () => calls.push("direct") } });
     const connection = nodes(tree).find(node => node.props.item?.connection)!.props.item.connection;
-    connection.connectOptions.find((option: Props) => option.label === (direct ? "Connexion Instagram" : "Via Facebook")).onConnect();
+    connection.connectOptions.find((option: Props) => option.label === (direct ? labels.directConnection : labels.classicConnection)).onConnect();
     assert.deepEqual(calls, direct ? ["direct"] : [{ repair: true }]);
   }
 });

@@ -54,11 +54,11 @@ function bubbleArgs(enabled: boolean) {
     inrBadgePublicUrl: "", onOpenInrAgent() {}, openPanel(name: string) { void name; }, setHelpSiteWebOpen() {}, siteWebSavedUrl: "", copy };
 }
 
-test("manual Bubble Access and cached connected state cannot expose Threads to USER", () => {
-  assert.equal(META_DIRECT_CHANNELS_PUBLIC_ENABLED, false);
-  assert.equal(isMetaChannelPilotEnabled(false), false);
-  const rows = buildFluxBubbleItems(bubbleArgs(false));
-  assert.equal(rows.some((row) => row.key === "threads"), false);
+test("approved Meta channels are available to ordinary accounts after App Review", () => {
+  assert.equal(META_DIRECT_CHANNELS_PUBLIC_ENABLED, true);
+  assert.equal(isMetaChannelPilotEnabled(false), true);
+  const rows = buildFluxBubbleItems(bubbleArgs(isMetaChannelPilotEnabled(false)));
+  assert.equal(rows.some((row) => row.key === "threads"), true);
   assert.equal(rows.some((row) => row.key === "instagram"), true);
 });
 
@@ -210,9 +210,9 @@ test("a cached v4 score is immediately capped when actor, account or edition acc
     browserCache.writeAccountCacheValue(DASHBOARD_CACHE_KEYS.generatorPower, "100", accountId);
     const contexts = [
       { actorAdmin: true, accountAdmin: true, standard: false, expected: 100 },
-      { actorAdmin: false, accountAdmin: true, standard: false, expected: 96 },
-      { actorAdmin: true, accountAdmin: false, standard: false, expected: 96 },
-      { actorAdmin: false, accountAdmin: false, standard: true, expected: 89 },
+      { actorAdmin: false, accountAdmin: true, standard: false, expected: 100 },
+      { actorAdmin: true, accountAdmin: false, standard: false, expected: 100 },
+      { actorAdmin: false, accountAdmin: false, standard: true, expected: 93 },
       { actorAdmin: true, accountAdmin: true, standard: true, expected: 93 },
       { actorAdmin: true, accountAdmin: true, standard: false, expected: 100 },
     ];
@@ -269,7 +269,7 @@ function instagramConnection(pilot: boolean, connected: boolean, authMode: strin
   return workspaceConnection({ item: { ...channelItem, key: "instagram", name: "Instagram", bubbleStatus: connected ? "connected" : "available" }, instagramPanelProps: { instagramAuthMode: authMode, instagramAccountConnected: connected, instagramConnected: connected, instagramUsername: connected ? "inrcy" : "", instagramUrl: "", igAccounts: [], connectInstagramAccount: () => calls.push("standard"), connectInstagramBusinessAccount: () => calls.push("business"), connectInstagramDirectAccount: () => calls.push("direct"), disconnectInstagramAccount: () => calls.push("disconnect"), saveInstagramProfile() {}, loadInstagramAccounts() {} } }, { "./DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ metaPilotEnabled: pilot }) } });
 }
 
-test("the Instagram bubble offers Standard and Business connection choices to USER and ADMIN; direct remains pilot-only", async () => {
+test("Instagram groups both Facebook logins and highlights direct login when the active account is ready", async () => {
   for (const pilot of [false, true]) {
     const calls: string[] = [];
     const connection = instagramConnection(pilot, false, "facebook_login", calls);
@@ -279,8 +279,12 @@ test("the Instagram bubble offers Standard and Business connection choices to US
     connect.props.onClick();
     const choices = channelNodes(runtime.render(props)).find(node => node.props.className === "connectChoices")!;
     const buttons = channelNodes(choices).filter(node => node.type === "button");
-    assert.deepEqual(buttons.map(node => node.props.children[1]), pilot ? ["Connexion Instagram", "Via Facebook", "Connexion Business"] : ["Via Facebook", "Connexion Business"]);
+    assert.deepEqual(buttons.map(node => node.props.children[1]), pilot ? ["Connexion directe"] : []);
+    const menu = channelNodes(choices).find(node => node.props.label === "Connexion via Facebook")!;
+    assert.ok(menu);
+    assert.deepEqual(menu.props.options.map((option: { label: string }) => option.label), ["Connexion classique", "Connexion Business"]);
     for (const button of buttons) { button.props.onClick(); await Promise.resolve(); await Promise.resolve(); }
+    for (const option of menu.props.options) { menu.props.onChoose(option); await Promise.resolve(); await Promise.resolve(); }
     assert.deepEqual(calls, pilot ? ["direct", "standard", "business"] : ["standard", "business"]);
   }
 });

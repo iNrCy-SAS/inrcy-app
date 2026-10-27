@@ -810,6 +810,10 @@
     "studioCta": "สตูดิโอสื่อ"
   },
   "channelBubble": {
+    "directConnection": "เชื่อมต่อโดยตรง",
+    "facebookConnection": "เชื่อมต่อผ่าน Facebook",
+    "classicConnection": "การเชื่อมต่อมาตรฐาน",
+    "businessConnection": "การเชื่อมต่อ Business",
     "parameters": "การตั้งค่า",
     "close": "ปิด",
     "failed": "ไม่สามารถอัปเดตการเชื่อมต่อได้",

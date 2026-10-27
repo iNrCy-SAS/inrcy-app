@@ -89,22 +89,23 @@ test("verified Meta reviewer gets every tool and Meta pilot while commercial pla
 test("neither an ordinary user at the approved UUID nor a different reviewer receives the special full-product edition", async () => {
   const user = await renderLayout("user", "user");
   assert.equal(user.edition.edition, "premium");
-  assert.equal(user.access.viewerMetaPilotEnabled, false);
+  assert.equal(user.access.viewerMetaPilotEnabled, true);
+  assert.equal(user.access.viewerIsAdmin, false);
   const otherReviewer = await renderLayout("reviewer", "reviewer", { actorId: "other-reviewer" });
   assert.equal(otherReviewer.edition.edition, "premium");
   assert.equal(otherReviewer.access.viewerIsAdmin, false);
-  assert.equal(otherReviewer.access.viewerMetaPilotEnabled, false);
+  assert.equal(otherReviewer.access.viewerMetaPilotEnabled, true);
 });
 
-test("Meta reviewer visibility requires both trusted actor and active-account roles", async () => {
+test("public Meta channels work across authorized accounts while Admin and reviewer privileges remain scoped", async () => {
   for (const [actorRole, accountRole, actorId, accountId, pilotExpected, adminExpected] of [
     ["admin", "admin", "other-admin", "other-member-account", true, true],
     ["admin", "reviewer", "other-admin", FULL_PRODUCT_REVIEWER_ACCOUNT_ID, true, false],
-    ["admin", "reviewer", "other-admin", "other-reviewer", false, false],
-    ["reviewer", "admin", FULL_PRODUCT_REVIEWER_ACCOUNT_ID, "other-member-account", false, false],
-    ["reviewer", "user", FULL_PRODUCT_REVIEWER_ACCOUNT_ID, "other-member-account", false, false],
-    ["user", "reviewer", "other-user", FULL_PRODUCT_REVIEWER_ACCOUNT_ID, false, false],
-    ["staff", "reviewer", "other-staff", FULL_PRODUCT_REVIEWER_ACCOUNT_ID, false, false],
+    ["admin", "reviewer", "other-admin", "other-reviewer", true, false],
+    ["reviewer", "admin", FULL_PRODUCT_REVIEWER_ACCOUNT_ID, "other-member-account", true, false],
+    ["reviewer", "user", FULL_PRODUCT_REVIEWER_ACCOUNT_ID, "other-member-account", true, false],
+    ["user", "reviewer", "other-user", FULL_PRODUCT_REVIEWER_ACCOUNT_ID, true, false],
+    ["staff", "reviewer", "other-staff", FULL_PRODUCT_REVIEWER_ACCOUNT_ID, true, false],
   ] as const) {
     const result = await renderLayout(actorRole, accountRole, { actorId, accountId });
     assert.equal(result.access.actorUserId, actorId, "cache actor comes from the authenticated server user");
@@ -114,13 +115,14 @@ test("Meta reviewer visibility requires both trusted actor and active-account ro
     assert.equal(result.edition.edition, "premium", "reviewer tool access cannot carry over to another active company");
   }
   const failed = await renderLayout("reviewer", "reviewer", { accountId: "other-member-account", accountLookupFails: true });
-  assert.equal(failed.access.viewerMetaPilotEnabled, false);
+  assert.equal(failed.access.viewerMetaPilotEnabled, true);
+  assert.equal(failed.access.viewerIsAdmin, false);
 });
 
 test("full-product exception requires the approved reviewer to be operating its own active account", async () => {
   const switched = await renderLayout("reviewer", "user", { accountId: "another-authorized-company" });
   assert.equal(switched.edition.edition, "premium");
-  assert.equal(switched.access.viewerMetaPilotEnabled, false);
+  assert.equal(switched.access.viewerMetaPilotEnabled, true);
   assert.equal(switched.access.viewerIsAdmin, false);
 });
 

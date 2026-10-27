@@ -14,6 +14,7 @@ import ChannelPublicationTypes from "./ChannelPublicationTypes";
 import ChannelBoardCreator from "./ChannelBoardCreator";
 import ChannelPublicLinkEditor from "./ChannelPublicLinkEditor";
 import ChannelMailboxConnections from "./ChannelMailboxConnections";
+import ChannelConnectionMenu from "./ChannelConnectionMenu";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 
 export type DashboardConfigureDestination = { kind: "panel"; value: string } | { kind: "path"; value: string };
@@ -69,6 +70,12 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
   const selectedMissing = Boolean(value && !options.some(option => option.value === value));
   const hasResource = Boolean(connection?.accountConnected || (connection?.resourceLabel && value));
   const canConnect = Boolean(connection?.onConnect || connection?.connectOptions?.length);
+  const connectMenus = [...new Set(connection?.connectOptions?.flatMap(option => option.menu ? [option.menu] : []) ?? [])];
+  const chooseConnection = (option: NonNullable<ChannelBubbleConnection["connectOptions"]>[number]) => void run(async () => {
+    const result = await option.onConnect();
+    if (result !== false) setConnectOpen(false);
+    return result;
+  });
   const disconnect = connection?.onDisconnectAccount || connection?.onDisconnect;
   const showDisconnect = Boolean(disconnect && (connection?.accountConnected ?? Boolean(value)) && !(item.bubbleStatus === "reconnect" && canConnect));
   const showConnect = canConnect && !showDisconnect;
@@ -130,6 +137,12 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
       <p>{feedback || statusText}</p>
     </div> : null}
     {parametersOpen && hasParameters ? <ChannelParametersDialog name={item.name} title={`${parametersLabel} — ${item.name}`} contentOnly={connection?.parametersOwnHeading} fullScreen={connection?.parametersFullScreen} onClose={() => { void requestNavigation(() => setParametersOpen(false)); }}>{connection?.parameters}</ChannelParametersDialog> : null}
-    {connectOpen ? <ChannelParametersDialog name={item.name} title={`${connectLabel} — ${item.name}`} onClose={() => setConnectOpen(false)}><div className={bubbleStyles.connectChoices}>{connection?.connectOptions?.map(option => <button key={option.label} type="button" className={styles.actionBtn + " " + styles.connectBtn} disabled={Boolean(busy)} onClick={() => void run(async () => { await option.onConnect(); setConnectOpen(false); })}><ChannelBubbleIcon kind="plug" />{option.label}</button>)}</div></ChannelParametersDialog> : null}
+    {connectOpen ? <ChannelParametersDialog name={item.name} title={`${connectLabel} — ${item.name}`} onClose={() => setConnectOpen(false)}>
+      <div className={bubbleStyles.connectChoices}>
+        {connection?.connectOptions?.filter(option => !option.menu).map(option => <button key={option.label} type="button" className={`${styles.actionBtn} ${styles.connectBtn} ${option.primary ? bubbleStyles.connectPrimary : ""}`} disabled={Boolean(busy || disabled)} onClick={() => chooseConnection(option)}><ChannelBubbleIcon kind="plug" />{option.label}</button>)}
+        {connectMenus.map(label => <ChannelConnectionMenu key={label} label={label} options={connection?.connectOptions?.filter(option => option.menu === label) ?? []} disabled={Boolean(busy || disabled)} onChoose={chooseConnection} icon={<ChannelBubbleIcon kind="plug" />} />)}
+      </div>
+      {feedback ? <p role="alert" className={bubbleStyles.channelFeedbackError}>{feedback}</p> : null}
+    </ChannelParametersDialog> : null}
   </>;
 }

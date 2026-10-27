@@ -1,5 +1,5 @@
-/** Open these channels to USER accounts only after Meta App Review is approved. */
-export const META_DIRECT_CHANNELS_PUBLIC_ENABLED = false;
+/** Meta App Review approved: Instagram direct and Threads are available to all accounts. */
+export const META_DIRECT_CHANNELS_PUBLIC_ENABLED = true;
 
 /** The reviewer flag must come from the approved identity/account predicate. */
 export function isMetaChannelPilotEnabled(isAdmin: boolean, isApprovedReviewer = false): boolean {

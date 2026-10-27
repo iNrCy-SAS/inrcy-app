@@ -810,6 +810,10 @@
     "studioCta": "Estúdio de média"
   },
   "channelBubble": {
+    "directConnection": "Ligação direta",
+    "facebookConnection": "Ligação através do Facebook",
+    "classicConnection": "Ligação clássica",
+    "businessConnection": "Ligação Business",
     "parameters": "Definições",
     "close": "Fechar",
     "failed": "Não foi possível atualizar a ligação.",

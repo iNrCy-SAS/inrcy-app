@@ -57,16 +57,19 @@ test("Facebook support reuses the actual channel helper and official Page creati
 
 test("current channel guidance overrides obsolete GPS commands for every connection family", () => {
   const workspace = readFileSync(resolve(root, "app/dashboard/_components/DashboardChannelWorkspace.tsx"), "utf8");
-  for (const label of ["Connexion Facebook", "Connexion Business", "Via Facebook", "Connexion LinkedIn", "Connexion Instagram"]) {
+  for (const label of ["Connexion Facebook", "Connexion Business", "Connexion LinkedIn"]) {
     assert.ok(workspace.includes(`label: "${label}"`), `Current UI option: ${label}`);
   }
+  for (const key of ["directConnection", "facebookConnection", "classicConnection", "businessConnection"]) assert.ok(workspace.includes(`t("${key}")`));
   for (const prompt of ["Connecter Facebook", "Connecter Instagram", "Connecter LinkedIn", "Connecter Google Business", "Connecter TikTok", "Connecter YouTube", "Connecter Pinterest", "Connecter mes mails", "Connecter GA4 au Site Web", "Je n’ai pas de bouton Configurer"]) {
     const text = knowledge.getInrAssistantKnowledge(prompt);
     assert.match(text, /Parcours actuel prioritaire/);
     assert.match(text, /bouton « Connecter »/);
     assert.doesNotMatch(text, /puis cliquer sur \*\*Configurer|choisir la bulle concernée, puis cliquer/);
   }
-  assert.match(knowledge.getInrAssistantKnowledge("Connecter Instagram"), /pilote Meta/);
+  assert.match(knowledge.getInrAssistantKnowledge("Connecter Instagram"), /Connexion directe/);
+  assert.match(knowledge.getInrAssistantKnowledge("Connecter Instagram"), /disponible pour tous/);
+  assert.doesNotMatch(knowledge.getInrAssistantKnowledge("Connecter Instagram"), /pilote Meta/);
   assert.match(knowledge.getInrAssistantKnowledge("Connecter Google Business"), /Choisir une fiche/);
   assert.match(knowledge.getInrAssistantKnowledge("Connecter Pinterest"), /Choisir un tableau/);
 });

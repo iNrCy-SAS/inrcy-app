@@ -810,6 +810,10 @@
     "studioCta": "Studio multimediale"
   },
   "channelBubble": {
+    "directConnection": "Connessione diretta",
+    "facebookConnection": "Connessione tramite Facebook",
+    "classicConnection": "Connessione classica",
+    "businessConnection": "Connessione Business",
     "parameters": "Impostazioni",
     "close": "Chiudi",
     "failed": "Impossibile aggiornare la connessione.",

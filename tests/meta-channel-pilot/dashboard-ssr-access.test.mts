@@ -65,10 +65,10 @@ async function renderPage(actorRole: Role, accountRole: Role) {
 
 for (const [actorRole, accountRole, expected] of [
   ["admin", "admin", true],
-  ["user", "admin", false],
-  ["admin", "user", false],
-  ["user", "user", false],
-  ["staff", "admin", false],
+  ["user", "admin", true],
+  ["admin", "user", true],
+  ["user", "user", true],
+  ["staff", "admin", true],
 ] as const) {
   test("SSR channels respect actor " + actorRole + " and active account " + accountRole + " before hydration", async () => {
     // Execute the real page, getMyRole and shared actor/account rollout helper against fixture identities.

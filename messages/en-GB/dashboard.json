@@ -810,6 +810,10 @@
     "studioCta": "Media Studio"
   },
   "channelBubble": {
+    "directConnection": "Direct connection",
+    "facebookConnection": "Connect via Facebook",
+    "classicConnection": "Standard connection",
+    "businessConnection": "Business connection",
     "parameters": "Settings",
     "close": "Close",
     "failed": "The connection could not be updated.",

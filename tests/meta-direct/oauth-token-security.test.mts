@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import ts from "typescript";
 import { createClient } from "@supabase/supabase-js";
 import * as reviewerAccess from "../../lib/reviewerAccess.ts";
+import { META_DIRECT_CHANNELS_PUBLIC_ENABLED } from "../../lib/metaChannelRollout.ts";
 
 function load<T = any>(file: string, dependencies: Record<string, unknown> = {}): T {
   const code = ts.transpileModule(readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), {
@@ -39,20 +40,21 @@ const responseFactory = {
   redirect(url: string | URL) { const values = new Map<string, { value: string; options: any }>(); return { status: 307, headers: new Headers({ location: String(url) }), cookies: { set(name: string, value: string, options: unknown) { values.set(name, { value, options }); } }, cookieValues: values }; },
   json(body: unknown, options?: { status?: number }) { return { status: options?.status ?? 200, body }; },
 };
-function harness(options: { actorAdmin?: boolean; actorReviewer?: boolean; actorId?: string; activeAccountId?: string; accountRole?: string; authenticatedActor?: string; wrongAccount?: boolean; partialScopes?: boolean; invalidDebugToken?: boolean; wrongDebugApp?: boolean; responseThrows?: boolean; personal?: boolean; failAt?: "token_exchange" | "token_inspection" | "long_token_exchange" | "profile"; saveError?: { code: string; details: string } } = {}) {
+function harness(options: { publicEnabled?: boolean; noSession?: boolean; actorAdmin?: boolean; actorReviewer?: boolean; actorId?: string; activeAccountId?: string; accountRole?: string; authenticatedActor?: string; wrongAccount?: boolean; partialScopes?: boolean; invalidDebugToken?: boolean; wrongDebugApp?: boolean; responseThrows?: boolean; personal?: boolean; failAt?: "token_exchange" | "token_inspection" | "long_token_exchange" | "profile"; saveError?: { code: string; details: string } } = {}) {
   const actorAdmin = options.actorAdmin ?? true, role = options.accountRole ?? "admin";
   const actorId = options.actorId ?? ACTOR, accountId = options.activeAccountId ?? ACCOUNT;
   const saves: any[] = [], calls: any[] = [], events: any[] = [], steps: string[] = [];
   const query = { select() { return this; }, eq() { return this; }, async maybeSingle() { return { data: { role, meta: { publication_preferences: { mode: "reels" }, page_id: "legacy-page" } }, error: null }; } };
   const admin = { from: () => query, async rpc(name: string, args: any) { saves.push({ name, args }); return { error: options.saveError ?? null }; } };
-  const gate = load("lib/metaChannelRolloutServer.ts", { "next/server": { NextResponse: responseFactory }, "@/lib/roles": { ADMIN_USER_IDS: [], getMyRole: async () => ({ isAdmin: actorAdmin, isReviewer: options.actorReviewer === true, role: options.actorReviewer ? "reviewer" : actorAdmin ? "admin" : "user", authUserId: actorId }) }, "@/lib/metaChannelRollout": { META_DIRECT_CHANNELS_PUBLIC_ENABLED: false }, "@/lib/reviewerAccess": reviewerAccess });
+  const rollout = { META_DIRECT_CHANNELS_PUBLIC_ENABLED: options.publicEnabled ?? false };
+  const gate = load("lib/metaChannelRolloutServer.ts", { "next/server": { NextResponse: responseFactory }, "@/lib/roles": { ADMIN_USER_IDS: [], getMyRole: async () => ({ isAdmin: actorAdmin, isReviewer: options.actorReviewer === true, role: options.actorReviewer ? "reviewer" : actorAdmin ? "admin" : "user", authUserId: actorId }) }, "@/lib/metaChannelRollout": rollout, "@/lib/reviewerAccess": reviewerAccess });
   const oauth = load("lib/metaDirectOAuth.ts", {
     "next/server": { NextResponse: responseFactory },
-    "@/lib/supabaseServer": { createSupabaseServer: async () => ({ auth: { getUser: async () => ({ data: { user: { id: options.authenticatedActor ?? actorId } }, error: null }) } }) },
+    "@/lib/supabaseServer": { createSupabaseServer: async () => ({ auth: { getUser: async () => ({ data: { user: options.noSession ? null : { id: options.authenticatedActor ?? actorId } }, error: null }) } }) },
     "@/lib/supabaseAdmin": { supabaseAdmin: admin },
-    "@/lib/multicompte/server": { getCurrentInrcyAccountScope: async () => ({ scope: { activeUserId: accountId }, user: { id: actorId } }), resolveOAuthBoundInrcyAccountId: async (_supabase: unknown, _actor: string, account: string) => { if (options.wrongAccount || account !== accountId) throw Error("Account authorization denied"); return account; } },
+    "@/lib/multicompte/server": { getCurrentInrcyAccountScope: async () => options.noSession ? null : ({ scope: { activeUserId: accountId }, user: { id: actorId } }), resolveOAuthBoundInrcyAccountId: async (_supabase: unknown, _actor: string, account: string) => { if (options.wrongAccount || account !== accountId) throw Error("Account authorization denied"); return account; } },
     "@/lib/security": security, "@/lib/metaChannelRolloutServer": gate,
-    "@/lib/metaChannelRollout": { META_DIRECT_CHANNELS_PUBLIC_ENABLED: false },
+    "@/lib/metaChannelRollout": rollout,
     "@/lib/instagramAuthMode": authMode, "@/lib/threadsGraphApi": threadsGraph, "@/lib/oauthCrypto": encryption, "@/lib/tsSafe": safe,
     "@/lib/connectionVersions": { withCurrentConnectionVersion: (_key: string, value: unknown) => value },
     "@/lib/statsCache": { clearAllToolCaches: async () => {} }, "@/lib/rateLimit": { enforceRateLimit: async () => null, getClientIp: () => "fixture-ip" },
@@ -84,10 +86,49 @@ function harness(options: { actorAdmin?: boolean; actorReviewer?: boolean; actor
   return { module: oauth, calls, saves, events, steps, callback };
 }
 
-test("OAuth start rejects USER/staff or a non-admin account before contacting Meta", async () => configured(async () => {
+test("closed rollout mode rejects USER/staff or a non-admin account before contacting Meta", async () => configured(async () => {
   for (const options of [{ actorAdmin: false }, { accountRole: "user" }, { accountRole: "staff" }]) for (const provider of ["instagram", "threads"]) {
     const h = harness(options); const result = await h.module.startMetaDirectOAuth(new Request("https://fixture.example/start"), provider);
     assert.equal(result.status, 403); assert.equal(h.calls.length, 0); assert.equal(h.saves.length, 0);
+  }
+}));
+
+test("public rollout lets ordinary accounts start and complete both Meta providers with the account bound", async () => configured(async () => {
+  assert.equal(META_DIRECT_CHANNELS_PUBLIC_ENABLED, true);
+  for (const provider of ["instagram", "threads"] as const) {
+    const h = harness({ publicEnabled: META_DIRECT_CHANNELS_PUBLIC_ENABLED, actorAdmin: false, accountRole: "user" });
+    const start = await h.module.startMetaDirectOAuth(new Request("https://fixture.example/start"), provider);
+    assert.equal(start.status, 307);
+    const state = security.b64urlJsonDecode(new URL(start.headers.get("location")).searchParams.get("state"));
+    assert.equal(state.authUserId, ACTOR);
+    assert.equal(state.accountId, ACCOUNT);
+    const result = await h.module.handleMetaDirectOAuthCallback(h.callback(provider), provider);
+    assert.equal(new URL(result.headers.get("location")).searchParams.get("ok"), "1");
+    assert.equal(h.saves.length, 1);
+    assert.equal(h.saves[0].args.p_account_id, ACCOUNT);
+    assert.equal(h.saves[0].args.p_admin_pilot, false);
+    assert.deepEqual(h.saves[0].args.p_integration.meta.publication_preferences, { mode: "reels" });
+  }
+}));
+
+test("public rollout still refuses unauthenticated, foreign-account and forged OAuth callbacks without contacting Meta", async () => configured(async () => {
+  for (const provider of ["instagram", "threads"] as const) {
+    const noSession = harness({ publicEnabled: true, noSession: true });
+    assert.equal((await noSession.module.startMetaDirectOAuth(new Request("https://fixture.example/start"), provider)).status, 401);
+    for (const options of [{ noSession: true }, { authenticatedActor: OTHER }, { wrongAccount: true }]) {
+      const h = harness({ publicEnabled: true, actorAdmin: false, accountRole: "user", ...options });
+      const result = await h.module.handleMetaDirectOAuthCallback(h.callback(provider), provider);
+      assert.equal(new URL(result.headers.get("location")).searchParams.get("ok"), "0");
+      assert.equal(h.calls.length, 0);
+      assert.equal(h.saves.length, 0);
+    }
+    for (const change of [{ missingCookie: true }, { legacyCookie: true }, { tamper: true }, { account: OTHER }]) {
+      const h = harness({ publicEnabled: true, actorAdmin: false, accountRole: "user" });
+      const result = await h.module.handleMetaDirectOAuthCallback(h.callback(provider, change), provider);
+      assert.equal(new URL(result.headers.get("location")).searchParams.get("ok"), "0");
+      assert.equal(h.calls.length, 0);
+      assert.equal(h.saves.length, 0);
+    }
   }
 }));
 

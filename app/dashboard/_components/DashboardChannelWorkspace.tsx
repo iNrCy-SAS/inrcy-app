@@ -109,7 +109,11 @@ export default function DashboardChannelWorkspace(props: Props) {
           options: ig.igAccounts.map((account: { page_id: string; username?: string; page_name?: string }) => ({ value: account.page_id, label: account.username ? `@${account.username}` : account.page_name || account.page_id })),
           onSelect: ig.saveInstagramProfile, onLoad: () => ig.loadInstagramAccounts({ autoSelect: !ig.instagramConnected }),
         }),
-        connectOptions: [...(metaPilotEnabled ? [{ label: "Connexion Instagram", onConnect: ig.connectInstagramDirectAccount }] : []), { label: "Via Facebook", onConnect: item.bubbleStatus === "reconnect" ? () => ig.connectInstagramAccount({ repair: true }) : ig.connectInstagramAccount }, { label: "Connexion Business", onConnect: ig.connectInstagramBusinessAccount }],
+        connectOptions: [
+          ...(metaPilotEnabled ? [{ label: t("directConnection"), primary: true, onConnect: ig.connectInstagramDirectAccount }] : []),
+          { label: t("classicConnection"), menu: t("facebookConnection"), onConnect: item.bubbleStatus === "reconnect" ? () => ig.connectInstagramAccount({ repair: true }) : ig.connectInstagramAccount },
+          { label: t("businessConnection"), menu: t("facebookConnection"), onConnect: ig.connectInstagramBusinessAccount },
+        ],
         onDisconnect: ig.instagramConnected ? ig.disconnectInstagramProfile : ig.disconnectInstagramAccount,
         onDisconnectAccount: ig.instagramConnected ? ig.disconnectInstagramAccount : undefined,
         publicLinks: publicLink("instagram", ig.instagramUrl, ig.setInstagramUrl, ig.instagramConnected),

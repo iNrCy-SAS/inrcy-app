@@ -23,7 +23,7 @@ export default function DashboardViewerAccessProvider({ viewerIsAdmin, viewerMet
   viewerIsAdmin: boolean;
   /** Authenticated actor, distinct from the selected establishment/account. */
   actorUserId: string;
-  /** Trusted server permission for an ADMIN or REVIEWER actor and active account. */
+  /** Trusted server rollout availability for the resolved active account. */
   viewerMetaPilotEnabled: boolean;
   activeAccountId: string;
   children: ReactNode;
