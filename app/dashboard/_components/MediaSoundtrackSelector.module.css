@@ -9,10 +9,9 @@
 .root .trigger[data-unavailable="true"] { color: #8491a7; border-color: #8390a630; background: #8b96aa0b; cursor: help; }
 .unavailableHint { position: absolute; z-index: 45; top: calc(100% + 8px); right: 0; width: max-content; max-width: min(250px,75vw); padding: 9px 12px; border: 1px solid #8ba2c249; border-radius: 10px; background: #142038; box-shadow: 0 10px 28px #0007; color: #d2def1; font-size: 11px; font-weight: 400; line-height: 1.45; text-align: left; pointer-events: none; }
 .unavailableHint[hidden] { display: none; }
-.dialog { position: fixed; inset: 0; margin: auto; width: min(460px,calc(100vw - 28px)); height: fit-content; max-height: min(400px,calc(100dvh - 32px)); box-sizing: border-box; padding: 0; border: 1px solid rgba(var(--channel-rgb,172,154,202),.45); border-radius: 19px; background: radial-gradient(ellipse at 0 0,rgba(var(--channel-rgb,38,69,99),.16),transparent 70%),linear-gradient(135deg,#142039,#18172f); color: #edf3ff; box-shadow: 0 24px 90px #0009; overflow: auto; overscroll-behavior: contain; }
+.dialog { position: fixed; inset: 0; margin: auto; width: min(460px,calc(100vw - 28px)); height: fit-content; max-height: min(540px,calc(100dvh - 32px)); box-sizing: border-box; padding: 0; border: 1px solid rgba(var(--channel-rgb,172,154,202),.45); border-radius: 19px; background: radial-gradient(ellipse at 0 0,rgba(var(--channel-rgb,38,69,99),.16),transparent 70%),linear-gradient(135deg,#142039,#18172f); color: #edf3ff; box-shadow: 0 24px 90px #0009; overflow: auto; overscroll-behavior: contain; }
 .dialog::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--channel-gradient,linear-gradient(90deg,#649bc5,#aa82c8)); pointer-events: none; }
 .dialog::backdrop { background: #030817a8; backdrop-filter: blur(5px); }
-.dialog[data-picker-open="true"] { max-height: min(540px,calc(100dvh - 32px)); }
 .header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 19px; border-bottom: 1px solid rgba(var(--channel-rgb,194,181,223),.16); background: linear-gradient(100deg,rgba(var(--channel-rgb,140,143,190),.12),transparent); }
 .header h2 { margin: 0; font-size: 16px; font-weight: 700; }
 .dialog button { font: inherit; color: inherit; cursor: pointer; }
@@ -21,7 +20,7 @@
 .options { display: grid; gap: 9px; min-width: 0; padding: 0 19px; margin: 0; border: 0; }
 .selection { display: grid; grid-template-columns: minmax(0,1fr) 42px; align-items: start; gap: 9px; min-width: 0; }
 .picker { display: grid; gap: 5px; min-width: 0; }
-.dialog .combobox { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-width: 0; height: 42px; padding: 0 11px; border: 1px solid rgba(var(--channel-rgb,155,173,219),.4); border-radius: 10px; background: #0c162a; color: #f0eafa; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.dialog .combobox { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-width: 0; height: 42px; padding: 0 11px; border: 1px solid rgba(var(--channel-rgb,155,173,219),.4); border-radius: 10px; background: #0c162a; color: #f0eafa; font: inherit; font-size: 13px; text-align: left; }
 .combobox > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .combobox svg { flex: 0 0 16px; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; }
 .combobox:disabled { opacity: .5; cursor: default; }
