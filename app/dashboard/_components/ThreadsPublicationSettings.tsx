@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import type { useThreadsChannel } from "../_hooks/channels/useThreadsChannel";
@@ -13,8 +14,12 @@ import type { ThreadsPublicationMode } from "@/lib/threadsPublicationPreferences
 export default function ThreadsPublicationSettings({ channel }: { channel: ReturnType<typeof useThreadsChannel> }) {
   const t = useTranslations("shell");
   const { metaPilotEnabled } = useDashboardViewerAccess();
+  const loadPublicationPreferences = channel.loadPublicationPreferences;
+  useEffect(() => {
+    if (metaPilotEnabled) void loadPublicationPreferences();
+  }, [loadPublicationPreferences, metaPilotEnabled]);
   if (!metaPilotEnabled) return null;
-  const { publicationPreferences, preferencesLoading, preferencesSaving, preferencesNotice, preferencesError, updatePublicationPreferences, savePublicationPreferences, loadPublicationPreferences } = channel;
+  const { publicationPreferences, preferencesLoading, preferencesSaving, preferencesNotice, preferencesError, updatePublicationPreferences, savePublicationPreferences } = channel;
   const preferencesDisabled = preferencesLoading || preferencesSaving || Boolean(preferencesError);
   return (
     <div className={guideStyles.steps}>

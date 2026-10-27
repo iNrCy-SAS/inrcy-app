@@ -118,7 +118,6 @@ export function useThreadsChannel({ initialState, panel, onConnectionChange }: {
       if (isCurrent()) { setPublicationPreferences(CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES); setPreferencesAccountId(activeAccountId); setPreferencesError(t("threads_publication_modes_load_error")); }
     } finally { if (isCurrent()) setPreferencesLoading(false); }
   }, [activeAccountId, metaPilotEnabled, t]);
-  useEffect(() => { if (panel === "threads" && metaPilotEnabled) void loadPublicationPreferences(); }, [loadPublicationPreferences, metaPilotEnabled, panel]);
   const updatePublicationPreferences = useCallback((patch: Partial<ThreadsPublicationPreferences>) => {
     if (!metaPilotEnabled) return;
     setPublicationPreferences(current => normalizeThreadsPublicationPreferences({ ...current, ...patch }));

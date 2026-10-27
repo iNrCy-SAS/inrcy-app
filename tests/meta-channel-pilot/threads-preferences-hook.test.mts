@@ -95,3 +95,38 @@ test("connected settings still load enabled Ghost and can save through the exist
   const english = JSON.parse(fs.readFileSync("messages/en-GB/shell.json", "utf8"));
   assert.equal(english.threads_publication_modes_connection_required, "Connect Threads to configure publication formats.");
 });
+
+test("opening Threads settings from the channel bubble loads preferences without a legacy panel route", async () => {
+  const stored = { version: 1, ghostEnabled: true, defaultMode: "ghost" };
+  const fixture = channelRuntime(200, { preferences: stored });
+  const effects: Array<() => void> = [];
+  type Node = { type: unknown; props: Record<string, unknown> };
+  const jsx = (type: unknown, props: Record<string, unknown>): Node => ({ type, props });
+  const settings = { exports: {} as { default: (props: { channel: HookValue }) => Node } };
+  const componentSource = ts.transpileModule(fs.readFileSync("app/dashboard/_components/ThreadsPublicationSettings.tsx", "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
+  }).outputText;
+  new Function("module", "exports", "require", componentSource)(settings, settings.exports, (id: string) => {
+    if (id === "react") return { useEffect: (effect: () => void) => effects.push(effect) };
+    if (id === "react/jsx-runtime") return { jsx, jsxs: jsx };
+    if (id === "next-intl") return { useTranslations: () => (key: string) => shell[key] || key };
+    if (id.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: true }) };
+    if (id.endsWith(".css")) return { __esModule: true, default: {} };
+    return { __esModule: true, default: id };
+  });
+  function nodes(value: unknown): Node[] {
+    if (Array.isArray(value)) return value.flatMap(nodes);
+    if (!value || typeof value !== "object") return [];
+    const node = value as Node;
+    return [node, ...nodes(node.props?.children)];
+  }
+  const initial = settings.exports.default({ channel: fixture.render() });
+  assert.equal(nodes(initial).find(node => node.type === "select")?.props.disabled, true);
+  for (const effect of effects.splice(0)) effect();
+  await new Promise(setImmediate);
+  const loaded = settings.exports.default({ channel: fixture.render() });
+  assert.deepEqual(fixture.requests, ["GET"], "Opening the bubble must load once and never save settings");
+  assert.equal(nodes(loaded).find(node => node.type === "select")?.props.disabled, false);
+  assert.equal(nodes(loaded).find(node => node.type === "select")?.props.value, "ghost");
+  assert.deepEqual(fixture.render().publicationPreferences, stored);
+});
