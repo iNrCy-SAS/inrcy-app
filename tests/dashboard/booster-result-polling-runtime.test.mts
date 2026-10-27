@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import { isBoosterPublicationPendingStatus } from "../../lib/boosterPublicationStatus.ts";
+import { isRetryablePublicationEntry, publicationStorySequenceCounts } from "../../lib/publicationStorySequenceRetry.ts";
 
 const parse = (path: string) => ts.createSourceFile(path, readFileSync(new URL(`../../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
 const modal = parse("app/dashboard/_components/PublishExecutionResultModal.tsx");
@@ -30,7 +31,7 @@ const getPublicationDestinationStatus = productionFunction(progress, "getPublica
 const entryPublicationId = productionFunction(modal, "entryPublicationId");
 const publicationChannelKey = productionFunction(modal, "publicationChannelKey");
 const isPendingPublicationEntry = productionFunction(modal, "isPendingPublicationEntry", { getPublicationDestinationStatus });
-const mergePublicationResultSnapshot = productionFunction(modal, "mergePublicationResultSnapshot", { entryPublicationId, publicationChannelKey, getPublicationDestinationStatus, isPendingPublicationEntry });
+const mergePublicationResultSnapshot = productionFunction(modal, "mergePublicationResultSnapshot", { entryPublicationId, publicationChannelKey, getPublicationDestinationStatus, isPendingPublicationEntry, isRetryablePublicationEntry, publicationStorySequenceCounts });
 
 function pendingIds(summary: any) {
   const node = find(modal, node => ts.isVariableDeclaration(node) && node.name.getText(modal) === "pendingPublicationIds") as ts.VariableDeclaration;

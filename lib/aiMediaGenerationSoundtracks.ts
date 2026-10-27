@@ -6,6 +6,7 @@ import path from "node:path";
 
 import {
   selectAiMediaSoundtrack,
+  AI_MEDIA_SOUNDTRACKS,
   type AiMediaSoundtrackDefinition,
   type AiMediaSoundtrackDuration,
   type AiMediaSoundtrackSelectionOptions,
@@ -22,6 +23,8 @@ export type LoadedAiMediaSoundtrack = AiMediaSoundtrackDefinition & {
 export type AiMediaSoundtrackLoadOptions =
   AiMediaSoundtrackSelectionOptions & {
     durationSeconds?: AiMediaSoundtrackDuration;
+    /** Server-selected persisted track for deterministic series/recovery. */
+    soundtrackId?: string;
   };
 
 /**
@@ -32,7 +35,8 @@ export async function loadAiMediaSoundtrack(
   prompt: string,
   options: AiMediaSoundtrackLoadOptions = {},
 ): Promise<LoadedAiMediaSoundtrack> {
-  const definition = selectAiMediaSoundtrack(prompt, options);
+  const definition = options.soundtrackId ? AI_MEDIA_SOUNDTRACKS.find(track => track.id === options.soundtrackId) : selectAiMediaSoundtrack(prompt, options);
+  if (!definition) throw new Error("ai_soundtrack_id_invalid");
   const requestedDuration = options.durationSeconds ?? 24;
   // The compositor loops/trims this original asset to the requested duration.
   const durationSeconds = requestedDuration <= 8 ? 8 : requestedDuration <= 16 ? 16 : 24;

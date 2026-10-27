@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { isRetryablePublicationEntry } from "../../lib/publicationStorySequenceRetry.ts";
 
 function read(path: string) {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -43,7 +44,11 @@ test("stage 4 keeps partial results, retry scope and mobile modal state", () => 
   assert.match(resultModal, /failureCount/);
   assert.match(resultModal, /\$\{publishedCount\}\/\$\{totalCount\} publié/);
   assert.match(resultModal, /<strong>\{failedOrSkippedCount\}<\/strong><span>à revoir<\/span>/);
-  assert.match(resultModal, /getPublicationDestinationStatus\(entry\) === "failed" && entry\.retryable !== false/);
+  assert.match(resultModal, /entries\.filter\(isRetryablePublicationEntry\)/);
+  assert.equal(isRetryablePublicationEntry({ channel: "facebook", ok: false, status: "failed", retryable: true }), true);
+  assert.equal(isRetryablePublicationEntry({ channel: "facebook", ok: false, status: "failed", retryable: false }), false);
+  assert.equal(isRetryablePublicationEntry({ channel: "facebook", ok: true, status: "processing" }), false);
+  assert.equal(isRetryablePublicationEntry({ channel: "facebook", ok: true, status: "published" }), false);
   assert.match(resultModal, /i18nT\("retenter_value_value_en_echec_b7d1f934"/);
   assert.match(bottomNav, /publishModalOpen/);
   assert.match(publishRoute, /idempotencyKey/);

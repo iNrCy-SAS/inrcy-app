@@ -138,6 +138,7 @@ export function buildAsyncPublicationSummary(
       warning: outcome.warningCode,
       warning_kind: outcome.warningKind,
       warning_message: outcome.warningMessage,
+      ...(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value.story_sequence_resume_ref || "")) ? { story_sequence_resume_ref: value.story_sequence_resume_ref, published_image_count: value.published_image_count, expected_image_count: value.expected_image_count } : {}),
     };
   });
 
@@ -665,6 +666,12 @@ function aggregateChannelTargetResults(
   const failures = states.filter(
     (state) => state.status === "failed" || state.result.ok === false,
   );
+  const failedStory = failures.find(state => state.placement === "story" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(state.result.story_sequence_resume_ref || "")));
+  if (failedStory) {
+    const story = failedStory.result;
+    const alreadyPublished = states.flatMap(state => state === failedStory ? Array.isArray(story.story_ids) ? story.story_ids.map(cleanString).filter(Boolean) : [] : state.status === "completed" && state.result.ok !== false ? [cleanString(state.result.external_id)].filter(Boolean) : []);
+    return { ok: false, code: "meta_story_sequence_incomplete", retryable: story.retryable === true, error: [successes.length ? `${CHANNEL_LABELS[channel]} a déjà publié : ${successes.map(getTargetResultLabel).join(", ")}.` : "", cleanString(story.error) || "La séquence de Stories n’est pas entièrement publiée."].filter(Boolean).join(" "), placements: placementResults, failed_placements: failures.map(state => state.placement || state.targetKey), external_ids: alreadyPublished, story_sequence_resume_ref: story.story_sequence_resume_ref, published_image_count: story.published_image_count, expected_image_count: story.expected_image_count, story_ids: story.story_ids, requestMayHaveSucceeded: story.requestMayHaveSucceeded === true };
+  }
   const externalIds = successes
     .map((state) => cleanString(state.result.external_id))
     .filter(Boolean);
@@ -696,11 +703,13 @@ function aggregateChannelTargetResults(
 
   if (successes.length === states.length) {
     const firstWarning = successfulWarnings[0] || null;
+    const completedStory = successes.find(state => state.placement === "story" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(state.result.story_sequence_resume_ref || "")))?.result;
     return {
       ok: true,
       external_id: externalIds[0] || null,
       external_ids: externalIds,
       placements: placementResults,
+      ...(completedStory ? { story_sequence_resume_ref: completedStory.story_sequence_resume_ref, published_image_count: completedStory.published_image_count, expected_image_count: completedStory.expected_image_count, story_ids: completedStory.story_ids } : {}),
       ...(firstWarning
         ? {
             warning: firstWarning.code || true,

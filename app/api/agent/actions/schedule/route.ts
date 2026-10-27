@@ -1,4 +1,5 @@
 import { filterInrAgentPublicationChannels, pendingInrAgentPublicationChannels, unvalidatedInrAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelection";
+import { normalizeBoosterSoundtrackId } from "@/lib/boosterSoundtracks";
 import { readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
 import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
@@ -1007,6 +1008,7 @@ async function buildScheduledPayload(
     action.targetTool === "booster" &&
     action.actionType === "publication"
   ) {
+    const soundtrackId = normalizeBoosterSoundtrackId(Object.hasOwn(payload, "soundtrackId") ? payload.soundtrackId : nestedPublishPayload.soundtrackId);
     // Preserve the workspace identity when the action was prepared from the
     // unified media pipeline. It is replaced by a private snapshot immediately
     // after this endpoint creates each scheduled row.
@@ -1202,6 +1204,7 @@ async function buildScheduledPayload(
             publishChannels,
           ),
           imageSettingsByChannel: preparedImages.imageSettingsByChannel,
+          soundtrackId,
           imagePreparationWarnings: preparedImages.warnings,
           video: videoPayload,
           ...(instagramPublicationSettings

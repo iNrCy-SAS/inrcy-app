@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { normalizeBoosterSoundtrackId } from "@/lib/boosterSoundtracks";
 import {
   scheduledActionToDbRow,
   rowToInrAgentScheduledAction,
@@ -252,6 +253,11 @@ export async function POST(request: Request) {
     ? record.targetTool as InrAgentTargetTool
     : "agent";
   const source: InrAgentScheduledActionSource = record?.source === "automatic" ? "automatic" : "manual";
+
+  if (actionType === "publication" && targetTool === "booster") {
+    try { normalizeBoosterSoundtrackId(asRecord(asRecord(record?.payload)?.publishPayload)?.soundtrackId); }
+    catch { return NextResponse.json({ error: "Choisissez une musique iNrCy disponible ou le mode Auto.", code: "booster_soundtrack_invalid" }, { status: 400 }); }
+  }
 
   if (hasUnauthorizedScheduledStorageReference(record?.payload, activeUserId)) {
     return NextResponse.json({ error: "Référence média non autorisée." }, { status: 403 });

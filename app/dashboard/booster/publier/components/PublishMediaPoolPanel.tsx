@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { BOOSTER_MAX_IMAGE_COUNT, makeImageKey, getLocalizedBoosterImageLimits, getLocalizedBoosterImageFormats, getLocalizedBoosterVideoLimits, getLocalizedBoosterVideoFormats, getLocalizedBoosterRecommendedVideoDuration } from "../publishModal.shared";
 import MediaPoolImagePreview from "./MediaPoolImagePreview";
+import MediaSoundtrackSelector from "@/app/dashboard/_components/MediaSoundtrackSelector";
 import css from "./PublishMediaPoolPanel.module.css";
 
 type MediaKind = "image" | "video";
@@ -14,13 +15,18 @@ type Props = {
   onReorderImage: (imageKey: string, targetImageKey: string) => void;
   onModifyImage: (index: number) => void; onRetouchImage: (index: number) => void;
   onRetouchVideo: () => void;
+  soundtrackId?: string | null;
+  onSoundtrackChange?: (id: string | null) => void;
+  soundtrackScopeKey?: string;
+  soundtrackDisabled?: boolean;
+  soundtrackSelectionLocked?: boolean;
 };
 
 export default function PublishMediaPoolPanel({
   images, imagePreviews, videoFile, videoPreviewUrl, isMobile, error,
   onPickImages, onPickVideo, onGenerate, onLibrary, onCamera, onRemoveImage, onRemoveVideo,
   onReorderImage, onModifyImage, onRetouchImage,
-  onRetouchVideo,
+  onRetouchVideo, soundtrackId = null, onSoundtrackChange, soundtrackScopeKey, soundtrackDisabled = false, soundtrackSelectionLocked = false,
 }: Props) {
   const t = useTranslations("booster");
   const shellT = useTranslations("shell");
@@ -62,6 +68,7 @@ export default function PublishMediaPoolPanel({
 
   return <>
     <div ref={poolRef} className={css.pool} data-publish-media-pool>
+      {onSoundtrackChange ? <div className={css.musicToolbar}><MediaSoundtrackSelector soundtrackId={soundtrackId} onChange={onSoundtrackChange} scopeKey={soundtrackScopeKey} disabled={soundtrackDisabled} selectionLocked={soundtrackSelectionLocked} /></div> : null}
       {error ? <div role="alert" className={css.error}>{error}</div> : null}
       <div className={css.workspace}>
       <section className={css.imageGroup} aria-label={t("wizard_pool_images")}>
@@ -87,8 +94,8 @@ export default function PublishMediaPoolPanel({
             <button type="button" className={css.remove} onClick={() => onRemoveImage(index)} aria-label={t("wizard_pool_remove_image") + " " + images[index].name}>×</button>
             <figcaption><span title={images[index].name}>{images[index].name}</span><div className={css.imageTools}>
               <button type="button" className={css.viewTool} onClick={() => setPreviewKey(imageKeys[index])} aria-label={shellT("voir_l_image_value_71740aa0", { value0: index + 1 })} title={shellT("voir_l_image_value_71740aa0", { value0: index + 1 })}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
-              <button type="button" className={css.modifyTool} onClick={() => onModifyImage(index)} aria-label={t("wizard_modify_image", { number: index + 1 })} title={t("wizard_modify_image", { number: index + 1 })}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0 0-3l-1-1a2 2 0 0 0-3 0L5 15l-1 5Z"/></svg></button>
-              <button type="button" className={css.retouchTool} onClick={() => onRetouchImage(index)} aria-label={t("wizard_retouch_image", { number: index + 1 })} title={t("wizard_retouch_image", { number: index + 1 })}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/></svg></button>
+              <button type="button" className={css.modifyTool} onClick={() => onModifyImage(index)} aria-label={t("wizard_modify_image", { number: index + 1 })} title={t("wizard_modify_image", { number: index + 1 })}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/></svg></button>
+              <button type="button" className={css.retouchTool} onClick={() => onRetouchImage(index)} aria-label={t("wizard_retouch_image", { number: index + 1 })} title={t("wizard_retouch_image", { number: index + 1 })}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0 0-3l-1-1a2 2 0 0 0-3 0L5 15l-1 5Z"/></svg></button>
             </div></figcaption>
           </figure>
         ) : <div key={index} className={css.emptyImage} data-active={activeSlot === index}>

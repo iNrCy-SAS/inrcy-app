@@ -1,4 +1,5 @@
 .pool { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 14px; }
+.musicToolbar { display: flex; flex: 0 0 auto; justify-content: flex-end; min-width: 0; }
 .workspace { display: grid; grid-template-columns: minmax(0,1.7fr) minmax(280px,1fr); gap: 28px; flex: 1; min-height: 430px; min-width: 0; max-height: 660px; }
 .imageGroup, .videoGroup { display: grid; grid-template-rows: auto minmax(0,1fr); gap: 14px; min-width: 0; min-height: 0; }
 .count { display: flex; align-items: center; gap: 9px; min-height: 28px; color: #f1e8f4; font-size: 14px; font-weight: 650; }

@@ -205,7 +205,8 @@ test("manual publication remains idempotent, asynchronous and partially retryabl
   assert.match(publishRoute, /\{ status: 202 \}/);
   assert.match(statusRoute, /publicationId/);
   assert.match(publishModal, /const retryFailedChannels = resultEntries/);
-  assert.match(publishModal, /entry\?\.retryable !== false/);
+  assert.match(publishModal, /isRetryablePublicationEntry\(entry\)/);
+  assert.match(publishModal, /storySequenceResumeByChannel: options\?\.retryPreviousSummary\s*\? buildStorySequenceResumeByChannel\(options\.retryPreviousSummary, publishTargetChannels\)\s*: undefined/);
   assert.match(
     publishModal,
     /if \(publicationComplete\) \{[\s\S]*archivePersistentMediaWorkspace/,

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { normalizeBoosterSoundtrackId } from "@/lib/boosterSoundtracks";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { requireUser } from "@/lib/requireUser";
 import { cleanupReplacedBoosterVideoStorage } from "@/lib/boosterVideoStorageCleanup";
@@ -130,6 +131,11 @@ export async function POST(req: Request) {
 
     if (!type || !["publish", "publish_draft", "review_mail", "promo_mail"].includes(type)) {
       return NextResponse.json({ error: "Type d'action invalide." }, { status: 400 });
+    }
+
+    if (type === "publish_draft") {
+      try { normalizeBoosterSoundtrackId(payload.soundtrackId); }
+      catch { return NextResponse.json({ error: "Choisissez une musique iNrCy disponible ou le mode Auto.", code: "booster_soundtrack_invalid" }, { status: 400 }); }
     }
 
     if (type === "publish_draft" && draftId) {

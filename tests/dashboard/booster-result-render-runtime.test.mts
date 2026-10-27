@@ -6,6 +6,9 @@ import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
+import * as storyRetry from "../../lib/publicationStorySequenceRetry.ts";
+import { classifyBoosterPublicationResult } from "../../lib/boosterPublicationOutcome.ts";
+import { isBoosterPublishFailureRetryable } from "../../lib/boosterPublicationPolicy.ts";
 
 const nodeRequire = createRequire(import.meta.url);
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -31,6 +34,7 @@ const wizard = {
 const cssModule = { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
 const intl = { useTranslations: () => (key: string, values: Record<string, unknown> = {}) => (messages[key] || key).replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? "")) };
 const resultDependencies = {
+  "@/lib/publicationStorySequenceRetry": storyRetry,
   "./DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ metaPilotEnabled: true }) },
   "@/lib/metaChannelUiAccess": { isMetaPilotChannelVisible: () => true },
   "next-intl": intl,
@@ -54,6 +58,66 @@ const render = (summary: Record<string, unknown> | null, options: Record<string,
 const renderCompactActions = (summary: Record<string, unknown> | null, publicationDestinations: Array<{ key: string; label: string }> = []) => renderToStaticMarkup(createElement(Actions, {
   summary, publicationDestinations, compact: true, onRetryFailed() {}, onOpenInrSend() {},
 }));
+
+test("real aggregation and both backend summaries carry 5/5 Story success into the result cards without offering retry", () => {
+  function callable<T>(file: string, name: string): T {
+    const source = ts.createSourceFile(file, read(file), ts.ScriptTarget.ES2022, true);
+    let found: ts.FunctionDeclaration | undefined;
+    const visit = (node: ts.Node) => { if (ts.isFunctionDeclaration(node) && node.name?.text === name) found = node; ts.forEachChild(node, visit); };
+    visit(source); assert.ok(found, name);
+    const context = { cleanString: (value: unknown) => String(value ?? "").trim(), asRecord: (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value : {}, CHANNEL_LABELS: { facebook: "Facebook", instagram: "Instagram" }, getTargetResultLabel: (state: { placement: string }) => state.placement, classifyBoosterPublicationResult, isBoosterPublishFailureRetryable };
+    const code = ts.transpileModule(`return (${found.getText(source).replace(/^export\s+/, "")});`, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+    return new Function(...Object.keys(context), code)(...Object.values(context));
+  }
+  const aggregate = callable<(channel: string, states: unknown[]) => Record<string, unknown>>("lib/boosterAsyncPublication.ts", "aggregateChannelTargetResults");
+  const reference = "11111111-1111-4111-8111-111111111111";
+  for (const channel of ["facebook", "instagram"]) for (const includeReel of [false, true]) {
+    const storyResult = { ok: true, external_id: "story-1", story_ids: ["story-1", "story-2", "story-3", "story-4", "story-5"], story_sequence_resume_ref: reference, published_image_count: 5, expected_image_count: 5 };
+    const states = [
+      ...(includeReel ? [{ channel, placement: "reel", targetKey: channel + ":reel", status: "completed", result: { ok: true, external_id: "reel-confirmed" } }] : []),
+      { channel, placement: "story", targetKey: channel + ":story", status: "completed", result: storyResult },
+    ];
+    const combined = aggregate(channel, states);
+    assert.equal(combined.ok, true); assert.equal(combined.story_sequence_resume_ref, reference);
+    assert.equal(combined.published_image_count, 5); assert.equal(combined.expected_image_count, 5);
+    for (const [file, name] of [["lib/boosterAsyncPublication.ts", "buildAsyncPublicationSummary"], ["app/api/booster/publish-now/publishNow.foundations.ts", "buildResultsSummary"]]) {
+      const summary = callable<(results: unknown, selected: string[]) => { entries: Array<Record<string, unknown>> }>(file, name)({ [channel]: combined }, [channel]);
+      assert.equal(summary.entries[0].story_sequence_resume_ref, reference);
+      assert.deepEqual(storyRetry.publicationStorySequenceCounts(summary.entries[0]), { confirmed: 5, expected: 5 });
+      for (const embedded of [false, true]) {
+        const html = render(summary, { embedded, onRetryFailed() {} });
+        assert.match(html, /data-story-confirmed-count[^>]*>5\/5 Stories confirmées/);
+        assert.doesNotMatch(html, /class="retryButton"|Retenter/);
+      }
+    }
+  }
+});
+
+test("real result cards show confirmed Story counts for partial, complete and unconfirmed failures without inventing counts", () => {
+  for (const embedded of [false, true]) for (const [confirmed, status, ok] of [[3, "failed", false], [5, "published", true], [0, "failed", false]] as const) {
+    const html = render({ entries: [{ channel: "instagram", label: "Instagram", ok, status, published_image_count: confirmed, expected_image_count: 5 }] }, { embedded });
+    assert.match(html, new RegExp(`data-story-confirmed-count[^>]*>${confirmed}/5 Stories confirmées`));
+    assert.equal((html.match(/data-story-confirmed-count/g) || []).length, 1);
+  }
+  for (const invalid of [
+    { published_image_count: -1, expected_image_count: 5 }, { published_image_count: 6, expected_image_count: 5 },
+    { published_image_count: 1.5, expected_image_count: 5 }, { published_image_count: 3, expected_image_count: 0 },
+    { published_image_count: 3, expected_image_count: 6 }, { published_image_count: "3", expected_image_count: 5 },
+    { published_image_count: 3, expected_image_count: "5" }, { expected_image_count: 5, story_ids: ["one", "two", "three"] },
+    { published_image_count: null, expected_image_count: 5 }, {},
+  ]) for (const embedded of [false, true]) {
+    assert.doesNotMatch(render({ entries: [{ channel: "facebook", label: "Facebook", ok: false, status: "failed", ...invalid }] }, { embedded }), /data-story-confirmed-count|Stories confirmées/);
+  }
+  assert.doesNotMatch(render({ entries: [{ channel: "gmb", label: "Google", ok: true, status: "published", published_image_count: 3, expected_image_count: 5 }] }), /Stories confirmées/);
+});
+
+test("a published Reel with a retryable incomplete Story sequence exposes targeted repair without resending a complete channel", () => {
+  const entry = { channel: "instagram", label: "Instagram", ok: true, status: "published_with_warning", warning: "meta_placement_partial_failure", retryable: true, story_sequence_resume_ref: "10000000-0000-4000-8000-000000000001" };
+  assert.match(renderCompactActions({ entries: [entry] }), /class="retryButton"/);
+  assert.doesNotMatch(renderCompactActions({ entries: [{ ...entry, retryable: false }] }), /class="retryButton"/);
+  assert.doesNotMatch(renderCompactActions({ entries: [{ ...entry, retryable: undefined }] }), /class="retryButton"/);
+  assert.doesNotMatch(renderCompactActions({ entries: [{ ...entry, status: "published", warning: null }] }), /class="retryButton"/);
+});
 
 test("result renders real published channels, their logos and external destination without duplicating the CTA", () => {
   const html = render({ successCount: 1, entries: [{ channel: "facebook", label: "Facebook", ok: true, status: "published" }], channelLinks: { facebook: "https://www.facebook.com/example/posts/1" } }, { wizardSteps: ["channels", "content", "publication"] });

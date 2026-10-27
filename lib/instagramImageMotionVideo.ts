@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 
 import sharp from "sharp";
 
-import { loadAiMediaSoundtrack } from "@/lib/aiMediaGenerationSoundtracks";
+import { loadAiMediaSoundtrack, type LoadedAiMediaSoundtrack } from "@/lib/aiMediaGenerationSoundtracks";
 import {
   probeVideoSource,
   resolveVideoNormalizationFfmpegPath,
@@ -25,7 +25,7 @@ const OUTPUT_DURATION_SECONDS = 8;
 const OUTPUT_FPS = 30;
 const TRANSITION_SECONDS = 0.35;
 const MAX_SOURCE_IMAGE_BYTES = 25 * 1024 * 1024;
-const PIPELINE_VERSION = "instagram-image-motion-v1";
+const PIPELINE_VERSION = "instagram-image-motion-v2-cfr";
 
 type InstagramImageMotionPlacement = "reel" | "story";
 
@@ -171,7 +171,7 @@ function buildMotionFilter(imageCount: number, preserveComposition = false) {
       ? `scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT},fps=${OUTPUT_FPS}`
       : `scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT},zoompan=z='min(zoom+${zoomStep},1.04)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${OUTPUT_WIDTH}x${OUTPUT_HEIGHT}:fps=${OUTPUT_FPS}`;
     filters.push(
-      `[${index}:v]${framing},trim=duration=${clipDuration.toFixed(4)},setpts=PTS-STARTPTS,setsar=1,format=yuv420p[v${index}]`,
+      `[${index}:v]${framing},fps=${OUTPUT_FPS},settb=1/${OUTPUT_FPS},trim=duration=${clipDuration.toFixed(4)},setpts=PTS-STARTPTS,setsar=1,format=yuv420p[v${index}]`,
     );
   }
 
@@ -180,7 +180,9 @@ function buildMotionFilter(imageCount: number, preserveComposition = false) {
     const nextLabel = `[vx${index}]`;
     const offset = index * (clipDuration - TRANSITION_SECONDS);
     filters.push(
-      `${videoLabel}[v${index}]xfade=transition=fade:duration=${TRANSITION_SECONDS}:offset=${offset.toFixed(4)}${nextLabel}`,
+      // Some Linux FFmpeg builds leave xfade's output frame_rate at 1/0.
+      // Reassert CFR and time base before feeding that stream to the next xfade.
+      `${videoLabel}[v${index}]xfade=transition=fade:duration=${TRANSITION_SECONDS}:offset=${offset.toFixed(4)},fps=${OUTPUT_FPS},settb=1/${OUTPUT_FPS},setpts=PTS-STARTPTS${nextLabel}`,
     );
     videoLabel = nextLabel;
   }
@@ -191,6 +193,42 @@ function buildMotionFilter(imageCount: number, preserveComposition = false) {
     `[${imageCount}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,atrim=duration=${OUTPUT_DURATION_SECONDS},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.3,afade=t=out:st=7.2:d=0.8,volume=0.22[aout]`,
   );
   return { filter: filters.join(";"), clipDuration };
+}
+
+/** Native photo Stories use one full-height JPEG per selected photo, in order.
+ * Prepare every frame before the first remote publication; retries reuse the
+ * same immutable account/publication-scoped derivatives. No AI call is made. */
+export async function prepareMetaImageStoryPhotos(args: {
+  accountId: string;
+  publicationId: string;
+  imageStoragePaths: readonly string[];
+  preserveComposition?: boolean;
+  signal?: AbortSignal;
+}): Promise<Array<{ url: string; storagePath: string; sourceIdentity: string }>> {
+  if (!args.imageStoragePaths.length || args.imageStoragePaths.length > 5 || args.imageStoragePaths.some(value => !String(value || "").trim())) throw new Error("meta_story_source_invalid");
+  const urls: Array<{ url: string; storagePath: string; sourceIdentity: string }> = [];
+  for (const sourcePath of args.imageStoragePaths) {
+    args.signal?.throwIfAborted();
+    const signature = createHash("sha256").update(JSON.stringify({ version: "meta-photo-story-v1", accountId: args.accountId, publicationId: args.publicationId, sourcePath, preserveComposition: args.preserveComposition === true })).digest("hex").slice(0, 24);
+    const storagePath = `${safeSegment(args.accountId, "account")}/meta-story-photos/${safeSegment(args.publicationId, "publication")}-${signature}.jpg`;
+    const cached = await supabaseAdmin.storage.from("booster").download(storagePath);
+    let frame: Buffer;
+    if (cached.error || !cached.data || cached.data.size < 1_000 || cached.data.type !== "image/jpeg") {
+      const source = await downloadSourceImage(sourcePath);
+      frame = await composeVerticalFrame(source, args.preserveComposition);
+      args.signal?.throwIfAborted();
+      const saved = await supabaseAdmin.storage.from("booster").upload(storagePath, toExactStorageArrayBuffer(frame), { contentType: "image/jpeg", cacheControl: "31536000", upsert: false });
+      if (saved.error) {
+        const wonRace = await supabaseAdmin.storage.from("booster").download(storagePath);
+        if (wonRace.error || !wonRace.data || wonRace.data.size < 1_000 || wonRace.data.type !== "image/jpeg") throw new Error(saved.error.message);
+        frame = Buffer.from(await wonRace.data.arrayBuffer());
+      }
+    } else frame = Buffer.from(await cached.data.arrayBuffer());
+    const publicUrl = publicBoosterUrl(storagePath);
+    if (!publicUrl) throw new Error("meta_story_public_url_missing");
+    urls.push({ url: publicUrl, storagePath, sourceIdentity: `jpeg-sha256:${createHash("sha256").update(frame).digest("hex")}` });
+  }
+  return urls;
 }
 
 /**
@@ -204,6 +242,9 @@ export async function createInstagramImageMotionVideo(args: {
   imageStoragePaths: readonly string[];
   placement: InstagramImageMotionPlacement;
   soundtrackPrompt: string;
+  soundtrackId?: string | null;
+  /** One loaded original track may be shared by every Story in a series. */
+  loadedSoundtrack?: LoadedAiMediaSoundtrack;
   /** Agent supplies a native 9:16 image: no inset, background or zoom crop. */
   preserveComposition?: boolean;
   signal?: AbortSignal;
@@ -220,11 +261,12 @@ export async function createInstagramImageMotionVideo(args: {
     throw new Error("instagram_image_motion_source_missing");
   }
 
-  const soundtrack = await loadAiMediaSoundtrack(args.soundtrackPrompt, {
+  const soundtrack = args.loadedSoundtrack || await loadAiMediaSoundtrack(args.soundtrackPrompt, {
     // Une publication garde la même piste lors d'une reprise idempotente,
     // tandis que deux Reels/Stories au brief identique varient réellement.
     selectionKey: `${args.accountId}:${args.publicationId}:${args.placement}`,
     durationSeconds: OUTPUT_DURATION_SECONDS,
+    soundtrackId: args.soundtrackId || undefined,
   });
   const signature = createHash("sha256")
     .update(

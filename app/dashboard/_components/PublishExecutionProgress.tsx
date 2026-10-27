@@ -12,6 +12,7 @@ export type PublicationProgressDestination = {
   status?: "published" | "pending" | "failed" | "warning" | "skipped";
   href?: string;
   details?: string;
+  storyProgressLabel?: string;
 };
 
 const CHANNEL_LOGOS: Readonly<Record<string, string>> = {
@@ -106,12 +107,12 @@ export function PublicationVisualHub({
           const hasDetails = Boolean(status && destination.details);
           const identity = <>
             {CHANNEL_LOGOS[destination.key] ? <img src={CHANNEL_LOGOS[destination.key]} alt="" width={38} height={38} /> : <span>{destination.label.slice(0, 1)}</span>}
-            <span className={css.destinationText}><strong>{destination.label}</strong>{status ? <small>{status.label}</small> : null}</span>
+            <span className={css.destinationText}><strong>{destination.label}</strong>{status ? <small>{status.label}</small> : null}{destination.storyProgressLabel ? <small data-story-confirmed-count>{destination.storyProgressLabel}</small> : null}</span>
             {status && !hasDetails ? <span className={css.destinationBadge} aria-hidden="true">{status.icon}</span> : null}
           </>;
           return (
             <li key={destination.key} className={css.destination} data-channel={destination.key} data-status={destination.status} data-feeding={(!completed && !destination.status) || destination.status === "pending"} data-linked={Boolean(destination.href)} style={{ "--destination-color": destination.color, "--pulse-delay": `${index * -.37}s` } as CSSProperties}>
-              <span className={css.destinationTrigger} aria-label={status ? `${destination.label} — ${status.label}` : destination.label}>{identity}</span>
+              <span className={css.destinationTrigger} aria-label={(status ? `${destination.label} — ${status.label}` : destination.label) + (destination.storyProgressLabel ? ` · ${destination.storyProgressLabel}` : "")}>{identity}</span>
               {hasDetails && status ? <details className={css.destinationDetails} name={`${progressId}-channel-details`} onKeyDown={(event) => { if (event.key === "Escape" && event.currentTarget.open) { event.currentTarget.open = false; event.currentTarget.querySelector<HTMLElement>("summary")?.focus(); event.stopPropagation(); } }}>
                 <summary className={css.destinationInfo} aria-label={`${destination.label} — ${status.label} : détails`} title="Voir le détail"><span className={css.destinationInfoGlyph} aria-hidden="true">i</span><span className={css.destinationCloseGlyph} aria-hidden="true">×</span></summary>
                 <div className={css.destinationPopover} tabIndex={0} role="region" aria-label={`Détail ${destination.label}`}>

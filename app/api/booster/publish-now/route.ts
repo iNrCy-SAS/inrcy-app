@@ -41,8 +41,11 @@ import {
   type InstagramVideoPhaseResult,
   type InstagramVideoPublishCheckpoint,
 } from "@/lib/instagramVideoPublishPhases";
-import { createInstagramImageMotionVideo } from "@/lib/instagramImageMotionVideo";
+import { createInstagramImageMotionVideo, prepareMetaImageStoryPhotos } from "@/lib/instagramImageMotionVideo";
 import { createFacebookImageMotionVideo } from "@/lib/facebookImageMotionVideo";
+import { publishPersistedMetaStorySequence } from "@/lib/metaStorySequenceStorage";
+import { normalizeBoosterSoundtrackId } from "@/lib/boosterSoundtracks";
+import { selectAiMediaSoundtrack } from "@/lib/aiMediaSoundtrackCatalog";
 import {
   linkedinPublishImage,
   linkedinPublishMultiImage,
@@ -448,6 +451,7 @@ async function getFacebookPlacementPreflightFailure(args: {
 }
 
 async function publishNowHandler(req: Request) {
+  const storyWorkerDeadlineAt = Date.now() + 160_000;
   const publicationAttemptStartedAt = new Date().toISOString();
   let lifecycleWorkspaceId = "";
   let lifecycleUserId = "";
@@ -595,6 +599,13 @@ async function publishNowHandler(req: Request) {
       body = resolvedPreparation.body;
     }
 
+    // Preparation workers load their durable body above; validate that actual
+    // payload rather than the small dispatch-reference envelope.
+    let requestedSoundtrackId: string | null;
+    try { requestedSoundtrackId = normalizeBoosterSoundtrackId(body.soundtrackId); }
+    catch {
+      return NextResponse.json({ ok: false, code: "booster_soundtrack_invalid", retryable: false, error: "Choisissez une musique iNrCy disponible ou le mode Auto." }, { status: 400 });
+    }
     body = normalizeSiteWebPublicationPayload(body);
     const normalizedChannels = normalizeBoosterPublicationChannels(
       body.channels,
@@ -668,6 +679,25 @@ async function publishNowHandler(req: Request) {
         { status: 400 },
       );
     }
+    const storyResumeByChannel = asRecord(body.storySequenceResumeByChannel);
+    if (body.storySequenceResumeByChannel !== undefined && (!body.storySequenceResumeByChannel || typeof body.storySequenceResumeByChannel !== "object" || Array.isArray(body.storySequenceResumeByChannel) || Object.entries(storyResumeByChannel).some(([channel, ref]) => !["facebook", "instagram"].includes(channel) || !selected.includes(channel as ChannelKey) || typeof ref !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ref)))) {
+      return NextResponse.json({ ok: false, code: "meta_story_resume_invalid", retryable: false, error: "La référence de reprise des Stories est invalide." }, { status: 400 });
+    }
+    const storyResumeMediaModes = asRecord(body.mediaModeByChannel);
+    for (const channel of Object.keys(storyResumeByChannel)) {
+      const resumedMode = Object.hasOwn(storyResumeMediaModes, channel)
+        ? storyResumeMediaModes[channel]
+        : normalizePublicationMediaType(body.mediaType);
+      if (resumedMode !== "images") return NextResponse.json({ ok: false, code: "meta_story_resume_media_mismatch", retryable: false, error: "Reprenez cette séquence avec ses photos initiales et dans le même ordre. Aucune nouvelle Story n’a été publiée." }, { status: 400 });
+    }
+    if (Object.keys(storyResumeByChannel).length) body.mediaModeByChannel = {
+      ...storyResumeMediaModes,
+      ...Object.fromEntries(Object.keys(storyResumeByChannel).map(channel => [channel, "images"])),
+    };
+    // A retry of remaining Stories never republishes an already delivered Reel
+    // or feed post, even when the old editor snapshot selected both formats.
+    if (storyResumeByChannel.facebook) body.facebookPublicationSettings = { placement: "story" };
+    if (storyResumeByChannel.instagram) body.instagramPublicationSettings = { placement: "story" };
     const requestedInstagramPublicationSelection =
       normalizeMetaPublicationSelection(body.instagramPublicationSettings);
     const requestedFacebookPublicationSelection =
@@ -2188,6 +2218,7 @@ async function publishNowHandler(req: Request) {
     const publicationId = internalAsyncWorkerDispatch
       ? asyncPublicationId
       : randomUUID();
+    const publicationSoundtrackId = requestedSoundtrackId ?? selectAiMediaSoundtrack(idea, { selectionKey: `${userId}:${publicationId}:publication-music` }).id;
     let asyncChannelLockId: string | null = null;
 
     if (internalAsyncDispatch) {
@@ -2694,6 +2725,7 @@ async function publishNowHandler(req: Request) {
           mediaModeByChannel,
           instagramPublicationSettings: canonicalInstagramPublicationSettings,
           facebookPublicationSettings: canonicalFacebookPublicationSettings,
+          soundtrackId: publicationSoundtrackId,
           threadsPublicationSettings,
           videoSettingsByChannel,
           video: hasAnyVideoChannel ? publicationVideo : null,
@@ -2841,6 +2873,8 @@ async function publishNowHandler(req: Request) {
                 }
               : {}),
             ...(channel === "threads" ? { threadsPublicationSettings } : {}),
+            ...(Object.hasOwn(storyResumeByChannel, channel) ? { storySequenceResumeByChannel: { [channel]: storyResumeByChannel[channel] } } : {}),
+            soundtrackId: publicationSoundtrackId,
             ...(channel === "pinterest"
               ? { pinterestPublicationSettings }
               : {}),
@@ -3253,6 +3287,20 @@ async function publishNowHandler(req: Request) {
       imagesByChannel,
       expectedImageCountByChannel,
     });
+
+    async function publishImageStorySequence(channel: "facebook" | "instagram", remoteAccountId: string, accessToken: string, authMode?: "facebook_login" | "instagram_login", tokenCandidates?: readonly { source?: string; accessToken: string }[]) {
+      const imageSet = getChannelImageSet(channel);
+      const sourcePaths = (channel === "facebook" && imageSet.socialFeedStoragePaths.length ? imageSet.socialFeedStoragePaths : imageSet.publishableStoragePaths.length ? imageSet.publishableStoragePaths : imageSet.storagePaths).map(value => String(value || "").trim()).filter(Boolean);
+      const expected = getExpectedChannelImageCount(channel);
+      if (!sourcePaths.length || sourcePaths.length > 5 || expected > 0 && sourcePaths.length !== expected) return { ok: false, code: "meta_story_incomplete_sources", retryable: true, error: "Toutes les photos choisies doivent être préparées avant de commencer la séquence de Stories.", image_count: 0, expected_image_count: expected };
+      try {
+        const photos = await prepareMetaImageStoryPhotos({ accountId: userId, publicationId, imageStoragePaths: sourcePaths, preserveComposition: requestedOriginSource.startsWith("inr_agent") });
+        return await publishPersistedMetaStorySequence({ accountId: userId, publicationId, channel, remoteAccountId, accessToken, authMode, tokenCandidates, photos, soundtrackPrompt: idea, soundtrackId: publicationSoundtrackId, resumeRef: storyResumeByChannel[channel], deadlineAt: storyWorkerDeadlineAt, signal: req.signal });
+      } catch (error) {
+        console.error("[Booster] photo Story sequence preparation failed", { userId, publicationId, channel, error: error instanceof Error ? error.message : String(error) });
+        return { ok: false, code: "meta_story_photo_preparation_failed", retryable: true, error: "Les photos de la séquence de Stories n’ont pas pu être préparées. Aucune Story supplémentaire n’a été publiée par cette tentative.", ...(storyResumeByChannel[channel] ? { story_sequence_resume_ref: storyResumeByChannel[channel] } : {}) };
+      }
+    }
 
     async function setDelivery(channel: ChannelKey, patch: JsonRecord) {
       const nextStatus = String(patch.status ?? "").trim();
@@ -4657,6 +4705,12 @@ async function publishNowHandler(req: Request) {
           }
           let facebookWarning: { code: string; message: string } | null =
             facebookStoryLinkWarning;
+          if (facebookPublicationSettings?.placement === "story" && mediaModeByChannel[ch] === "images") {
+            const sequence = await publishImageStorySequence("facebook", pageId, pageToken);
+            await setDelivery(ch, { status: sequence.ok ? "delivered" : "failed", error: sequence.ok ? null : sequence.error });
+            results[ch] = { ...sequence, ...(sequence.ok && facebookStoryLinkWarning ? { warning: facebookStoryLinkWarning.code, warning_message: facebookStoryLinkWarning.message } : {}) };
+            continue;
+          }
           let facebookPublishVideo = channelVideo;
           if (
             facebookPublicationSettings &&
@@ -4680,6 +4734,7 @@ async function publishNowHandler(req: Request) {
                 imageStoragePaths: facebookSourceStoragePaths,
                 placement: facebookPublicationSettings.placement,
                 preserveComposition: requestedOriginSource.startsWith("inr_agent"),
+                soundtrackId: publicationSoundtrackId,
                 soundtrackPrompt: [
                   idea,
                   channelPost.title,
@@ -4895,6 +4950,13 @@ async function publishNowHandler(req: Request) {
           }
           const igToken = igAuthMode === "instagram_login" ? await ensureMetaDirectAccessToken(supabaseAdmin, ig) : tryDecryptToken(igTokenRaw) || "";
           const igMeta = asRecord(ig["meta"]);
+          const knownInstagramAccountType = String(igMeta.account_type || igMeta.accountType || "").toUpperCase();
+          if (instagramPublicationSettings?.placement === "story" && igAuthMode === "facebook_login" && ["CREATOR", "MEDIA_CREATOR", "PERSONAL"].includes(knownInstagramAccountType)) {
+            const error = "Les Stories via la connexion Facebook nécessitent un compte Instagram Business. Ce compte ne permet pas ce format via cette connexion.";
+            await setDelivery(ch, { status: "failed", error });
+            results[ch] = { ok: false, code: "instagram_story_business_required", retryable: false, error };
+            continue;
+          }
           const igExpired =
             igAuthMode === "facebook_login" && isExpired(ig["expires_at"]) &&
             !String(igMeta["page_id"] ?? "") &&
@@ -4944,6 +5006,12 @@ async function publishNowHandler(req: Request) {
             ig,
             fbRow,
           );
+          if (instagramPublicationSettings?.placement === "story" && mediaModeByChannel[ch] === "images") {
+            const sequence = await publishImageStorySequence("instagram", igUserId, igToken, igAuthMode, instagramTokenCandidates);
+            await setDelivery(ch, { status: sequence.ok ? "delivered" : "failed", error: sequence.ok ? null : sequence.error });
+            results[ch] = { ...sequence, instagram_media_type: "STORIES" };
+            continue;
+          }
           let instagramPublishVideo = channelVideo;
           if (
             instagramPublicationSettings &&
@@ -4966,6 +5034,7 @@ async function publishNowHandler(req: Request) {
                 imageStoragePaths: instagramSourceStoragePaths,
                 placement: instagramPublicationSettings.placement,
                 preserveComposition: requestedOriginSource.startsWith("inr_agent"),
+                soundtrackId: publicationSoundtrackId,
                 soundtrackPrompt: [
                   idea,
                   channelPost.title,
@@ -7649,6 +7718,7 @@ async function publishNowHandler(req: Request) {
         instagramPublicationSettings:
           canonicalInstagramPublicationSettings,
         facebookPublicationSettings: canonicalFacebookPublicationSettings,
+        soundtrackId: publicationSoundtrackId,
         threadsPublicationSettings,
         videoSettingsByChannel,
         video: persistedVideo,

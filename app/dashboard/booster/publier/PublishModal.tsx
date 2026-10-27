@@ -24,6 +24,8 @@ import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import PublishExecutionResultModal, { PublishExecutionResultActions, type PublishExecutionSummary } from "../../_components/PublishExecutionResultModal";
 import { getPublicationDestinationStatus, type PublicationProgressDestination } from "../../_components/PublishExecutionProgress";
 import { mergePreflightFailuresIntoPublicationSummary } from "@/lib/boosterPublicationOutcome";
+import { buildStorySequenceResumeByChannel, isRetryablePublicationEntry, publicationStorySequenceResumeRef, publicationStorySequenceCounts } from "@/lib/publicationStorySequenceRetry";
+import { normalizeMediaSoundtrackId } from "@/lib/mediaSoundtrackSelection";
 import { subscribeToChannelConnectionUpdates } from "@/lib/channelConnectionUpdates";
 import { createClient } from "@/lib/supabaseClient";
 import { prewarmBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
@@ -430,6 +432,7 @@ function mergeRetriedPublicationSummary(
   for (const entry of next.entries || []) {
     const channel = String(entry.channel || "").trim();
     if (!channel || (previous && !retried.has(channel))) continue;
+    const storyCounts = publicationStorySequenceCounts(entry);
     entriesByChannel.set(channel, {
       channel,
       label: String(entry.label || channel),
@@ -439,6 +442,9 @@ function mergeRetriedPublicationSummary(
       technicalStatus: typeof entry.technicalStatus === "string" ? entry.technicalStatus : undefined,
       code: typeof entry.code === "string" ? entry.code : undefined,
       retryable: typeof entry.retryable === "boolean" ? entry.retryable : undefined,
+      story_sequence_resume_ref: publicationStorySequenceResumeRef(entry.story_sequence_resume_ref),
+      published_image_count: storyCounts?.confirmed,
+      expected_image_count: storyCounts?.expected,
       error: typeof entry.error === "string" ? entry.error : undefined,
       warning: typeof entry.warning === "string" ? entry.warning : undefined,
       warning_kind: typeof entry.warning_kind === "string" ? entry.warning_kind : undefined,
@@ -458,7 +464,7 @@ function mergeRetriedPublicationSummary(
     entries,
     successCount,
     failureCount,
-    retryableFailureCount: entries.filter((entry) => getPublicationDestinationStatus(entry) === "failed" && entry.retryable !== false).length,
+    retryableFailureCount: entries.filter(isRetryablePublicationEntry).length,
     pendingCount,
     skippedCount: statuses.filter((status) => status === "skipped").length,
     warningCount: statuses.filter((status) => status === "warning").length,
@@ -647,10 +653,18 @@ export default function PublishModal({
   const [publishProgressPhaseLabel, setPublishProgressPhaseLabel] = useState("");
   const [publicationDestinations, setPublicationDestinations] = useState<PublicationProgressDestination[]>([]);
   const latestPublicationSummaryRef = useRef<PublishExecutionSummary | null>(null);
+  const [soundtrackId, setSoundtrackId] = useState<string | null>(null);
+  const publicationActorScopeRef = useRef({ actorUserId, accountId: activeAccountId });
   const [livePublicationResult, setLivePublicationResult] = useState<{
     source: PublishExecutionSummary | null | undefined;
     summary: PublishExecutionSummary;
   } | null>(null);
+  useEffect(() => {
+    publicationActorScopeRef.current = { actorUserId, accountId: activeAccountId };
+    latestPublicationSummaryRef.current = null;
+    setLivePublicationResult(null);
+    setSoundtrackId(null);
+  }, [actorUserId, activeAccountId]);
   const handlePublicationSummaryChange = useCallback((summary: PublishExecutionSummary) => {
     latestPublicationSummaryRef.current = summary;
     setLivePublicationResult((current) => current?.summary === summary
@@ -3024,6 +3038,7 @@ export default function PublishModal({
       instagramStoryEnabled,
       facebookPublicationPlacement,
       facebookStoryEnabled,
+      soundtrackId,
       pinterestBoardId,
       pinterestBoardName,
       tiktokPublicationSettings,
@@ -3060,6 +3075,7 @@ export default function PublishModal({
     instagramStoryEnabled,
     facebookPublicationPlacement,
     facebookStoryEnabled,
+    soundtrackId,
     pinterestBoardId,
     pinterestBoardName,
     tiktokPublicationSettings,
@@ -3429,6 +3445,7 @@ export default function PublishModal({
           restoredFacebookSelection.primaryPlacement !== "story" &&
           restoredFacebookSelection.includeStory &&
           facebookPublicationPreferencesRef.current.storiesEnabled;
+        const nextSoundtrackId = normalizeMediaSoundtrackId(payload.soundtrackId);
         const nextPinterestBoardId = String(
           payload.pinterestBoardId || "",
         ).trim();
@@ -3490,6 +3507,7 @@ export default function PublishModal({
         facebookPlacementTouchedRef.current = true;
         setFacebookPublicationPlacement(nextFacebookPublicationPlacement);
         setFacebookStoryEnabled(nextFacebookStoryEnabled);
+        setSoundtrackId(nextSoundtrackId);
         setPinterestBoardId(nextPinterestBoardId);
         setPinterestBoardName(nextPinterestBoardName);
         setTiktokPublicationSettings(nextTiktokPublicationSettings);
@@ -3579,6 +3597,7 @@ export default function PublishModal({
             facebookPublicationPlacement:
               nextFacebookPublicationPlacement,
             facebookStoryEnabled: nextFacebookStoryEnabled,
+            soundtrackId: nextSoundtrackId,
             pinterestBoardId: nextPinterestBoardId,
             pinterestBoardName: nextPinterestBoardName,
             tiktokPublicationSettings: nextTiktokPublicationSettings,
@@ -3802,6 +3821,9 @@ export default function PublishModal({
   };
 
   const clearPublicationWork = () => {
+    latestPublicationSummaryRef.current = null;
+    setLivePublicationResult(null);
+    setSoundtrackId(null);
     clearAiCreationWork();
     clearChannelCreationWork();
     setCreationMode(null);
@@ -5616,6 +5638,11 @@ export default function PublishModal({
       setPublishError(i18nT("connections_loading"));
       return;
     }
+    const publishAccountId = getActiveBrowserUserId() || activeAccountId || null;
+    const isCurrentPublishScope = () => publicationActorScopeRef.current.actorUserId === actorUserId && publicationActorScopeRef.current.accountId === publishAccountId &&
+      (getActiveBrowserUserId() || activeAccountId || null) === publishAccountId;
+    if (!isCurrentPublishScope()) return;
+    if (!options?.retryPreviousSummary) latestPublicationSummaryRef.current = null;
     const publishStartedAt = Date.now();
     const preparedPostsByChannel =
       options?.preparedPostsByChannel || buildPreparedPostsByChannel();
@@ -6263,6 +6290,7 @@ export default function PublishModal({
       }
 
       publishDispatchStarted = true;
+      if (!isCurrentPublishScope()) throw new Error(i18nT("connections_loading"));
       const result = await trackEvent("publish", {
         _onPublicationProgress: onPublicationProgress,
         _clientVisibleWaitMs: Math.max(
@@ -6270,6 +6298,7 @@ export default function PublishModal({
           visiblePublicationCapMs - (Date.now() - publishStartedAt),
         ),
         creationMode,
+        soundtrackId,
         mediaWorkspaceId:
           unifiedMediaConsumptionClientAvailable && readyMediaWorkspaceId
             ? readyMediaWorkspaceId
@@ -6300,6 +6329,9 @@ export default function PublishModal({
         idea: idea.trim(),
         theme,
         channels: publishTargetChannels,
+        storySequenceResumeByChannel: options?.retryPreviousSummary
+          ? buildStorySequenceResumeByChannel(options.retryPreviousSummary, publishTargetChannels)
+          : undefined,
         clientPreflightFailuresByChannel,
         postByChannel: filterPostsForSelectedChannels(
           preparedPostsByChannel,
@@ -6372,8 +6404,7 @@ export default function PublishModal({
       const retryFailedChannels = resultEntries
         .filter(
           (entry: any) =>
-            entry?.ok === false &&
-            entry?.retryable !== false &&
+            isRetryablePublicationEntry(entry) &&
             publishableChannels.includes(entry?.channel as ChannelKey),
         )
         .map((entry: any) => entry.channel as ChannelKey);
@@ -6508,13 +6539,14 @@ export default function PublishModal({
       completedSummary.channelLinks = channelLinks;
       latestPublicationSummaryRef.current = completedSummary;
       const remainingRetryChannels = (completedSummary.entries || [])
-        .filter((entry) => getPublicationDestinationStatus(entry) === "failed" && entry.retryable !== false)
+        .filter(isRetryablePublicationEntry)
         .map((entry) => entry.channel as ChannelKey);
       const retryFailed = remainingRetryChannels.length || completedSummary.pendingCount
         ? async () => {
+            if (!isCurrentPublishScope()) return;
             const retryPreviousSummary = latestPublicationSummaryRef.current || completedSummary;
             const channels = (retryPreviousSummary.entries || [])
-              .filter((entry) => getPublicationDestinationStatus(entry) === "failed" && entry.retryable !== false)
+              .filter(isRetryablePublicationEntry)
               .map((entry) => entry.channel as ChannelKey);
             if (!channels.length) return;
             await runPublish({
@@ -6663,6 +6695,7 @@ export default function PublishModal({
           payload: {
             status: "draft",
             creationMode,
+            soundtrackId,
             mediaWorkspaceId,
             mediaWorkspaceClientKey,
             mediaPipelineCutoverV1: mediaPipelineCutoverEnabled,
@@ -7196,6 +7229,7 @@ export default function PublishModal({
               },
               publishPayload: {
                 creationMode,
+                soundtrackId,
                 mediaWorkspaceId:
                   unifiedMediaConsumptionClientAvailable && readyMediaWorkspaceId
                     ? readyMediaWorkspaceId
@@ -8657,6 +8691,8 @@ export default function PublishModal({
           </PublishWizardScreen>
           <PublishWizardScreen active={activeWizardStep === "media"} step="media">
             <PublishMediaPoolPanel images={images} imagePreviews={imagePreviews} videoFile={videoFile} videoPreviewUrl={videoPreviewUrl} isMobile={isMobile} error={imgError}
+              soundtrackId={soundtrackId} onSoundtrackChange={setSoundtrackId} soundtrackScopeKey={`${actorUserId}:${activeAccountId}`} soundtrackDisabled={wizardBusy}
+              soundtrackSelectionLocked={Boolean(publicationSummaryForActions?.entries?.some(entry => publicationStorySequenceResumeRef(entry.story_sequence_resume_ref)))}
               onPickImages={() => { pendingDirectMediaDestinationRef.current = { kind: "publication" }; onPickImagesClick(); }}
               onPickVideo={() => onPickVideoClick({ kind: "publication" })}
               onGenerate={(kind) => void openInrStudioGenerator(kind)}

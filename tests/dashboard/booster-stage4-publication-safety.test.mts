@@ -16,14 +16,16 @@ const publishNowFoundations = read(
 );
 const publicationPolicy = read("lib/boosterPublicationPolicy.ts");
 const mediaWorkspaceClient = read("lib/mediaWorkspaceClient.ts");
+const publicationRetry = read("lib/publicationStorySequenceRetry.ts");
 
 test("partial publishing retries only retryable failed channels and keeps the workspace", () => {
   assert.match(publishModal, /const retryFailedChannels = resultEntries/);
-  assert.match(publishModal, /entry\?\.ok === false/);
-  assert.match(publishModal, /entry\?\.retryable !== false/);
+  assert.match(publishModal, /isRetryablePublicationEntry\(entry\)/);
+  assert.match(publicationRetry, /entry\.ok === false/);
+  assert.match(publicationRetry, /entry\.retryable === false/);
   assert.match(publishModal, /const channels = \(retryPreviousSummary\.entries \|\| \[\]\)/);
   assert.match(publishModal, /const retryPreviousSummary = latestPublicationSummaryRef\.current \|\| completedSummary/);
-  assert.match(publishModal, /getPublicationDestinationStatus\(entry\) === "failed" && entry\.retryable !== false/);
+  assert.match(publishModal, /filter\(isRetryablePublicationEntry\)/);
   assert.match(publishModal, /if \(publicationComplete\) \{[\s\S]*archivePersistentMediaWorkspace/);
   assert.match(publishModal, /options\?\.closeOnSuccess !== false && publicationAccepted/);
 });

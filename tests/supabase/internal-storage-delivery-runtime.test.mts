@@ -105,6 +105,8 @@ test("attachment download scopes the actual permitted buckets to the active acco
 });
 
 function scheduledRoute(file: string) {
+  const soundtrackCatalog = load("lib/aiMediaSoundtrackCatalog.ts", { "node:crypto": nativeRequire("node:crypto") });
+  const soundtrackSelection = load("lib/boosterSoundtracks.ts", { "@/lib/aiMediaSoundtrackCatalog": soundtrackCatalog });
   const writes: AnyRecord[] = []; const minted: string[] = [];
   const filters: Array<[string, unknown]> = []; let row: AnyRecord = {};
   const query = { insert(value: AnyRecord) { writes.push(value); row = value; return query; },
@@ -113,6 +115,7 @@ function scheduledRoute(file: string) {
     single: async () => ({ data: { ...row, id: "schedule-a" }, error: null }),
     maybeSingle: async () => ({ data: { ...row, id: "schedule-a" }, error: null }) };
   const route = load(file, {
+    "@/lib/boosterSoundtracks": soundtrackSelection,
     "@/lib/inrAgentScheduledActions": { scheduledActionToDbRow: (args: AnyRecord) => ({ ...args, user_id: args.userId, action_type: "custom", target_tool: "agent" }), rowToInrAgentScheduledAction: (value: AnyRecord) => value },
     "@/lib/inrAgentSettings": { INR_AGENT_AUTOMATION_KEYS: [] },
     "@/lib/inrAgentActions": { INR_AGENT_ACTION_TYPES: [], INR_AGENT_TARGET_TOOLS: [] },

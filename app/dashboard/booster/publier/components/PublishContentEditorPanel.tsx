@@ -553,14 +553,10 @@ export default function PublishContentEditorPanel({
   );
   const instagramVerticalFormat =
     activeCard === "instagram" &&
-    (instagramPublicationPlacement === "reel" ||
-      instagramPublicationPlacement === "story" ||
-      instagramStoryEnabled);
+    instagramPublicationPlacement === "reel";
   const facebookVerticalFormat =
     activeCard === "facebook" &&
-    (facebookPublicationPlacement === "reel" ||
-      facebookPublicationPlacement === "story" ||
-      facebookStoryEnabled);
+    facebookPublicationPlacement === "reel";
   const activeStoryEnabled =
     (activeCard === "instagram" && instagramStoryEnabled) ||
     (activeCard === "instagram" && instagramPublicationPlacement === "story") ||
@@ -579,6 +575,7 @@ export default function PublishContentEditorPanel({
   const activeVerticalImageMotion =
     (instagramVerticalFormat || facebookVerticalFormat) &&
     activeMediaMode === "images";
+  const activeStoryImageSequence = activeStoryEnabled && activeMediaMode === "images";
   const activeTextGuidelines = CHANNEL_TEXT_GUIDELINES[activeCard];
   const titleVoiceMaxLength = Math.max(
     activePost.title.length,
@@ -891,10 +888,8 @@ export default function PublishContentEditorPanel({
                   lineHeight: 1.45,
                 }}
               >
-                {activeVerticalImageMotion
-                  ? i18nT("instagram_image_motion_notice")
-                  : null}
-                {activeVerticalImageMotion && activeStoryEnabled ? " " : null}
+                {activeVerticalImageMotion ? <p data-meta-reel-image-notice style={{ margin: "0 0 6px" }}>{i18nT("instagram_image_motion_notice")}</p> : null}
+                {activeStoryImageSequence ? <p data-meta-story-image-notice style={{ margin: "0 0 6px" }}>{i18nT("instagram_image_story_sequence_notice")}</p> : null}
                 {activeStoryEnabled
                   ? i18nT("instagram_review_media_only_warning", {
                       mode: i18nT("instagram_stories"),

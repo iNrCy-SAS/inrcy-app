@@ -107,6 +107,7 @@ export function buildResultsSummary(
       warning: outcome.warningCode,
       warning_kind: outcome.warningKind,
       warning_message: outcome.warningMessage,
+      ...(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value?.story_sequence_resume_ref || "")) ? { story_sequence_resume_ref: value.story_sequence_resume_ref, published_image_count: value.published_image_count, expected_image_count: value.expected_image_count } : {}),
     };
   });
 

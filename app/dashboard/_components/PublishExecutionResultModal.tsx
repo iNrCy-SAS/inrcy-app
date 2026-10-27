@@ -2,6 +2,7 @@
 
 import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import { isMetaPilotChannelVisible } from "@/lib/metaChannelUiAccess";
+import { isRetryablePublicationEntry, publicationStorySequenceCounts } from "@/lib/publicationStorySequenceRetry";
 import { useTranslations } from "next-intl";
 import PublishWizardFrame, { PublishWizardScreen } from "../booster/publier/components/PublishWizardFrame";
 import type { PublishWizardStep } from "../booster/publier/components/publishWizard";
@@ -44,6 +45,9 @@ export type PublishExecutionSummary = {
     technicalStatus?: string | null;
     code?: string | null;
     retryable?: boolean;
+    story_sequence_resume_ref?: string | null;
+    published_image_count?: number | null;
+    expected_image_count?: number | null;
     error?: string | null;
     warning?: string | null;
     warning_kind?: "media_degraded" | "degraded" | "pending" | string | null;
@@ -100,7 +104,9 @@ export function mergePublicationResultSnapshot(
     const next = snapshotEntries.find((candidate) => publicationChannelKey(candidate.channel) === publicationChannelKey(entry.channel));
     // A slower status read must not undo an already confirmed terminal result.
     if (next && isPendingPublicationEntry(next) && !isPendingPublicationEntry(entry)) return entry;
-    return next ? { ...next, channel: entry.channel, label: next.label || entry.label, publicationId: polledPublicationId } : entry;
+    const storyCounts = publicationStorySequenceCounts(next);
+    return next ? { ...next, channel: entry.channel, label: next.label || entry.label, publicationId: polledPublicationId,
+      published_image_count: storyCounts?.confirmed, expected_image_count: storyCounts?.expected } : entry;
   });
   const statuses = entries.map(getPublicationDestinationStatus);
   const pendingCount = statuses.filter((status) => status === "pending").length;
@@ -110,7 +116,7 @@ export function mergePublicationResultSnapshot(
   const successCount = statuses.filter((status) => status === "published" || status === "warning" || status === "pending").length;
   return {
     ...current, entries, successCount, pendingCount, failureCount, warningCount, skippedCount,
-    retryableFailureCount: entries.filter((entry) => getPublicationDestinationStatus(entry) === "failed" && entry.retryable !== false).length,
+    retryableFailureCount: entries.filter(isRetryablePublicationEntry).length,
     allFailed: failureCount > 0 && successCount === 0,
   };
 }
@@ -219,7 +225,7 @@ export function PublishExecutionResultActions({
 }) {
   const i18nT = useTranslations("booster");
   const retryableFailureCount = summary?.entries?.length
-    ? summary.entries.filter((entry) => getPublicationDestinationStatus(entry) === "failed" && entry.retryable !== false).length
+    ? summary.entries.filter(isRetryablePublicationEntry).length
     : Math.max(0, Number(summary?.retryableFailureCount || 0));
 
   const actions = (
@@ -625,10 +631,12 @@ export default function PublishExecutionResultModal({
     const warningMessage = rawWarning ? ensureFrenchPublicationErrorMessage(rawWarning,
       pending ? entry.label + " est encore en attente de finalisation." : entry.label + " a publié avec un avertissement.") : "";
     const blockers = (entry.blockers || []).map((blocker) => ensureFrenchPublicationErrorMessage(blocker, entry.label + " n’est pas prêt pour la publication."));
+    const storyCounts = publicationStorySequenceCounts(entry);
     return {
       key,
       label: entry.label,
       status,
+      storyProgressLabel: storyCounts ? i18nT("publication_stories_confirmed_count", { confirmed: storyCounts.confirmed, expected: storyCounts.expected }) : undefined,
       href: String(effectiveSummary?.channelLinks?.[entry.channel] || effectiveSummary?.channelLinks?.[key] || "").trim() || undefined,
       details: [errorMessage, warningMessage, ...blockers].filter(Boolean).join("\n") || undefined,
     };
@@ -676,6 +684,7 @@ export default function PublishExecutionResultModal({
           {pendingCount > 0 ? <div className={resultCss.sectionHeading}><span className={resultCss.liveIndicator}><span aria-hidden="true" />Suivi en direct</span></div> : null}
           <div className={resultCss.channelGrid}>
             {orderedEntries.map((entry) => {
+              const storyCounts = publicationStorySequenceCounts(entry);
               const entryStatus = getPublicationDestinationStatus(entry);
               const entryIsPending = entryStatus === "pending";
               const entryIsSkipped = entryStatus === "skipped";
@@ -765,6 +774,7 @@ export default function PublishExecutionResultModal({
                       ) : null}
                     </div>
                   </div>
+                  {storyCounts ? <p className={resultCss.entryMessage} data-story-confirmed-count>{i18nT("publication_stories_confirmed_count", { confirmed: storyCounts.confirmed, expected: storyCounts.expected })}</p> : null}
                   {hasFailureDetails ? (
                     <div id={detailsId} hidden={!failureDetailsOpen}>
                       {visibleError ? <p className={resultCss.entryMessage} data-tone="failed">{visibleError}</p> : null}

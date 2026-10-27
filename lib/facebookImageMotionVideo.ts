@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createInstagramImageMotionVideo } from "@/lib/instagramImageMotionVideo";
+import type { LoadedAiMediaSoundtrack } from "@/lib/aiMediaGenerationSoundtracks";
 
 /**
  * Facebook Reel/Story shares Meta's 9:16 H.264/AAC contract with Instagram.
@@ -13,6 +14,8 @@ export async function createFacebookImageMotionVideo(args: {
   imageStoragePaths: readonly string[];
   placement: "reel" | "story";
   soundtrackPrompt: string;
+  soundtrackId?: string | null;
+  loadedSoundtrack?: LoadedAiMediaSoundtrack;
   preserveComposition?: boolean;
   signal?: AbortSignal;
 }) {

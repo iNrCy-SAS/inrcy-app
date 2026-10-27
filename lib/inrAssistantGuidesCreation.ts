@@ -11,11 +11,11 @@ export const INR_ASSISTANT_CREATION_GUIDES: readonly InrAssistantCreationGuide[]
   {
     id: "booster",
     title: "Booster : créer, publier ou programmer un contenu",
-    keywords: ["booster", "publier", "publication", "programmer", "réseaux", "contenus", "brouillon", "tiktok"],
+    keywords: ["booster", "publier", "publication", "programmer", "réseaux", "contenus", "brouillon", "tiktok", "musique", "stories", "reel"],
     content: `Ouvrir [Publier](/dashboard?action=publish), depuis le bouton Publier du bloc Booster ou du menu. Le parcours actuel est Préparation → Idée → Contenus → Médias → Validation → Bilan. En mode Manuel, l’étape Idée est retirée. Ne pas indiquer un ancien onglet « Configurer ».
 1. Préparation : sélectionner les canaux connectés, puis Automatique ou Manuel ; Continuer. Un canal indisponible doit être connecté/reconnecté dans le cockpit, pas forcé dans la publication.
 2. Automatique : dans Idée, décrire le sujet, fournir si utile des médias/documents et utiliser « ✨ Générer avec iNrCy ». Manuel : rédiger directement dans Contenus. Vérifier et ajuster le contenu propre à chaque canal.
-3. Médias : ajouter depuis l’appareil ou la Médiathèque, générer dans iNrStudio, adapter les images/vidéos au canal. Une référence de génération et un média de publication ont des destinations différentes : vérifier l’aperçu final par canal.
+3. Médias : ajouter depuis l’appareil ou la Médiathèque, générer dans iNrStudio, adapter les images/vidéos au canal. « Musique » permet d’écouter les morceaux iNrCy et de choisir la piste des vidéos créées à partir des images, ou de conserver le choix automatique. Ce réglage ne remplace pas le son d’une vidéo importée. Plusieurs images donnent des Stories vidéo successives (une image par Story, même musique) et un seul Reel assemblé. Une reprise conserve la musique et les Stories déjà confirmées. « Modifier » ouvre la modification IA dans iNrStudio avec l’image choisie ; « Retoucher » ouvre l’édition manuelle. Une référence de génération et un média de publication ont des destinations différentes : vérifier l’aperçu final par canal.
 4. Validation : vérifier les alertes et aperçus. Le bouton « Publier » ouvre « Confirmer la publication ? », puis confirmer avec « Publier ». « 🕒 Programmer » ouvre le choix de date/heure ; confirmer la programmation. Ne pas annoncer une publication avant le retour effectif de l’action. TikTok peut demander ses paramètres et une validation supplémentaire ; YouTube exige une vidéo.
 5. Bilan : consulter le résultat par canal ; un succès partiel ne signifie pas que tous les canaux ont publié. Le menu Brouillons du header rouvre les brouillons ; l’icône d’enregistrement a pour libellé « Enregistrer le brouillon publication ».
 Accès : Standard (essai inclus) et Premium ; les canaux utilisables dépendent des connexions, autorisations et règles du canal. La génération de médias conserve ses crédits iNrStudio.`,
@@ -26,6 +26,7 @@ Accès : Standard (essai inclus) et Premium ; les canaux utilisables dépendent 
       "app/dashboard/booster/publier/components/PublishCreationModePanel.tsx",
       "app/dashboard/booster/publier/components/PublishFinalReviewModal.tsx",
       "app/dashboard/booster/publier/components/PublishFooterActions.tsx",
+      "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx",
       "messages/fr-FR/booster.json",
       "lib/dashboardEdition.ts",
     ],

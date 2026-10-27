@@ -6,6 +6,7 @@ import ts from "typescript";
 import { canOpenPublishWizardStep } from "../../app/dashboard/booster/publier/components/publishWizard.ts";
 import { mergePreflightFailuresIntoPublicationSummary } from "../../lib/boosterPublicationOutcome.ts";
 import { isBoosterPublicationPendingStatus } from "../../lib/boosterPublicationStatus.ts";
+import * as storyRetry from "../../lib/publicationStorySequenceRetry.ts";
 
 const parse = (path: string) => ts.createSourceFile(path, readFileSync(new URL(`../../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
 const modal = parse("app/dashboard/booster/publier/PublishModal.tsx");
@@ -34,6 +35,7 @@ function attribute(source: ts.SourceFile, tag: string, name: string): ts.Express
   return (prop.initializer as ts.JsxExpression).expression!;
 }
 function evaluate(expression: string, scope: Record<string, unknown> = {}): any {
+  scope = { ...storyRetry, isCurrentPublishScope: () => true, ...scope };
   const compiled = ts.transpileModule(`const value = (${expression});`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
   return new Function(...Object.keys(scope), compiled + "\nreturn value;")(...Object.values(scope));
 }

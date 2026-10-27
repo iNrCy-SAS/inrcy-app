@@ -127,6 +127,8 @@ export function buildDurablePreparationInput(body: JsonRecord) {
     tiktokPublicationSettings: body.tiktokPublicationSettings,
     instagramPublicationSettings: body.instagramPublicationSettings,
     facebookPublicationSettings: body.facebookPublicationSettings,
+    storySequenceResumeByChannel: body.storySequenceResumeByChannel,
+    soundtrackId: body.soundtrackId,
     threadsPublicationSettings: body.threadsPublicationSettings,
     pinterestPublicationSettings: body.pinterestPublicationSettings,
     skipScheduledDuplicateCheck: body.skipScheduledDuplicateCheck,
