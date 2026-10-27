@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { BOOSTER_MAX_IMAGE_COUNT, makeImageKey, getLocalizedBoosterImageLimits, getLocalizedBoosterImageFormats, getLocalizedBoosterVideoLimits, getLocalizedBoosterVideoFormats, getLocalizedBoosterRecommendedVideoDuration } from "../publishModal.shared";
 import MediaPoolImagePreview from "./MediaPoolImagePreview";
-import MediaSoundtrackSelector from "@/app/dashboard/_components/MediaSoundtrackSelector";
 import css from "./PublishMediaPoolPanel.module.css";
 
 type MediaKind = "image" | "video";
@@ -15,18 +14,13 @@ type Props = {
   onReorderImage: (imageKey: string, targetImageKey: string) => void;
   onModifyImage: (index: number) => void; onRetouchImage: (index: number) => void;
   onRetouchVideo: () => void;
-  soundtrackId?: string | null;
-  onSoundtrackChange?: (id: string | null) => void;
-  soundtrackScopeKey?: string;
-  soundtrackDisabled?: boolean;
-  soundtrackSelectionLocked?: boolean;
 };
 
 export default function PublishMediaPoolPanel({
   images, imagePreviews, videoFile, videoPreviewUrl, isMobile, error,
   onPickImages, onPickVideo, onGenerate, onLibrary, onCamera, onRemoveImage, onRemoveVideo,
   onReorderImage, onModifyImage, onRetouchImage,
-  onRetouchVideo, soundtrackId = null, onSoundtrackChange, soundtrackScopeKey, soundtrackDisabled = false, soundtrackSelectionLocked = false,
+  onRetouchVideo,
 }: Props) {
   const t = useTranslations("booster");
   const shellT = useTranslations("shell");
@@ -68,7 +62,6 @@ export default function PublishMediaPoolPanel({
 
   return <>
     <div ref={poolRef} className={css.pool} data-publish-media-pool>
-      {onSoundtrackChange ? <div className={css.musicToolbar}><MediaSoundtrackSelector soundtrackId={soundtrackId} onChange={onSoundtrackChange} scopeKey={soundtrackScopeKey} disabled={soundtrackDisabled} selectionLocked={soundtrackSelectionLocked} /></div> : null}
       {error ? <div role="alert" className={css.error}>{error}</div> : null}
       <div className={css.workspace}>
       <section className={css.imageGroup} aria-label={t("wizard_pool_images")}>

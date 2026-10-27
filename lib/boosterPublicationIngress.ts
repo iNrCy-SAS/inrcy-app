@@ -129,6 +129,7 @@ export function buildDurablePreparationInput(body: JsonRecord) {
     facebookPublicationSettings: body.facebookPublicationSettings,
     storySequenceResumeByChannel: body.storySequenceResumeByChannel,
     soundtrackId: body.soundtrackId,
+    soundtrackByChannel: body.soundtrackByChannel,
     threadsPublicationSettings: body.threadsPublicationSettings,
     pinterestPublicationSettings: body.pinterestPublicationSettings,
     skipScheduledDuplicateCheck: body.skipScheduledDuplicateCheck,

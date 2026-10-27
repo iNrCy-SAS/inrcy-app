@@ -25,7 +25,7 @@ import PublishExecutionResultModal, { PublishExecutionResultActions, type Publis
 import { getPublicationDestinationStatus, type PublicationProgressDestination } from "../../_components/PublishExecutionProgress";
 import { mergePreflightFailuresIntoPublicationSummary } from "@/lib/boosterPublicationOutcome";
 import { buildStorySequenceResumeByChannel, isRetryablePublicationEntry, publicationStorySequenceResumeRef, publicationStorySequenceCounts } from "@/lib/publicationStorySequenceRetry";
-import { normalizeMediaSoundtrackId } from "@/lib/mediaSoundtrackSelection";
+import { normalizeMediaSoundtrackByChannel, type MediaSoundtrackByChannel } from "@/lib/mediaSoundtrackSelection";
 import { subscribeToChannelConnectionUpdates } from "@/lib/channelConnectionUpdates";
 import { createClient } from "@/lib/supabaseClient";
 import { prewarmBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
@@ -653,7 +653,7 @@ export default function PublishModal({
   const [publishProgressPhaseLabel, setPublishProgressPhaseLabel] = useState("");
   const [publicationDestinations, setPublicationDestinations] = useState<PublicationProgressDestination[]>([]);
   const latestPublicationSummaryRef = useRef<PublishExecutionSummary | null>(null);
-  const [soundtrackId, setSoundtrackId] = useState<string | null>(null);
+  const [soundtrackByChannel, setSoundtrackByChannel] = useState<MediaSoundtrackByChannel>({});
   const publicationActorScopeRef = useRef({ actorUserId, accountId: activeAccountId });
   const [livePublicationResult, setLivePublicationResult] = useState<{
     source: PublishExecutionSummary | null | undefined;
@@ -663,7 +663,7 @@ export default function PublishModal({
     publicationActorScopeRef.current = { actorUserId, accountId: activeAccountId };
     latestPublicationSummaryRef.current = null;
     setLivePublicationResult(null);
-    setSoundtrackId(null);
+    setSoundtrackByChannel({});
   }, [actorUserId, activeAccountId]);
   const handlePublicationSummaryChange = useCallback((summary: PublishExecutionSummary) => {
     latestPublicationSummaryRef.current = summary;
@@ -2567,6 +2567,18 @@ export default function PublishModal({
   const resolveChannelMediaMode = (channel: ChannelKey): ChannelMediaMode =>
     getEffectiveThreadsMediaMode(channel, threadsPublicationMode, resolveStoredChannelMediaMode(channel));
 
+  const channelUsesGeneratedSoundtrack = (channel: ChannelKey) => resolveChannelMediaMode(channel) === "images" && (
+    channel === "facebook" ? facebookPublicationPlacement === "reel" || facebookPublicationPlacement === "story" || facebookStoryEnabled :
+    channel === "instagram" ? instagramPublicationPlacement === "reel" || instagramPublicationPlacement === "story" || instagramStoryEnabled : false
+  );
+  const getPublicationSoundtracks = (channels: readonly ChannelKey[]): MediaSoundtrackByChannel => {
+    const selection: MediaSoundtrackByChannel = {};
+    for (const channel of channels) {
+      if ((channel === "facebook" || channel === "instagram") && channelUsesGeneratedSoundtrack(channel)) selection[channel] = soundtrackByChannel[channel] ?? null;
+    }
+    return selection;
+  };
+
   const setChannelMediaMode = (channel: ChannelKey, mode: ChannelMediaMode) => {
     if (mode === "images" && !channelSupportsImages(channel)) return;
     if (mode === "none" && !channelSupportsTextOnly(channel)) return;
@@ -3038,7 +3050,7 @@ export default function PublishModal({
       instagramStoryEnabled,
       facebookPublicationPlacement,
       facebookStoryEnabled,
-      soundtrackId,
+      soundtrackByChannel,
       pinterestBoardId,
       pinterestBoardName,
       tiktokPublicationSettings,
@@ -3075,7 +3087,7 @@ export default function PublishModal({
     instagramStoryEnabled,
     facebookPublicationPlacement,
     facebookStoryEnabled,
-    soundtrackId,
+    soundtrackByChannel,
     pinterestBoardId,
     pinterestBoardName,
     tiktokPublicationSettings,
@@ -3445,7 +3457,7 @@ export default function PublishModal({
           restoredFacebookSelection.primaryPlacement !== "story" &&
           restoredFacebookSelection.includeStory &&
           facebookPublicationPreferencesRef.current.storiesEnabled;
-        const nextSoundtrackId = normalizeMediaSoundtrackId(payload.soundtrackId);
+        const nextSoundtrackByChannel = normalizeMediaSoundtrackByChannel(payload.soundtrackByChannel, payload.soundtrackId);
         const nextPinterestBoardId = String(
           payload.pinterestBoardId || "",
         ).trim();
@@ -3507,7 +3519,7 @@ export default function PublishModal({
         facebookPlacementTouchedRef.current = true;
         setFacebookPublicationPlacement(nextFacebookPublicationPlacement);
         setFacebookStoryEnabled(nextFacebookStoryEnabled);
-        setSoundtrackId(nextSoundtrackId);
+        setSoundtrackByChannel(nextSoundtrackByChannel);
         setPinterestBoardId(nextPinterestBoardId);
         setPinterestBoardName(nextPinterestBoardName);
         setTiktokPublicationSettings(nextTiktokPublicationSettings);
@@ -3597,7 +3609,7 @@ export default function PublishModal({
             facebookPublicationPlacement:
               nextFacebookPublicationPlacement,
             facebookStoryEnabled: nextFacebookStoryEnabled,
-            soundtrackId: nextSoundtrackId,
+            soundtrackByChannel: nextSoundtrackByChannel,
             pinterestBoardId: nextPinterestBoardId,
             pinterestBoardName: nextPinterestBoardName,
             tiktokPublicationSettings: nextTiktokPublicationSettings,
@@ -3823,7 +3835,7 @@ export default function PublishModal({
   const clearPublicationWork = () => {
     latestPublicationSummaryRef.current = null;
     setLivePublicationResult(null);
-    setSoundtrackId(null);
+    setSoundtrackByChannel({});
     clearAiCreationWork();
     clearChannelCreationWork();
     setCreationMode(null);
@@ -6298,7 +6310,7 @@ export default function PublishModal({
           visiblePublicationCapMs - (Date.now() - publishStartedAt),
         ),
         creationMode,
-        soundtrackId,
+        soundtrackByChannel: getPublicationSoundtracks(publishTargetChannels),
         mediaWorkspaceId:
           unifiedMediaConsumptionClientAvailable && readyMediaWorkspaceId
             ? readyMediaWorkspaceId
@@ -6695,7 +6707,7 @@ export default function PublishModal({
           payload: {
             status: "draft",
             creationMode,
-            soundtrackId,
+            soundtrackByChannel,
             mediaWorkspaceId,
             mediaWorkspaceClientKey,
             mediaPipelineCutoverV1: mediaPipelineCutoverEnabled,
@@ -7229,7 +7241,7 @@ export default function PublishModal({
               },
               publishPayload: {
                 creationMode,
-                soundtrackId,
+                soundtrackByChannel: getPublicationSoundtracks(groupChannels),
                 mediaWorkspaceId:
                   unifiedMediaConsumptionClientAvailable && readyMediaWorkspaceId
                     ? readyMediaWorkspaceId
@@ -8691,8 +8703,6 @@ export default function PublishModal({
           </PublishWizardScreen>
           <PublishWizardScreen active={activeWizardStep === "media"} step="media">
             <PublishMediaPoolPanel images={images} imagePreviews={imagePreviews} videoFile={videoFile} videoPreviewUrl={videoPreviewUrl} isMobile={isMobile} error={imgError}
-              soundtrackId={soundtrackId} onSoundtrackChange={setSoundtrackId} soundtrackScopeKey={`${actorUserId}:${activeAccountId}`} soundtrackDisabled={wizardBusy}
-              soundtrackSelectionLocked={Boolean(publicationSummaryForActions?.entries?.some(entry => publicationStorySequenceResumeRef(entry.story_sequence_resume_ref)))}
               onPickImages={() => { pendingDirectMediaDestinationRef.current = { kind: "publication" }; onPickImagesClick(); }}
               onPickVideo={() => onPickVideoClick({ kind: "publication" })}
               onGenerate={(kind) => void openInrStudioGenerator(kind)}
@@ -8706,6 +8716,10 @@ export default function PublishModal({
           </PublishWizardScreen>
           <PublishWizardScreen active={activeWizardStep === "control"} step="control">
             <PublishValidationBoard items={publishReadinessItems} imageKeys={imageKeys} previewByKey={previewByKey} videoPreviewUrl={videoPreviewUrl}
+              soundtrackByChannel={soundtrackByChannel} soundtrackScopeKey={`${actorUserId}:${activeAccountId}`}
+              canSelectSoundtrack={channelUsesGeneratedSoundtrack}
+              onSoundtrackChange={(channel, id) => setSoundtrackByChannel(current => ({ ...current, [channel]: id }))}
+              isSoundtrackLocked={(channel) => Boolean(publicationSummaryForActions?.entries?.some(entry => entry.channel === channel && publicationStorySequenceResumeRef(entry.story_sequence_resume_ref)))}
               getMode={resolveChannelMediaMode}
               getSelectedImageKeys={(channel) => channelImageEditors[channel]?.imageKeys || imageKeys}
               onModeChange={(channel, mode) => {

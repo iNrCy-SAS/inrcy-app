@@ -25,7 +25,7 @@ const OUTPUT_DURATION_SECONDS = 8;
 const OUTPUT_FPS = 30;
 const TRANSITION_SECONDS = 0.35;
 const MAX_SOURCE_IMAGE_BYTES = 25 * 1024 * 1024;
-const PIPELINE_VERSION = "instagram-image-motion-v2-cfr";
+const PIPELINE_VERSION = "instagram-image-motion-v3-setpts-cfr";
 
 type InstagramImageMotionPlacement = "reel" | "story";
 
@@ -171,7 +171,7 @@ function buildMotionFilter(imageCount: number, preserveComposition = false) {
       ? `scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT},fps=${OUTPUT_FPS}`
       : `scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT},zoompan=z='min(zoom+${zoomStep},1.04)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${OUTPUT_WIDTH}x${OUTPUT_HEIGHT}:fps=${OUTPUT_FPS}`;
     filters.push(
-      `[${index}:v]${framing},fps=${OUTPUT_FPS},settb=1/${OUTPUT_FPS},trim=duration=${clipDuration.toFixed(4)},setpts=PTS-STARTPTS,setsar=1,format=yuv420p[v${index}]`,
+      `[${index}:v]${framing},trim=duration=${clipDuration.toFixed(4)},setpts=PTS-STARTPTS,setsar=1,format=yuv420p,fps=${OUTPUT_FPS},settb=1/${OUTPUT_FPS}[v${index}]`,
     );
   }
 
@@ -180,14 +180,14 @@ function buildMotionFilter(imageCount: number, preserveComposition = false) {
     const nextLabel = `[vx${index}]`;
     const offset = index * (clipDuration - TRANSITION_SECONDS);
     filters.push(
-      // Some Linux FFmpeg builds leave xfade's output frame_rate at 1/0.
-      // Reassert CFR and time base before feeding that stream to the next xfade.
-      `${videoLabel}[v${index}]xfade=transition=fade:duration=${TRANSITION_SECONDS}:offset=${offset.toFixed(4)},fps=${OUTPUT_FPS},settb=1/${OUTPUT_FPS},setpts=PTS-STARTPTS${nextLabel}`,
+      // FFmpeg 7's setpts clears frame_rate to 1/0. Always restore CFR AFTER
+      // timestamp edits, both on inputs and between consecutive transitions.
+      `${videoLabel}[v${index}]xfade=transition=fade:duration=${TRANSITION_SECONDS}:offset=${offset.toFixed(4)},setpts=PTS-STARTPTS,fps=${OUTPUT_FPS},settb=1/${OUTPUT_FPS}${nextLabel}`,
     );
     videoLabel = nextLabel;
   }
   filters.push(
-    `${videoLabel}trim=duration=${OUTPUT_DURATION_SECONDS},setpts=PTS-STARTPTS,fade=t=in:st=0:d=0.22,fade=t=out:st=7.55:d=0.45[vout]`,
+    `${videoLabel}trim=duration=${OUTPUT_DURATION_SECONDS},setpts=PTS-STARTPTS,fps=${OUTPUT_FPS},settb=1/${OUTPUT_FPS},fade=t=in:st=0:d=0.22,fade=t=out:st=7.55:d=0.45[vout]`,
   );
   filters.push(
     `[${imageCount}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,atrim=duration=${OUTPUT_DURATION_SECONDS},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.3,afade=t=out:st=7.2:d=0.8,volume=0.22[aout]`,

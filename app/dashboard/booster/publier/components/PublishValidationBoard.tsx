@@ -6,6 +6,8 @@ import { PublicationPreviewDeviceTabs, type PublicationPreviewDevice } from "@/a
 import { channelSupportsImages, getBoosterMaxImageCountForChannel, type ChannelKey, type ChannelMediaMode } from "../publishModal.shared";
 import type { PublishFinalReviewItem } from "./PublishFinalReviewModal";
 import { PUBLISH_CHANNEL_IDENTITY } from "./publishChannelIdentity";
+import MediaSoundtrackSelector from "@/app/dashboard/_components/MediaSoundtrackSelector";
+import type { MediaSoundtrackByChannel, MediaSoundtrackChannel } from "@/lib/mediaSoundtrackSelection";
 import css from "./PublishValidationBoard.module.css";
 
 type ReviewItem = PublishFinalReviewItem & { blockerCodes?: string[]; mediaBlockerCodes?: string[]; contentBlockers?: string[]; contentWarnings?: string[]; mediaBlockers?: string[]; mediaWarnings?: string[] };
@@ -20,6 +22,11 @@ type Props = {
   onOpenMediaPool: () => void;
   onSelectChannel: (channel: ChannelKey) => void;
   activePreview: PublicationPreview | null; disabled: boolean;
+  soundtrackByChannel?: MediaSoundtrackByChannel;
+  soundtrackScopeKey?: string;
+  canSelectSoundtrack?: (channel: ChannelKey) => boolean;
+  onSoundtrackChange?: (channel: MediaSoundtrackChannel, id: string | null) => void;
+  isSoundtrackLocked?: (channel: MediaSoundtrackChannel) => boolean;
 };
 
 function Eye() { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>; }
@@ -37,7 +44,7 @@ function ReviewStatus({ tone, label, hint, messages, id, open, onToggle }: {
   </span>;
 }
 
-export default function PublishValidationBoard({ items, imageKeys, previewByKey, videoPreviewUrl, getMode, getSelectedImageKeys, onModeChange, onToggleImage, onAddImage, onReorderImage, onOpenMediaPool, onSelectChannel, activePreview, disabled }: Props) {
+export default function PublishValidationBoard({ items, imageKeys, previewByKey, videoPreviewUrl, getMode, getSelectedImageKeys, onModeChange, onToggleImage, onAddImage, onReorderImage, onOpenMediaPool, onSelectChannel, activePreview, disabled, soundtrackByChannel, soundtrackScopeKey, canSelectSoundtrack, onSoundtrackChange, isSoundtrackLocked }: Props) {
   const t = useTranslations("booster");
   const [modal, setModal] = useState<"preview" | null>(null);
   const [previewDevice, setPreviewDevice] = useState<PublicationPreviewDevice>("desktop");
@@ -112,8 +119,13 @@ export default function PublishValidationBoard({ items, imageKeys, previewByKey,
         const videoSelected = mode === "video" && Boolean(videoPreviewUrl);
         const slotCount = mode === "video" || !channelSupportsImages(item.channel) ? 1 : maxImages;
         const emptySlots = Math.max(0, slotCount - (videoSelected ? 1 : keys.length));
+        const musicChannel: MediaSoundtrackChannel | null = item.channel === "facebook" || item.channel === "instagram" ? item.channel : null;
         return <article key={item.channel} className={css.card} data-channel={item.channel} style={{ "--channel-color": identity.color, "--channel-rgb": identity.rgb, "--channel-gradient": identity.gradient } as CSSProperties}>
           <header><div className={css.brand}><span className={css.logo}><img src={identity.icon} alt="" /></span><strong>{item.label}</strong></div><div className={css.cardActions}>
+            {musicChannel && mode === "images" && canSelectSoundtrack?.(musicChannel) && onSoundtrackChange ? <MediaSoundtrackSelector
+              compact channelLabel={item.label} soundtrackId={soundtrackByChannel?.[musicChannel] ?? null}
+              onChange={(id) => onSoundtrackChange(musicChannel, id)}
+              scopeKey={`${soundtrackScopeKey || ""}:${musicChannel}`} disabled={disabled} selectionLocked={isSoundtrackLocked?.(musicChannel)} /> : null}
             <button type="button" onClick={() => open(item.channel)} aria-label={t("wizard_preview_channel", { channel: item.label })} title={t("wizard_preview_channel", { channel: item.label })}><Eye /></button>
           </div></header>
           <div className={css.statusLine}><span>{t("contenu_f3cb82af")}</span><ReviewStatus tone={contentTone} label={status(contentTone)} messages={contentMessages} id={`${warningId}-${item.channel}-content`} open={warning === `${item.channel}-content`} onToggle={() => setWarning(warning === `${item.channel}-content` ? null : `${item.channel}-content`)} /></div>

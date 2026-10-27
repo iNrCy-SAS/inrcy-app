@@ -12,7 +12,7 @@ import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 const run = promisify(execFile);
 const root = fileURLToPath(new URL("../../", import.meta.url));
 
-for (const imageCount of [1, 2, 3, 5]) test(`${imageCount} Booster photos produce one complete ordered Meta motion video with constant frame rate, and retry reuses it`, { timeout: 180_000 }, async () => {
+for (const imageCount of [1, 2, 3, 5]) test(`${imageCount} Booster photos produce one complete ordered Meta motion video with constant frame rate, and retry reuses it`, { timeout: 180_000 }, async (context) => {
   const stored = new Map<string, { buffer: Buffer; type: string }>();
   const colors = [[220, 40, 40], [34, 170, 102], [51, 85, 221], [221, 170, 34], [165, 45, 190]].slice(0, imageCount);
   const paths = await Promise.all(colors.map(async (color, index) => {
@@ -31,10 +31,15 @@ for (const imageCount of [1, 2, 3, 5]) test(`${imageCount} Booster photos produc
   });
   const { createFacebookImageMotionVideo } = load<typeof import("../../lib/facebookImageMotionVideo.ts")>("lib/facebookImageMotionVideo.ts");
   const { resolveVideoNormalizationFfmpegPath, probeVideoSource } = load<typeof import("../../lib/mediaVideoNormalizer.ts")>("lib/mediaVideoNormalizer.ts");
+  if (imageCount === 1) {
+    const enginePath = await resolveVideoNormalizationFfmpegPath(); assert.ok(enginePath);
+    const engine = await run(enginePath, ["-version"], { windowsHide: true, timeout: 10_000 });
+    context.diagnostic(engine.stdout.split(/\r?\n/)[0]);
+  }
   const args = { accountId: "account", publicationId: `${imageCount}-photo-publication`, imageStoragePaths: paths, placement: "reel" as const, soundtrackPrompt: "Un atelier vivant" };
   const created = await createFacebookImageMotionVideo(args);
   assert.equal(created.duration, 8); assert.equal(created.sourceMetadata?.sourceImageCount, imageCount); assert.equal(uploads, 1);
-  assert.equal(created.sourceMetadata?.source, "instagram-image-motion-v2-cfr");
+  assert.equal(created.sourceMetadata?.source, "instagram-image-motion-v3-setpts-cfr");
   assert.equal((await createFacebookImageMotionVideo(args)).storagePath, created.storagePath); assert.equal(uploads, 1);
   const temporary = await mkdtemp(path.join(tmpdir(), "inrcy-five-photo-proof-"));
   try {

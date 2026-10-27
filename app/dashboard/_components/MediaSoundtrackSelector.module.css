@@ -3,6 +3,9 @@
 .trigger svg { width: 19px; height: 19px; flex: 0 0 auto; }
 .trigger strong { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f9e9d9; font-weight: 700; }
 .trigger:disabled { opacity: .45; cursor: default; }
+.root .trigger[data-compact="true"] { width: auto; height: 30px; max-width: 110px; padding: 0 7px; gap: 5px; border-radius: 8px; font-size: 10px; }
+.trigger[data-compact="true"] svg { width: 15px; height: 15px; }
+.trigger[data-compact="true"] strong { max-width: 72px; }
 .dialog { width: min(560px,calc(100vw - 28px)); max-height: min(740px,calc(100dvh - 32px)); box-sizing: border-box; padding: 0; border: 1px solid #c29bc771; border-radius: 20px; background: #11192f; color: #edf3ff; box-shadow: 0 24px 90px #0009; overflow: auto; overscroll-behavior: contain; }
 .dialog::backdrop { background: #030817b8; backdrop-filter: blur(5px); }
 .header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 18px; border-bottom: 1px solid #d2b5ed29; background: #17213a; }

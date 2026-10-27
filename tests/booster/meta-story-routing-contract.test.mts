@@ -5,6 +5,7 @@ import ts from "typescript";
 import { classifyBoosterPublicationResult } from "../../lib/boosterPublicationOutcome.ts";
 import { isBoosterPublishFailureRetryable } from "../../lib/boosterPublicationPolicy.ts";
 import { selectAiMediaSoundtrack } from "../../lib/aiMediaSoundtrackCatalog.ts";
+import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
 const routePath = "app/api/booster/publish-now/route.ts";
@@ -56,13 +57,16 @@ test("the real Story dispatch stages all five photos then delegates durable vide
     getChannelImageSet: () => ({ socialFeedStoragePaths: paths, publishableStoragePaths: paths, storagePaths: paths }), getExpectedChannelImageCount: () => expected,
     prepareMetaImageStoryPhotos: async (input: Record<string, unknown>) => { calls.push({ kind: "photos", input }); return paths.map(storagePath => ({ storagePath, url: `https://storage.example/${storagePath}`, sourceIdentity: "fixture" })); },
     publishPersistedMetaStorySequence: async (input: Record<string, unknown>) => { calls.push({ kind: "sequence", input }); return { ok: true, image_count: 5 }; },
-    userId: "account", publicationId: "current-parent", requestedOriginSource: "booster", publicationSoundtrackId: "atelier-vivant", storyResumeByChannel: { instagram: ref }, storyWorkerDeadlineAt: 123456, req: { signal }, idea: "Notre atelier", console,
+    userId: "account", publicationId: "current-parent", requestedOriginSource: "booster", publicationSoundtrackByChannel: { facebook: "horizon-clair", instagram: "atelier-vivant" }, storyResumeByChannel: { instagram: ref }, storyWorkerDeadlineAt: 123456, req: { signal }, idea: "Notre atelier", console,
   });
   const candidates = [{ source: "page", accessToken: "private-fixture-token" }];
   assert.equal((await run("instagram", "remote-account", "primary-token", "facebook_login", candidates)).ok, true);
   assert.deepEqual(calls[0].input.imageStoragePaths, paths); assert.equal(calls[1].input.resumeRef, ref); assert.equal(calls[1].input.deadlineAt, 123456); assert.equal(calls[1].input.signal, signal); assert.equal(calls[1].input.tokenCandidates, candidates);
   assert.equal(calls[1].input.soundtrackPrompt, "Notre atelier");
   assert.equal(calls[1].input.soundtrackId, "atelier-vivant");
+  calls.length = 0;
+  assert.equal((await run("facebook", "page", "token")).ok, true);
+  assert.equal(calls[1].input.soundtrackId, "horizon-clair", "Each Story series uses its own channel selection");
   expected = 6; calls.length = 0;
   assert.equal((await run("facebook", "page", "token")).ok, false); assert.equal(calls.length, 0, "A missing photo blocks the entire first Story batch");
   const source = read(routePath);
@@ -112,32 +116,39 @@ test("explicit Auto in a prepared action takes priority over an older nested man
   assert.equal(choose({ soundtrackId: "horizon-clair" }, { soundtrackId: "atelier-vivant" }), "horizon-clair");
 });
 
-test("Auto resolves once for the parent publication and every Meta dispatch keeps that same music", () => {
+test("Auto resolves once and each Meta channel keeps its own music for Stories and Reel, with no music field sent to other channels", () => {
   const source = ts.createSourceFile(routePath, read(routePath), ts.ScriptTarget.Latest, true);
-  let initializer: ts.Expression | undefined;
+  const initializers = new Map<string, string>();
   const payloadSelections: ts.Expression[] = [];
+  let scopedFanout = "";
   function visit(node: ts.Node) {
-    if (ts.isVariableDeclaration(node) && node.name.getText(source) === "publicationSoundtrackId") initializer = node.initializer;
+    if (ts.isVariableDeclaration(node) && ["automaticPublicationSoundtrackId", "publicationSoundtrackId", "publicationSoundtrackByChannel"].includes(node.name.getText(source)) && node.initializer) initializers.set(node.name.getText(source), node.initializer.getText(source));
     if (ts.isPropertyAssignment(node) && node.name.getText(source) === "soundtrackId") payloadSelections.push(node.initializer);
+    if (ts.isSpreadAssignment(node) && node.expression.getText(source).includes('channel === "facebook" || channel === "instagram"') && node.expression.getText(source).includes("soundtrackByChannel")) scopedFanout = node.expression.getText(source);
     ts.forEachChild(node, visit);
   }
-  visit(source); assert.ok(initializer);
-  const selectionSource = initializer.getText(source);
+  visit(source); assert.equal(initializers.size, 3); assert.ok(scopedFanout);
+  const selectionSource = [...initializers].map(([name, initializer]) => `const ${name}=(${initializer});`).join("\n");
+  const helpers = runtimeModules()<typeof import("../../lib/boosterSoundtracks.ts")>("lib/boosterSoundtracks.ts");
   const calls: Array<{ prompt: string; selectionKey?: string }> = [];
-  const choose = (requestedSoundtrackId: string | null) => execute<string>(`return (${selectionSource});`, {
-    requestedSoundtrackId, idea: "Notre atelier", userId: "account", publicationId: "same-parent",
+  const choose = (requestedSoundtrackId: string | null, requestedSoundtrackByChannel: import("../../lib/boosterSoundtracks.ts").BoosterSoundtrackByChannel = {}) => execute<{ publicationSoundtrackId: string; publicationSoundtrackByChannel: Record<string, string> }>(`${selectionSource};return {publicationSoundtrackId,publicationSoundtrackByChannel};`, {
+    requestedSoundtrackId, requestedSoundtrackByChannel, idea: "Notre atelier", userId: "account", publicationId: "same-parent", resolveBoosterSoundtrackByChannel: helpers.resolveBoosterSoundtrackByChannel,
     selectAiMediaSoundtrack: (prompt: string, options: { selectionKey?: string }) => { calls.push({ prompt, ...options }); return selectAiMediaSoundtrack(prompt, options); },
   });
-  const selected = choose(null);
+  const automatic = choose(null);
   assert.deepEqual(calls, [{ prompt: "Notre atelier", selectionKey: "account:same-parent:publication-music" }]);
-  assert.equal(choose("horizon-clair"), "horizon-clair");
-  assert.equal(calls.length, 1, "A manual choice must not invoke Auto selection");
+  assert.equal(automatic.publicationSoundtrackByChannel.facebook, automatic.publicationSoundtrackByChannel.instagram);
+  const legacy = choose("horizon-clair");
+  assert.deepEqual(legacy.publicationSoundtrackByChannel, { facebook: "horizon-clair", instagram: "horizon-clair" });
+  const selected = choose("cinema-inspirant", { facebook: "horizon-clair", instagram: "atelier-vivant" });
+  assert.deepEqual(selected.publicationSoundtrackByChannel, { facebook: "horizon-clair", instagram: "atelier-vivant" });
+  assert.equal(choose("cinema-inspirant", { facebook: null }).publicationSoundtrackByChannel.facebook, automatic.publicationSoundtrackByChannel.facebook, "An explicit channel Auto overrides legacy manual music");
   assert.equal(payloadSelections.length, 6, "Fanout, both motion factories, Stories and executable snapshots must carry resolved music");
-  assert.ok(payloadSelections.every(value => value.getText(source) === "publicationSoundtrackId"));
-  const contexts = ["Texte Facebook restaurant", "Texte Instagram sport", "Contenu Story nature", "Reel innovation", "Bilan", "Worker"];
-  for (const [index, expression] of payloadSelections.entries()) {
-    const payload = execute<{ soundtrackId: string }>(`return {soundtrackId: (${expression.getText(source)})};`, { publicationSoundtrackId: selected, channelPost: { content: contexts[index] } });
-    assert.equal(payload.soundtrackId, selected, "Channel-specific contents cannot choose another track");
+  assert.deepEqual(payloadSelections.map(value => value.getText(source)), ["publicationSoundtrackId", "publicationSoundtrackByChannel[channel]", "publicationSoundtrackByChannel[channel]", "publicationSoundtrackByChannel.facebook", "publicationSoundtrackByChannel.instagram", "publicationSoundtrackId"]);
+  const resolvedByChannel: Record<string, string> = selected.publicationSoundtrackByChannel;
+  for (const channel of ["facebook", "instagram", "gmb", "threads", "tiktok"]) {
+    const payload: Record<string, unknown> = execute<Record<string, unknown>>(`return (${scopedFanout});`, { channel, publicationSoundtrackByChannel: resolvedByChannel, channelPost: { content: `Different content for ${channel}` } });
+    assert.deepEqual(payload, ["facebook", "instagram"].includes(channel) ? { soundtrackId: resolvedByChannel[channel], soundtrackByChannel: { [channel]: resolvedByChannel[channel] } } : {});
   }
   assert.match(read(routePath), /_asyncPublicationId: publicationId/);
 });

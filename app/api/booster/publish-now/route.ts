@@ -44,7 +44,7 @@ import {
 import { createInstagramImageMotionVideo, prepareMetaImageStoryPhotos } from "@/lib/instagramImageMotionVideo";
 import { createFacebookImageMotionVideo } from "@/lib/facebookImageMotionVideo";
 import { publishPersistedMetaStorySequence } from "@/lib/metaStorySequenceStorage";
-import { normalizeBoosterSoundtrackId } from "@/lib/boosterSoundtracks";
+import { normalizeBoosterSoundtrackId, normalizeBoosterSoundtrackByChannel, resolveBoosterSoundtrackByChannel, type BoosterSoundtrackByChannel } from "@/lib/boosterSoundtracks";
 import { selectAiMediaSoundtrack } from "@/lib/aiMediaSoundtrackCatalog";
 import {
   linkedinPublishImage,
@@ -602,7 +602,11 @@ async function publishNowHandler(req: Request) {
     // Preparation workers load their durable body above; validate that actual
     // payload rather than the small dispatch-reference envelope.
     let requestedSoundtrackId: string | null;
-    try { requestedSoundtrackId = normalizeBoosterSoundtrackId(body.soundtrackId); }
+    let requestedSoundtrackByChannel: BoosterSoundtrackByChannel;
+    try {
+      requestedSoundtrackId = normalizeBoosterSoundtrackId(body.soundtrackId);
+      requestedSoundtrackByChannel = normalizeBoosterSoundtrackByChannel(body.soundtrackByChannel);
+    }
     catch {
       return NextResponse.json({ ok: false, code: "booster_soundtrack_invalid", retryable: false, error: "Choisissez une musique iNrCy disponible ou le mode Auto." }, { status: 400 });
     }
@@ -2218,7 +2222,9 @@ async function publishNowHandler(req: Request) {
     const publicationId = internalAsyncWorkerDispatch
       ? asyncPublicationId
       : randomUUID();
-    const publicationSoundtrackId = requestedSoundtrackId ?? selectAiMediaSoundtrack(idea, { selectionKey: `${userId}:${publicationId}:publication-music` }).id;
+    const automaticPublicationSoundtrackId = selectAiMediaSoundtrack(idea, { selectionKey: `${userId}:${publicationId}:publication-music` }).id;
+    const publicationSoundtrackId = requestedSoundtrackId ?? automaticPublicationSoundtrackId;
+    const publicationSoundtrackByChannel = resolveBoosterSoundtrackByChannel(requestedSoundtrackByChannel, requestedSoundtrackId, automaticPublicationSoundtrackId);
     let asyncChannelLockId: string | null = null;
 
     if (internalAsyncDispatch) {
@@ -2726,6 +2732,7 @@ async function publishNowHandler(req: Request) {
           instagramPublicationSettings: canonicalInstagramPublicationSettings,
           facebookPublicationSettings: canonicalFacebookPublicationSettings,
           soundtrackId: publicationSoundtrackId,
+          soundtrackByChannel: publicationSoundtrackByChannel,
           threadsPublicationSettings,
           videoSettingsByChannel,
           video: hasAnyVideoChannel ? publicationVideo : null,
@@ -2874,7 +2881,10 @@ async function publishNowHandler(req: Request) {
               : {}),
             ...(channel === "threads" ? { threadsPublicationSettings } : {}),
             ...(Object.hasOwn(storyResumeByChannel, channel) ? { storySequenceResumeByChannel: { [channel]: storyResumeByChannel[channel] } } : {}),
-            soundtrackId: publicationSoundtrackId,
+            ...(channel === "facebook" || channel === "instagram" ? {
+              soundtrackId: publicationSoundtrackByChannel[channel],
+              soundtrackByChannel: { [channel]: publicationSoundtrackByChannel[channel] },
+            } : {}),
             ...(channel === "pinterest"
               ? { pinterestPublicationSettings }
               : {}),
@@ -3295,7 +3305,7 @@ async function publishNowHandler(req: Request) {
       if (!sourcePaths.length || sourcePaths.length > 5 || expected > 0 && sourcePaths.length !== expected) return { ok: false, code: "meta_story_incomplete_sources", retryable: true, error: "Toutes les photos choisies doivent être préparées avant de commencer la séquence de Stories.", image_count: 0, expected_image_count: expected };
       try {
         const photos = await prepareMetaImageStoryPhotos({ accountId: userId, publicationId, imageStoragePaths: sourcePaths, preserveComposition: requestedOriginSource.startsWith("inr_agent") });
-        return await publishPersistedMetaStorySequence({ accountId: userId, publicationId, channel, remoteAccountId, accessToken, authMode, tokenCandidates, photos, soundtrackPrompt: idea, soundtrackId: publicationSoundtrackId, resumeRef: storyResumeByChannel[channel], deadlineAt: storyWorkerDeadlineAt, signal: req.signal });
+        return await publishPersistedMetaStorySequence({ accountId: userId, publicationId, channel, remoteAccountId, accessToken, authMode, tokenCandidates, photos, soundtrackPrompt: idea, soundtrackId: publicationSoundtrackByChannel[channel], resumeRef: storyResumeByChannel[channel], deadlineAt: storyWorkerDeadlineAt, signal: req.signal });
       } catch (error) {
         console.error("[Booster] photo Story sequence preparation failed", { userId, publicationId, channel, error: error instanceof Error ? error.message : String(error) });
         return { ok: false, code: "meta_story_photo_preparation_failed", retryable: true, error: "Les photos de la séquence de Stories n’ont pas pu être préparées. Aucune Story supplémentaire n’a été publiée par cette tentative.", ...(storyResumeByChannel[channel] ? { story_sequence_resume_ref: storyResumeByChannel[channel] } : {}) };
@@ -4734,7 +4744,7 @@ async function publishNowHandler(req: Request) {
                 imageStoragePaths: facebookSourceStoragePaths,
                 placement: facebookPublicationSettings.placement,
                 preserveComposition: requestedOriginSource.startsWith("inr_agent"),
-                soundtrackId: publicationSoundtrackId,
+                soundtrackId: publicationSoundtrackByChannel.facebook,
                 soundtrackPrompt: [
                   idea,
                   channelPost.title,
@@ -5034,7 +5044,7 @@ async function publishNowHandler(req: Request) {
                 imageStoragePaths: instagramSourceStoragePaths,
                 placement: instagramPublicationSettings.placement,
                 preserveComposition: requestedOriginSource.startsWith("inr_agent"),
-                soundtrackId: publicationSoundtrackId,
+                soundtrackId: publicationSoundtrackByChannel.instagram,
                 soundtrackPrompt: [
                   idea,
                   channelPost.title,
@@ -7719,6 +7729,7 @@ async function publishNowHandler(req: Request) {
           canonicalInstagramPublicationSettings,
         facebookPublicationSettings: canonicalFacebookPublicationSettings,
         soundtrackId: publicationSoundtrackId,
+        soundtrackByChannel: publicationSoundtrackByChannel,
         threadsPublicationSettings,
         videoSettingsByChannel,
         video: persistedVideo,

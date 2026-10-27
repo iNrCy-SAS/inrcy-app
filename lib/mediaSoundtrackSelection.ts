@@ -1,8 +1,20 @@
 export type MediaSoundtrackOption = { id: string; label: string; description: string; durationSeconds: number; audioPreview: string };
+export type MediaSoundtrackChannel = "facebook" | "instagram";
+export type MediaSoundtrackByChannel = Partial<Record<MediaSoundtrackChannel, string | null>>;
 
 /** The server still validates catalogue membership before creating a video. */
 export function normalizeMediaSoundtrackId(value: unknown): string | null {
   return typeof value === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) && value.length <= 80 ? value : null;
+}
+
+/** Restore independent channel choices, migrating the former shared draft value. */
+export function normalizeMediaSoundtrackByChannel(value: unknown, legacyValue?: unknown): MediaSoundtrackByChannel {
+  const saved = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const selection: MediaSoundtrackByChannel = {};
+  for (const channel of ["facebook", "instagram"] as const) {
+    selection[channel] = normalizeMediaSoundtrackId(Object.hasOwn(saved, channel) ? saved[channel] : legacyValue);
+  }
+  return selection;
 }
 
 /** Play only same-origin catalogue previews; never a URL from a saved draft. */

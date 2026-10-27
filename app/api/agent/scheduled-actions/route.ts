@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { normalizeBoosterSoundtrackId } from "@/lib/boosterSoundtracks";
+import { normalizeBoosterSoundtrackId, normalizeBoosterSoundtrackByChannel } from "@/lib/boosterSoundtracks";
 import {
   scheduledActionToDbRow,
   rowToInrAgentScheduledAction,
@@ -255,7 +255,11 @@ export async function POST(request: Request) {
   const source: InrAgentScheduledActionSource = record?.source === "automatic" ? "automatic" : "manual";
 
   if (actionType === "publication" && targetTool === "booster") {
-    try { normalizeBoosterSoundtrackId(asRecord(asRecord(record?.payload)?.publishPayload)?.soundtrackId); }
+    try {
+      const publishPayload = asRecord(asRecord(record?.payload)?.publishPayload);
+      normalizeBoosterSoundtrackId(publishPayload?.soundtrackId);
+      normalizeBoosterSoundtrackByChannel(publishPayload?.soundtrackByChannel);
+    }
     catch { return NextResponse.json({ error: "Choisissez une musique iNrCy disponible ou le mode Auto.", code: "booster_soundtrack_invalid" }, { status: 400 }); }
   }
 

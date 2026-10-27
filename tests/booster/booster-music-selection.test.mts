@@ -36,7 +36,7 @@ function series(){
  });
  const api=load<typeof import("../../lib/metaStorySequenceStorage.ts")>("lib/metaStorySequenceStorage.ts");
  const args={accountId:account,publicationId:publication,channel:"instagram" as const,remoteAccountId:"12345",accessToken:"synthetic-token",soundtrackPrompt:"Une ambiance nature et détente",photos:Array.from({length:5},(_,index)=>({url:`https://storage.fixture.invalid/${index}.jpg`,storagePath:`${account}/photo-${index}.jpg`,sourceIdentity:`jpeg-sha256:${String(index+1).repeat(64)}`}))};
- return {rows,renders,native,loads,args,fail(index:number){failAt=index},run(overrides:Partial<typeof args>&{soundtrackId?:string|null;resumeRef?:unknown}={}){return api.publishPersistedMetaStorySequence({...args,...overrides})},get databaseCalls(){return databaseCalls},get leaseCalls(){return leaseCalls}};
+ return {rows,renders,native,loads,args,fail(index:number){failAt=index},run(overrides:Partial<Omit<typeof args,"channel">>&{channel?:"facebook"|"instagram";soundtrackId?:string|null;resumeRef?:unknown}={}){return api.publishPersistedMetaStorySequence({...args,...overrides})},get databaseCalls(){return databaseCalls},get leaseCalls(){return leaseCalls}};
 }
 
 test("the public catalogue contains 24 bundled tracks and only exact IDs or Auto are accepted",()=>{
@@ -45,6 +45,19 @@ test("the public catalogue contains 24 bundled tracks and only exact IDs or Auto
  for(const track of catalogue){assert.equal(soundtracks.normalizeBoosterSoundtrackId(track.id),track.id);assert.equal(track.durationSeconds,8);assert.equal(track.audioPreview,`/api/booster/soundtracks/${track.id}/preview`);assert.ok(track.label&&track.description);assert.deepEqual(Object.keys(track).sort(),["audioPreview","description","durationSeconds","id","label"])}
  for(const invalid of ["",`${manualId} `,manualId.toUpperCase(),"../secret","https://attacker.invalid/audio.wav",{},[],12])assert.throws(()=>soundtracks.normalizeBoosterSoundtrackId(invalid),/booster_soundtrack_invalid/);
  assert.doesNotMatch(JSON.stringify(catalogue),/absolutePath|soundtrackSha|assets\/|accessToken/);
+});
+
+test("channel choices reject unknown channels and malformed values, while explicit Auto overrides the legacy shared track",()=>{
+ const normalize=soundtracks.normalizeBoosterSoundtrackByChannel,resolve=soundtracks.resolveBoosterSoundtrackByChannel;
+ assert.deepEqual(normalize(undefined),{});assert.deepEqual(normalize({facebook:manualId,instagram:null}),{facebook:manualId,instagram:null});
+ for(const invalid of [null,[],manualId,{threads:manualId},{gmb:null},{tiktok:manualId},{facebook:undefined},{instagram:"unregistered-track"},{facebook:12},{instagram:{}},JSON.parse('{"__proto__":"cinema-inspirant"}')])assert.throws(()=>normalize(invalid),/booster_soundtrack_invalid/);
+ const automatic="horizon-clair",instagram="nocturne-elegant";
+ assert.deepEqual(resolve(normalize({facebook:manualId,instagram}),null,automatic),{facebook:manualId,instagram});
+ assert.deepEqual(resolve(normalize({facebook:null}),manualId,automatic),{facebook:automatic,instagram:manualId});
+ assert.deepEqual(resolve(normalize(undefined),manualId,automatic),{facebook:manualId,instagram:manualId});
+ assert.deepEqual(resolve(normalize({}),null,automatic),{facebook:automatic,instagram:automatic});
+ const route=readFileSync(new URL("../../app/api/booster/publish-now/route.ts",import.meta.url),"utf8"),guard=route.indexOf("normalizeBoosterSoundtrackByChannel(body.soundtrackByChannel)");
+ assert.ok(guard>route.indexOf("body = resolvedPreparation.body"));assert.ok(guard<route.indexOf("body = normalizeSiteWebPublicationPayload(body)"));assert.ok(guard<route.indexOf("const ingress = await enqueueBoosterPublication("));
 });
 
 test("catalogue and preview routes return actual original WAV assets and reject traversal before filesystem access",async()=>{
@@ -73,6 +86,22 @@ test("one manual choice loads one actual track and injects the identical asset i
  assert.equal(h.renders.length,5);assert.ok(h.renders.every(render=>render.loadedSoundtrack===h.renders[0].loadedSoundtrack));
  const loaded=h.renders[0].loadedSoundtrack;assert.equal(loaded.id,manualId);assert.equal(loaded.durationSeconds,8);assert.ok(loaded.sizeBytes>44);
  const row=h.rows.get(String(result.story_sequence_resume_ref))!;assert.equal(row.payload.soundtrackId,manualId);assert.equal(row.payload.soundtrackSha256,loaded.sha256);
+});
+
+test("Facebook and Instagram keep distinct real soundtracks across five Stories and each channel's Reel",async()=>{
+ const requested=soundtracks.normalizeBoosterSoundtrackByChannel({facebook:manualId,instagram:"nocturne-elegant"}),resolved=soundtracks.resolveBoosterSoundtrackByChannel(requested,null,"horizon-clair");
+ const h=series(),shaByChannel=new Map<string,string>();
+ for(const channel of ["facebook","instagram"] as const){
+  const before=h.renders.length,result=await h.run({channel,soundtrackId:resolved[channel]});assert.equal(result.ok,true);
+  const clips=h.renders.slice(before);assert.equal(clips.length,5);assert.ok(clips.every(clip=>clip.loadedSoundtrack===clips[0].loadedSoundtrack));
+  const track=clips[0].loadedSoundtrack;assert.equal(track.id,resolved[channel]);shaByChannel.set(channel,track.sha256);
+  const saved=h.rows.get(String(result.story_sequence_resume_ref))!;assert.equal(saved.payload.channel,channel);assert.equal(saved.payload.soundtrackSha256,track.sha256);
+  const downloads:string[]=[],reelTracks:LoadedAiMediaSoundtrack[]=[];const load=runtimeModules({"@/lib/supabaseAdmin":{supabaseAdmin:{storage:{from:()=>({async download(key:string){downloads.push(key);return {data:new Blob([new Uint8Array(2048)],{type:"video/mp4"}),error:null}},getPublicUrl:(key:string)=>({data:{publicUrl:`https://storage.fixture.invalid/${key}`}})})}}},"@/lib/aiMediaGenerationSoundtracks":{async loadAiMediaSoundtrack(prompt:string,options:Parameters<typeof assets.loadAiMediaSoundtrack>[1]){const loaded=await assets.loadAiMediaSoundtrack(prompt,options);reelTracks.push(loaded);return loaded}}});
+  const factory=channel==="facebook"?load<typeof import("../../lib/facebookImageMotionVideo.ts")>("lib/facebookImageMotionVideo.ts").createFacebookImageMotionVideo:load<typeof import("../../lib/instagramImageMotionVideo.ts")>("lib/instagramImageMotionVideo.ts").createInstagramImageMotionVideo;
+  const reel=await factory({accountId:account,publicationId:publication,imageStoragePaths:h.args.photos.map(photo=>photo.storagePath),placement:"reel",soundtrackPrompt:"The brief must not replace the selected channel music",soundtrackId:resolved[channel]});
+  assert.equal(reel.sourceMetadata?.soundtrackId,track.id);assert.equal(reelTracks[0].sha256,track.sha256);assert.equal(downloads.length,1);
+ }
+ assert.notEqual(shaByChannel.get("facebook"),shaByChannel.get("instagram"));assert.equal(h.rows.size,2);assert.equal(h.native.length,10);
 });
 
 test("Auto remains deterministic within a saved sequence and a retry cannot replace its manual music",async()=>{
