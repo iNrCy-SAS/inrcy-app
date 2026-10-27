@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { normalizeBoosterSoundtrackId } from "@/lib/boosterSoundtracks";
+import { META_IMAGE_SOUNDTRACK_ASSET_SECONDS } from "@/lib/metaImageMotionTiming";
 
 export const runtime = "nodejs";
 
@@ -12,7 +13,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!soundtrackId) return new Response(null, { status: 404 });
   try {
     // The exact catalogue lookup above prevents filesystem input/path traversal.
-    const bytes = await readFile(path.join(process.cwd(), "assets", "media-generation", "soundtracks", `${soundtrackId}-8s.wav`));
+    const bytes = await readFile(path.join(process.cwd(), "assets", "media-generation", "soundtracks", `${soundtrackId}-${META_IMAGE_SOUNDTRACK_ASSET_SECONDS}s.wav`));
     if (bytes.byteLength < 44 || bytes.byteLength > 4_000_000 || bytes.toString("ascii", 0, 4) !== "RIFF" || bytes.toString("ascii", 8, 12) !== "WAVE") throw new Error("soundtrack_preview_invalid");
     return new Response(new Uint8Array(bytes), {
       headers: {

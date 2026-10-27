@@ -8673,12 +8673,14 @@ export default function PublishModal({
               instagramStoryEnabled={instagramStoryEnabled}
               instagramPublicationPreferences={instagramPublicationPreferences}
               instagramMediaMode={resolveChannelMediaMode("instagram")}
+              instagramImageCount={getPublishImageKeysForChannel("instagram").length}
               onInstagramPublicationPlacementChange={changeInstagramPublicationPlacement}
               onInstagramStoryEnabledChange={changeInstagramStoryEnabled}
               facebookPublicationPlacement={facebookPublicationPlacement}
               facebookStoryEnabled={facebookStoryEnabled}
               facebookPublicationPreferences={facebookPublicationPreferences}
               facebookMediaMode={resolveChannelMediaMode("facebook")}
+              facebookImageCount={getPublishImageKeysForChannel("facebook").length}
               onFacebookPublicationPlacementChange={changeFacebookPublicationPlacement}
               onFacebookStoryEnabledChange={changeFacebookStoryEnabled}
               onVoiceBusyChange={setContentVoiceBusy}
@@ -8703,6 +8705,8 @@ export default function PublishModal({
           <PublishWizardScreen active={activeWizardStep === "control"} step="control">
             <PublishValidationBoard items={publishReadinessItems} imageKeys={imageKeys} previewByKey={previewByKey} videoPreviewUrl={videoPreviewUrl}
               renderChannelOptions={(channel) => <PublishValidationChannelOptions channel={channel} disabled={wizardBusy}
+                instagramMediaMode={resolveChannelMediaMode("instagram")} instagramImageCount={getPublishImageKeysForChannel("instagram").length}
+                facebookMediaMode={resolveChannelMediaMode("facebook")} facebookImageCount={getPublishImageKeysForChannel("facebook").length}
                 pinterestBoards={pinterestBoards} pinterestBoardId={pinterestBoardId} pinterestBoardsLoading={pinterestBoardsLoading}
                 pinterestBoardsError={pinterestBoardsError} onPinterestBoardChange={onPinterestBoardChange}
                 threadsPublicationMode={threadsPublicationMode} threadsPublicationPreferences={threadsPublicationPreferences}

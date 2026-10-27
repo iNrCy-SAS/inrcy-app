@@ -16,16 +16,16 @@ import {
 } from "@/lib/mediaVideoNormalizer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { toExactStorageArrayBuffer } from "@/lib/supabaseStorageBinary";
+import { getMetaImageMotionDuration, META_IMAGE_SOUNDTRACK_ASSET_SECONDS } from "@/lib/metaImageMotionTiming";
 import type { PersistedVideoAttachment } from "@/app/api/booster/publish-now/publishNow.foundations";
 
 const execFileAsync = promisify(execFile);
 const OUTPUT_WIDTH = 1_080;
 const OUTPUT_HEIGHT = 1_920;
-const OUTPUT_DURATION_SECONDS = 8;
 const OUTPUT_FPS = 30;
 const TRANSITION_SECONDS = 0.35;
 const MAX_SOURCE_IMAGE_BYTES = 25 * 1024 * 1024;
-const PIPELINE_VERSION = "instagram-image-motion-v3-setpts-cfr";
+const PIPELINE_VERSION = "instagram-image-motion-v4-media-timing";
 
 type InstagramImageMotionPlacement = "reel" | "story";
 
@@ -51,6 +51,8 @@ function buildAttachment(args: {
   placement: InstagramImageMotionPlacement;
   soundtrackId: string;
   sourceCount: number;
+  durationSeconds: number;
+  soundtrackAssetDurationSeconds: number;
 }): PersistedVideoAttachment {
   const publicUrl = publicBoosterUrl(args.storagePath);
   if (!publicUrl) throw new Error("instagram_image_motion_public_url_missing");
@@ -61,7 +63,7 @@ function buildAttachment(args: {
         : "Reel iNrCy.mp4",
     type: "video/mp4",
     size: args.size,
-    duration: OUTPUT_DURATION_SECONDS,
+    duration: args.durationSeconds,
     url: publicUrl,
     publicUrl,
     storagePath: args.storagePath,
@@ -72,7 +74,7 @@ function buildAttachment(args: {
     sourceMetadata: {
       width: OUTPUT_WIDTH,
       height: OUTPUT_HEIGHT,
-      duration: OUTPUT_DURATION_SECONDS,
+      duration: args.durationSeconds,
       orientation: "vertical",
       videoCodec: "h264",
       audioCodec: "aac",
@@ -84,6 +86,7 @@ function buildAttachment(args: {
       source: PIPELINE_VERSION,
       sourceImageCount: args.sourceCount,
       soundtrackId: args.soundtrackId,
+      soundtrackAssetDurationSeconds: args.soundtrackAssetDurationSeconds,
     },
   };
 }
@@ -93,6 +96,8 @@ async function readCachedAttachment(args: {
   placement: InstagramImageMotionPlacement;
   soundtrackId: string;
   sourceCount: number;
+  durationSeconds: number;
+  soundtrackAssetDurationSeconds: number;
 }) {
   const cached = await supabaseAdmin.storage
     .from("booster")
@@ -159,9 +164,9 @@ async function composeVerticalFrame(source: Buffer, preserveComposition = false)
     .toBuffer();
 }
 
-function buildMotionFilter(imageCount: number, preserveComposition = false) {
+function buildMotionFilter(imageCount: number, outputDurationSeconds: number, preserveComposition = false) {
   const clipDuration =
-    (OUTPUT_DURATION_SECONDS + TRANSITION_SECONDS * (imageCount - 1)) /
+    (outputDurationSeconds + TRANSITION_SECONDS * (imageCount - 1)) /
     imageCount;
   const filters: string[] = [];
 
@@ -187,10 +192,10 @@ function buildMotionFilter(imageCount: number, preserveComposition = false) {
     videoLabel = nextLabel;
   }
   filters.push(
-    `${videoLabel}trim=duration=${OUTPUT_DURATION_SECONDS},setpts=PTS-STARTPTS,fps=${OUTPUT_FPS},settb=1/${OUTPUT_FPS},fade=t=in:st=0:d=0.22,fade=t=out:st=7.55:d=0.45[vout]`,
+    `${videoLabel}trim=duration=${outputDurationSeconds},setpts=PTS-STARTPTS,fps=${OUTPUT_FPS},settb=1/${OUTPUT_FPS},fade=t=in:st=0:d=0.22,fade=t=out:st=${(outputDurationSeconds - 0.45).toFixed(4)}:d=0.45[vout]`,
   );
   filters.push(
-    `[${imageCount}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,atrim=duration=${OUTPUT_DURATION_SECONDS},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.3,afade=t=out:st=7.2:d=0.8,volume=0.22[aout]`,
+    `[${imageCount}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,atrim=duration=${outputDurationSeconds},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.3,afade=t=out:st=${(outputDurationSeconds - 0.8).toFixed(4)}:d=0.8,volume=0.22[aout]`,
   );
   return { filter: filters.join(";"), clipDuration };
 }
@@ -243,6 +248,8 @@ export async function createInstagramImageMotionVideo(args: {
   placement: InstagramImageMotionPlacement;
   soundtrackPrompt: string;
   soundtrackId?: string | null;
+  /** Server-only compatibility override for existing eight-second Story checkpoints. */
+  durationSeconds?: number;
   /** One loaded original track may be shared by every Story in a series. */
   loadedSoundtrack?: LoadedAiMediaSoundtrack;
   /** Agent supplies a native 9:16 image: no inset, background or zoom crop. */
@@ -260,12 +267,15 @@ export async function createInstagramImageMotionVideo(args: {
   if (!imageStoragePaths.length) {
     throw new Error("instagram_image_motion_source_missing");
   }
+  const defaultDurationSeconds = getMetaImageMotionDuration(imageStoragePaths.length, args.placement);
+  const durationSeconds = args.durationSeconds ?? defaultDurationSeconds;
+  if (durationSeconds !== defaultDurationSeconds && !(args.placement === "story" && durationSeconds === 8)) throw new Error("meta_image_motion_timing_invalid");
 
   const soundtrack = args.loadedSoundtrack || await loadAiMediaSoundtrack(args.soundtrackPrompt, {
     // Une publication garde la même piste lors d'une reprise idempotente,
     // tandis que deux Reels/Stories au brief identique varient réellement.
     selectionKey: `${args.accountId}:${args.publicationId}:${args.placement}`,
-    durationSeconds: OUTPUT_DURATION_SECONDS,
+    durationSeconds: META_IMAGE_SOUNDTRACK_ASSET_SECONDS,
     soundtrackId: args.soundtrackId || undefined,
   });
   const signature = createHash("sha256")
@@ -277,6 +287,7 @@ export async function createInstagramImageMotionVideo(args: {
         placement: args.placement,
         imageStoragePaths,
         soundtrackSha256: soundtrack.sha256,
+        durationSeconds,
       }),
     )
     .digest("hex")
@@ -287,6 +298,8 @@ export async function createInstagramImageMotionVideo(args: {
     placement: args.placement,
     soundtrackId: soundtrack.id,
     sourceCount: imageStoragePaths.length,
+    durationSeconds,
+    soundtrackAssetDurationSeconds: soundtrack.durationSeconds || META_IMAGE_SOUNDTRACK_ASSET_SECONDS,
   } as const;
 
   const cached = await readCachedAttachment(attachmentArgs);
@@ -308,7 +321,7 @@ export async function createInstagramImageMotionVideo(args: {
     );
     const outputPath = path.join(temporaryDirectory, "instagram-motion.mp4");
     const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
-    const { filter, clipDuration } = buildMotionFilter(framePaths.length, args.preserveComposition);
+    const { filter, clipDuration } = buildMotionFilter(framePaths.length, durationSeconds, args.preserveComposition);
     const command = ["-hide_banner", "-nostdin", "-y"];
     for (const framePath of framePaths) {
       command.push(
@@ -331,7 +344,7 @@ export async function createInstagramImageMotionVideo(args: {
       "-map",
       "[aout]",
       "-t",
-      String(OUTPUT_DURATION_SECONDS),
+      String(durationSeconds),
       "-c:v",
       "libx264",
       "-preset",
@@ -385,7 +398,7 @@ export async function createInstagramImageMotionVideo(args: {
       outputStats.size < 1_000 ||
       probe.orientedWidth !== OUTPUT_WIDTH ||
       probe.orientedHeight !== OUTPUT_HEIGHT ||
-      Math.abs(probe.durationSeconds - OUTPUT_DURATION_SECONDS) > 0.35 ||
+      Math.abs(probe.durationSeconds - durationSeconds) > 0.35 ||
       !probe.hasAudio ||
       !["h264", "avc1"].includes(String(probe.videoCodec).toLowerCase())
     ) {

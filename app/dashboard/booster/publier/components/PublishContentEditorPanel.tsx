@@ -14,6 +14,7 @@ import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
 import type { InstagramPublicationPreferences } from "@/lib/instagramPublicationPreferences";
 import type { FacebookPublicationPreferences } from "@/lib/facebookPublicationPreferences";
 import type { MetaPrimaryPublicationPlacement } from "@/lib/metaPublicationTargets";
+import { getMetaImageMotionDuration } from "@/lib/metaImageMotionTiming";
 import { buildCtaTextForChannel, getCtaPhone } from "@/lib/boosterCta";
 import {
   getBoosterXForbiddenUrlFields,
@@ -241,6 +242,7 @@ type PublishContentEditorPanelProps = {
   instagramStoryEnabled: boolean;
   instagramPublicationPreferences: InstagramPublicationPreferences;
   instagramMediaMode: ChannelMediaMode;
+  instagramImageCount?: number;
   onInstagramPublicationPlacementChange: (
     placement: MetaPrimaryPublicationPlacement,
   ) => void;
@@ -249,6 +251,7 @@ type PublishContentEditorPanelProps = {
   facebookStoryEnabled: boolean;
   facebookPublicationPreferences: FacebookPublicationPreferences;
   facebookMediaMode: ChannelMediaMode;
+  facebookImageCount?: number;
   onFacebookPublicationPlacementChange: (
     placement: MetaPrimaryPublicationPlacement,
   ) => void;
@@ -293,12 +296,14 @@ export default function PublishContentEditorPanel({
   instagramStoryEnabled,
   instagramPublicationPreferences,
   instagramMediaMode,
+  instagramImageCount = 0,
   onInstagramPublicationPlacementChange,
   onInstagramStoryEnabledChange,
   facebookPublicationPlacement,
   facebookStoryEnabled,
   facebookPublicationPreferences,
   facebookMediaMode,
+  facebookImageCount = 0,
   onFacebookPublicationPlacementChange,
   onFacebookStoryEnabledChange,
   onVoiceBusyChange,
@@ -576,6 +581,7 @@ export default function PublishContentEditorPanel({
     (instagramVerticalFormat || facebookVerticalFormat) &&
     activeMediaMode === "images";
   const activeStoryImageSequence = activeStoryEnabled && activeMediaMode === "images";
+  const activeImageCount = activeCard === "instagram" ? instagramImageCount : activeCard === "facebook" ? facebookImageCount : 0;
   const activeTextGuidelines = CHANNEL_TEXT_GUIDELINES[activeCard];
   const titleVoiceMaxLength = Math.max(
     activePost.title.length,
@@ -888,8 +894,8 @@ export default function PublishContentEditorPanel({
                   lineHeight: 1.45,
                 }}
               >
-                {activeVerticalImageMotion ? <p data-meta-reel-image-notice style={{ margin: "0 0 6px" }}>{i18nT("instagram_image_motion_notice")}</p> : null}
-                {activeStoryImageSequence ? <p data-meta-story-image-notice style={{ margin: "0 0 6px" }}>{i18nT("instagram_image_story_sequence_notice")}</p> : null}
+                {activeVerticalImageMotion && activeImageCount > 0 ? <p data-meta-reel-image-notice style={{ margin: "0 0 6px" }}>{i18nT("instagram_image_motion_notice", { secondsPerImage: getMetaImageMotionDuration(1, "reel"), duration: getMetaImageMotionDuration(activeImageCount, "reel") })}</p> : null}
+                {activeStoryImageSequence && activeImageCount > 0 ? <p data-meta-story-image-notice style={{ margin: "0 0 6px" }}>{i18nT("instagram_image_story_sequence_notice", { secondsPerImage: getMetaImageMotionDuration(1, "story") })}</p> : null}
                 {activeStoryEnabled
                   ? i18nT("instagram_review_media_only_warning", {
                       mode: i18nT("instagram_stories"),

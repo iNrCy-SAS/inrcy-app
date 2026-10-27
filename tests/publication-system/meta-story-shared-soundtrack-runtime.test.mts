@@ -11,11 +11,11 @@ import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 
 const execute = promisify(execFile);
 
-test("five distinct eight-second Story clips share one actual soundtrack, including Facebook and cached retries", { timeout: 240_000 }, async () => {
+test("five four-second Stories and one fifteen-second Reel preserve the same original music asset and cached retries", { timeout: 240_000 }, async () => {
   const actual = runtimeModules();
   const { loadAiMediaSoundtrack } = actual<typeof import("../../lib/aiMediaGenerationSoundtracks.ts")>("lib/aiMediaGenerationSoundtracks.ts");
   const desiredSoundtrackId = "nocturne-elegant";
-  const soundtrack = await loadAiMediaSoundtrack("Une ambiance chaleureuse pour un café artisanal", { selectionKey: "one-stable-story-series", durationSeconds: 8, soundtrackId: desiredSoundtrackId });
+  const soundtrack = await loadAiMediaSoundtrack("Une ambiance chaleureuse pour un café artisanal", { selectionKey: "one-stable-story-series", durationSeconds: 24, soundtrackId: desiredSoundtrackId });
   assert.equal(soundtrack.id, desiredSoundtrackId);
   const media = new Map<string, { bytes: Buffer; type: string }>();
   const colors = [[220, 40, 40], [34, 170, 102], [51, 85, 221], [221, 170, 34], [165, 45, 190]];
@@ -41,11 +41,12 @@ test("five distinct eight-second Story clips share one actual soundtrack, includ
   assert.ok(ffmpeg);
   const directory = await mkdtemp(path.join(tmpdir(), "inrcy-story-music-proof-"));
   const audioHashes: string[] = [], storagePaths: string[] = [];
+  let firstStoryPcm: Buffer | undefined;
   try {
     for (const [index, color] of colors.entries()) {
       const args = { accountId: "account", publicationId: `stable-sequence-${index}`, imageStoragePaths: [`account/story-source-${index}.jpg`], placement: "story" as const, soundtrackPrompt: `This individual Story must not select music ${index}`, loadedSoundtrack: soundtrack };
       const story = await createInstagramImageMotionVideo(args);
-      assert.equal(story.duration, 8);
+      assert.equal(story.duration, 4); assert.equal(story.sourceMetadata?.duration, 4); assert.equal(story.sourceMetadata?.soundtrackAssetDurationSeconds, 24);
       assert.equal(story.sourceMetadata?.sourceImageCount, 1);
       assert.equal(story.sourceMetadata?.soundtrackId, soundtrack.id);
       assert.ok(story.storagePath);
@@ -57,15 +58,16 @@ test("five distinct eight-second Story clips share one actual soundtrack, includ
       const probe = await probeVideoSource({ ffmpegPath: ffmpeg, inputPath: videoPath, timeoutMs: 30_000 });
       assert.equal(probe.orientedWidth, 1080); assert.equal(probe.orientedHeight, 1920);
       assert.equal(probe.videoCodec, "h264"); assert.equal(probe.audioCodec, "aac");
-      assert.ok(Math.abs(probe.durationSeconds - 8) < 0.15); assert.ok(Math.abs(probe.frameRate - 30) < 0.01);
+      assert.ok(Math.abs(probe.durationSeconds - 4) < 0.15); assert.ok(Math.abs(probe.frameRate - 30) < 0.01);
       const pcmPath = path.join(directory, `story-${index}.pcm`);
       await execute(ffmpeg, ["-v", "error", "-y", "-i", videoPath, "-map", "0:a:0", "-ac", "2", "-ar", "48000", "-f", "s16le", pcmPath], { windowsHide: true, timeout: 30_000 });
       const pcm = await readFile(pcmPath);
-      assert.ok(pcm.length > 48_000 * 4 * 7.8, "Each Story keeps a complete audible track");
+      assert.ok(pcm.length > 48_000 * 4 * 3.8, "Each Story keeps its complete four-second audible track");
       assert.ok(pcm.some(byte => byte !== 0), "The encoded track must not be silent");
       audioHashes.push(createHash("sha256").update(pcm).digest("hex"));
+      firstStoryPcm ??= pcm;
       const framePath = path.join(directory, `story-${index}.png`);
-      await execute(ffmpeg, ["-v", "error", "-y", "-ss", "4", "-i", videoPath, "-frames:v", "1", "-vf", "scale=108:192", framePath], { windowsHide: true, timeout: 30_000 });
+      await execute(ffmpeg, ["-v", "error", "-y", "-ss", "2", "-i", videoPath, "-frames:v", "1", "-vf", "scale=108:192", framePath], { windowsHide: true, timeout: 30_000 });
       const { data, info } = await sharp(await readFile(framePath)).removeAlpha().raw().toBuffer({ resolveWithObject: true });
       const middle = (96 * info.width + 54) * info.channels;
       assert.ok(color.every((value, channel) => Math.abs(value - data[middle + channel]) < 25), `Story ${index + 1} must contain its own source image`);
@@ -85,12 +87,18 @@ test("five distinct eight-second Story clips share one actual soundtrack, includ
     const reel = await createInstagramImageMotionVideo({ accountId: "account", publicationId: "manual-five-image-reel", imageStoragePaths: colors.map((_, index) => `account/story-source-${index}.jpg`), placement: "reel", soundtrackPrompt: "This prompt must not override the manually selected music", soundtrackId: desiredSoundtrackId });
     assert.equal(reel.sourceMetadata?.soundtrackId, desiredSoundtrackId);
     assert.equal(reel.sourceMetadata?.sourceImageCount, 5);
+    assert.equal(reel.duration, 15); assert.equal(reel.sourceMetadata?.soundtrackAssetDurationSeconds, 24);
     assert.ok(reel.storagePath);
     const reelMedia = media.get(reel.storagePath); assert.ok(reelMedia);
     const reelPath = path.join(directory, "five-image-reel.mp4"), reelPcm = path.join(directory, "five-image-reel.pcm");
     await writeFile(reelPath, reelMedia.bytes);
+    const reelProbe = await probeVideoSource({ ffmpegPath: ffmpeg, inputPath: reelPath, timeoutMs: 30_000 });
+    assert.ok(Math.abs(reelProbe.durationSeconds - 15) < 0.15); assert.equal(reelProbe.videoCodec, "h264"); assert.equal(reelProbe.audioCodec, "aac"); assert.ok(Math.abs(reelProbe.frameRate - 30) < 0.01);
     await execute(ffmpeg, ["-v", "error", "-y", "-i", reelPath, "-map", "0:a:0", "-ac", "2", "-ar", "48000", "-f", "s16le", reelPcm], { windowsHide: true, timeout: 30_000 });
-    assert.equal(createHash("sha256").update(await readFile(reelPcm)).digest("hex"), audioHashes[0], "The assembled Reel and all five Stories must encode the same manually selected musical samples");
+    const reelAudio = await readFile(reelPcm); assert.ok(reelAudio.length > 48_000 * 4 * 14.8); assert.ok(firstStoryPcm);
+    // End fades follow each clip's duration; the shared musical beginning is
+    // identical before the four-second Story starts fading out at 3.2 seconds.
+    assert.deepEqual(reelAudio.subarray(0, 48_000 * 4 * 3), firstStoryPcm.subarray(0, 48_000 * 4 * 3), "Stories and Reel must start with the same source music, despite their different total durations");
   } finally {
     const resolved = path.resolve(directory);
     assert.ok(resolved.startsWith(path.resolve(tmpdir()) + path.sep) && path.basename(resolved).startsWith("inrcy-story-music-proof-"));

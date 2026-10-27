@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { getMetaImageMotionDuration } from "../../lib/metaImageMotionTiming.ts";
 
 import {
   DEFAULT_FACEBOOK_PUBLICATION_PREFERENCES,
@@ -107,7 +108,7 @@ test("immediate, scheduled and single-channel continuation payloads keep the Fac
   assert.match(foundations, /mediaOnly: story/);
 });
 
-test("Facebook Reel and Story require media and image inputs become an 8-second 9:16 music video", () => {
+test("Facebook Reel and Story require media and use per-image timing for their 9:16 music videos", () => {
   assert.match(
     modal,
     /publishableChannels\.includes\("facebook"\)[\s\S]*?facebookPublicationPlacement === "reel" \|\| facebookStoryEnabled[\s\S]*?facebookMode === "none"/,
@@ -118,7 +119,8 @@ test("Facebook Reel and Story require media and image inputs become an 8-second 
   );
   assert.match(route, /videoSettingsByChannel\.facebook = \{[\s\S]*?format: "9_16"/);
   assert.match(read("lib/facebookImageMotionVideo.ts"), /createInstagramImageMotionVideo/);
-  assert.match(read("lib/instagramImageMotionVideo.ts"), /const OUTPUT_DURATION_SECONDS = 8/);
+  assert.match(read("lib/instagramImageMotionVideo.ts"), /getMetaImageMotionDuration\(imageStoragePaths\.length, args\.placement\)/);
+  assert.equal(getMetaImageMotionDuration(5, "reel"), 15); assert.equal(getMetaImageMotionDuration(1, "story"), 4);
   assert.match(read("lib/instagramImageMotionVideo.ts"), /loadAiMediaSoundtrack/);
 });
 

@@ -160,8 +160,8 @@
   "instagram_review_media_only_warning": "{mode}: only the media will be published. The title, text, CTA and hashtags will not be sent.",
   "pinterest_review_board": "Pinterest board: {board}",
   "instagram_media_only_notice": "This format publishes media only: the title, text, CTA and hashtags are not sent.",
-  "instagram_image_motion_notice": "For the Reel, the selected images will be combined in order into an 8-second vertical video with original iNrCy music.",
-  "instagram_image_story_sequence_notice": "Each image becomes an 8-second video Story, published in the chosen order, with the same music throughout the series.",
+  "instagram_image_motion_notice": "The Reel combines the images assigned to this channel in order: {secondsPerImage} s per image, {duration} s in total, including transitions.",
+  "instagram_image_story_sequence_notice": "Each image assigned to this channel becomes a {secondsPerImage}-second video Story, published in the chosen order with the same music for the series.",
   "publication_stories_confirmed_count": "{confirmed}/{expected} Stories confirmed",
   "contenu_commercial_593e3b1d": "Commercial content",
   "contenu_envoye_aaa62b2f": "Content sent",
@@ -906,5 +906,7 @@
   "publication_music_done": "Done",
   "publication_music_resume_locked": "A retry keeps the series’ original music.",
   "publication_music_reserved_hint": "For Stories and Reels only",
-  "publication_music_preview_choose": "Choose a track to preview it."
+  "publication_music_preview_choose": "Choose a track to preview it.",
+  "publication_reel_duration_hint": "Reel: {duration} s in total ({secondsPerImage} s per image, including transitions)",
+  "publication_story_duration_hint": "Story: {secondsPerImage} s per image"
 }

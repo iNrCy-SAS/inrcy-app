@@ -160,8 +160,8 @@
   "instagram_review_media_only_warning": "{mode}：只会发布媒体，不会发送标题、正文、CTA 和话题标签。",
   "pinterest_review_board": "Pinterest 图板：{board}",
   "instagram_media_only_notice": "此格式仅发布媒体，不会发送标题、正文、CTA 和话题标签。",
-  "instagram_image_motion_notice": "Reel 会将所选图片按顺序合成为一段 8 秒的竖版视频，并配上 iNrCy 原创音乐。",
-  "instagram_image_story_sequence_notice": "每张图片都会生成一条 8 秒的 Story 视频，按所选顺序发布，整个系列使用相同的音乐。",
+  "instagram_image_motion_notice": "Reel 按顺序合成分配给此渠道的图片：每张 {secondsPerImage} 秒，总计 {duration} 秒，包含转场。",
+  "instagram_image_story_sequence_notice": "分配给此渠道的每张图片都会生成一条 {secondsPerImage} 秒的 Story 视频，按所选顺序发布，整个系列使用同一首音乐。",
   "publication_stories_confirmed_count": "已确认 {confirmed}/{expected} 条 Story",
   "contenu_commercial_593e3b1d": "商业内容",
   "contenu_envoye_aaa62b2f": "发送内容",
@@ -906,5 +906,7 @@
   "publication_music_done": "完成",
   "publication_music_resume_locked": "继续发布时保留该系列最初的音乐。",
   "publication_music_reserved_hint": "仅限 Story 和 Reel",
-  "publication_music_preview_choose": "选择一首音乐进行试听。"
+  "publication_music_preview_choose": "选择一首音乐进行试听。",
+  "publication_reel_duration_hint": "Reel：总计 {duration} 秒（每张图片 {secondsPerImage} 秒，包含转场）",
+  "publication_story_duration_hint": "Story：每张图片 {secondsPerImage} 秒"
 }

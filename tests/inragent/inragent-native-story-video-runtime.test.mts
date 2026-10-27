@@ -14,6 +14,7 @@ const root = fileURLToPath(new URL("../../", import.meta.url));
 
 test("native Agent photos remain full frame for the entire Meta Story, with no inset or zoom; retries reuse the video", { timeout: 150_000 }, async () => {
   const stored = new Map<string, { buffer: Buffer; type: string }>();
+  let uploads = 0;
   const photo = await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640"><rect width="360" height="640" fill="#2478b8"/><rect width="48" height="48" fill="#dc2828"/><rect x="312" width="48" height="48" fill="#22aa66"/><rect y="592" width="48" height="48" fill="#3355dd"/><rect x="312" y="592" width="48" height="48" fill="#ddaa22"/></svg>')).jpeg().toBuffer();
   stored.set("source.jpg", { buffer: photo, type: "image/jpeg" });
   const load = runtimeModules({
@@ -23,28 +24,35 @@ test("native Agent photos remain full frame for the entire Meta Story, with no i
         const item = stored.get(key);
         return item ? { data: new Blob([new Uint8Array(item.buffer)], { type: item.type }), error: null } : { data: null, error: { message: "missing" } };
       },
-      upload: async (key: string, data: ArrayBuffer, options: { contentType: string }) => {
+      upload: async (key: string, data: ArrayBuffer, options: { contentType: string; upsert: boolean }) => {
+        assert.equal(options.upsert, false); uploads++;
         stored.set(key, { buffer: Buffer.from(data), type: options.contentType });
         return { error: null };
       },
     }) } } },
-    "@/lib/aiMediaGenerationSoundtracks": { loadAiMediaSoundtrack: async () => ({
-      id: "fixture", sha256: "fixture-sha", absolutePath: path.join(root, "assets/media-generation/soundtracks/atelier-vivant-8s.wav"),
-    }) },
+    "@/lib/aiMediaGenerationSoundtracks": { loadAiMediaSoundtrack: async (_prompt: string, options: { durationSeconds: number }) => {
+      assert.equal(options.durationSeconds, 24);
+      return { id: "fixture", sha256: "fixture-sha", durationSeconds: 24, absolutePath: path.join(root, "assets/media-generation/soundtracks/atelier-vivant-24s.wav") };
+    } },
   });
   const { createInstagramImageMotionVideo } = load<typeof import("../../lib/instagramImageMotionVideo.ts")>("lib/instagramImageMotionVideo.ts");
-  const { resolveVideoNormalizationFfmpegPath } = load<typeof import("../../lib/mediaVideoNormalizer.ts")>("lib/mediaVideoNormalizer.ts");
+  const { resolveVideoNormalizationFfmpegPath, probeVideoSource } = load<typeof import("../../lib/mediaVideoNormalizer.ts")>("lib/mediaVideoNormalizer.ts");
   const ffmpeg = await resolveVideoNormalizationFfmpegPath();
   const args = { accountId: "account", publicationId: "publication", imageStoragePaths: ["source.jpg"], placement: "story" as const, soundtrackPrompt: "Atelier", preserveComposition: true };
   const created = await createInstagramImageMotionVideo(args);
+  assert.equal(created.duration, 4); assert.equal(created.sourceMetadata?.duration, 4);
   assert.equal(stored.size, 2);
+  assert.equal(uploads, 1, "A cached retry must not upload another video");
   assert.equal((await createInstagramImageMotionVideo(args)).storagePath, created.storagePath);
   assert.equal(stored.size, 2);
   const temporary = await mkdtemp(path.join(tmpdir(), "inr-agent-story-proof-"));
   try {
     const videoPath = path.join(temporary, "story.mp4");
     await writeFile(videoPath, stored.get(created.storagePath!)!.buffer);
-    for (const at of [0.5, 7.5]) {
+    const probe = await probeVideoSource({ ffmpegPath: ffmpeg!, inputPath: videoPath, timeoutMs: 30_000 });
+    assert.ok(Math.abs(probe.durationSeconds - 4) < 0.15); assert.ok(Math.abs(probe.frameRate - 30) < 0.01);
+    assert.equal(probe.orientedWidth, 1080); assert.equal(probe.orientedHeight, 1920); assert.equal(probe.videoCodec, "h264"); assert.equal(probe.audioCodec, "aac"); assert.equal(probe.hasAudio, true);
+    for (const at of [0.5, 2, 3.5]) {
       const framePath = path.join(temporary, `frame-${at}.png`);
       await run(ffmpeg!, ["-v", "error", "-y", "-ss", String(at), "-i", videoPath, "-frames:v", "1", "-vf", "scale=360:640", framePath], { windowsHide: true });
       const { data, info } = await sharp(await readFile(framePath)).removeAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -55,6 +63,7 @@ test("native Agent photos remain full frame for the entire Meta Story, with no i
     }
     stored.set("wrong.jpg", { buffer: await sharp(photo).resize(400, 600).jpeg().toBuffer(), type: "image/jpeg" });
     await assert.rejects(createInstagramImageMotionVideo({ ...args, imageStoragePaths: ["wrong.jpg"] }), /native_frame_mismatch/);
+    assert.equal(uploads, 1, "Rejecting a mismatched frame must never replace the validated native video");
   } finally {
     const resolved = path.resolve(temporary);
     assert.ok(resolved.startsWith(path.resolve(tmpdir()) + path.sep));

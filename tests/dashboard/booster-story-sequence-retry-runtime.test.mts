@@ -3,9 +3,11 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
+import { createElement } from "react";
 import ts from "typescript";
 import * as retry from "../../lib/publicationStorySequenceRetry.ts";
 import { isBoosterPublicationPendingStatus } from "../../lib/boosterPublicationStatus.ts";
+import * as motionTiming from "../../lib/metaImageMotionTiming.ts";
 
 const require = createRequire(import.meta.url);
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
@@ -21,7 +23,7 @@ function variable(source: ts.SourceFile, name: string): string {
   assert.ok(ts.isVariableDeclaration(declaration) && declaration.initializer); return declaration.initializer.getText(source);
 }
 function evaluate<T>(text: string, values: Record<string, unknown> = {}): T {
-  const scope = { ...retry, isBoosterPublicationPendingStatus, require, exports: {}, ...values };
+  const scope = { ...retry, ...motionTiming, isBoosterPublicationPendingStatus, require, exports: {}, ...values };
   const compiled = ts.transpileModule(`const value = (${text});`, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   return new Function(...Object.keys(scope), compiled + "\nreturn value;")(...Object.values(scope));
 }
@@ -83,19 +85,42 @@ test("retry summary and polling retain the partial checkpoint and clear it after
   assert.deepEqual(retry.publicationStorySequenceCounts(updated.entries[0]), { confirmed: 0, expected: 5 });
 });
 
-test("Stories describe one ordered Story per image while Reel alone retains its assembled 8-second notice in all nine locales", () => {
+test("all nine locales describe four-second Stories and three seconds per Reel image using the active channel's count", () => {
   const notice = find(editor, node => ts.isJsxElement(node) && node.openingElement.attributes.properties.some(prop => ts.isJsxAttribute(prop) && prop.name.getText(editor) === "role" && prop.initializer?.getText(editor) === '"status"') && node.getText(editor).includes("instagram_image_story_sequence_notice"));
-  const variables = ["instagramVerticalFormat", "facebookVerticalFormat", "activeStoryEnabled", "activeMediaMode", "activeVerticalImageMotion", "activeStoryImageSequence"];
+  const variables = ["instagramVerticalFormat", "facebookVerticalFormat", "activeStoryEnabled", "activeMediaMode", "activeVerticalImageMotion", "activeStoryImageSequence", "activeImageCount"];
+  const interpolate=(message:string,values:Record<string,unknown>)=>message.replace(/\{(\w+)\}/g,(_,key)=>String(values[key]??`{${key}}`));
+  const escaped=(value:string)=>renderToStaticMarkup(createElement("span",null,value)).slice(6,-7);
+  const render=(messages:Record<string,string>,activeCard:string,count:number,placement:string,story:boolean,mode="images",otherCount=count)=>{
+    const scope:Record<string,unknown>={activeCard,instagramPublicationPlacement:placement,facebookPublicationPlacement:placement,instagramStoryEnabled:story,facebookStoryEnabled:story,instagramMediaMode:mode,facebookMediaMode:mode,instagramImageCount:activeCard==="instagram"?count:otherCount,facebookImageCount:activeCard==="facebook"?count:otherCount,i18nT:(key:string,values:Record<string,unknown>={})=>interpolate(messages[key]||key,values)};
+    for(const name of variables)scope[name]=evaluate(variable(editor,name),scope);
+    return renderToStaticMarkup(evaluate<Parameters<typeof renderToStaticMarkup>[0]>(notice.getText(editor),scope));
+  };
+  assert.equal(motionTiming.getMetaImageMotionDuration(1,"story"),4);assert.deepEqual([1,2,3,5].map(count=>motionTiming.getMetaImageMotionDuration(count,"reel")),[3,6,9,15]);
   for (const locale of ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"]) {
     const messages = JSON.parse(read(`messages/${locale}/booster.json`)) as Record<string, string>;
-    assert.ok(messages.instagram_image_story_sequence_notice.includes("8")); assert.ok(messages.instagram_image_motion_notice.includes("8"));
+    assert.ok(messages.instagram_image_story_sequence_notice.includes("{secondsPerImage}"));assert.ok(messages.instagram_image_motion_notice.includes("{secondsPerImage}")&&messages.instagram_image_motion_notice.includes("{duration}"));
     assert.ok(messages.publication_stories_confirmed_count.includes("{confirmed}") && messages.publication_stories_confirmed_count.includes("{expected}"));
-    for (const activeCard of ["facebook", "instagram"]) for (const [placement, story, reelExpected, storyExpected] of [["story", false, false, true], ["reel", false, true, false], ["reel", true, true, true], ["classic", true, false, true]] as const) {
-      const scope: Record<string, unknown> = { activeCard, instagramPublicationPlacement: placement, facebookPublicationPlacement: placement, instagramStoryEnabled: story, facebookStoryEnabled: story, instagramMediaMode: "images", facebookMediaMode: "images", i18nT: (key: string) => messages[key] || key };
-      for (const name of variables) scope[name] = evaluate(variable(editor, name), scope);
-      const html = renderToStaticMarkup(evaluate<Parameters<typeof renderToStaticMarkup>[0]>(notice.getText(editor), scope));
+    for (const activeCard of ["facebook", "instagram"]) for(const count of [1,3,5]) for (const [placement, story, reelExpected, storyExpected] of [["story", false, false, true], ["reel", false, true, false], ["reel", true, true, true], ["classic", true, false, true]] as const) {
+      const html=render(messages,activeCard,count,placement,story);
       assert.equal(html.includes("data-meta-reel-image-notice"), reelExpected, `${locale} ${activeCard} ${placement}`);
       assert.equal(html.includes("data-meta-story-image-notice"), storyExpected, `${locale} ${activeCard} ${placement}`);
+      if(reelExpected)assert.ok(html.includes(escaped(interpolate(messages.instagram_image_motion_notice,{secondsPerImage:3,duration:count*3}))),`${locale}: a ${count}-image Reel lasts ${count*3}s`);
+      if(storyExpected)assert.ok(html.includes(escaped(interpolate(messages.instagram_image_story_sequence_notice,{secondsPerImage:4}))),`${locale}: each Story remains4s independent of the image count`);
     }
+    const facebook=render(messages,"facebook",3,"reel",true,"images",5),instagram=render(messages,"instagram",5,"reel",true,"images",3);
+    assert.ok(facebook.includes(escaped(interpolate(messages.instagram_image_motion_notice,{secondsPerImage:3,duration:9}))));assert.ok(instagram.includes(escaped(interpolate(messages.instagram_image_motion_notice,{secondsPerImage:3,duration:15}))));
+    for(const mode of ["video","none"])for(const channel of ["facebook","instagram"])assert.doesNotMatch(render(messages,channel,5,"reel",true,mode),/data-meta-(reel|story)-image-notice/);
+    for(const channel of ["facebook","instagram"])assert.doesNotMatch(render(messages,channel,0,"reel",true),/data-meta-(reel|story)-image-notice/);
   }
+});
+
+test("Contents and Validation receive per-channel selected image counts rather than the total pool count",()=>{
+  const counts:Record<string,number[]>={facebook:[],instagram:[]};
+  const visit=(node:ts.Node)=>{
+    if(ts.isJsxAttribute(node)&&["facebookImageCount","instagramImageCount"].includes(node.name.getText(modal))&&node.initializer&&ts.isJsxExpression(node.initializer)&&node.initializer.expression){
+      const channel=node.name.getText(modal)==="facebookImageCount"?"facebook":"instagram";
+      counts[channel].push(evaluate<number>(node.initializer.expression.getText(modal),{getPublishImageKeysForChannel:(key:string)=>Array.from({length:key==="facebook"?3:5},(_,index)=>`${key}-${index}`),images:Array.from({length:5})}));
+    }
+    ts.forEachChild(node,visit);
+  };visit(modal);assert.deepEqual(counts,{facebook:[3,3],instagram:[5,5]});
 });

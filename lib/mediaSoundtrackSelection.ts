@@ -25,9 +25,9 @@ export function parseMediaSoundtrackOptions(value: unknown): MediaSoundtrackOpti
     if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
     const item = candidate as Record<string, unknown>, id = normalizeMediaSoundtrackId(item.id);
     if (!id || seen.has(id) || typeof item.label !== "string" || !item.label.trim() || item.label.length > 120 || typeof item.description !== "string" || item.description.length > 300 ||
-      item.durationSeconds !== 8 || item.audioPreview !== `/api/booster/soundtracks/${id}/preview`) continue;
+      item.durationSeconds !== 24 || item.audioPreview !== `/api/booster/soundtracks/${id}/preview?v=24`) continue;
     seen.add(id);
-    tracks.push({ id, label: item.label.trim(), description: item.description.trim(), durationSeconds: 8, audioPreview: item.audioPreview });
+    tracks.push({ id, label: item.label.trim(), description: item.description.trim(), durationSeconds: 24, audioPreview: item.audioPreview });
   }
   return tracks;
 }

@@ -2,6 +2,7 @@ import { useTranslations } from "next-intl";
 import type { ComponentProps } from "react";
 import type { ChannelKey } from "../publishModal.shared";
 import type { MetaPrimaryPublicationPlacement } from "@/lib/metaPublicationTargets";
+import { getMetaImageMotionDuration } from "@/lib/metaImageMotionTiming";
 import type PublishContentEditorPanel from "./PublishContentEditorPanel";
 import css from "./PublishValidationChannelOptions.module.css";
 
@@ -10,6 +11,7 @@ type Props = Pick<ComponentProps<typeof PublishContentEditorPanel>,
   | "threadsPublicationMode" | "threadsPublicationPreferences" | "threadsPreferencesLoading" | "threadsPreferencesFailed" | "onThreadsPublicationModeChange"
   | "facebookPublicationPlacement" | "facebookStoryEnabled" | "facebookPublicationPreferences" | "onFacebookPublicationPlacementChange" | "onFacebookStoryEnabledChange"
   | "instagramPublicationPlacement" | "instagramStoryEnabled" | "instagramPublicationPreferences" | "onInstagramPublicationPlacementChange" | "onInstagramStoryEnabledChange"
+  | "facebookMediaMode" | "facebookImageCount" | "instagramMediaMode" | "instagramImageCount"
 > & { channel: ChannelKey; disabled?: boolean };
 
 /** The same controlled values and callbacks are used by Contents and Validation. */
@@ -23,15 +25,21 @@ export default function PublishValidationChannelOptions(props: Props) {
     const storyEnabled = facebook ? props.facebookStoryEnabled : props.instagramStoryEnabled;
     const onPlacement = facebook ? props.onFacebookPublicationPlacementChange : props.onInstagramPublicationPlacementChange;
     const onStory = facebook ? props.onFacebookStoryEnabledChange : props.onInstagramStoryEnabledChange;
+    const imageCount = (facebook ? props.facebookImageCount : props.instagramImageCount) || 0;
+    const mode = facebook ? props.facebookMediaMode : props.instagramMediaMode;
+    const durationHint = mode === "images" && imageCount > 0 ? [
+      placement === "reel" ? t("publication_reel_duration_hint", { duration: getMetaImageMotionDuration(imageCount, "reel"), secondsPerImage: getMetaImageMotionDuration(1, "reel") }) : null,
+      placement === "story" || storyEnabled ? t("publication_story_duration_hint", { secondsPerImage: getMetaImageMotionDuration(1, "story") }) : null,
+    ].filter(Boolean).join(" · ") || undefined : undefined;
     const changePlacement = (value: string) => {
       if (disabled || !["classic", "reel", "story"].includes(value)) return;
       if (value === "reel" && !preferences.reelsEnabled || value === "story" && !preferences.storiesEnabled) return;
       onPlacement(value as MetaPrimaryPublicationPlacement);
       if (value === "story") onStory(false);
     };
-    return <div className={css.options} data-channel-validation-options={channel}>
+    return <div className={css.options} data-channel-validation-options={channel} title={durationHint}>
       <select aria-label={t(facebook ? "facebook_publication_format" : "instagram_publication_format")} value={placement}
-        disabled={disabled} onChange={event => changePlacement(event.target.value)}>
+        title={durationHint} disabled={disabled} onChange={event => changePlacement(event.target.value)}>
         <option value="classic">{t("instagram_classic")}</option>
         {preferences.reelsEnabled || placement === "reel" ? <option value="reel" disabled={!preferences.reelsEnabled}>{t("instagram_reels")}</option> : null}
         {preferences.storiesEnabled || placement === "story" ? <option value="story" disabled={!preferences.storiesEnabled}>{t("instagram_stories")}</option> : null}

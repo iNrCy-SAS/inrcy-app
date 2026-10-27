@@ -8,10 +8,17 @@ import { createInstagramImageMotionVideo } from "@/lib/instagramImageMotionVideo
 import { loadAiMediaSoundtrack, type LoadedAiMediaSoundtrack } from "@/lib/aiMediaGenerationSoundtracks";
 import type { InstagramAuthMode } from "@/lib/instagramAuthMode";
 import { normalizeBoosterSoundtrackId } from "@/lib/boosterSoundtracks";
+import { META_IMAGE_DURATION_SECONDS, META_IMAGE_SOUNDTRACK_ASSET_SECONDS } from "@/lib/metaImageMotionTiming";
 
 export const META_STORY_SEQUENCE_EVENT_TYPE = "publish_meta_story_sequence";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+
+function storedTiming(payload: Record<string, unknown>) {
+  if (!Object.hasOwn(payload, "clipDurationSeconds") && !Object.hasOwn(payload, "soundtrackAssetDurationSeconds")) return { clipDurationSeconds: 8, soundtrackAssetDurationSeconds: 8 };
+  if (payload.clipDurationSeconds === 4 && payload.soundtrackAssetDurationSeconds === 24 || payload.clipDurationSeconds === 8 && payload.soundtrackAssetDurationSeconds === 8) return { clipDurationSeconds: payload.clipDurationSeconds, soundtrackAssetDurationSeconds: payload.soundtrackAssetDurationSeconds };
+  return null;
+}
 
 function sequenceId(accountId: string, publicationId: string, channel: string) {
   const hash = createHash("sha256").update(`meta-story-v1:${accountId}:${publicationId}:${channel}`).digest("hex");
@@ -42,7 +49,9 @@ export async function publishPersistedMetaStorySequence(args: {
   let nativePreparations = identities.map(() => ({ preparedId: null as string | null, publishStarted: false }));
   let persistState: (state: MetaStorySequenceState) => Promise<void> = async () => { throw new Error("meta_story_storage_not_ready"); };
   let currentState: unknown = null;
-  const metadata = { version: 1, nativeStageVersion: 1, mediaKind: "video", audioMode: "shared", publicationId: args.publicationId, channel: args.channel, remoteAccountId: args.remoteAccountId, authMode, sources: identities };
+  let clipDurationSeconds = META_IMAGE_DURATION_SECONDS;
+  let soundtrackAssetDurationSeconds = META_IMAGE_SOUNDTRACK_ASSET_SECONDS;
+  const metadata = { version: 1, nativeStageVersion: 1, mediaKind: "video", audioMode: "shared", publicationId: args.publicationId, channel: args.channel, remoteAccountId: args.remoteAccountId, authMode, sources: identities, clipDurationSeconds, soundtrackAssetDurationSeconds };
   let storedMetadata: Record<string, unknown> = metadata;
   try {
     const read = await supabaseAdmin.from("app_events").select("id,payload").eq("id", ref).eq("user_id", args.accountId).eq("type", META_STORY_SEQUENCE_EVENT_TYPE).maybeSingle();
@@ -50,7 +59,9 @@ export async function publishPersistedMetaStorySequence(args: {
     if (read.data) {
       const payload = object(read.data.payload);
       if (read.data.id !== ref || payload.version !== 1 || payload.nativeStageVersion !== 1 || payload.mediaKind !== "video" || payload.audioMode !== "shared" || !Number.isSafeInteger(payload.revision) || Number(payload.revision) < 1 || payload.channel !== args.channel || payload.remoteAccountId !== args.remoteAccountId || payload.authMode !== authMode || JSON.stringify(payload.sources) !== JSON.stringify(identities) || !UUID.test(String(payload.publicationId || ""))) return blocked("meta_story_resume_mismatch", "Ces photos, leur ordre ou le compte connecté ne correspondent pas à la séquence initiale. Aucune Story supplémentaire n’a été publiée.");
-      exists = true; storedMetadata = { ...metadata, publicationId: payload.publicationId }; currentState = payload.state;
+      const timing = storedTiming(payload);
+      if (!timing) return blocked("meta_story_checkpoint_invalid", "La durée initiale de cette séquence ne peut pas être vérifiée. Aucune Story supplémentaire n’a été publiée.");
+      exists = true; storedMetadata = { ...metadata, ...timing, publicationId: payload.publicationId }; currentState = payload.state;
       if (!currentState) return blocked("meta_story_checkpoint_invalid", "L’état de cette séquence ne peut pas être vérifié. Consultez les Stories publiées avant de reprendre.");
     } else if (hasResume) return blocked("meta_story_resume_not_found", "Cette séquence de Stories n’a pas été retrouvée pour cet établissement. Aucune nouvelle publication n’a été lancée.");
   } catch {
@@ -72,15 +83,18 @@ export async function publishPersistedMetaStorySequence(args: {
         if (fresh.error) throw fresh.error;
         if (!fresh.data) {
           if (hasResume || exists) throw new Error("meta_story_checkpoint_missing");
-          soundtrack = await loadAiMediaSoundtrack(args.soundtrackPrompt, { selectionKey: `${args.accountId}:${args.publicationId}:story-series`, durationSeconds: 8, soundtrackId: requestedSoundtrackId || undefined });
+          soundtrack = await loadAiMediaSoundtrack(args.soundtrackPrompt, { selectionKey: `${args.accountId}:${args.publicationId}:story-series`, durationSeconds: soundtrackAssetDurationSeconds, soundtrackId: requestedSoundtrackId || undefined });
           storedMetadata = { ...metadata, soundtrackId: soundtrack.id, soundtrackSha256: soundtrack.sha256 };
           return null;
         }
         const payload = object(fresh.data.payload);
         if (fresh.data.id !== ref || payload.version !== 1 || payload.nativeStageVersion !== 1 || payload.mediaKind !== "video" || payload.audioMode !== "shared" || !Number.isSafeInteger(payload.revision) || Number(payload.revision) < 1 || payload.channel !== args.channel || payload.remoteAccountId !== args.remoteAccountId || payload.authMode !== authMode || JSON.stringify(payload.sources) !== JSON.stringify(identities) || !UUID.test(String(payload.publicationId || "")) || !payload.state || typeof payload.soundtrackId !== "string" || !/^[a-f0-9]{64}$/.test(String(payload.soundtrackSha256 || "")) || !Array.isArray(payload.nativePreparations) || payload.nativePreparations.length !== identities.length || payload.nativePreparations.some(raw => { const item = object(raw); return typeof item.publishStarted !== "boolean" || item.preparedId !== null && (typeof item.preparedId !== "string" || !/^[a-zA-Z0-9_-]{1,180}$/.test(item.preparedId)); })) throw new Error("meta_story_checkpoint_changed");
         normalizeBoosterSoundtrackId(payload.soundtrackId);
+        const timing = storedTiming(payload);
+        if (!timing) throw new Error("meta_story_checkpoint_timing_invalid");
+        clipDurationSeconds = timing.clipDurationSeconds; soundtrackAssetDurationSeconds = timing.soundtrackAssetDurationSeconds;
         nativePreparations = payload.nativePreparations.map(raw => ({ preparedId: object(raw).preparedId as string | null, publishStarted: object(raw).publishStarted as boolean }));
-        exists = true; revision = Number(payload.revision); storedMetadata = { ...metadata, publicationId: payload.publicationId, soundtrackId: payload.soundtrackId, soundtrackSha256: payload.soundtrackSha256 }; currentState = payload.state;
+        exists = true; revision = Number(payload.revision); storedMetadata = { ...metadata, ...timing, publicationId: payload.publicationId, soundtrackId: payload.soundtrackId, soundtrackSha256: payload.soundtrackSha256 }; currentState = payload.state;
         const state = object(currentState);
         // Only a durable false flag proves staging never reached the final
         // provider commit. A true flag keeps the helper's unknown blockade.
@@ -100,9 +114,9 @@ export async function publishPersistedMetaStorySequence(args: {
         if (lease.state !== "acquired" || Date.now() >= deadlineAt - 5_000) return { ok: false, certainty: "not_published", retryable: lease.state === "acquired", error: "Le délai de cette tentative est atteint. Reprenez la même séquence pour terminer les Stories restantes." };
         let video: Awaited<ReturnType<typeof createInstagramImageMotionVideo>>;
         try {
-          if (!soundtrack) soundtrack = await loadAiMediaSoundtrack("", { soundtrackId: String(storedMetadata.soundtrackId), durationSeconds: 8 });
+          if (!soundtrack) soundtrack = await loadAiMediaSoundtrack("", { soundtrackId: String(storedMetadata.soundtrackId), durationSeconds: soundtrackAssetDurationSeconds });
           if (soundtrack.sha256 !== storedMetadata.soundtrackSha256) return { ok: false, certainty: "not_published", retryable: false, error: "La piste de cette séquence ne peut plus être vérifiée. Les Stories restantes n’ont pas été publiées." };
-          video = await createInstagramImageMotionVideo({ accountId: args.accountId, publicationId: `${ref}-${index}`, imageStoragePaths: [args.photos[index].storagePath], placement: "story", preserveComposition: true, soundtrackPrompt: "", loadedSoundtrack: soundtrack, signal: args.signal });
+          video = await createInstagramImageMotionVideo({ accountId: args.accountId, publicationId: `${ref}-${index}`, imageStoragePaths: [args.photos[index].storagePath], placement: "story", durationSeconds: clipDurationSeconds, preserveComposition: true, soundtrackPrompt: "", loadedSoundtrack: soundtrack, signal: args.signal });
         } catch { return { ok: false, certainty: "not_published", retryable: true, error: "La courte vidéo de cette Story n’a pas pu être préparée. La séquence peut être reprise." }; }
         return publishMetaVideoStory({ channel: args.channel, remoteAccountId: args.remoteAccountId, accessToken: args.accessToken, authMode: args.authMode, tokenCandidates: args.tokenCandidates, videoUrl: video.publicUrl, preparedId: nativePreparations[index].preparedId || undefined, deadlineAt, signal: args.signal,
           onPrepared: async id => { nativePreparations[index] = { preparedId: id, publishStarted: false }; await persistState(currentState as MetaStorySequenceState); },

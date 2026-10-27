@@ -42,7 +42,7 @@ function series(){
 test("the public catalogue contains 24 bundled tracks and only exact IDs or Auto are accepted",()=>{
  const catalogue=soundtracks.getBoosterSoundtrackCatalog();assert.equal(catalogue.length,24);assert.equal(new Set(catalogue.map(track=>track.id)).size,24);
  assert.equal(soundtracks.normalizeBoosterSoundtrackId(undefined),null);assert.equal(soundtracks.normalizeBoosterSoundtrackId(null),null);
- for(const track of catalogue){assert.equal(soundtracks.normalizeBoosterSoundtrackId(track.id),track.id);assert.equal(track.durationSeconds,8);assert.equal(track.audioPreview,`/api/booster/soundtracks/${track.id}/preview`);assert.ok(track.label&&track.description);assert.deepEqual(Object.keys(track).sort(),["audioPreview","description","durationSeconds","id","label"])}
+ for(const track of catalogue){assert.equal(soundtracks.normalizeBoosterSoundtrackId(track.id),track.id);assert.equal(track.durationSeconds,24);assert.equal(track.audioPreview,`/api/booster/soundtracks/${track.id}/preview?v=24`);assert.ok(track.label&&track.description);assert.deepEqual(Object.keys(track).sort(),["audioPreview","description","durationSeconds","id","label"])}
  for(const invalid of ["",`${manualId} `,manualId.toUpperCase(),"../secret","https://attacker.invalid/audio.wav",{},[],12])assert.throws(()=>soundtracks.normalizeBoosterSoundtrackId(invalid),/booster_soundtrack_invalid/);
  assert.doesNotMatch(JSON.stringify(catalogue),/absolutePath|soundtrackSha|assets\/|accessToken/);
 });
@@ -67,7 +67,7 @@ test("catalogue and preview routes return actual original WAV assets and reject 
  const preview=load<typeof import("../../app/api/booster/soundtracks/[id]/preview/route.ts")>("app/api/booster/soundtracks/[id]/preview/route.ts");
  const audio=await preview.GET(new Request("https://fixture.invalid"),{params:Promise.resolve({id:manualId})});assert.equal(audio.status,200);assert.equal(audio.headers.get("content-type"),"audio/wav");assert.equal(audio.headers.get("x-content-type-options"),"nosniff");
  const bytes=Buffer.from(await audio.arrayBuffer());assert.equal(bytes.toString("ascii",0,4),"RIFF");assert.equal(bytes.toString("ascii",8,12),"WAVE");
- assert.deepEqual(bytes,readFileSync(new URL(`../../assets/media-generation/soundtracks/${manualId}-8s.wav`,import.meta.url)));
+ assert.deepEqual(bytes,readFileSync(new URL(`../../assets/media-generation/soundtracks/${manualId}-24s.wav`,import.meta.url)));
  let reads=0;const isolated=runtimeModules({"node:fs/promises":{async readFile(){reads++;assert.fail("Invalid IDs must never reach file IO")}}});
  const badPreview=isolated<typeof preview>("app/api/booster/soundtracks/[id]/preview/route.ts");
  for(const id of ["../secret",`${manualId} `,"unregistered-track"]){assert.equal((await badPreview.GET(new Request("https://fixture.invalid"),{params:Promise.resolve({id})})).status,404)}
@@ -84,7 +84,7 @@ test("an invalid soundtrack stops before DB, lease, rendering or native publicat
 test("one manual choice loads one actual track and injects the identical asset into all five Story clips",async()=>{
  const h=series();const result=await h.run({soundtrackId:manualId});assert.equal(result.ok,true);assert.deepEqual(h.native,[0,1,2,3,4]);assert.equal(h.loads.length,1);assert.equal(h.loads[0].soundtrackId,manualId);
  assert.equal(h.renders.length,5);assert.ok(h.renders.every(render=>render.loadedSoundtrack===h.renders[0].loadedSoundtrack));
- const loaded=h.renders[0].loadedSoundtrack;assert.equal(loaded.id,manualId);assert.equal(loaded.durationSeconds,8);assert.ok(loaded.sizeBytes>44);
+ const loaded=h.renders[0].loadedSoundtrack;assert.equal(loaded.id,manualId);assert.equal(loaded.durationSeconds,24);assert.ok(loaded.sizeBytes>44);
  const row=h.rows.get(String(result.story_sequence_resume_ref))!;assert.equal(row.payload.soundtrackId,manualId);assert.equal(row.payload.soundtrackSha256,loaded.sha256);
 });
 

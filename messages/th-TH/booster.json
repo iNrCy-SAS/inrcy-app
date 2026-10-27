@@ -160,8 +160,8 @@
   "instagram_review_media_only_warning": "{mode}: จะเผยแพร่เฉพาะสื่อเท่านั้น โดยจะไม่ส่งชื่อเรื่อง ข้อความ CTA และแฮชแท็ก",
   "pinterest_review_board": "บอร์ด Pinterest: {board}",
   "instagram_media_only_notice": "รูปแบบนี้เผยแพร่เฉพาะสื่อเท่านั้น โดยจะไม่ส่งชื่อเรื่อง ข้อความ CTA และแฮชแท็ก",
-  "instagram_image_motion_notice": "สำหรับ Reel รูปที่เลือกจะถูกรวมตามลำดับเป็นวิดีโอแนวตั้ง 8 วินาทีพร้อมเพลงต้นฉบับของ iNrCy",
-  "instagram_image_story_sequence_notice": "รูปแต่ละรูปจะกลายเป็น Story วิดีโอความยาว 8 วินาที เผยแพร่ตามลำดับที่เลือก และใช้เพลงเดียวกันตลอดทั้งชุด",
+  "instagram_image_motion_notice": "Reel จะรวมรูปภาพที่กำหนดให้ช่องทางนี้ตามลำดับ รูปละ {secondsPerImage} วินาที รวม {duration} วินาที รวมช่วงเปลี่ยนภาพแล้ว",
+  "instagram_image_story_sequence_notice": "แต่ละรูปที่กำหนดให้ช่องทางนี้จะกลายเป็น Story วิดีโอ {secondsPerImage} วินาที เผยแพร่ตามลำดับที่เลือกและใช้เพลงเดียวกันตลอดชุด",
   "publication_stories_confirmed_count": "ยืนยันแล้ว {confirmed}/{expected} Story",
   "contenu_commercial_593e3b1d": "เนื้อหาเชิงพาณิชย์",
   "contenu_envoye_aaa62b2f": "ส่งเนื้อหาแล้ว",
@@ -906,5 +906,7 @@
   "publication_music_done": "เสร็จสิ้น",
   "publication_music_resume_locked": "การดำเนินการต่อจะใช้เพลงเดิมของชุดเสมอ",
   "publication_music_reserved_hint": "สำหรับ Stories และ Reels เท่านั้น",
-  "publication_music_preview_choose": "เลือกเพลงเพื่อฟังตัวอย่าง"
+  "publication_music_preview_choose": "เลือกเพลงเพื่อฟังตัวอย่าง",
+  "publication_reel_duration_hint": "Reel: รวม {duration} วินาที (รูปละ {secondsPerImage} วินาที รวมช่วงเปลี่ยนภาพแล้ว)",
+  "publication_story_duration_hint": "Story: รูปละ {secondsPerImage} วินาที"
 }

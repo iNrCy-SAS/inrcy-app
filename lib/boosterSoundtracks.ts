@@ -1,4 +1,5 @@
 import { AI_MEDIA_SOUNDTRACKS } from "@/lib/aiMediaSoundtrackCatalog";
+import { META_IMAGE_SOUNDTRACK_ASSET_SECONDS } from "@/lib/metaImageMotionTiming";
 
 export type BoosterSoundtrackChannel = "facebook" | "instagram";
 export type BoosterSoundtrackByChannel = Partial<Record<BoosterSoundtrackChannel, string | null>>;
@@ -41,7 +42,7 @@ export function getBoosterSoundtrackCatalog() {
     id: track.id,
     label: track.name,
     description: track.moods.join(" · "),
-    durationSeconds: 8,
-    audioPreview: `/api/booster/soundtracks/${encodeURIComponent(track.id)}/preview`,
+    durationSeconds: META_IMAGE_SOUNDTRACK_ASSET_SECONDS,
+    audioPreview: `/api/booster/soundtracks/${encodeURIComponent(track.id)}/preview?v=${META_IMAGE_SOUNDTRACK_ASSET_SECONDS}`,
   }));
 }

@@ -160,8 +160,8 @@
   "instagram_review_media_only_warning": "{mode}: apenas o conteúdo multimédia será publicado. O título, o texto, o CTA e as hashtags não serão enviados.",
   "pinterest_review_board": "Quadro do Pinterest: {board}",
   "instagram_media_only_notice": "Este formato publica apenas o conteúdo multimédia: o título, o texto, o CTA e as hashtags não são enviados.",
-  "instagram_image_motion_notice": "Para o Reel, as imagens selecionadas serão combinadas pela sua ordem num vídeo vertical de 8 segundos com música original iNrCy.",
-  "instagram_image_story_sequence_notice": "Cada imagem torna-se uma Story em vídeo de 8 segundos, publicada na ordem escolhida, com a mesma música em toda a série.",
+  "instagram_image_motion_notice": "O Reel combina as imagens atribuídas a este canal pela sua ordem: {secondsPerImage} s por imagem, {duration} s no total, incluindo transições.",
+  "instagram_image_story_sequence_notice": "Cada imagem atribuída a este canal torna-se uma Story em vídeo de {secondsPerImage} segundos, publicada na ordem escolhida com a mesma música para a série.",
   "publication_stories_confirmed_count": "{confirmed}/{expected} Stories confirmadas",
   "contenu_commercial_593e3b1d": "Conteúdo Comercial",
   "contenu_envoye_aaa62b2f": "Conteúdo Enviado",
@@ -906,5 +906,7 @@
   "publication_music_done": "Concluir",
   "publication_music_resume_locked": "Uma retoma conserva a música original da série.",
   "publication_music_reserved_hint": "Reservado a Stories e Reels",
-  "publication_music_preview_choose": "Escolha uma música para a ouvir."
+  "publication_music_preview_choose": "Escolha uma música para a ouvir.",
+  "publication_reel_duration_hint": "Reel: {duration} s no total ({secondsPerImage} s por imagem, incluindo transições)",
+  "publication_story_duration_hint": "Story: {secondsPerImage} s por imagem"
 }

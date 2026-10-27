@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { getMetaImageMotionDuration } from "../../lib/metaImageMotionTiming.ts";
 import {
   DEFAULT_INSTAGRAM_PUBLICATION_PREFERENCES,
   coerceInstagramPublicationPlacement,
@@ -354,7 +355,7 @@ test("new Instagram format settings survive immediate and scheduled durable disp
   assert.match(foundations, /mediaOnly: story/);
 });
 
-test("ordered Instagram images become one vertical MP4 while Reels retain their caption", () => {
+test("ordered Instagram Reel images become one vertical MP4 while Reels retain their caption", () => {
   assert.match(
     route,
     /instagramPublicationSettings &&[\s\S]*?mediaModeByChannel\[ch\] === "images"[\s\S]*?createInstagramImageMotionVideo/,
@@ -365,10 +366,11 @@ test("ordered Instagram images become one vertical MP4 while Reels retain their 
     /instagramPublicationSettings\?\.placement === "story"[\s\S]*?\? ""[\s\S]*?: buildBoosterInstagramCaption/,
   );
   assert.match(motion, /imageStoragePaths[\s\S]*?\.slice\(0, 5\)/);
-  assert.match(motion, /buildMotionFilter\(framePaths\.length, args\.preserveComposition\)/);
+  assert.match(motion, /buildMotionFilter\(framePaths\.length, durationSeconds, args\.preserveComposition\)/);
   assert.match(motion, /const OUTPUT_WIDTH = 1_080/);
   assert.match(motion, /const OUTPUT_HEIGHT = 1_920/);
-  assert.match(motion, /const OUTPUT_DURATION_SECONDS = 8/);
+  assert.match(motion, /getMetaImageMotionDuration\(imageStoragePaths\.length, args\.placement\)/);
+  assert.equal(getMetaImageMotionDuration(5, "reel"), 15); assert.equal(getMetaImageMotionDuration(1, "story"), 4);
   assert.match(motion, /"libx264"/);
   assert.match(motion, /"aac"/);
   assert.match(motion, /loadAiMediaSoundtrack/);

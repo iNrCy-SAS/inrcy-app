@@ -160,8 +160,8 @@
   "instagram_review_media_only_warning": "{mode}: alleen de media worden gepubliceerd. Titel, tekst, CTA en hashtags worden niet verzonden.",
   "pinterest_review_board": "Pinterest-bord: {board}",
   "instagram_media_only_notice": "Dit formaat publiceert alleen de media: titel, tekst, CTA en hashtags worden niet verzonden.",
-  "instagram_image_motion_notice": "Voor de Reel worden de geselecteerde afbeeldingen op volgorde samengevoegd tot een verticale video van 8 seconden met originele iNrCy-muziek.",
-  "instagram_image_story_sequence_notice": "Elke afbeelding wordt een video-Story van 8 seconden, gepubliceerd in de gekozen volgorde, met dezelfde muziek voor de hele serie.",
+  "instagram_image_motion_notice": "De Reel combineert de aan dit kanaal toegewezen afbeeldingen op volgorde: {secondsPerImage} s per afbeelding, {duration} s in totaal, inclusief overgangen.",
+  "instagram_image_story_sequence_notice": "Elke aan dit kanaal toegewezen afbeelding wordt een video-Story van {secondsPerImage} seconden, gepubliceerd in de gekozen volgorde met dezelfde muziek voor de serie.",
   "publication_stories_confirmed_count": "{confirmed}/{expected} Stories bevestigd",
   "contenu_commercial_593e3b1d": "Commerciële inhoud",
   "contenu_envoye_aaa62b2f": "Ingediend Inhoud",
@@ -906,5 +906,7 @@
   "publication_music_done": "Gereed",
   "publication_music_resume_locked": "Bij hervatten blijft de oorspronkelijke muziek van de serie behouden.",
   "publication_music_reserved_hint": "Alleen voor Stories en Reels",
-  "publication_music_preview_choose": "Kies een nummer om het te beluisteren."
+  "publication_music_preview_choose": "Kies een nummer om het te beluisteren.",
+  "publication_reel_duration_hint": "Reel: {duration} s in totaal ({secondsPerImage} s per afbeelding, inclusief overgangen)",
+  "publication_story_duration_hint": "Story: {secondsPerImage} s per afbeelding"
 }

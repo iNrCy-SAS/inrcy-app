@@ -21,6 +21,7 @@ const sources = {
   scheduler: packageSource("scheduler", "scheduler.production.js"),
   board: compile("app/dashboard/booster/publier/components/PublishValidationBoard.tsx"),
   options: compile("app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx"),
+  "@/lib/metaImageMotionTiming": compile("lib/metaImageMotionTiming.ts"),
   "@/app/dashboard/_components/MediaSoundtrackSelector": compile("app/dashboard/_components/MediaSoundtrackSelector.tsx"),
   "@/lib/mediaSoundtrackSelection": compile("lib/mediaSoundtrackSelection.ts"),
   "./publishChannelIdentity": compile("app/dashboard/booster/publier/components/publishChannelIdentity.ts"),

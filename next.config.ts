@@ -73,7 +73,7 @@ const nextConfig: NextConfig = {
     "/api/cron/media-generation-recovery": aiMediaGenerationRuntimeFiles,
     "/api/agent/**/*": sharpRuntimeFiles,
     "/api/booster/**/*": sharpRuntimeFiles,
-    "/api/booster/soundtracks/*/preview": ["assets/media-generation/soundtracks/*-8s.wav"],
+    "/api/booster/soundtracks/*/preview": ["assets/media-generation/soundtracks/*-24s.wav"],
     "/api/media-generation/**/*": aiMediaGenerationRuntimeFiles,
     "/api/media-pipeline/**/*": sharpRuntimeFiles,
     "/api/media-library/**/*": sharpRuntimeFiles,

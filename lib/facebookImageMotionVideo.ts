@@ -15,6 +15,7 @@ export async function createFacebookImageMotionVideo(args: {
   placement: "reel" | "story";
   soundtrackPrompt: string;
   soundtrackId?: string | null;
+  durationSeconds?: number;
   loadedSoundtrack?: LoadedAiMediaSoundtrack;
   preserveComposition?: boolean;
   signal?: AbortSignal;
