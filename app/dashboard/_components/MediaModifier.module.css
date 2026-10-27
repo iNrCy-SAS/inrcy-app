@@ -205,6 +205,7 @@
   height: 100%;
   overflow: hidden;
   display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   place-items: center;
   border: 1px solid rgba(var(--modifier-accent), 0.25);
   border-radius: 18px;
@@ -219,8 +220,10 @@
 }
 
 .sourceMeta {
-  position: absolute;
-  inset: auto 10px 10px 10px;
+  position: static;
+  width: calc(100% - 20px);
+  margin: 0 10px 10px;
+  box-sizing: border-box;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -248,9 +251,9 @@
 }
 
 .sourceActions {
-  position: absolute;
-  top: 10px;
-  right: 10px;
+  position: static;
+  justify-self: end;
+  padding: 0 10px 10px;
   display: flex;
   gap: 7px;
 }
@@ -797,14 +800,6 @@
     flex: 1 1 0;
   }
 
-  .sourcePreview {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .sourceMeta {
-    inset: auto 8px 58px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

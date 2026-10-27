@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { ChannelPublicationPreview, type PublicationPreview } from "@/app/dashboard/_components/ChannelImageAdapterTool";
@@ -27,6 +27,7 @@ type Props = {
   canSelectSoundtrack?: (channel: ChannelKey) => boolean;
   onSoundtrackChange?: (channel: MediaSoundtrackChannel, id: string | null) => void;
   isSoundtrackLocked?: (channel: MediaSoundtrackChannel) => boolean;
+  renderChannelOptions?: (channel: ChannelKey) => ReactNode;
 };
 
 function Eye() { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>; }
@@ -44,7 +45,7 @@ function ReviewStatus({ tone, label, hint, messages, id, open, onToggle }: {
   </span>;
 }
 
-export default function PublishValidationBoard({ items, imageKeys, previewByKey, videoPreviewUrl, getMode, getSelectedImageKeys, onModeChange, onToggleImage, onAddImage, onReorderImage, onOpenMediaPool, onSelectChannel, activePreview, disabled, soundtrackByChannel, soundtrackScopeKey, canSelectSoundtrack, onSoundtrackChange, isSoundtrackLocked }: Props) {
+export default function PublishValidationBoard({ items, imageKeys, previewByKey, videoPreviewUrl, getMode, getSelectedImageKeys, onModeChange, onToggleImage, onAddImage, onReorderImage, onOpenMediaPool, onSelectChannel, activePreview, disabled, soundtrackByChannel, soundtrackScopeKey, canSelectSoundtrack, onSoundtrackChange, isSoundtrackLocked, renderChannelOptions }: Props) {
   const t = useTranslations("booster");
   const [modal, setModal] = useState<"preview" | null>(null);
   const [previewDevice, setPreviewDevice] = useState<PublicationPreviewDevice>("desktop");
@@ -120,14 +121,17 @@ export default function PublishValidationBoard({ items, imageKeys, previewByKey,
         const slotCount = mode === "video" || !channelSupportsImages(item.channel) ? 1 : maxImages;
         const emptySlots = Math.max(0, slotCount - (videoSelected ? 1 : keys.length));
         const musicChannel: MediaSoundtrackChannel | null = item.channel === "facebook" || item.channel === "instagram" ? item.channel : null;
-        return <article key={item.channel} className={css.card} data-channel={item.channel} style={{ "--channel-color": identity.color, "--channel-rgb": identity.rgb, "--channel-gradient": identity.gradient } as CSSProperties}>
+        return <article key={item.channel} className={css.card} data-channel={item.channel} data-has-options={Boolean(renderChannelOptions)} style={{ "--channel-color": identity.color, "--channel-rgb": identity.rgb, "--channel-gradient": identity.gradient } as CSSProperties}>
           <header><div className={css.brand}><span className={css.logo}><img src={identity.icon} alt="" /></span><strong>{item.label}</strong></div><div className={css.cardActions}>
-            {musicChannel && mode === "images" && canSelectSoundtrack?.(musicChannel) && onSoundtrackChange ? <MediaSoundtrackSelector
+            {musicChannel && onSoundtrackChange ? <MediaSoundtrackSelector
               compact channelLabel={item.label} soundtrackId={soundtrackByChannel?.[musicChannel] ?? null}
+              channelStyle={{ "--channel-color": identity.color, "--channel-rgb": identity.rgb, "--channel-gradient": identity.gradient } as CSSProperties}
               onChange={(id) => onSoundtrackChange(musicChannel, id)}
+              unavailableHint={mode === "images" && canSelectSoundtrack?.(musicChannel) ? undefined : t("publication_music_reserved_hint")}
               scopeKey={`${soundtrackScopeKey || ""}:${musicChannel}`} disabled={disabled} selectionLocked={isSoundtrackLocked?.(musicChannel)} /> : null}
             <button type="button" onClick={() => open(item.channel)} aria-label={t("wizard_preview_channel", { channel: item.label })} title={t("wizard_preview_channel", { channel: item.label })}><Eye /></button>
           </div></header>
+          {renderChannelOptions ? <div className={css.channelOptions}>{renderChannelOptions(item.channel)}</div> : null}
           <div className={css.statusLine}><span>{t("contenu_f3cb82af")}</span><ReviewStatus tone={contentTone} label={status(contentTone)} messages={contentMessages} id={`${warningId}-${item.channel}-content`} open={warning === `${item.channel}-content`} onToggle={() => setWarning(warning === `${item.channel}-content` ? null : `${item.channel}-content`)} /></div>
           <div className={css.statusLine}><span className={css.mediaLabel}>{t("wizard_step_media")}
             {channelSupportsImages(item.channel) ? <span className={css.mediaChoice} role="group" aria-label={t("wizard_channel_media_type", { channel: item.label })}>

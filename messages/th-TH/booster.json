@@ -904,5 +904,7 @@
   "publication_music_stop_track": "หยุด {name}",
   "publication_music_preview_unavailable": "ไม่สามารถเล่นตัวอย่างนี้ได้ กรุณาเลือกเพลงอื่นหรือลองใหม่",
   "publication_music_done": "เสร็จสิ้น",
-  "publication_music_resume_locked": "การดำเนินการต่อจะใช้เพลงเดิมของชุดเสมอ"
+  "publication_music_resume_locked": "การดำเนินการต่อจะใช้เพลงเดิมของชุดเสมอ",
+  "publication_music_reserved_hint": "สำหรับ Stories และ Reels เท่านั้น",
+  "publication_music_preview_choose": "เลือกเพลงเพื่อฟังตัวอย่าง"
 }

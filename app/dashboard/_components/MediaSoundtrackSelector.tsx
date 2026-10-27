@@ -1,19 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { parseMediaSoundtrackOptions, type MediaSoundtrackOption } from "@/lib/mediaSoundtrackSelection";
 import styles from "./MediaSoundtrackSelector.module.css";
 
-type Props = { soundtrackId: string | null; onChange: (id: string | null) => void; disabled?: boolean; scopeKey?: string; selectionLocked?: boolean; compact?: boolean; channelLabel?: string };
+type Props = { soundtrackId: string | null; onChange: (id: string | null) => void; disabled?: boolean; scopeKey?: string; selectionLocked?: boolean; compact?: boolean; channelLabel?: string; unavailableHint?: string; channelStyle?: CSSProperties };
 const ACTIVATION_EVENT = "inrcy:media-soundtrack-activate";
 
 /** Controlled selection over the shared iNrCy catalogue. Previewing never generates media. */
-export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabled = false, scopeKey = "", selectionLocked = false, compact = false, channelLabel }: Props) {
+export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabled = false, scopeKey = "", selectionLocked = false, compact = false, channelLabel, unavailableHint, channelStyle }: Props) {
   const t = useTranslations("booster");
-  const titleId = useId(), radioName = useId();
+  const titleId = useId(), selectionId = useId();
   const [open, setOpen] = useState(false);
+  const [showUnavailableHint, setShowUnavailableHint] = useState(false);
   const [tracks, setTracks] = useState<MediaSoundtrackOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -31,7 +32,7 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
     if (audio) { audio.pause(); audio.removeAttribute("src"); audio.load(); }
     setPlayingId(null);
   }, []);
-  const close = useCallback(() => { stopPreview(); setOpen(false); }, [stopPreview]);
+  const close = useCallback(() => { stopPreview(); setOpen(false); setShowUnavailableHint(false); }, [stopPreview]);
   const activate = () => window.dispatchEvent(new CustomEvent(ACTIVATION_EVENT, { detail: titleId }));
 
   useEffect(() => {
@@ -41,7 +42,7 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
   }, [titleId, close]);
 
   useEffect(() => {
-    stopPreview(); setOpen(false); setTracks([]); setLoadError(false); setPreviewError(false);
+    stopPreview(); setOpen(false); setShowUnavailableHint(false); setTracks([]); setLoadError(false); setPreviewError(false);
     loadedScopeRef.current = null;
     controllerRef.current?.abort(); controllerRef.current = null;
     const audio = audioRef.current;
@@ -52,11 +53,20 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
   }, [scopeKey, stopPreview]);
 
   useEffect(() => { stopPreview(); setPreviewError(false); }, [soundtrackId, stopPreview]);
-  useEffect(() => { if (disabled) close(); }, [disabled, close]);
+  useEffect(() => { if (disabled || unavailableHint) close(); }, [disabled, unavailableHint, close]);
   useEffect(() => { if (selectionLocked) stopPreview(); }, [selectionLocked, stopPreview]);
 
   useEffect(() => {
-    if ((!open && !soundtrackId) || loadedScopeRef.current === scopeKey || controllerRef.current) return;
+    if (!showUnavailableHint) return;
+    const dismiss = (event: PointerEvent) => { if (event.target instanceof Node && !triggerRef.current?.parentElement?.contains(event.target)) setShowUnavailableHint(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); setShowUnavailableHint(false); } };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", escape, true);
+    return () => { document.removeEventListener("pointerdown", dismiss); document.removeEventListener("keydown", escape, true); };
+  }, [showUnavailableHint]);
+
+  useEffect(() => {
+    if (unavailableHint || (!open && !soundtrackId) || loadedScopeRef.current === scopeKey || controllerRef.current) return;
     const controller = new AbortController(); controllerRef.current = controller;
     setLoading(true); setLoadError(false);
     void fetch("/api/booster/soundtracks", { credentials: "same-origin", cache: "no-store", signal: controller.signal })
@@ -68,7 +78,7 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
       })
       .catch(() => { if (!controller.signal.aborted && controllerRef.current === controller) setLoadError(true); })
       .finally(() => { if (controllerRef.current === controller) { controllerRef.current = null; setLoading(false); } });
-  }, [open, soundtrackId, scopeKey]);
+  }, [open, soundtrackId, scopeKey, unavailableHint]);
 
   useEffect(() => {
     if (!open) return;
@@ -78,9 +88,9 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
     return () => { if (dialog.open) dialog.close(); triggerRef.current?.focus({ preventScroll: true }); };
   }, [open]);
 
-  const choose = (id: string | null) => { if (!disabled && !selectionLocked) { stopPreview(); onChange(id); } };
+  const choose = (id: string | null) => { if (!disabled && !selectionLocked && !unavailableHint) { stopPreview(); onChange(id); } };
   const preview = async (track: MediaSoundtrackOption) => {
-    if (disabled) return;
+    if (disabled || selectionLocked || unavailableHint) return;
     if (playingRef.current === track.id) { stopPreview(); return; }
     activate();
     stopPreview(); setPreviewError(false);
@@ -93,28 +103,42 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
   const selected = tracks.find(track => track.id === soundtrackId);
   const selectedLabel = soundtrackId ? selected?.label || t("publication_music_selected") : t("publication_music_auto");
   const title = channelLabel ? `${t("publication_music_label")} · ${channelLabel}` : t("publication_music_title");
-  return <span className={styles.root}>
-    <button ref={triggerRef} type="button" className={styles.trigger} data-compact={compact} disabled={disabled} aria-label={`${title} · ${selectedLabel}`} title={`${title} · ${selectedLabel}`} aria-haspopup="dialog" aria-expanded={open} onClick={() => { if (!disabled) { activate(); setOpen(true); } }}>
+  const hintId = `${titleId}-unavailable`;
+  return <span className={styles.root}
+    onPointerEnter={event => { if (unavailableHint && event.pointerType !== "touch") setShowUnavailableHint(true); }}
+    onPointerLeave={() => { if (document.activeElement !== triggerRef.current) setShowUnavailableHint(false); }}>
+    <button ref={triggerRef} type="button" className={styles.trigger} data-compact={compact} data-unavailable={Boolean(unavailableHint)} disabled={disabled} aria-disabled={disabled || Boolean(unavailableHint)}
+      aria-label={`${title} · ${selectedLabel}`} title={unavailableHint ? undefined : `${title} · ${selectedLabel}`} aria-describedby={unavailableHint ? hintId : undefined}
+      aria-haspopup={unavailableHint ? undefined : "dialog"} aria-expanded={unavailableHint ? showUnavailableHint : open}
+      onFocus={() => { if (unavailableHint) setShowUnavailableHint(true); }} onBlur={() => setShowUnavailableHint(false)}
+      onClick={() => { if (disabled) return; if (unavailableHint) { setShowUnavailableHint(true); return; } activate(); setOpen(true); }}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M9 18V5l12-3v13M9 9l12-3"/><ellipse cx="6" cy="18" rx="3" ry="2.5"/><ellipse cx="18" cy="15" rx="3" ry="2.5"/></svg>
       <span className={compact ? styles.srOnly : undefined}>{t("publication_music_label")}</span><strong>{selectedLabel}</strong>
     </button>
+    {unavailableHint ? <span id={hintId} role="tooltip" className={styles.unavailableHint} hidden={!showUnavailableHint}>{unavailableHint}</span> : null}
     <audio ref={audioRef} preload="none" onEnded={() => { playingRef.current = null; setPlayingId(null); }} />
-    {open && typeof document !== "undefined" ? createPortal(<dialog ref={dialogRef} className={styles.dialog} aria-labelledby={titleId}
+    {open && typeof document !== "undefined" ? createPortal(<dialog ref={dialogRef} className={styles.dialog} style={channelStyle} aria-labelledby={titleId}
       onCancel={event => { event.preventDefault(); event.stopPropagation(); close(); }}
       onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); } }}
       onClick={event => { if (event.target === event.currentTarget) close(); }}>
       <header className={styles.header}><h2 id={titleId}>{title}</h2><button type="button" className={styles.close} onClick={close} aria-label={t("publication_music_close")}>×</button></header>
       <p className={styles.description}>{t("publication_music_scope")}</p>
       {selectionLocked ? <p className={styles.description} role="status">{t("publication_music_resume_locked")}</p> : null}
-      <fieldset className={styles.options} disabled={disabled || selectionLocked}>
+      <fieldset className={styles.options} disabled={disabled || selectionLocked || Boolean(unavailableHint)}>
         <legend className={styles.srOnly}>{t("publication_music_title")}</legend>
-        <label className={styles.auto}><input type="radio" name={radioName} value="" checked={soundtrackId === null} onChange={() => choose(null)} /><span><strong>{t("publication_music_auto")}</strong><small>{t("publication_music_auto_description")}</small></span></label>
+        <div className={styles.selection}>
+          <select id={selectionId} aria-label={t("publication_music_label")} value={soundtrackId || ""} disabled={loading} onChange={event => choose(event.currentTarget.value || null)}>
+            <option value="">{t("publication_music_auto")}</option>
+            {soundtrackId && !selected ? <option value={soundtrackId} disabled>{t("publication_music_selected")}</option> : null}
+            {tracks.map(track => <option key={track.id} value={track.id}>{track.label}</option>)}
+          </select>
+          <button type="button" className={styles.preview} disabled={!selected}
+            aria-label={selected ? t(playingId === selected.id ? "publication_music_stop_track" : "publication_music_preview_track", { name: selected.label }) : t("publication_music_preview_choose")}
+            aria-pressed={Boolean(selected && playingId === selected.id)} onClick={() => { if (selected) void preview(selected); }}>{selected && playingId === selected.id ? "■" : "▶"}</button>
+        </div>
+        <p className={styles.trackDescription}>{selected?.description || t("publication_music_auto_description")}</p>
         {loading ? <p role="status">{t("publication_music_loading")}</p> : null}
         {loadError ? <p role="alert">{t("publication_music_unavailable")}</p> : null}
-        {tracks.map(track => <div className={styles.track} key={track.id} data-selected={soundtrackId === track.id}>
-          <label><input type="radio" name={radioName} value={track.id} checked={soundtrackId === track.id} onChange={() => choose(track.id)} /><span><strong>{track.label}</strong>{track.description ? <small>{track.description}</small> : null}</span></label>
-          <button type="button" className={styles.preview} aria-label={t(playingId === track.id ? "publication_music_stop_track" : "publication_music_preview_track", { name: track.label })} aria-pressed={playingId === track.id} onClick={() => void preview(track)}>{playingId === track.id ? "■" : "▶"}</button>
-        </div>)}
       </fieldset>
       {previewError ? <p className={styles.error} role="alert">{t("publication_music_preview_unavailable")}</p> : null}
       <footer className={styles.footer}><button type="button" onClick={close}>{t("publication_music_done")}</button></footer>

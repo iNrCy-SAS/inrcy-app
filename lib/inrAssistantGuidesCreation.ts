@@ -16,7 +16,7 @@ export const INR_ASSISTANT_CREATION_GUIDES: readonly InrAssistantCreationGuide[]
 1. Préparation : sélectionner les canaux connectés, puis Automatique ou Manuel ; Continuer. Un canal indisponible doit être connecté/reconnecté dans le cockpit, pas forcé dans la publication.
 2. Automatique : dans Idée, décrire le sujet, fournir si utile des médias/documents et utiliser « ✨ Générer avec iNrCy ». Manuel : rédiger directement dans Contenus. Vérifier et ajuster le contenu propre à chaque canal.
 3. Médias : ajouter depuis l’appareil ou la Médiathèque, générer dans iNrStudio, adapter au canal. « Modifier » ouvre la modification IA avec l’image choisie ; « Retoucher » ouvre l’édition manuelle. Plusieurs images donnent des Stories vidéo successives et un seul Reel assemblé. Une reprise conserve la musique et les Stories confirmées. Vérifier l’aperçu final par canal.
-4. Validation : vérifier alertes et aperçus. Dans la carte Facebook/Instagram, « Musique » choisit une piste pour ce canal, commune à ses Stories et son Reel créés depuis les images : Auto ou les 24 sons iNrCy avec préécoute. Les photos Google Business/Threads et le son des vidéos importées sont conservés. TikTok garde son option native de musique recommandée pour les photos. « Publier » ouvre « Confirmer la publication ? », puis confirmer avec « Publier ». « 🕒 Programmer » ouvre la date/heure ; confirmer. Ne pas annoncer une publication avant le retour effectif. TikTok peut demander une validation supplémentaire ; YouTube exige une vidéo.
+4. Validation : vérifier alertes et aperçus. Les cartes permettent de changer le format Facebook/Instagram et la case Story, le tableau Pinterest et le mode Threads ; ces choix restent synchronisés avec Contenus. « Musique » reste visible sur Facebook/Instagram, grisée en Classique avec « Réservé aux Stories et Reels ». Pour les Stories/Reels créés depuis les images, choisir Auto ou un des 24 sons avec préécoute dans la modale : une seule piste par canal. Les photos Google Business/Threads et le son des vidéos importées sont conservés. TikTok garde son option native pour les photos. « Publier » ouvre « Confirmer la publication ? », puis confirmer avec « Publier ». « 🕒 Programmer » ouvre la date/heure ; confirmer. Ne pas annoncer une publication avant le retour effectif. TikTok peut demander une validation supplémentaire ; YouTube exige une vidéo.
 5. Bilan : consulter le résultat par canal ; un succès partiel ne signifie pas que tous les canaux ont publié. Le menu Brouillons du header rouvre les brouillons ; l’icône d’enregistrement a pour libellé « Enregistrer le brouillon publication ».
 Accès : Standard (essai inclus) et Premium ; les canaux utilisables dépendent des connexions, autorisations et règles du canal. La génération de médias conserve ses crédits iNrStudio.`,
     sourceFiles: [
@@ -27,6 +27,7 @@ Accès : Standard (essai inclus) et Premium ; les canaux utilisables dépendent 
       "app/dashboard/booster/publier/components/PublishFinalReviewModal.tsx",
       "app/dashboard/booster/publier/components/PublishFooterActions.tsx",
       "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx",
+      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx",
       "messages/fr-FR/booster.json",
       "lib/dashboardEdition.ts",
     ],

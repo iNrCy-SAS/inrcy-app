@@ -904,5 +904,7 @@
   "publication_music_stop_track": "Arrêter {name}",
   "publication_music_preview_unavailable": "Cet extrait ne peut pas être lu. Choisissez un autre titre ou réessayez.",
   "publication_music_done": "Terminer",
-  "publication_music_resume_locked": "Une reprise conserve la musique initiale de la série."
+  "publication_music_resume_locked": "Une reprise conserve la musique initiale de la série.",
+  "publication_music_reserved_hint": "Réservé aux Stories et Reels",
+  "publication_music_preview_choose": "Choisissez une musique pour l’écouter."
 }

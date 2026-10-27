@@ -904,5 +904,7 @@
   "publication_music_stop_track": "Interrompi {name}",
   "publication_music_preview_unavailable": "Non è possibile riprodurre questa anteprima. Scegli un altro brano o riprova.",
   "publication_music_done": "Fine",
-  "publication_music_resume_locked": "La ripresa conserva la musica originale della serie."
+  "publication_music_resume_locked": "La ripresa conserva la musica originale della serie.",
+  "publication_music_reserved_hint": "Riservato a Storie e Reel",
+  "publication_music_preview_choose": "Scegli un brano per ascoltarlo."
 }

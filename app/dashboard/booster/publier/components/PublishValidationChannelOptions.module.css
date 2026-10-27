@@ -1,0 +1,7 @@
+.options { display: flex; align-items: center; gap: 8px; min-width: 0; height: 24px; flex: 0 0 24px; color: #dbe9f8; }
+.options select { flex: 1; min-width: 0; max-width: 100%; height: 24px; padding: 1px 7px; border: 1px solid rgba(var(--channel-rgb),.32); border-radius: 7px; background: #101b2d; color: #eaf3ff; font: inherit; font-size: 11px; text-overflow: ellipsis; cursor: pointer; }
+.options option { background: #101b2d; color: #eaf3ff; }
+.story { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; font-size: 11px; cursor: pointer; }
+.story input { width: 13px; height: 13px; accent-color: var(--channel-color); }
+.options select:disabled, .story:has(input:disabled) { opacity: .5; cursor: default; }
+.options select:focus-visible, .story input:focus-visible { outline: 2px solid var(--channel-color); outline-offset: 2px; }

@@ -904,5 +904,7 @@
   "publication_music_stop_track": "Parar {name}",
   "publication_music_preview_unavailable": "Não é possível reproduzir este excerto. Escolha outra faixa ou tente novamente.",
   "publication_music_done": "Concluir",
-  "publication_music_resume_locked": "Uma retoma conserva a música original da série."
+  "publication_music_resume_locked": "Uma retoma conserva a música original da série.",
+  "publication_music_reserved_hint": "Reservado a Stories e Reels",
+  "publication_music_preview_choose": "Escolha uma música para a ouvir."
 }

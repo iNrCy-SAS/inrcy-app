@@ -904,5 +904,7 @@
   "publication_music_stop_track": "Stop {name}",
   "publication_music_preview_unavailable": "This preview cannot be played. Choose another track or try again.",
   "publication_music_done": "Done",
-  "publication_music_resume_locked": "A retry keeps the series’ original music."
+  "publication_music_resume_locked": "A retry keeps the series’ original music.",
+  "publication_music_reserved_hint": "For Stories and Reels only",
+  "publication_music_preview_choose": "Choose a track to preview it."
 }

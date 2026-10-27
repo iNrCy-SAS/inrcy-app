@@ -213,6 +213,7 @@ import PublishCreationModePanel from "./components/PublishCreationModePanel";
 import PublishContentEditorPanel from "./components/PublishContentEditorPanel";
 import PublishMediaPoolPanel from "./components/PublishMediaPoolPanel";
 import PublishValidationBoard from "./components/PublishValidationBoard";
+import PublishValidationChannelOptions from "./components/PublishValidationChannelOptions";
 import PublishHelpModal from "./components/PublishHelpModal";
 import PublishWarningModals from "./components/PublishWarningModals";
 import {
@@ -2566,6 +2567,27 @@ export default function PublishModal({
 
   const resolveChannelMediaMode = (channel: ChannelKey): ChannelMediaMode =>
     getEffectiveThreadsMediaMode(channel, threadsPublicationMode, resolveStoredChannelMediaMode(channel));
+
+  const changeInstagramPublicationPlacement = (placement: MetaPrimaryPublicationPlacement) => {
+    instagramPlacementTouchedRef.current = true;
+    const preferences = instagramPublicationPreferencesRef.current;
+    setInstagramPublicationPlacement(placement === "reel" && preferences.reelsEnabled ? "reel" : placement === "story" && preferences.storiesEnabled ? "story" : "classic");
+    if (placement === "story") setInstagramStoryEnabled(false);
+  };
+  const changeInstagramStoryEnabled = (enabled: boolean) => {
+    instagramPlacementTouchedRef.current = true;
+    setInstagramStoryEnabled(enabled && instagramPublicationPreferencesRef.current.storiesEnabled);
+  };
+  const changeFacebookPublicationPlacement = (placement: MetaPrimaryPublicationPlacement) => {
+    facebookPlacementTouchedRef.current = true;
+    const preferences = facebookPublicationPreferencesRef.current;
+    setFacebookPublicationPlacement(placement === "reel" && preferences.reelsEnabled ? "reel" : placement === "story" && preferences.storiesEnabled ? "story" : "classic");
+    if (placement === "story") setFacebookStoryEnabled(false);
+  };
+  const changeFacebookStoryEnabled = (enabled: boolean) => {
+    facebookPlacementTouchedRef.current = true;
+    setFacebookStoryEnabled(enabled && facebookPublicationPreferencesRef.current.storiesEnabled);
+  };
 
   const channelUsesGeneratedSoundtrack = (channel: ChannelKey) => resolveChannelMediaMode(channel) === "images" && (
     channel === "facebook" ? facebookPublicationPlacement === "reel" || facebookPublicationPlacement === "story" || facebookStoryEnabled :
@@ -8651,50 +8673,14 @@ export default function PublishModal({
               instagramStoryEnabled={instagramStoryEnabled}
               instagramPublicationPreferences={instagramPublicationPreferences}
               instagramMediaMode={resolveChannelMediaMode("instagram")}
-              onInstagramPublicationPlacementChange={(placement) => {
-                instagramPlacementTouchedRef.current = true;
-                setInstagramPublicationPlacement(
-                  placement === "reel" &&
-                    instagramPublicationPreferencesRef.current.reelsEnabled
-                    ? "reel"
-                    : placement === "story" &&
-                        instagramPublicationPreferencesRef.current.storiesEnabled
-                      ? "story"
-                    : "classic",
-                );
-                if (placement === "story") setInstagramStoryEnabled(false);
-              }}
-              onInstagramStoryEnabledChange={(enabled) => {
-                instagramPlacementTouchedRef.current = true;
-                setInstagramStoryEnabled(
-                  enabled &&
-                    instagramPublicationPreferencesRef.current.storiesEnabled,
-                );
-              }}
+              onInstagramPublicationPlacementChange={changeInstagramPublicationPlacement}
+              onInstagramStoryEnabledChange={changeInstagramStoryEnabled}
               facebookPublicationPlacement={facebookPublicationPlacement}
               facebookStoryEnabled={facebookStoryEnabled}
               facebookPublicationPreferences={facebookPublicationPreferences}
               facebookMediaMode={resolveChannelMediaMode("facebook")}
-              onFacebookPublicationPlacementChange={(placement) => {
-                facebookPlacementTouchedRef.current = true;
-                setFacebookPublicationPlacement(
-                  placement === "reel" &&
-                    facebookPublicationPreferencesRef.current.reelsEnabled
-                    ? "reel"
-                    : placement === "story" &&
-                        facebookPublicationPreferencesRef.current.storiesEnabled
-                      ? "story"
-                    : "classic",
-                );
-                if (placement === "story") setFacebookStoryEnabled(false);
-              }}
-              onFacebookStoryEnabledChange={(enabled) => {
-                facebookPlacementTouchedRef.current = true;
-                setFacebookStoryEnabled(
-                  enabled &&
-                    facebookPublicationPreferencesRef.current.storiesEnabled,
-                );
-              }}
+              onFacebookPublicationPlacementChange={changeFacebookPublicationPlacement}
+              onFacebookStoryEnabledChange={changeFacebookStoryEnabled}
               onVoiceBusyChange={setContentVoiceBusy}
             />
             </div>
@@ -8716,6 +8702,18 @@ export default function PublishModal({
           </PublishWizardScreen>
           <PublishWizardScreen active={activeWizardStep === "control"} step="control">
             <PublishValidationBoard items={publishReadinessItems} imageKeys={imageKeys} previewByKey={previewByKey} videoPreviewUrl={videoPreviewUrl}
+              renderChannelOptions={(channel) => <PublishValidationChannelOptions channel={channel} disabled={wizardBusy}
+                pinterestBoards={pinterestBoards} pinterestBoardId={pinterestBoardId} pinterestBoardsLoading={pinterestBoardsLoading}
+                pinterestBoardsError={pinterestBoardsError} onPinterestBoardChange={onPinterestBoardChange}
+                threadsPublicationMode={threadsPublicationMode} threadsPublicationPreferences={threadsPublicationPreferences}
+                threadsPreferencesLoading={threadsPreferencesLoading} threadsPreferencesFailed={threadsPreferencesFailed}
+                onThreadsPublicationModeChange={onThreadsPublicationModeChange}
+                facebookPublicationPlacement={facebookPublicationPlacement} facebookStoryEnabled={facebookStoryEnabled}
+                facebookPublicationPreferences={facebookPublicationPreferences}
+                onFacebookPublicationPlacementChange={changeFacebookPublicationPlacement} onFacebookStoryEnabledChange={changeFacebookStoryEnabled}
+                instagramPublicationPlacement={instagramPublicationPlacement} instagramStoryEnabled={instagramStoryEnabled}
+                instagramPublicationPreferences={instagramPublicationPreferences}
+                onInstagramPublicationPlacementChange={changeInstagramPublicationPlacement} onInstagramStoryEnabledChange={changeInstagramStoryEnabled} />}
               soundtrackByChannel={soundtrackByChannel} soundtrackScopeKey={`${actorUserId}:${activeAccountId}`}
               canSelectSoundtrack={channelUsesGeneratedSoundtrack}
               onSoundtrackChange={(channel, id) => setSoundtrackByChannel(current => ({ ...current, [channel]: id }))}

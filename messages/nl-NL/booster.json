@@ -904,5 +904,7 @@
   "publication_music_stop_track": "{name} stoppen",
   "publication_music_preview_unavailable": "Dit fragment kan niet worden afgespeeld. Kies een ander nummer of probeer opnieuw.",
   "publication_music_done": "Gereed",
-  "publication_music_resume_locked": "Bij hervatten blijft de oorspronkelijke muziek van de serie behouden."
+  "publication_music_resume_locked": "Bij hervatten blijft de oorspronkelijke muziek van de serie behouden.",
+  "publication_music_reserved_hint": "Alleen voor Stories en Reels",
+  "publication_music_preview_choose": "Kies een nummer om het te beluisteren."
 }

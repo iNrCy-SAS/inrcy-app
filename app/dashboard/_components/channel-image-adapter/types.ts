@@ -114,6 +114,8 @@ export type ModalProps = {
   open: boolean;
   /** Affiche l'atelier dans sa page parente, sans modale ni second en-tête. */
   embedded?: boolean;
+  /** Keep Studio's image unobstructed without changing other channel adapters. */
+  previewInfoPlacement?: "overlay" | "below";
   title: string;
   subtitle: string;
   aspectRatio: string;

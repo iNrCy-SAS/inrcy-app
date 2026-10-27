@@ -904,5 +904,7 @@
   "publication_music_stop_track": "停止 {name}",
   "publication_music_preview_unavailable": "无法播放此试听。请选择其他曲目或重试。",
   "publication_music_done": "完成",
-  "publication_music_resume_locked": "继续发布时保留该系列最初的音乐。"
+  "publication_music_resume_locked": "继续发布时保留该系列最初的音乐。",
+  "publication_music_reserved_hint": "仅限 Story 和 Reel",
+  "publication_music_preview_choose": "选择一首音乐进行试听。"
 }

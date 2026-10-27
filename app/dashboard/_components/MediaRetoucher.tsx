@@ -614,6 +614,7 @@ export default function MediaRetoucher({
     <ChannelImageAdapterModal
       open
       embedded
+      previewInfoPlacement="below"
       title="Retoucher une image"
       subtitle={source.file.name}
       aspectRatio={`${source.width} / ${source.height}`}

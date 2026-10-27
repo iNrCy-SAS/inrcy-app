@@ -904,5 +904,7 @@
   "publication_music_stop_track": "{name} stoppen",
   "publication_music_preview_unavailable": "Diese Hörprobe kann nicht abgespielt werden. Wähle einen anderen Titel oder versuche es erneut.",
   "publication_music_done": "Fertig",
-  "publication_music_resume_locked": "Beim Fortsetzen bleibt die ursprüngliche Musik der Serie erhalten."
+  "publication_music_resume_locked": "Beim Fortsetzen bleibt die ursprüngliche Musik der Serie erhalten.",
+  "publication_music_reserved_hint": "Nur für Stories und Reels",
+  "publication_music_preview_choose": "Wählen Sie einen Titel zum Anhören."
 }

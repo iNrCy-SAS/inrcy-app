@@ -904,5 +904,7 @@
   "publication_music_stop_track": "Detener {name}",
   "publication_music_preview_unavailable": "No se puede reproducir este fragmento. Elige otra pista o reintenta.",
   "publication_music_done": "Terminar",
-  "publication_music_resume_locked": "Una reanudación conserva la música original de la serie."
+  "publication_music_resume_locked": "Una reanudación conserva la música original de la serie.",
+  "publication_music_reserved_hint": "Reservado a Stories y Reels",
+  "publication_music_preview_choose": "Elige una música para escucharla."
 }

@@ -52,6 +52,7 @@ function createOverlayId() {
 export function ChannelImageAdapterModal({
   open,
   embedded = false,
+  previewInfoPlacement = "overlay",
   title,
   subtitle,
   aspectRatio,
@@ -542,6 +543,13 @@ export function ChannelImageAdapterModal({
     color: "#f8fbff",
     background: "#11182d",
   };
+  const previewInformation = <div data-adapter-preview-information data-placement={previewInfoPlacement} style={{
+    ...(previewInfoPlacement === "overlay" ? { position: "absolute", left: 12, right: 12, bottom: 12, pointerEvents: "none" } as React.CSSProperties : { marginBottom: 8 }),
+    display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap",
+  }}>
+    <div style={{ fontSize: 12, padding: "6px 10px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>{showBefore ? i18nT("image_source_bbdaeab9") : `${fitLabel} • ${zoomLabel}`}</div>
+    {!isMobile ? <div style={{ fontSize: 11, padding: "6px 10px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>{i18nT("glisser_molette_double_clic_292d179a")}</div> : null}
+  </div>;
   return (
     <div
       ref={containerRef}
@@ -781,13 +789,13 @@ export function ChannelImageAdapterModal({
                   pour un réglage précis.
                 </span>
                 <div style={{ position: "absolute", inset: 12, borderRadius: 16, border: "1px solid rgba(255,255,255,0.14)", boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.14)", pointerEvents: "none" }} />
-                <div style={{ position: "absolute", left: 12, right: 12, bottom: 12, display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", pointerEvents: "none", flexWrap: "wrap" }}>
-                  <div style={{ fontSize: 12, padding: "6px 10px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>{showBefore ? i18nT("image_source_bbdaeab9") : `${fitLabel} • ${zoomLabel}`}</div>
-                  {!isMobile ? <div style={{ fontSize: 11, padding: "6px 10px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>{i18nT("glisser_molette_double_clic_292d179a")}</div> : null}
-                </div>
+                {previewInfoPlacement === "overlay" ? previewInformation : null}
               </div>
             </div>
-            <div style={{ fontSize: 12, opacity: 0.72, padding: isMobile ? "12px 10px 0" : "10px 2px 0", lineHeight: 1.55, width: "100%", maxWidth: "100%", boxSizing: "border-box", overflowWrap: "break-word", wordBreak: "normal" }}>{i18nT("deplacez_l_image_ajustez_le_zoom_b7f704f4")}{embedded ? " Les blocs de texte se déplacent et se redimensionnent directement sur le visuel." : ` ${isolationNote || i18nT("ces_reglages_concernent_uniquement_ce_canal_c0d2ebf2")}`}</div>
+            <div style={{ fontSize: 12, padding: isMobile ? "12px 10px 0" : "10px 2px 0", lineHeight: 1.55, width: "100%", maxWidth: "100%", boxSizing: "border-box", overflowWrap: "break-word", wordBreak: "normal" }}>
+              {previewInfoPlacement === "below" ? previewInformation : null}
+              <div style={{ opacity: 0.72 }}>{i18nT("deplacez_l_image_ajustez_le_zoom_b7f704f4")}{embedded ? " Les blocs de texte se déplacent et se redimensionnent directement sur le visuel." : ` ${isolationNote || i18nT("ces_reglages_concernent_uniquement_ce_canal_c0d2ebf2")}`}</div>
+            </div>
           </div>
 
           <div style={{ minWidth: 0, minHeight: 0, height: isCompact ? "auto" : "100%", display: isMobile ? "flex" : "grid", gridTemplateColumns: settingsGridColumns, gridTemplateRows: settingsGridColumns ? "auto minmax(0, 1fr)" : undefined, flexDirection: isMobile ? "column" : undefined, alignContent: "stretch", alignItems: "stretch", gap: 12, order: isMobile ? 2 : 1, flex: isMobile ? "0 0 auto" : undefined }}>
