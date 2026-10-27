@@ -7,6 +7,7 @@ import type {
   Dispatch,
   KeyboardEvent,
   MutableRefObject,
+  ReactNode,
   SetStateAction,
 } from "react";
 import { useEffect, useRef, useState } from "react";
@@ -200,6 +201,7 @@ function MetaPublicationFormatControls({
 
 type PublishContentEditorPanelProps = {
   actionsContainer?: HTMLElement | null;
+  renderChannelSoundtrack?: (channel: "facebook" | "instagram", disabled: boolean) => ReactNode;
   styles: PublishModalStyles;
   isMobile: boolean;
   creationMode: BoosterCreationMode | null;
@@ -261,6 +263,7 @@ type PublishContentEditorPanelProps = {
 
 export default function PublishContentEditorPanel({
   actionsContainer,
+  renderChannelSoundtrack,
   styles,
   isMobile,
   creationMode,
@@ -850,6 +853,11 @@ export default function PublishContentEditorPanel({
                   }
                   onStoryEnabledChange={onFacebookStoryEnabledChange}
                 />
+              ) : null}
+              {(activeCard === "facebook" || activeCard === "instagram") && renderChannelSoundtrack ? (
+                <div className={css.soundtrackField} data-publish-content-soundtrack={activeCard}>
+                  {renderChannelSoundtrack(activeCard, voiceBusy)}
+                </div>
               ) : null}
               </div>
               <div className={css.sharedTools} data-publish-shared-toolbar data-active-field={activeTextField}>

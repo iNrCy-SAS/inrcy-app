@@ -178,11 +178,79 @@ test("an unavailable music icon remains visible and explains its restriction on 
  }}finally{await browser.close()}
 });
 
+test("inline music offers a bounded downward dropdown and preview beside it without creating a second modal",async()=>{
+ const browser=await chromium.launch({headless:true});
+ try{for(const viewport of [{width:1280,height:900},{width:390,height:844}]){
+  const page=await browser.newPage({viewport,hasTouch:true}),errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));await page.route('**/*',route=>route.abort());await page.setContent(html);await page.addScriptTag({content:fixture});
+  await page.evaluate(()=>(window as unknown as FixtureState).configure({inline:true,channelLabel:'Facebook'}));
+  const field=page.locator('[data-soundtrack-inline]'),combo=field.getByRole('combobox'),preview=field.locator('.preview');await combo.waitFor();
+  await page.waitForFunction(()=>(window as unknown as FixtureState).catalogueCalls===1);
+  assert.equal(await page.getByRole('dialog').count(),0);assert.equal(await preview.isDisabled(),true);
+  await combo.click();const list=field.getByRole('listbox');await list.waitFor();assert.equal(await list.getByRole('option').count(),catalogue.length+1);
+  const buttonBounds=await combo.boundingBox(),listBounds=await list.boundingBox(),previewBounds=await preview.boundingBox();assert.ok(buttonBounds&&listBounds&&previewBounds);
+  assert.ok(listBounds.y>=buttonBounds.y+buttonBounds.height-1,'The dropdown opens below its field');assert.ok(listBounds.height<=176);assert.ok(listBounds.x>=0&&listBounds.x+listBounds.width<=viewport.width+1);
+  assert.ok(previewBounds.x>=buttonBounds.x+buttonBounds.width-1,'Playback stays next to the choice');
+  await list.focus();await list.press('End');await list.press('Enter');assert.equal(await combo.textContent(),catalogue.at(-1)!.label);assert.equal(await combo.getAttribute('aria-expanded'),'true','Selecting a track keeps the list available');
+  await preview.click();assert.equal(await preview.getAttribute('aria-pressed'),'true');assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),1);assert.equal(await list.isVisible(),true,'Listening leaves the choice list open');
+  await list.focus();await list.press('Home');await list.press('ArrowDown');await list.press('Enter');assert.equal(await combo.textContent(),catalogue[0].label);assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),0);
+  await page.evaluate(()=>(window as unknown as FixtureState).restoreSoundtrack('legacy-saved-track'));const marker=JSON.parse(read('messages/fr-FR/booster.json')).publication_music_previous;
+  assert.equal(await list.getByRole('option',{name:marker,exact:true}).getAttribute('aria-disabled'),'true');await list.press('Home');await list.press('ArrowDown');await list.press('Enter');assert.equal(await combo.textContent(),catalogue[0].label);
+  await list.focus();await page.keyboard.press('Escape');assert.equal(await combo.getAttribute('aria-expanded'),'false');assert.equal(await combo.evaluate(element=>element===document.activeElement),true);
+  await page.evaluate(()=>(window as unknown as FixtureState).configure({unavailableHint:'Réservé aux Stories et Reels'}));await page.waitForFunction(()=>document.querySelector('[data-soundtrack-inline] [role="combobox"]')?.getAttribute('aria-disabled')==='true');assert.equal(await preview.isDisabled(),true);assert.equal(await combo.textContent(),catalogue[0].label,'Classic preserves the configured soundtrack');
+  await combo.evaluate(element=>(element as HTMLButtonElement).click());assert.equal(await combo.getAttribute('aria-expanded'),'false');assert.equal(await page.getByRole('dialog').count(),0);
+  await page.evaluate(()=>(window as unknown as FixtureState).configure({unavailableHint:undefined,selectionLocked:true}));assert.equal(await combo.getAttribute('aria-disabled'),'true');assert.equal(await preview.isDisabled(),true);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).otherCalls),[]);await page.close();
+ }}finally{await browser.close()}
+});
+
+test("inline channel previews remain exclusive and stop when the account, lock or mounted editor changes",async()=>{
+ const browser=await chromium.launch({headless:true});
+ try{
+  const page=await browser.newPage();await page.route('**/*',route=>route.abort());await page.setContent(html);await page.addStyleTag({content:'[data-music-channel]{margin-bottom:200px}'});await page.addScriptTag({content:fixture});await page.evaluate(()=>(window as unknown as FixtureState).configure({inline:true,paired:true}));
+  const facebook=page.locator('[data-music-channel="facebook"]'),instagram=page.locator('[data-music-channel="instagram"]');
+  for(const [field,track] of [[facebook,catalogue[0]],[instagram,catalogue[1]]] as const){await field.getByRole('combobox').click();await field.getByRole('option',{name:track.label,exact:true}).click();await field.locator('.preview').click();assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),1);}
+  assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).maxPlaying),1);assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).channelSelectionEvents),[{channel:'facebook',id:catalogue[0].id},{channel:'instagram',id:catalogue[1].id}]);
+  await page.evaluate(()=>(window as unknown as FixtureState).configure({scopeKey:'actor:account-b'}));await page.waitForFunction(()=>(window as unknown as FixtureState).activeAudio.size===0);
+  await instagram.locator('.preview').click();await page.evaluate(()=>(window as unknown as FixtureState).configure({lockedChannel:'instagram'}));await page.waitForFunction(()=>(window as unknown as FixtureState).activeAudio.size===0);
+  assert.equal(await instagram.getByRole('combobox').getAttribute('aria-disabled'),'true');await facebook.locator('.preview').click();await page.evaluate(()=>(window as unknown as FixtureState).unmountFixture());assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),0);
+  assert.equal(await page.getByRole('dialog').count(),0);assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).otherCalls),[]);await page.close();
+ }finally{await browser.close()}
+});
+
+test("the actual Contents format row places inline music next to Meta formats on desktop and keeps it usable on mobile",async()=>{
+ const editor=ts.createSourceFile('PublishContentEditorPanel.tsx',read('app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx'),ts.ScriptTarget.ES2022,true,ts.ScriptKind.TSX);
+ let formats:ts.JsxElement|undefined;const find=(node:ts.Node)=>{if(ts.isJsxElement(node)&&node.openingElement.attributes.properties.some(property=>ts.isJsxAttribute(property)&&property.name.getText(editor)==='className'&&property.initializer?.getText(editor)==='{css.publicationFormats}'))formats=node;ts.forEachChild(node,find)};find(editor);assert.ok(formats);
+ const controls=editor.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='MetaPublicationFormatControls');assert.ok(controls);
+ // Execute the real format-controls declaration and row JSX; unrelated rich
+ // text, dictation and report tools are outside this focused layout fixture.
+ const compiled=ts.transpileModule(`const React=require('react'),css=require('./PublishContentEditorPanel.module.css').default,Selector=require('selector').default;
+ const pillBtn={display:'inline-flex',alignItems:'center',borderRadius:20},darkOptionStyle={},darkSelectStyle={};
+ ${controls.getText(editor)}
+ exports.default=function ContentFormats(){const [activeCard,setActive]=React.useState('facebook'),[choices,setChoices]=React.useState({facebook:null,instagram:null});window.changeContentChannel=setActive;const [placement,setPlacement]=React.useState('reel');
+ const voiceBusy=false,isMobile=innerWidth<=700,i18nT=(key)=>messages[key]||key,pinterestBoards=[],pinterestBoardId='',pinterestBoardsLoading=false,onPinterestBoardChange=()=>{},ThreadsPublicationModeControls=()=>null;
+ const instagramPublicationPlacement=placement,facebookPublicationPlacement=placement,instagramStoryEnabled=false,facebookStoryEnabled=false,instagramPublicationPreferences={reelsEnabled:true,storiesEnabled:true},facebookPublicationPreferences=instagramPublicationPreferences;
+ const onInstagramPublicationPlacementChange=setPlacement,onFacebookPublicationPlacementChange=setPlacement,onInstagramStoryEnabledChange=()=>{},onFacebookStoryEnabledChange=()=>{};
+ const renderChannelSoundtrack=(channel,disabled)=>React.createElement(Selector,{key:channel,inline:true,channelLabel:channel==='facebook'?'Facebook':'Instagram',scopeKey:'actor:account:'+channel,soundtrackId:choices[channel],onChange:id=>setChoices(previous=>({...previous,[channel]:id})),disabled});
+ return <div className={css.editor} style={{'--editor-accent':'#4597ff','--editor-rgb':'69,151,255',height:'auto'}}><div className={css.editorTopbar}>${formats.getText(editor)}</div></div>};`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;
+ const browser=await chromium.launch({headless:true});
+ try{for(const viewport of [{width:1280,height:900},{width:390,height:844}]){
+  const page=await browser.newPage({viewport}),errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));await page.route('**/*',route=>route.abort());await page.setContent(html);await page.addStyleTag({content:read('app/dashboard/booster/publier/components/PublishContentEditorPanel.module.css').replace(/:global\(([^)]+)\)/g,'$1')});await page.addScriptTag({content:fixture+`sources.contentFormats=${JSON.stringify(compiled)};root.render(React.createElement(require('contentFormats').default));`});
+  const row=page.locator('.publicationFormats'),field=page.locator('[data-publish-content-soundtrack="facebook"]'),formatsGroup=row.getByRole('group'),combo=field.getByRole('combobox');await combo.waitFor();
+  const groupBounds=await formatsGroup.boundingBox(),fieldBounds=await field.boundingBox();assert.ok(groupBounds&&fieldBounds);
+  if(process.env.INRCY_MUSIC_LAYOUT_PROOF)await page.screenshot({path:`${process.env.INRCY_MUSIC_LAYOUT_PROOF}-contents-${viewport.width}.png`});
+  if(viewport.width>700){assert.ok(fieldBounds.x>=groupBounds.x+groupBounds.width,`Desktop music follows the format buttons: ${JSON.stringify({groupBounds,fieldBounds})}`);assert.ok(Math.abs(fieldBounds.y-groupBounds.y)<12,'Desktop controls share the same row');}
+  else assert.ok(fieldBounds.x>=0&&fieldBounds.x+fieldBounds.width<=viewport.width,'Mobile music stays inside the viewport');
+  assert.equal(await row.getByRole('button',{name:'Reels',exact:true}).getAttribute('aria-pressed'),'true');await combo.click();await field.getByRole('option',{name:catalogue[0].label,exact:true}).click();await field.locator('.preview').click();assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),1);
+  await page.evaluate(()=>(window as unknown as {changeContentChannel:(channel:string)=>void}).changeContentChannel('instagram'));await page.locator('[data-publish-content-soundtrack="instagram"]').waitFor();assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),0);assert.equal(await page.getByRole('dialog').count(),0);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  if(process.env.INRCY_MUSIC_LAYOUT_PROOF)await page.screenshot({path:`${process.env.INRCY_MUSIC_LAYOUT_PROOF}-contents-${viewport.width}.png`});assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).otherCalls),[]);await page.close();
+ }}finally{await browser.close()}
+});
+
 test("actual Booster payloads preserve per-channel draft choices and filter publish or schedule music to generated Meta media",()=>{
  const source=ts.createSourceFile("PublishModal.tsx",read("app/dashboard/booster/publier/PublishModal.tsx"),ts.ScriptTarget.ES2022,true,ts.ScriptKind.TSX);
  const contexts=new Map<string,ts.ObjectLiteralExpression>(),expressions=new Map<string,ts.Expression>();let restoration:ts.Expression|undefined;
  const visit=(node:ts.Node)=>{
-  if(ts.isVariableDeclaration(node)&&node.initializer){const name=node.name.getText(source);if(name==="nextSoundtrackByChannel")restoration=node.initializer;if(["channelUsesGeneratedSoundtrack","getPublicationSoundtracks"].includes(name))expressions.set(name,node.initializer)}
+  if(ts.isVariableDeclaration(node)&&node.initializer){const name=node.name.getText(source);if(name==="nextSoundtrackByChannel")restoration=node.initializer;if(["channelUsesGeneratedSoundtrack","canConfigureChannelSoundtrack","getPublicationSoundtracks"].includes(name))expressions.set(name,node.initializer)}
   if(ts.isObjectLiteralExpression(node)&&node.properties.some(property=>(ts.isShorthandPropertyAssignment(property)||ts.isPropertyAssignment(property))&&property.name.getText(source)==="soundtrackByChannel")){
    const parent=node.parent;
    if(ts.isCallExpression(parent)&&parent.expression.getText(source)==="JSON.stringify"&&node.properties.some(property=>ts.isShorthandPropertyAssignment(property)&&property.name.text==="soundtrackByChannel"))contexts.set("snapshot",node);
@@ -203,6 +271,8 @@ test("actual Booster payloads preserve per-channel draft choices and filter publ
  const select=(predicate:(channel:string)=>boolean,soundtrackByChannel:Record<string,string|null>)=>evaluate(expressions.get("getPublicationSoundtracks")!.getText(source),{channelUsesGeneratedSoundtrack:predicate,soundtrackByChannel}) as (channels:string[])=>Record<string,string|null>;
  const mixedChannels=["facebook","instagram","gmb","threads","tiktok"],eligible=isGenerated({},"reel","story");
  assert.deepEqual(mixedChannels.map(eligible),[true,true,false,false,false]);
+ const canConfigure=(mode:string,placement:string)=>evaluate(expressions.get('canConfigureChannelSoundtrack')!.getText(source),{resolveChannelMediaMode:()=>mode,facebookPublicationPlacement:placement,instagramPublicationPlacement:placement,facebookStoryEnabled:false,instagramStoryEnabled:false}) as (channel:string)=>boolean;
+ assert.equal(canConfigure('none','reel')('facebook'),true,'Music can be prepared before images are selected');assert.equal(canConfigure('video','reel')('facebook'),false);assert.equal(canConfigure('none','classic')('facebook'),false);assert.equal(canConfigure('images','reel')('threads'),false);assert.equal(isGenerated({facebook:'none'},'reel','story')('facebook'),false,'Preparing a choice never enables generated audio without images');
  assert.deepEqual(select(isGenerated({facebook:"video"},"reel","feed"),selection)(mixedChannels),{});
  assert.deepEqual(select(isGenerated({},"feed","feed",true),selection)(mixedChannels),{facebook:selection.facebook});
  assert.deepEqual(select(eligible,{facebook:null,instagram:selection.instagram})(mixedChannels),{facebook:null,instagram:selection.instagram});
@@ -220,5 +290,7 @@ test("actual Booster payloads preserve per-channel draft choices and filter publ
  }
  assert.match(source.text,/setSoundtrackByChannel\(nextSoundtrackByChannel\)/);
  assert.match(source.text,/isSoundtrackLocked=\{\(channel\) => Boolean\(publicationSummaryForActions\?\.entries\?\.some\(entry => entry\.channel === channel && publicationStorySequenceResumeRef\(entry\.story_sequence_resume_ref\)\)\)\}/);
- const selectors:ts.JsxOpeningLikeElement[]=[];const find=(node:ts.Node)=>{if((ts.isJsxOpeningElement(node)||ts.isJsxSelfClosingElement(node))&&node.tagName.getText(source).includes("Soundtrack"))selectors.push(node);ts.forEachChild(node,find)};find(source);assert.equal(selectors.length,0,"Music controls belong inside Validation cards, not Content or Media screens");
+ const selectors:ts.JsxOpeningLikeElement[]=[];const find=(node:ts.Node)=>{if((ts.isJsxOpeningElement(node)||ts.isJsxSelfClosingElement(node))&&node.tagName.getText(source)==='MediaSoundtrackSelector')selectors.push(node);ts.forEachChild(node,find)};find(source);assert.equal(selectors.length,1,'Contents has a single controlled inline music renderer');
+ const selector=selectors[0].getText(source);assert.match(selector,/\binline\b/);assert.match(selector,/soundtrackByChannel\[channel\]/);assert.match(selector,/setSoundtrackByChannel/);
+ const contentPanel=read('app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx');assert.match(contentPanel,/data-publish-content-soundtrack/);assert.match(contentPanel,/renderChannelSoundtrack\(activeCard/);
 });

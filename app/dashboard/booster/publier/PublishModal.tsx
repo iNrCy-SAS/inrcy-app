@@ -26,6 +26,7 @@ import { getPublicationDestinationStatus, type PublicationProgressDestination } 
 import { mergePreflightFailuresIntoPublicationSummary } from "@/lib/boosterPublicationOutcome";
 import { buildStorySequenceResumeByChannel, isRetryablePublicationEntry, publicationStorySequenceResumeRef, publicationStorySequenceCounts } from "@/lib/publicationStorySequenceRetry";
 import { normalizeMediaSoundtrackByChannel, type MediaSoundtrackByChannel } from "@/lib/mediaSoundtrackSelection";
+import MediaSoundtrackSelector from "@/app/dashboard/_components/MediaSoundtrackSelector";
 import { subscribeToChannelConnectionUpdates } from "@/lib/channelConnectionUpdates";
 import { createClient } from "@/lib/supabaseClient";
 import { prewarmBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
@@ -2590,6 +2591,10 @@ export default function PublishModal({
   };
 
   const channelUsesGeneratedSoundtrack = (channel: ChannelKey) => resolveChannelMediaMode(channel) === "images" && (
+    channel === "facebook" ? facebookPublicationPlacement === "reel" || facebookPublicationPlacement === "story" || facebookStoryEnabled :
+    channel === "instagram" ? instagramPublicationPlacement === "reel" || instagramPublicationPlacement === "story" || instagramStoryEnabled : false
+  );
+  const canConfigureChannelSoundtrack = (channel: ChannelKey) => resolveChannelMediaMode(channel) !== "video" && (
     channel === "facebook" ? facebookPublicationPlacement === "reel" || facebookPublicationPlacement === "story" || facebookStoryEnabled :
     channel === "instagram" ? instagramPublicationPlacement === "reel" || instagramPublicationPlacement === "story" || instagramStoryEnabled : false
   );
@@ -8638,6 +8643,14 @@ export default function PublishModal({
             <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
             <PublishContentEditorPanel
               actionsContainer={contentActionsContainer}
+              renderChannelSoundtrack={(channel, disabled) => activeWizardStep === "content" ? <MediaSoundtrackSelector key={channel} inline
+                channelLabel={getLocalizedChannelLabel(channel, runtimeT)}
+                soundtrackId={soundtrackByChannel[channel] ?? null}
+                onChange={(id) => setSoundtrackByChannel(current => ({ ...current, [channel]: id }))}
+                scopeKey={`${actorUserId}:${activeAccountId}:${channel}`}
+                disabled={disabled || wizardBusy}
+                selectionLocked={Boolean(publicationSummaryForActions?.entries?.some(entry => entry.channel === channel && publicationStorySequenceResumeRef(entry.story_sequence_resume_ref)))}
+                unavailableHint={canConfigureChannelSoundtrack(channel) ? undefined : i18nT("publication_music_reserved_hint")} /> : null}
               styles={styles}
               isMobile={isMobile}
               creationMode={creationMode}
@@ -8719,7 +8732,7 @@ export default function PublishModal({
                 instagramPublicationPreferences={instagramPublicationPreferences}
                 onInstagramPublicationPlacementChange={changeInstagramPublicationPlacement} onInstagramStoryEnabledChange={changeInstagramStoryEnabled} />}
               soundtrackByChannel={soundtrackByChannel} soundtrackScopeKey={`${actorUserId}:${activeAccountId}`}
-              canSelectSoundtrack={channelUsesGeneratedSoundtrack}
+              canSelectSoundtrack={canConfigureChannelSoundtrack}
               onSoundtrackChange={(channel, id) => setSoundtrackByChannel(current => ({ ...current, [channel]: id }))}
               isSoundtrackLocked={(channel) => Boolean(publicationSummaryForActions?.entries?.some(entry => entry.channel === channel && publicationStorySequenceResumeRef(entry.story_sequence_resume_ref)))}
               getMode={resolveChannelMediaMode}
@@ -8741,7 +8754,7 @@ export default function PublishModal({
               onReorderImage={moveChannelImageTo} onSelectChannel={setSynchronizedActiveChannel}
               onOpenMediaPool={() => openWizardStep("media")}
               activePreview={activePublicationPreview}
-              disabled={wizardBusy} />
+              disabled={wizardBusy || activeWizardStep !== "control"} />
           </PublishWizardScreen>
         </>
       ) : null}

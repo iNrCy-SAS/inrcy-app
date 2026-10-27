@@ -1,15 +1,13 @@
 .board { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); grid-auto-rows: auto; align-self: start; align-content: start; align-items: start; gap: 11px; height: auto; min-height: 0; min-width: 0; }
-.card { --thumbnail-height: clamp(44px,6.2vh,58px); position: relative; min-width: 0; min-height: 172px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; border: 1px solid rgba(var(--channel-rgb),.3); border-radius: 18px; padding: 12px 14px; background: radial-gradient(ellipse at 0 0,rgba(var(--channel-rgb),.18),transparent 72%),linear-gradient(140deg,#0e1b2cee,#101222ee); box-shadow: 0 8px 24px #02061520,inset 0 1px #ffffff07; }
+.card { --thumbnail-height: 44px; position: relative; min-width: 0; min-height: 172px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; border: 1px solid rgba(var(--channel-rgb),.3); border-radius: 18px; padding: 8px 14px; background: radial-gradient(ellipse at 0 0,rgba(var(--channel-rgb),.18),transparent 72%),linear-gradient(140deg,#0e1b2cee,#101222ee); box-shadow: 0 8px 24px #02061520,inset 0 1px #ffffff07; }
 .card:focus-within { border-color: rgba(var(--channel-rgb),.6); }
-.card[data-has-options="true"] { --thumbnail-height: 44px; padding-top: 8px; padding-bottom: 8px; gap: 4px; }
-.channelOptions { flex: 0 0 24px; height: 24px; min-width: 0; }
 .card::before { content: ""; position: absolute; top: -1px; left: 18px; right: 18px; height: 2px; background: var(--channel-gradient); opacity: .8; border-radius: 0 0 3px 3px; pointer-events: none; }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .brand strong { color: #e7f0ff; font-size: 15px; line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .logo { display: grid; place-items: center; width: 31px; height: 31px; flex: 0 0 31px; border-radius: 10px; background: rgba(var(--channel-rgb),.14); box-shadow: 0 0 18px rgba(var(--channel-rgb),.15); }
 .logo img { width: 25px; height: 25px; object-fit: contain; border-radius: 50%; }
 .statusLine { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; line-height: 1.2; }
-.statusLine > span:first-child { color: #bfd0e7; font-size: 12px; font-weight: 650; }
+.statusLine > span:first-child { color: #bfd0e7; font-size: 12px; font-weight: 650; flex: 0 0 auto; }
 .mediaLabel { display: inline-flex; align-items: center; gap: 7px; }
 .mediaChoice { display: inline-flex; border: 1px solid #8caad42a; border-radius: 6px; overflow: hidden; height: 19px; }
 .mediaChoice button { display: grid; place-items: center; width: 25px; border: 0; padding: 0; color: #7990ac; background: #08132270; cursor: pointer; }
@@ -19,7 +17,8 @@
 .cardActions { display: flex; flex-shrink: 0; gap: 5px; min-width: 0; }
 .cardActions button { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(var(--channel-rgb),.3); background: rgba(var(--channel-rgb),.08); color: var(--channel-color); cursor: pointer; font-size: 16px; padding: 0; }
 .cardActions button:hover { background: rgba(var(--channel-rgb),.2); border-color: var(--channel-color); }
-.state { display: flex; align-items: center; gap: 5px; color: #e4b76d; font-size: 11px; line-height: 1.2; white-space: nowrap; }
+.cardActions button:disabled { opacity: .45; cursor: default; }
+.state { display: flex; align-items: center; justify-content: flex-end; gap: 5px; min-width: 0; color: #e4b76d; font-size: 11px; line-height: 1.2; text-align: right; overflow-wrap: anywhere; }
 .state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #eeb861; flex: 0 0 auto; }
 .state[data-tone="ready"] { color: #64d9b1; }
 .state[data-tone="blocked"] { color: #f38b9f; }
@@ -70,9 +69,21 @@
 .dialogBody > section { padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
 .dialogBody :global([data-preview-heading]), .dialogBody :global([data-preview-note]) { display: none; }
 .board button:focus-visible, .dialog button:focus-visible { outline: 2px solid #88d5f4; outline-offset: 3px; }
+.dialog.settingsDialog { position: relative; width: min(520px,100%); height: auto; max-height: calc(100dvh - 44px); border-color: rgba(var(--channel-rgb),.45); }
+.settingsDialog::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--channel-gradient); pointer-events: none; }
+.dialog.settingsDialog > header { grid-template-columns: minmax(0,1fr) auto; padding: 17px 20px; }
+.dialog.settingsDialog > header > strong { font-size: 16px; }
+.settingsBody { display: flex; flex-direction: column; gap: 18px; min-width: 0; min-height: 0; padding: 20px; overflow-y: auto; overscroll-behavior: contain; }
+.settingsMusic { display: grid; gap: 10px; min-width: 0; padding-top: 18px; border-top: 1px solid rgba(var(--channel-rgb),.2); }
+.settingsMusic > strong { color: #dbe9f8; font-size: 13px; font-weight: 650; }
+.settingsMusic > p { margin: 0; color: #b0c4dd; font-size: 12px; line-height: 1.5; }
+.settingsMusic :global([data-soundtrack-inline]) :global([role="listbox"]) { position: static; margin-top: 5px; }
+.settingsFooter { display: flex; justify-content: flex-end; flex-shrink: 0; padding: 13px 20px; border-top: 1px solid rgba(var(--channel-rgb),.18); background: rgba(var(--channel-rgb),.04); }
+.settingsFooter button { min-height: 38px; min-width: 94px; padding: 8px 16px; border: 1px solid rgba(var(--channel-rgb),.4); border-radius: 10px; background: rgba(var(--channel-rgb),.13); color: #edf4ff; cursor: pointer; font: inherit; font-size: 13px; font-weight: 650; }
+.settingsFooter button:hover { background: rgba(var(--channel-rgb),.22); }
 @media(max-width:1100px) { .board { grid-template-columns: repeat(3,minmax(0,1fr)); } }
 @media(max-width:800px) { .board { grid-template-columns: repeat(2,minmax(0,1fr)); } }
-@media(max-width:600px) { .board { grid-template-columns: minmax(0,1fr); gap: 12px; } .card { --thumbnail-height: 56px; min-height: 200px; padding: 14px; gap: 10px; } .brand strong { font-size: 16px; } .state { font-size: 11px; } .overlay { padding: 8px; } .dialog { height: calc(100dvh - 16px); border-radius: 16px; } .dialog > header { padding: 10px 12px; gap: 6px; } .dialog > header > strong { font-size: 12px; } .dialogBody { padding: 10px; }
+@media(max-width:600px) { .board { grid-template-columns: minmax(0,1fr); gap: 12px; } .card { min-height: 200px; } .brand strong { font-size: 16px; } .state { font-size: 11px; } .overlay { padding: 8px; } .dialog { height: calc(100dvh - 16px); border-radius: 16px; } .dialog > header { padding: 10px 12px; gap: 6px; } .dialog > header > strong { font-size: 12px; } .dialogBody { padding: 10px; }
  .cardActions button { width: 36px; height: 36px; }
  .mediaChoice { height: 28px; }
  .mediaChoice button { width: 32px; }
@@ -84,4 +95,8 @@
  .previewBrand > span:first-child { width: 25px; height: 25px; border-radius: 8px; }
  .previewBrand img { width: 19px; height: 19px; }
  .dialog > header > button { width: 34px; height: 34px; }
+ .dialog.settingsDialog { max-height: calc(100dvh - 16px); }
+ .dialog.settingsDialog > header { padding: 13px 14px; }
+ .settingsBody { padding: 16px 14px; }
+ .settingsFooter { padding: 12px 14px; }
 }

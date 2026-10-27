@@ -13,8 +13,9 @@
 [data-content-state="blocked"] .channelDot { background: #ff859a; }
 .card { display: flex; flex-direction: column; min-height: min-content; min-width: 0; padding: 0 !important; border: 0 !important; background: transparent !important; gap: 12px; }
 .editorTopbar { display: flex !important; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px !important; min-height: 38px; margin-bottom: 0 !important; }
-.publicationFormats { display: flex; align-items: center; min-width: 0; max-width: 100%; }
+.publicationFormats { display: flex; flex: 1 1 auto; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; max-width: 100%; }
 .publicationFormats:empty { display: none; }
+.soundtrackField { --channel-color: var(--editor-accent); --channel-rgb: var(--editor-rgb); flex: 0 1 260px; min-width: min(200px, 100%); max-width: 100%; }
 .sharedTools { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; min-height: 38px; }
 .toolTarget { min-width: 48px; color: #c1d2ed; text-align: right; font-size: 12px; font-weight: 650; }
 .toolTarget::before { content: ""; display: inline-block; width: 5px; height: 5px; margin: 0 7px 2px 0; border-radius: 50%; background: var(--editor-accent); box-shadow: 0 0 10px rgba(var(--editor-rgb), .3); }
@@ -66,6 +67,7 @@
  .fields { display: flex !important; flex-direction: column; gap: 14px !important; }
  .editorTopbar { gap: 10px !important; }
  .publicationFormats { width: 100%; }
+ .soundtrackField { flex-basis: 100%; min-width: 0; }
  .sharedTools { margin-left: 0; width: 100%; justify-content: flex-end; gap: 8px; }
  .toolTarget { margin-right: auto; text-align: left; }
  .metaFormats { display: grid !important; grid-auto-flow: column; grid-auto-columns: minmax(0,1fr); width: 100%; gap: 5px !important; }

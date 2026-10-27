@@ -1,4 +1,17 @@
 .root { display: inline-flex; position: relative; max-width: 100%; }
+.inlineRoot { display: inline-grid; grid-template-columns: minmax(0,1fr) 32px; align-items: start; gap: 6px; width: min(240px,100%); min-width: 0; color: #edf3ff; vertical-align: middle; }
+.inlinePicker { display: block; position: relative; min-width: 0; }
+.inlineControl { display: flex; align-items: center; gap: 7px; width: 100%; height: 32px; min-width: 0; padding: 0 9px; border: 1px solid rgba(var(--channel-rgb,155,173,219),.4); border-radius: 9px; background: #0c162a; color: inherit; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.inlineControl > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inlineMusicIcon { width: 16px; height: 16px; flex: 0 0 16px; }
+.inlineChevron { width: 12px; height: 12px; flex: 0 0 12px; }
+.inlineControl:disabled { opacity: .45; cursor: default; }
+.inlineControl[data-unavailable="true"] { color: #8491a7; border-color: #8390a630; background: #8b96aa0b; cursor: help; }
+.inlineRoot .inlineList { position: absolute; z-index: 70; top: calc(100% + 5px); left: 0; right: 0; max-height: clamp(44px,calc(100dvh - 330px),176px); box-shadow: 0 12px 28px #0008; }
+.inlineRoot .preview { width: 32px; height: 32px; border-radius: 9px; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+.inlineRoot .preview:disabled { cursor: default; }
+.inlineControl:focus-visible, .inlineRoot .preview:focus-visible, .inlineRoot .trackList:focus-visible { outline: 2px solid #9cdeff; outline-offset: 2px; }
+.inlineNotice { grid-column: 1 / -1; color: #ffc2d4; font-size: 11px; line-height: 1.4; }
 .root .trigger { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 8px 12px; border: 1px solid #d5a6ee55; border-radius: 11px; background: linear-gradient(120deg,#9f63b520,#3a80a91b); color: #ead8f9; font: inherit; font-size: 12px; cursor: pointer; }
 .trigger svg { width: 19px; height: 19px; flex: 0 0 auto; }
 .trigger strong { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; font-weight: 700; }

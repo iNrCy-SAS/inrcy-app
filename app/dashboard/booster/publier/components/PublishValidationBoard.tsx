@@ -32,6 +32,8 @@ type Props = {
 
 function Eye() { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>; }
 
+function Settings() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9.5 3-.5 2-2 .8-1.8-1-2.5 4.4 1.6 1.4v2.8l-1.6 1.4 2.5 4.4 1.8-1 2 .8.5 2h5l.5-2 2-.8 1.8 1 2.5-4.4-1.6-1.4v-2.8l1.6-1.4-2.5-4.4-1.8 1-2-.8-.5-2z"/><circle cx="12" cy="12" r="3"/></svg>; }
+
 function ReviewStatus({ tone, label, hint, messages, id, open, onToggle }: {
   tone: "ready" | "warning" | "blocked"; label: string; hint?: string; messages: string[]; id: string; open: boolean; onToggle: () => void;
 }) {
@@ -47,7 +49,9 @@ function ReviewStatus({ tone, label, hint, messages, id, open, onToggle }: {
 
 export default function PublishValidationBoard({ items, imageKeys, previewByKey, videoPreviewUrl, getMode, getSelectedImageKeys, onModeChange, onToggleImage, onAddImage, onReorderImage, onOpenMediaPool, onSelectChannel, activePreview, disabled, soundtrackByChannel, soundtrackScopeKey, canSelectSoundtrack, onSoundtrackChange, isSoundtrackLocked, renderChannelOptions }: Props) {
   const t = useTranslations("booster");
-  const [modal, setModal] = useState<"preview" | null>(null);
+  const [modal, setModal] = useState<"preview" | "settings" | null>(null);
+  const [settingsChannel, setSettingsChannel] = useState<ChannelKey | null>(null);
+  const settingsDialogId = useId(), settingsTitleId = useId();
   const [previewDevice, setPreviewDevice] = useState<PublicationPreviewDevice>("desktop");
   const previewPanelId = useId();
   const [addingSlot, setAddingSlot] = useState<{ channel: ChannelKey; index: number } | null>(null);
@@ -55,6 +59,9 @@ export default function PublishValidationBoard({ items, imageKeys, previewByKey,
   const warningId = useId();
   const [dragTarget, setDragTarget] = useState<string | null>(null);
   const dragRef = useRef<{ channel: ChannelKey; key: string } | null>(null);
+  useEffect(() => {
+    setModal(null); setSettingsChannel(null); setWarning(null); setAddingSlot(null); dragRef.current = null;
+  }, [disabled, soundtrackScopeKey]);
   useEffect(() => {
     if (!warning) return;
     const dismiss = (event: globalThis.PointerEvent) => { if (event.target instanceof Element && !event.target.closest('[data-validation-warning]')) setWarning(null); };
@@ -81,7 +88,11 @@ export default function PublishValidationBoard({ items, imageKeys, previewByKey,
     const keydown = (event: globalThis.KeyboardEvent) => {
       const activeDialog = document.activeElement?.closest('[aria-modal="true"]');
       if (activeDialog && activeDialog !== dialogRef.current) return;
-      if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); setModal(null); return; }
+      if (event.key === "Escape") {
+        const inlineMusic = event.target instanceof Element ? event.target.closest("[data-soundtrack-inline]") : null;
+        if (inlineMusic?.querySelector('[role="combobox"][aria-expanded="true"]')) return;
+        event.preventDefault(); event.stopImmediatePropagation(); setModal(null); return;
+      }
       if (event.key !== "Tab") return;
       const nodes = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]):not([tabindex="-1"]), input:not([disabled]), select:not([disabled]), a[href], video[controls], [tabindex="0"]') || []).filter((node) => node.getClientRects().length > 0);
       const first = nodes[0], last = nodes[nodes.length - 1];
@@ -91,7 +102,8 @@ export default function PublishValidationBoard({ items, imageKeys, previewByKey,
     document.addEventListener("keydown", keydown, true);
     return () => { document.removeEventListener("keydown", keydown, true); previousFocus?.focus({ preventScroll: true }); };
   }, [modal]);
-  const open = (channel: ChannelKey) => { onSelectChannel(channel); setPreviewDevice(window.matchMedia("(max-width: 640px)").matches ? "mobile" : "desktop"); setModal("preview"); };
+  const open = (channel: ChannelKey) => { setWarning(null); setAddingSlot(null); onSelectChannel(channel); setPreviewDevice(window.matchMedia("(max-width: 640px)").matches ? "mobile" : "desktop"); setModal("preview"); };
+  const openSettings = (channel: ChannelKey) => { if (!disabled) { setWarning(null); setAddingSlot(null); setSettingsChannel(channel); setModal("settings"); } };
   const finishDrag = (channel: ChannelKey, key: string) => {
     const source = dragRef.current;
     if (!disabled && source?.channel === channel && source.key !== key) onReorderImage(channel, source.key, key);
@@ -101,6 +113,10 @@ export default function PublishValidationBoard({ items, imageKeys, previewByKey,
   const status = (tone: "ready" | "warning" | "blocked") => t(tone === "ready" ? "wizard_ready_to_publish" : tone === "blocked" ? "wizard_to_complete" : "wizard_to_check");
   const previewIdentity = items.find((item) => item.channel === activePreview?.channelKey);
   const activeIdentity = previewIdentity ? PUBLISH_CHANNEL_IDENTITY[previewIdentity.channel] : null;
+  const settingsItem = items.find(item => item.channel === settingsChannel);
+  const settingsIdentity = settingsItem ? PUBLISH_CHANNEL_IDENTITY[settingsItem.channel] : null;
+  const settingsMusicChannel: MediaSoundtrackChannel | null = settingsItem?.channel === "facebook" || settingsItem?.channel === "instagram" ? settingsItem.channel : null;
+  const settingsLabel = settingsItem ? `${t("tiktok_review_settings")} · ${settingsItem.label}` : t("tiktok_review_settings");
   return <>
     <div className={css.board} data-publish-validation-board>
       {items.map((item) => {
@@ -121,17 +137,12 @@ export default function PublishValidationBoard({ items, imageKeys, previewByKey,
         const slotCount = mode === "video" || !channelSupportsImages(item.channel) ? 1 : maxImages;
         const emptySlots = Math.max(0, slotCount - (videoSelected ? 1 : keys.length));
         const musicChannel: MediaSoundtrackChannel | null = item.channel === "facebook" || item.channel === "instagram" ? item.channel : null;
-        return <article key={item.channel} className={css.card} data-channel={item.channel} data-has-options={Boolean(renderChannelOptions)} style={{ "--channel-color": identity.color, "--channel-rgb": identity.rgb, "--channel-gradient": identity.gradient } as CSSProperties}>
+        const hasSettings = ["facebook", "instagram", "pinterest", "threads"].includes(item.channel) && Boolean(renderChannelOptions || musicChannel && onSoundtrackChange);
+        return <article key={item.channel} className={css.card} data-channel={item.channel} style={{ "--channel-color": identity.color, "--channel-rgb": identity.rgb, "--channel-gradient": identity.gradient } as CSSProperties}>
           <header><div className={css.brand}><span className={css.logo}><img src={identity.icon} alt="" /></span><strong>{item.label}</strong></div><div className={css.cardActions}>
-            {musicChannel && onSoundtrackChange ? <MediaSoundtrackSelector
-              compact channelLabel={item.label} soundtrackId={soundtrackByChannel?.[musicChannel] ?? null}
-              channelStyle={{ "--channel-color": identity.color, "--channel-rgb": identity.rgb, "--channel-gradient": identity.gradient } as CSSProperties}
-              onChange={(id) => onSoundtrackChange(musicChannel, id)}
-              unavailableHint={mode === "images" && canSelectSoundtrack?.(musicChannel) ? undefined : t("publication_music_reserved_hint")}
-              scopeKey={`${soundtrackScopeKey || ""}:${musicChannel}`} disabled={disabled} selectionLocked={isSoundtrackLocked?.(musicChannel)} /> : null}
+            {hasSettings ? <button type="button" data-channel-settings-trigger={item.channel} disabled={disabled} aria-label={`${t("tiktok_review_settings")} · ${item.label}`} title={`${t("tiktok_review_settings")} · ${item.label}`} aria-haspopup="dialog" aria-expanded={modal === "settings" && settingsChannel === item.channel} aria-controls={settingsDialogId} onClick={() => openSettings(item.channel)}><Settings /></button> : null}
             <button type="button" onClick={() => open(item.channel)} aria-label={t("wizard_preview_channel", { channel: item.label })} title={t("wizard_preview_channel", { channel: item.label })}><Eye /></button>
           </div></header>
-          {renderChannelOptions ? <div className={css.channelOptions}>{renderChannelOptions(item.channel)}</div> : null}
           <div className={css.statusLine}><span>{t("contenu_f3cb82af")}</span><ReviewStatus tone={contentTone} label={status(contentTone)} messages={contentMessages} id={`${warningId}-${item.channel}-content`} open={warning === `${item.channel}-content`} onToggle={() => setWarning(warning === `${item.channel}-content` ? null : `${item.channel}-content`)} /></div>
           <div className={css.statusLine}><span className={css.mediaLabel}>{t("wizard_step_media")}
             {channelSupportsImages(item.channel) ? <span className={css.mediaChoice} role="group" aria-label={t("wizard_channel_media_type", { channel: item.label })}>
@@ -171,10 +182,30 @@ export default function PublishValidationBoard({ items, imageKeys, previewByKey,
         </article>;
       })}
     </div>
-    {modal ? createPortal(<div className={css.overlay} onMouseDown={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
+    {modal === "preview" ? createPortal(<div className={css.overlay} onMouseDown={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
       <div className={css.dialog} ref={dialogRef} role="dialog" aria-modal="true" tabIndex={-1} aria-label={activePreview?.channelLabel || t("wizard_step_media")} style={activeIdentity ? { "--channel-color": activeIdentity.color, "--channel-rgb": activeIdentity.rgb, "--channel-gradient": activeIdentity.gradient } as CSSProperties : undefined}>
         <header><strong className={css.previewBrand}>{activeIdentity ? <span><img src={activeIdentity.icon} alt="" /></span> : null}<span>{activePreview?.channelLabel}</span></strong><PublicationPreviewDeviceTabs device={previewDevice} onChange={setPreviewDevice} panelId={previewPanelId} /><button type="button" onClick={() => setModal(null)} aria-label={t("fermer_5ab4ec64")}>×</button></header>
         <div className={css.dialogBody}>{activePreview ? <ChannelPublicationPreview preview={activePreview} presentation="native" device={previewDevice} panelId={previewPanelId} /> : <span>{t("wizard_empty_content")}</span>}</div>
+      </div>
+    </div>, document.body) : null}
+    {modal === "settings" && settingsItem && settingsIdentity ? createPortal(<div className={css.overlay} onMouseDown={event => { if (event.target === event.currentTarget) setModal(null); }}>
+      <div id={settingsDialogId} className={`${css.dialog} ${css.settingsDialog}`} ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={settingsTitleId} data-channel-settings-dialog={settingsItem.channel} tabIndex={-1}
+        style={{ "--channel-color": settingsIdentity.color, "--channel-rgb": settingsIdentity.rgb, "--channel-gradient": settingsIdentity.gradient } as CSSProperties}>
+        <header><strong id={settingsTitleId} className={css.previewBrand}><span><img src={settingsIdentity.icon} alt="" /></span><span>{settingsLabel}</span></strong><button type="button" onClick={() => setModal(null)} aria-label={t("fermer_5ab4ec64")}>×</button></header>
+        <div className={css.settingsBody}>
+          {renderChannelOptions?.(settingsItem.channel)}
+          {settingsMusicChannel && onSoundtrackChange ? <section className={css.settingsMusic} aria-label={t("publication_music_title")}>
+            <strong>{t("publication_music_label")}</strong>
+            <MediaSoundtrackSelector
+            inline channelLabel={settingsItem.label} soundtrackId={soundtrackByChannel?.[settingsMusicChannel] ?? null}
+            channelStyle={{ "--channel-color": settingsIdentity.color, "--channel-rgb": settingsIdentity.rgb, "--channel-gradient": settingsIdentity.gradient } as CSSProperties}
+            onChange={id => onSoundtrackChange(settingsMusicChannel, id)}
+            unavailableHint={canSelectSoundtrack?.(settingsMusicChannel) ? undefined : t("publication_music_reserved_hint")}
+            scopeKey={`${soundtrackScopeKey || ""}:${settingsMusicChannel}`} disabled={disabled} selectionLocked={isSoundtrackLocked?.(settingsMusicChannel)} />
+            <p>{t("publication_music_scope")}</p>
+          </section> : null}
+        </div>
+        <footer className={css.settingsFooter}><button type="button" onClick={() => setModal(null)}>{t("publication_music_done")}</button></footer>
       </div>
     </div>, document.body) : null}
   </>;

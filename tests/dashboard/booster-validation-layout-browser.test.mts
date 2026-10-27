@@ -48,12 +48,17 @@ identities.fixture12={...identities.facebook};identities.fixture13={...identitie
 const labels={site_web:'Site web',gmb:'Google Business',inr_search:'iNr’Search',facebook:'Facebook',instagram:'Instagram',threads:'Threads',linkedin:'LinkedIn',tiktok:'TikTok',youtube_shorts:'YouTube',pinterest:'Pinterest',x:'X',fixture12:'Canal 12',fixture13:'Canal 13'};
 const channels=['facebook','instagram','threads',...Object.keys(labels).filter(channel=>!['facebook','instagram','threads'].includes(channel))],image='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="#408bc4"/></svg>');
 const root=require('react-dom/client').createRoot(document.getElementById('root'));
-window.nativeCalls=0;window.catalogueCalls=0;let fixtureConfig={count:13,modes:{},eligible:{},optionValues:{}};
-function Fixture({count,modes,eligible,optionValues}){
+window.nativeCalls=0;window.catalogueCalls=0;window.activeAudio=new Set();let fixtureConfig={count:13,modes:{},eligible:{},optionValues:{},blocked:false};
+HTMLMediaElement.prototype.play=function(){window.activeAudio.add(this);return Promise.resolve()};HTMLMediaElement.prototype.pause=function(){window.activeAudio.delete(this)};HTMLMediaElement.prototype.load=function(){};
+function Fixture({count,modes,eligible,optionValues,blocked}){
  const [active,setActive]=React.useState('site_web');
- const optionProps={facebookPublicationPlacement:'reel',facebookStoryEnabled:true,facebookPublicationPreferences:{reelsEnabled:true,storiesEnabled:true},instagramPublicationPlacement:'classic',instagramStoryEnabled:false,instagramPublicationPreferences:{reelsEnabled:true,storiesEnabled:true},pinterestBoards:[{id:'board-one',name:'Mon tableau Pinterest avec une très longue description de mon activité professionnelle'},{id:'board-two',name:'Autre tableau'}],pinterestBoardId:'board-one',pinterestBoardsLoading:false,pinterestBoardsError:'',threadsPublicationMode:'classic',threadsPublicationPreferences:{ghostEnabled:true},threadsPreferencesLoading:false,threadsPreferencesFailed:false,onFacebookPublicationPlacementChange(){},onFacebookStoryEnabledChange(){},onInstagramPublicationPlacementChange(){},onInstagramStoryEnabledChange(){},onPinterestBoardChange(){},onThreadsPublicationModeChange(){},...optionValues};
- const items=channels.slice(0,count).map(channel=>({channel,label:labels[channel],hasText:true,blockers:[],warnings:[],contentBlockers:[],contentWarnings:[],mediaBlockers:channel==='youtube_shorts'?['Ajoutez une vidéo pour ce canal.']:[],mediaWarnings:[],mediaBlockerCodes:channel==='youtube_shorts'?['youtube_video_required']:[]}));
- return React.createElement(Board,{items,imageKeys:['first','second'],previewByKey:{first:image,second:image},videoPreviewUrl:'',getMode:channel=>modes[channel]||(channel==='youtube_shorts'?'none':'images'),getSelectedImageKeys:()=>['first'],onModeChange(){},onToggleImage(){},onAddImage(){},onReorderImage(){},onOpenMediaPool(){},onSelectChannel:setActive,activePreview:{channelKey:active,channelLabel:labels[active]},disabled:false,renderChannelOptions:channel=>React.createElement(ChannelOptions,{channel,...optionProps}),soundtrackByChannel:{facebook:null,instagram:null},soundtrackScopeKey:'actor:account',canSelectSoundtrack:channel=>eligible[channel]??(channel==='facebook'?optionProps.facebookPublicationPlacement!=='classic'||optionProps.facebookStoryEnabled:channel==='instagram'?optionProps.instagramPublicationPlacement!=='classic'||optionProps.instagramStoryEnabled:false),onSoundtrackChange(){},isSoundtrackLocked:()=>false});
+ const [settings,setSettings]=React.useState({}),[selection,setSelection]=React.useState({facebook:null,instagram:null});
+ const change=(name,value)=>setSettings(previous=>({...previous,[name]:value}));
+ window.patchContents=patch=>setSettings(previous=>({...previous,...patch}));
+ const optionProps={facebookPublicationPlacement:'reel',facebookStoryEnabled:true,facebookPublicationPreferences:{reelsEnabled:true,storiesEnabled:true},facebookMediaMode:modes.facebook||'images',facebookImageCount:1,instagramPublicationPlacement:'classic',instagramStoryEnabled:false,instagramPublicationPreferences:{reelsEnabled:true,storiesEnabled:true},instagramMediaMode:modes.instagram||'images',instagramImageCount:1,pinterestBoards:[{id:'board-one',name:'Mon tableau Pinterest avec une très longue description de mon activité professionnelle'},{id:'board-two',name:'Autre tableau'}],pinterestBoardId:'board-one',pinterestBoardsLoading:false,pinterestBoardsError:'',threadsPublicationMode:'classic',threadsPublicationPreferences:{ghostEnabled:true},threadsPreferencesLoading:false,threadsPreferencesFailed:false,...optionValues,...settings,onFacebookPublicationPlacementChange:value=>change('facebookPublicationPlacement',value),onFacebookStoryEnabledChange:value=>change('facebookStoryEnabled',value),onInstagramPublicationPlacementChange:value=>change('instagramPublicationPlacement',value),onInstagramStoryEnabledChange:value=>change('instagramStoryEnabled',value),onPinterestBoardChange:value=>change('pinterestBoardId',value),onThreadsPublicationModeChange:value=>change('threadsPublicationMode',value)};
+ window.contentsValues={...optionProps,soundtrackByChannel:selection};
+ const items=channels.slice(0,count).map(channel=>({channel,label:labels[channel],hasText:!blocked,blockers:[],warnings:[],contentBlockers:blocked?['Le contenu doit être complété avant de pouvoir publier sur ce canal.']:[],contentWarnings:[],mediaBlockers:channel==='youtube_shorts'?['Ajoutez une vidéo pour ce canal.']:[],mediaWarnings:[],mediaBlockerCodes:channel==='youtube_shorts'?['youtube_video_required']:[]}));
+ return React.createElement(Board,{items,imageKeys:['first','second'],previewByKey:{first:image,second:image},videoPreviewUrl:'',getMode:channel=>modes[channel]||(channel==='youtube_shorts'?'none':'images'),getSelectedImageKeys:()=>['first'],onModeChange(){},onToggleImage(){},onAddImage(){},onReorderImage(){},onOpenMediaPool(){},onSelectChannel:setActive,activePreview:{channelKey:active,channelLabel:labels[active]},disabled:false,renderChannelOptions:channel=>React.createElement(ChannelOptions,{channel,...optionProps}),soundtrackByChannel:selection,soundtrackScopeKey:'actor:account',canSelectSoundtrack:channel=>eligible[channel]??(channel==='facebook'?optionProps.facebookPublicationPlacement!=='classic'||optionProps.facebookStoryEnabled:channel==='instagram'?optionProps.instagramPublicationPlacement!=='classic'||optionProps.instagramStoryEnabled:false),onSoundtrackChange:(channel,id)=>setSelection(previous=>({...previous,[channel]:id})),isSoundtrackLocked:()=>false});
 }
 window.renderFixture=(count,patch={})=>{fixtureConfig={...fixtureConfig,...patch,count};root.render(React.createElement(Fixture,fixtureConfig))};
 window.renderFixture(13);
@@ -81,11 +86,10 @@ test("Validation keeps the same compact card dimensions with 1, 3 or 13 channels
    for(const count of [13,3,1]){
     await page.evaluate(count=>(window as unknown as {renderFixture:(count:number)=>void}).renderFixture(count),count);
     await page.waitForFunction(count=>document.querySelectorAll('[data-publish-validation-board] > article').length===count,count);
-    assert.equal(await page.locator('[data-publish-validation-board] button.music-trigger').count(),count===1?1:2,"Facebook and Instagram always expose their music icon");
-    assert.equal(await page.locator('[data-publish-validation-board] > article[data-has-options="true"]').count(),count);
-    assert.equal(await page.locator('[data-channel-validation-options]').count(),count===13?4:count===3?3:1,"Render real options only on Facebook, Instagram, Threads and Pinterest");
-    if(count>1)assert.equal(await page.locator('[data-channel="instagram"] button.music-trigger').getAttribute('aria-disabled'),"true","Classic keeps a visible grey music icon");
-    assert.equal(await page.locator('[data-channel="threads"] button[aria-haspopup], [data-channel="gmb"] button[aria-haspopup], [data-channel="tiktok"] button[aria-haspopup]').count(),0);
+    assert.equal(await page.locator('[data-channel-settings-trigger]').count(),count===13?4:count===3?3:1,"Only channels with options expose the settings gear");
+    assert.equal(await page.locator('[data-publish-validation-board] button.music-trigger, [data-publish-validation-board] select, [data-publish-validation-board] input').count(),0,"Cards keep their name, settings and preview actions without embedded option rows");
+    assert.equal(await page.locator('[data-publish-validation-board] > article[data-has-options], [data-channel-validation-options]').count(),0,"No placeholder options row or closed modal content reserves card space");
+    assert.equal(await page.locator('[data-channel="gmb"] [data-channel-settings-trigger], [data-channel="tiktok"] [data-channel-settings-trigger]').count(),0);
     const measurements=await page.locator('[data-publish-validation-board] > article').evaluateAll(cards=>cards.map(card=>{
      const rect=card.getBoundingClientRect();
      const controls=Array.from(card.querySelectorAll('button,select,input')).filter(button=>button.getClientRects().length).map(button=>{const b=button.getBoundingClientRect();return {left:b.left,right:b.right,top:b.top,bottom:b.bottom}});
@@ -100,7 +104,7 @@ test("Validation keeps the same compact card dimensions with 1, 3 or 13 channels
     }
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,"No horizontal page overflow");
     const last=page.locator('[data-publish-validation-board] > article').last();
-    await last.locator('header .cardActions > button').click();
+    await last.locator('header .cardActions > button').last().click();
     const dialog=page.getByRole('dialog');await dialog.waitFor();
     assert.equal(await dialog.locator('[data-native-preview]').isVisible(),true,"A compact card keeps access to the full preview");
     const bounds=await dialog.boundingBox();assert.ok(bounds&&bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=viewport.width+1&&bounds.y+bounds.height<=viewport.height+1);
@@ -117,7 +121,7 @@ test("Validation keeps the same compact card dimensions with 1, 3 or 13 channels
  }finally{await browser.close()}
 });
 
-test("Meta cards always show music, explain Classic or imported video restrictions and center the available chooser under the application reset",async()=>{
+test("channel settings open from a gear, preserve all content states and synchronize controlled formats, boards, Threads and music",async()=>{
  const browser=await chromium.launch({headless:true});
  try{for(const viewport of [{width:1280,height:900},{width:390,height:844}]){
   const page=await browser.newPage({viewport,hasTouch:true}),errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
@@ -128,21 +132,41 @@ test("Meta cards always show music, explain Classic or imported video restrictio
    return route.abort();
   });
   await page.goto("https://validation.fixture.invalid/");await page.addScriptTag({content:fixture});
-  await page.evaluate(()=>(window as unknown as {renderFixture:(count:number,patch:Record<string,unknown>)=>void}).renderFixture(3,{modes:{facebook:"images",instagram:"video"},eligible:{facebook:false,instagram:false}}));
-  const facebook=page.locator('[data-channel="facebook"] button.music-trigger'),instagram=page.locator('[data-channel="instagram"] button.music-trigger');
-  await facebook.waitFor();assert.equal(await facebook.isVisible(),true);assert.equal(await instagram.isVisible(),true);
-  assert.equal(await facebook.getAttribute("aria-disabled"),"true");assert.equal(await instagram.getAttribute("aria-disabled"),"true");assert.equal(await page.locator('[data-channel="threads"] button[aria-haspopup="dialog"]').count(),0);
-  await facebook.hover();await page.getByRole("tooltip").filter({hasText:"Réservé aux Stories et Reels"}).first().waitFor({state:"visible"});
-  await page.mouse.move(0,0);await instagram.focus();await page.getByRole("tooltip").filter({hasText:"Réservé aux Stories et Reels"}).first().waitFor({state:"visible"});
-  const unavailableBounds=await instagram.boundingBox();assert.ok(unavailableBounds);await page.touchscreen.tap(unavailableBounds.x+unavailableBounds.width/2,unavailableBounds.y+unavailableBounds.height/2);
-  assert.equal(await page.getByRole("dialog").count(),0);assert.equal(await page.evaluate(()=>(window as unknown as {catalogueCalls:number}).catalogueCalls),0,"Unavailable cards cannot request a catalogue or open a chooser");
-  await page.evaluate(()=>(window as unknown as {renderFixture:(count:number,patch:Record<string,unknown>)=>void}).renderFixture(3,{modes:{facebook:"images",instagram:"images"},eligible:{facebook:true,instagram:true}}));
-  await page.waitForFunction(()=>document.querySelector('[data-channel="facebook"] button[aria-haspopup="dialog"]')?.getAttribute("aria-disabled")!=="true");
-  await facebook.click();const dialog=page.getByRole("dialog");await dialog.waitFor();await page.waitForFunction(expected=>document.querySelector('dialog [role="listbox"]')?.querySelectorAll('[role="option"]').length===expected,catalogue.length+1);
+  await page.evaluate(()=>(window as unknown as {renderFixture:(count:number,patch:Record<string,unknown>)=>void}).renderFixture(13,{blocked:true}));
+  const facebook=page.locator('[data-channel-settings-trigger="facebook"]');await facebook.waitFor();
+  assert.equal(await page.locator('[data-publish-validation-board] .statusLine').count(),26,"Every channel retains both full-width content and media status lines");
+  assert.ok((await page.locator('[data-publish-validation-board] > article').evaluateAll(cards=>cards.map(card=>card.getBoundingClientRect().height))).every(height=>Math.abs(height-(viewport.width<=600?200:172))<=1),'Incomplete content keeps all cards the same compact height');
+  await facebook.click();let dialog=page.locator('[data-channel-settings-dialog="facebook"]');await dialog.waitFor();
   const bounds=await dialog.boundingBox();assert.ok(bounds);assert.ok(Math.abs(bounds.x+bounds.width/2-viewport.width/2)<=3);assert.ok(Math.abs(bounds.y+bounds.height/2-viewport.height/2)<=3);
-  assert.ok(bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=viewport.width+1&&bounds.y+bounds.height<=viewport.height+1);assert.ok(bounds.height<=540,"The permanent bounded list keeps the modal compact");
-  assert.equal(await page.locator('dialog input[type="radio"]').count(),0);assert.equal(await dialog.locator('button[aria-pressed]').count(),1);assert.equal(await dialog.evaluate(element=>element.scrollWidth<=element.clientWidth+1),true);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-  assert.equal(await dialog.getByRole("listbox").isVisible(),true,"The music list is visible immediately on opening");if(process.env.INRCY_VALIDATION_LAYOUT_PROOF)await page.screenshot({path:`${process.env.INRCY_VALIDATION_LAYOUT_PROOF}-music-open-${viewport.width}.png`});
+  assert.ok(bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=viewport.width+1&&bounds.y+bounds.height<=viewport.height+1);
+  assert.equal(await page.getByRole("dialog").count(),1,"Settings contain inline music without a nested modal");assert.equal(await dialog.evaluate(element=>element.scrollWidth<=element.clientWidth+1),true);
+  await dialog.locator('header button').focus();await page.keyboard.press('Shift+Tab');assert.equal(await dialog.evaluate(element=>element.contains(document.activeElement)),true,'Settings trap keyboard focus inside the modal');
+  const format=dialog.getByRole('combobox',{name:messages.facebook_publication_format});await format.selectOption('classic');
+  await dialog.getByRole('checkbox').uncheck();
+  const music=dialog.locator('[data-soundtrack-inline]'),musicSelect=music.getByRole('combobox');assert.equal(await musicSelect.getAttribute('aria-disabled'),'true');
+  await format.selectOption('reel');await musicSelect.click();await dialog.getByRole('listbox').waitFor();
+  await dialog.getByRole('option',{name:catalogue[2].label,exact:true}).click();await music.locator('.music-preview').click();
+  assert.equal(await page.evaluate(()=>(window as unknown as {activeAudio:Set<unknown>}).activeAudio.size),1);
+  const openBounds=await dialog.boundingBox(),listBounds=await dialog.getByRole('listbox').boundingBox();assert.ok(openBounds&&listBounds);assert.ok(listBounds.y>=openBounds.y&&listBounds.y+listBounds.height<=openBounds.y+openBounds.height,'Open music choices remain inside Settings');assert.ok(openBounds.y>=0&&openBounds.y+openBounds.height<=viewport.height+1);
+  await page.keyboard.press('Escape');
+  // The dropdown consumes its own Escape first; a second Escape closes Settings.
+  if(await dialog.isVisible())await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});
+  assert.equal(await page.evaluate(()=>(window as unknown as {activeAudio:Set<unknown>}).activeAudio.size),0);
+  assert.equal(await facebook.evaluate(element=>element===document.activeElement),true,"Closing settings returns focus to its gear");
+  const values=await page.evaluate(()=>(window as unknown as {contentsValues:Record<string,unknown>}).contentsValues);
+  assert.equal(values.facebookPublicationPlacement,'reel');assert.equal(values.facebookStoryEnabled,false);assert.deepEqual(values.soundtrackByChannel,{facebook:catalogue[2].id,instagram:null});
+  await page.evaluate(()=>(window as unknown as {patchContents:(patch:Record<string,unknown>)=>void}).patchContents({facebookPublicationPlacement:'classic',facebookStoryEnabled:true}));
+  await facebook.click();dialog=page.locator('[data-channel-settings-dialog="facebook"]');await dialog.waitFor();assert.equal(await dialog.getByRole('combobox',{name:messages.facebook_publication_format}).inputValue(),'classic');assert.equal(await dialog.getByRole('checkbox').isChecked(),true);
+  await page.mouse.click(1,1);await dialog.waitFor({state:'hidden'});
+  await page.locator('[data-channel-settings-trigger="pinterest"]').click();dialog=page.locator('[data-channel-settings-dialog="pinterest"]');await dialog.waitFor();await dialog.getByRole('combobox').selectOption('board-two');
+  assert.equal(await dialog.locator('[data-soundtrack-inline]').count(),0);assert.equal(await page.evaluate(()=>(window as unknown as {contentsValues:{pinterestBoardId:string}}).contentsValues.pinterestBoardId),'board-two');
+  await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});
+  await page.locator('[data-channel-settings-trigger="threads"]').click();dialog=page.locator('[data-channel-settings-dialog="threads"]');await dialog.waitFor();await dialog.getByRole('combobox').selectOption('ghost');
+  assert.equal(await page.evaluate(()=>(window as unknown as {contentsValues:{threadsPublicationMode:string}}).contentsValues.threadsPublicationMode),'ghost');
+  await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});
+  await page.locator('[data-channel-settings-trigger="instagram"]').click();dialog=page.locator('[data-channel-settings-dialog="instagram"]');await dialog.waitFor();assert.equal(await dialog.locator('[data-soundtrack-inline]').getByRole('combobox').getAttribute('aria-disabled'),'true');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  if(process.env.INRCY_VALIDATION_LAYOUT_PROOF)await page.screenshot({path:`${process.env.INRCY_VALIDATION_LAYOUT_PROOF}-settings-${viewport.width}.png`});
   await dialog.locator("header button").click();assert.deepEqual(errors,[]);assert.equal(await page.evaluate(()=>(window as unknown as {nativeCalls:number}).nativeCalls),0);await page.close();
  }}finally{await browser.close()}
 });
