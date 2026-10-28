@@ -59,17 +59,17 @@ export async function POST(request: Request) {
     });
     // The schema requires a positive amount, but this failed marker creates
     // no reservation row and changes no wallet, counter or credit ledger.
-    if (!inserted.error) return NextResponse.json({ ok: true, status: "failed" }, { headers: NO_STORE_HEADERS });
+    if (!inserted.error) return NextResponse.json({ ok: true, status: "failed", cancellationPreventedReservation: true }, { headers: NO_STORE_HEADERS });
     if (inserted.error.code !== "23505") throw inserted.error;
     const existing = await supabaseAdmin.from("ai_media_generation_jobs")
       .select("status").eq("account_id", accountId).eq("request_key", body.requestId).maybeSingle();
     if (existing.error) throw existing.error;
     const status = existing.data?.status;
     if (status === "failed" || status === "expired" || status === "completed") {
-      return NextResponse.json({ ok: true, status }, { headers: NO_STORE_HEADERS });
+      return NextResponse.json({ ok: true, status, cancellationPreventedReservation: false }, { headers: NO_STORE_HEADERS });
     }
     if (status === "reserved" || status === "processing") {
-      return NextResponse.json({ ok: true, status: "processing" }, { status: 202, headers: NO_STORE_HEADERS });
+      return NextResponse.json({ ok: true, status: "processing", cancellationPreventedReservation: false }, { status: 202, headers: NO_STORE_HEADERS });
     }
     throw new Error("ai_media_cancellation_state_unavailable");
   } catch {

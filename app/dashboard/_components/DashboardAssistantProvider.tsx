@@ -12,7 +12,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { createClient } from "@/lib/supabaseClient";
-import { getInrAssistantClientScreen, parseInrAssistantClientContext, parseInrAssistantRequestId, type InrAssistantClientError, type InrAssistantClientScreen } from "@/lib/inrAssistantClientContext";
+import { getInrAssistantClientScreen, selectInrAssistantClientScreen, parseInrAssistantClientContext, parseInrAssistantRequestId, type InrAssistantClientError, type InrAssistantClientScreen } from "@/lib/inrAssistantClientContext";
 import { readInrAssistantResponse } from "@/lib/inrAssistantClientStream";
 import { getInrAssistantContextualHelp } from "@/lib/inrAssistantContextualHelp";
 import type { InrAssistantActivity } from "@/lib/inrAssistantActivity";
@@ -25,6 +25,10 @@ import { useAssistantAttachments } from "../_hooks/useAssistantAttachments";
 import { ASSISTANT_ATTACHMENT_ACCEPT, ASSISTANT_ATTACHMENT_MAX_COUNT, ASSISTANT_ATTACHMENT_MAX_BYTES, ASSISTANT_ATTACHMENT_VIDEO_MAX_BYTES, parseAssistantAttachments, type AssistantAttachment } from "@/lib/inrAssistantAttachments";
 import { dashboardAssistantAttachmentCopy, assistantAttachmentErrorCopy } from "./dashboardAssistantAttachmentCopy";
 import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvider";
+import { DashboardAssistantScreenContext } from "./DashboardAssistantScreenContext";
+import { DashboardAssistantCommandContext, type InrAssistantScreenHandler } from "./DashboardAssistantCommandContext";
+import { parseInrAssistantTaskProgress, type InrAssistantTaskProgress, type InrAssistantUiCommand } from "@/lib/inrAssistantUiCommands";
+import { dashboardAssistantTaskCopy, dashboardAssistantPdfCopy } from "./dashboardAssistantTaskCopy";
 import { deriveInrAssistantStudioDraft, parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "@/lib/inrAssistantStudioDraft";
 import { clearInrAssistantStudioDraft, inrAssistantStudioDraftHref, requestInrAssistantStudioDraft, stageInrAssistantStudioDraft, waitForInrAssistantStudioDraft } from "@/lib/inrAssistantStudioHandoff";
 import styles from "./DashboardAssistantProvider.module.css";
@@ -38,7 +42,7 @@ type AssistantMedia = {
   message?: string;
 };
 const MediaLibraryPickerModal = dynamic(() => import("./MediaLibraryPickerModal"), { ssr: false });
-type ChatMessage = { role: "user" | "assistant"; content: string; media?: AssistantMedia; studioDraft?: InrAssistantStudioDraft; turnId?: string; attachments?: AssistantAttachment[] };
+type ChatMessage = { role: "user" | "assistant"; content: string; media?: AssistantMedia; studioDraft?: InrAssistantStudioDraft; turnId?: string; attachments?: AssistantAttachment[]; taskProgress?: InrAssistantTaskProgress };
 const POSITION_STORAGE_KEY = "inrcy_assistant_position_v1";
 const SESSION_STORAGE_PREFIX = "inrcy_assistant_session_v1:";
 const SESSION_TTL = 6 * 60 * 60 * 1000;
@@ -70,7 +74,8 @@ function storedMessages(value: unknown): ChatMessage[] | null {
     let attachments: AssistantAttachment[] = [];
     try { if (row.role === "user") attachments = parseAssistantAttachments(row.attachments); } catch { /* An invalid local attachment cannot become a server reference. */ }
     const studioDraft = row.role === "assistant" ? parseInrAssistantStudioDraft(row.studioDraft) : null;
-    rows.push({ role: row.role, content: row.content.slice(0, row.role === "user" ? 4000 : 60000), ...(studioDraft ? { studioDraft } : {}), ...(row.role === "user" ? { turnId: row.turnId, ...(attachments.length ? { attachments } : {}) } : {}) });
+    const taskProgress = row.role === "assistant" ? parseInrAssistantTaskProgress(row.taskProgress) : null;
+    rows.push({ role: row.role, content: row.content.slice(0, row.role === "user" ? 4000 : 60000), ...(studioDraft ? { studioDraft } : {}), ...(taskProgress ? { taskProgress } : {}), ...(row.role === "user" ? { turnId: row.turnId, ...(attachments.length ? { attachments } : {}) } : {}) });
   }
   while (rows.length > 1 && rows.reduce((total, row) => total + row.content.length, 0) > 400000) rows.shift();
   return rows;
@@ -145,7 +150,25 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const screen = getInrAssistantClientScreen(pathname, searchParams);
+  const screenScope = `${actorUserId}:${activeAccountId}`;
+  const [screenOverrides, setScreenOverrides] = useState<Record<string, { scope: string; value: InrAssistantClientScreen }>>({});
+  const registerScreen = useCallback((id: string, value: unknown) => {
+    const parsed = value ? parseInrAssistantClientContext({ screen: value })?.screen : undefined;
+    setScreenOverrides(previous => {
+      if (previous[id]?.scope === screenScope && JSON.stringify(previous[id]?.value) === JSON.stringify(parsed)) return previous;
+      const next = { ...previous };
+      if (parsed) next[id] = { scope: screenScope, value: parsed }; else delete next[id];
+      return next;
+    });
+  }, [screenScope]);
+  const screen = selectInrAssistantClientScreen(getInrAssistantClientScreen(pathname, searchParams), Object.values(screenOverrides).filter(entry => entry.scope === screenScope).map(entry => entry.value));
+  const screenHandlers = useRef(new Map<string, { actorUserId: string; activeAccountId: string; handler: InrAssistantScreenHandler }>());
+  const registerCommand = useCallback((key: string, handler: InrAssistantScreenHandler | null) => {
+    if (handler) screenHandlers.current.set(key, { actorUserId, activeAccountId, handler });
+    else screenHandlers.current.delete(key);
+  }, [actorUserId, activeAccountId]);
+  const screenRef = useRef({ pathname, screen });
+  useEffect(() => { screenRef.current = { pathname, screen }; }, [pathname, screen]);
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const [revision, setRevision] = useState(0);
   const [browserActorId, setBrowserActorId] = useState(actorUserId);
@@ -206,6 +229,20 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     });
   }, [requestNavigation, router, actorUserId, activeAccountId]);
   const openMediaLibrary = useCallback(() => navigateInternally("/dashboard/mediatheque"), [navigateInternally]);
+  const executeScreenCommand = useCallback(async (command: InrAssistantUiCommand) => {
+    const matches = [...screenHandlers.current.entries()].filter(([, entry]) => entry.actorUserId === actorUserId && entry.activeAccountId === activeAccountId && entry.handler.command === command.command && entry.handler.selection.kind === command.selection.kind && entry.handler.selection.id === command.selection.id);
+    if (matches.length !== 1) return false;
+    const [key, entry] = matches[0];
+    const stillCurrent = () => {
+      const scope = navigationScopeRef.current, current = screenRef.current;
+      return scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId
+        && (getActiveBrowserUserId() || activeAccountId) === activeAccountId && screenHandlers.current.get(key) === entry
+        && current.pathname === entry.handler.pathname && current.screen?.selection?.kind === command.selection.kind
+        && current.screen.selection.id === command.selection.id && current.screen.availableCommands?.includes(command.command) === true;
+    };
+    if (!stillCurrent()) return false;
+    try { return await entry.handler.run(stillCurrent); } catch { return false; }
+  }, [actorUserId, activeAccountId]);
   const insertStudioDraft = useCallback(async (value: InrAssistantStudioDraft) => {
     const currentScope = () => {
       const scope = navigationScopeRef.current;
@@ -273,7 +310,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     };
   }, [actorUserId, activeAccountId]);
 
-  return <AssistantContext.Provider value={controls}>
+  return <AssistantContext.Provider value={controls}><DashboardAssistantScreenContext.Provider value={registerScreen}><DashboardAssistantCommandContext.Provider value={registerCommand}>
     {children}
     <AssistantSession
       key={`${actorUserId}:${activeAccountId}:${browserActorId}:${revision}`}
@@ -289,13 +326,14 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
       onPendingChange={setAssistantPending}
       onOpenMediaLibrary={openMediaLibrary}
       onInternalNavigate={navigateInternally}
+      onScreenCommand={executeScreenCommand}
       onInsertStudioDraft={insertStudioDraft}
       screen={screen}
     />
-  </AssistantContext.Provider>;
+  </DashboardAssistantCommandContext.Provider></DashboardAssistantScreenContext.Provider></AssistantContext.Provider>;
 }
 
-function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, minimize, onHumanContact, starterDraft, onStarterConsumed, onboardingWelcome = false, onReply, onPendingChange, onOpenMediaLibrary, onInternalNavigate, onInsertStudioDraft, screen }: {
+function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, minimize, onHumanContact, starterDraft, onStarterConsumed, onboardingWelcome = false, onReply, onPendingChange, onOpenMediaLibrary, onInternalNavigate, onScreenCommand, onInsertStudioDraft, screen }: {
   actorUserId: string; activeAccountId: string; allowed: boolean; open: boolean; close: () => void;
   minimize: () => void; onHumanContact: (message: string) => void;
   starterDraft?: string; onStarterConsumed?: () => void;
@@ -303,6 +341,7 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
   onReply?: () => void; onPendingChange?: (pending: boolean) => void;
   onOpenMediaLibrary?: () => void;
   onInternalNavigate?: (href: string) => void;
+  onScreenCommand?: (command: InrAssistantUiCommand) => Promise<boolean>;
   onInsertStudioDraft?: (draft: InrAssistantStudioDraft) => Promise<boolean>;
   screen?: InrAssistantClientScreen;
 }) {
@@ -511,7 +550,7 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
     } finally { studioInsertionRef.current = false; }
   };
 
-  const send = async (conversation: ChatMessage[]) => {
+  const send = async (conversation: ChatMessage[], taskIntent?: "continue" | "check_status") => {
     if (controllerRef.current || !allowed) return;
     const accountAtStart = getActiveBrowserUserId() || activeAccountId;
     if (accountAtStart !== activeAccountId) return;
@@ -538,11 +577,13 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
       && latestScopeRef.current.activeAccountId === accountAtStart
       && (getActiveBrowserUserId() || activeAccountId) === accountAtStart;
     let autoInsertMessage: ChatMessage | null = null;
+    let navigationHref: string | undefined;
+    let screenCommand: InrAssistantUiCommand | undefined;
     try {
       const response = await fetch("/api/assistant/chat", {
         method: "POST", credentials: "include", cache: "no-store",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, signal: controller.signal,
-        body: JSON.stringify({ conversationId: currentConversationId, turnId: conversation.findLast((message) => message.role === "user")?.turnId, attachments: conversation.findLast(message => message.role === "user")?.attachments, messages: requestMessages(conversation), ...(clientContext ? { clientContext } : {}) }),
+        body: JSON.stringify({ conversationId: currentConversationId, turnId: conversation.findLast((message) => message.role === "user")?.turnId, attachments: conversation.findLast(message => message.role === "user")?.attachments, messages: requestMessages(conversation), ...(clientContext ? { clientContext } : {}), ...(taskIntent ? { taskIntent } : {}) }),
       });
       const { payload, failed } = await readInrAssistantResponse(response, activity => {
         if (!stillCurrent()) return;
@@ -571,9 +612,11 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
       }
       const media = parseAssistantMedia(payload.media);
       const studioDraft = parseInrAssistantStudioDraft(payload.studioDraft);
-      const assistantMessage: ChatMessage = { role: "assistant", content: payload.message, ...(media ? { media } : {}), ...(studioDraft ? { studioDraft } : {}) };
+      const assistantMessage: ChatMessage = { role: "assistant", content: payload.message, ...(media ? { media } : {}), ...(studioDraft ? { studioDraft } : {}), ...(payload.taskProgress ? { taskProgress: payload.taskProgress } : {}) };
       setMessages([...conversation, assistantMessage]);
       if (studioDraft && payload.insertStudioDraft === true) autoInsertMessage = assistantMessage;
+      navigationHref = payload.navigation?.href;
+      screenCommand = payload.uiCommand;
       onReply?.();
       setHandoffSummary(payload.needsHuman === true ? typeof payload.handoffSummary === "string" && payload.handoffSummary.trim() ? payload.handoffSummary.slice(0, 4500) : payload.message.slice(0, 4500) : "");
     } catch {
@@ -596,6 +639,15 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
     // Insertion is a free UI operation. Wait until the chat request has released
     // its controller, then let Studio apply its own pending/unsaved guard.
     if (autoInsertMessage?.studioDraft && stillCurrent()) await insertDraft(autoInsertMessage.studioDraft, autoInsertMessage);
+    // Only a fresh verified server result triggers navigation. Loading history never replays it.
+    if (screenCommand && stillCurrent()) {
+      setPending(true);
+      try {
+        const started = await onScreenCommand?.(screenCommand) === true;
+        if (stillCurrent()) setMessages(current => [...current, { role: "assistant", content: dashboardAssistantPdfCopy(locale, started) }]);
+      } finally { if (stillCurrent()) setPending(false); }
+    }
+    if (navigationHref && stillCurrent()) onInternalNavigate?.(navigationHref);
   };
 
   const submit = (event: FormEvent) => {
@@ -607,6 +659,14 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
     setDraft("");
     files.setAttachments([]);
     void send(conversation);
+  };
+
+  const taskCopy = dashboardAssistantTaskCopy(locale);
+  const continueTask = (processing: boolean) => {
+    if (pending || files.busy || !allowed || draft.trim() || files.attachments.length) return;
+    const conversation: ChatMessage[] = [...messages, { role: "user", content: processing ? taskCopy.checkRequest : taskCopy.continueRequest, turnId: crypto.randomUUID() }];
+    setMessages(conversation);
+    void send(conversation, processing ? "check_status" : "continue");
   };
 
   const prepareHumanContact = () => {
@@ -664,6 +724,12 @@ function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, 
             return <div key={index} className={`${styles.message} ${message.role === "user" ? styles.userMessage : styles.assistantMessage}`}>
             <span className={styles.speaker}>{message.role === "user" ? copy.you : "iNr’Assistant"}</span>
             {message.role === "assistant" ? <DashboardAssistantMessageContent content={message.content} onInternalNavigate={onInternalNavigate} /> : <p>{message.content}</p>}
+            {message.taskProgress && (message.taskProgress.completed.length > 0 || message.taskProgress.remaining.length > 0) ? <section className={styles.taskProgress} aria-label={taskCopy.title} data-testid="assistant-task-progress" data-outcome={message.taskProgress.outcome}>
+              <strong>{taskCopy.status[message.taskProgress.outcome]}</strong>
+              {message.taskProgress.completed.length ? <><p>{taskCopy.confirmed}</p><ul>{message.taskProgress.completed.map(label => <li key={label}>✓ {label}</li>)}</ul></> : null}
+              {message.taskProgress.remaining.length ? <><p>{taskCopy.remaining}</p><ul>{message.taskProgress.remaining.map(label => <li key={label}>{label}</li>)}</ul></> : null}
+              {index === messages.length - 1 && ["partial", "processing"].includes(message.taskProgress.outcome) ? <button type="button" disabled={pending || files.busy || Boolean(draft.trim()) || files.attachments.length > 0} onClick={() => continueTask(message.taskProgress?.outcome === "processing")}>{message.taskProgress.outcome === "processing" ? taskCopy.check : taskCopy.continue}</button> : null}
+            </section> : null}
             {message.attachments?.length ? <ul className={styles.sentAttachments}>{message.attachments.map(file => <li key={file.id}><span aria-hidden="true">📎</span> {file.name}</li>)}</ul> : null}
             {message.media ? <div className={styles.mediaResult} data-media-status={message.media.status}>
               {message.media.status === "completed" && message.media.url && message.media.mediaType ? message.media.mediaType === "image"

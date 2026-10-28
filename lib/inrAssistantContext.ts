@@ -26,6 +26,8 @@ export type InrAssistantContext = {
       storedConnected: string[];
       needsAttention: string[];
       trackedTotal: number;
+      projection: "partial_setup_only";
+      cockpitTool: "readChannelStatus";
     };
   };
   nextSteps: string[];
@@ -130,6 +132,7 @@ export async function loadInrAssistantContext(args: {
         known: channelsKnown, statusSource: "stored_database_not_live_verified",
         storedConnected: CHANNELS.filter(key => states.get(key) === "connected"),
         needsAttention: CHANNELS.filter(key => states.get(key) === "attention"), trackedTotal: CHANNELS.length,
+        projection: "partial_setup_only", cockpitTool: "readChannelStatus",
       },
     },
     nextSteps: [],

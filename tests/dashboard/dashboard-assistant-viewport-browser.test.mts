@@ -22,6 +22,10 @@ const sources = {
   "./dashboardAssistantCopy": compile("app/dashboard/_components/dashboardAssistantCopy.ts"),
   "./dashboardAssistantErrorCopy": compile("app/dashboard/_components/dashboardAssistantErrorCopy.ts"),
   "./dashboardAssistantAttachmentCopy": compile("app/dashboard/_components/dashboardAssistantAttachmentCopy.ts"),
+  "./dashboardAssistantTaskCopy": compile("app/dashboard/_components/dashboardAssistantTaskCopy.ts"),
+  "./DashboardAssistantScreenContext": compile("app/dashboard/_components/DashboardAssistantScreenContext.tsx"),
+  "./DashboardAssistantCommandContext": compile("app/dashboard/_components/DashboardAssistantCommandContext.tsx"),
+  "@/lib/inrAssistantUiCommands": compile("lib/inrAssistantUiCommands.ts"),
   "@/lib/inrAssistantAttachments": compile("lib/inrAssistantAttachments.ts"),
   "@/lib/inrAssistantClientContext": compile("lib/inrAssistantClientContext.ts"),
   "@/lib/inrAssistantStudioDraft": compile("lib/inrAssistantStudioDraft.ts"),
@@ -116,6 +120,28 @@ window.beginTransfer=(mediaType,prompt)=>{
 require('react-dom/client').createRoot(document.getElementById('root')).render(React.createElement(require('studio').default));
 `;
 const avatar = readFileSync(new URL("../../public/agent/agent-assist-pink-v2.png", import.meta.url));
+const pdfCommandFixture = `
+const sources=${JSON.stringify(sources)}, loaded={};
+function require(name){
+ if(name==='next/navigation')return {usePathname:()=>'/dashboard/devis/new'};
+ if(loaded[name])return loaded[name].exports;
+ if(!sources[name])throw Error('Unexpected PDF fixture module '+name);
+ const module=loaded[name]={exports:{}};new Function('require','module','exports',sources[name])(require,module,module.exports);return module.exports;
+}
+const React=require('react'),bridge=require('./DashboardAssistantCommandContext');
+window.pdfSelection='quote-a';window.pdfCalls=0;window.pdfDeferred=false;window.pdfHandler=null;
+const register=(key,handler)=>{window.pdfHandler=handler};
+function Document(){
+ bridge.useInrAssistantDocumentPdf({kind:'quote',id:window.pdfSelection},async()=>{
+  window.pdfCalls++;
+  if(window.pdfDeferred)await new Promise(resolve=>{window.releasePdf=resolve});
+  return new Blob(['%PDF-1.4 fixture'],{type:'application/pdf'});
+ },'devis-test');return React.createElement('div',{'data-document':window.pdfSelection},'Document');
+}
+const root=require('react-dom/client').createRoot(document.getElementById('root'));
+window.renderPdf=()=>root.render(React.createElement(bridge.DashboardAssistantCommandContext.Provider,{value:register},React.createElement(Document)));
+window.renderPdf();
+`;
 const html = `<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 ${css}
 :root{--inrcy-mobile-bottom-nav-total-height:66px;--inrcy-safe-area-top:0px;--inrcy-safe-area-bottom:0px}
@@ -257,5 +283,34 @@ test("free assistant insertion fills the actual Studio prompt and video tab whil
     assert.equal(await navigation.getByRole("alertdialog").count(), 0, "An empty Studio needs no draft replacement confirmation");
     assert.deepEqual(await navigation.evaluate(() => ({ generations: (window as unknown as { generationCalls: number }).generationCalls, network: (window as unknown as { networkCalls: number }).networkCalls })), { generations: 0, network: 0 });
     assert.deepEqual(navigationErrors, []);
+  } finally { await browser.close(); }
+});
+
+test("the actual PDF bridge downloads the native renderer output and discards work after selection or scope changes", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+    await page.route("**/*", route => route.fulfill({ contentType: "text/html", body: '<html><body><div id="root"></div></body></html>' }));
+    await page.goto("https://fixture.invalid/pdf"); await page.addScriptTag({ content: pdfCommandFixture });
+    await page.waitForFunction(() => Boolean((window as any).pdfHandler));
+    const download = page.waitForEvent("download");
+    assert.equal(await page.evaluate(() => (window as any).pdfHandler.run(() => true)), true);
+    assert.equal((await download).suggestedFilename(), "devis-test.pdf");
+    assert.equal(await page.evaluate(() => (window as any).pdfHandler.run(() => false)), false);
+    assert.equal(await page.evaluate(() => (window as any).pdfCalls), 1);
+    await page.evaluate(() => {
+      const state = window as any; state.pdfDeferred = true;
+      state.oldRun = state.pdfHandler.run; state.pdfResult = null;
+      state.oldRun(() => true).then((value: boolean) => { state.pdfResult = value; });
+    });
+    await page.waitForFunction(() => Boolean((window as any).releasePdf));
+    assert.equal(await page.evaluate(() => (window as any).oldRun(() => true)), false, "A duplicate call while rendering does not render or download twice");
+    await page.evaluate(() => { const state = window as any; state.pdfSelection = "quote-b"; state.renderPdf(); });
+    await page.locator('[data-document="quote-b"]').waitFor();
+    await page.evaluate(() => (window as any).releasePdf());
+    await page.waitForFunction(() => (window as any).pdfResult !== null);
+    assert.equal(await page.evaluate(() => (window as any).pdfResult), false);
+    assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

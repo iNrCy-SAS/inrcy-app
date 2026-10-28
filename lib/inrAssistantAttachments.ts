@@ -4,6 +4,7 @@ export const ASSISTANT_ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024;
 export const ASSISTANT_ATTACHMENT_VIDEO_MAX_BYTES = 20 * 1024 * 1024;
 export const ASSISTANT_ATTACHMENT_TOTAL_BYTES = 20 * 1024 * 1024;
 export const ASSISTANT_ATTACHMENT_BUCKET = "inrcy-assistant-attachments";
+export const ASSISTANT_ATTACHMENT_TEXT_MAX_CHARS = 120_000;
 export const ASSISTANT_ATTACHMENT_ACCEPT = ".jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.pdf,.docx,.xlsx,.csv,.txt,.md,.mp4,.mov,.webm";
 export type AssistantAttachment = { id: string; token: string; name: string; kind: "image" | "video" | "document"; size: number };
 export const ASSISTANT_ATTACHMENT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

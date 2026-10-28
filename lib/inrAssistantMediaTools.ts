@@ -157,6 +157,8 @@ export function createInrAssistantMediaTools(options: {
   request: Request;
   requestId: string;
   currentUserMessage?: string;
+  /** A status check must not accept a ready draft as an implicit write. */
+  statusReadOnly?: boolean;
   canStartWork?: () => boolean;
   onWorkStarted?: (requestId: string) => void;
   onResult?: (result: InrAssistantMediaResult) => void;
@@ -184,6 +186,10 @@ export function createInrAssistantMediaTools(options: {
       const used = Number.isSafeInteger(data.creditsUsed) ? Number(data.creditsUsed) : undefined;
       const item = record(data.item);
       const savedType = item.media_type === "image" || item.media_type === "video" ? item.media_type : mediaType;
+      if (options.statusReadOnly) {
+        if (data.draft === false && typeof item.id === "string" && UUID_PATTERN.test(item.id) && savedType) return resultForItem(requestId,item as AiMediaLibraryPickerItem,used);
+        return {ok:true,status:"ready_to_save",requestId,libraryUrl:"/dashboard/mediatheque",...(savedType?{mediaType:savedType}:{}),...(used===undefined?{}:{creditsUsed:used}),message:"La création est terminée. Son enregistrement en Médiathèque reste à confirmer ; cette vérification n’a effectué aucune écriture ni nouvelle génération."};
+      }
       try { return await acceptDraft(options.request, requestId, data.item, used); }
       catch (error) {
         return { ok: false, status: "ready_to_save", requestId, libraryUrl: "/dashboard/mediatheque",
@@ -272,6 +278,35 @@ export function createInrAssistantMediaTools(options: {
   };
 
   return {
+    cancelMediaGeneration: tool({
+      strict: true,
+      description: "Demander l’arrêt natif d’une tentative Studio identifiée par son requestId réel. L’arrêt n’est possible qu’avant réservation des crédits ; une génération déjà en traitement continue chez le fournisseur. Ne jamais promettre remboursement, annulation fournisseur ni suppression du média terminé. Une simple question ou vérification de statut n’autorise pas cette action.",
+      inputSchema: jsonSchema<{ requestId: string; mediaType: "image" | "video"; instructionQuote: string }>({ type: "object", properties: { requestId: { type: "string", minLength: 8, maxLength: 179 }, mediaType: { type: "string", enum: ["image", "video"] }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 } }, required: ["requestId", "mediaType", "instructionQuote"], additionalProperties: false }),
+      execute: async raw => {
+        const input = record(raw);
+        if (Object.keys(input).length !== 3 || typeof input.requestId !== "string" || !REQUEST_PATTERN.test(input.requestId) || !["image", "video"].includes(String(input.mediaType)) || typeof input.instructionQuote !== "string" || !input.instructionQuote.trim() || input.instructionQuote.length > 1200) throw new MediaToolError("Demande d’arrêt invalide.");
+        const message = options.currentUserMessage ?? "", normalized = message.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+        const unquoted = message.replace(/```[\s\S]*?(?:```|$)|`[^`]*`|«[^»]*»|“[^”]*”|"[^"]*"|^>.*$/gm, " ");
+        const fail = (status: string, message: string) => ({ ok: false, status, requestId: input.requestId, message, libraryUrl: "/dashboard/mediatheque" });
+        if (!unquoted.includes(input.instructionQuote) || !/\b(?:annule|annuler|arrete|arreter|stoppe|stopper)\b/.test(input.instructionQuote.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase())
+          || /\b(?:comment|pourquoi|explique|si je|si tu|si on|ne pas)\b|\bne\b.{0,50}\bpas\b/.test(normalized)) return fail("needs_instruction", "Précisez la génération à arrêter.");
+        if (options.request.signal.aborted || options.canStartWork?.() === false || options.statusReadOnly) return fail("blocked", "Cette action n’est pas disponible pendant une simple vérification.");
+        try {
+          const { GET } = await import("@/app/api/media-generation/status/route");
+          const statusResponse = await GET(makeRequest(options.request, `/api/media-generation/status?requestId=${encodeURIComponent(input.requestId)}`));
+          const status = record(await statusResponse.json());
+          if (statusResponse.status === 404 && (status.code !== "AI_MEDIA_GENERATION_NOT_FOUND" || input.requestId !== mediaRequestId)) return fail("not_found", "Cette tentative n’est pas retrouvée dans cet établissement.");
+          if (!statusResponse.ok && statusResponse.status !== 404) return fail("unknown", "L’état de la génération est indisponible. Aucun arrêt confirmé.");
+          if (["processing", "reserved"].includes(String(status.status))) return fail("cannot_cancel", "La génération a déjà commencé. Le parcours natif ne peut plus l’arrêter ; aucun remboursement ni arrêt fournisseur n’est annoncé.");
+          if (status.status === "completed") return { ok: true, status: "already_completed", requestId: input.requestId, message: "Le média est déjà créé. Il est conservé ; aucun nouvel enregistrement ni suppression effectué.", libraryUrl: "/dashboard/mediatheque" };
+          if (["failed", "expired"].includes(String(status.status))) return { ok: true, status: "already_stopped", requestId: input.requestId, message: "Cette tentative est déjà terminée sans travail en cours. Aucun nouveau débit ni remboursement effectué.", libraryUrl: "/dashboard/mediatheque" };
+          const { POST } = await import("@/app/api/media-generation/cancel/route");
+          const data = await responseData(await POST(makeRequest(options.request, "/api/media-generation/cancel", { requestId: input.requestId, mediaKind: input.mediaType, surface: "studio" })));
+          return data.cancellationPreventedReservation === true ? { ok: true, status: "cancelled", requestId: input.requestId, message: "Tentative arrêtée avant réservation des crédits.", libraryUrl: "/dashboard/mediatheque" }
+            : fail(data.status === "processing" ? "cannot_cancel" : "already_stopped", "La tentative a changé d’état pendant la demande. Consultez son statut ; aucun arrêt fournisseur ni remboursement n’est garanti.");
+        } catch { return fail("unknown", "L’arrêt n’a pas pu être confirmé. Vérifiez l’état de cette tentative."); }
+      },
+    }),
     modifyMedia: tool({
       description: "Modifier réellement une image existante de Mes médias sur demande actuelle du professionnel, et enregistrer le résultat comme un nouveau média sans écraser l’original. Retrouver d’abord l’image avec searchMedia et utiliser son ID réel ; demander une précision si plusieurs images correspondent. Décris uniquement les changements demandés ; conservation du cadrage et vérification des crédits Studio. Les montages vidéo ne sont pas pris en charge par cette opération.",
       inputSchema: jsonSchema<ModificationInput>({ type: "object", properties: {

@@ -18,6 +18,8 @@ import * as promptContext from "../../lib/inrAssistantPromptContext.ts";
 import * as mediaIntent from "../../lib/inrAssistantMediaIntent.ts";
 import * as studioDraft from "../../lib/inrAssistantStudioDraft.ts";
 import * as taskPolicy from "../../lib/inrAssistantTaskPolicy.ts";
+import * as commandRegistry from "../../lib/inrAssistantCommandRegistry.ts";
+import * as uiCommands from "../../lib/inrAssistantUiCommands.ts";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
 import type { InrAssistantMediaResult } from "../../lib/inrAssistantMediaTools.ts";
 import type { InrAssistantPublicationResult } from "../../lib/inrAssistantPublicationTools.ts";
@@ -45,8 +47,11 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   productionNoRedis?: boolean; handoff?: boolean; media?: boolean; followup?: boolean; workflow?: boolean; failAfterPublication?: boolean;
   verifiedNavigation?: string; lookup?: "diagnostics" | "workspace" | "memory"; providerError?: Error; outputLimit?: boolean;
   emptyText?: boolean; ignoresToolChoice?: boolean; abortAfterPublication?: AbortController;
-  textReply?: string; unexpectedHandoff?: boolean; mediaMetadata?: boolean; crmIds?: string[];
+  textReply?: string; unexpectedHandoff?: boolean; mediaMetadata?: boolean; crmIds?: string[]; crmStatus?: string;
   plan?: Array<{tool:string;input?:Record<string,unknown>}>;
+  parallelPlan?:Array<{tool:string;input?:Record<string,unknown>}>;
+  extraTools?:Record<string,unknown>;
+  calendarFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   cta?: { definition: ReturnType<typeof createCtaToolFixture>["definition"]; input: { target: "phone" | "website"; instructionQuote: string; channels: string[] | null } } } = {}) {
   const generations: { model: string; params: LanguageModelV3CallOptions }[] = [];
   const reservations: { feature: string; reservedOutputTokens: number; estimatedInputTokens: number }[] = [];
@@ -69,6 +74,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
         specificationVersion: "v3", provider: "test", modelId: id, supportedUrls: {},
         doGenerate: async (params) => {
           generations.push({ model: id, params });
+          if(options.parallelPlan && generations.length === 1) return {content:options.parallelPlan.map((call,index)=>({type:"tool-call" as const,toolCallId:`parallel-${index}`,toolName:call.tool,input:JSON.stringify(call.input??{})})),finishReason:{unified:"tool-calls" as const,raw:"test"},usage:{inputTokens:{total:100,noCache:100,cacheRead:0,cacheWrite:0},outputTokens:{total:40,text:10,reasoning:30}},warnings:[]};
           if (options.providerError) throw options.providerError;
           if (options.unexpectedHandoff && generations.length === 1) return {
             content: [{ type: "tool-call", toolCallId: "unexpected-support", toolName: "proposeHumanSupport", input: JSON.stringify({ message: "Contactez l’équipe pour valider cette création.", summary: "Un transfert non sollicité." }) },
@@ -116,6 +122,15 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantMediaIntent.ts": mediaIntent,
     "./inrAssistantStudioDraft.ts": studioDraft,
     "./inrAssistantTaskPolicy.ts": taskPolicy,
+    "./inrAssistantCommandRegistry.ts": commandRegistry,
+    "./inrAssistantUiCommands.ts": uiCommands,
+    "./inrAssistantUiTools.ts": { createInrAssistantUiTools: () => options.extraTools??{} },
+    "./inrAssistantChannelTools.ts": { createInrAssistantChannelTools: () => ({}) },
+    "./inrAssistantCampaignTools.ts": { createInrAssistantCampaignTools: () => ({}) },
+    "./inrAssistantDocumentTools.ts": { createInrAssistantDocumentTools: () => ({}) },
+    "./inrAssistantCalendarTools.ts": { createInrAssistantCalendarTools: (args:Record<string,unknown>) => options.calendarFactory?.(args)??{} },
+    "./inrAssistantScheduledPublicationTools.ts": { createInrAssistantScheduledPublicationTools: () => ({}) },
+    "./inrAssistantAttachmentTools.ts": { createInrAssistantAttachmentTools: () => ({}) },
     "./inrAssistantQuota.ts": { reserveInrAssistantRequest: async () => ({ solReserved: options.sol ?? false }),
       finalizeInrAssistantRequest: async (_quota: unknown, outcome: { success: boolean }) => { finalized.push(outcome); } },
     "./inrAssistantConversation.ts": conversation,
@@ -135,7 +150,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
       }, required: ["action", "instructionQuote", "reference", "contactId", "fields"], additionalProperties: false }), execute: async input => {
         const id = options.crmIds![Math.min(crmExecutions.length, options.crmIds!.length - 1)];
         crmExecutions.push(input);
-        return { ok: true, status: "created", id, message: `Fiche CRM enregistrée : ${id}.`, nextAction: { label: "iNr’CRM", href: "/dashboard/crm" } };
+        return { ok: !options.crmStatus, status: options.crmStatus??"created", id, message: options.crmStatus?"Résultat CRM incertain.":`Fiche CRM enregistrée : ${id}.`, nextAction: { label: "iNr’CRM", href: "/dashboard/crm" } };
       } }),
     } : {} },
     "./inrAssistantCommunicationTools.ts": { createInrAssistantCommunicationTools: () => ({}) },
@@ -193,7 +208,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
           };
           if (!options.followup) args.onResult(result);
           return result;
-        } }) };
+        } }),...options.extraTools };
     } },
   };
   const compiled = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantGateway.ts", import.meta.url), "utf8"), {
@@ -406,6 +421,37 @@ test("a guide read does not remove an unused DNA read on the next SDK step",asyn
  const h=harness({plan:[{tool:"readAppGuide"},{tool:"getBusinessDna"}]});
  const reply=await h.runtime.generateInrAssistantReply({...basic,supabase:{} as never,messages:[{role:"user",content:"Lis le guide puis l’ADN de mon entreprise."}]});
  assert.equal(h.generations.length,3);assert.doesNotMatch(reply.message,/Outil absent/);
+});
+
+test("account facts survive tool steps and mutation receipts are checkpointed before a following action",async()=>{
+ const ids=["10000000-0000-4000-8000-000000000001","10000000-0000-4000-8000-000000000002"];
+ const message="Crée deux contacts CRM : Alice et Bob.";
+ const plan=ids.map((_,index)=>({tool:"manageCrmContact",input:{action:"create",instructionQuote:message,reference:`contact-${index}`,contactId:null,fields:{firstName:index?"Bob":"Alice"}}}));
+ const h=harness({crmIds:ids,plan});
+ const checkpoints:taskPolicy.InrAssistantTaskState[]=[];
+ await h.runtime.generateInrAssistantReply({...basic,actorUserId:"actor-a",edition:"premium",supabase:{} as never,accountContext:{business:{company:"Atelier continuité vérifiée"}},messages:[{role:"user",content:message}],onTaskCheckpoint:async(state)=>{
+   checkpoints.push(structuredClone(state));
+   assert.equal(h.crmExecutions.length,Math.floor(checkpoints.length/2),"Pre-action checkpoint precedes execution; result checkpoint precedes the next executor");
+ }});
+ assert.equal(checkpoints.length,4);
+ assert.equal(checkpoints[0].outcome,"blocked");
+ assert.equal(checkpoints[1].outcome,"partial");
+ assert.equal(checkpoints[2].receipts.at(-1)?.status,"executing_unconfirmed");
+ assert.equal(checkpoints[3].outcome,"completed");
+ assert.match(JSON.stringify(h.generations[1].params.prompt),/Atelier continuité vérifiée/);
+});
+
+test("a failed durable checkpoint stops remaining mutations without replay or optimistic completion",async()=>{
+ const ids=["10000000-0000-4000-8000-000000000001","10000000-0000-4000-8000-000000000002"];
+ const message="Crée deux contacts CRM : Alice et Bob.";
+ const plan=ids.map((_,index)=>({tool:"manageCrmContact",input:{action:"create",instructionQuote:message,reference:`contact-${index}`,contactId:null,fields:{firstName:index?"Bob":"Alice"}}}));
+ const h=harness({crmIds:ids,plan});
+ const reply=await h.runtime.generateInrAssistantReply({...basic,actorUserId:"actor-a",edition:"premium",supabase:{} as never,messages:[{role:"user",content:message}],onTaskCheckpoint:async()=>{throw new Error("Synthetic storage unavailable");}});
+ assert.equal(h.crmExecutions.length,0);
+ assert.equal(reply.outcome,"blocked");
+ assert.equal(h.generations.length,1);
+ assert.equal(reply.taskProgress?.completed.length,0,"Only one of two contacts exists");
+ assert.deepEqual(Array.from(reply.taskProgress?.remaining??[]),["modifier la fiche CRM"]);
 });
 test("a partial task returns remaining work and resumes without creating its media twice",async()=>{
  const message="Crée une image puis prépare et publie une publication Facebook maintenant.";
@@ -801,4 +847,64 @@ test("a browser disconnection after confirmed publication retains its factual re
   assert.ok(h.diagnostics.some(row => row.phase === "request_aborted"));
   assert.equal(result.outcome,"processing");
   assert.equal(h.finalized[0].success, false);
+});
+
+
+test("two mutations in one SDK step checkpoint between executors and stop on persistence failure", async()=>{
+ const message="Crée deux contacts CRM : Alice et Bob.";
+ const ids=["10000000-0000-4000-8000-000000000001","10000000-0000-4000-8000-000000000002"];
+ const calls=ids.map((_,index)=>({tool:"manageCrmContact",input:{action:"create",instructionQuote:message,reference:`contact-${index}`,contactId:null,fields:{firstName:index?"Bob":"Alice"}}}));
+ const h=harness({crmIds:ids,parallelPlan:calls});let checkpoints=0;
+ const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:message}],onTaskCheckpoint:async()=>{checkpoints++;if(checkpoints===2)throw new Error("Synthetic result checkpoint failure");}});
+ assert.equal(checkpoints,2);assert.equal(h.crmExecutions.length,1);assert.equal(h.generations.length,1);
+ assert.equal(reply.outcome,"partial");assert.equal(reply.taskProgress?.completed.length,0);
+});
+
+test("signed preview remains private across turns and exact approval fulfills its original goal",async()=>{
+ const reference="IA-012345ABCDEF",token="PRIVATE-SIGNED-CAPABILITY-never-in-prompt",eventId="10000000-0000-4000-8000-000000000002";
+ const inputSchema=jsonSchema({type:"object",properties:{},additionalProperties:false});
+ const first=harness({plan:[{tool:"previewCalendarAction"}],calendarFactory:()=>({previewCalendarAction:tool({inputSchema,execute:async()=>({ok:true,status:"preview_ready",reference,token,approvalKind:"calendar",eventId,message:`Vérifiez le déplacement puis dites Confirme ${reference}.`})})})});
+ const initial="Déplace le rendez-vous de demain dans mon agenda à 15h00.";
+ const reply=await first.runtime.generateInrAssistantReply({...basic,actorUserId:"actor-a",edition:"premium",supabase:{} as never,messages:[{role:"user",content:initial}]});
+ assert.equal(reply.outcome,"needs_input");assert.equal(reply.taskState?.receipts[0].approvalToken,token);
+ assert.doesNotMatch(JSON.stringify(first.generations),/PRIVATE-SIGNED-CAPABILITY/);
+ const confirmation=`Confirme ${reference}`;
+ const effective=taskPolicy.continueInrAssistantTask(confirmation,reply.taskState)!;
+ assert.ok(effective);let resolved:string|null=null;
+ const second=harness({plan:[{tool:"applyCalendarAction"}],calendarFactory:args=>({applyCalendarAction:tool({inputSchema,execute:async()=>{resolved=(args.resolvePreview as (ref:string)=>string|null)(reference);return {ok:true,status:"updated",action:"update",eventId,message:"Rendez-vous modifié et relu."};}})})});
+ const done=await second.runtime.generateInrAssistantReply({...basic,actorUserId:"actor-a",edition:"premium",supabase:{} as never,messages:[{role:"user",content:confirmation}],taskContext:reply.taskState,actionInstruction:effective});
+ assert.equal(resolved,token);assert.equal(done.outcome,"completed");
+ assert.ok(done.taskState?.receipts.some(receipt=>receipt.tool==="updateCalendarAppointment"&&receipt.status==="updated"));
+ assert.doesNotMatch(JSON.stringify(second.generations),/PRIVATE-SIGNED-CAPABILITY/);
+});
+
+test("status checks resolve only the same recorded media job and expose no creation executor",async()=>{
+ const state:taskPolicy.InrAssistantTaskState={version:1,instruction:"Crée une vidéo de mon atelier.",actionRequestId:randomUUID(),startedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+60000).toISOString(),outcome:"processing",requiredTools:["generateMedia"],receipts:[{tool:"generateMedia",ok:true,status:"processing",message:"Création en cours",requestId:"assistant-recorded-job"}],question:""};
+ for(const matching of [false,true]) {
+  const h=harness({plan:[{tool:"getMediaGeneration",input:{requestId:matching?"assistant-recorded-job":"assistant-other-job"}}],extraTools:{getMediaGeneration:tool({inputSchema:jsonSchema({type:"object",properties:{requestId:{type:"string"}},required:["requestId"]}),execute:async()=>({ok:true,status:"completed",requestId:matching?"assistant-recorded-job":"assistant-other-job",message:"Média enregistré."})})}});
+  const instruction=taskPolicy.continueInrAssistantTask("Vérifie",state,Date.now(),"check_status")!;
+  const result=await h.runtime.generateInrAssistantReply({...basic,supabase:{} as never,messages:[{role:"user",content:"Vérifie"}],taskContext:state,taskIntent:"check_status",actionInstruction:instruction});
+  assert.equal(result.outcome,matching?"completed":"processing");assert.equal(h.mediaExecutions,0);
+  assert.ok(h.generations.every(call=>!(call.params.tools??[]).some(tool=>tool.type==="function"&&tool.name==="generateMedia")));
+ }
+});
+
+test("navigation returns a browser request without a durable business task or resume button",async()=>{
+ const target=uiCommands.getInrAssistantNavigation("crm")!;
+ const h=harness({plan:[{tool:"navigateApplication"}],extraTools:{navigateApplication:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>({ok:true,status:"navigation_requested",navigation:target,message:"Ouverture du CRM demandée."})})}});
+ const reply=await h.runtime.generateInrAssistantReply({...basic,messages:[{role:"user",content:"Ouvre mon CRM."}]});
+ assert.equal(reply.navigation?.destination,"crm");assert.equal(reply.outcome,"processing");assert.equal(reply.taskState,undefined);assert.equal(reply.taskProgress,undefined);
+});
+
+
+test("an uncertain resolved mutation stops a second parallel SDK action and cannot be resumed blindly",async()=>{
+ const message="Crée deux contacts CRM : Alice et Bob.";
+ const ids=["10000000-0000-4000-8000-000000000001","10000000-0000-4000-8000-000000000002"];
+ const calls=ids.map((_,index)=>({tool:"manageCrmContact",input:{action:"create",instructionQuote:message,reference:`contact-${index}`,contactId:null,fields:{firstName:index?"Bob":"Alice"}}}));
+ for(const crmStatus of ["unknown","saved_unconfirmed"]) {
+  const h=harness({crmIds:ids,crmStatus,parallelPlan:calls});let checkpoints=0;
+  const result=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:message}],onTaskCheckpoint:async()=>{checkpoints++;}});
+  assert.equal(h.crmExecutions.length,1);assert.equal(checkpoints,2);assert.equal(h.generations.length,1);assert.equal(result.outcome,"blocked");
+  assert.equal(taskPolicy.continueInrAssistantTask("Continue",result.taskState,Date.now(),"continue"),null);
+ }
 });

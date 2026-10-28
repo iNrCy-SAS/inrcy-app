@@ -115,3 +115,10 @@
   .composer textarea { font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .pending span, .collaborationList [data-state] .activityStatus::before { animation: none; } }
+.taskProgress { margin-top: 14px; border: 1px solid #69d8ff55; border-radius: 12px; padding: 12px 14px; background: #12304755; font-size: 13px; }
+.taskProgress strong { color: #a8eaff; }
+.taskProgress p { margin: 9px 0 4px; font-weight: 600; }
+.taskProgress ul { margin: 0; padding-left: 18px; }
+.taskProgress li { margin: 3px 0; }
+.taskProgress button { margin-top: 10px; padding: 8px 12px; border-radius: 8px; border: 1px solid #74d7ff99; background: #18416d; color: #fff; cursor: pointer; }
+.taskProgress button:disabled { opacity: .5; cursor: default; }

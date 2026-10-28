@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
@@ -10,9 +11,12 @@ const { NextResponse } = createRequire(import.meta.url)("next/server") as typeof
 type Row = Record<string, unknown>;
 const ACCOUNT = "10000000-0000-4000-8000-000000000001", EVENT = "60000000-0000-4000-8000-000000000006";
 const object = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
+const previewModule = { exports: {} as { calendarEventFingerprint: (row: Row) => string } };
+const previewSource = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantActionPreview.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+vm.runInNewContext(`(function(require,module,exports){${previewSource}\n})`, { Date, Buffer, process: { env: {} } })((name: string) => { assert.ok(["server-only", "node:crypto"].includes(name)); return name === "node:crypto" ? crypto : {}; }, previewModule, previewModule.exports);
 
 /** Execute the actual calendar PATCH, including its draft CAS and mail branches. */
-function harness(options: { initialStatus?: string; confirmedAfterRead?: boolean; updateError?: boolean } = {}) {
+function harness(options: { initialStatus?: string; confirmedAfterRead?: boolean; changedAfterRead?: boolean; updateError?: boolean } = {}) {
   let record: Row = { id: EVENT, user_id: ACCOUNT, title: "Toiture", description: "Visite", location: "Atelier", start_at: "2026-12-01T09:00:00.000Z", end_at: "2026-12-01T10:00:00.000Z", all_day: false,
     meta: { status: options.initialStatus ?? "draft", source: "manual", guests: [], reminders: { enabled: false, inAppMinutesBefore: 120, emailMinutesBefore: 1440, mailAccountId: null, lastInAppReminderAt: null, lastEmailReminderAt: null } } };
   const writes: Array<{ fields: Row; filters: Array<[string, unknown]> }> = [];
@@ -29,6 +33,7 @@ function harness(options: { initialStatus?: string; confirmedAfterRead?: boolean
       if (!patch && !deleting) {
         const snapshot = JSON.parse(JSON.stringify(record)) as Row;
         if (options.confirmedAfterRead) record.meta = { ...object(record.meta), status: "confirmed" };
+        if (options.changedAfterRead) record.title = "Concurrent title";
         return { data: snapshot, error: null };
       }
       writes.push({ fields: patch??{delete:true}, filters });
@@ -39,6 +44,7 @@ function harness(options: { initialStatus?: string; confirmedAfterRead?: boolean
     };
     const builder = {
       select() { return builder; }, eq(field: string, value: unknown) { filters.push([field, value]); return builder; },
+      is(field: string, value: unknown) { filters.push([field, value]); return builder; },
       update(fields: Row) { patch = fields; return builder; },
       delete(){deleting=true;return builder;},
       maybeSingle: async () => execute(),
@@ -60,6 +66,7 @@ function harness(options: { initialStatus?: string; confirmedAfterRead?: boolean
     "@/lib/inrCalendarGoogleSyncConstants": { INR_CALENDAR_GOOGLE_SOURCE: "google_calendar" },
     "@/lib/inrCalendarGoogleSync": { syncVisioSharedCalendarToInrCalendar: unexpected },
     "@/lib/visioTeamAccess": { getVisioTeamActor: unexpected },
+    "@/lib/inrAssistantActionPreview": previewModule.exports,
     "@/lib/clientCommunication": { buildClientExchangePreferences: unexpected, DEFAULT_CLIENT_EXCHANGE_PREFERENCES: {}, formatClientDateOnly: unexpected, formatClientTimeOnly: unexpected, getCalendarClientTexts: unexpected },
   };
   const output = ts.transpileModule(readFileSync(new URL("../../app/api/calendar/events/route.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -118,4 +125,26 @@ test("ordinary agenda PATCH callers retain their prior confirmed-event behavior 
   assert.equal(response.status, 200); assert.equal(h.record.title, "Visite toiture modifiée");
   assert.equal(h.writes.length, 1); assert.equal(h.writes[0].filters.some(([field]) => field === "meta->>status"), false);
   assert.equal(h.notifications, 1, "The existing native confirmation path is preserved for normal UI callers"); assert.equal(h.mails, 0);
+});
+
+test("approved confirmed-event changes compare the complete preview snapshot atomically and keep the native confirmation path", async () => {
+  for (const changedAfterRead of [false, true]) {
+    const h = harness({ initialStatus: "confirmed", changedAfterRead }), expectedState = previewModule.exports.calendarEventFingerprint(h.record);
+    const body = await request("omit").json(); body.expectedState = expectedState;
+    const response = await h.patch(new Request(`https://app.inrcy.com/api/calendar/events?id=${EVENT}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    assert.equal(response.status, changedAfterRead ? 409 : 200);
+    assert.equal(h.notifications, changedAfterRead ? 0 : 1); assert.equal(h.mails, 0);
+    for (const field of ["meta", "title", "description", "location", "start_at", "end_at", "all_day"]) assert.ok(h.writes[0].filters.some(([key]) => key === field), field);
+    assert.equal(h.record.title, changedAfterRead ? "Concurrent title" : "Visite toiture modifiée");
+  }
+});
+
+test("approved confirmed-event deletion refuses a changed snapshot both before and during the native delete", async () => {
+  for (const mode of ["unchanged", "stale", "race"]) {
+    const h = harness({ initialStatus: "confirmed", changedAfterRead: mode === "race" });
+    const expectedState = mode === "stale" ? "0".repeat(64) : previewModule.exports.calendarEventFingerprint(h.record);
+    const response = await h.delete(new Request(`https://app.inrcy.com/api/calendar/events?id=${EVENT}&expectedState=${expectedState}`, { method: "DELETE" }));
+    assert.equal(response.status, mode === "unchanged" ? 200 : 409); assert.equal(h.notifications, 0); assert.equal(h.mails, 0);
+    assert.equal(h.writes.length, mode === "stale" ? 0 : 1);
+  }
 });

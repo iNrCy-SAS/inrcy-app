@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./agenda.module.css";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
+import { useInrAssistantScreen } from "../_components/DashboardAssistantScreenContext";
 import { getClientUserFacingApiError as getSimpleFrenchApiError, getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
 import {
@@ -222,6 +223,7 @@ export default function AgendaClient({
   const [rdvOpen, setRdvOpen] = useState(false);
   const [rdvMode, setRdvMode] = useState<RdvMode>("create");
   const [rdvEventId, setRdvEventId] = useState("");
+  useInrAssistantScreen(rdvOpen && rdvEventId ? { selection: { kind: "event", id: rdvEventId } } : null);
   const [rdvSummary, setRdvSummary] = useState("");
   const [rdvDate, setRdvDate] = useState("");
   const [rdvStart, setRdvStart] = useState("09:00");

@@ -4,34 +4,45 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { inrAssistantMemoryCutoff, sanitizeInrAssistantMemoryText } from "./inrAssistantMemory.ts";
 import { compactInrAssistantTaskReceipts, inrAssistantTaskTrackingLimit, type InrAssistantTaskState, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
-import { ASSISTANT_ATTACHMENT_BUCKET as BUCKET, ASSISTANT_ATTACHMENT_UUID as UUID, AssistantAttachmentError, assistantAttachmentFile, parseAssistantAttachments, type AssistantAttachment } from "./inrAssistantAttachments.ts";
+import { ASSISTANT_ATTACHMENT_BUCKET as BUCKET, ASSISTANT_ATTACHMENT_UUID as UUID, ASSISTANT_ATTACHMENT_TEXT_MAX_CHARS, AssistantAttachmentError, assistantAttachmentFile, parseAssistantAttachments, type AssistantAttachment } from "./inrAssistantAttachments.ts";
 
 export type AssistantAttachmentScope = { accountId: string; actorUserId: string; conversationId: string };
 type Claims = AssistantAttachment & AssistantAttachmentScope & { issuedAt: string; extension: string; mime: string };
-export type AssistantFileContext = { name: string; kind: AssistantAttachment["kind"]; text?: string; image?: string; note: string };
+export type AssistantFileContext = { name: string; kind: AssistantAttachment["kind"]; text?: string; textTruncated?: boolean; image?: string; note: string };
 
 function taskPath(scope: AssistantAttachmentScope, turn: { turnId: string; createdAt: string }) {
   scoped(scope);
   if (!UUID.test(turn.turnId) || !Number.isFinite(Date.parse(turn.createdAt))) throw new AssistantAttachmentError("attachment_invalid");
   return `${turn.createdAt.slice(0,10)}/${scope.accountId}_${scope.actorUserId}_${scope.conversationId}_${turn.turnId}.task.json`;
 }
+export type AssistantTaskStateRead = { status: "available" | "expired"; task: InrAssistantTaskState } | { status: "missing" | "invalid" | "unavailable" };
 /** Private server receipts, not browser history or user-editable conversation prose. */
-export async function loadAssistantTaskState(scope: AssistantAttachmentScope, turn: { turnId: string; createdAt: string }): Promise<InrAssistantTaskState | null> {
+export async function inspectAssistantTaskState(scope: AssistantAttachmentScope, turn: { turnId: string; createdAt: string }): Promise<AssistantTaskStateRead> {
   try {
     const bytes = await readStorage(BUCKET, taskPath(scope, turn), 32_000, true);
-    if (!bytes) return null;
-    const saved = JSON.parse(bytes.toString("utf8"));
-    if (saved.accountId !== scope.accountId || saved.actorUserId !== scope.actorUserId || saved.conversationId !== scope.conversationId || saved.turnId !== turn.turnId) return null;
+    if (!bytes) return { status: "missing" };
+    let saved;
+    try { saved = JSON.parse(bytes.toString("utf8")); } catch { return { status: "invalid" }; }
+    if (saved.accountId !== scope.accountId || saved.actorUserId !== scope.actorUserId || saved.conversationId !== scope.conversationId || saved.turnId !== turn.turnId) return { status: "invalid" };
     const task = saved.task;
     if (!task || task.version !== 1 || typeof task.instruction !== "string" || task.instruction.length > 4000 || typeof task.question !== "string" || task.question.length > 2000 ||
       typeof task.actionRequestId !== "string" || !/^[a-z0-9_-]{8,180}$/i.test(task.actionRequestId) || !Number.isFinite(Date.parse(task.startedAt)) || !Number.isFinite(Date.parse(task.expiresAt)) ||
-      Date.parse(task.expiresAt) < Date.now() || !["completed","partial","needs_input","processing","blocked","failed"].includes(task.outcome) ||
+      !["completed","partial","needs_input","processing","blocked","failed"].includes(task.outcome) ||
       !Array.isArray(task.requiredTools) || task.requiredTools.length > 20 || task.requiredTools.some((name: unknown)=>typeof name !== "string" || !/^[a-zA-Z]{3,60}$/.test(name)) ||
-      !Array.isArray(task.receipts) || task.receipts.length > 32 || task.receipts.some((r: Record<string,unknown>)=>!r || typeof r.tool !== "string" || typeof r.status !== "string" || typeof r.message !== "string" || typeof r.ok !== "boolean")) return null;
+      !Array.isArray(task.receipts) || task.receipts.length > 32 || task.receipts.some((r: Record<string,unknown>)=>!r || typeof r.tool !== "string" || typeof r.status !== "string" || typeof r.message !== "string" || typeof r.ok !== "boolean")) return { status: "invalid" };
+    if (task.receipts.some((receipt: Record<string,unknown>) =>
+      receipt.approvalToken !== undefined && (typeof receipt.approvalToken !== "string" || receipt.approvalToken.length > 24_000) ||
+      receipt.approvalReference !== undefined && (typeof receipt.approvalReference !== "string" || !/^IA-[a-f0-9]{12}$/i.test(receipt.approvalReference)) ||
+      receipt.approvalKind !== undefined && !["calendar", "scheduled_publication"].includes(String(receipt.approvalKind)))) return { status: "invalid" };
     if (task.requiredCalls !== undefined && (!task.requiredCalls || typeof task.requiredCalls !== "object" || Array.isArray(task.requiredCalls) || Object.keys(task.requiredCalls).length > 20 ||
-      Object.entries(task.requiredCalls).some(([name,count])=>!task.requiredTools.includes(name) || !Number.isSafeInteger(count) || Number(count) < 1 || Number(count) > 1_000_000))) return null;
-    return task;
-  } catch { return null; }
+      Object.entries(task.requiredCalls).some(([name,count])=>!task.requiredTools.includes(name) || !Number.isSafeInteger(count) || Number(count) < 1 || Number(count) > 1_000_000))) return { status: "invalid" };
+    return { status: Date.parse(task.expiresAt) <= Date.now() ? "expired" : "available", task };
+  } catch { return { status: "unavailable" }; }
+}
+/** Optional context reader. Execution retry must inspect status explicitly. */
+export async function loadAssistantTaskState(scope: AssistantAttachmentScope, turn: { turnId: string; createdAt: string }): Promise<InrAssistantTaskState | null> {
+  const result = await inspectAssistantTaskState(scope, turn);
+  return result.status === "available" ? result.task : null;
 }
 export async function saveAssistantTaskState(scope: AssistantAttachmentScope, turn: { turnId: string; createdAt: string }, task: InrAssistantTaskState): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -51,6 +62,9 @@ export async function saveAssistantTaskState(scope: AssistantAttachmentScope, tu
         const key = primary.find(name => typeof r[name] === "string");
         if (key) compact[key] = r[key];
         if (typeof r.requestId === "string") compact.requestId = r.requestId;
+        if (typeof r.approvalToken === "string") compact.approvalToken = r.approvalToken;
+        if (typeof r.approvalReference === "string") compact.approvalReference = r.approvalReference;
+        if (r.approvalKind) compact.approvalKind = r.approvalKind;
         return compact;
       });
       data = Buffer.from(JSON.stringify(saved));
@@ -166,19 +180,20 @@ async function interpret(claims: Claims, buffer: Buffer): Promise<AssistantFileC
     if (claims.extension === "pdf") {
       if (!buffer.subarray(0, 1024).includes(Buffer.from("%PDF-"))) throw new AssistantAttachmentError("attachment_unreadable");
       const { extractPdfTextForAi } = await import("./pdfTextExtraction.ts");
-      text = extractPdfTextForAi(buffer, 6500);
+      text = extractPdfTextForAi(buffer, ASSISTANT_ATTACHMENT_TEXT_MAX_CHARS + 1);
     } else if (["docx", "xlsx"].includes(claims.extension)) {
       if (buffer[0] !== 0x50 || buffer[1] !== 0x4b) throw new AssistantAttachmentError("attachment_unreadable");
       const { extractOfficeDocumentText } = await import("./aiOfficeDocumentText.ts");
-      text = await extractOfficeDocumentText(buffer, claims.name, 6500);
+      text = await extractOfficeDocumentText(buffer, claims.name, ASSISTANT_ATTACHMENT_TEXT_MAX_CHARS + 1);
     } else {
       if (buffer.includes(0) && !buffer.subarray(0, 2).equals(Buffer.from([0xff, 0xfe]))) throw new AssistantAttachmentError("attachment_unreadable");
       const { decodeAiDocumentText } = await import("./aiOfficeDocumentText.ts");
-      text = decodeAiDocumentText(buffer).slice(0, 6500);
+      text = decodeAiDocumentText(buffer).slice(0, ASSISTANT_ATTACHMENT_TEXT_MAX_CHARS + 1);
     }
     text = text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim();
     if (!text) throw new AssistantAttachmentError("attachment_unreadable");
-    return { name: claims.name, kind: claims.kind, text, note: "Extrait borné du document, potentiellement partiel. Aucun script, formule ou macro exécuté. Ne pas prétendre avoir lu les passages absents." };
+    const textTruncated = text.length > ASSISTANT_ATTACHMENT_TEXT_MAX_CHARS;
+    return { name: claims.name, kind: claims.kind, text: text.slice(0, ASSISTANT_ATTACHMENT_TEXT_MAX_CHARS), textTruncated, note: "Texte extractible du document, lisible par segments avec readAttachedDocument. L’extraction peut omettre des images, scans, tableaux ou passages. Aucun script, formule ou macro exécuté. Ne pas prétendre avoir lu les passages absents." };
   } catch (error) { if (error instanceof AssistantAttachmentError) throw error; throw new AssistantAttachmentError("attachment_unreadable"); }
 }
 async function saveContext(claims: Claims, buffer: Buffer) {
@@ -223,7 +238,8 @@ export async function loadAssistantFileContexts(scope: AssistantAttachmentScope,
     const buffer = await readStorage(BUCKET, contextPath(claims), 800_000);
     const content = JSON.parse(buffer!.toString("utf8")) as AssistantFileContext;
     if (content.kind !== claims.kind || content.name !== claims.name || typeof content.note !== "string" || content.note.length > 700 ||
-      content.text !== undefined && (typeof content.text !== "string" || content.text.length > 6500) ||
+      content.text !== undefined && (typeof content.text !== "string" || content.text.length > ASSISTANT_ATTACHMENT_TEXT_MAX_CHARS) ||
+      content.textTruncated !== undefined && typeof content.textTruncated !== "boolean" ||
       content.image !== undefined && (typeof content.image !== "string" || content.image.length > 700_000 || !/^[A-Za-z0-9+/]+=*$/.test(content.image))) throw new AssistantAttachmentError("attachment_invalid");
     contexts.push(content);
   }

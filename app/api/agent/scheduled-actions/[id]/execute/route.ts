@@ -13,6 +13,7 @@ import {
   premiumRequiredApiResponse,
 } from "@/lib/dashboardEditionServer";
 import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
+import { scheduledPublicationFingerprint } from "@/lib/inrAssistantActionPreview";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -376,6 +377,7 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
   const standardMode =
     (await getDashboardEditionForAuthUser(authUserId)) === "standard";
   const { id } = await ctx.params;
+  const requestBody = asRecord(await _request.json().catch(() => ({})));
 
   const { data: scheduledRow, error: readError } = await supabaseAdmin
     .from("inr_agent_scheduled_actions")
@@ -397,6 +399,11 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
     return premiumRequiredApiResponse();
   }
   const currentStatus = cleanText(scheduledRow.status, 40).toLowerCase();
+  if ("expectedState" in requestBody && (typeof requestBody.expectedState !== "string"
+    || requestBody.expectedState !== scheduledPublicationFingerprint(scheduledRow)
+    || scheduledRow.action_type !== "publication" || scheduledRow.target_tool !== "booster" || currentStatus !== "failed")) {
+    return NextResponse.json({ error: "Cette reprise ne correspond plus à l’aperçu validé." }, { status: 409 });
+  }
   if (currentStatus !== "scheduled" && currentStatus !== "failed") {
     return NextResponse.json(
       {
@@ -414,7 +421,7 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
   }
 
   const claimAt = new Date().toISOString();
-  const { data: claimedRow, error: claimError } = await supabaseAdmin
+  let claim = supabaseAdmin
     .from("inr_agent_scheduled_actions")
     .update({
       status: "running",
@@ -424,9 +431,12 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
     })
     .eq("id", id)
     .eq("user_id", activeUserId)
-    .in("status", ["scheduled", "failed"])
-    .select(SCHEDULED_ACTION_SELECT)
-    .maybeSingle();
+    .in("status", ["scheduled", "failed"]);
+  if ("expectedState" in requestBody) {
+    claim = claim.eq("status", "failed").eq("updated_at", scheduledRow.updated_at).eq("payload", JSON.stringify(scheduledRow.payload));
+    claim = scheduledRow.attempt_count == null ? claim.is("attempt_count", null) : claim.eq("attempt_count", scheduledRow.attempt_count);
+  }
+  const { data: claimedRow, error: claimError } = await claim.select(SCHEDULED_ACTION_SELECT).maybeSingle();
 
   if (claimError) {
     return NextResponse.json(

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual, randomUUID } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,7 +34,7 @@ function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: 
   let actionExecutions = 0;
   const untouched = () => { assert.fail("Schema budget matrix must not execute a private operation or provider request"); };
   const common: Record<string, unknown> = {
-    "server-only": {}, "node:crypto": { createHash, randomUUID },
+    "server-only": {}, "node:crypto": { createHash, createHmac, timingSafeEqual, randomUUID },
     "@/lib/requireUser": { requireUser: untouched }, "./requireUser": { requireUser: untouched },
     "@/lib/aiGatewayConfig": { getAiGatewayCredential: () => "synthetic-no-network" },
     "@/lib/aiGatewayAccountGuard": { AiGatewayGuardUnavailableError: class extends Error {},
@@ -57,6 +57,9 @@ function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: 
     "./inrBadgeSettings.ts": { normalizeInrBadgeShareSettings: untouched },
     "./channelPublicUrl.ts": { normalizeChannelPublicUrl: untouched },
     "./metaChannelRolloutServer": { isMetaChannelPilotEnabledForActorAndAccount: untouched },
+    "./channelConnectionState": { getChannelConnectionStates: untouched },
+    "./bubbleAccess.ts": { buildBubbleAccessMap: untouched, isBubbleEnabled: untouched },
+    "./dashboardCompletion.ts": { DASHBOARD_PROFILE_COMPLETION_SELECT: "synthetic", evaluateDashboardProfileCompletion: untouched },
     "@/lib/accountSubscriptionAccess": { getActiveSubscriptionAccountIds: untouched },
     "@/lib/dashboardEditionServer": { getDashboardEditionForAccountId: untouched },
     "./adsValidation.ts": { parseAdsCampaignInput: untouched },
@@ -135,7 +138,7 @@ function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: 
         if (/^\.\.\/messages\/fr-FR\/[a-zA-Z-]+\.json$/.test(id)) return { default: JSON.parse(readFileSync(resolve(dirname(path), id), "utf8")) };
         const target = resolve(dirname(path), id.endsWith(".ts") ? id : `${id}.ts`);
         const name = basename(target);
-        assert.ok(/^inrAssistant[A-Za-z.]+\.ts$/.test(name) || ["commercialDocumentDraft.ts", "inrAgentSettings.ts", "inrAgentMonthSchedule.ts", "siteWebChannel.ts", "subscriptionOffers.ts", "boosterPublicationPolicy.ts", "boosterChannelRules.ts", "boosterPublicationOutcome.ts", "aiContentLength.ts", "aiInstructionSections.ts", "dashboard.channel-setup.ts", "aiChannelCtaPreferences.ts", "boosterWhatsappCta.ts"].includes(name), `Unexpected dependency ${id}`);
+        assert.ok(/^inrAssistant[A-Za-z.]+\.ts$/.test(name) || ["commercialDocumentDraft.ts", "commercialDocumentValidation.ts", "commercialDocumentUpdate.ts", "inrAgentSettings.ts", "inrAgentMonthSchedule.ts", "siteWebChannel.ts", "subscriptionOffers.ts", "boosterPublicationPolicy.ts", "boosterChannelRules.ts", "boosterPublicationOutcome.ts", "aiContentLength.ts", "aiInstructionSections.ts", "dashboard.channel-setup.ts", "aiChannelCtaPreferences.ts", "boosterWhatsappCta.ts"].includes(name), `Unexpected dependency ${id}`);
         return load(target);
       }
       assert.fail(`Unexpected schema dependency ${id}`);
@@ -216,8 +219,14 @@ const scenarios = [
   { name: "crm-write", prompt: "Ajoute un contact CRM : Claire, claire@example.invalid, téléphone 0102030405.", required: ["manageCrmContact", "searchCrmContacts"] },
   { name: "commercial-draft", prompt: "Prépare un devis de rénovation pour mon client avec une ligne à 300 euros HT et TVA 20 %.", required: ["prepareCommercialDocument"] },
   { name: "campaign-dispatch", prompt: "Retrouve mon brouillon de campagne mail puis envoie-le à claire@example.invalid.", required: ["readCommunicationRecords", "dispatchCampaignDraft"] },
-  { name: "calendar-edit", prompt: "Déplace le rendez-vous de demain dans mon agenda à 15h00.", required: ["readCommunicationRecords", "updateCalendarAppointment"] },
+  { name: "calendar-edit", prompt: "Déplace le rendez-vous de demain dans mon agenda à 15h00.", required: ["readCommunicationRecords", "previewCalendarAction"] },
   { name: "studio-settings", prompt: "Modifie les réglages par défaut du Studio : format portrait et couleurs de marque.", required: ["readToolSettings", "updateToolSettings"] },
+  { name: "studio-natural-format", prompt: "Mets le format portrait dans iNrStudio pour mes images.", required: ["readToolSettings", "updateToolSettings"] },
+  { name: "notification-natural-alerts", prompt: "Coupe les alertes par email.", required: ["readToolSettings", "updateToolSettings"] },
+  { name: "cockpit-missing-channels", prompt: "Quels sont les deux canaux non connectés parmi les 14 de mon cockpit ? Lis leur état actuel et explique ce qui bloque chacun, sans rien modifier ni lancer de connexion.", required: ["readChannelStatus", "getAccountDiagnostics"] },
+  { name: "navigate-crm", prompt: "Ouvre mon CRM.", required: ["navigateApplication"] },
+  { name: "crm-and-quote", prompt: "Ajoute un contact CRM puis crée un devis pour lui.", required: ["manageCrmContact", "prepareCommercialDocument"] },
+  { name: "campaign-audience-preview", prompt: "Envoie ma campagne à tous mes clients.", required: ["previewCampaignAudience", "listCampaignMailboxes"] },
   { name: "ads-draft", prompt: "Prépare un brouillon ADS sur Google avec un budget de 20 euros par jour jusqu’au 2026-12-01.", required: ["readAdvertisingCampaigns", "prepareAdvertisingCampaign"] },
   { name: "business-dna", prompt: "Complète l’ADN de mon entreprise et règle son ton chaleureux avec les services de rénovation de toiture.", required: ["updateBusinessDna", "updateAiConfiguration"] },
   { name: "business-name-change", prompt: "Change le nom de mon entreprise en Atelier Martin.", required: ["updateBusinessDna"] },
@@ -255,6 +264,7 @@ for (const scenario of scenarios) test(`real schema budget matrix: ${scenario.na
   assert.equal(failure, undefined, `Actual Gateway rejects a normal ${scenario.name} request before any external operation: ${String(failure)}`);
   assert.equal(h.providerCalls.length, 1);
   for (const name of scenario.required) assert.ok(h.schemas.some(schema => schema.name === name), `Compaction must retain the ${name} action actually requested`);
+  if(scenario.name === "studio-natural-format") assert.ok(!h.schemas.some(schema=>["generateMedia","modifyMedia"].includes(schema.name)),"A defaults request must not expose paid media generation or retouching");
   const sent = h.generatedInputs[0];
   assert.match(sent.system ?? "", /Entreprise Toitures/); assert.match(sent.system ?? "", /premium/);
   assert.equal((sent.messages as Array<{ content: string }>).at(-1)?.content, scenario.prompt, "Compaction never discards the latest request");
@@ -291,9 +301,10 @@ test("Standard publication continues after real Booster and Publications guide r
     messages: [{ role: "user", content: "Je veux communiquer sur Threads qui arrive dans l’application." }, { role: "assistant", content: "Je peux préparer une communication adaptée aux canaux connectés." }, { role: "user", content: prompt }],
     accountContext: { source: "authenticated_account", setup: { channels: { connected: 8, total: 13 }, dna: { readiness: "ready" } } },
   });
+  if(h.providerCalls.length!==5) t.diagnostic(JSON.stringify({reply,actions:h.publicationActions,tools:h.providerCalls.map(call=>call.tools?.map(tool=>tool.type==='function'?tool.name:'other')),sizes:h.providerCalls.map(params=>bytes({prompt:params.prompt,tools:params.tools})+1024)}));
   assert.equal(h.providerCalls.length, 5, "Continue through guides, image, draft, dispatch and final reply");
   assert.deepEqual(h.publicationActions.map(action => action.name), ["generateMedia", "preparePublication", "executePublication"]);
-  assert.deepEqual(JSON.parse(JSON.stringify(h.publicationActions[1].input)), { posts: ["facebook", "instagram", "threads"].map(channel => ({ channel, title: "Threads arrive", content: "Threads est disponible dans iNrCy. Connectez votre compte pour communiquer avec votre communauté.", cta: "", hashtags: [] })), mediaIds: [MEDIA] });
+  assert.deepEqual(JSON.parse(JSON.stringify(h.publicationActions[1].input)), { posts: ["facebook", "instagram", "threads"].map(channel => ({ channel, title: "Threads arrive", content: "Threads est disponible dans iNrCy. Connectez votre compte pour communiquer avec votre communauté.", cta: "", hashtags: [] })), mediaIds: [MEDIA], operationKey: null });
   assert.equal(reply.outcome, "processing", "A queued publication must not claim delivery before the worker confirms it");
   assert.ok(reply.taskState?.receipts.some(receipt => receipt.tool === "executePublication"));
   const second = JSON.stringify(h.providerCalls[1].prompt);

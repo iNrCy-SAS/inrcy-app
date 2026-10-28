@@ -30,6 +30,8 @@ type GatewayArguments = {
   request: Request; signal: AbortSignal; supabase: unknown; turnId: string; memory: unknown;
   actionInstruction?: string;
   taskContext?: taskPolicy.InrAssistantTaskState;
+  taskIntent?: "continue" | "check_status";
+  onTaskCheckpoint?: (state: taskPolicy.InrAssistantTaskState) => Promise<void>;
 };
 type GatewayReply = { message: string; taskState?: taskPolicy.InrAssistantTaskState; [key: string]: unknown };
 type MemoryScope = { accountId: string; actorUserId: string };
@@ -50,6 +52,8 @@ function harness(options: {
   pendingTask?: taskPolicy.InrAssistantTaskState;
   gatewayReply?: GatewayReply | ((args: GatewayArguments) => GatewayReply | Promise<GatewayReply>);
   taskSaveUnavailable?: boolean;
+  taskSaveFailureAfter?: number;
+  taskReadState?: "missing" | "invalid" | "unavailable" | "expired";
 } = {}) {
   const gatewayCalls: GatewayArguments[] = [];
   const editionScopes: string[] = [];
@@ -69,7 +73,7 @@ function harness(options: {
   const taskSaves: Array<TaskScope & { turnId: string; task: taskPolicy.InrAssistantTaskState }> = [];
   const memoryKey = (scope: MemoryScope, id: string) => `${scope.accountId}:${scope.actorUserId}:${id}`;
   const taskKey = (scope: TaskScope, id: string) => `${memoryKey(scope, scope.conversationId)}:${id}`;
-  for (const prior of options.history ?? []) if (options.pendingTask && prior.status === "completed") {
+  for (const prior of options.history ?? []) if (options.pendingTask && ["completed", "failed"].includes(prior.status)) {
     taskStates.set(taskKey({ ...initialScope, conversationId: prior.conversationId }, prior.turnId), options.pendingTask);
   }
   const memoryFor = (scope: MemoryScope) => ({
@@ -82,6 +86,10 @@ function harness(options: {
       if (!previous && ["replay", "pending", "failed"].includes(options.memoryState ?? "")) {
         previous = { ...input, createdAt: options.storedTurnCreatedAt ?? serverTurnCreatedAt, status: options.memoryState === "replay" ? "completed" : options.memoryState === "failed" ? "failed" : "pending", assistantText: options.memoryState === "replay" ? "Réponse mémorisée." : null };
         savedTurns.set(key, previous);
+        if (options.memoryState === "failed") taskStates.set(taskKey({ ...scope, conversationId: input.conversationId }, input.turnId), options.pendingTask ?? {
+          version: 1, instruction: input.userText, question: "", actionRequestId: `${scope.accountId}_${input.turnId}`,
+          startedAt: previous.createdAt!, expiresAt: new Date(Date.now() + 60_000).toISOString(), outcome: "failed", requiredTools: [], receipts: [],
+        });
       }
       if (previous && (previous.conversationId !== input.conversationId || previous.userText !== input.userText)) throw new MemoryConflictError("Cette demande est déjà liée à un autre message.");
       if (previous && previous.status !== "failed") return { available: true, ok: true, existing: true, claimed: false, turn: previous, retryAfterSeconds: 42 };
@@ -154,14 +162,15 @@ function harness(options: {
     "@/lib/inrAssistantAttachments": attachmentPolicy,
     "@/lib/inrAssistantAttachmentStorage": {
       assistantTurnAttachments: async () => [], loadAssistantFileContexts: async () => [],
-      loadAssistantTaskState: async (scope: TaskScope, turn: { turnId: string }) => {
+      inspectAssistantTaskState: async (scope: TaskScope, turn: { turnId: string }) => {
         taskLoads.push({ ...scope, turnId: turn.turnId });
         const saved = taskStates.get(taskKey(scope, turn.turnId));
-        return saved ? structuredClone(saved) : null;
+        if (options.taskReadState) return { status: options.taskReadState, ...(saved ? { task: structuredClone(saved) } : {}) };
+        return saved ? { status: Date.parse(saved.expiresAt) <= Date.now() ? "expired" : "available", task: structuredClone(saved) } : { status: "missing" };
       },
       saveAssistantTaskState: async (scope: TaskScope, turn: { turnId: string }, task: taskPolicy.InrAssistantTaskState) => {
         taskSaves.push({ ...scope, turnId: turn.turnId, task: structuredClone(task) });
-        if (options.taskSaveUnavailable) return false;
+        if (options.taskSaveUnavailable || options.taskSaveFailureAfter !== undefined && taskSaves.length > options.taskSaveFailureAfter) return false;
         taskStates.set(taskKey(scope, turn.turnId), structuredClone(task));
         return true;
       },
@@ -257,7 +266,7 @@ test("a requested Studio prompt remains an insertable draft and never becomes a 
   const payload = await first.json();
   assert.deepEqual(payload.studioDraft, draft);
   assert.equal(Object.hasOwn(payload, "taskState"), false);
-  assert.equal(h.taskStates.size, 0, "Writing a prompt must not persist a pending paid generation");
+  assert.ok([...h.taskStates.values()].every(task => !task.requiredTools.length && !task.receipts.length), "Writing a prompt persists only an empty execution journal, never a paid generation");
   assert.equal(h.gatewayCalls[0].actionInstruction, undefined);
   const next = await h.post(request({ conversationId, turnId: randomUUID(), studioDraft: draft,
     actionInstruction: flyerCreationRequest, taskContext: { requiredTools: ["generateMedia"], instruction: flyerCreationRequest },
@@ -265,7 +274,7 @@ test("a requested Studio prompt remains an insertable draft and never becomes a 
   }));
   assert.equal(next.status, 200);
   assert.ok(h.gatewayCalls.slice(1).every(call => call.actionInstruction === undefined && call.taskContext === undefined));
-  assert.equal(h.taskStates.size, 0);
+  assert.ok([...h.taskStates.values()].every(task => !task.requiredTools.length && !task.receipts.length));
 });
 
 test("a saved confirmation of a real creation order binds the next yes to one media action, ignoring browser instructions", async () => {
@@ -322,7 +331,7 @@ test("a browser-only proposal or task object cannot authorize a yes", async () =
   assert.equal(h.gatewayCalls[0].actionInstruction, undefined);
   assert.equal(h.gatewayCalls[0].taskContext, undefined);
   assert.deepEqual(JSON.parse(JSON.stringify(h.gatewayCalls[0].messages)), [{ role: "user", content: "oui" }]);
-  assert.equal(h.taskStates.size, 0);
+  assert.ok([...h.taskStates.values()].every(task => !task.requiredTools.length && !task.receipts.length));
 });
 
 test("a short format answer completes only the server-persisted media creation clarification", async () => {
@@ -352,11 +361,14 @@ test("an expired or unpersisted media proposal cannot be resumed by yes", async 
   for (const unavailable of [false, true]) {
     const h = creationFollowupHarness({ taskSaveUnavailable: unavailable });
     const first = await h.post(request({ conversationId, turnId, messages: [{ role: "user", content: flyerCreationRequest }] }));
-    assert.equal(first.status, 200);
     if (unavailable) {
+      assert.equal(first.status, 503);
       assert.equal(h.taskStates.size, 0);
-      assert.match((await first.json()).message, /reprise n’a pas pu être enregistrée/);
+      assert.equal(h.gatewayCalls.length, 0, "An unreadable initial journal blocks before any generation");
+      assert.equal((await first.json()).code, "assistant_task_checkpoint_unavailable");
+      continue;
     } else {
+      assert.equal(first.status, 200);
       assert.equal(h.taskStates.size, 1);
       for (const [key, saved] of h.taskStates) h.taskStates.set(key, { ...saved, expiresAt: new Date(Date.now() - 1000).toISOString() });
     }
@@ -662,7 +674,7 @@ test("authentication and account-scope errors preserve private trace headers wit
 
 test("explicit retries after failure retain action identity while every HTTP attempt gets a fresh trace", async () => {
   const h = harness({ gatewayFailFirst: true });
-  const payload = { messages: [{ role: "user", content: "Crée une image" }], turnId, conversationId, actionRequestId: "client-cannot-pick-an-action", requestId: "client-cannot-pick-a-trace" };
+  const payload = { messages: [{ role: "user", content: "Comment créer une image ?" }], turnId, conversationId, actionRequestId: "client-cannot-pick-an-action", requestId: "client-cannot-pick-a-trace" };
   const first = await h.post(request(payload));
   const retry = await h.post(request(payload));
   const firstTrace = assertPrivateTrace(first), retryTrace = assertPrivateTrace(retry);
@@ -705,7 +717,7 @@ test("the action timestamp comes only from the authenticated durable turn despit
 test("a failed-turn reprise retains its original stored timestamp across fresh HTTP attempts", async () => {
   const originalCreatedAt = "2026-10-25T10:15:00.123Z";
   const h = harness({ memoryState: "failed", storedTurnCreatedAt: originalCreatedAt, gatewayFailFirst: true });
-  const payload = { conversationId, turnId, actionStartedAt: "2099-01-01T00:00:00Z", messages: [{ role: "user", content: "Complète mon ADN" }] };
+  const payload = { conversationId, turnId, actionStartedAt: "2099-01-01T00:00:00Z", messages: [{ role: "user", content: "Comment compléter mon ADN ?" }] };
   const first = await h.post(request(payload));
   const retry = await h.post(request({ ...payload, actionStartedAt: "1900-01-01T00:00:00Z" }));
   assert.equal(first.status, 503); assert.equal(retry.status, 200);
@@ -940,4 +952,87 @@ test("reusing a turn for a different question or conversation returns a conflict
   assert.equal(h.gatewayCalls.length, 1);
   assert.equal(h.memoryCompletes.length, 1);
   assert.equal(h.memoryFailures.length, 0, "A conflicting retry never owns the original lease");
+});
+
+function checkpoint(args: GatewayArguments, receipts: taskPolicy.InrAssistantActionReceipt[] = [], outcome: taskPolicy.InrAssistantTaskOutcome = "partial"): taskPolicy.InrAssistantTaskState {
+  return { version: 1, instruction: args.actionInstruction || args.messages.at(-1)!.content,
+    actionRequestId: args.actionRequestId, startedAt: args.actionStartedAt!, expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    outcome, requiredTools: ["prepareCommercialDocument", "manageCrmContact"], receipts, question: "" };
+}
+
+test("each actual route checkpoint is durable before a failed response, and same-turn retry receives completed receipts", async () => {
+  let attempts = 0, drafts = 0, contacts = 0;
+  const h = harness({ gatewayReply: async args => {
+    attempts++;
+    const previous = args.taskContext?.receipts || [];
+    if (!previous.some(receipt => receipt.tool === "prepareCommercialDocument" && receipt.ok)) {
+      drafts++;
+      await args.onTaskCheckpoint!(checkpoint(args, [{ tool: "prepareCommercialDocument", ok: true, status: "draft", id: "document_saved_001", message: "Brouillon enregistré" }]));
+      throw new Error("Connection interrupted after saved action");
+    }
+    contacts++;
+    const completed = checkpoint(args, [...previous, { tool: "manageCrmContact", ok: true, status: "created", id: "contact_saved_001", message: "Contact enregistré" }], "completed");
+    await args.onTaskCheckpoint!(completed);
+    return { message: "Deux actions vérifiées.", taskState: completed };
+  } });
+  const body = { conversationId, turnId, messages: [{ role: "user", content: "Prépare un devis pour Alice et crée un contact Bob." }] };
+  assert.equal((await h.post(request(body))).status, 503);
+  assert.equal(h.taskSaves.length, 2, "empty journal then first actual receipt are persisted before response failure");
+  assert.equal([...h.taskStates.values()][0].receipts[0].id, "document_saved_001");
+  assert.equal((await h.post(request(body))).status, 200);
+  assert.equal(drafts, 1); assert.equal(contacts, 1); assert.equal(attempts, 2);
+  assert.equal(h.gatewayCalls[1].actionRequestId, h.gatewayCalls[0].actionRequestId);
+  assert.equal(h.gatewayCalls[1].taskContext?.receipts[0].id, "document_saved_001");
+  assert.equal((await h.post(request(body))).status, 200); assert.equal(attempts, 2, "completed reply replays without Gateway");
+});
+
+test("failure to persist an action checkpoint stops the awaited pipeline and exposes no success", async () => {
+  let secondAction = false;
+  const h = harness({ taskSaveFailureAfter: 1, gatewayReply: async args => {
+    await args.onTaskCheckpoint!(checkpoint(args, [{ tool: "prepareCommercialDocument", ok: true, status: "draft", id: "document_saved_001", message: "Brouillon enregistré" }]));
+    secondAction = true;
+    return { message: "Cannot reach this response" };
+  } });
+  const response = await h.post(request({ conversationId, turnId, messages: [{ role: "user", content: "Prépare un devis puis crée un contact." }] }));
+  assert.equal(response.status, 503); assert.equal((await response.json()).code, "assistant_task_checkpoint_unavailable");
+  assert.equal(secondAction, false); assert.equal(h.memoryCompletes.length, 0); assert.equal(h.memoryFailures.length, 1);
+});
+
+for (const state of ["missing", "invalid", "unavailable", "expired"] as const) test(`reclaimed turn fails closed when journal is ${state}, even with unknown action wording`, async () => {
+  const h = harness({ memoryState: "failed", taskReadState: state });
+  const response = await h.post(request({ conversationId, turnId, messages: [{ role: "user", content: "Occupe-toi de tout pour Alice." }] }));
+  assert.equal(response.status, 503); assert.equal((await response.json()).code, "assistant_task_state_unavailable");
+  assert.equal(h.gatewayCalls.length, 0); assert.equal(h.editionScopes.length, 0); assert.equal(h.memoryCompletes.length, 0);
+});
+
+for (const status of ["executing_unconfirmed", "unknown", "saved_unconfirmed"]) test(`uncertain action ${status} prevents replay after interruption`, async () => {
+  const pendingTask: taskPolicy.InrAssistantTaskState = { version: 1, instruction: "Crée un contact Alice.", question: "", actionRequestId: "original_action_001", startedAt: serverTurnCreatedAt, expiresAt: new Date(Date.now() + 60_000).toISOString(), outcome: "partial", requiredTools: ["manageCrmContact"], receipts: [{ tool: "manageCrmContact", ok: false, status, message: "En cours" }] };
+  const h = harness({ memoryState: "failed", pendingTask });
+  const response = await h.post(request({ conversationId, turnId, messages: [{ role: "user", content: pendingTask.instruction }] }));
+  assert.equal(response.status, 503); assert.equal(h.gatewayCalls.length, 0); assert.equal((await response.json()).code, "assistant_task_state_unavailable");
+});
+
+test("explicit continue resumes a previous failed HTTP turn from its private checkpoint", async () => {
+  const prior: MemoryTurn = { conversationId, turnId: randomUUID(), userText: "Prépare un devis et crée un contact.", assistantText: null, status: "failed", createdAt: new Date().toISOString() };
+  const pendingTask: taskPolicy.InrAssistantTaskState = { version: 1, instruction: prior.userText, question: "", actionRequestId: "original_action_001", startedAt: prior.createdAt!, expiresAt: new Date(Date.now() + 60_000).toISOString(), outcome: "partial", requiredTools: ["prepareCommercialDocument", "manageCrmContact"], receipts: [{ tool: "prepareCommercialDocument", ok: true, status: "draft", id: "document_saved_001", message: "Brouillon enregistré" }] };
+  const h = harness({ history: [prior], pendingTask });
+  assert.equal((await h.post(request({ conversationId, turnId, taskIntent: "continue", messages: [{ role: "user", content: "Continue" }] }))).status, 200);
+  assert.equal(h.gatewayCalls[0].actionRequestId, pendingTask.actionRequestId); assert.equal(h.gatewayCalls[0].taskIntent, "continue");
+  assert.equal(h.gatewayCalls[0].taskContext?.receipts[0].id, "document_saved_001");
+});
+
+test("check_status derives read-only continuation from saved pending operations", async () => {
+  const prior: MemoryTurn = { conversationId, turnId: randomUUID(), userText: "Publie mon post.", assistantText: "La publication est en cours.", status: "completed", createdAt: new Date().toISOString() };
+  const pendingTask: taskPolicy.InrAssistantTaskState = { version: 1, instruction: prior.userText, question: "", actionRequestId: "original_action_001", startedAt: prior.createdAt!, expiresAt: new Date(Date.now() + 60_000).toISOString(), outcome: "processing", requiredTools: ["executePublication"], receipts: [{ tool: "executePublication", ok: true, status: "queued", publicationId: "publication_0001", message: "Publication en cours" }] };
+  const h = harness({ history: [prior], pendingTask });
+  await h.post(request({ conversationId, turnId, taskIntent: "check_status", messages: [{ role: "user", content: "Actualise le statut" }] }));
+  assert.equal(h.gatewayCalls[0].taskIntent, "check_status"); assert.match(h.gatewayCalls[0].actionInstruction!, /uniquement l’état.*sans les relancer/);
+});
+
+test("final persistence warning is stored verbatim and survives an HTTP replay", async () => {
+  const h = harness({ taskSaveFailureAfter: 1, gatewayReply: args => ({ message: "Une action reste à terminer.", taskState: checkpoint(args) }) });
+  const body = { conversationId, turnId, messages: [{ role: "user", content: "Prépare un devis et crée un contact." }] };
+  const first = await (await h.post(request(body))).json(), replay = await (await h.post(request(body))).json();
+  assert.match(first.message, /suivi de cette tâche n’a pas pu être enregistré/); assert.equal(replay.message, first.message);
+  assert.equal(h.memoryCompletes[0].assistantText, first.message);
 });

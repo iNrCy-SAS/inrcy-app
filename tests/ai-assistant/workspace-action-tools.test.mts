@@ -80,7 +80,7 @@ function harness(options: { edition?: "standard" | "premium" | "founder"; foreig
   const compiled = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantWorkspaceActionTools.ts", import.meta.url), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
   vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, { Request, Response, Headers, URL, Date })((name: string) => { assert.ok(name in stubs, name); return stubs[name]; }, record, record.exports);
   const runtime = record.exports as typeof Workspace;
-  const tools = (currentUserMessage: string, actionRequestId = "stable-turn") => runtime.createInrAssistantWorkspaceActionTools({ request: new Request("https://app.inrcy.test/api/assistant/chat", { headers: { cookie: "session=synthetic", authorization: "Bearer synthetic" } }), accountId, supabase: supabase as never, edition: options.edition || "premium", currentUserMessage, actionRequestId, canStartWork: () => options.canStart !== false }) as unknown as Record<"updateMediaMetadata" | "prepareCampaignEmail" | "prepareCalendarAppointment" | "searchCrmContacts", Tool>;
+  const tools = (currentUserMessage: string, actionRequestId = "stable-turn") => runtime.createInrAssistantWorkspaceActionTools({ request: new Request("https://app.inrcy.test/api/assistant/chat", { headers: { cookie: "session=synthetic", authorization: "Bearer synthetic" } }), accountId, supabase: supabase as never, edition: options.edition || "premium", currentUserMessage, actionRequestId, canStartWork: () => options.canStart !== false }) as unknown as Record<"updateMediaMetadata" | "prepareCampaignEmail" | "prepareCalendarAppointment" | "searchCrmContacts" | "readCrmContact", Tool>;
   return { tables, calls, tools };
 }
 
@@ -172,4 +172,34 @@ test("CRM search is current-request scoped, bounded, read only and excludes priv
   assert.equal(injected.ok, true); const filter = h.calls.at(-1)!.filters!.find(([key]) => key === "or")![1];
   assert.equal(String(filter).includes("user_id.eq"), false);
   assert.equal(h.calls.some(call => call.stage.endsWith("-create") || call.stage === "media-patch"), false);
+});
+
+test("read an identified CRM contact only when its current name and active account match", async () => {
+  const h = harness(); const tools = h.tools("Lis les coordonnées du client Marie Dupont dans mon CRM.");
+  const result = await tools.readCrmContact.execute({ contactId: draftId, reference: "Marie Dupont" });
+  assert.equal(result.ok, true); assert.equal((result.contact as Row).email, "private@example.test");
+  assert.equal("user_id" in (result.contact as Row), false); assert.equal(result.untrustedContent, true);
+  assert.equal((await tools.readCrmContact.execute({ contactId: foreignId, reference: "Marie Dupont" })).ok, false);
+  assert.equal((await tools.readCrmContact.execute({ contactId: draftId, reference: "Un autre nom" })).status, "needs_instruction");
+  assert.equal((await harness({ edition: "standard" }).tools("Lis le client Marie Dupont").readCrmContact.execute({ contactId: draftId, reference: "Marie Dupont" })).ok, false);
+});
+
+test("explicit campaign and appointment batches use distinct durable markers and enforce requested counts", async () => {
+  for (const kind of ["campaign", "appointment"] as const) {
+    const h = harness();
+    const message = kind === "campaign" ? "Prépare 2 campagnes mail en brouillon pour mon offre." : "Prépare 2 rendez-vous en brouillon demain à 15h et 16h pour une heure.";
+    const tools = h.tools(message), name = kind === "campaign" ? "prepareCampaignEmail" : "prepareCalendarAppointment";
+    const base = kind === "campaign" ? campaign(message) : appointment(message);
+    const first = { ...base, operationKey: `${kind}-1` }, second = { ...base, operationKey: `${kind}-2`, ...(kind === "campaign" ? { subject: "Deuxième offre" } : { title: "Deuxième visite", start: "2026-10-28T16:00:00+01:00", end: "2026-10-28T17:00:00+01:00" }) };
+    assert.equal((await tools[name].execute(first)).status, "draft");
+    assert.equal((await tools[name].execute(second)).status, "draft");
+    assert.equal((await tools[name].execute({ ...base, operationKey: `${kind}-3` })).status, "needs_instruction");
+    const writes = h.calls.filter(call => call.stage === (kind === "campaign" ? "mail-create" : "calendar-create"));
+    assert.equal(writes.length, 2);
+    const markers = writes.map(call => kind === "campaign" ? (call.body!.trackPayload as Row).assistantActionKey : (call.body!.inrcy as Row).assistantActionKey);
+    assert.notEqual(markers[0], markers[1]);
+    assert.equal((await h.tools(message)[name].execute(first)).status, "draft");
+    assert.equal(h.calls.filter(call => call.stage === (kind === "campaign" ? "mail-create" : "calendar-create")).length, 2);
+  }
+  const h = harness(); assert.equal((await h.tools(mailInstruction).prepareCampaignEmail.execute({ ...campaign(), operationKey: "not-authorized-batch" })).status, "needs_instruction");
 });

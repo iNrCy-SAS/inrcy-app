@@ -10,7 +10,7 @@ import type * as AccountTools from "../../lib/inrAssistantAccountTools.ts";
 const accountA = "account-a";
 const accountB = "account-b";
 type Row = Record<string, unknown>;
-type Query = { table: string; select: string; filters: Array<[string, string, unknown]>; limit?: number };
+type Query = { table: string; select: string; filters: Array<[string, string, unknown]>; limit?: number; offset?: number };
 type TestTool = { execute: (input: unknown) => Promise<Row>; inputSchema: { validate?: (input: unknown) => { success: boolean } } };
 
 function harness(options: { overrides?: Record<string, Row[]>; errors?: string[] } = {}) {
@@ -43,6 +43,7 @@ function harness(options: { overrides?: Record<string, Row[]>; errors?: string[]
       let rows = (tables[table] || []).filter((row) => query.filters.every(([kind, key, value]) =>
         kind === "eq" ? row[key] === value : kind === "neq" ? row[key] !== value : (value as unknown[]).includes(row[key])));
       if (query.limit !== undefined) rows = rows.slice(0, query.limit);
+      if (query.offset !== undefined) rows = rows.slice(query.offset);
       return { data: rows, error: null };
     };
     const builder = {
@@ -52,6 +53,7 @@ function harness(options: { overrides?: Record<string, Row[]>; errors?: string[]
       in: (key: string, value: unknown[]) => { query.filters.push(["in", key, value]); return builder; },
       order: () => builder,
       limit: (limit: number) => { query.limit = limit; return builder; },
+      range: (from: number, to: number) => { query.offset = from; query.limit = to + 1; return builder; },
       maybeSingle: async () => { const read = result(); return { ...read, data: read.data?.[0] ?? null }; },
       then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => Promise.resolve(result()).then(resolve, reject),
     };
@@ -83,6 +85,19 @@ test("ADN uses authenticated account scope on every table and excludes private d
   const body = JSON.stringify(result);
   for (const secret of ["private-reference", "reference.pdf", "private-profile-password", "private-business-token", "private-memory-token"]) assert.equal(body.includes(secret), false);
   for (const query of h.queries) assert.ok(query.filters.some(([kind, key, value]) => kind === "eq" && ["user_id", "account_id"].includes(key) && value === accountA));
+});
+
+test("media search continues past 500 rows and does not skip additional matches within a scanned page", async () => {
+  const rows = Array.from({ length: 530 }, (_, index) => ({ id: `media-${index}`, user_id: accountA, is_active: true, source: "mediatheque", media_type: "image", title: index >= 510 ? "Archive toiture" : "Autre média", tags: [] }));
+  const h = harness({ overrides: { pro_media_library: rows } });
+  const first = await h.tools.searchMedia.execute({ query: "toiture", type: "image", limit: 8, offset: 0 });
+  assert.equal((first.items as Row[]).length, 0); assert.equal(first.nextOffset, 500);
+  const second = await h.tools.searchMedia.execute({ query: "toiture", type: "image", limit: 8, offset: first.nextOffset });
+  assert.equal((second.items as Row[])[0].id, "media-510"); assert.equal(second.nextOffset, 518);
+  const third = await h.tools.searchMedia.execute({ query: "toiture", type: "image", limit: 8, offset: second.nextOffset });
+  assert.equal((third.items as Row[])[0].id, "media-518"); assert.equal(third.nextOffset, 526);
+  const final = await h.tools.searchMedia.execute({ query: "toiture", type: "image", limit: 8, offset: third.nextOffset });
+  assert.equal((final.items as Row[]).length, 4); assert.equal(final.nextOffset, null);
 });
 
 test("large and escaped ADN stays below six thousand serialized characters", async () => {

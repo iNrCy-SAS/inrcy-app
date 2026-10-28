@@ -4,6 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import type * as Settings from "../../lib/inrAssistantSettingsTools.ts";
+import * as commandRegistry from "../../lib/inrAssistantCommandRegistry.ts";
 type Row = Record<string, unknown>;
 type Definition = { execute(input: unknown): Promise<Row> };
 function harness(options: { message?: string; edition?: "standard" | "premium" | "founder"; foreign?: boolean; partial?: boolean; unavailable?: boolean } = {}) {
@@ -36,6 +37,7 @@ function harness(options: { message?: string; edition?: "standard" | "premium" |
     }])),
   });
   const stubs: Record<string, unknown> = {
+    "./inrAssistantCommandRegistry.ts": commandRegistry,
     "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (value: unknown) => value },
     "./requireUser": { requireUser: async () => ({ activeUserId: options.foreign ? "foreign" : "active", errorResponse: null }) },
     "@/app/api/calendar/settings/route": route("calendar"), "@/app/api/notifications/preferences/route": route("notifications"),

@@ -14,7 +14,7 @@ const imageInput = { mediaType: "image", prompt: "Une photo réaliste de mon ate
 const sourceMediaId = "30000000-0000-4000-8000-000000000001";
 const sourceReference = { reference: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jlpQAAAAASUVORK5CYII=", role: "inspiration", usage: "required" }, width: 1080, height: 1350, format: "portrait" };
 
-type HarnessOptions = { currentUserMessage?: string; sourceUnavailable?: boolean; subscriptionActive?: boolean; canStartWork?: boolean; creditsReady?: boolean; remaining?: number; maxDuration?: number; generateError?: boolean; generateBroken?: boolean; acceptError?: boolean; status?: string; statusResponse?: number; statusCode?: string; statusBroken?: boolean };
+type HarnessOptions = { currentUserMessage?: string; statusReadOnly?: boolean; accepted?: boolean; sourceUnavailable?: boolean; subscriptionActive?: boolean; canStartWork?: boolean; creditsReady?: boolean; remaining?: number; maxDuration?: number; generateError?: boolean; generateBroken?: boolean; acceptError?: boolean; status?: string; statusResponse?: number; statusCode?: string; statusBroken?: boolean };
 function harness(options: HarnessOptions = {}) {
   const calls: { stage: string; body?: Record<string, unknown>; request?: Request; id?: string }[] = [];
   const callbacks: string[] = [];
@@ -43,6 +43,7 @@ function harness(options: HarnessOptions = {}) {
       calls.push({ stage: "quota" });
       return json({ ok: true, quota: { creditsReady: options.creditsReady !== false, videoMaxDurationSeconds: options.maxDuration ?? 30 } });
     } },
+    "@/app/api/media-generation/cancel/route": { POST: async (request: Request) => { const body = await request.json(); calls.push({ stage: "cancel", body, request }); assert.equal(storedStatus, "missing"); storedStatus = "failed"; return json({ ok: true, status: "failed", cancellationPreventedReservation: true }); } },
     "@/app/api/media-generation/quote/route": { POST: async (request: Request) => {
       const body = await request.json(); calls.push({ stage: "quote", body, request });
       return json({ ok: true, quote: { totalCredits: 5, quoteId: "account-scoped-synthetic-quote", tariffVersion: "studio-test" }, credits: { remaining: options.remaining ?? 50 } });
@@ -64,7 +65,7 @@ function harness(options: HarnessOptions = {}) {
       if (options.statusBroken) throw new Error("Synthetic status service outage");
       if (options.statusResponse) return json({ ok: false, code: options.statusCode, error: "Vérification indisponible." }, options.statusResponse);
       if (storedStatus === "missing") return json({ ok: false, status: "missing", code: "AI_MEDIA_GENERATION_NOT_FOUND" }, 404);
-      return json({ ok: true, status: storedStatus, draft: true, item: { ...item, media_type: generatedKind }, creditsUsed: 5, error: "La génération a échoué." }, storedStatus === "processing" ? 202 : 200);
+      return json({ ok: true, status: storedStatus, draft: options.accepted !== true, item: { ...item, media_type: generatedKind }, creditsUsed: 5, error: "La génération a échoué." }, storedStatus === "processing" ? 202 : 200);
     } },
   };
   const output = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantMediaTools.ts", import.meta.url), "utf8"), {
@@ -80,13 +81,36 @@ function harness(options: HarnessOptions = {}) {
     request: new Request("https://app.inrcy.invalid/api/assistant/chat", { headers: { cookie: "session=synthetic", authorization: "Bearer synthetic" } }),
     requestId: "10000000-0000-4000-8000-000000000001",
     currentUserMessage: options.currentUserMessage,
+    statusReadOnly: options.statusReadOnly,
     canStartWork: () => options.canStartWork !== false,
     onWorkStarted: (id) => callbacks.push(id), onResult: (result) => results.push(result),
   });
   type TestTool = { execute: (input: unknown) => Promise<MediaTools.InrAssistantMediaResult>; inputSchema: { validate?: (input: unknown) => { success: boolean } }; toModelOutput: (args: { output: MediaTools.InrAssistantMediaResult }) => unknown };
-  type TestTools = { generateMedia: TestTool; modifyMedia: TestTool; getMediaGeneration: TestTool };
+  type TestTools = { generateMedia: TestTool; modifyMedia: TestTool; getMediaGeneration: TestTool; cancelMediaGeneration: TestTool };
   return { runtime, tools: createTools() as unknown as TestTools, retryTools: () => createTools() as unknown as TestTools, calls, callbacks, results };
 }
+
+test("a read-only follow-up distinguishes ready draft from saved media without accepting or generating", async()=>{
+  for(const accepted of [false,true]) {
+    const h=harness({status:"completed",statusReadOnly:true,accepted});
+    const result=await h.tools.getMediaGeneration.execute({requestId:"assistant_existing_generation"});
+    assert.equal(result.status,accepted?"completed":"ready_to_save");
+    assert.deepEqual(h.calls.map(call=>call.stage),["status"]);
+  }
+});
+
+test("media cancellation only claims a pre-reservation stop and never pretends a running provider job can be cancelled", async () => {
+  const requestId = "assistant_10000000-0000-4000-8000-000000000001_media", instructionQuote = "Annule cette génération";
+  const input = { requestId, mediaType: "image", instructionQuote };
+  const before = harness({ currentUserMessage: instructionQuote });
+  assert.equal((await before.tools.cancelMediaGeneration.execute(input)).status, "cancelled"); assert.deepEqual(before.calls.map(call => call.stage), ["status", "cancel"]);
+  for (const [status, expected] of [["processing", "cannot_cancel"], ["completed", "already_completed"], ["failed", "already_stopped"]]) {
+    const h = harness({ status, currentUserMessage: instructionQuote }); assert.equal((await h.tools.cancelMediaGeneration.execute(input)).status, expected); assert.deepEqual(h.calls.map(call => call.stage), ["status"]);
+  }
+  const absent = harness({ currentUserMessage: instructionQuote }); assert.equal((await absent.tools.cancelMediaGeneration.execute({ ...input, requestId: "assistant_foreign_request" })).status, "not_found"); assert.deepEqual(absent.calls.map(call => call.stage), ["status"]);
+  const question = harness({ currentUserMessage: "Explique comment annuler cette génération" }); assert.equal((await question.tools.cancelMediaGeneration.execute({ ...input, instructionQuote: "Explique comment annuler cette génération" })).status, "needs_instruction"); assert.equal(question.calls.length, 0);
+  const readOnly = harness({ currentUserMessage: instructionQuote, statusReadOnly: true }); assert.equal((await readOnly.tools.cancelMediaGeneration.execute(input)).status, "blocked"); assert.equal(readOnly.calls.length, 0);
+});
 
 test("creation reuses quota, signed quote, real generation and draft acceptance in that order", async () => {
   const h = harness();

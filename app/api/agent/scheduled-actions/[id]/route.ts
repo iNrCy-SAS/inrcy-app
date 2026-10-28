@@ -12,6 +12,7 @@ import { compactInrAgentScheduledPayload, hasUnauthorizedScheduledStorageReferen
 import { buildAbsoluteStorageContentUrl } from "@/lib/storageContentUrl";
 import { normalizeBoosterSoundtrackByChannel, normalizeBoosterSoundtrackId } from "@/lib/boosterSoundtracks";
 import { isInrAgentPublicationSoundtrackLocked, readInrAgentPublicationSoundtrack } from "@/lib/inrAgentPublicationSoundtrack";
+import { scheduledPublicationFingerprint } from "@/lib/inrAssistantActionPreview";
 
 export const runtime = "nodejs";
 
@@ -122,6 +123,25 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     return saveAgentPublicationChannels({ userId: activeUserId, scheduledActionId: id, channels: record.channels, expectedUpdatedAt: record.expectedUpdatedAt, tiktokPublicationSettings: record.tiktokPublicationSettings, confirmPending: record.confirmPending === true });
   }
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  let previewRevisionRow: Record<string, unknown> | null = null;
+  if (record && "expectedState" in record) {
+    const { data: current, error } = await supabaseAdmin.from("inr_agent_scheduled_actions").select(SCHEDULED_ACTION_SELECT).eq("id", id).eq("user_id", activeUserId).maybeSingle();
+    if (error) return NextResponse.json({ error: "Vérification de la programmation impossible." }, { status: 500 });
+    if (!current) return NextResponse.json({ error: "Action programmée introuvable." }, { status: 404 });
+    if (typeof record.expectedState !== "string" || record.expectedState !== scheduledPublicationFingerprint(current)
+      || current.action_type !== "publication" || current.target_tool !== "booster" || current.status !== "scheduled"
+      || Number(current.attempt_count || 0) !== 0 || current.executed_at || !current.updated_at
+      || Date.parse(String(current.scheduled_at)) <= Date.now()) {
+      return NextResponse.json({ error: "La programmation a changé ou son exécution a commencé. Préparez un nouvel aperçu." }, { status: 409 });
+    }
+    if (Object.keys(record).some(key => !["expectedState", "status", "scheduledAt", "timezone"].includes(key))
+      || !(record.status === "cancelled" || typeof record.scheduledAt === "string")
+      || record.status === "cancelled" && "scheduledAt" in record
+      || "scheduledAt" in record && (!Number.isFinite(Date.parse(String(record.scheduledAt))) || Date.parse(String(record.scheduledAt)) <= Date.now() + 30_000)) {
+      return NextResponse.json({ error: "Modification de programmation invalide." }, { status: 400 });
+    }
+    previewRevisionRow = current;
+  }
 
   if (record?.status === "cancelled") updates.status = "cancelled";
   if (typeof record?.title === "string" && record.title.trim()) {
@@ -256,6 +276,11 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     updateQuery = soundtrackRevisionRow.attempt_count == null
       ? updateQuery.is("attempt_count", null) : updateQuery.eq("attempt_count", soundtrackRevisionRow.attempt_count);
   }
+  if (previewRevisionRow) {
+    updateQuery = updateQuery.eq("status", "scheduled").eq("updated_at", previewRevisionRow.updated_at).eq("scheduled_at", previewRevisionRow.scheduled_at)
+      .eq("payload", JSON.stringify(previewRevisionRow.payload)).is("executed_at", null);
+    updateQuery = previewRevisionRow.attempt_count == null ? updateQuery.is("attempt_count", null) : updateQuery.eq("attempt_count", previewRevisionRow.attempt_count);
+  }
   const { data, error } = await updateQuery.select(SCHEDULED_ACTION_SELECT).maybeSingle();
 
   if (error) {
@@ -267,7 +292,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: "Modification de l’action programmée impossible" }, { status: 500 });
   }
 
-  if (!data) return NextResponse.json({ error: soundtrackRevisionRow ? "La programmation a changé. Actualisez avant de modifier sa musique." : "Action programmée introuvable" }, { status: soundtrackRevisionRow ? 409 : 404 });
+  if (!data) return NextResponse.json({ error: soundtrackRevisionRow || previewRevisionRow ? "La programmation a changé. Actualisez avant de la modifier." : "Action programmée introuvable" }, { status: soundtrackRevisionRow || previewRevisionRow ? 409 : 404 });
   return NextResponse.json({
     scheduledAction: scheduledActionForResponse(data, request.url, activeUserId),
     tableMissing: false,

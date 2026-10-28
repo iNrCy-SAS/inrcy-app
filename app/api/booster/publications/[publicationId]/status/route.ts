@@ -27,6 +27,7 @@ async function handler(
     const status = await readAsyncPublicationStatus({
       userId: activeUserId,
       publicationId,
+      ...(new URL(_request.url).searchParams.get("readOnly") === "true" ? { readOnly: true } : {}),
     });
     if (!status) {
       return NextResponse.json(

@@ -125,3 +125,21 @@ test("receipt compaction preserves early distinct confirmations through repeated
   assert.equal(completed.length,24);
   assert.equal(inrAssistantTaskOutcome(requiredTools,completed,"",requiredCalls),"completed");
 });
+
+
+test("receipt compaction retains uncertain targets even after the same goal has a success",()=>{
+ const success={tool:"manageCrmContact",ok:true,status:"created",message:"A saved",id:"contact-a"};
+ for(const status of ["unknown","saved_unconfirmed","executing_unconfirmed"]) {
+  const uncertain={tool:"manageCrmContact",ok:false,status,message:"B uncertain",id:"contact-b"};
+  const saved=compactInrAssistantTaskReceipts([success,uncertain],["manageCrmContact"]);
+  assert.equal(saved.length,2);assert.ok(saved.some(receipt=>receipt.id==="contact-b"&&receipt.status===status));
+  assert.equal(inrAssistantTaskOutcome(["manageCrmContact"],saved,""),"blocked");
+ }
+});
+
+test("different signed previews and settings targets remain independently tracked",()=>{
+ const previews=["IA-012345ABCDEF","IA-012345ABCDE0"].map(approvalReference=>({tool:"previewCalendarAction",ok:true,status:"preview_ready",message:"Confirm preview",approvalReference,approvalToken:"private"}));
+ assert.equal(compactInrAssistantTaskReceipts(previews,["updateCalendarAppointment"]).length,2);
+ assert.equal(inrAssistantRequiredCalls("Coupe les alertes par email puis mets le format portrait dans iNrStudio.").updateToolSettings,2);
+ assert.equal(inrAssistantRequiredCalls("Coupe les alertes par email puis publie sur TikTok.").updateToolSettings,undefined);
+});

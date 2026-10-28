@@ -1,4 +1,5 @@
 "use client";
+import { useInrAssistantScreen } from "../_components/DashboardAssistantScreenContext";
 
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
@@ -388,6 +389,7 @@ export default function MediaLibraryClient() {
   const filtersTriggerRef = useRef<HTMLButtonElement>(null);
   const filtersId = useId();
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
+  useInrAssistantScreen(previewItem ? { selection: { kind: "media", id: previewItem.id } } : null);
   const [helperOpen, setHelperOpen] = useState(false);
   const [optimizerItem, setOptimizerItem] = useState<MediaOptimizerItem | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(

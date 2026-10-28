@@ -1263,6 +1263,8 @@ export async function terminateAsyncPublicationForInactiveSubscription(params: {
 export async function readAsyncPublicationStatus(params: {
   userId: string;
   publicationId: string;
+  /** Assistant status checks must not finalize history or claim work. */
+  readOnly?: boolean;
 }) {
   const parent = await loadAsyncPublicationParent(params);
   if (!parent) return null;
@@ -1280,7 +1282,11 @@ export async function readAsyncPublicationStatus(params: {
     userId: params.userId,
     descriptor,
   });
+  if (params.readOnly && descriptor.valid && descriptor.selected.length > 0 && pendingChannels(channelStates).length === 0) {
+    return { ...buildProcessingPublicationStatus(params.publicationId, channelStates, descriptor.selected), done: true, queued: false, finalizationPending: true };
+  }
   if (
+    !params.readOnly &&
     descriptor.valid &&
     pendingChannels(channelStates).length === 0 &&
     !isFinalizationClaimFresh(parentPayload)

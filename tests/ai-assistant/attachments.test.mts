@@ -16,12 +16,13 @@ const scope = { accountId: "11111111-1111-4111-8111-111111111111", actorUserId: 
 const now = new Date();
 const cutoff = new Date(now); cutoff.setUTCMonth(cutoff.getUTCMonth() - 2);
 const turn = { turnId: "44444444-4444-4444-8444-444444444444", createdAt: now.toISOString() };
-function harness() {
+function harness(options: { readFailure?: boolean } = {}) {
   const objects = new Map<string, Buffer>(); const calls: Array<{ operation: string; path?: string; bucket: string }> = [];
   const storage = { from(bucket: string) { return {
     createSignedUploadUrl: async (path: string, options: { upsert: boolean }) => { assert.equal(options.upsert, false); calls.push({ operation: "prepare", bucket, path }); return { data: { token: "one-object-upload" }, error: null }; },
     download: (path: string) => ({ asStream: async () => {
       calls.push({ operation: "read", bucket, path }); const bytes = objects.get(`${bucket}/${path}`);
+      if (options.readFailure) return { data: null, error: { statusCode: "503" } };
       return bytes ? { data: new Response(new Uint8Array(bytes)).body, error: null } : { data: null, error: { originalError: Response.json({ statusCode: "404", code: "NoSuchKey" }, { status: 400 }) } };
     } }),
     upload: async (path: string, data: Buffer, options: { upsert: boolean; contentType: string }) => {
@@ -54,6 +55,35 @@ function harness() {
   return { api: moduleRecord.exports as typeof Storage, objects, calls };
 }
 const code = (value: string) => (error: unknown) => Boolean(error && typeof error === "object" && "code" in error && error.code === value);
+
+test("execution journal distinguishes absent, unavailable, invalid and expired proof", async () => {
+  const h = harness();
+  assert.equal((await h.api.inspectAssistantTaskState(scope, turn)).status, "missing");
+  assert.equal((await harness({ readFailure: true }).api.inspectAssistantTaskState(scope, turn)).status, "unavailable");
+  const task: taskPolicy.InrAssistantTaskState = { version: 1, instruction: "Crée un contact Alice.", question: "", actionRequestId: "action_checkpoint_001", startedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(), outcome: "partial", requiredTools: ["manageCrmContact"], receipts: [{ tool: "manageCrmContact", ok: false, status: "executing_unconfirmed", message: "Action en cours" }] };
+  assert.equal(await h.api.saveAssistantTaskState(scope, turn, task), true);
+  const valid = await h.api.inspectAssistantTaskState(scope, turn);
+  assert.equal(valid.status, "available"); if (valid.status === "available") assert.equal(valid.task.receipts[0].status, "executing_unconfirmed");
+  const key = [...h.objects.keys()].find(key => key.endsWith(".task.json"))!;
+  const saved = JSON.parse(h.objects.get(key)!.toString());
+  saved.task.expiresAt = new Date(Date.now() - 1000).toISOString(); h.objects.set(key, Buffer.from(JSON.stringify(saved)));
+  assert.equal((await h.api.inspectAssistantTaskState(scope, turn)).status, "expired");
+  saved.task.expiresAt = task.expiresAt; saved.actorUserId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"; h.objects.set(key, Buffer.from(JSON.stringify(saved)));
+  assert.equal((await h.api.inspectAssistantTaskState(scope, turn)).status, "invalid");
+  h.objects.set(key, Buffer.from("{broken")); assert.equal((await h.api.inspectAssistantTaskState(scope, turn)).status, "invalid");
+});
+
+test("private approval capabilities survive journal compaction and oversized capabilities are rejected", async () => {
+  const h = harness();
+  const task: taskPolicy.InrAssistantTaskState = { version: 1, instruction: "界".repeat(4000), question: "界".repeat(2000), actionRequestId: "action_checkpoint_001", startedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(), outcome: "needs_input", requiredTools: ["confirmCalendarAppointment"], receipts: [{ tool: "confirmCalendarAppointment", ok: false, status: "needs_confirmation", message: "界".repeat(500), approvalToken: "synthetic_".repeat(1800), approvalReference: "IA-0123456789ab", approvalKind: "calendar" }] };
+  assert.equal(await h.api.saveAssistantTaskState(scope, turn, task), true);
+  const restored = await h.api.loadAssistantTaskState(scope, turn); assert.ok(restored);
+  assert.equal(restored.receipts[0].approvalToken, task.receipts[0].approvalToken); assert.equal(restored.receipts[0].approvalReference, "IA-0123456789ab"); assert.equal(restored.receipts[0].approvalKind, "calendar");
+  assert.ok([...h.objects.values()].every(value => value.length <= 32_000));
+  const key = [...h.objects.keys()].find(key => key.endsWith(".task.json"))!; const saved = JSON.parse(h.objects.get(key)!.toString());
+  saved.task.instruction = "Confirme ce rendez-vous."; saved.task.receipts[0].approvalToken = "x".repeat(24_001); h.objects.set(key, Buffer.from(JSON.stringify(saved)));
+  assert.equal((await h.api.inspectAssistantTaskState(scope, turn)).status, "invalid");
+});
 
 test("pending tasks are private durable objects bound to the exact actor, account, discussion and turn",async()=>{
  const h=harness(), turn={turnId:"dddddddd-dddd-4ddd-8ddd-dddddddddddd",createdAt:new Date().toISOString()};
@@ -122,6 +152,17 @@ test("signed upload targets one private object and finalization retains only bou
   assert.ok(h.calls.every(call => call.bucket === policy.ASSISTANT_ATTACHMENT_BUCKET));
   assert.ok(h.calls.some(call => call.path?.endsWith(".context.json")));
   assert.deepEqual(await h.api.finalizeAssistantAttachment(scope, ready), ready, "A repeated finalization reads saved context without re-uploading");
+});
+
+test("a long signed document retains later passages up to a disclosed extraction cap", async () => {
+  const h = harness(); const bytes = Buffer.from("A".repeat(20000) + "LATE_PASSAGE" + "B".repeat(110000));
+  const prepared = await h.api.prepareAssistantAttachment(scope, { name: "long.txt", size: bytes.length, type: "text/plain" });
+  h.objects.set(`${policy.ASSISTANT_ATTACHMENT_BUCKET}/${prepared.upload.path}`, bytes);
+  const ready = await h.api.finalizeAssistantAttachment(scope, prepared.attachment);
+  const [context] = await h.api.loadAssistantFileContexts(scope, [ready]);
+  assert.equal(context.text?.length, policy.ASSISTANT_ATTACHMENT_TEXT_MAX_CHARS);
+  assert.match(context.text!, /LATE_PASSAGE/); assert.equal(context.textTruncated, true);
+  assert.equal(h.objects.has(`${policy.ASSISTANT_ATTACHMENT_BUCKET}/${prepared.upload.path}`), false);
 });
 
 test("unreadable documents fail clearly instead of pretending to have read an empty scanned PDF", async () => {

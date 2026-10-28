@@ -1,7 +1,8 @@
-import { inrAssistantRoutingText } from "./inrAssistantTaskPolicy.ts";
+import { inrAssistantRoutingText, inrAssistantRequiredTools } from "./inrAssistantTaskPolicy.ts";
+import { INR_ASSISTANT_COMMANDS, inrAssistantSettingTargets, type InrAssistantCommandFamily } from "./inrAssistantCommandRegistry.ts";
 export { inrAssistantRoutingText, inrAssistantRequiredTools, inrAssistantTaskOutcome } from "./inrAssistantTaskPolicy.ts";
 export { verifiedInrAssistantCapabilityLimit } from "./inrAssistantCapabilities.ts";
-export type InrAssistantToolFamily = "media" | "publication" | "business" | "management" | "workspace" | "commercial" | "advertising" | "settings";
+export type InrAssistantToolFamily = InrAssistantCommandFamily;
 
 /** This only limits schema cost. It never grants a right or authorizes an action. */
 export function selectInrAssistantToolFamilies(latest: string, recentUserMessages: string[] = []): Set<InrAssistantToolFamily> {
@@ -18,5 +19,13 @@ export function selectInrAssistantToolFamilies(latest: string, recentUserMessage
   if (/\b(?:crm|devis|factures?|encaisser|clients?|prospects?|contacts?)\b/.test(text)) families.add("commercial");
   if (/\bads\b|publicit|publicitair|annonceur|campagne sponsoris/.test(text)) families.add("advertising");
   if (/notification|inr.?badge|qr.code|\bpreferences\b|(?:reglag|parametr|configur|criteres?|defaut).{0,65}(?:studio|generateur|calendar|agenda|devis|facture|tiktok)|(?:studio|generateur|calendar|agenda|devis|facture|tiktok).{0,65}(?:reglag|parametr|configur|criteres?|defaut)/.test(text)) families.add("settings");
+  if (inrAssistantSettingTargets(text).length) families.add("settings");
+  if (/\bap-[a-f0-9]{12}\b/.test(text)) families.add("workspace");
+  // Every tracked goal must expose its implementing family. Never duplicate
+  // the command catalogue with a second, drifting list of keyword gates.
+  for (const name of inrAssistantRequiredTools(latest)) {
+    const family=INR_ASSISTANT_COMMANDS[name]?.family;
+    if (family) families.add(family);
+  }
   return families;
 }

@@ -52,6 +52,15 @@ import { assistantModelInputBudget } from "./inrAssistantAttachments.ts";
 import { assistantMessagesWithFiles } from "./inrAssistantAttachmentPrompt.ts";
 import type { AssistantFileContext } from "./inrAssistantAttachmentStorage.ts";
 import { compactInrAssistantGuideContext } from "./inrAssistantPromptContext.ts";
+import { INR_ASSISTANT_COMMANDS, INR_ASSISTANT_PENDING_STATUSES, INR_ASSISTANT_UNCERTAIN_STATUSES, inrAssistantCommandLabel } from "./inrAssistantCommandRegistry.ts";
+import { createInrAssistantCampaignTools } from "./inrAssistantCampaignTools.ts";
+import { createInrAssistantUiTools } from "./inrAssistantUiTools.ts";
+import { parseInrAssistantNavigation, isInrAssistantNavigationRequest, isInrAssistantScreenCommandRequest, parseInrAssistantUiCommand, type InrAssistantNavigation, type InrAssistantUiCommand } from "./inrAssistantUiCommands.ts";
+import { createInrAssistantChannelTools } from "./inrAssistantChannelTools.ts";
+import { createInrAssistantDocumentTools } from "./inrAssistantDocumentTools.ts";
+import { createInrAssistantCalendarTools } from "./inrAssistantCalendarTools.ts";
+import { createInrAssistantScheduledPublicationTools } from "./inrAssistantScheduledPublicationTools.ts";
+import { createInrAssistantAttachmentTools } from "./inrAssistantAttachmentTools.ts";
 
 const supportTool = tool({
   description: "Préparer une proposition d’aide par un humain quand le pro la demande, qu’un accès administrateur est nécessaire ou qu’un blocage ne peut pas être résolu de façon fiable. Rien n’est envoyé : le pro doit vérifier le résumé et choisir de contacter l’équipe.",
@@ -71,7 +80,10 @@ const supportTool = tool({
   } }),
 });
 
-export type InrAssistantReply = { message: string; needsHuman?: boolean; handoffSummary?: string; media?: InrAssistantMediaResult; studioDraft?: InrAssistantStudioDraft; insertStudioDraft?: boolean; outcome?: InrAssistantTaskOutcome; taskState?: InrAssistantTaskState };
+export type InrAssistantReply = { message: string; needsHuman?: boolean; handoffSummary?: string; media?: InrAssistantMediaResult; studioDraft?: InrAssistantStudioDraft; insertStudioDraft?: boolean; outcome?: InrAssistantTaskOutcome; taskState?: InrAssistantTaskState; navigation?: InrAssistantNavigation; uiCommand?:InrAssistantUiCommand; taskProgress?: { outcome:InrAssistantTaskOutcome; completed:string[]; remaining:string[] } };
+
+/** Stored capabilities are deliberately excluded from every provider prompt. */
+const publicTaskReceipts = (receipts: InrAssistantActionReceipt[] = []) => receipts.map(({approvalToken: _privateCapability, ...receipt})=>receipt);
 
 const shortAffirmation = (value: string) => /^(?:oui|ok|d.accord|vas.y|yes|si|ja)[.!\s]*$/i.test(value.trim());
 function previousStudioDraft(messages: Array<{role: string; content: string}>): InrAssistantStudioDraft | null {
@@ -152,6 +164,8 @@ export async function generateInrAssistantReply(args: {
   /** Server-resolved pending task only, never an HTTP body field. */
   actionInstruction?: string;
   taskContext?: InrAssistantTaskState;
+  taskIntent?: "continue" | "check_status";
+  onTaskCheckpoint?: (state: InrAssistantTaskState) => Promise<void>;
 }): Promise<InrAssistantReply> {
   const diagnosticStartedAt = Date.now();
   let lastFailure: InrAssistantGatewayDiagnostic | undefined;
@@ -162,6 +176,10 @@ export async function generateInrAssistantReply(args: {
   };
   const spokenRequest = args.messages.at(-1)?.content ?? "";
   const latestRequest = args.actionInstruction ?? spokenRequest;
+  if(args.taskContext?.receipts.some(receipt=>INR_ASSISTANT_UNCERTAIN_STATUSES.has(receipt.status))) return {outcome:"blocked",message:"Une opération précédente a un résultat incertain. Vérifiez son état dans l’outil concerné avant de demander une nouvelle action."};
+  const statusOnly = Boolean(args.taskContext && args.actionInstruction && (args.taskContext.outcome === "processing" || args.taskIntent === "check_status"));
+  const navigationRequested = isInrAssistantNavigationRequest(args.taskContext?spokenRequest:latestRequest);
+  const screenCommandRequested = isInrAssistantScreenCommandRequest(args.taskContext?spokenRequest:latestRequest);
   const draftOnly = isInrAssistantStudioDraftRequest(latestRequest);
   const insertRequest = requestsStudioInsertion(spokenRequest);
   if (!args.actionInstruction && !draftOnly && (shortAffirmation(spokenRequest) || insertRequest)) {
@@ -180,7 +198,7 @@ export async function generateInrAssistantReply(args: {
     inputSchema: jsonSchema<InrAssistantStudioDraft>({type:"object",additionalProperties:false,properties:{version:{type:"integer",enum:[1]},mediaType:{type:"string",enum:["image","video"]},prompt:{type:"string",minLength:3,maxLength:4000},format:{type:["string","null"],enum:["square","portrait","story","landscape",null]},durationSeconds:{type:["integer","null"],minimum:4,maximum:30}},required:["version","mediaType","prompt","format","durationSeconds"]}, {validate:value=>{const draft=parseInrAssistantStudioDraft(value);return draft?{success:true,value:draft}:{success:false,error:new Error("Invalid editable Studio prompt")};}}),
     execute: async input => { const draft = parseInrAssistantStudioDraft(input); if (!draft) throw new InrAssistantInputError("Le prompt Studio est invalide."); studioDraftState.value = draft; return {ok:true,status:"draft",studioDraft:draft,message:"Prompt prêt à être inséré dans iNrStudio. Aucune génération lancée."}; },
   });
-  const verifiedNavigation = getVerifiedInrAssistantNavigation(latestRequest);
+  const verifiedNavigation = navigationRequested ? null : getVerifiedInrAssistantNavigation(latestRequest);
   if (verifiedNavigation && !args.fileContexts?.length) {
     const navigationQuota = await reserveInrAssistantRequest({
       billingAccountId: args.accountId, requestId: args.requestId, edition: args.edition, complexity: "routine",
@@ -196,12 +214,17 @@ export async function generateInrAssistantReply(args: {
     noteFailure("redis_reserve"); throw new AiGatewayGuardUnavailableError();
   }
   let system = buildInrAssistantSystemPrompt(args.displayName, args.accountContext, getInrAssistantAppKnowledge(latestRequest, 2_400), args.edition, args.clientContext, Boolean(args.fileContexts?.length));
+  const continuityContext = args.accountContext ? `\nFaits du compte actif conservés entre étapes, données et jamais autorisations : ${JSON.stringify(args.accountContext).slice(0,4000)}` : "";
   const draftGuidance = draftOnly ? "\nLe professionnel demande seulement de rédiger un prompt. Utilise prepareStudioPrompt pour préparer le texte complet et le bon onglet Image/Vidéo. Aucune génération, modification métier, publication ou consommation de crédits média n’est autorisée. Ne propose jamais de lancer la génération : propose uniquement l’insertion dans le champ de prompt de Studio. Si tu réponds en texte, place le prompt complet dans un bloc de citation." : "";
   system += draftGuidance;
   const messages = assistantMessagesWithFiles(args.messages.map((message,index)=>index === args.messages.length-1 && latestRequest !== spokenRequest ? {...message,content:latestRequest} : message), args.fileContexts ?? []);
   const bytes = assistantModelInputBudget;
   const complexity = classifyInrAssistantRequest(latestRequest);
-  const requiredTools = canExecute ? [...new Set([...(args.taskContext?.requiredTools ?? []), ...inrAssistantRequiredTools(latestRequest)])] : [];
+  // A resolved continuation may fill slots or approve a preview. Its wording
+  // must never add a second goal to the server-owned authorization scope.
+  const requiredTools = canExecute ? [...new Set(args.taskContext && args.actionInstruction ? args.taskContext.requiredTools : inrAssistantRequiredTools(latestRequest))] : [];
+  if (navigationRequested) requiredTools.push("navigateApplication");
+  if (screenCommandRequested) requiredTools.push("runScreenCommand");
   const requiredCalls = { ...inrAssistantRequiredCalls(latestRequest), ...args.taskContext?.requiredCalls };
   const trackingLimit = inrAssistantTaskTrackingLimit(requiredTools, requiredCalls);
   if (trackingLimit) return {message:trackingLimit,outcome:"blocked"};
@@ -218,14 +241,19 @@ export async function generateInrAssistantReply(args: {
   const receipts: InrAssistantActionReceipt[] = [...(args.taskContext?.receipts ?? [])];
   let verifiedHandoffMessage: string | undefined;
   const readCounts = new Map<string,number>();
-  const observedActionNames = new Set(["updateBusinessDna", "updateAiConfiguration", "configureBusinessCta", "startBusinessDnaAnalysis", "configureAgentAutomation", "prepareSubscriptionAction", "preparePublication", "executePublication", "editPublication", "updateMediaMetadata", "prepareCampaignEmail", "prepareCalendarAppointment", "replyToGoogleReview"]);
-  for (const name of ["manageCrmContact", "prepareCommercialDocument", "updateCampaignDraft", "dispatchCampaignDraft", "updateCalendarAppointment", "prepareAdvertisingCampaign", "manageAdvertisingCampaign", "updateToolSettings"]) observedActionNames.add(name);
-  for (const name of ["generateMedia","modifyMedia","mergeCrmContacts","cancelCalendarAppointment"]) observedActionNames.add(name);
+  const previewActionNames = new Set(["previewCalendarAction","previewScheduledPublicationAction"]);
+  const observedActionNames = new Set([...Object.keys(INR_ASSISTANT_COMMANDS),"navigateApplication","runScreenCommand","previewCampaignAudience",...previewActionNames,"applyCalendarAction","applyScheduledPublicationAction"]);
+  const privateApprovals=new Map(receipts.flatMap(receipt=>receipt.approvalReference && receipt.approvalToken && receipt.approvalKind?[[receipt.approvalReference,{token:receipt.approvalToken,kind:receipt.approvalKind}] as const]:[]));
+  const resolvePreview=(reference:string)=>privateApprovals.get(reference)?.token??null;
+  let navigation: InrAssistantNavigation | undefined;
+  let uiCommand: InrAssistantUiCommand | undefined;
+  const uiTools = navigationRequested || screenCommandRequested ? createInrAssistantUiTools({accountId:args.accountId,currentUserMessage:latestRequest,clientContext:args.clientContext,supabase:args.supabase,canStartWork:()=>deadline-Date.now()>1000}) : {};
   const savedActionReply = () => [...actionFacts.values()].map(fact => `${fact.message}${fact.href ? `\n\n[${fact.label ?? "Ouvrir l’outil"}](${fact.href})` : ""}`).join("\n\n");
   const followupAfterMedia = requiredTools.some(name=>!['generateMedia','modifyMedia'].includes(name)) || families.has("publication") || families.has("business") && /\b(?:adn|dna|configuration|reglages)\b/i.test(latestRequest);
   const mediaTools = canExecute && families.has("media") ? createInrAssistantMediaTools({
     request: args.request, requestId: args.actionRequestId ?? args.requestId,
     currentUserMessage: latestRequest,
+    statusReadOnly: statusOnly && args.taskIntent !== "continue",
     canStartWork: () => deadline - Date.now() > 20_000,
     onWorkStarted: (requestId) => { mediaState.requestId = requestId; deadline = started + 780_000; },
     onResult: (result) => { mediaState.result = result; },
@@ -240,10 +268,13 @@ export async function generateInrAssistantReply(args: {
     };
   })();
   const diagnosticTools = args.supabase && /(?:erreur|error|bloqu|impossible|echec|failed|bug|ne fonctionne|probleme|diagnosti|日志|错误)/i.test(latestRequest) ? createInrAssistantDiagnosticsTools({ supabase: args.supabase, accountId: args.accountId, edition: args.edition }) : {};
+  const channelTools = args.supabase && (!requiredTools.length || /connect|etat|manquant|cockpit|total|blocage/i.test(latestRequest)) && /canaux|canal|channel|cockpit|connect|connexion|manquant|\b\d{1,2}\s*(?:\/|sur)\s*14\b/i.test(latestRequest)
+    ? createInrAssistantChannelTools({supabase:args.supabase,accountId:args.accountId,edition:args.edition,signal:args.signal}) : {};
   const workspaceTools = args.supabase ? createInrAssistantWorkspaceTools({ supabase: args.supabase, accountId: args.accountId, edition: args.edition, request: args.request }) : {};
   const memoryTools = args.memory ? createInrAssistantMemoryTools({ memory: args.memory, excludeTurnId: args.turnId }) : {};
-  const topic = inrAssistantRoutingText(latestRequest);
-  const routingTopic = inrAssistantRoutingText([latestRequest,...args.messages.filter(m=>m.role === "user").slice(-3,-1).map(m=>m.content)].join(" "));
+  const attachmentTools=args.fileContexts?.some(file=>file.text)?createInrAssistantAttachmentTools(args.fileContexts):{};
+  const topic = inrAssistantRoutingText(statusOnly ? args.taskContext!.instruction : latestRequest);
+  const routingTopic = inrAssistantRoutingText([latestRequest,args.taskContext?.instruction??"",...args.messages.filter(m=>m.role === "user").slice(-3,-1).map(m=>m.content)].join(" "));
   const businessTools = (() => {
     if (!canExecute || !args.supabase || !families.has("business")) return {};
     const available = createInrAssistantBusinessTools({ request: args.request, accountId: args.accountId, supabase: args.supabase, edition: args.edition, currentUserMessage: latestRequest });
@@ -274,12 +305,13 @@ export async function generateInrAssistantReply(args: {
     if (!canExecute || !args.supabase || !families.has("publication")) return {};
     const available = createInrAssistantPublicationTools({ request: args.request, accountId: args.accountId, supabase: args.supabase,
       currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
+      statusReadOnly:statusOnly,
       canStartWork: () => deadline - Date.now() > 15_000, onResult: result => { publicationResults.push(result); } });
     return {
       ...(requiredTools.some(name=>["preparePublication","executePublication"].includes(name)) ? {preparePublication: available.preparePublication} : {}),
       ...(requiredTools.includes("executePublication") ? { executePublication: available.executePublication } : {}),
       ...(requiredTools.includes("editPublication") ? { editPublication: available.editPublication } : {}),
-      ...(/(?:statut|status|etat|deja|suivi|verifi|resultat|en cours)/.test(topic) ? { getPublicationStatus: available.getPublicationStatus } : {}),
+      ...(statusOnly || /(?:statut|status|etat|deja|suivi|verifi|resultat|en cours)/.test(topic) ? { getPublicationStatus: available.getPublicationStatus } : {}),
     };
   })();
   const workspaceActionTools = (() => {
@@ -290,7 +322,7 @@ export async function generateInrAssistantReply(args: {
       ...(requiredTools.includes("updateMediaMetadata") ? { updateMediaMetadata: available.updateMediaMetadata } : {}),
       ...(requiredTools.includes("prepareCampaignEmail") ? { prepareCampaignEmail: available.prepareCampaignEmail } : {}),
       ...(requiredTools.includes("prepareCalendarAppointment") ? { prepareCalendarAppointment: available.prepareCalendarAppointment } : {}),
-      ...(/(?:\bcrm\b|client|prospect|contact)/.test(topic) ? { searchCrmContacts: available.searchCrmContacts } : {}),
+      ...(/(?:\bcrm\b|client|prospect|contact)/.test(topic) ? { searchCrmContacts: available.searchCrmContacts, readCrmContact: available.readCrmContact } : {}),
     };
   })();
   const insightsTools = (() => {
@@ -308,9 +340,20 @@ export async function generateInrAssistantReply(args: {
       canStartWork: () => deadline - Date.now() > 15_000 });
     return {
       ...(/(?:ajout|cre|modifi|corrig|chang|supprim|effac|retire|update|delete).{0,60}(?:contact|client|prospect)|(?:contact|client|prospect).{0,60}(?:ajout|cre|modifi|corrig|chang|supprim|effac|retire|update|delete)/.test(topic) ? { manageCrmContact: available.manageCrmContact } : {}),
-      ...(/(?:devis|facture|document commercial|encaisser)/.test(topic) && !/(?:facture.{0,20}abonnement|facture.{0,20}stripe)/.test(topic) ? { prepareCommercialDocument: available.prepareCommercialDocument } : {}),
+      ...(requiredTools.includes("prepareCommercialDocument") ? { prepareCommercialDocument: available.prepareCommercialDocument } : {}),
     };
   })();
+  const documentTools = args.supabase && families.has("commercial") && /devis|facture|document commercial/.test(routingTopic)
+    ? (()=>{const available=createInrAssistantDocumentTools({request:args.request,accountId:args.accountId,supabase:args.supabase!,edition:args.edition,currentUserMessage:latestRequest,actionRequestId:args.actionRequestId??args.requestId,clientContext:args.clientContext,canStartWork:()=>deadline-Date.now()>15000});
+      return {readCommercialDocuments:available.readCommercialDocuments,...(canExecute && requiredTools.includes("finalizeCommercialDocument")?{finalizeCommercialDocument:available.finalizeCommercialDocument}:{}),...(canExecute && requiredTools.includes("updateCommercialDocument")?{updateCommercialDocument:available.updateCommercialDocument}:{})};})() : {};
+  const calendarLifecycle = requiredTools.some(name=>["confirmCalendarAppointment","updateCalendarAppointment","cancelCalendarAppointment"].includes(name));
+  const calendarTools=canExecute && args.supabase && args.actorUserId && calendarLifecycle
+    ? (()=>{const available=createInrAssistantCalendarTools({request:args.request,accountId:args.accountId,actorUserId:args.actorUserId!,supabase:args.supabase!,edition:args.edition,currentUserMessage:latestRequest,canStartWork:()=>deadline-Date.now()>15000,resolvePreview});
+      return {previewCalendarAction:available.previewCalendarAction,...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?{applyCalendarAction:available.applyCalendarAction}:{})};})() : {};
+  const scheduledLifecycle=requiredTools.some(name=>["updateScheduledPublication","cancelScheduledPublication","retryScheduledPublication"].includes(name));
+  const scheduledTools=canExecute && args.supabase && args.actorUserId && families.has("publication") && (scheduledLifecycle || /programm|planifi|echec|echou/.test(topic))
+    ? (()=>{const available=createInrAssistantScheduledPublicationTools({request:args.request,accountId:args.accountId,actorUserId:args.actorUserId!,supabase:args.supabase!,edition:args.edition,currentUserMessage:latestRequest,canStartWork:()=>deadline-Date.now()>15000,resolvePreview});
+      return {readScheduledPublications:available.readScheduledPublications,...(scheduledLifecycle?{previewScheduledPublicationAction:available.previewScheduledPublicationAction}:{}),...(scheduledLifecycle && /\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?{applyScheduledPublicationAction:available.applyScheduledPublicationAction}:{})};})() : {};
   const communicationTools = (() => {
     if (!canExecute || !args.supabase || !families.has("workspace")) return {};
     const available = createInrAssistantCommunicationTools({ request: args.request, accountId: args.accountId, actorUserId: args.actorUserId,
@@ -319,11 +362,9 @@ export async function generateInrAssistantReply(args: {
     const mail = /(?:campagne|email|e-mail|\bmail|newsletter|courriel|fidelis|propuls)/.test(routingTopic);
     const calendar = /(?:agenda|calendar|rendez.vous|\brdv\b)/.test(routingTopic);
     return {
-      ...((mail || calendar) && /(?:retrouv|recherch|consulte|lis\b|lire|liste|voir|verifi|dernier|existant|modifi|corrig|chang|deplac|envo|programm)/.test(topic) ? { readCommunicationRecords: available.readCommunicationRecords } : {}),
+      ...((mail || calendar) && (calendarLifecycle || /(?:retrouv|recherch|consulte|lis\b|lire|liste|voir|verifi|dernier|existant|modifi|corrig|chang|deplac|envo|programm)/.test(topic)) ? { readCommunicationRecords: available.readCommunicationRecords } : {}),
       ...(mail && requiredTools.includes("updateCampaignDraft") ? { updateCampaignDraft: available.updateCampaignDraft } : {}),
       ...(mail && requiredTools.includes("dispatchCampaignDraft") && !families.has("advertising") ? { dispatchCampaignDraft: available.dispatchCampaignDraft } : {}),
-      ...(calendar && requiredTools.includes("updateCalendarAppointment") ? { updateCalendarAppointment: available.updateCalendarAppointment } : {}),
-      ...(calendar && requiredTools.includes("cancelCalendarAppointment") ? {cancelCalendarAppointment:available.cancelCalendarAppointment,readCommunicationRecords:available.readCommunicationRecords} : {}),
     };
   })();
   const advertisingTools = (() => {
@@ -339,28 +380,157 @@ export async function generateInrAssistantReply(args: {
   })();
   const settingsTools = families.has("settings") ? createInrAssistantSettingsTools({ request: args.request, accountId: args.accountId,
     edition: args.edition, currentUserMessage: latestRequest, canStartWork: () => deadline - Date.now() > 15_000 }) : {};
+  const campaignTools = canExecute && args.supabase && args.actorUserId && families.has("workspace") && (requiredTools.some(name=>["dispatchCampaignAudience","selectCampaignMailbox"].includes(name)) || statusOnly && requiredTools.includes("dispatchCampaignDraft") || /audience|segment|expediteur|mailbox|boite|\bap-[a-f0-9]{12}\b/.test(routingTopic))
+    ? (()=>{ const available=createInrAssistantCampaignTools({request:args.request,accountId:args.accountId,actorUserId:args.actorUserId!,edition:args.edition,supabase:args.supabase!,currentUserMessage:latestRequest,actionRequestId:args.actionRequestId??args.requestId,canStartWork:()=>deadline-Date.now()>15_000});
+      return { listCampaignMailboxes:available.listCampaignMailboxes,
+        ...(statusOnly?{readCampaignDeliveryStatus:available.readCampaignDeliveryStatus}:{}),
+        ...(/expediteur|boite|adresse d.envoi|mailbox|sender/.test(topic)?{selectCampaignMailbox:available.selectCampaignMailbox}:{}),
+        ...(/audience|segment|clients|prospects|contacts|destinataires|apercu|envoi|envoie/.test(topic)?{previewCampaignAudience:available.previewCampaignAudience}:{}),
+        ...(/\bap-[a-f0-9]{12}\b/.test(topic)?{dispatchCampaignAudience:available.dispatchCampaignAudience}:{}) };
+    })() : {};
   const operationGuidance = [
     Object.keys(commercialTools).length ? "CRM : retrouve les IDs avec searchCrmContacts ; manageCrmContact ne change que la fiche demandée. prepareCommercialDocument enregistre seulement un brouillon : quantité, prix HT et TVA explicites, renseignements manquants signalés, jamais de numéro officiel, finalisation ou envoi. Documents commerciaux distincts des factures d’abonnement." : "",
-    Object.keys(communicationTools).length ? "readCommunicationRecords retrouve les éléments actuels ; updateCampaignDraft corrige le brouillon. dispatchCampaignDraft exige les destinataires littéraux du dernier ordre ; programmation = date/heure/fuseau explicites. queued ne prouve pas livraison. updateCalendarAppointment modifie un rendez-vous encore brouillon ; rendez-vous confirmé et validation nécessaire restent dans l’outil natif. Préparer n’autorise pas envoyer." : "",
+    Object.keys(communicationTools).length ? "readCommunicationRecords retrouve les éléments actuels ; updateCampaignDraft corrige le brouillon. dispatchCampaignDraft exige les destinataires littéraux du dernier ordre ; programmation = date/heure/fuseau explicites. queued ne prouve pas livraison. Pour confirmer, déplacer ou annuler un rendez-vous, utilise previewCalendarAction puis présente son aperçu et sa référence IA. applyCalendarAction exige la confirmation actuelle exacte, jamais un simple oui. Préparer n’autorise pas envoyer." : "",
+    Object.keys(documentTools).length ? "Documents : readCommercialDocuments lit les vrais documents du compte avant toute action. finalizeCommercialDocument valide uniquement le document/version explicitement demandé, sans envoi ni paiement." : "",
+    Object.keys(scheduledTools).length ? "Planning : readScheduledPublications lit les éléments réels. Toute modification passe par previewScheduledPublicationAction et la confirmation exacte IA avant applyScheduledPublicationAction. Ne recrée jamais une publication pour reprendre son statut." : "",
     Object.keys(advertisingTools).length ? "ADS : vérifie les campagnes/prérequis avec readAdvertisingCampaigns. prepareAdvertisingCampaign prépare un brouillon avec budget/date explicitement demandés. manageAdvertisingCampaign respecte les actions disponibles et validations natives ; un brouillon ou un lien ne lance jamais une campagne facturée." : "",
     Object.keys(settingsTools).length ? "Réglages : readToolSettings puis updateToolSettings changent seulement les valeurs demandées et relisent le résultat. Présente les résultats partiels/inconnus comme tels ; ne devine aucune déclaration légale ni identité." : "",
+    Object.keys(channelTools).length ? "Cockpit et canaux : readChannelStatus utilise les mêmes règles de comptage que le cockpit. Appelle-le pour l’état, les manquants, le total et les blocages ; le contexte initial partiel ne prouve pas le total. Un état enregistré n’est pas une vérification réseau en direct." : "",
+    Object.keys(campaignTools).length ? "Campagne vers un segment CRM : listCampaignMailboxes retrouve les expéditeurs ; selectCampaignMailbox enregistre celui choisi, jamais deviné. previewCampaignAudience fige l’audience et fournit une référence AP à montrer avec nombre de destinataires, objet, expéditeur et exclusions. dispatchCampaignAudience exige l’ordre actuel et cette référence exacte ; une référence ancienne ou un simple oui ne vaut pas confirmation." : "",
+    statusOnly ? `${args.taskIntent === "continue" ? "Poursuite du même travail : getMediaGeneration peut accepter uniquement son média déjà terminé ; aucun nouveau job." : "Suivi en lecture seule : aucune écriture."} Utilise les lecteurs de statut avec les références enregistrées ${JSON.stringify(publicTaskReceipts(args.taskContext?.receipts)).slice(0,4000)}. Aucun nouveau lancement. Un résultat en attente reste en attente.` : "",
   ].filter(Boolean).join("\n");
   system += operationGuidance ? `\n${operationGuidance}` : "";
   // Native settings endpoints merge the active account's existing configuration.
   // Serialize writes in one turn so parallel model tool calls cannot overwrite
   // a sibling tool's freshly saved fields. Read-only tools remain concurrent.
   let mutationTail: Promise<unknown> = Promise.resolve();
+  let checkpointFailed = false;
+  const seenToolResults=new Set<string>();
+  const resultToolName=(name:string, output:Record<string,unknown>):string => {
+    if(name === "applyCalendarAction") return ({confirm:"confirmCalendarAppointment",update:"updateCalendarAppointment",cancel:"cancelCalendarAppointment"} as Record<string,string>)[String(output.action)]??name;
+    if(name === "applyScheduledPublicationAction") return ({reschedule:"updateScheduledPublication",cancel:"cancelScheduledPublication",retry:"retryScheduledPublication"} as Record<string,string>)[String(output.action)]??name;
+    return name;
+  };
+  const recordToolResult=(result:{toolName:string;toolCallId:string;output:unknown;input?:unknown}):boolean=>{
+    const key='tool-result:'+result.toolName+':'+result.toolCallId;
+    if(seenToolResults.has(key)) return false;
+    seenToolResults.add(key);
+    let receiptsChanged=false;
+    const observe=()=>{
+              if (result && !observedActionNames.has(result.toolName)) readCounts.set(result.toolName,(readCounts.get(result.toolName)??0)+1);
+              if (!result) return;
+              let output = result.output && typeof result.output === "object" ? result.output as Record<string, unknown> : {};
+              if(["dispatchCampaignDraft","dispatchCampaignAudience"].includes(result.toolName) && output.status === "already_processed") {
+                const saved=String(output.savedStatus);
+                output={...output,status:["queued","paused","running","scheduled","failed","cancelled"].includes(saved)?saved:["done","completed"].includes(saved)?"processing":"unknown"};
+              }
+              if(result.toolName === "readCampaignDeliveryStatus" && typeof output.campaignId === "string") output={...output,recordId:output.campaignId};
+              if (!observedActionNames.has(result.toolName)) {
+                if (statusOnly && typeof output.status === "string" && typeof output.message === "string") {
+                  const pending=receipts.filter(receipt=>INR_ASSISTANT_COMMANDS[receipt.tool]?.statusReader===result.toolName && INR_ASSISTANT_PENDING_STATUSES.has(receipt.status));
+                  const ids=["id","draftId","requestId","publicationId","scheduledActionId","recordId","eventId"] as const;
+                  const sourceInput = result.input && typeof result.input === "object" ? result.input as Record<string,unknown> : {};
+                  const matching=pending.filter(receipt=>ids.some(key=>(typeof output[key]==="string" && output[key]===receipt[key]) || (typeof sourceInput[key]==="string" && sourceInput[key]===receipt[key])));
+                  // Readers such as the ADN status endpoint have one singleton
+                  // operation. Never guess across several pending records.
+                  const candidates=matching.length?matching:result.toolName === "getBusinessDnaAnalysis" && pending.length===1?pending:[];
+                  for(const previous of candidates) {
+                    const index=receipts.indexOf(previous);
+                    receipts[index]={...previous,ok:output.ok===true,status:output.status,message:output.message.slice(0,1800)};
+                    receiptsChanged=true;
+                  }
+                }
+                return;
+              }
+              if(result.toolName === "runScreenCommand" && output.ok === true) uiCommand=parseInrAssistantUiCommand(output.uiCommand)??undefined;
+              if (result.toolName === "navigateApplication" && output.ok === true && output.navigation && typeof output.navigation === "object") {
+                const target=parseInrAssistantNavigation(output.navigation);
+                if(target) navigation=target;
+              }
+              if (output.ok === false && ["admin_required","support_required"].includes(String(output.status)) && typeof output.message === "string") verifiedHandoffMessage = output.message.slice(0,1500);
+              if (typeof output.message !== "string" || !output.message.trim()) return;
+              const next = output.nextAction && typeof output.nextAction === "object" ? output.nextAction as Record<string, unknown> : {};
+              const href = typeof next.href === "string" && next.href.startsWith("/dashboard") && next.href.length < 500 ? next.href : typeof output.toolUrl === "string" && output.toolUrl.startsWith("/dashboard") ? output.toolUrl : undefined;
+              let message = output.message.slice(0, 1_800);
+              if (result.toolName === "configureBusinessCta" && Array.isArray(output.items)) {
+                const channels: Record<string, string> = { site_web: "Site web", gmb: "Google Business", facebook: "Facebook", instagram: "Instagram", threads: "Threads", linkedin: "LinkedIn", x: "X", tiktok: "TikTok", youtube_shorts: "YouTube", pinterest: "Pinterest" };
+                const statuses: Record<string, string> = { applied: "appliqué", unchanged: "déjà en place", blocked: "non appliqué", unknown: "non confirmé" };
+                const details = output.items.slice(0, 16).flatMap(item => {
+                  if (!item || typeof item !== "object") return [];
+                  const row = item as Record<string, unknown>;
+                  if (typeof row.tool !== "string" || typeof row.message !== "string" || typeof row.status !== "string" || !statuses[row.status]) return [];
+                  const channel = typeof row.channel === "string" ? channels[row.channel] : undefined;
+                  return [`- ${row.tool.slice(0, 100)}${channel ? ` · ${channel}` : ""} : ${statuses[row.status]}. ${row.message.slice(0, 260)}`];
+                });
+                message = `${output.status === "partial" ? "Réglages appliqués en partie." : message}\n\n${details.join("\n")}`.slice(0, 7_000);
+              }
+              if (!["generateMedia","modifyMedia"].includes(result.toolName)) actionFacts.set(result.toolCallId, { message, ...(href ? { href, label: typeof next.label === "string" ? next.label.slice(0, 100) : undefined } : {}) });
+              const receipt: InrAssistantActionReceipt = {tool:resultToolName(result.toolName,output),ok:output.ok === true,status:typeof output.status === "string"?output.status:"unknown",message};
+              for (const key of ["id","draftId","requestId","scheduledActionId","eventId","recordId","publicationId"] as const) if (typeof output[key] === "string" && /^[a-z0-9_-]{8,180}$/i.test(output[key])) receipt[key] = output[key];
+              if(typeof output.campaignId === "string" && /^[a-f0-9-]{36}$/i.test(output.campaignId)) receipt.recordId=output.campaignId;
+              if(result.toolName === "updateToolSettings" && ["calendar","notifications","documents","badge","studio","tiktok"].includes(String(output.tool))) receipt.recordId=`settings_${output.tool}`;
+              const media = output.media && typeof output.media === "object" ? output.media as Record<string,unknown> : {};
+              if (typeof media.id === "string" && /^[a-f0-9-]{36}$/i.test(media.id)) receipt.id = media.id;
+              if (href) receipt.toolUrl = href;
+              if(typeof output.reference === "string") { const capability=privateApprovals.get(output.reference); if(capability) {receipt.approvalReference=output.reference;receipt.approvalToken=capability.token;receipt.approvalKind=capability.kind;} }
+              receipts.push(receipt);
+              receiptsChanged=true;
+
+    };
+    observe(); return receiptsChanged;
+  };
+  const checkpoint = async () => {
+    if(!args.onTaskCheckpoint || !requiredTools.some(name=>!["navigateApplication","runScreenCommand"].includes(name))) return;
+    try {await args.onTaskCheckpoint(taskState(inrAssistantTaskOutcome(requiredTools,receipts,"",requiredCalls),""));}
+    catch {checkpointFailed=true;throw new InrAssistantInputError("La reprise de la tâche n’a pas pu être enregistrée. Aucune opération supplémentaire n’a été lancée.");}
+  };
   const serializeMutations = <T extends Record<string, unknown>>(available: T): T => Object.fromEntries(Object.entries(available).map(([name, definition]) => {
     if (!observedActionNames.has(name) || !definition || typeof definition !== "object" || !("execute" in definition) || typeof definition.execute !== "function") return [name, definition];
     const execute = definition.execute;
     return [name, { ...definition, execute: (...input: unknown[]) => {
-      const next = mutationTail.then(() => Reflect.apply(execute, definition, input));
+      const next = mutationTail.then(async () => {
+        if(checkpointFailed) throw new InrAssistantInputError("La tâche doit être vérifiée avant de poursuivre.");
+        const options=input[1] && typeof input[1] === "object"?input[1] as {toolCallId?:string}:{};
+        const toolCallId=options.toolCallId??name+'-'+receipts.length;
+        // Persist before business side effects, then after the verified result.
+        // A surviving marker requires reconciliation, never blind replay.
+        const mutating=!previewActionNames.has(name) && !["navigateApplication","runScreenCommand"].includes(name);
+        const marker:InrAssistantActionReceipt={tool:name,ok:false,status:"executing_unconfirmed",message:"Opération commencée ; résultat à vérifier avant toute nouvelle tentative."};
+        if(mutating) {
+          if(!requiredTools.some(goal=>!["navigateApplication","runScreenCommand"].includes(goal))) requiredTools.push(name);
+          receipts.push(marker); await checkpoint();
+        }
+        let output:unknown;
+        try {output=await Reflect.apply(execute, definition, input);}
+        catch(error) {if(mutating) checkpointFailed=true;throw error;}
+        if(output && typeof output === "object") {
+          const raw=output as Record<string,unknown>;
+          if(previewActionNames.has(name) && typeof raw.token === "string") {
+            if(raw.token.length<=24000 && typeof raw.reference === "string" && /^IA-[A-F0-9]{12}$/.test(raw.reference) && ["calendar","scheduled_publication"].includes(String(raw.approvalKind))) privateApprovals.set(raw.reference,{token:raw.token,kind:raw.approvalKind as "calendar"|"scheduled_publication"});
+            const {token:_privateToken,...safe}=raw; output=safe;
+          }
+        }
+        const markerIndex=receipts.indexOf(marker);
+        if(markerIndex>=0) receipts.splice(markerIndex,1);
+        const changed=recordToolResult({toolName:name,toolCallId,output,input:input[0]});
+        if(mutating && !changed) receipts.push({...marker,status:"unknown",message:"L’outil n’a pas fourni de résultat vérifiable. Vérifiez l’opération avant de la réessayer."});
+        if(changed || mutating) await checkpoint();
+        if(mutating && receipts.some(receipt=>INR_ASSISTANT_UNCERTAIN_STATUSES.has(receipt.status))) checkpointFailed=true;
+        return output;
+      });
       mutationTail = next.catch(() => undefined); return next;
     } }];
   })) as T;
-  const tools = withInrAssistantToolActivities(serializeMutations(assistantToolsForEdition({ ...(humanSupportRequested ? {proposeHumanSupport: supportTool} : {}), ...(draftOnly ? {prepareStudioPrompt} : {}), readAppGuide: createInrAssistantAppGuideTool(), ...mediaTools, ...accountTools, ...diagnosticTools,
-    ...workspaceTools, ...memoryTools, ...businessTools, ...ctaTools, ...dnaAnalysisTools, ...managementTools, ...publicationTools, ...workspaceActionTools, ...insightsTools,
-    ...commercialTools, ...communicationTools, ...advertisingTools, ...settingsTools }, draftOnly ? "basic" : args.edition)),
+  const allTools = assistantToolsForEdition({ ...(humanSupportRequested ? {proposeHumanSupport: supportTool} : {}), ...(draftOnly ? {prepareStudioPrompt} : {}), readAppGuide: createInrAssistantAppGuideTool(), ...mediaTools, ...accountTools, ...diagnosticTools,
+    ...workspaceTools, ...memoryTools, ...attachmentTools, ...businessTools, ...ctaTools, ...dnaAnalysisTools, ...managementTools, ...publicationTools, ...workspaceActionTools, ...insightsTools,
+    ...commercialTools, ...communicationTools, ...advertisingTools, ...settingsTools, ...campaignTools, ...channelTools, ...documentTools, ...calendarTools, ...scheduledTools }, draftOnly ? "basic" : args.edition);
+  // No executor is exposed during a status-only continuation. In particular a
+  // queued publication can never be re-dispatched merely to obtain its status.
+  const selectedTools = Object.fromEntries(Object.entries(assistantToolsForEdition({...allTools,...uiTools},args.edition)).filter(([name,definition])=>
+    Boolean(definition) && !(statusOnly && observedActionNames.has(name)) &&
+    !(["generateMedia","modifyMedia","cancelMediaGeneration"].includes(name) && !requiredTools.includes(name)) &&
+    !(requiredTools.includes("updateToolSettings") && !requiredTools.some(tool=>["generateMedia","modifyMedia"].includes(tool)) && ["generateMedia","modifyMedia"].includes(name)))) as typeof allTools & typeof uiTools;
+  const tools = withInrAssistantToolActivities(serializeMutations(selectedTools),
   { requestId: args.requestId, onActivity: args.onActivity });
   const schemas = await Promise.all(Object.entries(tools).map(async ([name, definition]) => ({
     type: "function", name, description: definition.description,
@@ -372,15 +542,15 @@ export async function generateInrAssistantReply(args: {
   if (bytes({ system, messages }) + schemaBytes > 31_000) {
     // Rich actions already have typed tools to read full business facts. Drop
     // duplicated eager context before dropping recent conversation or safety rules.
-    system = buildInrAssistantSystemPrompt(args.displayName, undefined, getInrAssistantAppKnowledge(latestRequest, 1_200), args.edition, args.clientContext, Boolean(args.fileContexts?.length)) + (operationGuidance ? `\n${operationGuidance}` : "");
+    system = buildInrAssistantSystemPrompt(args.displayName, args.accountContext, getInrAssistantAppKnowledge(latestRequest, 1_200), args.edition, args.clientContext, Boolean(args.fileContexts?.length)) + (operationGuidance ? `\n${operationGuidance}` : "");
   }
   if (bytes({ system, messages }) + schemaBytes > 31_000) {
     // Compound requests can need many real action schemas. The guide remains
     // available as a tool; remove only its duplicated eager prose, not rights.
-    system = buildInrAssistantSystemPrompt(args.displayName, undefined, undefined, args.edition, args.clientContext, Boolean(args.fileContexts?.length)) + (operationGuidance ? `\n${operationGuidance}` : "");
+    system = buildInrAssistantSystemPrompt(args.displayName, args.accountContext, undefined, args.edition, args.clientContext, Boolean(args.fileContexts?.length)) + (operationGuidance ? `\n${operationGuidance}` : "");
   }
   while (messages.length > 1 && bytes({ system, messages }) + schemaBytes > 31_000) messages.shift();
-  if (bytes({system,messages}) + schemaBytes > 30_500) system = buildInrAssistantSystemPrompt(args.displayName,undefined,undefined,args.edition,args.clientContext,Boolean(args.fileContexts?.length),true) + (operationGuidance ? `\n${operationGuidance}` : "");
+  if (bytes({system,messages}) + schemaBytes > 30_500) system = buildInrAssistantSystemPrompt(args.displayName,undefined,undefined,args.edition,args.clientContext,Boolean(args.fileContexts?.length),true) + continuityContext + (operationGuidance ? `\n${operationGuidance}` : "");
   if (bytes({ system, messages }) + schemaBytes > 31_000) {
     noteFailure("input_limit", { inputBytes: bytes({ system, messages }) + schemaBytes, historyTurns: messages.length });
     throw new InrAssistantUnavailableError(lastFailure);
@@ -390,6 +560,7 @@ export async function generateInrAssistantReply(args: {
   });
   const chain = getInrAssistantModelChain({ edition: args.edition, complexity, solReserved: quota.solReserved });
   let success = false;
+  const taskState = (outcome:InrAssistantTaskOutcome,question:string):InrAssistantTaskState => ({version:1,instruction:statusOnly?args.taskContext!.instruction:latestRequest,actionRequestId:args.actionRequestId??args.requestId,startedAt:args.actionStartedAt??new Date(started).toISOString(),expiresAt:new Date(started+(outcome==="processing"?24*60:30)*60_000).toISOString(),outcome,requiredTools:requiredTools.filter(name=>!["navigateApplication","runScreenCommand"].includes(name)),...(Object.keys(requiredCalls).length?{requiredCalls}:{}),receipts:compactInrAssistantTaskReceipts(receipts.filter(receipt=>!["navigateApplication","runScreenCommand"].includes(receipt.tool)),requiredTools,requiredCalls),question:question.slice(-2000)});
   const finishReply = (reply: InrAssistantReply): InrAssistantReply => {
     if (draftOnly) {
       const draft = studioDraftState.value ?? deriveInrAssistantStudioDraft(latestRequest, reply.message);
@@ -401,14 +572,18 @@ export async function generateInrAssistantReply(args: {
       if (!receipts.some(r=>r.tool === name && r.status === result.status)) receipts.push({tool:name,ok:result.ok,status:result.status,message:result.message,...(result.draftId?{draftId:result.draftId}:{}),toolUrl:result.toolUrl});
     }
     if (mediaState.result && !receipts.some(r=>r.tool === "generateMedia" || r.tool === "modifyMedia")) receipts.push({tool:requiredTools.includes("modifyMedia")?"modifyMedia":"generateMedia",ok:mediaState.result.ok,status:mediaState.result.status,message:mediaState.result.message,requestId:mediaState.result.requestId,...(mediaState.result.media?.id?{id:mediaState.result.media.id}:{})});
-    const outcome = inrAssistantTaskOutcome(requiredTools,receipts,reply.message,requiredCalls);
+    const businessRequired=requiredTools.filter(name=>!["navigateApplication","runScreenCommand"].includes(name));
+    if(!businessRequired.length && (navigationRequested || screenCommandRequested)) return {...reply,...(navigation?{navigation}:{}),...(uiCommand?{uiCommand}:{}),outcome:navigation || uiCommand?"processing":"needs_input"};
+    const outcome = inrAssistantTaskOutcome(businessRequired,receipts.filter(receipt=>!["navigateApplication","runScreenCommand"].includes(receipt.tool)),reply.message,requiredCalls);
     success = outcome === "completed";
     if (!requiredTools.length) return verifiedHandoffMessage ? {...reply,needsHuman:true,handoffSummary:verifiedHandoffMessage,outcome:"blocked"} : reply;
-    const labels: Record<string,string> = {generateMedia:"créer le média",modifyMedia:"retoucher l’image",preparePublication:"préparer la publication",executePublication:"publier ou programmer la publication",editPublication:"corriger la publication",configureBusinessCta:"configurer les appels à l’action",startBusinessDnaAnalysis:"analyser l’ADN",updateBusinessDna:"compléter l’ADN",updateAiConfiguration:"appliquer les réglages IA",configureAgentAutomation:"configurer l’agent",prepareCampaignEmail:"préparer la campagne mail",dispatchCampaignDraft:"envoyer ou programmer la campagne",updateCampaignDraft:"corriger le brouillon",updateCalendarAppointment:"modifier le rendez-vous",cancelCalendarAppointment:"annuler le rendez-vous",manageCrmContact:"modifier la fiche CRM",mergeCrmContacts:"fusionner les contacts",prepareAdvertisingCampaign:"préparer la campagne publicitaire",manageAdvertisingCampaign:"modifier la campagne publicitaire"};
-    const remaining = requiredTools.filter(name=>!inrAssistantGoalCompleted(name,receipts,requiredCalls));
+    const label=(name:string)=>name==="navigateApplication"?"ouvrir l’outil demandé":name==="runScreenCommand"?"exporter le PDF demandé":inrAssistantCommandLabel(name);
+    const remaining = businessRequired.filter(name=>!inrAssistantGoalCompleted(name,receipts,requiredCalls));
+    const completed = businessRequired.filter(name=>inrAssistantGoalCompleted(name,receipts,requiredCalls) && !receipts.some(receipt=>receipt.tool===name && INR_ASSISTANT_PENDING_STATUSES.has(receipt.status)));
+    const unfinished=businessRequired.filter(name=>!completed.includes(name));
     const factual = [...new Set(receipts.filter(r=>r.ok).map(r=>r.message))].join("\n\n");
-    const message = outcome === "partial" ? `${factual || savedActionReply() || reply.message}\n\nIl reste à ${remaining.map(name=>labels[name]??"terminer l’action demandée").join(", ")}. Vous pouvez me demander de continuer ; les étapes déjà réalisées seront conservées.` : reply.message;
-    return {...reply,...(verifiedHandoffMessage && outcome !== "completed" ? {needsHuman:true,handoffSummary:verifiedHandoffMessage}:{}),message,outcome,taskState:{version:1,instruction:latestRequest,actionRequestId:args.actionRequestId??args.requestId,startedAt:args.actionStartedAt??new Date(started).toISOString(),expiresAt:new Date(started+30*60_000).toISOString(),outcome,requiredTools,...(Object.keys(requiredCalls).length?{requiredCalls}:{}),receipts:compactInrAssistantTaskReceipts(receipts,requiredTools,requiredCalls),question:message.slice(-2000)}};
+    const message = outcome === "partial" ? `${factual || savedActionReply() || reply.message}\n\nIl reste à ${remaining.map(label).join(", ")}. Vous pouvez me demander de continuer ; les étapes déjà réalisées seront conservées.` : reply.message;
+    return {...reply,...(navigation?{navigation}:{}),...(uiCommand?{uiCommand}:{}),...(verifiedHandoffMessage && outcome !== "completed" ? {needsHuman:true,handoffSummary:verifiedHandoffMessage}:{}),message,outcome,taskProgress:{outcome,completed:completed.map(label),remaining:unfinished.map(label)},taskState:taskState(outcome,message)};
   };
   try {
     for (const attempt of chain) {
@@ -504,40 +679,14 @@ export async function generateInrAssistantReply(args: {
         const model = guardedModel(attempt);
         const result = await generateText({
           model, system, messages, maxOutputTokens, tools,
-          stopWhen: [stepCountIs(maxCalls), () => llmCalls >= maxCalls || Boolean(studioDraftState.value) || Boolean(mediaState.result) && !followupAfterMedia],
-          onStepFinish: ({ toolResults }) => {
-            for (const result of toolResults) {
-              if (result && !observedActionNames.has(result.toolName)) readCounts.set(result.toolName,(readCounts.get(result.toolName)??0)+1);
-              if (!result || !observedActionNames.has(result.toolName)) continue;
-              const output = result.output && typeof result.output === "object" ? result.output as Record<string, unknown> : {};
-              if (output.ok === false && ["admin_required","support_required"].includes(String(output.status)) && typeof output.message === "string") verifiedHandoffMessage = output.message.slice(0,1500);
-              if (typeof output.message !== "string" || !output.message.trim()) continue;
-              const next = output.nextAction && typeof output.nextAction === "object" ? output.nextAction as Record<string, unknown> : {};
-              const href = typeof next.href === "string" && next.href.startsWith("/dashboard") && next.href.length < 500 ? next.href : typeof output.toolUrl === "string" && output.toolUrl.startsWith("/dashboard") ? output.toolUrl : undefined;
-              let message = output.message.slice(0, 1_800);
-              if (result.toolName === "configureBusinessCta" && Array.isArray(output.items)) {
-                const channels: Record<string, string> = { site_web: "Site web", gmb: "Google Business", facebook: "Facebook", instagram: "Instagram", threads: "Threads", linkedin: "LinkedIn", x: "X", tiktok: "TikTok", youtube_shorts: "YouTube", pinterest: "Pinterest" };
-                const statuses: Record<string, string> = { applied: "appliqué", unchanged: "déjà en place", blocked: "non appliqué", unknown: "non confirmé" };
-                const details = output.items.slice(0, 16).flatMap(item => {
-                  if (!item || typeof item !== "object") return [];
-                  const row = item as Record<string, unknown>;
-                  if (typeof row.tool !== "string" || typeof row.message !== "string" || typeof row.status !== "string" || !statuses[row.status]) return [];
-                  const channel = typeof row.channel === "string" ? channels[row.channel] : undefined;
-                  return [`- ${row.tool.slice(0, 100)}${channel ? ` · ${channel}` : ""} : ${statuses[row.status]}. ${row.message.slice(0, 260)}`];
-                });
-                message = `${output.status === "partial" ? "Réglages appliqués en partie." : message}\n\n${details.join("\n")}`.slice(0, 7_000);
-              }
-              if (!["generateMedia","modifyMedia"].includes(result.toolName)) actionFacts.set(result.toolCallId, { message, ...(href ? { href, label: typeof next.label === "string" ? next.label.slice(0, 100) : undefined } : {}) });
-              const receipt: InrAssistantActionReceipt = {tool:result.toolName,ok:output.ok === true,status:typeof output.status === "string"?output.status:"unknown",message};
-              for (const key of ["id","draftId","requestId","scheduledActionId","eventId","recordId","publicationId"] as const) if (typeof output[key] === "string" && /^[a-z0-9_-]{8,180}$/i.test(output[key])) receipt[key] = output[key];
-              const media = output.media && typeof output.media === "object" ? output.media as Record<string,unknown> : {};
-              if (typeof media.id === "string" && /^[a-f0-9-]{36}$/i.test(media.id)) receipt.id = media.id;
-              if (href) receipt.toolUrl = href;
-              receipts.push(receipt);
-            }
+          stopWhen: [stepCountIs(maxCalls), () => checkpointFailed || llmCalls >= maxCalls || Boolean(studioDraftState.value) || Boolean(mediaState.result) && !followupAfterMedia],
+          onStepFinish: async ({ toolResults }) => {
+            let changed=false;
+            for(const result of toolResults) if(result && recordToolResult(result)) changed=true;
+            if(changed && requiredTools.length) {try {await checkpoint();} catch {/* stopWhen prevents further calls. */}}
           },
           prepareStep: ({ stepNumber, messages: stepMessages }) => {
-            const goalsDone = requiredTools.length > 0 && requiredTools.every(name=>inrAssistantGoalCompleted(name,receipts,requiredCalls));
+            const goalsDone = requiredTools.length > 0 && requiredTools.every(name=>inrAssistantGoalCompleted(name,receipts,requiredCalls)) && (!statusOnly || [...readCounts.keys()].some(name=>requiredTools.some(goal=>INR_ASSISTANT_COMMANDS[goal]?.statusReader===name)));
             const answerOnly = goalsDone || stepNumber >= maxCalls-1 || llmCalls >= maxCalls-1;
             if (stepNumber === 0 && !answerOnly && !args.taskContext) return;
             // Keep call/result pairs intact and discard only earlier chat text.
@@ -557,8 +706,8 @@ export async function generateInrAssistantReply(args: {
               activeTools: answerOnly ? [] : Object.keys(tools).filter(name => (readCounts.get(name)??0) < 2 && !(args.taskContext && inrAssistantGoalCompleted(name,args.taskContext.receipts,requiredCalls))) as Array<keyof typeof tools>,
               ...(answerOnly ? { toolChoice: "none" as const } : {}),
               system: buildInrAssistantSystemPrompt(args.displayName, undefined, readCounts.has("readAppGuide") ? undefined : getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext, Boolean(args.fileContexts?.length), true)
-                + draftGuidance + (operationGuidance ? `\n${operationGuidance}` : "")
-                + (args.taskContext ? `\nReprise vérifiée de la tâche. Résultats enregistrés, à réutiliser sans refaire ces actions : ${JSON.stringify(args.taskContext.receipts).slice(0,5000)}. La précision actuelle complète seulement cette tâche. Réponds dans la langue de ce message : ${JSON.stringify(spokenRequest).slice(0,500)}` : "")
+                + continuityContext + draftGuidance + (operationGuidance ? `\n${operationGuidance}` : "")
+                + (args.taskContext ? `\nReprise vérifiée de la tâche. Résultats enregistrés, à réutiliser sans refaire ces actions : ${JSON.stringify(publicTaskReceipts(args.taskContext.receipts)).slice(0,5000)}. La précision actuelle complète seulement cette tâche. Réponds dans la langue de ce message : ${JSON.stringify(spokenRequest).slice(0,500)}` : "")
                 + (answerOnly ? "\nRépondez maintenant sans appeler d’outil. Utilisez seulement les faits déjà obtenus. Si le sujet ou une donnée indispensable manque, posez une question courte pour continuer. N’inventez ni résultat ni action exécutée." : ""),
             };
           },
@@ -597,6 +746,7 @@ export async function generateInrAssistantReply(args: {
           if (!actionFacts.size && !publicationResults.length && !mediaState.result && !mediaState.requestId) throw error;
         }
       }
+      if(checkpointFailed) return finishReply({message:savedActionReply() || "Le résultat de la tâche doit être vérifié avant de poursuivre. Aucune opération supplémentaire n’a été lancée."});
       if (mediaState.result) {
         success = true;
         const media = mediaState.result;

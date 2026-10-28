@@ -10,7 +10,7 @@ import { createInrAssistantMemory, InrAssistantMemoryConflictError, InrAssistant
 import { recordCurrentAccountDiagnosticError, runWithAccountDiagnosticContext } from "@/lib/observability/accountDiagnostics";
 import { parseInrAssistantActivity, type InrAssistantActivity } from "@/lib/inrAssistantActivity";
 import { AssistantAttachmentError, parseAssistantAttachments } from "@/lib/inrAssistantAttachments";
-import { assistantTurnAttachments, loadAssistantFileContexts, loadAssistantTaskState, saveAssistantTaskState, type AssistantFileContext } from "@/lib/inrAssistantAttachmentStorage";
+import { assistantTurnAttachments, loadAssistantFileContexts, inspectAssistantTaskState, saveAssistantTaskState, type AssistantFileContext } from "@/lib/inrAssistantAttachmentStorage";
 import { continueInrAssistantTask, type InrAssistantTaskState } from "@/lib/inrAssistantTaskPolicy";
 
 export const runtime = "nodejs";
@@ -110,6 +110,8 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     const conversationId = parseInrAssistantConversationId(body) ?? randomUUID();
     const attachmentScope = { accountId: auth.activeUserId, actorUserId: auth.authUserId, conversationId };
     const requestedAttachments = (body as { attachments?: unknown }).attachments;
+    const rawTaskIntent = (body as { taskIntent?: unknown }).taskIntent;
+    const taskIntent = rawTaskIntent === "continue" || rawTaskIntent === "check_status" ? rawTaskIntent : undefined;
     parseAssistantAttachments(requestedAttachments);
     let fileContexts: AssistantFileContext[] = [];
     let continuation: { instruction: string; task: InrAssistantTaskState } | undefined;
@@ -133,13 +135,26 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     claimed = begun.claimed;
     const turnAttachments = await assistantTurnAttachments(attachmentScope, { turnId, createdAt: begun.turn!.createdAt }, requestedAttachments, true);
     if (turnAttachments.length) fileContexts = await loadAssistantFileContexts(attachmentScope, turnAttachments);
+    // A reclaimed turn may already have persisted business receipts before its response failed.
+    // beginTurn verified the same user text and account/actor scope; never replay completed steps.
+    if (begun.existing && begun.claimed) {
+      const checkpoint = await inspectAssistantTaskState(attachmentScope, { turnId, createdAt: begun.turn!.createdAt });
+      if (checkpoint.status === "available") continuation = { instruction: checkpoint.task.instruction, task: checkpoint.task };
+      else {
+        throw Object.assign(new Error("Les actions précédentes ne peuvent pas être vérifiées. Consultez leur état dans les outils avant une nouvelle demande."), { code: "assistant_task_state_unavailable" });
+      }
+    }
     if (begun.available) {
       const recent = await memory.loadRecent({ conversationId, limit: 6 });
       if (recent.available) {
         const previous = recent.turns.filter(turn=>turn.turnId !== turnId).at(-1);
-        if (previous?.status === "completed") {
-          const task = await loadAssistantTaskState(attachmentScope, previous);
-          const instruction = continueInrAssistantTask(messages.at(-1)!.content, task);
+        if (!continuation && previous && ["completed", "failed"].includes(previous.status)) {
+          const stored = await inspectAssistantTaskState(attachmentScope, previous);
+          if (["invalid", "unavailable"].includes(stored.status) || stored.status === "expired" && (taskIntent || /^(?:continue|reprends|termine|poursuis|verifie|actualise|suivi|statut)/i.test(messages.at(-1)!.content.trim()))) {
+            throw Object.assign(new Error("Le suivi de la tâche précédente ne peut pas être vérifié. Aucune nouvelle action n’a été lancée."), { code: "assistant_task_state_unavailable" });
+          }
+          const task = stored.status === "available" ? stored.task : null;
+          const instruction = continueInrAssistantTask(messages.at(-1)!.content, task, Date.now(), taskIntent);
           if (task && instruction) continuation = { instruction, task };
         }
         // Server-owned prose replaces fabricated browser assistant messages.
@@ -169,15 +184,37 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
       }
     }
     const clientContext = parseInrAssistantClientContext((body as { clientContext?: unknown }).clientContext);
+    if (continuation?.task.receipts.some(receipt => ["executing_unconfirmed", "unknown", "saved_unconfirmed"].includes(receipt.status))) {
+      throw Object.assign(new Error("Une action précédente a été interrompue sans résultat vérifiable. Consultez l’outil concerné avant une nouvelle demande."), { code: "assistant_task_state_unavailable" });
+    }
     const [edition, accountContext] = await Promise.all([
       getDashboardEditionForAccountId(auth.activeUserId),
       loadInrAssistantContext({ supabase: auth.supabase, accountId: auth.activeUserId }),
     ]);
+    // Prove that no action has started before handing control to the Gateway.
+    // Every executor then checkpoints its in-flight marker and its receipt.
+    // A retry with no readable journal can never rely on intent regexes.
+    if (!begun.existing) {
+      const initial: InrAssistantTaskState = continuation?.task ?? {
+        version: 1, instruction: messages.at(-1)!.content,
+        actionRequestId: `${auth.activeUserId}_${turnId}`, startedAt: begun.turn!.createdAt,
+        expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), outcome: "failed",
+        requiredTools: [], receipts: [], question: "",
+      };
+      if (!await saveAssistantTaskState(attachmentScope, { turnId, createdAt: begun.turn!.createdAt }, initial)) {
+        throw Object.assign(new Error("Le suivi initial de la tâche ne peut pas être enregistré."), { code: "assistant_task_checkpoint_unavailable" });
+      }
+    }
     const reply = await generateInrAssistantReply({
       accountId: auth.activeUserId, actorUserId: auth.authUserId, displayName: auth.activeAccount?.displayName ?? "",
       edition, accountContext, clientContext, messages, requestId, request, supabase: auth.supabase, signal: request.signal,
       memory, turnId, ...(fileContexts.length ? { fileContexts } : {}),
       ...(continuation ? { actionInstruction: continuation.instruction, taskContext: continuation.task } : {}),
+      ...(taskIntent ? { taskIntent } : {}),
+      onTaskCheckpoint: async state => {
+        const saved = await saveAssistantTaskState(attachmentScope, { turnId, createdAt: begun.turn!.createdAt }, state);
+        if (!saved) throw Object.assign(new Error("Le suivi de la tâche n’a pas pu être enregistré."), { code: "assistant_task_checkpoint_unavailable" });
+      },
       ...(onActivity ? { onActivity } : {}),
       // Stable on explicit network retry, scoped by the server. LLM usage and
       // monthly Sol entitlement still use the fresh server requestId above.
@@ -188,8 +225,8 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     });
     const { taskState, ...publicReply } = reply;
     const taskSaved = taskState ? await saveAssistantTaskState(attachmentScope, {turnId,createdAt:begun.turn!.createdAt}, taskState) : true;
-    if (!taskSaved && taskState && ["partial","needs_input"].includes(taskState.outcome)) publicReply.message += "\n\nPour poursuivre, reformulez la demande complète : sa reprise n’a pas pu être enregistrée. Les résultats déjà confirmés restent conservés dans vos outils.";
-    const completed = claimed ? await memory.completeTurn({ ...identity, assistantText: reply.message.slice(0, INR_ASSISTANT_MEMORY_MAX_REPLY_CHARS) }) : null;
+    if (!taskSaved && taskState && ["partial","needs_input","processing"].includes(taskState.outcome)) publicReply.message += "\n\nLe suivi de cette tâche n’a pas pu être enregistré. Vérifiez les résultats dans les outils avant toute nouvelle action ; les étapes déjà confirmées y sont conservées.";
+    const completed = claimed ? await memory.completeTurn({ ...identity, assistantText: publicReply.message.slice(0, INR_ASSISTANT_MEMORY_MAX_REPLY_CHARS) }) : null;
     console.info("[assistant.task]", { requestId, outcome: reply.outcome ?? "completed", taskSaved });
     return NextResponse.json({ ...publicReply, conversationId, turnId, memorySaved: Boolean(completed?.ok), requestId, accountId: auth.activeUserId }, { headers });
   } catch (error) {
@@ -199,7 +236,9 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     const limit = code === "ai_gateway_account_limit_reached";
     const message = error instanceof AssistantAttachmentError ? "Le fichier joint ne peut pas être lu. Joignez-le à nouveau ou essayez un autre fichier." : invalid || limit
       ? (error as Error).message
-      : code === "assistant_memory_unavailable"
+      : code === "assistant_task_state_unavailable" || code === "assistant_task_checkpoint_unavailable"
+        ? "Le suivi des actions précédentes ne peut pas être vérifié. Consultez leur état dans les outils avant une nouvelle demande ; aucune opération supplémentaire n’a été lancée."
+        : code === "assistant_memory_unavailable"
         ? "La mémoire de l’assistant est momentanément indisponible. Merci de réessayer dans quelques instants."
         : "L’assistant est momentanément indisponible. Merci de réessayer dans quelques instants.";
     console.info("[assistant.chat] request ended", { requestId, code, accountId: auth.activeUserId });

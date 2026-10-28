@@ -2,6 +2,7 @@ import "server-only";
 import { jsonSchema, tool } from "ai";
 import type { DashboardEdition } from "./dashboardEdition.ts";
 import { requireUser } from "./requireUser";
+import { requestsInrAssistantSettingsChange } from "./inrAssistantCommandRegistry.ts";
 
 type Row = Record<string, unknown>;
 type Value = string | number | boolean | number[];
@@ -24,7 +25,6 @@ const FIELDS: Record<Tool, string[]> = {
   tiktok: ["defaults.preferredMedia", "defaults.allowComments", "defaults.allowDuo", "defaults.allowStitch", "defaults.photoAutoMusic", "defaults.commercialContent", "defaults.aiContent"],
 };
 const row = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
-const normalize = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 const at = (value: unknown, path: string): unknown => path.split(".").reduce<unknown>((parent, key) => row(parent)[key], value);
 function put(target: Row, path: string, value: unknown) {
   const keys = path.split("."); let parent = target;
@@ -42,11 +42,7 @@ function strict(input: unknown, keys: string[]) {
 }
 function authorized(message: string, quote: string, target: Tool) {
   if (!quote || !message.includes(quote)) return false;
-  const text = normalize(message.replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm, " ")).trim();
-  if (/^(?:comment|pourquoi|explique|how|why|what)\b|\b(?:comment|how).{0,40}(?:modifi|chang|regl|configur)/.test(text) || /\b(?:ne |n['’]|sans |do not |don't ).{0,35}(?:modif|chang|regl|configur|activ|enregistr)/.test(text)) return false;
-  if (/^(?:est.ce que (?:je|on|nous)\b|(?:je|on|nous) (?:peux|peut|pouvons|pourrais|pourrait|pourrions)\b|est.il possible\b|(?:si|imagine|suppose|souviens.toi|rappelle.toi)\b)/.test(text)) return false;
-  const subjects: Record<Tool, RegExp> = { calendar: /agenda|calendar|rendez.vous|\brdv\b/, notifications: /notif|preferences|alertes?/, documents: /devis|factures?|documents?|encaisser/, badge: /badge|qr.code/, studio: /studio|generateur|generation|images?|videos?/, tiktok: /tiktok/ };
-  return subjects[target].test(text) && /\b(?:modifi\w*|chang\w*|regl\w*|configur\w*|mets|mettez|active\w*|desactive\w*|enregistr\w*|remplac\w*|defini\w*|update|set|disable|enable)\b/.test(text);
+  return requestsInrAssistantSettingsChange(message,target);
 }
 function nativeRequest(source: Request, target: Tool, body?: unknown) {
   const paths: Record<Tool, string> = { calendar: "/api/calendar/settings", notifications: "/api/notifications/preferences", documents: "/api/documents/settings", badge: "/api/inrbadge/settings", studio: "/api/media-generation/preferences", tiktok: "/api/integrations/tiktok/settings" };
@@ -98,7 +94,7 @@ export function createInrAssistantSettingsTools(options: { request: Request; acc
       inputSchema: jsonSchema<{ tool: Tool }>({ type: "object", properties: { tool: { type: "string", enum: [...TOOLS] } }, required: ["tool"], additionalProperties: false }),
       execute: async raw => {
         const target = parseTool(strict(raw, ["tool"]).tool);
-        try { const current = await read(target); return current ? { ok: true, status: "read", tool: target, settings: current.settings, editableFields: FIELDS[target], nextAction: LINKS[target] } : fail(target); } catch { return fail(target); }
+        try { const current = await read(target); return current ? { ok: true, status: "read", tool: target, settings: current.settings, ...(target === "notifications" ? { source: current.data.source === "defaults" ? "defaults_not_saved" : "saved", message: current.data.source === "defaults" ? "Aucune préférence enregistrée : ces valeurs sont les valeurs par défaut, sans écriture." : "Préférences enregistrées lues sans modification." } : {}), editableFields: FIELDS[target], nextAction: LINKS[target] } : fail(target); } catch { return fail(target); }
       },
     }),
     updateToolSettings: tool({ strict: true, description: "Corriger des réglages précis sur ordre ACTUEL, après readToolSettings. tool=calendar|notifications|documents|badge|studio|tiktok ; changes utilise les noms EXACTS retournés. Valeurs scalaires ou liste numérique. Préserve les champs omis, vérifie les valeurs réellement enregistrées. Studio : un seul bloc par action. Pas de changement de déclaration légale TikTok, d’identité/secret, d’abonnement ou d’activation d’un agent. Pas de génération, envoi ou rendez-vous créé.",
@@ -140,7 +136,7 @@ export function createInrAssistantSettingsTools(options: { request: Request; acc
           if (!response.ok) return fail(target);
           const saved = await read(target); if (!saved) return fail(target, "saved_unconfirmed");
           const changedFields = Object.keys(desired).filter(field => JSON.stringify(saved.settings[field]) === JSON.stringify(desired[field]));
-          return { ok: changedFields.length === Object.keys(desired).length, status: changedFields.length === Object.keys(desired).length ? "saved" : "partial", changedFields, settings: saved.settings, nextAction: LINKS[target], message: changedFields.length === Object.keys(desired).length ? "Les réglages demandés ont été enregistrés et relus dans l’outil." : "Certains réglages ont été ajustés ou refusés par l’outil. Vérifiez les valeurs enregistrées avant de poursuivre." };
+          return { ok: changedFields.length === Object.keys(desired).length, status: changedFields.length === Object.keys(desired).length ? "saved" : "partial", tool:target, changedFields, settings: saved.settings, nextAction: LINKS[target], message: changedFields.length === Object.keys(desired).length ? "Les réglages demandés ont été enregistrés et relus dans l’outil." : "Certains réglages ont été ajustés ou refusés par l’outil. Vérifiez les valeurs enregistrées avant de poursuivre." };
         })().catch(() => fail(target));
         pending.set(key, work); return work;
       },

@@ -18,7 +18,7 @@ export function collapseDashboardWebsiteChannels(
   items: readonly DashboardFluxBubbleData[],
   presence?: { connectedSite: "site_web" | null; connectedText: string },
 ): DashboardFluxBubbleData[] {
-  return items.map((item) => item.key === "site_web" && presence?.connectedSite
+  return items.map((item) => item.key === "site_web" && item.bubbleStatus !== "coming" && presence?.connectedSite
     ? { ...item, bubbleStatus: "connected" as const, bubbleStatusText: presence.connectedText }
     : item);
 }

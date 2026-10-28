@@ -1,4 +1,6 @@
 "use client";
+import { useInrAssistantScreen } from "../../_components/DashboardAssistantScreenContext";
+import { useInrAssistantDocumentPdf } from "../../_components/DashboardAssistantCommandContext";
 
 import { useTranslations } from "next-intl";
 import DashboardAssistantTrigger from "../../_components/DashboardAssistantTrigger";
@@ -154,6 +156,7 @@ export default function NewFacturePage() {
     advancedOpen, setAdvancedOpen, crmQuery, setCrmQuery,
     crmContainerRef: crmSelectRef,
   } = useDocumentCrmUiState<InvoiceFieldErrors>();
+  useInrAssistantScreen(currentSaveId ? { selection: { kind: "invoice", id: currentSaveId }, availableCommands: ["export_document_pdf"] } : null);
 
   const { filteredCrmContacts, selectedCrmLabel } =
     useDocumentCrmDirectory({
@@ -1497,6 +1500,8 @@ export default function NewFacturePage() {
 
     return pdf.output("blob") as Blob;
   };
+
+  useInrAssistantDocumentPdf(currentSaveId ? { kind: "invoice", id: currentSaveId } : null, buildPdfBlob, "facture");
 
   const uploadPdfAndOpenCompose = async (to: string, filename?: string) => {
     const {

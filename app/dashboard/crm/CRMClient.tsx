@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useInrAssistantScreen } from "../_components/DashboardAssistantScreenContext";
 import { useRouter } from "next/navigation";
 import styles from "./crm.module.css";
 import { getClientUserFacingApiError as getSimpleFrenchApiError, getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
@@ -158,6 +159,8 @@ export default function CRMClient() {
   const [draft, setDraft] = useState<ReturnType<typeof emptyDraft>>(() => emptyDraft());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedMobileContactId, setExpandedMobileContactId] = useState<string | null>(null);
+  const assistantContactId = editingId || expandedMobileContactId || (selectedContactIds.size === 1 ? [...selectedContactIds][0] : undefined);
+  useInrAssistantScreen({ ...(assistantContactId ? { selection: { kind: "contact", id: assistantContactId } } : {}) });
   const [contactNavigationBusy, setContactNavigationBusy] = useState(false);
 
   const mergeContactWithLocalState = useCallback(

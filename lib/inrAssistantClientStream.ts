@@ -1,11 +1,14 @@
 import { parseInrAssistantActivity, type InrAssistantActivity } from "./inrAssistantActivity.ts";
 import { parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "./inrAssistantStudioDraft.ts";
+import { parseInrAssistantNavigation, parseInrAssistantTaskProgress, parseInrAssistantUiCommand, type InrAssistantUiCommand, type InrAssistantNavigation, type InrAssistantTaskProgress } from "./inrAssistantUiCommands.ts";
 
 export type InrAssistantClientReply = {
   pending?: unknown; message?: unknown; error?: unknown; code?: unknown;
   requestId?: unknown; accountId?: unknown; conversationId?: unknown;
   memorySaved?: unknown; needsHuman?: unknown; handoffSummary?: unknown; media?: unknown;
   studioDraft?: InrAssistantStudioDraft; insertStudioDraft?: boolean;
+  navigation?: InrAssistantNavigation; taskProgress?: InrAssistantTaskProgress;
+  uiCommand?: InrAssistantUiCommand;
 };
 
 const MAX_RESPONSE_BYTES = 2_000_000;
@@ -20,6 +23,12 @@ function parseReply(value: unknown): InrAssistantClientReply | null {
   }
   for (const key of ["pending", "memorySaved", "needsHuman"] as const) if (typeof input[key] === "boolean") reply[key] = input[key];
   if (input.media && typeof input.media === "object" && !Array.isArray(input.media)) reply.media = input.media;
+  const navigation = parseInrAssistantNavigation(input.navigation);
+  const taskProgress = parseInrAssistantTaskProgress(input.taskProgress);
+  if (navigation) reply.navigation = navigation;
+  if (taskProgress) reply.taskProgress = taskProgress;
+  const uiCommand = parseInrAssistantUiCommand(input.uiCommand);
+  if (uiCommand) reply.uiCommand = uiCommand;
   const studioDraft = parseInrAssistantStudioDraft(input.studioDraft);
   if (studioDraft) {
     reply.studioDraft = studioDraft;

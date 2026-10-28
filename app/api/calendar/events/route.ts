@@ -11,6 +11,7 @@ import { insertNotificationOnce } from "@/lib/notificationWriter";
 import { INR_CALENDAR_GOOGLE_SOURCE } from "@/lib/inrCalendarGoogleSyncConstants";
 import { syncVisioSharedCalendarToInrCalendar } from "@/lib/inrCalendarGoogleSync";
 import { getVisioTeamActor } from "@/lib/visioTeamAccess";
+import { calendarEventFingerprint } from "@/lib/inrAssistantActionPreview";
 import {
   buildClientExchangePreferences,
   DEFAULT_CLIENT_EXCHANGE_PREFERENCES,
@@ -33,6 +34,7 @@ type CreateEventBody = {
   // Assistant edits must remain drafts even if another tab confirms the event.
   // Ordinary agenda callers keep the existing update/confirmation behavior.
   requireDraft?: boolean;
+  expectedState?: string;
   summary?: string;
   description?: string;
   location?: string;
@@ -939,6 +941,9 @@ async function updateCalendarEventHandler(req: Request) {
 
   if (currentError) return jsonUserFacingError(currentError, { status: 500, extra: { ok: false } });
   if (!current) return bad("Rendez-vous introuvable", 404);
+  if (body.expectedState !== undefined && (typeof body.expectedState !== "string" || body.expectedState !== calendarEventFingerprint(current))) {
+    return bad("Le rendez-vous a changé depuis l’aperçu. Vérifiez une nouvelle proposition.", 409);
+  }
   if (body.requireDraft === true && !isDraftAgendaEvent(current.meta)) {
     return bad("Ce rendez-vous n’est plus en brouillon. Vérifiez sa modification dans l’agenda.", 409);
   }
@@ -1014,8 +1019,19 @@ async function updateCalendarEventHandler(req: Request) {
     meta: nextMeta,
   };
 
-  const update = supabase.from("agenda_events").update(patch).eq("id", id).eq("user_id", activeUserId);
-  if (body.requireDraft === true) {
+  let update = supabase.from("agenda_events").update(patch).eq("id", id).eq("user_id", activeUserId);
+  if (body.expectedState !== undefined) {
+    // Match the exact preview snapshot in the SQL write. A concurrent edit or
+    // confirmation must never be overwritten, nor send another confirmation.
+    for (const field of ["title", "description", "location", "start_at", "end_at", "all_day", "meta"] as const) {
+      const value = current[field];
+      update = value == null ? update.is(field, null) : update.eq(field, field === "meta" ? JSON.stringify(value) : value);
+    }
+    if (body.requireDraft === true) update = update.eq("meta->>status", "draft");
+    const { data, error } = await update.select("id").maybeSingle();
+    if (error) return jsonUserFacingError(error, { status: 500, extra: { ok: false } });
+    if (!data?.id) return bad("Le rendez-vous a changé depuis l’aperçu. Actualisez avant de confirmer.", 409);
+  } else if (body.requireDraft === true) {
     // Compare the status in the same SQL UPDATE, not only in the read above.
     // A concurrent confirmation must never be overwritten or trigger mail.
     const { data, error } = await update.eq("meta->>status", "draft").select("id").maybeSingle();
@@ -1055,12 +1071,14 @@ async function deleteCalendarEventHandler(req: Request) {
 
   const { data: current, error: currentError } = await supabase
     .from("agenda_events")
-    .select("meta")
+    .select("meta,start_at,end_at,title,description,location,all_day")
     .eq("id", id)
     .eq("user_id", activeUserId)
     .maybeSingle();
   if (currentError) return jsonUserFacingError(currentError, { status: 500, extra: { ok: false } });
   if (!current) return bad("Rendez-vous introuvable", 404);
+  const expectedState = searchParams.get("expectedState");
+  if (expectedState !== null && expectedState !== calendarEventFingerprint(current)) return bad("Le rendez-vous a changé depuis l’aperçu.", 409);
   if (isGoogleSyncedAgendaEvent(current.meta)) {
     return bad(
       "Ce rendez-vous est synchronisé depuis Google Agenda. Supprimez-le dans Google Agenda.",
@@ -1068,7 +1086,21 @@ async function deleteCalendarEventHandler(req: Request) {
     );
   }
 
-  const deletion = supabase.from("agenda_events").delete().eq("id", id).eq("user_id", activeUserId);
+  let deletion = supabase.from("agenda_events").delete().eq("id", id).eq("user_id", activeUserId);
+  if (expectedState !== null) {
+    for (const field of ["title", "description", "location", "start_at", "end_at", "all_day", "meta"] as const) {
+      const value = current[field];
+      deletion = value == null ? deletion.is(field, null) : deletion.eq(field, field === "meta" ? JSON.stringify(value) : value);
+    }
+    if (searchParams.get("requireDraft") === "true") {
+      if (!isDraftAgendaEvent(current.meta)) return bad("Ce rendez-vous n’est plus en brouillon.", 409);
+      deletion = deletion.eq("meta->>status", "draft");
+    }
+    const { data, error } = await deletion.select("id").maybeSingle();
+    if (error) return jsonUserFacingError(error, { status: 500, extra: { ok: false } });
+    if (!data?.id) return bad("Le rendez-vous a changé depuis l’aperçu.", 409);
+    return NextResponse.json({ ok: true });
+  }
   if (searchParams.get("requireDraft") === "true") {
     if (!isDraftAgendaEvent(current.meta) || safeObj(current.meta).readOnly === true || safeObj(current.meta).source && safeObj(current.meta).source !== "manual") return bad("Ce rendez-vous nécessite une vérification dans l’agenda.",409);
     const {data,error} = await deletion.eq("meta->>status","draft").eq("meta",JSON.stringify(current.meta)).select("id").maybeSingle();

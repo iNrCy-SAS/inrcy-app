@@ -1,4 +1,6 @@
 "use client";
+import { useInrAssistantScreen } from "../../_components/DashboardAssistantScreenContext";
+import { useInrAssistantDocumentPdf } from "../../_components/DashboardAssistantCommandContext";
 
 import { useTranslations } from "next-intl";
 import DashboardAssistantTrigger from "../../_components/DashboardAssistantTrigger";
@@ -148,6 +150,7 @@ export default function NewDevisPage() {
     advancedOpen, setAdvancedOpen, crmQuery, setCrmQuery,
     crmContainerRef: crmBoxRef,
   } = useDocumentCrmUiState<QuoteFieldErrors>();
+  useInrAssistantScreen(currentSaveId ? { selection: { kind: "quote", id: currentSaveId }, availableCommands: ["export_document_pdf"] } : null);
 
   useDocumentClientQueryPrefill(searchParams, {
     setClientName,
@@ -532,9 +535,6 @@ export default function NewDevisPage() {
     targetStatus?: DocRecord["status"];
   }) => {
     const nowISO = new Date().toISOString();
-    const nextFinalizedAt = options?.asFinalized
-      ? finalizedAt || nowISO
-      : finalizedAt;
     const finalNumber = number || generateNumber("DEV");
     if (!number) setNumber(finalNumber);
 
@@ -601,10 +601,10 @@ export default function NewDevisPage() {
       discountKind,
       discountValue: Number(discountValue) || 0,
       discountDetails,
-      status: options?.targetStatus || (isFinalized ? "envoye" : "brouillon"),
-      isFinalized: options?.asFinalized ? true : isFinalized,
-      finalizedAt: options?.asFinalized ? nextFinalizedAt : finalizedAt || null,
-      lockedAt: options?.asFinalized ? nextFinalizedAt : finalizedAt || null,
+      status: options?.asFinalized ? (isFinalized ? "envoye" : "brouillon") : options?.targetStatus || (isFinalized ? "envoye" : "brouillon"),
+      isFinalized,
+      finalizedAt: finalizedAt || null,
+      lockedAt: finalizedAt || null,
     };
 
     const {
@@ -638,7 +638,7 @@ export default function NewDevisPage() {
           updated_at: nowISO,
         });
 
-    const { data: savedRows, error } = await saveMutation.select("id");
+    const { data: savedRows, error } = await saveMutation.select("id,updated_at");
 
     if (error) {
       console.error(error);
@@ -653,8 +653,19 @@ export default function NewDevisPage() {
       (savedRows?.[0] as { id?: string } | undefined)?.id || currentSaveId;
     if (savedId) setCurrentSaveId(savedId);
     if (options?.asFinalized) {
+      if (!savedId) return;
+      const expectedUpdatedAt = (savedRows?.[0] as { updated_at?: string } | undefined)?.updated_at;
+      const response = await fetch("/api/devis/finalize", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docSaveId: savedId, expectedUpdatedAt }),
+      }).catch(() => null);
+      const result = response ? await response.json().catch(() => null) : null;
+      if (!response?.ok || !result?.ok) {
+        setFormMessage({ type: "error", text: result?.error || "La finalisation du devis ne peut pas être confirmée. Vérifiez sa sauvegarde avant de réessayer." });
+        return;
+      }
       setIsFinalized(true);
-      setFinalizedAt(nextFinalizedAt);
+      setFinalizedAt(String(result.finalizedAt));
     }
 
     await refreshSaves();
@@ -1074,6 +1085,8 @@ export default function NewDevisPage() {
 
     return pdf.output("blob") as Blob;
   };
+
+  useInrAssistantDocumentPdf(currentSaveId ? { kind: "quote", id: currentSaveId } : null, buildPdfBlob, "devis");
 
   const uploadPdfAndOpenCompose = async (to: string, filename: string) => {
     const {

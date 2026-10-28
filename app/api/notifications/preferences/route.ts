@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { ensureNotificationPreferences } from "@/lib/notifications";
+import { readNotificationPreferences } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 
@@ -11,8 +11,8 @@ export async function GET() {
   if (errorResponse) return errorResponse;
 
   try {
-    const preferences = await ensureNotificationPreferences(activeUserId);
-    return NextResponse.json({ preferences });
+    const result = await readNotificationPreferences(activeUserId);
+    return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (error: unknown) {
     return jsonUserFacingError(error, { status: 500 });
   }

@@ -11,6 +11,8 @@ import * as attachmentPolicy from "../../lib/inrAssistantAttachments.ts";
 import * as attachmentCopy from "../../app/dashboard/_components/dashboardAssistantAttachmentCopy.ts";
 import * as studioDraft from "../../lib/inrAssistantStudioDraft.ts";
 import * as studioHandoff from "../../lib/inrAssistantStudioHandoff.ts";
+import * as uiCommands from "../../lib/inrAssistantUiCommands.ts";
+import * as taskCopy from "../../app/dashboard/_components/dashboardAssistantTaskCopy.ts";
 
 const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("../../app/dashboard/_components/DashboardAssistantProvider.tsx", import.meta.url), "utf8");
@@ -44,6 +46,8 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
   const handoffs: string[] = [];
   const actions = { minimize: 0, replies: 0, close: 0, navigationChecks: 0 };
   const studioInsertions: studioDraft.InrAssistantStudioDraft[] = [];
+  const screenCommands: uiCommands.InrAssistantUiCommand[] = [];
+  let screenHandler: (value: uiCommands.InrAssistantUiCommand) => Promise<boolean> = async () => true;
   let insertHandler: (value: studioDraft.InrAssistantStudioDraft) => Promise<boolean> = async () => true;
   const navigations: string[] = [];
   let arrivalOptions: { actorUserId: string; accountId: string; enabled: boolean; onWelcome: () => void } | undefined;
@@ -88,6 +92,10 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
     if (name.endsWith("/useAssistantFirstArrival")) return { useAssistantFirstArrival: (value: typeof arrivalOptions) => { arrivalOptions = value; } };
     if (name === "@/lib/inrAssistantClientContext") return clientContext;
     if (name === "@/lib/inrAssistantClientStream") return clientStream;
+    if (name === "@/lib/inrAssistantUiCommands") return uiCommands;
+    if (name === "./dashboardAssistantTaskCopy") return taskCopy;
+    if (name === "./DashboardAssistantScreenContext") return { DashboardAssistantScreenContext: require("react").createContext(() => {}) };
+    if (name === "./DashboardAssistantCommandContext") return { DashboardAssistantCommandContext: require("react").createContext(() => {}) };
     if (name === "@/lib/inrAssistantStudioDraft") return studioDraft;
     if (name === "@/lib/inrAssistantStudioHandoff") return studioHandoff;
     if (name === "@/lib/inrAssistantContextualHelp") return contextualHelp;
@@ -115,7 +123,7 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
   let restored = false;
   const render = (open = true) => {
     stateIndex = 0; refIndex = 0; effects = [];
-    const tree = moduleRecord.exports.TestSession({ ...scope, onboardingWelcome: options.onboardingWelcome === true, allowed: true, open, close: () => { actions.close += 1; }, minimize: () => { actions.minimize += 1; }, onReply: () => { actions.replies += 1; }, onHumanContact: (message: string) => { handoffs.push(message); }, onInternalNavigate: (href: string) => { navigations.push(href); }, onOpenMediaLibrary: () => { navigations.push("/dashboard/mediatheque"); }, onInsertStudioDraft: async (value: studioDraft.InrAssistantStudioDraft) => { studioInsertions.push(value); return insertHandler(value); }, screen: clientContext.getInrAssistantClientScreen(options.pathname || "/dashboard", new URLSearchParams(options.query ?? "action=publish&token=secret")) });
+    const tree = moduleRecord.exports.TestSession({ ...scope, onboardingWelcome: options.onboardingWelcome === true, allowed: true, open, close: () => { actions.close += 1; }, minimize: () => { actions.minimize += 1; }, onReply: () => { actions.replies += 1; }, onHumanContact: (message: string) => { handoffs.push(message); }, onInternalNavigate: (href: string) => { navigations.push(href); }, onOpenMediaLibrary: () => { navigations.push("/dashboard/mediatheque"); }, onScreenCommand: async (value: uiCommands.InrAssistantUiCommand) => { screenCommands.push(value); return screenHandler(value); }, onInsertStudioDraft: async (value: studioDraft.InrAssistantStudioDraft) => { studioInsertions.push(value); return insertHandler(value); }, screen: clientContext.getInrAssistantClientScreen(options.pathname || "/dashboard", new URLSearchParams(options.query ?? "action=publish&token=secret")) });
     if (restored) effects[9]();
     return tree;
   };
@@ -124,7 +132,8 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
   const cleanup = providerOnly ? () => {} : effects[1]() as () => void;
   if (!providerOnly) { effects[8](); restored = true; }
   return {
-    initial, render, cleanup, handoffs, actions, navigations, storage, studioInsertions,
+    initial, render, cleanup, handoffs, actions, navigations, storage, studioInsertions, screenCommands,
+    onScreenCommand: (handler: typeof screenHandler) => { screenHandler = handler; },
     onStudioInsert: (handler: typeof insertHandler) => { insertHandler = handler; },
     firstArrival: () => arrivalOptions,
     clearActorSessions: moduleRecord.exports.TestClearActorSessions,

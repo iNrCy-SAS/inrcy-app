@@ -44,23 +44,37 @@ export function defaultNotificationPreferences(userId: string): NotificationPref
   };
 }
 
+const NOTIFICATION_PREFERENCES_SELECT = "user_id, in_app_enabled, email_enabled, performance_enabled, action_enabled, information_enabled, digest_every_hours, created_at, updated_at";
+
+/** Reading preferences must never initialize or reset a professional's choices. */
+export async function readNotificationPreferences(userId: string) {
+  const { data, error } = await supabaseAdmin.from("notification_preferences")
+    .select(NOTIFICATION_PREFERENCES_SELECT).eq("user_id", userId).maybeSingle();
+  if (error) throw new Error(`notification_preferences_read_failed:${error.message}`);
+  return {
+    preferences: (data ?? defaultNotificationPreferences(userId)) as NotificationPreferenceRow,
+    source: data ? "saved" as const : "defaults" as const,
+  };
+}
+
+/** Account creation only: concurrent initialization preserves an existing row. */
 export async function ensureNotificationPreferences(userId: string) {
   const payload = {
     ...defaultNotificationPreferences(userId),
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabaseAdmin
+  const { error } = await supabaseAdmin
     .from("notification_preferences")
-    .upsert(payload, { onConflict: "user_id" })
-    .select("user_id, in_app_enabled, email_enabled, performance_enabled, action_enabled, information_enabled, digest_every_hours, created_at, updated_at")
-    .single();
+    .upsert(payload, { onConflict: "user_id", ignoreDuplicates: true });
 
   if (error) {
     throw new Error(`notification_preferences_upsert_failed:${error.message}`);
   }
 
-  return data as NotificationPreferenceRow;
+  const saved = await readNotificationPreferences(userId);
+  if (saved.source !== "saved") throw new Error("notification_preferences_initialization_unconfirmed");
+  return saved.preferences;
 }
 
 

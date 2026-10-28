@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessProvider";
 import { useDashboardUnsavedNavigation } from "../_components/DashboardUnsavedNavigationProvider";
+import { useInrAssistantScreen } from "../_components/DashboardAssistantScreenContext";
 
 export type DashboardPanelName =
   "contact" | "profil" | "preferences" | "inrbadge" | "compte" | "activite" | "ia" | "ai_memory" | "abonnement" | "factures" | "mails" | "agenda" | "site_web" | "instagram" | "threads" | "linkedin" | "x" | "gmb" | "inr_search" | "facebook" | "tiktok" | "youtube_shorts" | "pinterest" | "legal" | "rgpd" | "inertie" | "boutique" | "notifications" | "parrainage" | "documents";
@@ -136,5 +137,7 @@ export function useDashboardPanelRouting() {
     [requestNavigation, router]
   );
 
-  return { panel: panel === "threads" && !metaPilotEnabled ? null : panel, openPanel, closePanel, goToModule };
+  const visiblePanel = panel === "threads" && !metaPilotEnabled ? null : panel;
+  useInrAssistantScreen(visiblePanel ? { panel: visiblePanel } : null);
+  return { panel: visiblePanel, openPanel, closePanel, goToModule };
 }

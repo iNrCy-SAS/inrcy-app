@@ -29,6 +29,7 @@ function harness(options: {
   message?: string; inactive?: boolean; wrongScope?: boolean; drafts?: boolean; disconnected?: boolean;
   throwPublish?: boolean; throwEdit?: boolean; rejectEdit?: boolean; failDb?: string;
   payload?: Row; mediaRows?: Row[]; status?: Row; deadlineAfterConnection?: boolean;
+  statusReadOnly?: boolean;
 } = {}) {
   const calls: Call[] = [], queries: Query[] = [], minted: string[] = [], observed: PublicationTools.InrAssistantPublicationResult[] = [];
   const tables: Record<string, Row[]> = {
@@ -139,6 +140,7 @@ function harness(options: {
   const create = (message = options.message ?? "Prépare un post Facebook et publie-le maintenant", actionRequestId = "trusted-server-turn") => runtime.createInrAssistantPublicationTools({
     request: sourceRequest, accountId: ACCOUNT, supabase: supabase as never, currentUserMessage: message, actionRequestId,
     canStartWork: () => deadlineAllowed, onResult: (value) => observed.push(value),
+    statusReadOnly: options.statusReadOnly,
   }) as unknown as Record<"preparePublication" | "executePublication" | "editPublication" | "getPublicationStatus", TestTool>;
   return { tools: create(), create, runtime, calls, queries, tables, minted, observed, scheduled };
 }
@@ -370,4 +372,24 @@ test("strict runtime validation rejects arbitrary URLs, account selectors, unkno
   await assert.rejects(h.tools.getPublicationStatus.execute({ publicationId: PUBLICATION, accountId: FOREIGN }));
   assert.equal(h.calls.length, 0); assert.equal(h.queries.length, 0);
   for (const definition of Object.values(h.tools)) assert.equal(definition.inputSchema.schema.additionalProperties, false);
+});
+
+test("an explicit two-post batch uses separate persistent draft and execution receipts, and retries do not create a third post", async () => {
+  const h = harness({ message: "Prépare 2 publications Facebook et publie-les maintenant", drafts: false });
+  const a = await h.tools.preparePublication.execute({ ...prepare, operationKey: "post-1" });
+  const b = await h.tools.preparePublication.execute({ ...prepare, operationKey: "post-2", posts: [{ ...post, content: "Deuxième publication" }] });
+  assert.equal(a.status, "draft"); assert.equal(b.status, "draft"); assert.notEqual(a.draftId, b.draftId);
+  assert.equal((await h.tools.preparePublication.execute({ ...prepare, operationKey: "post-3" })).ok, false);
+  const recovered = await h.create().preparePublication.execute({ ...prepare, operationKey: "different-prefix-1" });
+  assert.equal(recovered.draftId, a.draftId); assert.equal(h.calls.filter(call => call.action === "draft-post").length, 2);
+  await h.tools.executePublication.execute({ ...publish, draftId: a.draftId });
+  await h.tools.executePublication.execute({ ...publish, draftId: b.draftId });
+  const dispatched = h.calls.filter(call => call.action === "publish"); assert.equal(dispatched.length, 2);
+  assert.notEqual(dispatched[0].body!.idempotencyKey, dispatched[1].body!.idempotencyKey);
+});
+
+test("a status-only publication follow-up selects the native read-only projection", async () => {
+  const h = harness({ statusReadOnly: true }); await h.tools.getPublicationStatus.execute({ publicationId: PUBLICATION });
+  const call = h.calls.find(call => call.action === "status")!; assert.equal(new URL(call.request!.url).searchParams.get("readOnly"), "true");
+  assert.equal(h.calls.some(call => ["publish", "edit", "schedule"].includes(call.action)), false);
 });

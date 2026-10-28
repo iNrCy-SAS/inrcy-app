@@ -1,4 +1,5 @@
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
+import { useInrAssistantScreen } from "../../_components/DashboardAssistantScreenContext";
 import { useTranslations } from "next-intl";
 import PublishWizardFrame, { PublishWizardScreen } from "./components/PublishWizardFrame";
 import { canOpenPublishWizardStep, getPublishWizardSteps, getRestoredPublishWizardStep, type PublishWizardStep } from "./components/publishWizard";
@@ -8195,6 +8196,7 @@ export default function PublishModal({
   const activeWizardStep: PublishWizardStep = saving || scheduleSaving
     ? "publication"
     : publicationResult ? "results" : wizardStep;
+  useInrAssistantScreen({ action: "publish", step: activeWizardStep, pendingChanges: hasUnsavedChanges, ...(loadedPublicationDraftId ? { selection: { kind: "publication", id: loadedPublicationDraftId } } : {}) });
   const canOpenWizardStep = (step: PublishWizardStep) => !publicationResult && canOpenPublishWizardStep(step, {
     mode: creationMode,
     channelCount: connectedChannelsLoadState === "ready" ? selectedChannels.length : 0,

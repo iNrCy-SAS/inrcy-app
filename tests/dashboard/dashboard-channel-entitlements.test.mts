@@ -114,6 +114,10 @@ test("la présence du site unique conserve ses actions et sa connexion sans dép
   assert.equal(configured[0].onConfigure, onConfigure);
   assert.equal(configured[0].bubbleStatus, "connected");
   assert.equal(collapseDashboardWebsiteChannels([site])[0].bubbleStatus, "available");
+  const disabled = collapseDashboardWebsiteChannels([{ ...site, bubbleStatus: "coming", bubbleStatusText: "Désactivé" }], {
+    connectedSite: "site_web", connectedText: "Connecté",
+  });
+  assert.equal(getChannelTone(disabled[0]), "disabled", "une URL enregistrée ne doit pas contourner un accès désactivé");
 });
 
 test("les quatorze canaux contribuent à la puissance sans redistribuer le poids de Threads masqué", () => {

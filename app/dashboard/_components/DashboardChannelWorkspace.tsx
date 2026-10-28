@@ -1,6 +1,7 @@
 "use client";
 
 import { lazy, useState } from "react";
+import { useInrAssistantScreen } from "./DashboardAssistantScreenContext";
 import { useTranslations } from "next-intl";
 import DashboardFluxBubble, { type DashboardFluxBubbleData } from "./DashboardFluxBubble";
 import type { ChannelBubbleConnection, ChannelBubbleRenderer } from "./channel-bubble.types";
@@ -48,6 +49,7 @@ export default function DashboardChannelWorkspace(props: Props) {
   const onActionError = (error: string) => setActionFeedback({ channel: item.key, error });
   const onActionNotice = (notice: string) => setActionFeedback({ channel: item.key, notice });
   const hasUnsavedChanges = dirty || profileLinkDirty || organizationLinkDirty || widgetDirty;
+  useInrAssistantScreen({ action: "channels", channel: item.key, pendingChanges: hasUnsavedChanges });
   useUnsavedExitGuard({ active: hasUnsavedChanges, shouldBlock: hasUnsavedChanges, onConfirmExit: () => { setDirty(false); setProfileLinkDirty(false); setOrganizationLinkDirty(false); setWidgetDirty(false); setRevision(value => value + 1); } });
   const knownConnection = getKnownChannelConnection(item);
   const renderBubble: ChannelBubbleRenderer = connection => <DashboardFluxBubble key={revision} item={{ ...item, connection: { ...(connection.loading && knownConnection.accountConnected ? {

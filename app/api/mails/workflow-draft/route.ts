@@ -248,6 +248,10 @@ export async function POST(req: Request) {
   const folder = clean(body?.folder, 80).toLowerCase();
   const trackType = clean(body?.trackType || body?.track_type, 80).toLowerCase();
   const draftId = clean(body?.draftId || body?.draft_id, 120);
+  const expectedUpdatedAt = body?.expectedUpdatedAt;
+  if (expectedUpdatedAt !== undefined && (!draftId || typeof expectedUpdatedAt !== "string" || !Number.isFinite(Date.parse(expectedUpdatedAt)))) {
+    return NextResponse.json({ error: "Révision du brouillon invalide." }, { status: 400 });
+  }
   const subject = clean(body?.subject, 220);
   const bodyText = cleanContent(body?.bodyText || body?.body_text, 200_000);
   const bodyHtml = cleanContent(body?.bodyHtml || body?.body_html, 500_000);
@@ -335,15 +339,15 @@ export async function POST(req: Request) {
 
   const write = async (payload: Record<string, unknown>) => {
     if (draftId) {
-      return supabase
+      let update = supabase
         .from("send_items")
         .update(payload)
         .eq("id", draftId)
         .eq("user_id", activeUserId)
         .eq("type", "mail")
-        .eq("status", "draft")
-        .select("id")
-        .maybeSingle();
+        .eq("status", "draft");
+      if (expectedUpdatedAt !== undefined) update = update.eq("updated_at", expectedUpdatedAt);
+      return update.select("id").maybeSingle();
     }
     return supabase.from("send_items").insert(payload).select("id").single();
   };
@@ -359,7 +363,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Impossible d’enregistrer le brouillon." }, { status: 500 });
   }
   if (draftId && !data?.id) {
-    return NextResponse.json({ error: "Brouillon introuvable." }, { status: 404 });
+    return NextResponse.json({ error: expectedUpdatedAt === undefined ? "Brouillon introuvable." : "Le brouillon a changé. Relisez-le avant de préparer un nouvel aperçu." }, { status: expectedUpdatedAt === undefined ? 404 : 409 });
   }
   return NextResponse.json({ draftId: data?.id || draftId || null });
 }

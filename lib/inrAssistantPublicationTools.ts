@@ -9,7 +9,7 @@ import { classifyBoosterPublicationResult } from "./boosterPublicationOutcome.ts
 
 type Row = Record<string, unknown>;
 type Post = { channel: Channel; title: string; content: string; cta?: string | null; hashtags?: string[] | null };
-type PrepareInput = { posts: Post[]; mediaIds?: string[] | null; draftId?: string | null };
+type PrepareInput = { posts: Post[]; mediaIds?: string[] | null; draftId?: string | null; operationKey?: string | null };
 type ExecuteInput = { draftId: string; mode: "publish" | "schedule"; scheduledAt?: string | null; timezone?: string | null };
 type EditInput = { publicationId: string; channel: Channel; title?: string | null; content?: string | null; hashtags?: string[] | null };
 export type InrAssistantPublicationResult = {
@@ -52,12 +52,13 @@ function post(value: unknown): Post {
     cta: typeof input.cta === "string" ? input.cta.trim() : "", hashtags: tags(input.hashtags) ?? [] };
 }
 function prepareInput(value: unknown): PrepareInput {
-  const input = row(value); strict(input, ["posts", "mediaIds", "draftId"]);
+  const input = row(value); strict(input, ["posts", "mediaIds", "draftId", "operationKey"]);
   if (!Array.isArray(input.posts) || input.posts.length < 1 || input.posts.length > 11) throw new PublicationInputError("Précisez le texte et les canaux de la publication.");
   const posts = input.posts.map(post);
   if (new Set(posts.map((item) => item.channel)).size !== posts.length) throw new PublicationInputError("Un seul texte par canal est attendu.");
   if (input.mediaIds != null && (!Array.isArray(input.mediaIds) || input.mediaIds.length > 4)) throw new PublicationInputError("Sélectionnez au plus quatre médias.");
-  return { posts, mediaIds: input.mediaIds == null ? null : [...new Set((input.mediaIds as unknown[]).map(id))], draftId: input.draftId == null ? undefined : id(input.draftId) };
+  if (input.operationKey != null && (typeof input.operationKey !== "string" || !/^[a-z0-9][a-z0-9_-]{0,39}$/.test(input.operationKey))) throw new PublicationInputError("Clé de lot invalide.");
+  return { posts, mediaIds: input.mediaIds == null ? null : [...new Set((input.mediaIds as unknown[]).map(id))], draftId: input.draftId == null ? undefined : id(input.draftId), operationKey: input.operationKey == null ? null : String(input.operationKey) };
 }
 function executeInput(value: unknown): ExecuteInput {
   const input = row(value); strict(input, ["draftId", "mode", "scheduledAt", "timezone"]);
@@ -127,14 +128,19 @@ export function createInrAssistantPublicationTools(options: {
   request: Request; accountId: string; supabase: Pick<SupabaseClient, "from">;
   actionRequestId: string; currentUserMessage: string; canStartWork?: () => boolean;
   onResult?: (result: InrAssistantPublicationResult) => void;
+  statusReadOnly?: boolean;
 }) {
   const accountId = id(options.accountId);
   if (!options.actionRequestId || options.actionRequestId.length > 180 || typeof options.currentUserMessage !== "string") throw new PublicationInputError("Contexte de publication invalide.");
-  const hash = createHash("sha256").update(`${accountId}:${options.actionRequestId}`).digest("hex");
-  const receipt = `assistant-publication:v1:${hash}`;
-  const publishKey = `booster_manual:assistant:${hash}`;
-  const rawUuid = `${hash.slice(0, 12)}5${hash.slice(13, 16)}8${hash.slice(17, 32)}`;
-  const scheduleId = `${rawUuid.slice(0, 8)}-${rawUuid.slice(8, 12)}-${rawUuid.slice(12, 16)}-${rawUuid.slice(16, 20)}-${rawUuid.slice(20)}`;
+  const operationHash = (target = "") => createHash("sha256").update(`${accountId}:${options.actionRequestId}${target ? `:${target}` : ""}`).digest("hex");
+  const batchMatch = /\b(\d{1,2}|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|plusieurs)\s+(?:publications?|posts?|brouillons?)\b/.exec(normalized(options.currentUserMessage))?.[1];
+  const batchWords: Record<string, number> = { deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8, neuf: 9, dix: 10, plusieurs: 12 };
+  const batchMaximum = batchMatch ? Math.min(12, batchWords[batchMatch] ?? Number(batchMatch)) : 1;
+  const preparePosition = (operation: string | null | undefined) => {
+    if (!operation) return 0;
+    const position = Number(/(?:^|[-_])(\d{1,2})$/.exec(operation)?.[1]);
+    return batchMatch && Number.isInteger(position) && position >= 1 && position <= batchMaximum ? position : -1;
+  };
   const singleflight = new Map<string, { fingerprint: string; promise: Promise<InrAssistantPublicationResult> }>();
   const result = (action: InrAssistantPublicationResult["action"], status: InrAssistantPublicationResult["status"], message: string, extra: Partial<InrAssistantPublicationResult> = {}): InrAssistantPublicationResult => ({
     action, ok: ["draft", "queued", "scheduled", "updated", "unchanged", "published", "processing", "partial"].includes(status), status, message,
@@ -153,9 +159,13 @@ export function createInrAssistantPublicationTools(options: {
   }
   async function once(action: InrAssistantPublicationResult["action"], input: unknown, operation: () => Promise<InrAssistantPublicationResult>) {
     const fingerprint = JSON.stringify(input);
-    const slot = action === "publish" || action === "schedule" ? "execute" : action;
+    const data = row(input);
+    const category = action === "publish" || action === "schedule" ? "execute" : action;
+    const target = category === "prepare" ? String(preparePosition(data.operationKey as string | null)) : category === "execute" ? String(data.draftId) : category === "edit" ? `${String(data.publicationId)}:${String(data.channel)}` : "default";
+    const slot = `${category}:${target}`;
     const previous = singleflight.get(slot);
     if (previous) return previous.fingerprint === fingerprint ? previous.promise : result(action, "needs_clarification", "Une action de ce type a déjà été traitée dans cette demande. Précisez la nouvelle modification dans un nouveau message.");
+    if (category !== "status" && [...singleflight.keys()].filter(key => key.startsWith(`${category}:`)).length >= batchMaximum) return result(action, "needs_clarification", "Le nombre d’éléments demandé a déjà été traité. Aucun élément supplémentaire n’a été créé ni diffusé.");
     const promise = (async () => {
       let answer: InrAssistantPublicationResult;
       try { answer = await operation(); }
@@ -255,13 +265,16 @@ export function createInrAssistantPublicationTools(options: {
 
   return {
     preparePublication: tool({ strict: true,
-      description: "Rédiger des textes adaptés puis enregistrer un vrai brouillon Booster, uniquement sur la demande actuelle de création/rédaction. posts contient un texte par canal choisi ; mediaIds uniquement des IDs actifs de Médiathèque, jamais des URLs. Aucun envoi ni programmation. draftId=null crée, sinon corrige ce brouillon en conservant ses autres canaux. mediaIds=null conserve ses médias ; [] les retire seulement sur demande explicite. Retourne l’ID pour executePublication ou un lien de vérification.",
+      description: "Enregistrer un brouillon Booster demandé actuellement : posts contient un texte par canal et mediaIds des IDs actifs de Médiathèque. Aucun envoi. draftId=null crée, sinon corrige ; mediaIds=null conserve, [] retire sur ordre. Pour un lot explicitement chiffré, appeler une fois par publication avec operationKey=post-1, post-2, etc. (maximum 12), conserver ces indices à la reprise. null pour une publication unique. Retourne chaque draftId pour executePublication.",
       inputSchema: schema<PrepareInput>({ type: "object", properties: {
         posts: { type: "array", minItems: 1, maxItems: 11, items: { type: "object", properties: { channel: { type: "string", enum: BOOSTER_PUBLICATION_CHANNELS }, title: { type: "string", maxLength: 180 }, content: { type: "string", maxLength: 5_000 }, cta: nullableString(300), hashtags: tagSchema }, required: ["channel", "title", "content", "cta", "hashtags"], additionalProperties: false } },
-        mediaIds: { type: ["array", "null"], maxItems: 4, items: idSchema }, draftId: { anyOf: [idSchema, { type: "null" }] },
-      }, required: ["posts", "mediaIds", "draftId"], additionalProperties: false }, prepareInput),
+        mediaIds: { type: ["array", "null"], maxItems: 4, items: idSchema }, draftId: { anyOf: [idSchema, { type: "null" }] }, operationKey: { type: ["string", "null"], maxLength: 40 },
+      }, required: ["posts", "mediaIds", "draftId", "operationKey"], additionalProperties: false }, prepareInput),
       execute: async (raw) => {
         const input = prepareInput(raw);
+        const position = preparePosition(input.operationKey);
+        if (position < 0) return result("prepare", "needs_clarification", "Une clé numérotée de lot exige une demande explicite de plusieurs publications.");
+        const receipt = `assistant-publication:v1:${operationHash(position ? `batch:${position}` : "")}`;
         return once("prepare", input, async () => {
           if (!permitsInrAssistantPublicationAction(options.currentUserMessage, "prepare")) return result("prepare", "needs_clarification", "Voulez-vous que j’enregistre un brouillon ? Précisez le sujet et les canaux souhaités.");
           const denied = await access("prepare"); if (denied) return denied;
@@ -298,6 +311,10 @@ export function createInrAssistantPublicationTools(options: {
       inputSchema: schema<ExecuteInput>({ type: "object", properties: { draftId: idSchema, mode: { type: "string", enum: ["publish", "schedule"] }, scheduledAt: nullableString(40), timezone: nullableString(70) }, required: ["draftId", "mode", "scheduledAt", "timezone"], additionalProperties: false }, executeInput),
       execute: async (raw) => {
         const input = executeInput(raw);
+        const executionHash = operationHash(`draft:${input.draftId}`);
+        const publishKey = `booster_manual:assistant:${executionHash}`;
+        const rawUuid = `${executionHash.slice(0, 12)}5${executionHash.slice(13, 16)}8${executionHash.slice(17, 32)}`;
+        const scheduleId = `${rawUuid.slice(0, 8)}-${rawUuid.slice(8, 12)}-${rawUuid.slice(12, 16)}-${rawUuid.slice(16, 20)}-${rawUuid.slice(20)}`;
         return once(input.mode, input, async () => {
           const denied = await access(input.mode); if (denied) return denied;
           const payload = await draft(input.draftId), posts = storedPosts(payload), channels = posts.map((item) => item.channel);
@@ -385,7 +402,7 @@ export function createInrAssistantPublicationTools(options: {
         const denied = await access("status", false); if (denied) return denied;
         try {
           const { GET } = await import("@/app/api/booster/publications/[publicationId]/status/route");
-          const response = await GET(request(options.request, `/api/booster/publications/${publicationId}/status`), { params: Promise.resolve({ publicationId }) });
+          const response = await GET(request(options.request, `/api/booster/publications/${publicationId}/status${options.statusReadOnly ? "?readOnly=true" : ""}`), { params: Promise.resolve({ publicationId }) });
           const data = row(await response.json());
           return response.ok ? statusProjection(data) : actionFailure("status", response);
         } catch { return result("status", "unknown", "L’état de cette publication ne peut pas être vérifié pour le moment. Ne pas la republier automatiquement."); }
