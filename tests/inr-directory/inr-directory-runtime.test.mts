@@ -299,6 +299,7 @@ test("the QR endpoint rejects invalid slugs and returns a first-party SVG with a
   const response = await qr.GET(request, { params: Promise.resolve({ slug: `atelier-${accountId.replaceAll("-", "")}` }) });
   assert.equal(response.status, 200); assert.match(response.headers.get("Content-Type") || "", /image\/svg\+xml/);
   assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
+  assert.equal(response.headers.get("Cross-Origin-Resource-Policy"), "cross-origin", "the WordPress directory can embed its public QR image from another origin");
   const svg = await response.text();
   assert.match(svg, /fill="#fff"/); assert.match(svg, /M4,/); assert.doesNotMatch(svg, /<script|https?:.*href|foreignObject/);
 });

@@ -193,6 +193,14 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        // WordPress embeds these public QR images from inrcy.com. Keep this
+        // exception after the global rule so other app resources stay private.
+        source: "/api/public/directory/qr/:slug",
+        headers: [
+          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
+        ],
+      },
     ];
   },
 };
