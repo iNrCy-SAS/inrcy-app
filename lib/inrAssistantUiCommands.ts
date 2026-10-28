@@ -55,6 +55,11 @@ export function isInrAssistantNavigationRequest(message: string): boolean {
   const text = message.replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm, " ")
     .normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
   if (/^(?:comment|pourquoi|explique|how|why|what|si |imagine|suppose)\b/.test(text)) return false;
+  // A future confirmation is not a current navigation instruction, including
+  // when its condition follows punctuation or an adverb.
+  const navigationClause = text.split(/\s+(?:et|puis|ensuite|and|then)\s+/)[0];
+  if (/\b(?:si|if|quand|when|lorsque|unless|until)\b|\blorsqu['’]/.test(navigationClause) || /\b(?:seulement|uniquement|only|et|and)\s+(?:si|if|when)\b|\b(?:apres|after)\s+(?:(?:ma|mon|votre|my|your)\s+)?(?:confirmation|accord|approval|consent)\b/.test(text)) return false;
+  if (/\b(?:demain|plus tard|tout a l['’]heure|tomorrow|later)\b|\bdans\s+\d+\s*(?:minutes?|heures?|jours?)\b/.test(navigationClause)) return false;
   if (/\b(?:ne |n['’]|sans |do not |don't ).{0,25}(?:ouvr|ouvre|affich|montr|emmene|amene|navig|open|show)/.test(text)) return false;
   return /\b(?:ouvre|ouvrez|ouvrir|affiche|affichez|montre|montrez|emmene|amene|navigate|open|show)\b|\b(?:va|aller|go)\s+(?:dans|sur|a|au|aux|to)\b/.test(text);
 }
@@ -90,6 +95,7 @@ export function getDirectInrAssistantNavigationRequest(message: string): { desti
     const after = remainder.slice(match[0].length);
     if (!/^(?:\s+(?:de l['’]application|de mon application))?(?:$|[.!?,;]|\s+(?:et|puis|pour moi|sans|seulement)\b)/.test(after)) return null;
     if (/\b(?:ouvre|ouvrez|affiche|affichez|ouvrir|open|show|va dans)\b/.test(after)) return null;
+    if (/^(?:\s*[,;:]\s*)?(?:after|apres)\b/.test(after.trim())) return null;
     return { destination, instructionQuote: message };
   }
   return null;

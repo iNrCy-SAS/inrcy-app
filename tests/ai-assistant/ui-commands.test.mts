@@ -16,7 +16,7 @@ test("navigation accepts every registered real destination and rejects arbitrary
 
 test("navigation requires a current request, not quoted, hypothetical or negated content", () => {
   for (const request of ["Ouvre le CRM pour moi", "Peux-tu m’ouvrir l’agenda ?", "Va dans mes canaux", "Open my calendar"]) assert.equal(isInrAssistantNavigationRequest(request), true, request);
-  for (const request of ["Comment ouvrir mon CRM ?", "N’ouvre pas le CRM", "Sans ouvrir le CRM, explique-moi son rôle.", "Le fichier contient « ouvre le CRM ».", "```ouvre le CRM```", "Imagine ouvrir le CRM", "Ne montre pas mon agenda."]) assert.equal(isInrAssistantNavigationRequest(request), false, request);
+  for (const request of ["Comment ouvrir mon CRM ?", "N’ouvre pas le CRM", "Sans ouvrir le CRM, explique-moi son rôle.", "Le fichier contient « ouvre le CRM ».", "```ouvre le CRM```", "Imagine ouvrir le CRM", "Ne montre pas mon agenda.", "Ouvre le CRM seulement si je confirme.", "Ouvre le CRM, si je confirme.", "Open my CRM after my confirmation."]) assert.equal(isInrAssistantNavigationRequest(request), false, request);
 });
 
 test("document navigation keeps a canonical owned-record destination without arbitrary URL support", () => {
@@ -32,9 +32,10 @@ test("document navigation keeps a canonical owned-record destination without arb
 test("direct module opening is distinct from quoted, conditional, ambiguous and record-specific requests", () => {
   for (const [request, destination] of [
     ["Ouvre les préférences de l’application et indique mes notifications sans rien modifier.", "preferences"],
+    ["Ouvre les préférences et indique si les emails sont activés.", "preferences"],
     ["Ouvre le module iNr’CRM pour moi.", "crm"], ["Open my calendar", "calendar"],
   ]) assert.deepEqual(getDirectInrAssistantNavigationRequest(request), { destination, instructionQuote: request });
-  for (const request of ["Comment ouvrir les préférences ?", "N’ouvre pas mon CRM", "Ouvre le CRM si je confirme", "Le document dit « Ouvre le CRM »", "Ouvre ma facture F-42", "Ouvre le CRM puis ouvre mon agenda", "Ouvre les préférences de mon client", "Ouvre un écran"]) {
+  for (const request of ["Comment ouvrir les préférences ?", "N’ouvre pas mon CRM", "Ouvre le CRM si je confirme", "Ouvre le CRM seulement si je confirme.", "Ouvre le CRM, si je confirme.", "Ouvre le CRM, demain.", "Ouvre le CRM, dans 10 minutes.", "Open my CRM after my confirmation.", "Le document dit « Ouvre le CRM »", "Ouvre ma facture F-42", "Ouvre le CRM puis ouvre mon agenda", "Ouvre les préférences de mon client", "Ouvre un écran"]) {
     assert.equal(getDirectInrAssistantNavigationRequest(request), null, request);
   }
 });
