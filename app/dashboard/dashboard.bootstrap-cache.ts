@@ -10,8 +10,8 @@ export const FORCED_SERVER_CACHE_CHECK_DEDUP_MS = 30_000;
 export const AUTO_DAILY_REFRESH_DEDUP_MS = 5 * 60_000;
 export const CHANNEL_REFRESH_DEDUP_MS = 30_000;
 export const GENERATOR_POWER_SETTLE_MS = 700;
-// v4 utilise les 12 poids fixes, Threads compris dans le total de 100 %.
-// Les anciens scores normalisés ne doivent jamais hydrater cette jauge.
+// v5 utilise les 14 poids fixes, dont Mails et les trois outils iNr à 4 %.
+// Les scores des anciens barèmes ne doivent jamais hydrater cette jauge.
 export const GENERATOR_POWER_CACHE_KEY = DASHBOARD_CACHE_KEYS.generatorPower;
 export const GENERATOR_POWER_SNAPSHOT_CACHE_KEY = DASHBOARD_CACHE_KEYS.generatorPowerSnapshot;
 export const GENERATOR_ACTIVE_CACHE_KEY = DASHBOARD_CACHE_KEYS.generatorActive;

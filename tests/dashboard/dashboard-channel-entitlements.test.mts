@@ -116,23 +116,24 @@ test("la présence du site unique conserve ses actions et sa connexion sans dép
   assert.equal(collapseDashboardWebsiteChannels([site])[0].bubbleStatus, "available");
 });
 
-test("la puissance garde les poids fixes des douze connexions, même si Threads est masqué", () => {
+test("les quatorze canaux contribuent à la puissance sans redistribuer le poids de Threads masqué", () => {
   assert.equal(DASHBOARD_CHANNEL_SETUP.length, 14);
   assert.equal(getDashboardChannelSetup(false).length, 13);
-  assert.equal(getDashboardChannelPowerSetup(true).length, 12);
+  assert.equal(getDashboardChannelPowerSetup(true).length, 14);
 
   const channelKeys = DASHBOARD_CHANNEL_SETUP.map((channel) => channel.key);
   assert.equal(new Set(channelKeys).size, 14, "chaque canal doit apparaître une seule fois");
 
   const weightedChannels = getDashboardChannelSetup(false).filter((channel) => channel.weight > 0);
-  assert.equal(weightedChannels.length, 11);
+  assert.equal(weightedChannels.length, 13);
   assert.equal(
     weightedChannels.reduce((sum, channel) => sum + channel.weight, 0),
-    96,
+    94,
   );
   assert.deepEqual(DASHBOARD_CHANNEL_POWER_SETUP, weightedChannels);
-  assert.equal(DASHBOARD_CHANNEL_SETUP.find((channel) => channel.key === "mails")?.weight, 7);
-  assert.equal(DASHBOARD_CHANNEL_SETUP.find((channel) => channel.key === "inrbadge")?.weight, 0);
+  for (const key of ["mails", "inr_search", "inr_directory", "inrbadge"]) {
+    assert.equal(DASHBOARD_CHANNEL_SETUP.find((channel) => channel.key === key)?.weight, 4);
+  }
   assert.match(dashboardClientSource, /site_web: hasSiteWebUrl/);
   assert.match(dashboardClientSource, /mails: Boolean\(!isStandardEdition && mailAccountsConnectedCount > 0 && !mailAccountsRequireUpdate\)/);
 
@@ -142,7 +143,7 @@ test("la puissance garde les poids fixes des douze connexions, même si Threads 
   );
 });
 
-test("le nouveau cockpit ouvre une infobulle par étape et détaille les onze canaux", () => {
+test("le cockpit ouvre une infobulle par étape et détaille tous les canaux disponibles", () => {
   assert.match(heroSource, /useState<"channels" \| "dna" \| "ai" \| null>\(null\)/);
   assert.match(heroSource, /openInfo === step\.key \? styles\.cockpitStageInfoOpen/);
   assert.match(heroSource, /className=\{styles\.cockpitInfoPopover\} role="dialog"/);

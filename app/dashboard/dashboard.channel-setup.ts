@@ -1,22 +1,20 @@
 export const DASHBOARD_CHANNEL_SETUP = [
-  // Les 12 connexions ont des poids fixes qui totalisent 100 %.
-  // L’annuaire et iNr’Badge restent présents dans le bilan sans modifier les poids historiques.
-  // iNr'Badge reste présent dans le bilan, sans contribuer à la jauge Canaux.
-  { key: "inrbadge", weight: 0, createHref: null },
-  { key: "inr_directory", weight: 0, createHref: null },
-  { key: "site_web", weight: 15, createHref: null },
-  { key: "gmb", weight: 15, createHref: "https://business.google.com/create" },
-  { key: "inr_search", weight: 5, createHref: null },
+  // Les 14 canaux totalisent 100 %, classés par contribution décroissante.
+  // Mails et les trois outils iNr représentent chacun 4 %.
+  { key: "gmb", weight: 12, createHref: "https://business.google.com/create" },
+  { key: "site_web", weight: 12, createHref: null },
   { key: "facebook", weight: 10, createHref: "https://www.facebook.com/pages/create" },
-  { key: "threads", weight: 4, createHref: "https://www.threads.com" },
   { key: "instagram", weight: 10, createHref: "https://www.instagram.com/accounts/emailsignup/" },
   { key: "linkedin", weight: 10, createHref: "https://www.linkedin.com/company/setup/new/" },
-  { key: "tiktok", weight: 7, createHref: "https://www.tiktok.com/signup" },
-  { key: "youtube_shorts", weight: 7, createHref: "https://www.youtube.com/channel_switcher" },
-  { key: "pinterest", weight: 5, createHref: "https://www.pinterest.com/business/create/" },
-  { key: "x", weight: 5, createHref: "https://x.com/i/flow/signup" },
-  { key: "mails", weight: 7, createHref: null },
-
+  { key: "tiktok", weight: 6, createHref: "https://www.tiktok.com/signup" },
+  { key: "youtube_shorts", weight: 6, createHref: "https://www.youtube.com/channel_switcher" },
+  { key: "pinterest", weight: 6, createHref: "https://www.pinterest.com/business/create/" },
+  { key: "x", weight: 6, createHref: "https://x.com/i/flow/signup" },
+  { key: "threads", weight: 6, createHref: "https://www.threads.com" },
+  { key: "mails", weight: 4, createHref: null },
+  { key: "inr_search", weight: 4, createHref: null },
+  { key: "inr_directory", weight: 4, createHref: null },
+  { key: "inrbadge", weight: 4, createHref: null },
 ] as const;
 
 export function getDashboardChannelSetup(metaPilotEnabled = false) {

@@ -124,34 +124,35 @@ test("Threads keeps originals and offers draft editing, remote deletion and retr
   assert.equal(getBoosterImageDecision({ channel: "threads", meta: { width: 3000, height: 600 } }).mode, "original");
 });
 
-test("the approved 12 fixed channel weights total 100 with Threads the smallest contribution", () => {
-  const approved: Readonly<Record<string, number>> = { site_web: 15, gmb: 15, facebook: 10, instagram: 10, linkedin: 10, tiktok: 7, youtube_shorts: 7, mails: 7, pinterest: 5, x: 5, inr_search: 5, threads: 4 };
+test("the approved 14 fixed channel weights total 100, with Mails and iNr tools in the lowest tier", () => {
+  const approved: Readonly<Record<string, number>> = { gmb: 12, site_web: 12, facebook: 10, instagram: 10, linkedin: 10, tiktok: 6, youtube_shorts: 6, pinterest: 6, x: 6, threads: 6, mails: 4, inr_search: 4, inr_directory: 4, inrbadge: 4 };
   const admin = getDashboardChannelPowerSetup(true);
   const user = getDashboardChannelPowerSetup(false);
   assert.deepEqual(Object.fromEntries(admin.map(({ key, weight }) => [key, weight])), approved);
   assert.equal(admin.reduce((sum, channel) => sum + channel.weight, 0), 100);
-  assert.equal(getDashboardChannelSetup(true).find((channel) => channel.key === "inrbadge")?.weight, 0);
+  assert.deepEqual(admin.map((channel) => channel.key), Object.keys(approved), "the help grid follows the approved tier order");
   for (const channel of user) assert.equal(channel.weight, approved[channel.key], "hiding Threads must preserve " + channel.key);
-  const threads = admin.find((channel) => channel.key === "threads");
-  assert.ok(threads);
-  assert.ok(admin.every((channel) => channel.key === "threads" || channel.weight > threads.weight));
+  assert.equal(admin.filter((channel) => channel.weight > 4).reduce((sum, channel) => sum + channel.weight, 0), 84);
+  assert.equal(admin.filter((channel) => channel.weight === 4).reduce((sum, channel) => sum + channel.weight, 0), 16);
 });
 
-test("fixed scoring reaches ADMIN 100 and USER 96 without compensating for unavailable channels", () => {
+test("fixed scoring reaches ADMIN 100 and USER 94 without compensating for unavailable channels", () => {
   const user = getDashboardChannelPowerSetup(false);
   const admin = getDashboardChannelPowerSetup(true);
   const score = (pilot: boolean, connected: readonly string[]) => computeDashboardChannelPower(getDashboardChannelPowerSetup(pilot).map((channel) => ({ weight: channel.weight, completed: connected.includes(channel.key) })));
   assert.equal(user.some((channel) => channel.key === "threads"), false);
-  assert.equal(computeDashboardChannelPower(user.map((channel) => ({ weight: channel.weight, completed: true }))), 96);
+  assert.equal(computeDashboardChannelPower(user.map((channel) => ({ weight: channel.weight, completed: true }))), 94);
   assert.equal(computeDashboardChannelPower(admin.map((channel) => ({ weight: channel.weight, completed: true }))), 100);
-  assert.equal(score(true, user.map((channel) => channel.key)), 96);
-  assert.equal(score(false, ["site_web", "gmb"]), 30);
-  assert.equal(score(true, ["site_web", "gmb"]), 30);
-  assert.equal(score(true, ["site_web", "gmb", "threads"]), 34);
-  assert.equal(score(false, ["site_web", "gmb", "threads"]), 30, "an inaccessible cached Threads connection adds no points");
-  assert.equal(score(true, ["tiktok", "youtube_shorts", "pinterest", "x", "threads"]), 28);
-  assert.equal(score(false, user.filter((channel) => channel.key !== "mails").map((channel) => channel.key)), 89);
-  assert.equal(score(true, admin.filter((channel) => channel.key !== "mails").map((channel) => channel.key)), 93);
+  assert.equal(score(true, user.map((channel) => channel.key)), 94);
+  assert.equal(score(false, ["site_web", "gmb"]), 24);
+  assert.equal(score(true, ["site_web", "gmb"]), 24);
+  assert.equal(score(true, ["site_web", "gmb", "threads"]), 30);
+  assert.equal(score(false, ["site_web", "gmb", "threads"]), 24, "an inaccessible cached Threads connection adds no points");
+  assert.equal(score(true, ["tiktok", "youtube_shorts", "pinterest", "x", "threads"]), 30);
+  assert.equal(score(false, user.filter((channel) => channel.key !== "mails").map((channel) => channel.key)), 90);
+  assert.equal(score(true, admin.filter((channel) => channel.key !== "mails").map((channel) => channel.key)), 96);
+  assert.equal(score(true, admin.filter((channel) => !["instagram", "inr_directory"].includes(channel.key)).map((channel) => channel.key)), 86);
+  for (const key of ["mails", "inr_search", "inr_directory", "inrbadge"]) assert.equal(score(true, [key]), 4);
   assert.equal(score(false, []), 0);
   assert.equal(computeDashboardChannelPower([{ weight: 80, completed: true }, { weight: 40, completed: true }, { weight: 99, completed: false }]), 100);
 });
@@ -198,7 +199,7 @@ function memoryStorage(): Storage {
   return { get length() { return values.size; }, clear: () => values.clear(), key: (index) => [...values.keys()][index] ?? null, getItem: (key) => values.get(key) ?? null, setItem: (key, value) => { values.set(key, value); }, removeItem: (key) => { values.delete(key); } };
 }
 
-test("a cached v4 score is immediately capped when actor, account or edition access changes", () => {
+test("a cached v5 score is immediately capped when actor, account or edition access changes", () => {
   const localStorage = memoryStorage();
   const sessionStorage = memoryStorage();
   const accountId = "11111111-1111-4111-8111-111111111111";
@@ -214,8 +215,8 @@ test("a cached v4 score is immediately capped when actor, account or edition acc
       { actorAdmin: true, accountAdmin: true, standard: false, expected: 100 },
       { actorAdmin: false, accountAdmin: true, standard: false, expected: 100 },
       { actorAdmin: true, accountAdmin: false, standard: false, expected: 100 },
-      { actorAdmin: false, accountAdmin: false, standard: true, expected: 93 },
-      { actorAdmin: true, accountAdmin: true, standard: true, expected: 93 },
+      { actorAdmin: false, accountAdmin: false, standard: true, expected: 96 },
+      { actorAdmin: true, accountAdmin: true, standard: true, expected: 96 },
       { actorAdmin: true, accountAdmin: true, standard: false, expected: 100 },
     ];
     for (const context of contexts) {
@@ -234,15 +235,17 @@ test("a cached v4 score is immediately capped when actor, account or edition acc
   }
 });
 
-test("the fixed-weight gauge ignores previous normalized caches and purges both old and current snapshots", () => {
+test("the gauge ignores previous normalized and 12-channel caches and purges old and current snapshots", () => {
   const localStorage = memoryStorage();
   const sessionStorage = memoryStorage();
   const accountId = "11111111-1111-4111-8111-111111111111";
   const scoped = (key: string) => key + ":uid:" + accountId;
   const staleSnapshot = { power: 91, completedStepKeys: ["site_web"], nextStepKey: "threads", remainingSteps: 1 };
   for (const storage of [localStorage, sessionStorage]) {
-    storage.setItem(scoped("inrcy_generator_power_percent_v3"), "91");
-    storage.setItem(scoped("inrcy_generator_power_snapshot_v3"), JSON.stringify(staleSnapshot));
+    for (const version of [3, 4]) {
+      storage.setItem(scoped(`inrcy_generator_power_percent_v${version}`), "91");
+      storage.setItem(scoped(`inrcy_generator_power_snapshot_v${version}`), JSON.stringify(staleSnapshot));
+    }
   }
   const priorWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const priorDocument = Object.getOwnPropertyDescriptor(globalThis, "document");

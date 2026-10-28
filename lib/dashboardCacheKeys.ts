@@ -11,8 +11,8 @@ export const DASHBOARD_CACHE_KEYS = {
   channelState: "inrcy_dashboard_channel_state_v2",
   boosterConnections: "inrcy_booster_connections_v1",
   siteProgress: "site_web_bubble_progress_v3",
-  generatorPower: "inrcy_generator_power_percent_v4",
-  generatorPowerSnapshot: "inrcy_generator_power_snapshot_v4",
+  generatorPower: "inrcy_generator_power_percent_v5",
+  generatorPowerSnapshot: "inrcy_generator_power_snapshot_v5",
   generatorActive: "inrcy_generator_active_v2",
   bubbleAccess: "inrcy_bubble_access_map_v1",
 } as const;
