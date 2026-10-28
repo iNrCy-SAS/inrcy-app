@@ -13,6 +13,7 @@ type AdminTrial = {
   company_name: string | null;
   email: string | null;
   phone: string | null;
+  last_active_at: string | null;
   registered_at: string | null;
   trial_end_at: string | null;
   days_remaining: number | null;
@@ -67,6 +68,20 @@ function formatDateTime(value: string | null) {
 
 function displayName(trial: AdminTrial) {
   return trial.full_name || trial.company_name || trial.email || "Professionnel sans nom";
+}
+
+function formatLastActive(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return {
+    date: new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit", month: "short", year: "numeric", timeZone: "Europe/Paris",
+    }).format(date),
+    time: new Intl.DateTimeFormat("fr-FR", {
+      hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris",
+    }).format(date),
+  };
 }
 
 function priorityCopy(trial: AdminTrial) {
@@ -221,6 +236,7 @@ export default function AdminTrialsClient() {
             <span>Inscription</span>
             <span>Fin d’essai</span>
             <span>Priorité</span>
+            <span>Dernière connexion</span>
             <span>Actions</span>
           </div>
           <div className={styles.tableBody}>
@@ -228,6 +244,7 @@ export default function AdminTrialsClient() {
             {!loading && visibleTrials.length === 0 ? <div className={styles.empty}>Aucune période d’essai pour ce filtre.</div> : null}
             {!loading ? visibleTrials.map((trial) => {
               const priority = priorityCopy(trial);
+              const lastActive = formatLastActive(trial.last_active_at);
               const accountQuery = encodeURIComponent(trial.email || trial.user_id);
               return (
                 <article key={trial.user_id} id={`trial-${trial.user_id}`} className={`${styles.row} ${focusedUserId === trial.user_id ? styles.focusedRow : ""}`} data-state={trial.state}>
@@ -244,6 +261,10 @@ export default function AdminTrialsClient() {
                   <div className={styles.priorityCell} data-label="Priorité">
                     <span className={styles.stateBadge}>{priority.title}</span>
                     <small>{priority.detail}</small>
+                  </div>
+                  <div className={styles.dateCell} data-label="Dernière connexion">
+                    <strong>{lastActive ? <time dateTime={trial.last_active_at ?? undefined}>{lastActive.date}</time> : "—"}</strong>
+                    <small>{lastActive?.time ?? "Non enregistrée"}</small>
                   </div>
                   <div className={styles.actions} data-label="Actions">
                     {trial.phone ? <a className={styles.primaryAction} href={`tel:${trial.phone}`}>Appeler</a> : null}

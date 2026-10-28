@@ -210,7 +210,7 @@
 .tableHeader,
 .row {
   display: grid;
-  grid-template-columns: minmax(190px, 1.25fr) minmax(220px, 1.35fr) minmax(105px, .7fr) minmax(150px, .9fr) minmax(125px, .75fr) minmax(205px, 1.1fr);
+  grid-template-columns: minmax(190px, 1.2fr) minmax(220px, 1.3fr) minmax(105px, .65fr) minmax(150px, .9fr) minmax(125px, .7fr) minmax(145px, .85fr) minmax(205px, 1.05fr);
   gap: 10px;
   align-items: center;
 }
@@ -284,15 +284,15 @@
 
 .empty { min-height: 120px; display: grid; place-items: center; color: var(--muted); font-size: 13px; }
 
-@media (max-width: 1180px) {
+@media (max-width: 1320px) {
   .tableHeader,
-  .row { grid-template-columns: minmax(180px, 1.2fr) minmax(200px, 1.2fr) minmax(120px, .8fr) minmax(125px, .8fr) minmax(190px, 1fr); }
+  .row { grid-template-columns: minmax(160px, 1.1fr) minmax(190px, 1.2fr) minmax(135px, .85fr) minmax(115px, .75fr) minmax(145px, .9fr) minmax(190px, 1.1fr); }
   .tableHeader span:nth-child(3),
   .row > :nth-child(3) { display: none; }
   .refreshInfo { display: none; }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .page { padding: 8px; }
   .header { min-height: 68px; padding: 9px 11px; }
   .icon { width: 40px; height: 40px; flex-basis: 40px; }

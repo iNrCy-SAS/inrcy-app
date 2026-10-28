@@ -31,6 +31,7 @@ type TrialProfileRow = {
   last_name: string | null;
   company_legal_name: string | null;
   phone: string | null;
+  last_active_at: string | null;
 };
 
 function normalizeText(value: unknown) {
@@ -86,7 +87,7 @@ export async function GET() {
     if (userIds.length > 0) {
       const { data: profileRows, error: profileError } = await supabaseAdmin
         .from("profiles")
-        .select("user_id,admin_email,contact_email,first_name,last_name,company_legal_name,phone")
+        .select("user_id,admin_email,contact_email,first_name,last_name,company_legal_name,phone,last_active_at")
         .in("user_id", userIds);
       if (profileError) throw profileError;
       for (const profile of (profileRows ?? []) as TrialProfileRow[]) {
@@ -124,6 +125,7 @@ export async function GET() {
         company_name: companyName,
         email,
         phone,
+        last_active_at: profile?.last_active_at ?? null,
         registered_at: trialStartAt,
         trial_end_at: trialEndAt,
         days_remaining: daysRemaining,
