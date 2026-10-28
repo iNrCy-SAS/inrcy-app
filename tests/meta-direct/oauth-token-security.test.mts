@@ -40,7 +40,7 @@ const responseFactory = {
   redirect(url: string | URL) { const values = new Map<string, { value: string; options: any }>(); return { status: 307, headers: new Headers({ location: String(url) }), cookies: { set(name: string, value: string, options: unknown) { values.set(name, { value, options }); } }, cookieValues: values }; },
   json(body: unknown, options?: { status?: number }) { return { status: options?.status ?? 200, body }; },
 };
-function harness(options: { publicEnabled?: boolean; noSession?: boolean; actorAdmin?: boolean; actorReviewer?: boolean; actorId?: string; activeAccountId?: string; accountRole?: string; authenticatedActor?: string; wrongAccount?: boolean; partialScopes?: boolean; invalidDebugToken?: boolean; wrongDebugApp?: boolean; responseThrows?: boolean; personal?: boolean; failAt?: "token_exchange" | "token_inspection" | "long_token_exchange" | "profile"; saveError?: { code: string; details: string } } = {}) {
+function harness(options: { publicEnabled?: boolean; noSession?: boolean; actorAdmin?: boolean; actorReviewer?: boolean; actorId?: string; activeAccountId?: string; accountRole?: string; authenticatedActor?: string; wrongAccount?: boolean; partialScopes?: boolean; nonTester?: boolean; invalidDebugToken?: boolean; wrongDebugApp?: boolean; responseThrows?: boolean; personal?: boolean; failAt?: "token_exchange" | "token_inspection" | "long_token_exchange" | "profile"; saveError?: { code: string; details: string } } = {}) {
   const actorAdmin = options.actorAdmin ?? true, role = options.accountRole ?? "admin";
   const actorId = options.actorId ?? ACTOR, accountId = options.activeAccountId ?? ACCOUNT;
   const saves: any[] = [], calls: any[] = [], events: any[] = [], steps: string[] = [];
@@ -67,6 +67,9 @@ function harness(options: { publicEnabled?: boolean; noSession?: boolean; actorA
         if (options.failAt === requestStage) throw new tokens.MetaDirectApiError("meta_permission_or_request_failed", "Meta a refusé cette opération.", 400, { httpStatus: 400, metaCode: 100, metaSubcode: 33 });
         if (options.responseThrows) throw new tokens.MetaDirectApiError("meta_permission_or_request_failed", "Meta a refusé cette opération.", 400);
         if (url.pathname.endsWith("oauth/access_token")) return { access_token: "fixture-short-token", permissions: options.partialScopes ? ["instagram_business_basic"] : [...authMode.INSTAGRAM_DIRECT_SCOPES] };
+        if (options.nonTester && url.pathname.endsWith("debug_token") && url.searchParams.get("access_token") !== `TH|${ENV.THREADS_APP_ID}|${ENV.THREADS_APP_SECRET}`) {
+          throw new tokens.MetaDirectApiError("meta_permission_or_request_failed", "Meta refused non-tester token inspection.", 400, { httpStatus: 403, metaCode: 10 });
+        }
         if (url.pathname.endsWith("debug_token")) return { data: { is_valid: !options.invalidDebugToken, app_id: options.wrongDebugApp ? "another-app" : ENV.THREADS_APP_ID, scopes: options.partialScopes ? ["threads_basic"] : [...threadsGraph.THREADS_SCOPES] } };
         return url.host === "graph.instagram.com" ? { data: [{ user_id: "1234567890", username: "brand", account_type: options.personal ? "PERSONAL" : "BUSINESS" }] } : { id: "1234567891", username: "thread-brand" };
       }, exchangeMetaDirectLongToken: async () => {
@@ -349,18 +352,33 @@ test("Connection save failure logs only the allowlisted SQLSTATE and preserves c
   }
 }));
 
-test("Threads exchanges to a long-lived token before inspecting the unversioned OAuth endpoint", async () => configured(async () => {
+test("Threads inspects long-lived tokens using the application credential at the versioned endpoint", async () => configured(async () => {
   const h = harness();
   const result = await h.module.handleMetaDirectOAuthCallback(h.callback("threads"), "threads");
   assert.equal(new URL(result.headers.get("location")).searchParams.get("ok"), "1");
   assert.deepEqual(h.steps, ["token_exchange", "long_token_exchange", "token_inspection", "profile"]);
   const inspection = h.calls.find((call: any) => call.url.pathname.endsWith("debug_token"));
   assert.equal(inspection.url.origin, "https://graph.threads.com");
-  assert.equal(inspection.url.pathname, "/debug_token");
+  assert.equal(inspection.url.pathname, "/v1.0/debug_token");
   assert.equal(inspection.url.searchParams.get("input_token"), "fixture-long-token");
-  assert.equal(inspection.url.searchParams.get("access_token"), "fixture-long-token");
+  assert.equal(inspection.url.searchParams.get("access_token"), `TH|${ENV.THREADS_APP_ID}|${ENV.THREADS_APP_SECRET}`);
   assert.equal(inspection.url.toString().includes("fixture-short-token"), false);
   assert.equal(h.saves.length, 1);
+}));
+
+test("A non-tester Threads customer completes OAuth without using their own token as the inspector", async () => configured(async () => {
+  const h = harness({ publicEnabled: true, actorAdmin: false, accountRole: "user", nonTester: true });
+  const result = await h.module.handleMetaDirectOAuthCallback(h.callback("threads"), "threads");
+  const destination = new URL(result.headers.get("location"));
+  assert.equal(destination.searchParams.get("ok"), "1");
+  assert.equal(h.saves.length, 1);
+  assert.equal(h.saves[0].args.p_account_id, ACCOUNT);
+  assert.equal(h.saves[0].args.p_admin_pilot, false);
+  assert.deepEqual(h.saves[0].args.p_integration.meta.permissions, [...threadsGraph.THREADS_SCOPES]);
+  for (const secret of [ENV.THREADS_APP_SECRET, "fixture-long-token"]) {
+    assert.equal(destination.toString().includes(secret), false);
+    assert.equal(JSON.stringify(h.events).includes(secret), false);
+  }
 }));
 
 test("Threads inspection rejects invalid tokens, wrong apps and incomplete permissions before reading or saving", async () => configured(async () => {

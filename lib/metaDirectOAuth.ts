@@ -132,13 +132,13 @@ export async function handleMetaDirectOAuthCallback(request: Request, provider: 
     let grantedScopes = parseMetaDirectScopes(shortToken.permissions ?? shortToken.scope);
     let longToken: Awaited<ReturnType<typeof exchangeMetaDirectLongToken>> | undefined;
     if (provider === "threads") {
-      // Meta's OAuth sample inspects the long-lived user token at the unversioned control endpoint.
+      // Inspect with the app credential: ordinary customer tokens cannot call the debugger.
       stage = "long_token_exchange";
       longToken = await exchangeMetaDirectLongToken(provider, accessToken, config.appSecret!);
       stage = "token_inspection";
-      const debugUrl = new URL("https://graph.threads.com/debug_token");
+      const debugUrl = new URL(buildThreadsGraphUrl("debug_token"));
       debugUrl.searchParams.set("input_token", longToken.accessToken);
-      debugUrl.searchParams.set("access_token", longToken.accessToken);
+      debugUrl.searchParams.set("access_token", `TH|${config.appId}|${config.appSecret}`);
       const debugData = asRecord((await fetchMetaDirectJson(debugUrl)).data);
       if (debugData.is_valid !== true || (debugData.app_id && String(debugData.app_id) !== config.appId)) {
         throw new MetaDirectApiError("meta_token_invalid", "Meta n’a pas validé l’autorisation de ce compte.", 401);
