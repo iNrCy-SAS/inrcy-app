@@ -253,7 +253,6 @@ export default function AdminTrialsClient() {
                     <div><strong>{displayName(trial)}</strong><small>{trial.company_name && trial.company_name !== displayName(trial) ? trial.company_name : "Compte iNrCy"}</small></div>
                   </div>
                   <div className={styles.contactCell} data-label="Coordonnées">
-                    {trial.phone ? <a href={`tel:${trial.phone}`}>{trial.phone}</a> : <span>Téléphone non renseigné</span>}
                     {trial.email ? <a href={`mailto:${trial.email}`}>{trial.email}</a> : <span>E-mail non renseigné</span>}
                   </div>
                   <div className={styles.dateCell} data-label="Inscription"><strong>{formatDate(trial.registered_at)}</strong><small>Début de l’essai</small></div>
@@ -267,7 +266,12 @@ export default function AdminTrialsClient() {
                     <small>{lastActive?.time ?? "Non enregistrée"}</small>
                   </div>
                   <div className={styles.actions} data-label="Actions">
-                    {trial.phone ? <a className={styles.primaryAction} href={`tel:${trial.phone}`}>Appeler</a> : null}
+                    {trial.phone ? (
+                      <div className={styles.callAction}>
+                        <span className={styles.phoneNumber}>{trial.phone}</span>
+                        <a className={styles.primaryAction} href={`tel:${trial.phone}`}>Appeler</a>
+                      </div>
+                    ) : null}
                     {trial.email ? <a className={styles.secondaryAction} href={`mailto:${trial.email}?subject=${encodeURIComponent("Votre période d’essai iNrCy")}`}>E-mail</a> : null}
                     <Link className={styles.secondaryAction} href={`/dashboard/admin/users?q=${accountQuery}`}>Compte</Link>
                   </div>

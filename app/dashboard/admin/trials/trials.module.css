@@ -210,7 +210,7 @@
 .tableHeader,
 .row {
   display: grid;
-  grid-template-columns: minmax(190px, 1.2fr) minmax(220px, 1.3fr) minmax(105px, .65fr) minmax(150px, .9fr) minmax(125px, .7fr) minmax(145px, .85fr) minmax(205px, 1.05fr);
+  grid-template-columns: minmax(180px, 1.1fr) minmax(200px, 1.15fr) minmax(105px, .65fr) minmax(150px, .9fr) minmax(125px, .7fr) minmax(145px, .85fr) minmax(270px, 1.4fr);
   gap: 10px;
   align-items: center;
 }
@@ -274,7 +274,9 @@
 .row[data-state="followup"] .stateBadge { color: #ffe0c4; border-color: rgba(255, 166, 92, .42); background: rgba(255, 132, 61, .14); }
 .row[data-state="scheduled"] .stateBadge { color: #c8ffe8; border-color: rgba(74, 239, 168, .38); background: rgba(45, 192, 133, .14); }
 
-.actions { min-width: 0; display: flex; justify-content: flex-end; gap: 5px; }
+.actions { min-width: 0; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 5px; }
+.callAction { min-width: 0; max-width: 100%; display: inline-flex; align-items: center; gap: 8px; }
+.phoneNumber { color: rgba(226, 240, 255, .92); font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; user-select: text; }
 .primaryAction,
 .secondaryAction { min-height: 30px; padding: 6px 9px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; color: #fff; text-decoration: none; font-size: 10px; font-weight: 850; border: 1px solid rgba(255, 255, 255, .12); white-space: nowrap; }
 .primaryAction { background: linear-gradient(135deg, rgba(31, 180, 233, .42), rgba(162, 69, 255, .36)); border-color: rgba(92, 218, 255, .35); }
@@ -286,7 +288,7 @@
 
 @media (max-width: 1320px) {
   .tableHeader,
-  .row { grid-template-columns: minmax(160px, 1.1fr) minmax(190px, 1.2fr) minmax(135px, .85fr) minmax(115px, .75fr) minmax(145px, .9fr) minmax(190px, 1.1fr); }
+  .row { grid-template-columns: minmax(150px, 1.1fr) minmax(170px, 1.1fr) minmax(125px, .85fr) minmax(105px, .7fr) minmax(140px, .85fr) minmax(270px, 1.4fr); }
   .tableHeader span:nth-child(3),
   .row > :nth-child(3) { display: none; }
   .refreshInfo { display: none; }
@@ -311,6 +313,8 @@
   .row > div::before { content: attr(data-label); display: block; margin-bottom: 4px; color: rgba(220, 232, 255, .46); font-size: 8px; font-weight: 850; letter-spacing: .05em; text-transform: uppercase; }
   .proCell::before { display: none !important; }
   .actions { grid-column: 1 / -1; justify-content: stretch; }
+  .actions::before { flex-basis: 100%; }
+  .callAction { flex: 1 1 auto; }
   .actions a { flex: 1 1 0; }
 }
 
@@ -335,6 +339,7 @@
   .tableCard { padding: 5px; border-radius: 15px; }
   .row { grid-template-columns: 1fr; gap: 9px; margin-bottom: 5px; }
   .actions { grid-column: auto; }
+  .callAction { flex-basis: 100%; }
   .dateCell { display: grid !important; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 7px; }
   .dateCell::before { grid-column: 1 / -1; }
 }
