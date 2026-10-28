@@ -63,7 +63,7 @@ test("cancellation authenticates, validates its bounded identifiers and fails cl
 
 test("an absent key becomes a failed marker with the live schema's terminal fields and no monetary reservation", async () => {
   const current = route(); const response = await current.post({ ...body, accountId: "forbidden-other-account" });
-  assert.equal(response.status, 200); assert.deepEqual(await response.json(), { ok: true, status: "failed" });
+  assert.equal(response.status, 200); assert.deepEqual(await response.json(), { ok: true, status: "failed", cancellationPreventedReservation: true });
   assert.match(response.headers.get("cache-control")!, /private, no-store/);
   const marker = current.writes[0];
   assert.equal(marker.account_id, "active-account-a"); assert.equal(marker.actor_auth_user_id, "actor-a"); assert.equal(marker.request_key, body.requestId);
@@ -77,7 +77,12 @@ test("an absent key becomes a failed marker with the live schema's terminal fiel
 
 test("duplicate and concurrent cancellation keep a single terminal marker", async () => {
   const current = route(); const responses = await Promise.all([current.post(), current.post(), current.post()]);
-  for (const response of responses) assert.deepEqual(await response.json(), { ok: true, status: "failed" });
+  const payloads = await Promise.all(responses.map(response => response.json()));
+  assert.deepEqual(payloads, [
+    { ok: true, status: "failed", cancellationPreventedReservation: true },
+    { ok: true, status: "failed", cancellationPreventedReservation: false },
+    { ok: true, status: "failed", cancellationPreventedReservation: false },
+  ], "Only the call that inserted the terminal marker prevented a reservation; duplicates only report its status");
   assert.equal(current.writes.length, 1); assert.equal(current.jobs.size, 1);
 });
 
@@ -86,7 +91,7 @@ test("if reservation or payment won the unique key, cancellation only reads stat
     const original = { status, output_media_id: "paid-result-a", metadata: { private: "SECRET", gateway: "https://private.invalid" } };
     const current = route({ existing: original }); const response = await current.post(); const payload = await response.json();
     assert.equal(response.status, ["reserved", "processing"].includes(status) ? 202 : 200);
-    assert.deepEqual(payload, { ok: true, status: ["reserved", "processing"].includes(status) ? "processing" : status });
+    assert.deepEqual(payload, { ok: true, status: ["reserved", "processing"].includes(status) ? "processing" : status, cancellationPreventedReservation: false });
     assert.equal(current.writes.length, 0); assert.equal(current.jobs.get(`active-account-a:${body.requestId}`), original);
     assert.deepEqual(current.filters, [["account_id", "active-account-a"], ["request_key", body.requestId]]); assert.doesNotMatch(JSON.stringify(payload), /SECRET|private.invalid|paid-result/);
   }

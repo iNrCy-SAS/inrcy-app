@@ -10,7 +10,9 @@ import * as completion from "../../lib/dashboardCompletion.ts";
 import * as directory from "../../lib/inrDirectorySettings.ts";
 import * as safe from "../../lib/tsSafe.ts";
 
-type Row = Record<string, any>;
+type Row = Record<string, unknown>;
+type ChannelResult = Row & { disconnected: string[]; unknown: string[]; channels: Array<Row & { missingPrerequisites: string[] }> };
+type ChannelRuntime = { createInrAssistantChannelTools(options: unknown): { readChannelStatus: { execute(input: unknown): Promise<ChannelResult> } } };
 function harness(options: { pilot?: boolean; edition?: edition.DashboardEdition; failed?: string; foreign?: boolean; accountConnectedPinterest?: boolean } = {}) {
   const calls: { table: string; account: string }[] = [];
   const rows: Record<string, unknown> = {
@@ -43,17 +45,17 @@ function harness(options: { pilot?: boolean; edition?: edition.DashboardEdition;
     "../app/dashboard/dashboard.channel-setup.ts": setup,
     "./requireUser": { requireUser: async () => ({ activeUserId: options.foreign ? "other" : "active", errorResponse: null }) },
   };
-  function load(file: string) {
+  function load<T = Row>(file: string): T {
     const compiled = ts.transpileModule(readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
     const moduleRecord = { exports: {} as Row };
     vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, { URL, setTimeout, clearTimeout, process: { env: {} } })(
       (name: string) => { assert.ok(name in deps, `Unexpected import ${name}`); return deps[name]; }, moduleRecord, moduleRecord.exports,
     );
-    return moduleRecord.exports;
+    return moduleRecord.exports as T;
   }
   deps["@/lib/connectionVersions"] = load("lib/connectionVersions.ts");
   deps["./channelConnectionState"] = load("lib/channelConnectionState.ts");
-  const runtime = load("lib/inrAssistantChannelTools.ts");
+  const runtime = load<ChannelRuntime>("lib/inrAssistantChannelTools.ts");
   const tool = runtime.createInrAssistantChannelTools({ supabase: db, accountId: "active", edition: options.edition ?? "founder" }).readChannelStatus;
   return { read: () => tool.execute({}), tool, rows, calls };
 }
@@ -71,7 +73,7 @@ test("pilot and commercial rights match the cockpit instead of inventing absent 
   const h = harness({ pilot: false, edition: "standard" }); const result = await h.read();
   assert.equal(result.visibleTotal, 13); assert.equal(result.connectedCount, 10);
   assert.equal(result.channels.some((channel: Row) => channel.key === "threads"), false);
-  assert.equal(result.channels.find((channel: Row) => channel.key === "mails").cause, "premium_required");
+  assert.equal(result.channels.find((channel: Row) => channel.key === "mails")!.cause, "premium_required");
 });
 
 test("recorded account access, reconnection and profile prerequisites remain distinct", async () => {
@@ -80,15 +82,15 @@ test("recorded account access, reconnection and profile prerequisites remain dis
   (h.rows.profiles as Row).phone = "";
   (h.rows.integrations as Row[]).find(row => row.source === "linkedin")!.meta = { needs_reconnect: true };
   const result = await h.read();
-  assert.equal(result.channels.find((channel: Row) => channel.key === "facebook").cause, "account_access_disabled");
-  assert.equal(result.channels.find((channel: Row) => channel.key === "linkedin").status, "needs_update");
-  assert.deepEqual([...result.channels.find((channel: Row) => channel.key === "inrbadge").missingPrerequisites], ["phone"]);
+  assert.equal(result.channels.find((channel: Row) => channel.key === "facebook")!.cause, "account_access_disabled");
+  assert.equal(result.channels.find((channel: Row) => channel.key === "linkedin")!.status, "needs_update");
+  assert.deepEqual([...result.channels.find((channel: Row) => channel.key === "inrbadge")!.missingPrerequisites], ["phone"]);
 });
 
 test("canonical Pinterest account without a selected board does not falsely count connected", async () => {
   const result = await harness({ accountConnectedPinterest: true }).read();
   assert.equal(result.connectedCount, 11);
-  assert.equal(result.channels.find((channel: Row) => channel.key === "pinterest").cause, "resource_selection_required");
+  assert.equal(result.channels.find((channel: Row) => channel.key === "pinterest")!.cause, "resource_selection_required");
 });
 
 test("an unavailable source yields unknowns and no exact count instead of false disconnections", async () => {

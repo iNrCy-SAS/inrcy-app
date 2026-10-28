@@ -286,6 +286,12 @@ test("free assistant insertion fills the actual Studio prompt and video tab whil
   } finally { await browser.close(); }
 });
 
+type PdfFixtureWindow = {
+  pdfHandler: { run(isCurrent: () => boolean): Promise<boolean> };
+  pdfCalls: number; pdfDeferred: boolean; pdfResult: boolean | null;
+  oldRun(isCurrent: () => boolean): Promise<boolean>;
+  releasePdf(): void; renderPdf(): void; pdfSelection: string;
+};
 test("the actual PDF bridge downloads the native renderer output and discards work after selection or scope changes", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
@@ -293,24 +299,24 @@ test("the actual PDF bridge downloads the native renderer output and discards wo
     const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
     await page.route("**/*", route => route.fulfill({ contentType: "text/html", body: '<html><body><div id="root"></div></body></html>' }));
     await page.goto("https://fixture.invalid/pdf"); await page.addScriptTag({ content: pdfCommandFixture });
-    await page.waitForFunction(() => Boolean((window as any).pdfHandler));
+    await page.waitForFunction(() => Boolean((window as unknown as PdfFixtureWindow).pdfHandler));
     const download = page.waitForEvent("download");
-    assert.equal(await page.evaluate(() => (window as any).pdfHandler.run(() => true)), true);
+    assert.equal(await page.evaluate(() => (window as unknown as PdfFixtureWindow).pdfHandler.run(() => true)), true);
     assert.equal((await download).suggestedFilename(), "devis-test.pdf");
-    assert.equal(await page.evaluate(() => (window as any).pdfHandler.run(() => false)), false);
-    assert.equal(await page.evaluate(() => (window as any).pdfCalls), 1);
+    assert.equal(await page.evaluate(() => (window as unknown as PdfFixtureWindow).pdfHandler.run(() => false)), false);
+    assert.equal(await page.evaluate(() => (window as unknown as PdfFixtureWindow).pdfCalls), 1);
     await page.evaluate(() => {
-      const state = window as any; state.pdfDeferred = true;
+      const state = window as unknown as PdfFixtureWindow; state.pdfDeferred = true;
       state.oldRun = state.pdfHandler.run; state.pdfResult = null;
       state.oldRun(() => true).then((value: boolean) => { state.pdfResult = value; });
     });
-    await page.waitForFunction(() => Boolean((window as any).releasePdf));
-    assert.equal(await page.evaluate(() => (window as any).oldRun(() => true)), false, "A duplicate call while rendering does not render or download twice");
-    await page.evaluate(() => { const state = window as any; state.pdfSelection = "quote-b"; state.renderPdf(); });
+    await page.waitForFunction(() => Boolean((window as unknown as PdfFixtureWindow).releasePdf));
+    assert.equal(await page.evaluate(() => (window as unknown as PdfFixtureWindow).oldRun(() => true)), false, "A duplicate call while rendering does not render or download twice");
+    await page.evaluate(() => { const state = window as unknown as PdfFixtureWindow; state.pdfSelection = "quote-b"; state.renderPdf(); });
     await page.locator('[data-document="quote-b"]').waitFor();
-    await page.evaluate(() => (window as any).releasePdf());
-    await page.waitForFunction(() => (window as any).pdfResult !== null);
-    assert.equal(await page.evaluate(() => (window as any).pdfResult), false);
+    await page.evaluate(() => (window as unknown as PdfFixtureWindow).releasePdf());
+    await page.waitForFunction(() => (window as unknown as PdfFixtureWindow).pdfResult !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as PdfFixtureWindow).pdfResult), false);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

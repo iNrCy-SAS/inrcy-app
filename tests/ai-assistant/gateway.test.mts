@@ -896,6 +896,19 @@ test("navigation returns a browser request without a durable business task or re
  assert.equal(reply.navigation?.destination,"crm");assert.equal(reply.outcome,"processing");assert.equal(reply.taskState,undefined);assert.equal(reply.taskProgress,undefined);
 });
 
+test("opening a module plus reading settings performs both even when the model omits navigation",async()=>{
+ const target=uiCommands.getInrAssistantNavigation("preferences")!;
+ let opens=0,reads=0;
+ const h=harness({plan:[{tool:"readToolSettings"}],extraTools:{
+  navigateApplication:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>{opens++;return {ok:true,status:"navigation_requested",navigation:target,message:"Ouverture des préférences demandée."};}}),
+  readToolSettings:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>{reads++;return {ok:true,notifications:{emailEnabled:false}};}}),
+ }});
+ const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:"Ouvre les préférences de l’application et indique mes réglages de notifications actuellement enregistrés. Lis-les sans rien modifier."}]});
+ assert.equal(opens,1);assert.equal(reads,1);assert.equal(reply.navigation?.destination,"preferences");
+ assert.equal(reply.taskState,undefined);
+ assert.ok(h.generations.every(call=>!(call.params.tools??[]).some(tool=>tool.type==="function"&&tool.name==="navigateApplication")));
+});
+
 
 test("an uncertain resolved mutation stops a second parallel SDK action and cannot be resumed blindly",async()=>{
  const message="Crée deux contacts CRM : Alice et Bob.";

@@ -20,6 +20,7 @@ function require(name){
  if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,key)=>'channels-'+String(key)})};
  if(name==='next/image')return {__esModule:true,default:({unoptimized,...props})=>React.createElement('img',props)};
  if(name==='./DashboardAssistantTrigger')return {__esModule:true,default:()=>React.createElement('span',null)};
+ if(name==='./DashboardAssistantScreenContext')return {useInrAssistantScreen(){}};
  if(name==='./DashboardFluxBubble')return {__esModule:true,default:({item})=>React.createElement('article',{style:{height:300,display:'grid',placeItems:'center'}},item.name)};
  if(name==='./dashboard-channel-presentation')return {getChannelTone:()=> 'connected',getChannelSceneLayout:()=>({centerSize:300,centerY:220,satelliteSize:120,slots:Array.from({length:13},()=>({x:20,y:20,size:100}))})};
  if(name==='./DashboardUnsavedNavigationProvider')return {useDashboardUnsavedNavigation:()=>({requestNavigation:async action=>{window.guardCalls++;if(window.allowClose){await action();return true}return false}})};

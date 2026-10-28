@@ -66,6 +66,35 @@ export function isInrAssistantScreenCommandRequest(message: string): boolean {
     && !/^(?:comment|pourquoi|explique|how|why|si |imagine)\b|\b(?:ne |n['’]|sans |do not |don't ).{0,30}(?:telecharg|export|gener|prepar|download)/.test(text);
 }
 
+/** Resolve only an explicit module opening at the start of the current request.
+ * Record-specific and ambiguous destinations still require the normal tools. */
+export function getDirectInrAssistantNavigationRequest(message: string): { destination: string; instructionQuote: string } | null {
+  if (message.length > 1200 || !isInrAssistantNavigationRequest(message)) return null;
+  const text = message.replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm, " ")
+    .normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
+  const opening = text.match(/^(?:ouvre|ouvrez|affiche|affichez|open|show)\s+(?:(?:les|le|la|mon|ma|mes|the|my)\s+|l['’]\s*)?(?:(?:module|panneau|page|ecran)\s+)?/);
+  if (!opening) return null;
+  const remainder = text.slice(opening[0].length);
+  const aliases: Array<[string, RegExp]> = [
+    ["preferences", /^preferences\b/], ["notifications", /^notifications\b/],
+    ["crm", /^(?:inr['’]?\s*)?crm\b/], ["calendar", /^(?:agenda|(?:inr['’]?\s*)?calendar)\b/],
+    ["channels", /^(?:mes\s+)?canaux\b/], ["studio", /^(?:inr['’]?\s*)?studio\b/],
+    ["media", /^(?:mediatheque|medias)\b/], ["stats", /^(?:inr['’]?\s*)?stats\b/],
+    ["account", /^compte\b/], ["subscription", /^abonnement\b/],
+    ["home", /^(?:accueil|tableau de bord)\b/], ["dna", /^adn(?: de l['’]entreprise)?\b/],
+    ["ai", /^configuration ia\b/], ["reputation", /^reputation\b/],
+  ];
+  for (const [destination, pattern] of aliases) {
+    const match = remainder.match(pattern);
+    if (!match) continue;
+    const after = remainder.slice(match[0].length);
+    if (!/^(?:\s+(?:de l['’]application|de mon application))?(?:$|[.!?,;]|\s+(?:et|puis|pour moi|sans|seulement)\b)/.test(after)) return null;
+    if (/\b(?:ouvre|ouvrez|affiche|affichez|ouvrir|open|show|va dans)\b/.test(after)) return null;
+    return { destination, instructionQuote: message };
+  }
+  return null;
+}
+
 export type InrAssistantTaskProgress = {
   outcome: "completed" | "partial" | "needs_input" | "processing" | "blocked" | "failed";
   completed: string[]; remaining: string[];

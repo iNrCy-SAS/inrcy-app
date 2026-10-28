@@ -10,6 +10,7 @@ import * as sdk from "ai";
 import { normalizeAiMemory } from "../../lib/aiMemory.ts";
 import { fitPromptPayloadToJsonBudget } from "../../lib/aiPromptBudget.ts";
 import { getAssistantInternalDestination } from "../../lib/inrAssistantNavigation.ts";
+import { getInrAssistantNavigation } from "../../lib/inrAssistantUiCommands.ts";
 import * as editionPolicy from "../../lib/dashboardEdition.ts";
 import type { LanguageModelV3, LanguageModelV3CallOptions } from "@ai-sdk/provider";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
@@ -31,7 +32,7 @@ function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: 
   const providerCalls: LanguageModelV3CallOptions[] = [], reservations: Row[] = [];
   const generatedInputs: Array<{ system?: string; messages?: unknown }> = [];
   const publicationActions: Array<{ name: string; input: unknown }> = [];
-  let actionExecutions = 0;
+  let actionExecutions = 0, navigationPreparations = 0;
   const untouched = () => { assert.fail("Schema budget matrix must not execute a private operation or provider request"); };
   const common: Record<string, unknown> = {
     "server-only": {}, "node:crypto": { createHash, createHmac, timingSafeEqual, randomUUID },
@@ -168,6 +169,16 @@ function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: 
           args[0] = { ...args[0] as Row, supabase: synthetic };
         }
         const result = factory(...args) as Row;
+        if (name === "createInrAssistantUiTools") result.navigateApplication = {
+          ...result.navigateApplication as object,
+          execute: async (input: unknown) => {
+            assert.ok(input && typeof input === "object" && "destination" in input);
+            const navigation = getInrAssistantNavigation(String(input.destination));
+            assert.ok(navigation);
+            navigationPreparations++;
+            return { ok: true, status: "navigation_requested", navigation, message: "Ouverture demandée au navigateur de test." };
+          },
+        };
         if (options.publicationGuideFollowup) {
           // Keep the real schemas/validators and SDK orchestration; replace only
           // the side-effect executors so this test cannot post or buy an image.
@@ -209,7 +220,7 @@ function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: 
     modules.set(path, moduleRecord.exports); return moduleRecord.exports;
   }
   const runtime = load("lib/inrAssistantGateway.ts") as typeof Gateway;
-  return { runtime, providerCalls, reservations, schemas, generatedInputs, publicationActions, get actionExecutions() { return actionExecutions; },
+  return { runtime, providerCalls, reservations, schemas, generatedInputs, publicationActions, get actionExecutions() { return actionExecutions; }, get navigationPreparations() { return navigationPreparations; },
     conversation: load("lib/inrAssistantConversation.ts") as typeof Conversation,
     guides: load("lib/inrAssistantAppGuides.ts") as typeof Guides };
 }
@@ -263,6 +274,7 @@ for (const scenario of scenarios) test(`real schema budget matrix: ${scenario.na
     tools: h.schemas.map(({ name, description, schema }) => ({ name, bytes: bytes({ name, description, inputSchema: schema }) })) }));
   assert.equal(failure, undefined, `Actual Gateway rejects a normal ${scenario.name} request before any external operation: ${String(failure)}`);
   assert.equal(h.providerCalls.length, 1);
+  if (scenario.name === "navigate-crm") assert.equal(h.navigationPreparations, 1, "The requested navigation is prepared exactly once before the model reply");
   for (const name of scenario.required) assert.ok(h.schemas.some(schema => schema.name === name), `Compaction must retain the ${name} action actually requested`);
   if(scenario.name === "studio-natural-format") assert.ok(!h.schemas.some(schema=>["generateMedia","modifyMedia"].includes(schema.name)),"A defaults request must not expose paid media generation or retouching");
   const sent = h.generatedInputs[0];

@@ -6,6 +6,10 @@ import ts from "typescript";
 import * as commands from "../../lib/inrAssistantCommandRegistry.ts";
 
 type Row = Record<string, unknown>;
+type SettingsRuntime = { createInrAssistantSettingsTools(options: unknown): {
+  readToolSettings: { execute(input: unknown): Promise<Row & { settings: Row }> };
+  updateToolSettings: { execute(input: unknown): Promise<Row> };
+} };
 function harness(options: { existing?: Row | null; readError?: boolean; forbidden?: boolean } = {}) {
   let saved: Row | null = options.existing === undefined ? { user_id: "active", in_app_enabled: false, email_enabled: false, performance_enabled: false, action_enabled: true, information_enabled: false, digest_every_hours: 168, updated_at: "2026-01-01" } : options.existing;
   const calls: { operation: string; payload?: Row; options?: Row; account?: unknown }[] = [];
@@ -36,19 +40,19 @@ function harness(options: { existing?: Row | null; readError?: boolean; forbidde
     ai: { tool: (value: unknown) => value, jsonSchema: (value: unknown) => value },
     "./inrAssistantCommandRegistry.ts": commands,
   };
-  function load(path: string) {
+  function load<T>(path: string): T {
     const compiled = ts.transpileModule(readFileSync(new URL(`../../${path}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-    const moduleRecord = { exports: {} as Record<string, (...args: any[]) => any> };
+    const moduleRecord = { exports: {} as T };
     vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, { Request, Response, Headers, URL, Map })(
       (name: string) => { assert.ok(name in dependencies, `Unexpected dependency ${name}`); return dependencies[name]; }, moduleRecord, moduleRecord.exports,
     );
     return moduleRecord.exports;
   }
-  const notifications = load("lib/notifications.ts"); dependencies["@/lib/notifications"] = notifications;
-  const route = load("app/api/notifications/preferences/route.ts");
+  const notifications = load<typeof import("../../lib/notifications.ts")>("lib/notifications.ts"); dependencies["@/lib/notifications"] = notifications;
+  const route = load<typeof import("../../app/api/notifications/preferences/route.ts")>("app/api/notifications/preferences/route.ts");
   dependencies["@/app/api/notifications/preferences/route"] = route;
   dependencies["./requireUser"] = dependencies["@/lib/requireUser"];
-  const settings = load("lib/inrAssistantSettingsTools.ts");
+  const settings = load<SettingsRuntime>("lib/inrAssistantSettingsTools.ts");
   const tools = settings.createInrAssistantSettingsTools({ request: new Request("https://app.inrcy.test/api/assistant/chat"), accountId: "active", edition: "premium", currentUserMessage: "Désactive les notifications par email." });
   return { route, notifications, tools, calls, saved: () => saved };
 }

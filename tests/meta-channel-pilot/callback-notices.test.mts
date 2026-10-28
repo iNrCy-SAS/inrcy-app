@@ -31,6 +31,7 @@ function load(relative: string): RecordLike {
     if (id === "next-intl") return { useLocale: () => locale, useTranslations: () => (key: string) => (JSON.parse(fs.readFileSync("messages/" + locale + "/shell.json", "utf8")) as Record<string, string>)[key] || key };
     if (id === "next/image") return { __esModule: true, default: "img" };
     if (id.endsWith("DashboardAssistantTrigger")) return { __esModule: true, default: "assistant-trigger" };
+    if (id.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen: () => undefined };
     if (id.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: pilot }) };
     if (id.endsWith("DashboardUnsavedNavigationProvider")) return { useDashboardUnsavedNavigation: () => ({ requestNavigation: (callback: () => void) => callback() }) };
     if (id.endsWith("DashboardFluxBubble") || id.endsWith("GoogleOAuthConsentBanner")) return { __esModule: true, default: "channel-component" };

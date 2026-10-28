@@ -17,7 +17,7 @@ export const INR_ASSISTANT_CAPABILITIES = [
 ] as const;
 
 export function inrAssistantCapabilityGuide(): string {
-  return `Basique : accompagnement, navigation et lectures autorisées. Standard/essai vérifié de 21 jours : création et actions incluses. Premium ajoute CRM, campagnes, agenda et publicité. Devis/factures exigent les droits comptables Founder.
+  return `Basique : accompagnement, navigation et lectures autorisées. Standard/essai vérifié de 21 jours : création et actions incluses. Premium ajoute CRM, campagnes, agenda et publicité. Devis/factures exigent les droits comptables activés pour le compte.
 Navigation : ouvrir un module ou un devis/facture vérifié ; préserver les modifications non enregistrées. Contexte écran = indice, jamais droit d’accès.
 Canaux/réglages : état enregistré selon le cockpit, lecture sans écriture ; modification explicite et relecture selon l’offre.
 ADN/IA/CTA : analyser, compléter et configurer les futurs contenus compatibles, sans modifier les profils sociaux.

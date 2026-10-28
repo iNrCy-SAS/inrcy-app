@@ -43,6 +43,7 @@ function libraryHarness() {
     if (id === "next-intl") return { useLocale: () => "fr-FR", useTranslations: () => (key: string) => key };
     if (id === "next/link") return { default: "a" };
     if (id.endsWith("DashboardAssistantTrigger")) return { default: "assistant-trigger" };
+    if (id.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
     if (id === "@/lib/supabaseClient") return { createClient: () => ({ storage: { from: () => ({ uploadToSignedUrl: async (_path: string, _token: string, file: File) => { transfers.push(file); return { error: null }; } }) } }) };
     if (id === "@/lib/universalMediaUploadClient") return { isUniversalMediaUploadEnabled: () => true, uploadFileToPreparedUniversalIntent: () => { throw new Error("Audio must bypass the visual upload pipeline"); } };
     if (id === "@/lib/mediaUploadPolicy") return uploadPolicy;

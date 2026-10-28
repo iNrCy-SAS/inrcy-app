@@ -55,7 +55,7 @@ import { compactInrAssistantGuideContext } from "./inrAssistantPromptContext.ts"
 import { INR_ASSISTANT_COMMANDS, INR_ASSISTANT_PENDING_STATUSES, INR_ASSISTANT_UNCERTAIN_STATUSES, inrAssistantCommandLabel } from "./inrAssistantCommandRegistry.ts";
 import { createInrAssistantCampaignTools } from "./inrAssistantCampaignTools.ts";
 import { createInrAssistantUiTools } from "./inrAssistantUiTools.ts";
-import { parseInrAssistantNavigation, isInrAssistantNavigationRequest, isInrAssistantScreenCommandRequest, parseInrAssistantUiCommand, type InrAssistantNavigation, type InrAssistantUiCommand } from "./inrAssistantUiCommands.ts";
+import { getDirectInrAssistantNavigationRequest, parseInrAssistantNavigation, isInrAssistantNavigationRequest, isInrAssistantScreenCommandRequest, parseInrAssistantUiCommand, type InrAssistantNavigation, type InrAssistantUiCommand } from "./inrAssistantUiCommands.ts";
 import { createInrAssistantChannelTools } from "./inrAssistantChannelTools.ts";
 import { createInrAssistantDocumentTools } from "./inrAssistantDocumentTools.ts";
 import { createInrAssistantCalendarTools } from "./inrAssistantCalendarTools.ts";
@@ -586,6 +586,15 @@ export async function generateInrAssistantReply(args: {
     return {...reply,...(navigation?{navigation}:{}),...(uiCommand?{uiCommand}:{}),...(verifiedHandoffMessage && outcome !== "completed" ? {needsHuman:true,handoffSummary:verifiedHandoffMessage}:{}),message,outcome,taskProgress:{outcome,completed:completed.map(label),remaining:unfinished.map(label)},taskState:taskState(outcome,message)};
   };
   try {
+    // A clearly named module must not be forgotten when the same request also
+    // asks for a read. Use the authenticated native tool; the client still
+    // checks its account and unsaved form before applying the navigation.
+    const directNavigation = !statusOnly && !draftOnly ? getDirectInrAssistantNavigationRequest(spokenRequest) : null;
+    const directNavigationTool = tools.navigateApplication as ReturnType<typeof createInrAssistantUiTools>["navigateApplication"] | undefined;
+    if (directNavigation && directNavigationTool?.execute) {
+      await directNavigationTool.execute({ ...directNavigation, documentId: null }, { toolCallId: "direct-navigation", messages });
+      if (navigation) system += `\nL’ouverture du module ${navigation.label} est déjà demandée au navigateur. Effectue aussi toutes les lectures et autres tâches demandées. N’annonce pas son ouverture avant le retour du navigateur.`;
+    }
     for (const attempt of chain) {
       if (args.signal?.aborted) noteFailure("request_aborted", { model: attempt.model, callCount: llmCalls });
       args.signal?.throwIfAborted();
@@ -686,9 +695,11 @@ export async function generateInrAssistantReply(args: {
             if(changed && requiredTools.length) {try {await checkpoint();} catch {/* stopWhen prevents further calls. */}}
           },
           prepareStep: ({ stepNumber, messages: stepMessages }) => {
-            const goalsDone = requiredTools.length > 0 && requiredTools.every(name=>inrAssistantGoalCompleted(name,receipts,requiredCalls)) && (!statusOnly || [...readCounts.keys()].some(name=>requiredTools.some(goal=>INR_ASSISTANT_COMMANDS[goal]?.statusReader===name)));
+            // A UI-only request can also contain reads that are not durable
+            // business goals. Opening its module must not suppress those reads.
+            const goalsDone = requiredTools.some(name=>!["navigateApplication","runScreenCommand"].includes(name)) && requiredTools.every(name=>inrAssistantGoalCompleted(name,receipts,requiredCalls)) && (!statusOnly || [...readCounts.keys()].some(name=>requiredTools.some(goal=>INR_ASSISTANT_COMMANDS[goal]?.statusReader===name)));
             const answerOnly = goalsDone || stepNumber >= maxCalls-1 || llmCalls >= maxCalls-1;
-            if (stepNumber === 0 && !answerOnly && !args.taskContext) return;
+            if (stepNumber === 0 && !answerOnly && !args.taskContext && !navigation) return;
             // Keep call/result pairs intact and discard only earlier chat text.
             // After a guide or DNA lookup, creation remains possible in step 2;
             // the last step only answers and never repeats reads or actions.
@@ -703,10 +714,11 @@ export async function generateInrAssistantReply(args: {
             return {
               ...(answerOnly ? { model: guardedModel(answerAttempt) } : {}),
               messages: compactInrAssistantGuideContext(stepMessages.slice(latestUser)),
-              activeTools: answerOnly ? [] : Object.keys(tools).filter(name => (readCounts.get(name)??0) < 2 && !(args.taskContext && inrAssistantGoalCompleted(name,args.taskContext.receipts,requiredCalls))) as Array<keyof typeof tools>,
+              activeTools: answerOnly ? [] : Object.keys(tools).filter(name => !(name === "navigateApplication" && navigation) && (readCounts.get(name)??0) < 2 && !(args.taskContext && inrAssistantGoalCompleted(name,args.taskContext.receipts,requiredCalls))) as Array<keyof typeof tools>,
               ...(answerOnly ? { toolChoice: "none" as const } : {}),
               system: buildInrAssistantSystemPrompt(args.displayName, undefined, readCounts.has("readAppGuide") ? undefined : getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext, Boolean(args.fileContexts?.length), true)
                 + continuityContext + draftGuidance + (operationGuidance ? `\n${operationGuidance}` : "")
+                + (navigation ? `\nL’ouverture de ${navigation.label} est déjà demandée au navigateur. Termine aussi les lectures demandées, sans annoncer la navigation terminée.` : "")
                 + (args.taskContext ? `\nReprise vérifiée de la tâche. Résultats enregistrés, à réutiliser sans refaire ces actions : ${JSON.stringify(publicTaskReceipts(args.taskContext.receipts)).slice(0,5000)}. La précision actuelle complète seulement cette tâche. Réponds dans la langue de ce message : ${JSON.stringify(spokenRequest).slice(0,500)}` : "")
                 + (answerOnly ? "\nRépondez maintenant sans appeler d’outil. Utilisez seulement les faits déjà obtenus. Si le sujet ou une donnée indispensable manque, posez une question courte pour continuer. N’inventez ni résultat ni action exécutée." : ""),
             };

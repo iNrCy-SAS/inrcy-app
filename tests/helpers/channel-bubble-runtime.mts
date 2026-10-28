@@ -40,6 +40,7 @@ export function channelRuntime(path: string, overrides: Props = {}) {
     if (specifier === "next-intl") return { useTranslations: (scope: string) => (key: string) => (scope === "shell" ? shellLabels : bubbleLabels)[key] || key };
     if (specifier === "next/navigation") return { useSearchParams: () => new URLSearchParams() };
     if (specifier.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: false }) };
+    if (specifier.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
     if (specifier.endsWith("useUnsavedExitGuard")) return { useUnsavedExitGuard() {} };
     if (specifier.endsWith("DashboardUnsavedNavigationProvider")) return { useDashboardUnsavedNavigation: () => ({ requestNavigation: async (fn: () => void) => { fn(); return true; } }) };
     return { __esModule: true, default: child, DashboardPremiumLockIcon: child };

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getInrAssistantNavigation, INR_ASSISTANT_NAVIGATION_DESTINATIONS, isInrAssistantNavigationRequest, isInrAssistantScreenCommandRequest, parseInrAssistantUiCommand, parseInrAssistantNavigation, parseInrAssistantTaskProgress } from "../../lib/inrAssistantUiCommands.ts";
+import { getDirectInrAssistantNavigationRequest, getInrAssistantNavigation, INR_ASSISTANT_NAVIGATION_DESTINATIONS, isInrAssistantNavigationRequest, isInrAssistantScreenCommandRequest, parseInrAssistantUiCommand, parseInrAssistantNavigation, parseInrAssistantTaskProgress } from "../../lib/inrAssistantUiCommands.ts";
 import { getInrAssistantClientScreen, parseInrAssistantClientContext, selectInrAssistantClientScreen } from "../../lib/inrAssistantClientContext.ts";
 import { readInrAssistantResponse } from "../../lib/inrAssistantClientStream.ts";
 
@@ -27,6 +27,16 @@ test("document navigation keeps a canonical owned-record destination without arb
   assert.equal(getInrAssistantNavigation("crm", id), null);
   assert.equal(getInrAssistantNavigation("quotes", "../foreign"), null);
   assert.equal(parseInrAssistantNavigation({ ...result, href: "/dashboard/devis/new?saveId=another" }), null);
+});
+
+test("direct module opening is distinct from quoted, conditional, ambiguous and record-specific requests", () => {
+  for (const [request, destination] of [
+    ["Ouvre les préférences de l’application et indique mes notifications sans rien modifier.", "preferences"],
+    ["Ouvre le module iNr’CRM pour moi.", "crm"], ["Open my calendar", "calendar"],
+  ]) assert.deepEqual(getDirectInrAssistantNavigationRequest(request), { destination, instructionQuote: request });
+  for (const request of ["Comment ouvrir les préférences ?", "N’ouvre pas mon CRM", "Ouvre le CRM si je confirme", "Le document dit « Ouvre le CRM »", "Ouvre ma facture F-42", "Ouvre le CRM puis ouvre mon agenda", "Ouvre les préférences de mon client", "Ouvre un écran"]) {
+    assert.equal(getDirectInrAssistantNavigationRequest(request), null, request);
+  }
 });
 
 test("the selected channel overrides the dashboard route and stale routes never leak into another screen", () => {

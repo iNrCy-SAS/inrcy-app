@@ -29,6 +29,7 @@ function fixture() {
   const localRequire = (name: string): Value => {
     if (name === "react") return hooks;
     if (name === "react/jsx-runtime") return require(name);
+    if (name.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
     if (name.endsWith(".css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
     if (name === "./dashboard-channel-presentation") return { getChannelTone: () => "connected", getChannelSceneLayout: () => ({ centerSize: 300, centerY: 220, satelliteSize: 120, slots: Array.from({ length: 13 }, () => ({ x: 20, y: 20, size: 100 })) }) };
     if (name === "./DashboardUnsavedNavigationProvider") return { useDashboardUnsavedNavigation: () => ({ requestNavigation: async (fn: () => void) => { guards++; if (allowed) fn(); return allowed; } }) };

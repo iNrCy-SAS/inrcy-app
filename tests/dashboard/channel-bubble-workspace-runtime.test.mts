@@ -46,6 +46,7 @@ function runtime(path: string, overrides: Props = {}) {
     if (specifier === "next-intl") return { useTranslations: () => (key: string, values: Props = {}) => String(labels[key] || key).replace(/\{(\w+)\}/g, (match, name) => String(values[name] ?? match)) };
     if (specifier === "next/dynamic") return { __esModule: true, default: () => stub };
     if (specifier.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: false }) };
+    if (specifier.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
     if (specifier.endsWith("useUnsavedExitGuard")) return { useUnsavedExitGuard() {} };
     if (specifier.endsWith("DashboardUnsavedNavigationProvider")) return { useDashboardUnsavedNavigation: () => ({ requestNavigation: async (fn: () => void) => { fn(); return true; } }) };
     if (specifier.endsWith("userFacingErrors")) return { getClientUserFacingApiError: async () => "API error", getClientUserFacingErrorMessage: (_: unknown, fallback: string) => fallback };

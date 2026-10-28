@@ -54,6 +54,7 @@ function routeHarness() {
     "@/lib/notificationWriter": { insertNotificationOnce: async () => { calls.notification++; } },
     "@/lib/inrCalendarGoogleSyncConstants": { INR_CALENDAR_GOOGLE_SOURCE: "google_shared_calendar" },
     "@/lib/inrCalendarGoogleSync": {},
+    "@/lib/inrAssistantActionPreview": { calendarEventFingerprint: () => assert.fail("Creation must not fingerprint an existing event; this guard belongs only to update/delete") },
     "@/lib/visioTeamAccess": {},
     "@/lib/clientCommunication": {},
   };
