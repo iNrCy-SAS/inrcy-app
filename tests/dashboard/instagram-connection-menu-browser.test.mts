@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
@@ -21,7 +21,8 @@ const modules = {
   menu: compile("app/dashboard/_components/ChannelConnectionMenu.tsx"),
   dialog: compile("app/dashboard/_components/ChannelParametersDialog.tsx"),
 };
-const css = read("app/dashboard/_components/ChannelParametersDialog.module.css")
+const css = read("app/dashboard/dashboard.module.css")
+  + read("app/dashboard/_components/ChannelParametersDialog.module.css")
   + read("app/dashboard/_components/DashboardChannelBubble.module.css");
 
 /** Run the real components and React lifecycle in Chromium, with no remote service. */
@@ -38,13 +39,14 @@ function require(name) {
   return module.exports;
 }
 const React=require('react'), Menu=require('menu').default, Dialog=require('dialog').default;
+const icon=React.createElement('svg',{viewBox:'0 0 24 24','aria-hidden':true,fill:'none',stroke:'currentColor',strokeWidth:1.8},React.createElement('path',{d:'M8 2v5m8-5v5M6 7h12v3a6 6 0 0 1-12 0V7Zm6 9v6'}));
 window.calls=[];
 function Fixture({disabled=false}) {
   const [open,setOpen]=React.useState(true);
   return open ? React.createElement(Dialog,{name:'Instagram',title:'Connecter — Instagram',onClose:()=>setOpen(false)},
     React.createElement('div',{className:'connectChoices'},
-      React.createElement('button',{type:'button',className:'connectPrimary',disabled,onClick:()=>window.calls.push('direct')},'Connexion directe'),
-      React.createElement(Menu,{label:'Connexion via Facebook',disabled,options:[{label:'Connexion classique',onConnect:()=>window.calls.push('classic')},{label:'Connexion Business',onConnect:()=>window.calls.push('business')}],onChoose:option=>option.onConnect()})
+      React.createElement('button',{type:'button',className:'actionBtn connectBtn connectPrimary',disabled,onClick:()=>window.calls.push('direct')},icon,'Connexion directe'),
+      React.createElement(Menu,{label:'Connexion via Facebook',disabled,icon,options:[{label:'Connexion classique',onConnect:()=>window.calls.push('classic')},{label:'Connexion Business',onConnect:()=>window.calls.push('business')}],onChoose:option=>option.onConnect()})
     )) : React.createElement('button',{onClick:()=>setOpen(true)},'Ouvrir');
 }
 const root=require('react-dom/client').createRoot(document.getElementById('root'));
@@ -55,15 +57,23 @@ window.renderFixture(false);
 test("Instagram menu keeps both Facebook flows, keyboard focus and the parent dialog on desktop and mobile", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
-    for (const width of [1280, 390]) {
+    for (const width of [1280, 390, 320]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });
       const errors: string[] = [];
       page.on("pageerror", error => errors.push(error.message));
-      await page.setContent(`<html><head><style>${css}body{background:#080c22;font:16px Arial}button{min-height:44px;padding:10px 18px;color:#fff;background:#283756;border:1px solid #8585dc70;border-radius:24px;cursor:pointer}</style></head><body><div id="root"></div></body></html>`);
+      await page.setContent(`<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}body{background:#080c22;font:16px Arial}</style></head><body><div id="root"></div></body></html>`);
       await page.addScriptTag({ content: fixture });
       const dialog = page.getByRole("dialog", { name: "Connecter — Instagram", exact: true });
       await dialog.waitFor();
       const trigger = page.getByRole("button", { name: "Connexion via Facebook", exact: true });
+      const direct = page.getByRole("button", { name: "Connexion directe", exact: true });
+      const directBounds = await direct.boundingBox(), facebookBounds = await trigger.boundingBox();
+      assert.ok(directBounds && facebookBounds);
+      assert.equal(directBounds.height, facebookBounds.height, "Both connection choices have the same button height");
+      assert.equal(directBounds.width, facebookBounds.width, "Both connection choices have the same button width");
+      assert.ok(directBounds.height >= 44 && directBounds.height <= 60, "Connection choices remain compact touch targets");
+      const evidenceDirectory = process.env.INRCY_INSTAGRAM_LAYOUT_EVIDENCE_DIR;
+      if (evidenceDirectory) { mkdirSync(evidenceDirectory, { recursive: true }); await page.screenshot({ path: path.join(evidenceDirectory, `instagram-connexion-${width}-2026-10-28.png`) }); }
       assert.equal(await dialog.getByRole("button").count(), 3, "Only close, direct and Facebook are initially visible");
       await page.getByRole("button", { name: "Connexion directe", exact: true }).click();
       await trigger.click();

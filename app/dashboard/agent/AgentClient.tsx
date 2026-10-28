@@ -6,6 +6,8 @@ import AgentCampaignAccess from "./_components/AgentCampaignAccess";
 import { INR_AGENT_WORKSPACES, isAutomationInAgentWorkspace, filterAgentWorkspaceActions, filterAgentWorkspaceSchedule, type InrAgentWorkspace } from "@/lib/inrAgentWorkspaces";
 import AgentPublicationChannelList from "./_components/AgentPublicationChannelList";
 import AgentMediaReferences from "./_components/AgentMediaReferences";
+import AgentMediaImage from "./_components/AgentMediaImage";
+import { recoverAgentMediaPreviewUrl } from "./_lib/agent.media-preview-recovery";
 import AgentSettingsMultiSelect from "./_components/AgentSettingsMultiSelect";
 import { INR_AGENT_VIDEO_ENGINE } from "@/lib/inrAgentVideoPolicy";
 import { apiChannelToUi } from "./_lib/agent.config";
@@ -555,7 +557,7 @@ export default function AgentClient({ workspace = "publications" }: AgentClientP
 }
 
 function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
-  const { metaPilotEnabled } = useDashboardViewerAccess();
+  const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
   const i18nT = useTranslations("agent");
   const mediaT = useTranslations("media");
   const boosterT = useTranslations("booster");
@@ -6324,8 +6326,12 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                                     preload="auto"
                                   />
                                 ) : publishMediaPreview.kind === "image" ? (
-                                  <img
+                                  <AgentMediaImage
                                     src={publishMediaPreview.url}
+                                    accountId={activeAccountId}
+                                    sourceKey={`${selectedPreparedAction?.id}:${activePreviewChannel}:${publishMediaPreview.activeIndex}`}
+                                    recoverUrl={signal => recoverAgentMediaPreviewUrl({ accountId: activeAccountId, actionId: selectedPreparedAction?.id || "", channel: activePreviewChannel,
+                                      record: publishMediaPreview.items[publishMediaPreview.activeIndex]?.record || {}, signal })}
                                     alt={
                                       publishMediaPreview.name ||
                                       i18nT("publication_media_alt")
@@ -6388,8 +6394,12 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                                         )}
                                       >
                                         {item.kind === "image" ? (
-                                          <img
+                                          <AgentMediaImage
                                             src={item.url}
+                                            accountId={activeAccountId}
+                                            sourceKey={`${selectedPreparedAction?.id}:${activePreviewChannel}:${index}`}
+                                            recoverUrl={signal => recoverAgentMediaPreviewUrl({ accountId: activeAccountId, actionId: selectedPreparedAction?.id || "", channel: activePreviewChannel, record: item.record, signal })}
+                                            compact
                                             alt=""
                                             aria-hidden
                                           />
@@ -6538,8 +6548,11 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                   >
                     {preparedImageUrl ? (
                       <div className={styles.previewImageWrap}>
-                        <img
+                        <AgentMediaImage
                           src={preparedImageUrl}
+                          accountId={activeAccountId}
+                          sourceKey={selectedPreparedAction.id}
+                          recoverUrl={signal => recoverAgentMediaPreviewUrl({ accountId: activeAccountId, actionId: selectedPreparedAction.id, channel: activePreviewChannel, record: preparedImage || {}, signal })}
                           alt={imageAssetAlt(preparedImage)}
                           loading="eager"
                           decoding="sync"
@@ -7747,8 +7760,12 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                       preload="auto"
                     />
                   ) : (
-                    <img
+                    <AgentMediaImage
                       src={publishMediaPreview.url}
+                      accountId={activeAccountId}
+                      sourceKey={`${selectedPreparedAction?.id}:${activePreviewChannel}:${publishMediaPreview.activeIndex}`}
+                      recoverUrl={signal => recoverAgentMediaPreviewUrl({ accountId: activeAccountId, actionId: selectedPreparedAction?.id || "", channel: activePreviewChannel,
+                        record: publishMediaPreview.items[publishMediaPreview.activeIndex]?.record || {}, signal })}
                       alt={
                         publishMediaPreview.name ||
                         i18nT("publication_media_alt")

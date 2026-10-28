@@ -643,6 +643,8 @@
 .connectChoices svg { width:24px; height:24px; }
 .connectNotice { margin:8px 0 0; color:#c7d3e6; font-size:14px; line-height:1.6; text-align:center; }
 .connectChoices:has(.connectMenu) { box-sizing:border-box; min-height:230px; align-items:flex-start; padding-top:48px; }
+.connectChoices:has(.connectMenu) > button,.connectChoices:has(.connectMenu) > .connectMenu { flex:0 1 240px; min-width:0; }
+.connectChoices:has(.connectMenu) > button,.connectMenu > button { width:100%; min-height:44px; gap:8px; white-space:normal; }
 .connectPrimary { border-color:#65d9ff !important; box-shadow:0 0 0 1px #65d9ff40,0 5px 20px #0989be25; }
 .connectMenu { position:relative; }
 .connectMenuChoices { position:absolute; z-index:2; top:calc(100% + 8px); right:0; min-width:100%; width:max-content; max-width:min(280px,calc(100vw - 68px)); padding:6px; border:1px solid #8585dc70; border-radius:14px; background:#111c37; box-shadow:0 12px 32px #0008; }
@@ -650,7 +652,7 @@
 .connectMenuChoices button:hover,.connectMenuChoices button:focus-visible { background:#ffffff15; }
 .connectMenuChoices button:focus-visible { outline:2px solid #65d9ff; outline-offset:-2px; }
 .connectMenuChoices button:disabled { opacity:.5; cursor:wait; }
-@media(max-width:520px) { .connectChoices:has(.connectMenu) { flex-direction:column; align-items:stretch; gap:12px; min-height:180px; padding:20px 0; } .connectMenu > button { width:100%; justify-content:center; } .connectMenuChoices { position:static; box-sizing:border-box; width:100%; max-width:100%; margin-top:8px; } }
+@media(max-width:520px) { .connectChoices:has(.connectMenu) { flex-direction:column; align-items:stretch; gap:12px; min-height:180px; padding:20px 0; } .connectChoices:has(.connectMenu) > button,.connectChoices:has(.connectMenu) > .connectMenu { flex:0 0 auto; } .connectMenu > button { justify-content:center; } .connectMenuChoices { position:static; box-sizing:border-box; width:100%; max-width:100%; margin-top:8px; } }
 .typesMenu { position: fixed; inset: auto; box-sizing: border-box; margin: 0; padding: 12px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; color: #edf5ff; color-scheme: dark; border: 1px solid #8aabf080; border-radius: 17px; background: linear-gradient(125deg,#112950,#27204b); box-shadow: 0 14px 45px #0009,inset 0 1px 1px #dfeaff26; }
 .typesMenu::backdrop { background: transparent; }
 .popoverHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: #f1f6ff; font-size: 13px; line-height: 1.4; }

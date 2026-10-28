@@ -22,7 +22,7 @@ import {
 } from "@/lib/inrAgentActions";
 import { requireUser } from "@/lib/requireUser";
 import { agentPublicationHistoryWindow } from "@/lib/inrAgentPublicationHistory";
-import { buildMediaLibraryContentUrl } from "@/lib/mediaLibraryContentUrl";
+import { refreshImageAssetUrls, refreshPublishMediaUrl, refreshPublishPayloadMediaUrls } from "@/lib/inrAgentMediaPreview";
 import { buildStorageContentUrl } from "@/lib/storageContentUrl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { toExactStorageArrayBuffer } from "@/lib/supabaseStorageBinary";
@@ -106,10 +106,6 @@ function isMissingTableError(
 
 const ACTION_SELECT =
   "id, automation_key, action_type, target_tool, title, summary, preview_text, target_channels, target_themes, recipients, image_assets, payload, validation_required, execution_policy, status, scheduled_for, prepared_at, validated_at, refused_at, completed_at, last_error, created_at, updated_at";
-const IMAGE_BANK_BUCKET = "inrcy-image-bank";
-const MEDIA_LIBRARY_ID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 function withFreshReportDocument(payload: Record<string, unknown>) {
   const reportRecord = asRecord(payload.reportDocument);
   if (!reportRecord) return payload;
@@ -132,183 +128,6 @@ function withFreshReportDocument(payload: Record<string, unknown>) {
       downloadUrl: buildStorageContentUrl(bucket, storagePath) || "",
     },
   });
-}
-
-async function refreshImageAssetUrls(assets: unknown[]) {
-  return Promise.all(assets.map((asset) => refreshPublishMediaUrl(asset)));
-}
-
-function isMediaRecord(value: unknown) {
-  if (typeof value === "string") return Boolean(value.trim());
-  const record = asRecord(value);
-  if (!record) return false;
-  return Boolean(
-    record.id ||
-    record.mediaId ||
-    record.media_id ||
-    record.storagePath ||
-    record.storage_path ||
-    record.path ||
-    record.url ||
-    record.publicUrl ||
-    record.src,
-  );
-}
-
-async function refreshPublishMediaUrl(media: unknown) {
-  const rawString = typeof media === "string" ? media.trim() : "";
-  const record = rawString
-    ? MEDIA_LIBRARY_ID_PATTERN.test(rawString)
-      ? { id: rawString }
-      : { url: rawString }
-    : asRecord(media);
-  if (!record) return media;
-
-  const idCandidate = String(
-    record.id || record.mediaId || record.media_id || "",
-  ).trim();
-  const urlCandidate = String(
-    record.url || record.publicUrl || record.src || "",
-  ).trim();
-  const mediaLibraryId = MEDIA_LIBRARY_ID_PATTERN.test(idCandidate)
-    ? idCandidate
-    : MEDIA_LIBRARY_ID_PATTERN.test(urlCandidate)
-      ? urlCandidate
-      : "";
-  if (mediaLibraryId) {
-    const contentUrl = buildMediaLibraryContentUrl(mediaLibraryId) || "";
-    if (contentUrl) {
-      const rawName = String(
-        record.name || record.title || record.filename || "",
-      ).trim();
-      const safeName =
-        rawName && !MEDIA_LIBRARY_ID_PATTERN.test(rawName)
-          ? rawName
-          : String(record.kind || record.mediaType || "")
-                .toLowerCase()
-                .includes("video")
-            ? "Vidéo iNr’Agent"
-            : "Image iNr’Agent";
-      return {
-        ...record,
-        id: mediaLibraryId,
-        name: safeName,
-        title: safeName,
-        url: contentUrl,
-        publicUrl: contentUrl,
-      };
-    }
-  }
-
-  const storagePath = String(
-    record.storagePath || record.storage_path || record.path || "",
-  ).trim();
-  const bucket = String(record.bucket || IMAGE_BANK_BUCKET).trim();
-  if (!storagePath || !bucket) return record;
-
-  const url = buildStorageContentUrl(bucket, storagePath) || "";
-  return {
-    ...record,
-    bucket,
-    storagePath,
-    path: storagePath,
-    url,
-    publicUrl: url,
-  };
-}
-
-async function refreshMediaCollection(value: unknown) {
-  if (!Array.isArray(value)) return value;
-  return Promise.all(
-    value.map((item) =>
-      isMediaRecord(item) ? refreshPublishMediaUrl(item) : item,
-    ),
-  );
-}
-
-async function refreshImagesByChannelMediaUrls(value: unknown) {
-  const imagesByChannel = asRecord(value);
-  if (!imagesByChannel) return value;
-  const entries = await Promise.all(
-    Object.entries(imagesByChannel).map(async ([channel, media]) => [
-      channel,
-      Array.isArray(media)
-        ? await refreshMediaCollection(media)
-        : isMediaRecord(media)
-          ? await refreshPublishMediaUrl(media)
-          : media,
-    ] as const),
-  );
-  return Object.fromEntries(entries);
-}
-
-async function refreshPublishPayloadMediaUrls(
-  source: Record<string, unknown>,
-) {
-  const next = { ...source };
-  for (const key of [
-    "media",
-    "mediaAsset",
-    "image",
-    "imageAsset",
-    "selectedImage",
-    "visual",
-    "cover",
-    "video",
-    "videoAsset",
-  ] as const) {
-    if (isMediaRecord(next[key])) {
-      next[key] = await refreshPublishMediaUrl(next[key]);
-    }
-  }
-  if (Array.isArray(next.images)) {
-    next.images = await refreshMediaCollection(next.images);
-  }
-  if (next.imagesByChannel) {
-    next.imagesByChannel = await refreshImagesByChannelMediaUrls(
-      next.imagesByChannel,
-    );
-  }
-  if (next.videoByChannel) {
-    next.videoByChannel = await refreshImagesByChannelMediaUrls(
-      next.videoByChannel,
-    );
-  }
-  if (next.postByChannel) {
-    next.postByChannel = await refreshPostByChannelMediaUrls(
-      next.postByChannel,
-    );
-  }
-  return next;
-}
-
-async function refreshPostByChannelMediaUrls(postByChannel: unknown) {
-  const posts = asRecord(postByChannel);
-  if (!posts) return postByChannel;
-
-  const nextEntries = await Promise.all(
-    Object.entries(posts).map(async ([channel, value]) => {
-      const post = asRecord(value);
-      if (!post) return [channel, value] as const;
-      const nextPost = { ...post };
-      for (const key of [
-        "media",
-        "mediaAsset",
-        "image",
-        "imageAsset",
-        "video",
-        "videoAsset",
-        "file",
-        "attachment",
-      ] as const) {
-        if (isMediaRecord(nextPost[key]))
-          nextPost[key] = await refreshPublishMediaUrl(nextPost[key]);
-      }
-      return [channel, nextPost] as const;
-    }),
-  );
-
-  return Object.fromEntries(nextEntries);
 }
 
 async function refreshActionImageUrls(
