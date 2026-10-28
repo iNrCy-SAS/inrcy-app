@@ -7,10 +7,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import styles from "../../dashboard.module.css";
 import localStyles from "./InrSearchSettingsContent.module.css";
-import StatusMessage from "../../_components/StatusMessage";
 
 const INR_SEARCH_PUBLIC_ORIGIN = ((process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, "") === "https://inrcy.com" ? "https://app.inrcy.com" : (process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, ""));
-const INR_SEARCH_DIRECTORY_URL = "https://inrcy.com/annuaire/";
 
 function getRuntimeInrSearchOrigin() {
   if (typeof window !== "undefined" && ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) {
@@ -169,7 +167,6 @@ function emitDashboardUpdate(settings: InrSearchSettings, publicationAllowed: bo
   window.dispatchEvent(new CustomEvent("inrcy:inr-search-settings-updated", {
     detail: {
       connected: Boolean(settings.enabled && settings.slug && publicationAllowed),
-      directoryEnabled: Boolean(settings.enabled && settings.directoryEnabled && publicationAllowed),
       profileUrl: pageUrl,
       refresh,
     },
@@ -200,7 +197,7 @@ export default function InrSearchSettingsContent({
   });
   const [loading, setLoading] = useState(() => !initialSnapshot && initialConnected === null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [feedbackAction, setFeedbackAction] = useState<InrSearchAction | null>(null);
+  const [, setFeedbackAction] = useState<InrSearchAction | null>(null);
   const [disconnectConfirmOpen, setDisconnectConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -351,7 +348,7 @@ export default function InrSearchSettingsContent({
         ? "Page en attente"
         : "Page déconnectée";
   const publicationMessage = !settings.enabled && hasPage
-    ? "La page est déconnectée : elle n’est plus accessible publiquement ni proposée dans l’annuaire."
+    ? "La page iNr’Search est déconnectée : elle n’est plus accessible publiquement."
     : publication.reason === "subscription_inactive"
     ? "La page est temporairement retirée du web tant que l’abonnement iNrCy n’est pas actif."
     : publication.reason === "bubble_disabled"
@@ -366,67 +363,13 @@ export default function InrSearchSettingsContent({
               ? "La page est publiée, mise à jour automatiquement et signalée aux moteurs lors des nouvelles publications."
               : "La page est en cours de synchronisation automatique.";
 
-  const parameters = (
-    <div className={localStyles.root}>
-      <div className={localStyles.feedbackStack}>
-        {error && feedbackAction !== "directory" ? <StatusMessage variant="error">{error}</StatusMessage> : null}
-        {success && feedbackAction !== "directory" ? <StatusMessage variant="success">{success}</StatusMessage> : null}
-      </div>
-
-      <section data-channel-settings-step className={`${localStyles.stepCard} ${localStyles.stepDirectory}`} aria-labelledby="inrsearch-directory-title">
-        <span className={localStyles.stepAccent} aria-hidden="true" />
-        <header className={localStyles.stepHeader} data-channel-settings-header>
-          <div className={localStyles.stepIdentity}>
-            <div className={localStyles.stepCopy}>
-              <h2 id="inrsearch-directory-title" className={localStyles.stepTitle}>{i18nT("annuaire_public_inrcy_8ec958c2")}</h2>
-              <p className={`${localStyles.stepDescription} ${localStyles.muted}`}>{i18nT("choisissez_si_votre_page_publique_doit_d0eb00aa")}</p>
-            </div>
-          </div>
-          <span className={localStyles.directoryState} data-active={settings.directoryEnabled && isPublished ? "true" : "false"}>
-            {settings.directoryEnabled && isPublished ? i18nT("visible_dans_l_annuaire_855615a9") : i18nT("hors_annuaire_ca958aad")}
-          </span>
-        </header>
-
-        <button
-          className={localStyles.directoryButton}
-          type="button"
-          disabled={!isPublished || actionLoading}
-          aria-pressed={Boolean(settings.directoryEnabled && isPublished)}
-          onClick={() => void performAction("directory", !settings.directoryEnabled)}
-        >
-          <span className={localStyles.directoryCopy}>
-            <strong>{settings.directoryEnabled && isPublished ? i18nT("page_ajoutee_a_l_annuaire_inrcy_923e3fdf") : i18nT("ajouter_ma_page_a_l_annuaire_73afcfce")}</strong>
-            <span>{isPublished ? i18nT("vous_pouvez_modifier_ce_choix_a_0a54d038") : i18nT("connectez_d_abord_votre_page_inr_4855e41c")}</span>
-          </span>
-          <span className={localStyles.switchTrack} data-active={settings.directoryEnabled && isPublished ? "true" : "false"} aria-hidden="true">
-            <span className={localStyles.switchThumb} />
-          </span>
-        </button>
-
-        {feedbackAction === "directory" && actionLoading ? (
-          <div role="status" aria-live="polite" className={localStyles.inlineFeedback}>{i18nT("mise_a_jour_de_votre_presence_75bb2ade")}</div>
-        ) : null}
-        {feedbackAction === "directory" && error ? <StatusMessage variant="error">{error}</StatusMessage> : null}
-        {feedbackAction === "directory" && success ? <StatusMessage variant="success">{success}</StatusMessage> : null}
-
-        <div className={localStyles.directoryLinkRow}>
-          <span>Annuaire public iNrCy</span>
-          <a className={`${styles.ghostBtn} ${localStyles.secondaryAction}`} href={INR_SEARCH_DIRECTORY_URL} target="_blank" rel="noreferrer">Voir l’annuaire</a>
-        </div>
-        <details style={{ marginTop: 16 }}>
-          <summary style={{ cursor: "pointer", color: "#c4d9ff" }}>{i18nT("a_quoi_sert_inr_apos_search_c32318a6")}</summary>
-          <p>{publicationLabel} — {publicationMessage}</p>
-          <p>{i18nT("inr_apos_search_transforme_automatiquement_les_99deb0af")}</p>
-          <div className={localStyles.helperGrid}>
-            {[["Référencement", "Titre, description, adresse et données structurées."], ["Moteurs IA", "Synthèse factuelle et source publique dédiée."], ["Activité", "Métier, prestations, clientèle et zones d’intervention."], ["Preuves", "Logo, photos, réalisations et publications disponibles."], ["iNr’Guide", "Réponses générées à partir des informations confirmées."], ["Conversion", "Téléphone, email, site, réseaux et formulaire de contact."]].map(([title, text]) => <div className={localStyles.helperItem} key={title}><strong>{title}</strong><span>{text}</span></div>)}
-          </div>
-          <p>{i18nT("aucune_rubrique_n_est_a_recopier_76e710d2")}</p>
-          {publicUrl ? <p style={{ overflowWrap: "anywhere" }}>{publicUrl}</p> : null}
-          <button className={`${styles.ghostBtn} ${localStyles.secondaryAction}`} type="button" onClick={() => void load()} disabled={loading || actionLoading}>{loading ? i18nT("synchronisation_cc8ad3ae") : i18nT("actualiser_9d3b2a7d")}</button>
-        </details>
-      </section>
-    </div>
-  );
+  const parameters = <section style={{ display: "grid", gap: 16, color: "#d4e0f5", lineHeight: 1.7 }}>
+    <h2 style={{ margin: 0, color: "white", fontSize: 25 }}>À quoi sert iNr’Search ?</h2>
+    <p style={{ margin: 0 }}><strong>Votre site automatisé, conçu pour travailler votre visibilité sur les moteurs de recherche et les assistants IA.</strong></p>
+    <p style={{ margin: 0 }}>iNr’Search rassemble les informations de votre profil, votre ADN et vos publications dans un site professionnel structuré. Votre activité, vos services, votre zone d’intervention et vos coordonnées deviennent plus faciles à comprendre pour les internautes et les moteurs IA.</p>
+    <p style={{ margin: 0 }}>Votre site évolue automatiquement avec les informations et les contenus que vous ajoutez dans iNrCy. Utilisez « Voir » pour le consulter.</p>
+    <p style={{ margin: 0, fontSize: 13, color: "#aebed8" }}>{publicationLabel} — {publicationMessage}</p>
+  </section>;
   return <>
     {renderBubble({
       accountConnected: isPublished,
@@ -439,10 +382,13 @@ export default function InrSearchSettingsContent({
       notice: success,
       parameters,
       parametersOwnHeading: true,
+      parametersLabel: "Informations",
+      parametersIcon: "info",
+      parametersAlwaysVisible: true,
     })}
     {disconnectConfirmOpen ? (
       <ChannelParametersDialog name="iNr’Search" onClose={() => setDisconnectConfirmOpen(false)}>
-        <p>{i18nT("votre_page_sera_retiree_de_l_f8ed5e53")}</p>
+        <p>Votre page iNr’Search ne sera plus accessible publiquement. Vous pourrez la reconnecter à tout moment.</p>
         <button type="button" className={styles.actionBtn} onClick={() => {
           setDisconnectConfirmOpen(false);
           void performAction("disconnect");

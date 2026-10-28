@@ -472,7 +472,7 @@ function ResponsiveBottomNavMobile() {
               setLanguageOpen(false);
             }}
           />
-          <div className={styles.menuPanel} role="menu" aria-label={t.topbar.menu} data-disable-pull-refresh="true">
+          <div className={styles.menuPanel} role="menu" aria-label={t.topbar.menu} data-disable-pull-refresh="true" data-dashboard-mobile-nav-menu>
             {menuGroups.map((group) => <section key={group.id} className={styles.menuSection} aria-label={menuT(group.id)}>
               <h2 className={styles.menuSectionTitle}>{menuT(group.id)}</h2>
               <div className={styles.shortcutGrid}>
@@ -538,12 +538,13 @@ function ResponsiveBottomNavMobile() {
         </>
       ) : null}
 
-      <nav className={`${styles.root} ${hidden ? styles.rootHidden : ""}`} aria-label={i18nT("navigation_mobile_inrcy_3f17bb20")}>
+      <nav className={`${styles.root} ${hidden ? styles.rootHidden : ""}`} aria-label={i18nT("navigation_mobile_inrcy_3f17bb20")} data-dashboard-mobile-nav>
         <div className={styles.bar}>
           <button
             type="button"
             className={`${styles.item} ${homeActive ? styles.itemActive : ""}`}
             aria-label={labels.home}
+            data-dashboard-mobile-home
             aria-current={homeActive ? "page" : undefined}
             onClick={() => navigate("/dashboard")}
           >

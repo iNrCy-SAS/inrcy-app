@@ -31,6 +31,7 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const selectedAreaRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
+  const swipeStart = useRef<{ x: number; y: number; pointerId: number; at: number } | null>(null);
   const titleId = useId();
   const descriptionId = useId();
   const [filter, setFilter] = useState<ChannelFilter>("all");
@@ -46,20 +47,64 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
 
   useEffect(() => {
     const dialog = dialogRef.current;
+    if (!dialog) return;
+    const mobile = window.matchMedia("(max-width: 1100px)");
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     const previousHtmlOverflow = document.documentElement.style.overflow;
-    dialog?.showModal();
+    const syncPresentation = () => {
+      // A phone channel cockpit is a workspace above the shared navigation.
+      // showModal would put the dock (and its Assistant) behind an inert layer.
+      // Keep desktop modal semantics and let a nested confirmation stay on top.
+      const blockingDialog = document.querySelector("dialog:modal");
+      if (blockingDialog && blockingDialog !== dialog) return;
+      const shouldBeModal = !mobile.matches;
+      if (dialog.open && dialog.matches(":modal") === shouldBeModal) return;
+      if (dialog.open) dialog.close();
+      dialog.setAttribute("aria-modal", String(shouldBeModal));
+      if (shouldBeModal) dialog.showModal(); else dialog.show();
+      closeButtonRef.current?.focus({ preventScroll: true });
+    };
+    const nestedClosed = (event: Event) => { if (event.target !== dialog) syncPresentation(); };
+    syncPresentation();
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
     closeButtonRef.current?.focus({ preventScroll: true });
+    mobile.addEventListener("change", syncPresentation);
+    document.addEventListener("close", nestedClosed, true);
     return () => {
-      dialog?.close();
+      mobile.removeEventListener("change", syncPresentation);
+      document.removeEventListener("close", nestedClosed, true);
+      dialog.close();
       document.body.style.overflow = previousOverflow;
       document.documentElement.style.overflow = previousHtmlOverflow;
       if (opener?.isConnected) opener.focus({ preventScroll: true });
     };
   }, []);
+
+  useEffect(() => {
+    const mobile = window.matchMedia("(max-width: 1100px)");
+    const hasBlockingModal = () => Boolean(document.querySelector("dialog:modal"));
+    const keepWorkspaceFocus = (event: FocusEvent) => {
+      if (!mobile.matches || hasBlockingModal() || !(event.target instanceof Element)) return;
+      if (dialogRef.current?.contains(event.target) || event.target.closest('[data-dashboard-mobile-nav], [data-dashboard-mobile-nav-menu], dialog[open], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')) return;
+      closeButtonRef.current?.focus({ preventScroll: true });
+    };
+    const keyboard = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || !mobile.matches || hasBlockingModal()) return;
+      if (document.querySelector('[data-dashboard-mobile-nav-menu], #inrcy-assistant-dialog[open]')) return;
+      if (event.target instanceof Element && !dialogRef.current?.contains(event.target)) return;
+      event.preventDefault(); closeDialog();
+    };
+    const home = (event: MouseEvent) => {
+      if (!mobile.matches || hasBlockingModal() || !(event.target instanceof Element) || !event.target.closest("[data-dashboard-mobile-home]")) return;
+      event.preventDefault(); event.stopImmediatePropagation(); closeDialog();
+    };
+    document.addEventListener("focusin", keepWorkspaceFocus);
+    document.addEventListener("keydown", keyboard);
+    document.addEventListener("click", home, true);
+    return () => { document.removeEventListener("focusin", keepWorkspaceFocus); document.removeEventListener("keydown", keyboard); document.removeEventListener("click", home, true); };
+  }, [closeDialog]);
 
   useEffect(() => {
     const scene = sceneRef.current;
@@ -154,6 +199,21 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
               <div className={styles.selectedHalo} aria-hidden="true" />
               <div
                 className={styles.selectedBubble}
+                onPointerDown={event => {
+                  swipeStart.current = null;
+                  if (!window.matchMedia("(max-width: 1100px)").matches || !event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+                  if ((event.target as Element).closest("button,a,input,select,textarea,[role=button],[role=switch],[contenteditable=true]")) return;
+                  swipeStart.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, at: Date.now() };
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                }}
+                onPointerUp={event => {
+                  const start = swipeStart.current; swipeStart.current = null;
+                  if (!start || start.pointerId !== event.pointerId) return;
+                  const dx = event.clientX - start.x, dy = event.clientY - start.y;
+                  if (Date.now() - start.at <= 900 && Math.abs(dx) >= 48 && Math.abs(dx) > Math.abs(dy) * 1.35) selectAdjacentChannel(dx < 0 ? 1 : -1);
+                }}
+                onPointerCancel={() => { swipeStart.current = null; }}
+                onLostPointerCapture={() => { swipeStart.current = null; }}
                 data-tone={getChannelTone(selected)}
               >
                 {/* The action closures access refs only when clicked, never while rendering this slot. */}
@@ -166,6 +226,12 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
             </div>
           ) : <div className={styles.empty}><ChannelsIcon /><h3>{filter === "configure" ? "Tout est prêt à rayonner." : "Aucun canal dans cette vue."}</h3><p>{filter === "configure" ? "Aucun canal disponible ne nécessite de configuration." : "Retrouvez l’ensemble de vos canaux dans la vue Tous."}</p><button type="button" onClick={() => setFilter("all")}>Voir tous les canaux</button></div>}
 
+          <nav className={styles.mobileChannelGrid} aria-label="Choisir un canal">
+            {filteredItems.map(item => <button type="button" key={item.key} data-channel-mini={item.key} className={styles.mobileChannelButton} data-tone={getChannelTone(item)} aria-pressed={selected?.key === item.key} aria-label={`${item.name} — ${item.bubbleStatusText}`} title={item.name} onClick={() => { void requestNavigation(() => setSelectedKey(item.key)); }}>
+              <Image src={item.logoSrc} alt="" width={32} height={32} unoptimized loading="eager" decoding="sync" />
+              <span className={styles.miniStatus} aria-hidden="true" />
+            </button>)}
+          </nav>
           <div className={styles.satellites} role="group" aria-label="Choisir un canal">
             {satellites.map((item, index) => {
               const { x, y, size } = sceneLayout.slots[index % sceneLayout.slots.length];

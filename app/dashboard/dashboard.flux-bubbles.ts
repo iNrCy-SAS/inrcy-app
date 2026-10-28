@@ -1,3 +1,4 @@
+import { getInrDirectoryUrl } from "@/lib/inrDirectorySettings";
 import type { DashboardFluxBubbleData } from "./_components/DashboardFluxBubble";
 import { fluxModules, MODULE_ICONS } from "./dashboard.constants";
 import { statusLabel } from "./dashboard.utils";
@@ -54,6 +55,7 @@ type BuildFluxBubbleItemsArgs = {
   pinterestConnected?: boolean;
   pinterestRequiresUpdate?: boolean;
   pinterestUrl?: string | null | undefined;
+  inrDirectoryEnabled?: boolean | null;
   inrSearchConnected?: boolean | null;
   inrSearchUrl?: string | null | undefined;
   youtubeShortsConnected: boolean;
@@ -108,6 +110,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
     pinterestConnected = false,
     pinterestRequiresUpdate = false,
     pinterestUrl,
+    inrDirectoryEnabled = null,
     inrSearchConnected = null,
     inrSearchUrl,
     youtubeShortsConnected,
@@ -198,6 +201,10 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
               ? { status: "connected" as ModuleStatus, text: copy.status.connected }
               : { status: "available" as ModuleStatus, text: copy.status.toConnect };
           }
+          if (m.key === "inr_directory") {
+            if (inrDirectoryEnabled === null) return { status: "available" as ModuleStatus, text: copy.status.syncing };
+            return { status: (inrDirectoryEnabled ? "connected" : "available") as ModuleStatus, text: inrDirectoryEnabled ? "Visible dans l’annuaire" : "Hors annuaire" };
+          }
           if (m.key === "inr_search") {
             if (inrSearchConnected === null) return { status: "available" as ModuleStatus, text: copy.status.syncing };
             return inrSearchConnected
@@ -220,7 +227,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
           text: copy.status.disabled,
         };
 
-    const specialViewHref = m.key === "inrbadge" ? (normalizeExternalHref(inrBadgePublicUrl) || "#") : m.key === "threads" ? (normalizeExternalHref(threadsUrl) || "#") : m.key === "site_web"
+    const specialViewHref = m.key === "inr_directory" ? getInrDirectoryUrl() : m.key === "inrbadge" ? (normalizeExternalHref(inrBadgePublicUrl) || "#") : m.key === "threads" ? (normalizeExternalHref(threadsUrl) || "#") : m.key === "site_web"
           ? (normalizeExternalHref(siteWebSavedUrl) || blockDrivenViewHref || "#")
           : m.key === "instagram"
           ? (normalizeExternalHref(instagramUrl) || "#")
@@ -248,7 +255,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
         ? moduleCopy?.view || viewAction?.label
         : undefined;
 
-    const canViewSpecial = m.key === "inrbadge"
+    const canViewSpecial = m.key === "inr_directory" ? true : m.key === "inrbadge"
       ? inrBadgeProfileReady && Boolean(inrBadgePublicUrl)
       : m.key === "threads" ? Boolean(threadsUrl) : m.key === "site_web"
           ? Boolean(blockDrivenViewHref || savedSiteWebUrlMeta)
@@ -284,6 +291,8 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
         return;
       }
       if (!accessEnabled) return;
+      if (m.key === "inr_directory") { openPanel("inr_directory"); return; }
+      if (m.key === "inr_directory") { openPanel("inr_directory"); return; }
 
       if (m.key === "tiktok") {
         openPanel("tiktok");

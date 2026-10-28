@@ -42,6 +42,7 @@ const TOOL_LABELS: Record<AppBubbleKey, { label: string; group: string; descript
   mails: { label: "Mails", group: "Diffusion", description: "Comptes mails et diffusion par email.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.mails },
   site_web: { label: "Site Web", group: "Diffusion", description: "Site du professionnel.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.site_web },
   gmb: { label: "Google Business", group: "Réseaux", description: "Fiche Google Business Profile.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.gmb },
+  inr_directory: { label: "iNr’Annuaire", group: "Visibilité", description: "Présence volontaire dans l’annuaire et QR code vers iNr’Badge.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.inr_directory },
   inr_search: { label: "iNr'Search", group: "Visibilité", description: "Page publique créée par iNrCy et optimisée pour Google, Bing et les moteurs IA.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.inr_search },
   facebook: { label: "Facebook", group: "Réseaux", description: "Page Facebook.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.facebook },
   instagram: { label: "Instagram", group: "Réseaux", description: "Compte Instagram.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.instagram },
@@ -313,7 +314,7 @@ export async function PATCH(request: NextRequest) {
         .upsert(rows, { onConflict: "user_id,bubble_key" });
 
       if (error) throw error;
-      if (rows.some((row) => row.bubble_key === "inr_search")) {
+      if (rows.some((row) => ["inr_search", "inr_directory", "inrbadge"].includes(row.bubble_key))) {
         await syncInrSearchDirectoryAfterAdminChange();
       }
       return NextResponse.json({ ok: true, updated: rows.length });
@@ -338,7 +339,7 @@ export async function PATCH(request: NextRequest) {
       );
 
     if (error) throw error;
-    if (bubbleKey === "inr_search") await syncInrSearchDirectoryAfterAdminChange();
+    if (["inr_search", "inr_directory", "inrbadge"].includes(bubbleKey)) await syncInrSearchDirectoryAfterAdminChange();
 
     return NextResponse.json({ ok: true, bubble_key: bubbleKey, enabled });
   } catch (error: any) {

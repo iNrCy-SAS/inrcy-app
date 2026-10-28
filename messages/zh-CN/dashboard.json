@@ -422,6 +422,12 @@
       "description": "与您的社群交流 💬",
       "view": "查看账户",
       "connect": "连接 Instagram"
+    },
+    "inr_directory": {
+      "name": "iNr’Annuaire",
+      "description": "让附近的客户找到您 📍",
+      "view": "查看名录",
+      "connect": "配置"
     }
   },
   "bubble": {

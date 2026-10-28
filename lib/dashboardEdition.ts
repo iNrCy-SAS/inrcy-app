@@ -98,7 +98,7 @@ export const STANDARD_PUBLICATION_CHANNEL_KEYS = [
   "x",
 ] as const;
 
-export const STANDARD_BONUS_CHANNEL_KEYS = ["inrbadge"] as const;
+export const STANDARD_BONUS_CHANNEL_KEYS = ["inrbadge", "inr_directory"] as const;
 
 function normalizePlan(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();

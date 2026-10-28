@@ -422,6 +422,12 @@
       "description": "พูดคุยกับชุมชนของคุณ 💬",
       "view": "ดูบัญชี",
       "connect": "เชื่อมต่อ Instagram"
+    },
+    "inr_directory": {
+      "name": "iNr’Annuaire",
+      "description": "ค้นหาผู้เชี่ยวชาญใกล้คุณ 📍",
+      "view": "ดูทำเนียบ",
+      "connect": "กำหนดค่า"
     }
   },
   "bubble": {

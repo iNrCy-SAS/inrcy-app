@@ -29,8 +29,9 @@ export type DashboardFluxBubbleData = {
   connection?: ChannelBubbleConnection;
 };
 
-export function ChannelBubbleIcon({ kind }: { kind: "eye" | "plug" | "disconnect" | "settings" | "create" | "widget" }) {
+export function ChannelBubbleIcon({ kind }: { kind: "eye" | "plug" | "disconnect" | "settings" | "create" | "widget" | "info" }) {
   if (kind === "disconnect") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>;
+  if (kind === "info") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10v.1" /></svg>;
   if (kind === "widget") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="18" rx="3" /><path d="M2 8h20M9 12l-3 3 3 3m6-6 3 3-3 3" /></svg>;
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     {kind === "eye" ? <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></> : kind === "plug" ? <><path d="M7 3v5m6-5v5M5 8h10v4a5 5 0 0 1-10 0V8Zm5 9v5m7-8h6m-3-3v6" /></> : kind === "settings" ? <><path d="m9 3-.6 2.3-2 .9-2.1-.6-1.6 2.8 1.5 1.7-.2 2.2-1.5 1.6 1.6 2.8 2.2-.5 1.9 1 .6 2.3h3.2l.7-2.3 1.9-1 2.2.5 1.6-2.8-1.5-1.6.1-2.2 1.4-1.7-1.6-2.8-2.1.6-2-.9L13 3H9Z" /><circle cx="11" cy="11.5" r="3" /></> : <path d="M12 5v14M5 12h14" />}
@@ -62,7 +63,8 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
   const viewHref = item.specialViewHref || item.viewAction?.href;
   const viewCallback = item.onSpecialView || item.viewAction?.onClick;
   const canView = item.canViewSpecial ?? Boolean(viewCallback || (viewHref && viewHref !== "#"));
-  const connectLabel = item.bubbleStatus === "reconnect" || connection?.accountConnected ? t("reconnect") : t("connect");
+  const connectLabel = connection?.connectLabel || (item.bubbleStatus === "reconnect" || connection?.accountConnected ? t("reconnect") : t("connect"));
+  const disconnectLabel = connection?.disconnectLabel || t("disconnect");
   const selectionCaption = t(item.key === "gmb" ? "selected" : item.key === "facebook" ? "selectedPage" : item.key === "pinterest" ? "selectedBoard" : item.key === "mails" ? "selectedMailbox" : "selectedAccount");
   const chooseLabel = t(item.key === "pinterest" ? "chooseBoard" : item.key === "facebook" ? "choosePage" : item.key === "mails" ? "chooseMailbox" : item.key === "gmb" ? "choose" : "chooseAccount");
   const options = connection?.options ?? [];
@@ -80,7 +82,7 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
   const showDisconnect = Boolean(disconnect && (connection?.accountConnected ?? Boolean(value)) && !(item.bubbleStatus === "reconnect" && canConnect));
   const showConnect = canConnect && !showDisconnect;
   const hasParameters = Boolean(connection?.parameters);
-  const showParameters = hasParameters && (!canConnect || hasResource);
+  const showParameters = hasParameters && (connection?.parametersAlwaysVisible || !canConnect || hasResource);
   const parametersLabel = connection?.parametersLabel || t(item.key === "mails" ? "signatureShort" : item.key === "pinterest" ? "boardsShort" : "parameters");
   const loadResourceChoices = () => {
     if (loaded.current || !connection?.onLoad || busy || connection.loading || disabled) return;
@@ -94,7 +96,6 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
   const loadingInResource = Boolean(!item.premiumLocked && !connection?.mailboxes && !connection?.resourceContent && !showConnect && (
     connection?.onSelect ? !value && (busy || connection.loading) : !hasResource && !disabled && connection?.loading
   ));
-  const statusText = loadingInResource ? "" : busy || (connection?.loading && !hasResource) ? t("loading") : connection?.notice || "";
 
   return <>
     <article key={itemKey ?? item.key} data-channel-bubble={item.key} aria-label={`${item.name} — ${item.bubbleStatusText}`} className={`${bubbleStyles.card} ${bubbleStyles.workspaceCard} ${styles[`accent_${item.accent}`]} ${item.bubbleStatus === "coming" ? bubbleStyles.comingSoon : ""} ${item.bubbleStatus === "reconnect" ? bubbleStyles.reconnectCard : ""}`}>
@@ -122,7 +123,7 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
           </div>}
           <div className={bubbleStyles.iconActions}>
             {canView ? viewCallback ? <button type="button" className={bubbleStyles.iconAction} title={viewLabel} aria-label={viewLabel} onClick={viewCallback}><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></button> : <a className={bubbleStyles.iconAction} href={viewHref} aria-label={viewLabel} title={viewLabel} target={/^https?:/.test(viewHref || "") ? "_blank" : undefined} rel="noreferrer"><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></a> : null}
-            {showDisconnect ? <button type="button" className={`${bubbleStyles.iconAction} ${bubbleStyles.disconnectIcon}`} aria-label={`${t("disconnect")} — ${connection?.accountLabel || connection?.resourceLabel || item.name}`} title={t("disconnect")} disabled={Boolean(busy || disabled)} aria-busy={Boolean(busy)} onClick={() => void run(disconnect)}><ChannelBubbleIcon kind="disconnect" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("disconnect")}</span></button> : null}
+            {showDisconnect ? <button type="button" className={`${bubbleStyles.iconAction} ${bubbleStyles.disconnectIcon}`} aria-label={`${disconnectLabel} — ${connection?.accountLabel || connection?.resourceLabel || item.name}`} title={disconnectLabel} disabled={Boolean(busy || disabled)} aria-busy={Boolean(busy)} onClick={() => void run(disconnect)}><ChannelBubbleIcon kind="disconnect" /><span className={bubbleStyles.actionText} aria-hidden="true">{disconnectLabel}</span></button> : null}
             {connection?.publicationTypes && hasResource ? <ChannelPublicationTypes name={item.name} settings={connection.publicationTypes} disabled={Boolean(disabled || busy)} /> : null}
             {connection?.extraActions}
             {showParameters ? <button type="button" className={bubbleStyles.iconAction} title={parametersLabel} aria-label={`${parametersLabel} — ${item.name}`} disabled={disabled || pending} onClick={() => setParametersOpen(true)}><ChannelBubbleIcon kind={connection?.parametersIcon || "settings"} /><span className={bubbleStyles.actionText} aria-hidden="true">{connection?.parametersLabel || item.key === "mails" || item.key === "pinterest" ? parametersLabel : t("settingsShort")}</span></button> : null}
@@ -132,9 +133,9 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
         </>}
       </div>
     </article>
-    {feedback || statusText ? <div data-channel-feedback={feedback ? "error" : "notice"} className={`${bubbleStyles.channelFeedback} ${feedback ? bubbleStyles.channelFeedbackError : ""}`} role={feedback ? "alert" : "status"}>
-      <svg className={bubbleStyles.channelFeedbackIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" />{feedback ? <path d="M12 7v6m0 3v1" /> : <path d="M12 11v6m0-10v.1" />}</svg>
-      <p>{feedback || statusText}</p>
+    {feedback ? <div data-channel-feedback="error" className={`${bubbleStyles.channelFeedback} ${bubbleStyles.channelFeedbackError}`} role="alert">
+      <svg className={bubbleStyles.channelFeedbackIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v6m0 3v1" /></svg>
+      <p>{feedback}</p>
     </div> : null}
     {parametersOpen && hasParameters ? <ChannelParametersDialog name={item.name} title={`${parametersLabel} — ${item.name}`} contentOnly={connection?.parametersOwnHeading} fullScreen={connection?.parametersFullScreen} onClose={() => { void requestNavigation(() => setParametersOpen(false)); }}>{connection?.parameters}</ChannelParametersDialog> : null}
     {connectOpen ? <ChannelParametersDialog name={item.name} title={`${connectLabel} — ${item.name}`} onClose={() => setConnectOpen(false)}>

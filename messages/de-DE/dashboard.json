@@ -422,6 +422,12 @@
       "description": "Tauschen Sie sich mit Ihrer Community aus 💬",
       "view": "Konto ansehen",
       "connect": "Instagram verbinden"
+    },
+    "inr_directory": {
+      "name": "iNr’Annuaire",
+      "description": "In Ihrer Nähe gefunden werden 📍",
+      "view": "Verzeichnis ansehen",
+      "connect": "Einrichten"
     }
   },
   "bubble": {

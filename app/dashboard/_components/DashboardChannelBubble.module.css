@@ -747,3 +747,6 @@
 .badgeCopyAction { position: relative; display: flex; }
 .badgeCopyNotice { position: absolute; z-index: 6; bottom: calc(100% + 8px); right: 0; width: max-content; max-width: 180px; padding: 8px 10px; border: 1px solid #8fbde799; border-radius: 10px; background: #152e53; color: #eaf6ff; font-size: 11px; line-height: 1.4; text-align: center; }
 .siteFirstHint { margin: 0; color: #c2d6ee; font-size: 10px; line-height: 1.35; text-align: center; }
+
+/* Icon actions keep their tooltip and accessible name without a duplicated caption. */
+.iconAction .actionText { display: none; }

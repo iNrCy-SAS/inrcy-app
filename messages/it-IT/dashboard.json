@@ -422,6 +422,12 @@
       "description": "Dialoga con la tua comunità 💬",
       "view": "Vedi account",
       "connect": "Collega Instagram"
+    },
+    "inr_directory": {
+      "name": "iNr’Annuaire",
+      "description": "Fatti trovare vicino ai clienti 📍",
+      "view": "Apri la directory",
+      "connect": "Configura"
     }
   },
   "bubble": {

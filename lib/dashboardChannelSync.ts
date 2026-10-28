@@ -222,7 +222,7 @@ export function buildOfficialDashboardChannelState(payload: unknown): OfficialDa
     xProfileUrl: String(x.profile_url || ""),
     inrSearchConnected: Boolean(inrSearch.connected),
     inrSearchUrl: String(inrSearch.profile_url || ""),
-    inrSearchDirectoryEnabled: Boolean(inrSearch.connected && inrSearch.directory_enabled),
+    inrSearchDirectoryEnabled: Boolean(inrSearch.directory_enabled),
     mailAccountsConnectedCount: sanitizeConnectedMailCount(states.mails.connectedCount),
     mailAccountsRequireUpdate: Boolean(states.mails.requiresUpdate),
   };

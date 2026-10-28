@@ -3,6 +3,7 @@ import { readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPa
 import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { NextResponse } from "next/server";
+import { normalizeBoosterSoundtrackByChannel, normalizeBoosterSoundtrackId } from "@/lib/boosterSoundtracks";
 import { POST as publishNowBooster } from "@/app/api/booster/publish-now/route";
 import { buildVideoSettingsByChannel } from "@/lib/boosterVideoSettings";
 import { inrAgentChannelImages } from "@/lib/inrAgentMediaFormats";
@@ -1018,6 +1019,17 @@ async function executeAgentActionHandler(request: Request) {
       { status: 400 },
     );
   }
+  let soundtrackId: string | null;
+  let soundtrackByChannel: ReturnType<typeof normalizeBoosterSoundtrackByChannel>;
+  try {
+    soundtrackId = normalizeBoosterSoundtrackId(Object.hasOwn(payload, "soundtrackId") ? payload.soundtrackId : nestedPublishPayload.soundtrackId);
+    soundtrackByChannel = {
+      ...normalizeBoosterSoundtrackByChannel(nestedPublishPayload.soundtrackByChannel),
+      ...normalizeBoosterSoundtrackByChannel(payload.soundtrackByChannel),
+    };
+  } catch {
+    return NextResponse.json({ error: "Une musique sélectionnée n’est plus valide.", code: "booster_soundtrack_invalid" }, { status: 400 });
+  }
   const imagePayloads = await buildImagePayloadsFromAgentAction(
     payload,
     actionId,
@@ -1171,6 +1183,8 @@ async function executeAgentActionHandler(request: Request) {
       mediaType: activeMediaMode === "video" ? "video" : "images",
       mediaModeByChannel,
       videoSettingsByChannel,
+      soundtrackId,
+      soundtrackByChannel,
       images: imagePayloads,
       imagesByChannel: preparedImages.imagesByChannel,
       imagesByPlacement: preparedImages.imagesByPlacement,

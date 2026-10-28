@@ -7,7 +7,7 @@ const root = process.cwd();
 const read = (relativePath: string) => readFileSync(join(root, relativePath), "utf8");
 
 test("the public directory API never serves a stale membership response", () => {
-  const route = read("app/api/public/inrsearch/directory/route.ts");
+  const route = read("app/api/public/directory/route.ts");
 
   assert.match(route, /export const dynamic = "force-dynamic"/);
   assert.match(route, /export const revalidate = 0/);
@@ -17,8 +17,8 @@ test("the public directory API never serves a stale membership response", () => 
 
 test("directory changes trigger an authenticated WordPress purge", () => {
   const cache = read("lib/inrSearchDirectoryCache.ts");
-  const settings = read("app/api/inr-search/settings/route.ts");
-  const settingsUi = read("app/dashboard/settings/_components/InrSearchSettingsContent.tsx");
+  const settings = read("app/api/inr-directory/settings/route.ts");
+  const settingsUi = read("app/dashboard/settings/_components/InrDirectorySettingsContent.tsx");
   const adminTools = read("app/api/admin/tools/route.ts");
 
   assert.match(cache, /createHmac\("sha256", secret\)/);
@@ -29,14 +29,14 @@ test("directory changes trigger an authenticated WordPress purge", () => {
   assert.match(settings, /await purgeInrSearchDirectoryCache/);
   assert.match(settings, /directory_enabled/);
   assert.match(settings, /directory_disabled/);
-  assert.match(settingsUi, /payload\?\.directoryCache\?\.ok === false/);
+  assert.match(settingsUi, /setNotice\(next\.warning/);
   assert.match(adminTools, /await purgeInrSearchDirectoryCache\(\{ reason: "admin_access_changed" \}\)/);
 });
 
 test("the WordPress plugin invalidates every filter and page cache atomically", () => {
   const plugin = read("ops/wordpress-directory-plugin/inrcy-directory.php");
 
-  assert.match(plugin, /Version: 1\.4\.2/);
+  assert.match(plugin, /Version: 2\.0\.0/);
   assert.match(plugin, /register_rest_route\(/);
   assert.match(plugin, /'\/directory-cache\/purge'/);
   assert.match(plugin, /hash_hmac\('sha256', \$timestamp \. '\.' \. \$request->get_body\(\), \$secret\)/);
@@ -73,7 +73,7 @@ test("the WordPress public pagination avoids WordPress reserved query variables"
   assert.doesNotMatch(plugin, /inrcy_directory_get_filter\('page'\)/);
 });
 
-test("the WordPress directory 1.4 is accessible, responsive and machine-readable", () => {
+test("the WordPress directory 2.0 is accessible, responsive and machine-readable", () => {
   const plugin = read("ops/wordpress-directory-plugin/inrcy-directory.php");
 
   assert.match(plugin, /'@type' => 'CollectionPage'/);
@@ -81,12 +81,12 @@ test("the WordPress directory 1.4 is accessible, responsive and machine-readable
   assert.match(plugin, /function inrcy_directory_body_class/);
   assert.match(plugin, /\.ast-article-single>\.entry-header\{display:none\}/);
   assert.doesNotMatch(plugin, /<h2><a href=/);
-  assert.match(plugin, /Voir le profil iNr’Search de %s/);
+  assert.match(plugin, /Ouvrir l’iNr’Badge de %s/);
   assert.match(plugin, /inrcy-directory__join/);
   assert.match(plugin, /min-width:44px;min-height:44px/);
   assert.match(
     plugin,
-    /\.inrcy-directory__grid\{display:grid;grid-template-columns:repeat\(auto-fill,minmax\(270px,1fr\)\);gap:16px\}/,
+    /\.inrcy-directory__grid\{display:grid;grid-template-columns:repeat\(auto-fill,minmax\(270px,1fr\)\);gap:18px/,
   );
   assert.doesNotMatch(plugin, /repeat\(auto-fit,minmax\(270px,1fr\)\)/);
   assert.match(plugin, /@media \(max-width:700px\)/);

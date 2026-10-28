@@ -139,7 +139,8 @@
       "notifications": "Notifications",
       "documents": "Réglages par défaut",
       "threads": "Configuration — Threads",
-      "factures": "Factures d’abonnement"
+      "factures": "Factures d’abonnement",
+      "inr_directory": "Configuration — iNr’Annuaire"
     }
   },
   "hero": {
@@ -365,7 +366,7 @@
     },
     "inr_search": {
       "name": "iNr’Search",
-      "description": "Votre page créée par iNrCy 🔎",
+      "description": "Votre visibilité sur les moteurs IA 🤖",
       "view": "Voir ma page",
       "connect": "Configurer"
     },
@@ -422,6 +423,12 @@
       "description": "Échangez avec votre communauté 💬",
       "view": "Voir le compte",
       "connect": "Connecter Instagram"
+    },
+    "inr_directory": {
+      "name": "iNr’Annuaire",
+      "description": "Votre entreprise visible sur inrcy.com",
+      "view": "Voir l’annuaire",
+      "connect": "Configurer"
     }
   },
   "bubble": {

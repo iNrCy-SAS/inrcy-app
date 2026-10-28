@@ -80,13 +80,12 @@ test("le Générateur central conserve ses commandes et son état accessible san
   const orb = read("app/dashboard/_components/DashboardGeneratorOrb.tsx");
   const css = read("app/dashboard/_components/DashboardExperience.module.css");
 
-  assert.match(generator, /aria-label=\{`\$\{heroT\("settingsAria"\)\} · \$\{generatorIsActive \? t\.hero\.active : t\.hero\.waiting\}`\}/);
-  assert.match(generator, /title=\{`\$\{heroT\("settingsTitle"\)\} · \$\{generatorIsActive \? t\.hero\.active : t\.hero\.waiting\} · \$\{inertiaHint\}`\}/);
+  assert.match(generator, /aria-label=\{`\$\{heroT\("generatorShortTitle"\)\} · \$\{generatorIsActive \? t\.hero\.active : t\.hero\.waiting\}`\}/);
   assert.match(generator, /<DashboardGeneratorOrb isActive=\{generatorIsActive\}/);
   assert.match(orb, /data-active=\{isActive === null \? "unknown" : String\(isActive\)\} aria-hidden="true"/);
   assert.match(orb, /<span className=\{styles\.status\} \/>/);
-  assert.doesNotMatch(generator, /<strong>|heroT\("generatorShortTitle"\)/);
-  for (const action of ["onOpenGeneratorHelp", "onOpenGeneratorSettings", "onRefreshGenerator"]) {
+  assert.doesNotMatch(generator, /<strong>|>\s*\{heroT\("generatorShortTitle"\)/);
+  for (const action of ["onOpenGeneratorHelp", "onRefreshGenerator"]) {
     assert.ok(generator.includes(`onClick={${action}}`), action);
   }
   assert.match(generator, /disabled=\{kpisLoading\} aria-busy=\{kpisLoading \|\| undefined\}/);
@@ -94,7 +93,8 @@ test("le Générateur central conserve ses commandes et son état accessible san
   const hero = read("app/dashboard/_components/DashboardHero.tsx");
   assert.match(hero, /uiBalance\.toLocaleString\(locale\)/);
   assert.match(css, /\.hubRow\s*\{[^}]*grid-area: generator/);
-  assert.match(css, /\.channelsHub:focus-visible/);
+  assert.doesNotMatch(css, /\.channelsHub:(?:hover|active|focus-visible)/);
+  assert.doesNotMatch(generator, /onOpenGeneratorSettings|settingsAria|settingsTitle/);
   assert.match(css, /@media \(max-width: 1100px\)/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
   for (const locale of locales) {

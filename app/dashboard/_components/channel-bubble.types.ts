@@ -24,6 +24,8 @@ export type ChannelBubbleConnection = {
   onSelect?: (value: string) => unknown | Promise<unknown>;
   onLoad?: () => unknown | Promise<unknown>;
   onCreateResource?: (name: string) => boolean | Promise<boolean>;
+  connectLabel?: string;
+  disconnectLabel?: string;
   onConnect?: () => unknown | Promise<unknown>;
   connectOptions?: { label: string; onConnect: () => unknown | Promise<unknown>; menu?: string; primary?: boolean }[];
   connectNotice?: string;
@@ -37,7 +39,8 @@ export type ChannelBubbleConnection = {
   notice?: string | null;
   parameters?: ReactNode;
   parametersLabel?: string;
-  parametersIcon?: "widget";
+  parametersIcon?: "widget" | "info";
+  parametersAlwaysVisible?: boolean;
   parametersOwnHeading?: boolean;
   parametersFullScreen?: boolean;
   publicationTypes?: {

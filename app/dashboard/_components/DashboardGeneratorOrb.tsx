@@ -2,7 +2,7 @@
 
 import styles from "./DashboardGeneratorOrb.module.css";
 
-/** Shared decorative drawing. Its parent owns the action and accessible label. */
+/** Shared decorative drawing. Its host may describe the state, without an action. */
 export default function DashboardGeneratorOrb({ isActive, className = "", bare = false }: {
   isActive: boolean | null;
   className?: string;

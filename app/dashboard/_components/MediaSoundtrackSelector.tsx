@@ -6,18 +6,21 @@ import { useTranslations } from "next-intl";
 import { parseMediaSoundtrackOptions, type MediaSoundtrackOption } from "@/lib/mediaSoundtrackSelection";
 import styles from "./MediaSoundtrackSelector.module.css";
 
-type Props = { soundtrackId: string | null; onChange: (id: string | null) => void; disabled?: boolean; scopeKey?: string; selectionLocked?: boolean; compact?: boolean; inline?: boolean; channelLabel?: string; unavailableHint?: string; channelStyle?: CSSProperties };
+type Props = { soundtrackId: string | null; onChange: (id: string | null) => void; disabled?: boolean; scopeKey?: string; selectionLocked?: boolean; compact?: boolean; inline?: boolean; iconOnly?: boolean; channelLabel?: string; unavailableHint?: string; inactiveHint?: string; channelStyle?: CSSProperties };
 const ACTIVATION_EVENT = "inrcy:media-soundtrack-activate";
+const CATALOGUE_TIMEOUT_MS = 10_000;
 
 /** Controlled selection over the shared iNrCy catalogue. Previewing never generates media. */
-export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabled = false, scopeKey = "", selectionLocked = false, compact = false, inline = false, channelLabel, unavailableHint, channelStyle }: Props) {
+export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabled = false, scopeKey = "", selectionLocked = false, compact = false, inline = false, iconOnly = false, channelLabel, unavailableHint, inactiveHint, channelStyle }: Props) {
   const t = useTranslations("booster");
+  const commonT = useTranslations("common");
   const titleId = useId(), selectionId = useId();
   const [open, setOpen] = useState(false);
   const [showUnavailableHint, setShowUnavailableHint] = useState(false);
   const [tracks, setTracks] = useState<MediaSoundtrackOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [previewError, setPreviewError] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [activeChoice, setActiveChoice] = useState(0);
@@ -46,19 +49,18 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
   }, [titleId, close]);
 
   useEffect(() => {
-    stopPreview(); setOpen(false); setShowUnavailableHint(false); setTracks([]); setLoadError(false); setPreviewError(false);
+    stopPreview(); setOpen(false); setShowUnavailableHint(false); setTracks([]); setLoading(false); setLoadError(false); setPreviewError(false);
     loadedScopeRef.current = null;
-    controllerRef.current?.abort(); controllerRef.current = null;
     const audio = audioRef.current;
     return () => {
-      controllerRef.current?.abort(); controllerRef.current = null; playingRef.current = null;
+      playingRef.current = null;
       if (audio) { audio.pause(); audio.removeAttribute("src"); audio.load(); }
     };
   }, [scopeKey, inline, stopPreview]);
 
   useEffect(() => { stopPreview(); setPreviewError(false); }, [soundtrackId, stopPreview]);
   useEffect(() => { if (disabled || unavailableHint) close(); }, [disabled, unavailableHint, close]);
-  useEffect(() => { if (selectionLocked) { stopPreview(); if (inline) setOpen(false); } }, [selectionLocked, inline, stopPreview]);
+  useEffect(() => { if (selectionLocked) stopPreview(); }, [selectionLocked, stopPreview]);
 
   useEffect(() => {
     if (!inline || !open) return;
@@ -77,19 +79,37 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
   }, [showUnavailableHint]);
 
   useEffect(() => {
-    if ((!inline && unavailableHint) || (!inline && !open && !soundtrackId) || loadedScopeRef.current === scopeKey || controllerRef.current) return;
+    if ((!inline && unavailableHint) || (!inline && !open && !soundtrackId) || loadedScopeRef.current === scopeKey) {
+      setLoading(false);
+      return;
+    }
+    controllerRef.current?.abort();
     const controller = new AbortController(); controllerRef.current = controller;
+    let active = true;
     setLoading(true); setLoadError(false);
+    const timeout = window.setTimeout(() => {
+      if (!active || controllerRef.current !== controller) return;
+      controller.abort(); controllerRef.current = null;
+      setLoadError(true); setLoading(false);
+    }, CATALOGUE_TIMEOUT_MS);
     void fetch("/api/booster/soundtracks", { credentials: "same-origin", cache: "no-store", signal: controller.signal })
       .then(async response => { if (!response.ok) throw new Error("catalogue_unavailable"); return parseMediaSoundtrackOptions(await response.json()); })
       .then(options => {
-        if (controller.signal.aborted || controllerRef.current !== controller) return;
+        if (!active || controller.signal.aborted || controllerRef.current !== controller) return;
         if (!options.length) throw new Error("catalogue_empty");
         loadedScopeRef.current = scopeKey; setTracks(options);
       })
-      .catch(() => { if (!controller.signal.aborted && controllerRef.current === controller) setLoadError(true); })
-      .finally(() => { if (controllerRef.current === controller) { controllerRef.current = null; setLoading(false); } });
-  }, [open, soundtrackId, scopeKey, unavailableHint, inline]);
+      .catch(() => { if (active && !controller.signal.aborted && controllerRef.current === controller) setLoadError(true); })
+      .finally(() => {
+        window.clearTimeout(timeout);
+        if (active && controllerRef.current === controller) { controllerRef.current = null; setLoading(false); }
+      });
+    return () => {
+      active = false; window.clearTimeout(timeout); controller.abort();
+      if (controllerRef.current === controller) controllerRef.current = null;
+      setLoading(false);
+    };
+  }, [open, soundtrackId, scopeKey, unavailableHint, inline, loadAttempt]);
 
   useEffect(() => {
     if (!open || inline) return;
@@ -172,7 +192,13 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
     else if (option.offsetTop + option.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = option.offsetTop + option.offsetHeight - list.clientHeight;
   }, [open, activeChoice]);
   const title = channelLabel ? `${t("publication_music_label")} · ${channelLabel}` : t("publication_music_title");
+  const loadFailure = loadError ? <span className={inline ? styles.inlineNotice : styles.loadNotice} role="alert">
+    <span>{t("publication_music_unavailable")}</span>
+    <button type="button" className={styles.retry} data-soundtrack-retry disabled={disabled || selectionLocked || Boolean(unavailableHint)}
+      onClick={() => { loadedScopeRef.current = null; setLoadAttempt(attempt => attempt + 1); }}>{commonT("retry")}</button>
+  </span> : null;
   const hintId = `${titleId}-unavailable`;
+  const inactiveHintId = `${titleId}-inactive`;
   const soundtrackList = <ul ref={listRef} id={listId} role="listbox" aria-label={t("publication_music_label")} className={`${styles.trackList}${inline ? ` ${styles.inlineList}` : ""}`}
     tabIndex={disabled || selectionLocked || loading || unavailableHint ? -1 : 0} aria-disabled={disabled || selectionLocked || loading || Boolean(unavailableHint)}
     aria-activedescendant={`${selectionId}-choice-${activeChoice}`} onKeyDown={pickerKey}>
@@ -186,35 +212,36 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
     aria-pressed={Boolean(selected && playingId === selected.id)} onClick={() => { if (selected) void preview(selected); }}>{selected && playingId === selected.id ? "■" : "▶"}</button>;
   return <span ref={rootRef} className={`${styles.root}${inline ? ` ${styles.inlineRoot}` : ""}`} style={inline ? channelStyle : undefined} data-soundtrack-inline={inline || undefined}
     onKeyDownCapture={event => { if (inline && open && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setOpen(false); triggerRef.current?.focus({ preventScroll: true }); } }}
-    onBlurCapture={event => { if (inline && open && !event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}
+    onBlurCapture={event => { if (inline && open && !(selectionLocked && !event.relatedTarget) && !event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}
     onPointerEnter={event => { if (unavailableHint && event.pointerType !== "touch") setShowUnavailableHint(true); }}
     onPointerLeave={() => { if (document.activeElement !== triggerRef.current) setShowUnavailableHint(false); }}>
     {inline ? <>
       <span className={styles.inlinePicker}>
-        <button ref={triggerRef} id={selectionId} type="button" className={styles.inlineControl} role="combobox" aria-label={`${title} · ${selectedLabel}`} data-selected-soundtrack data-unavailable={Boolean(unavailableHint)}
-          disabled={disabled || loading || selectionLocked} aria-disabled={disabled || loading || selectionLocked || Boolean(unavailableHint)} aria-busy={loading}
+        <button ref={triggerRef} id={selectionId} type="button" className={styles.inlineControl} role="combobox" aria-label={`${title} · ${selectedLabel}`} data-selected-soundtrack data-unavailable={Boolean(unavailableHint || inactiveHint)}
+          disabled={disabled || loading} aria-disabled={disabled || loading || selectionLocked || Boolean(unavailableHint)} aria-busy={loading}
           aria-controls={open ? listId : undefined} aria-expanded={open} aria-haspopup="listbox" aria-autocomplete="none"
-          aria-activedescendant={open ? `${selectionId}-choice-${activeChoice}` : undefined} aria-describedby={unavailableHint ? hintId : undefined}
-          title={unavailableHint || (selectionLocked ? t("publication_music_resume_locked") : `${title} · ${selectedLabel}`)}
+          aria-activedescendant={open ? `${selectionId}-choice-${activeChoice}` : undefined} aria-describedby={unavailableHint ? hintId : inactiveHint ? inactiveHintId : undefined}
+          title={unavailableHint || inactiveHint || (selectionLocked ? t("publication_music_resume_locked") : `${title} · ${selectedLabel}`)}
           onFocus={() => { if (unavailableHint) setShowUnavailableHint(true); }} onBlur={event => { if (!rootRef.current?.contains(event.relatedTarget)) { setOpen(false); setShowUnavailableHint(false); } }} onKeyDown={pickerKey}
-          onClick={() => { if (unavailableHint) { setShowUnavailableHint(true); return; } if (open) setOpen(false); else openInlineList(); }}>
+          onClick={() => { if (disabled || loading || selectionLocked) return; if (unavailableHint) { setShowUnavailableHint(true); return; } if (open) setOpen(false); else openInlineList(); }}>
           <svg className={styles.inlineMusicIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M9 18V5l12-3v13M9 9l12-3"/><ellipse cx="6" cy="18" rx="3" ry="2.5"/><ellipse cx="18" cy="15" rx="3" ry="2.5"/></svg>
-          <span>{loading ? t("publication_music_loading") : selectedLabel}</span><svg className={styles.inlineChevron} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+          <span>{loading ? t("chargement_01cba1df") : selectedLabel}</span><svg className={styles.inlineChevron} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
         </button>
         {open ? soundtrackList : null}
       </span>
       {previewButton}
-      {loadError ? <span className={styles.inlineNotice} role="alert">{t("publication_music_unavailable")}</span> : null}
+      {loadFailure}
       {previewError ? <span className={styles.inlineNotice} role="alert">{t("publication_music_preview_unavailable")}</span> : null}
-    </> : <button ref={triggerRef} type="button" className={styles.trigger} data-compact={compact} data-unavailable={Boolean(unavailableHint)} disabled={disabled} aria-disabled={disabled || Boolean(unavailableHint)}
-      aria-label={`${title} · ${selectedLabel}`} title={unavailableHint ? undefined : `${title} · ${selectedLabel}`} aria-describedby={unavailableHint ? hintId : undefined}
+    </> : <button ref={triggerRef} type="button" className={styles.trigger} data-compact={compact} data-icon-only={iconOnly || undefined} data-unavailable={Boolean(unavailableHint || inactiveHint)} disabled={disabled} aria-disabled={disabled || Boolean(unavailableHint)}
+      aria-label={`${title} · ${selectedLabel}`} title={unavailableHint || inactiveHint ? undefined : `${title} · ${selectedLabel}`} aria-describedby={unavailableHint ? hintId : undefined}
       aria-haspopup={unavailableHint ? undefined : "dialog"} aria-expanded={unavailableHint ? showUnavailableHint : open}
       onFocus={() => { if (unavailableHint) setShowUnavailableHint(true); }} onBlur={() => setShowUnavailableHint(false)}
       onClick={() => { if (disabled) return; if (unavailableHint) { setShowUnavailableHint(true); return; } activate(); setOpen(true); }}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M9 18V5l12-3v13M9 9l12-3"/><ellipse cx="6" cy="18" rx="3" ry="2.5"/><ellipse cx="18" cy="15" rx="3" ry="2.5"/></svg>
-      <span className={compact ? styles.srOnly : undefined}>{t("publication_music_label")}</span><strong>{selectedLabel}</strong>
+      <span className={compact || iconOnly ? styles.srOnly : undefined}>{t("publication_music_label")}</span><strong className={iconOnly ? styles.srOnly : undefined}>{selectedLabel}</strong>
     </button>}
     {unavailableHint ? <span id={hintId} role="tooltip" className={styles.unavailableHint} hidden={!showUnavailableHint}>{unavailableHint}</span> : null}
+    {inline && inactiveHint && !unavailableHint ? <span id={inactiveHintId} className={styles.srOnly}>{inactiveHint}</span> : null}
     <audio ref={audioRef} preload="none" onEnded={() => { playingRef.current = null; setPlayingId(null); }} />
     {!inline && open && typeof document !== "undefined" ? createPortal(<dialog ref={dialogRef} className={styles.dialog} style={channelStyle} aria-labelledby={titleId}
       onCancel={event => { event.preventDefault(); event.stopPropagation(); close(); }}
@@ -222,6 +249,7 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
       onClick={event => { if (event.target === event.currentTarget) close(); }}>
       <header className={styles.header}><h2 id={titleId}>{title}</h2><button type="button" className={styles.close} onClick={close} aria-label={t("publication_music_close")}>×</button></header>
       <p className={styles.description}>{t("publication_music_scope")}</p>
+      {inactiveHint ? <p className={styles.description} role="status">{inactiveHint}</p> : null}
       {selectionLocked ? <p className={styles.description} role="status">{t("publication_music_resume_locked")}</p> : null}
       <fieldset className={styles.options} disabled={disabled || selectionLocked || Boolean(unavailableHint)}>
         <legend className={styles.srOnly}>{t("publication_music_title")}</legend>
@@ -234,7 +262,7 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
         </div>
         <p className={styles.trackDescription}>{selected?.description || t("publication_music_auto_description")}</p>
         {loading ? <p role="status">{t("publication_music_loading")}</p> : null}
-        {loadError ? <p role="alert">{t("publication_music_unavailable")}</p> : null}
+        {loadFailure}
       </fieldset>
       {previewError ? <p className={styles.error} role="alert">{t("publication_music_preview_unavailable")}</p> : null}
       <footer className={styles.footer}><button type="button" onClick={close}>{t("publication_music_done")}</button></footer>

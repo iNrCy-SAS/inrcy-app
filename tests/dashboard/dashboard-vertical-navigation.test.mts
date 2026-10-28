@@ -17,7 +17,7 @@ const layout = read("app/dashboard/layout.tsx");
 const memory = read("app/dashboard/_components/DashboardScrollMemory.tsx");
 const scroll = read("app/dashboard/dashboard.scroll.ts");
 
-test("le cockpit ouvre les canaux et le hub central ouvre le Générateur sans modifier leurs fenêtres", () => {
+test("le cockpit ouvre les canaux et le Générateur central reste décoratif", () => {
   // Keep the existing landmarks for links and scroll restoration, without the obsolete jump buttons.
   assert.match(dashboard, /id=\{DASHBOARD_TOP_ANCHOR_ID\}/);
   assert.match(channels, /id=\{DASHBOARD_TOOLS_ANCHOR_ID\}/);
@@ -28,8 +28,8 @@ test("le cockpit ouvre les canaux et le hub central ouvre le Générateur sans m
   assert.match(hero, /action: onOpenChannels/);
   assert.match(dashboard, /onOpenChannels=\{\(\) => setChannelConnectionsOpen\(true\)\}/);
   assert.match(generator, /data-testid="dashboard-generator-hub"/);
-  assert.match(generator, /onClick=\{onOpenGeneratorSettings\}/);
-  assert.match(generator, /aria-haspopup="dialog"/);
+  assert.doesNotMatch(generator, /onOpenGeneratorSettings|settingsAria|settingsTitle/);
+  assert.match(generator, /role="img"/);
   assert.doesNotMatch(channels, /data-testid="dashboard-channels-hub"/);
   assert.match(channels, /getChannelTone\(item\) === "connected"/);
   assert.match(channels, /summary=\{\{ connected, total \}\}/);

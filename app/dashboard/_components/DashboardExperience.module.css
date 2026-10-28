@@ -38,14 +38,14 @@
   color: #fff;
   background: radial-gradient(circle at 32% 15%, #205ccb, #0c174b 44%, #311078 95%) padding-box, conic-gradient(from 35deg, #ad70ff, #e06aec, #8368ff, #36d4ff, #3ae8ff, #7593ff, #ad70ff) border-box;
   box-shadow: 0 0 0 6px #080e2cf2, 0 0 0 7px #4f8af877, 0 0 30px #298df46b, 0 0 55px #9848d333, inset 0 0 19px #699dff50;
-  cursor: pointer;
+  cursor: default;
   transition: transform 220ms ease, box-shadow 220ms ease;
   -webkit-tap-highlight-color: transparent;
 }
 .channelsHub::before { content: ""; position: absolute; inset: 5px; border: 1px solid #b6cfff3b; border-radius: 50%; pointer-events: none; background: linear-gradient(140deg, #c5eaff1a, transparent 50%); }
-.channelsHub:hover { transform: translateY(-3px) scale(1.035); box-shadow: 0 0 0 6px #080e2cf2, 0 0 0 7px #73afffcc, 0 0 38px #298df4aa, 0 0 65px #9848d366, inset 0 0 22px #699dff80; }
-.channelsHub:active { transform: scale(.98); }
-.channelsHub:focus-visible { outline: 3px solid #b7f3ff; outline-offset: 10px; }
+
+
+
 .hubCore { position: absolute; display: block; inset: 0; width: 100%; height: 100%; pointer-events: none; border-radius: inherit; animation: generatorSurface 18s linear infinite; }
 .hubCore > span { position: absolute; inset: 0; width: 100%; height: 100%; transform: none; pointer-events: none; }
 .hubCore > span::before { inset: 5px; }
@@ -68,8 +68,8 @@
     box-shadow: 0 0 0 5px #080e2cf2, 0 0 0 6px #4f8af877, 0 0 25px #298df46b, 0 0 46px #9848d333, inset 0 0 16px #699dff50;
   }
   .channelsHub::before { inset: 4px; }
-  .channelsHub:hover { box-shadow: 0 0 0 5px #080e2cf2, 0 0 0 6px #73afffcc, 0 0 32px #298df4aa, 0 0 55px #9848d366, inset 0 0 19px #699dff80; }
-  .channelsHub:focus-visible { outline-offset: 8px; }
+
+
   .hubCore > span::before { inset: 4px; }
   /* Only the orb occupies the row: unequal command groups cannot shift its centre. */
   .generatorLeftControls { position: absolute; top: 50%; right: calc(100% + 16px); z-index: 12; display: flex; align-items: center; gap: 9px; transform: translateY(-50%); }
@@ -96,7 +96,7 @@
 @media (prefers-reduced-motion: reduce) {
   .channelsHub { transition: none; }
   .hubCore { animation: none; }
-  .channelsHub:hover { transform: none; }
+
   .generatorAction[aria-busy="true"] svg { animation: none; }
 }
 

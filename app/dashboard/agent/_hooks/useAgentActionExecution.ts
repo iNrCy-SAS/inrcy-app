@@ -56,6 +56,7 @@ type UseAgentActionExecutionParams = {
   exitScheduledEditSession: ExitScheduledEditSession;
   deleteScheduledEditAction: () => Promise<void>;
   showNotice: (message: string) => void;
+  beforePublicationMutation?: (action: AgentPreparedAction) => Promise<AgentPreparedAction>;
 };
 
 function wait(ms: number) {
@@ -77,6 +78,7 @@ export function useAgentActionExecution({
   exitScheduledEditSession,
   deleteScheduledEditAction,
   showNotice,
+  beforePublicationMutation,
 }: UseAgentActionExecutionParams) {
   const i18nT = useTranslations("agent");
   const [actionMutationState, setActionMutationState] =
@@ -238,14 +240,20 @@ export function useAgentActionExecution({
     setNotice(null);
     setAgentCampaignLaunchNotice(null);
     setAgentPublishSuccessSummary(null);
-    startAgentPublishProgress(request.action);
 
     try {
+      const actionToExecute = beforePublicationMutation
+        ? await beforePublicationMutation(request.action)
+        : request.action;
+      if (actionToExecute.id !== request.actionId) {
+        throw new Error(i18nT("immediate_other_channels_failed"));
+      }
+      startAgentPublishProgress(actionToExecute);
       const response = await fetch("/api/agent/actions/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          actionId: request.actionId,
+          actionId: actionToExecute.id,
           channels: request.channels,
           preserveActionStatus: true,
           ...(request.tiktokPublicationSettings
@@ -449,8 +457,9 @@ export function useAgentActionExecution({
       tiktokPublicationSettings?: TiktokPublicationSettings | null;
     } = {},
   ) {
-    const actionToExecute = selectedPreparedAction;
-    if (!actionToExecute || actionMutationState === "saving") return;
+    const selectedAction = selectedPreparedAction;
+    if (!selectedAction || actionMutationState === "saving") return;
+    let actionToExecute = selectedAction;
 
     if (scheduledEditSession) {
       if (status === "refused") {
@@ -461,31 +470,39 @@ export function useAgentActionExecution({
       return;
     }
 
-    const isImmediatePublishExecution =
-      status === "validated" &&
-      actionToExecute.automationKey === "publish" &&
-      actionToExecute.targetTool === "booster" &&
-      actionToExecute.actionType === "publication";
-    const isImmediateCampaignExecution =
-      status === "validated" &&
-      (actionToExecute.automationKey === "grow" ||
-        actionToExecute.automationKey === "loyalty" ||
-        actionToExecute.targetTool === "mails" ||
-        actionToExecute.actionType === "mailing" ||
-        actionToExecute.actionType === "campaign");
+    let isImmediatePublishExecution = false;
+    let isImmediateCampaignExecution = false;
 
     setActionMutationIntent(status);
     setActionMutationState("saving");
     setNotice(null);
     setAgentCampaignLaunchNotice(null);
-    if (isImmediatePublishExecution) {
-      setValidationChoiceOpen(false);
-      setValidationScheduleOpen(false);
-      setAgentPublishSuccessSummary(null);
-      startAgentPublishProgress(actionToExecute);
-    }
 
     try {
+      if (beforePublicationMutation) {
+        actionToExecute = await beforePublicationMutation(selectedAction);
+        if (actionToExecute.id !== selectedAction.id) {
+          throw new Error(i18nT("mise_a_jour_de_l_action_1d95f4a2"));
+        }
+      }
+      isImmediatePublishExecution =
+        status === "validated" &&
+        actionToExecute.automationKey === "publish" &&
+        actionToExecute.targetTool === "booster" &&
+        actionToExecute.actionType === "publication";
+      isImmediateCampaignExecution =
+        status === "validated" &&
+        (actionToExecute.automationKey === "grow" ||
+          actionToExecute.automationKey === "loyalty" ||
+          actionToExecute.targetTool === "mails" ||
+          actionToExecute.actionType === "mailing" ||
+          actionToExecute.actionType === "campaign");
+      if (isImmediatePublishExecution) {
+        setValidationChoiceOpen(false);
+        setValidationScheduleOpen(false);
+        setAgentPublishSuccessSummary(null);
+        startAgentPublishProgress(actionToExecute);
+      }
       const endpoint =
         status === "validated"
           ? "/api/agent/actions/execute"

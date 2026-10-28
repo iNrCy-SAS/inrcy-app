@@ -1,5 +1,5 @@
 .trigger.trigger { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 32px; width: 32px; min-width: 32px; height: 32px; min-height: 32px; margin: 0 0 0 8px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #f5edff; vertical-align: middle; cursor: pointer; overflow: visible; }
-.trigger img { display: block; width: 30px; height: 30px; object-fit: contain; filter: drop-shadow(0 0 5px #ff75d455); }
+.trigger.trigger > img { display: block; flex: none; width: 36px; height: 36px; max-width: none; max-height: none; object-fit: contain; filter: drop-shadow(0 0 5px #ff75d455); }
 .trigger:focus-visible { outline: 2px solid #a6e5ff; outline-offset: 3px; }
 .badge { position: absolute; top: 0; right: 0; display: block; box-sizing: border-box; width: 10px; height: 10px; border: 2px solid #0d1429; border-radius: 50%; pointer-events: none; }
 .badge[data-state="active"] { background: #7be3b1; box-shadow: 0 0 6px #7be3b166; }

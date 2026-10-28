@@ -22,6 +22,7 @@ import XSettingsContent from "../settings/_components/XSettingsContent";
 import YoutubeShortsSettingsContent from "../settings/_components/YoutubeShortsSettingsContent";
 import PinterestSettingsContent from "../settings/_components/PinterestSettingsContent";
 import MailsSettingsContent from "../settings/_components/MailsSettingsContent";
+import InrDirectorySettingsContent from "../settings/_components/InrDirectorySettingsContent";
 import InrSearchSettingsContent from "../settings/_components/InrSearchSettingsContent";
 
 type Props = ReturnType<typeof buildDashboardPanelProps> & {
@@ -63,6 +64,7 @@ export default function DashboardChannelWorkspace(props: Props) {
     case "youtube_shorts": return <YoutubeShortsSettingsContent key={revision} renderBubble={renderBubble} onUnsavedChange={setDirty} />;
     case "pinterest": return <PinterestSettingsContent key={revision} renderBubble={renderBubble} onUnsavedChange={setDirty} />;
     case "mails": return <MailsSettingsContent key={revision} renderBubble={renderBubble} onUnsavedChange={setDirty} />;
+    case "inr_directory": return <InrDirectorySettingsContent renderBubble={renderBubble} initialEnabled={props.inrSearchDirectoryEnabled} />;
     case "inr_search": return <InrSearchSettingsContent renderBubble={renderBubble} initialConnected={props.inrSearchConnected} initialPublicUrl={props.inrSearchUrl} initialDirectoryEnabled={props.inrSearchDirectoryEnabled} />;
   }
 

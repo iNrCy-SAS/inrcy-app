@@ -1,4 +1,5 @@
 import "server-only";
+import { isInrDirectoryEnabled } from "@/lib/inrDirectorySettings";
 
 import { revalidatePath, revalidateTag } from "next/cache";
 
@@ -163,6 +164,8 @@ export async function ensureSystemManagedInrSearch(
   const profile = asRecord(selectedProfile);
   const business = asRecord(businessRes.data);
   const root = asRecord(asRecord(configData).settings);
+  // Capture the old opt-in before normalizing Search; reading Search must not change directory consent.
+  if (typeof asRecord(root.inrDirectory).enabled !== "boolean") root.inrDirectory = { ...asRecord(root.inrDirectory), enabled: isInrDirectoryEnabled(root) };
   const current = asRecord(root.inrSearch);
   const configuredTitle = current.identityProvisional === true
     ? ""

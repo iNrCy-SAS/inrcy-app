@@ -1,4 +1,5 @@
 "use client";
+import { isInrDirectoryEnabled } from "@/lib/inrDirectorySettings";
 
 import { clampDashboardChannelPowerForAccess, computeDashboardChannelPower } from "@/lib/dashboardChannelPower";
 import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
@@ -1336,11 +1337,9 @@ useEffect(() => {
     const detail = (event as CustomEvent)?.detail ?? {};
     const connected = Boolean(detail.connected);
     const profileUrl = typeof detail.profileUrl === "string" ? detail.profileUrl : "";
-    const directoryEnabled = Boolean(detail.directoryEnabled && connected);
     setInrSearchConnected(connected);
     setInrSearchUrl(profileUrl);
-    setInrSearchDirectoryEnabled(directoryEnabled);
-    const patch = { inrSearchConnected: connected, inrSearchUrl: profileUrl, inrSearchDirectoryEnabled: directoryEnabled };
+    const patch = { inrSearchConnected: connected, inrSearchUrl: profileUrl };
     inrSearchStatusRevisionRef.current += 1;
     officialChannelStatesRequestSeqRef.current += 1;
     setGeneratorPowerRevalidating(false);
@@ -1353,9 +1352,20 @@ useEffect(() => {
     }
   };
 
+  const handleDirectoryUpdate = (event: Event) => {
+    const detail = (event as CustomEvent).detail || {};
+    if (detail.accountId !== getActiveBrowserUserId()) return;
+    const enabled = Boolean(detail.directoryEnabled);
+    setInrSearchDirectoryEnabled(enabled);
+    mergeCachedDashboardChannelState({ inrSearchDirectoryEnabled: enabled });
+    inrSearchStatusRevisionRef.current += 1;
+    officialChannelStatesRequestSeqRef.current += 1;
+  };
+  window.addEventListener("inrcy:inr-directory-settings-updated", handleDirectoryUpdate);
   window.addEventListener("inrcy:pinterest-settings-updated", handlePinterestUpdate);
   window.addEventListener("inrcy:inr-search-settings-updated", handleInrSearchUpdate);
   return () => {
+    window.removeEventListener("inrcy:inr-directory-settings-updated", handleDirectoryUpdate);
     window.removeEventListener("inrcy:pinterest-settings-updated", handlePinterestUpdate);
     window.removeEventListener("inrcy:inr-search-settings-updated", handleInrSearchUpdate);
   };
@@ -1395,8 +1405,7 @@ useEffect(() => {
   if (!canAccessInrSearch) {
     setInrSearchConnected(false);
     setInrSearchUrl("");
-    setInrSearchDirectoryEnabled(false);
-    mergeCachedDashboardChannelState({ inrSearchConnected: false, inrSearchUrl: "", inrSearchDirectoryEnabled: false });
+    mergeCachedDashboardChannelState({ inrSearchConnected: false, inrSearchUrl: "" });
     return () => {
       cancelled = true;
     };
@@ -1423,7 +1432,7 @@ useEffect(() => {
         const publication = payload.publication && typeof payload.publication === "object" ? payload.publication : {};
         const slug = String(config.slug || "").trim();
         const connected = Boolean(config.enabled && slug && publication.allowed);
-        const directoryEnabled = Boolean(config.enabled && config.directoryEnabled && publication.allowed);
+        const directoryEnabled = Boolean(payload.directoryEnabled);
         const profileUrl = slug ? `${getRuntimeInrSearchOrigin()}/entreprises/${slug}` : "";
         setInrSearchConnected(connected);
         setInrSearchUrl(profileUrl);
@@ -1953,7 +1962,7 @@ const loadSiteWebSettings = useCallback(async () => {
     linkedinShareToPersonalProfile: liObj?.shareToPersonalProfile === true || liObj?.shareToPersonalProfile === "true",
     inrSearchConnected: Boolean(inrSearchObj?.enabled && inrSearchSlug),
     inrSearchUrl: inrSearchUrlValue,
-    inrSearchDirectoryEnabled: Boolean(inrSearchObj?.enabled && inrSearchObj?.directoryEnabled),
+    inrSearchDirectoryEnabled: isInrDirectoryEnabled(proSettingsObj),
     inrBadgeProfile: nextInrBadgeProfile,
   };
 
@@ -2049,6 +2058,7 @@ const siteWebAllGreen = siteWebProgressCount === 3;
 // reste enregistrée après un retour au pack Standard.
 const channelPowerConnected: Record<DashboardSetupChannelKey, boolean> = {
   inrbadge: inrBadgeProfileReady,
+  inr_directory: Boolean(inrSearchDirectoryEnabled),
   site_web: hasSiteWebUrl,
   gmb: Boolean(gmbConnected && gmbConnectionStatus !== "needs_update"),
   inr_search: Boolean(canAccessInrSearch && inrSearchConnected),
@@ -3843,6 +3853,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     pinterestConnected,
     pinterestRequiresUpdate,
     pinterestUrl,
+    inrDirectoryEnabled: inrSearchDirectoryEnabled,
     inrSearchConnected,
     inrSearchUrl,
     youtubeShortsConnected,
@@ -3895,6 +3906,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     pinterestConnected,
     pinterestRequiresUpdate,
     pinterestUrl,
+    inrSearchDirectoryEnabled,
     inrSearchConnected,
     inrSearchUrl,
     youtubeShortsConnected,
@@ -4183,13 +4195,11 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
             onDesktopLeftHost={setDesktopLeftHost}
             onDesktopRightHost={setDesktopRightHost}
             onOpenGeneratorHelp={openUsageGuide}
-            onOpenGeneratorSettings={() => setGeneratorSettingsOpen(true)}
             onRefreshGenerator={() => {
               void handleSharedGeneratorRefresh();
             }}
             kpisLoading={kpisLoading}
             generatorIsActive={generatorIsActive}
-            inertiaSnapshot={inertiaSnapshot}
           />
         )}
         overview={{ estimatedValue, oppTotal, leadsWeek, leadsMonth }}

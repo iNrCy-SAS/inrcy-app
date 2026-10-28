@@ -5,6 +5,7 @@ export const CHANNEL_SETTINGS_PANEL_ORDER = [
   "site_web",
   "gmb",
   "inr_search",
+  "inr_directory",
   "facebook",
   "instagram",
   "threads",
@@ -30,6 +31,7 @@ const CHANNEL_HEADER_BACKGROUNDS: Record<ChannelSettingsPanelName, string> = {
     "linear-gradient(135deg, rgba(14,165,233,0.30), rgba(59,130,246,0.18)), rgba(15,23,42,0.96)",
   gmb:
     "linear-gradient(135deg, rgba(66,133,244,0.30), rgba(251,188,5,0.16)), rgba(15,23,42,0.96)",
+  inr_directory: "linear-gradient(135deg, rgba(20,184,166,0.28), rgba(168,85,247,0.24)), rgba(15,23,42,0.96)",
   inr_search:
     "linear-gradient(135deg, rgba(6,182,212,0.28), rgba(124,58,237,0.24)), rgba(15,23,42,0.96)",
   facebook:

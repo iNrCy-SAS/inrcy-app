@@ -18,6 +18,7 @@ export const MODULE_ICONS: Record<string, { src: string; alt: string }> = {
   site_web: { src: siteWebBubbleIcon.src, alt: "Site Web" },
   facebook: { src: facebookBubbleIcon.src, alt: "Facebook" },
   gmb: { src: googleBusinessBubbleIcon.src, alt: "Google Business" },
+  inr_directory: { src: "/icons/inr-annuaire-logo-256.png", alt: "iNr’Annuaire" },
   inr_search: { src: inrSearchBubbleIcon.src, alt: "iNr'Search" },
   instagram: { src: instagramBubbleIcon.src, alt: "Instagram" },
   threads: { src: "/icons/threads.svg", alt: "Threads" },
@@ -34,6 +35,10 @@ export const MODULE_ICONS: Record<string, { src: string; alt: string }> = {
 export const DASHBOARD_BUBBLE_ICON_PRELOADS = Object.values(MODULE_ICONS).map((icon) => icon.src);
 
 export const fluxModules: Module[] = [
+  { key: "inr_directory", name: "iNr’Annuaire", description: "Votre entreprise visible sur inrcy.com", status: "available", accent: "purple", actions: [
+    { key: "view", label: "Voir l’annuaire", variant: "view", href: "https://inrcy.com/annuaire/" },
+    { key: "connect", label: "Configurer", variant: "connect", onClick: () => {} },
+  ] },
   {
     key: "inrbadge",
     name: "iNr'Badge",
@@ -91,7 +96,7 @@ export const fluxModules: Module[] = [
   {
     key: "inr_search",
     name: "iNr'Search",
-    description: "Votre page créée par iNrCy 🔎",
+    description: "Votre visibilité sur les moteurs IA 🤖",
     status: "available",
     accent: "cyan",
     actions: [
@@ -274,6 +279,7 @@ export const DRAWER_TITLES = {
   linkedin: "Configuration — LinkedIn",
   x: "Configuration — X",
   gmb: "Configuration — Google Business",
+  inr_directory: "Configuration — iNr’Annuaire",
   inr_search: "Configuration — iNr'Search",
   facebook: "Configuration — Facebook",
   tiktok: "Configuration — TikTok",

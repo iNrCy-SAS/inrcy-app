@@ -8,10 +8,10 @@ for (let width = 1000; width <= 1920; width += 20) {
 }
 sizes.push([1920, 1000], [1587, 551], [1000, 430]);
 
-test("constellation keeps all 12 satellites apart, including maximum motion, and protects the centre", () => {
+test("constellation keeps all 13 satellites apart, including maximum motion, and protects the centre", () => {
   for (const [width, height] of sizes) {
     const layout = getChannelSceneLayout(width, height);
-    assert.equal(layout.slots.length, 12);
+    assert.equal(layout.slots.length, 13);
     const circles = [...layout.slots, { x: width / 2, y: layout.centerY, size: layout.centerSize }];
     for (let index = 0; index < circles.length; index += 1) {
       for (let otherIndex = index + 1; otherIndex < circles.length; otherIndex += 1) {

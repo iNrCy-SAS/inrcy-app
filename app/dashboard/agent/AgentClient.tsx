@@ -22,6 +22,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type TouchEvent as ReactTouchEvent,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -87,6 +88,10 @@ import {
   type InrAgentPublicationPlacement,
 } from "@/lib/inrAgentPublicationPlacement";
 import { readInrAgentPinterestBoardSelection } from "@/lib/inrAgentPinterestBoard";
+import { readInrAgentPublicationSoundtrack, applyInrAgentPublicationSoundtrack, canConfigureInrAgentPublicationSoundtrack, isInrAgentPublicationSoundtrackLocked } from "@/lib/inrAgentPublicationSoundtrack";
+import { createInrAgentPublicationSoundtrackSaveQueue, type InrAgentPublicationSoundtrackSaveQueue } from "@/lib/inrAgentPublicationSoundtrackSaveQueue";
+import MediaSoundtrackSelector from "../_components/MediaSoundtrackSelector";
+import { PUBLISH_CHANNEL_IDENTITY } from "../booster/publier/components/publishChannelIdentity";
 import {
   readPinterestBoardUiCache,
   writePinterestBoardUiCache,
@@ -770,7 +775,10 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   const [publishPlacementSaveState, setPublishPlacementSaveState] = useState<
     "idle" | "saving"
   >("idle");
-  const [publishStoryPreviewKey, setPublishStoryPreviewKey] = useState("");
+  const [publishSoundtrackDrafts, setPublishSoundtrackDrafts] = useState<Record<string, string | null>>({});
+  const publishSoundtrackVersionsRef = useRef(new Map<string, number>());
+  const publishSoundtrackQueuesRef = useRef(new Map<string, InrAgentPublicationSoundtrackSaveQueue>());
+  const publishSoundtrackSavedActionsRef = useRef(new Map<string, AgentPreparedAction>());
   const initialPinterestBoardCache = useMemo(
     () => readPinterestBoardUiCache(),
     []
@@ -1086,9 +1094,13 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   const selectedPublicationValidationState = publicationValidationState(
     selectedPreparedAction
   );
-  const canReviewSelectedAction = isAgentActionAwaitingValidation(
+  const canEditPublicationSoundtrack = isAgentActionAwaitingValidation(
     selectedPreparedAction
-  ) && publishPlacementSaveState !== "saving" && !publishChannelSelectionSaving;
+  ) && publishPlacementSaveState !== "saving" && !publishChannelSelectionSaving
+    && publishSaveState !== "saving" && publishMediaUploadState !== "saving"
+    && campaignDraftSaveState !== "saving" && validationScheduleState !== "saving" && !publishRegeneration;
+  const canReviewSelectedAction = isAgentActionAwaitingValidation(selectedPreparedAction)
+    && publishPlacementSaveState !== "saving" && !publishChannelSelectionSaving;
   const canEditSelectedPublication = canReviseInrAgentPublication(selectedPreparedAction)
     && publishPlacementSaveState !== "saving" && !publishChannelSelectionSaving;
   const canRegenerateSelectedPublication = canEditSelectedPublication && !scheduledEditDirty
@@ -1539,20 +1551,9 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   const preparedParagraphs = previewParagraphs(
     preparedChannelPreview?.body || selectedPreparedAction?.summary || ""
   );
-  const metaPreviewChannel = activePreviewChannel === "facebook" || activePreviewChannel === "instagram" ? activePreviewChannel : null;
-  const secondaryStoryImages = selectedPreparedAction && metaPreviewChannel && readInrAgentPublicationSelection(selectedPreparedAction.payload, metaPreviewChannel).includeStory
-    ? asRecord(asRecord(selectedPreparedAction.payload.imagesByPlacement)?.[metaPreviewChannel])?.story : null;
-  const secondaryStoryAvailable = Array.isArray(secondaryStoryImages) && secondaryStoryImages.length > 0;
-  const secondaryStoryKey = `${selectedPreparedAction?.id || ""}:${metaPreviewChannel || ""}`;
-  const showingSecondaryStory = secondaryStoryAvailable && publishStoryPreviewKey === secondaryStoryKey;
-  const mediaPreviewAction = showingSecondaryStory && selectedPreparedAction && metaPreviewChannel ? {
-    ...selectedPreparedAction, payload: { ...selectedPreparedAction.payload, imagesByChannel: {
-      ...(asRecord(selectedPreparedAction.payload.imagesByChannel) || {}), [metaPreviewChannel]: secondaryStoryImages,
-    } },
-  } : selectedPreparedAction;
   const publishMediaPreview = isPublishView
     ? extractPublishMediaPreview(
-        mediaPreviewAction,
+        selectedPreparedAction,
         activePreviewChannel,
         publishMediaActiveIndex
       )
@@ -1605,6 +1606,17 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   const publishPlacement: InrAgentPublicationPlacement =
     publishPlacementSelection.primaryPlacement;
   const publishIncludeStory = publishPlacementSelection.includeStory;
+  const publishContentFormat = publishPlacement === "story" ? "story"
+    : publishIncludeStory ? `${publishPlacement}_story` : publishPlacement;
+  const publishSoundtrackDraftKey = `${selectedPreparedAction?.id || ""}:${activeMetaPublicationChannel || ""}`;
+  const publishSoundtrackId = Object.hasOwn(publishSoundtrackDrafts, publishSoundtrackDraftKey)
+    ? publishSoundtrackDrafts[publishSoundtrackDraftKey]
+    : activeMetaPublicationChannel
+      ? readInrAgentPublicationSoundtrack(selectedPreparedAction?.payload, activeMetaPublicationChannel) : null;
+  const publishSoundtrackEligible = Boolean(activeMetaPublicationChannel &&
+    canConfigureInrAgentPublicationSoundtrack(selectedPreparedAction?.payload, activeMetaPublicationChannel));
+  const publishSoundtrackLocked = Boolean(activeMetaPublicationChannel &&
+    isInrAgentPublicationSoundtrackLocked(selectedPreparedAction?.payload, activeMetaPublicationChannel));
   const publishPlacementOptions: InrAgentPublicationPlacement[] =
     activeMetaPublicationChannel === "instagram"
       ? getEnabledInstagramPublicationPlacements(
@@ -1613,18 +1625,6 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       : activeMetaPublicationChannel === "facebook"
       ? getEnabledFacebookPublicationPlacements(facebookPublicationPreferences)
       : ["classic"];
-  const publishPlacementEnabled =
-    activeMetaPublicationChannel === "instagram"
-      ? isInstagramPublicationPlacementEnabled(
-          publishPlacement as InstagramPublicationPlacement,
-          instagramPublicationPreferences
-        )
-      : activeMetaPublicationChannel === "facebook"
-      ? isFacebookPublicationPlacementEnabled(
-          publishPlacement as FacebookPublicationPlacement,
-          facebookPublicationPreferences
-        )
-      : publishPlacement === "classic";
   const publishStoryOptionEnabled =
     activeMetaPublicationChannel === "instagram"
       ? instagramPublicationPreferences.storiesEnabled
@@ -2790,6 +2790,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       return;
     }
 
+    await publishSoundtrackQueuesRef.current.get(targetActionId)?.flush();
     const response = await fetch("/api/agent/actions", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -2863,6 +2864,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
           )
         );
       } else {
+        await flushPublishSoundtrackSaves(selectedPreparedAction);
         const response = await fetch("/api/agent/actions", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -2912,6 +2914,61 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     } finally {
       setPublishPlacementSaveState("idle");
     }
+  }
+
+  async function flushPublishSoundtrackSaves(action: AgentPreparedAction) {
+    await publishSoundtrackQueuesRef.current.get(action.id)?.flush();
+    const saved = publishSoundtrackSavedActionsRef.current.get(action.id);
+    return saved && (Date.parse(saved.updatedAt || "") || 0) > (Date.parse(action.updatedAt || "") || 0) ? saved : action;
+  }
+
+  function savePublishSoundtrack(soundtrackId: string | null) {
+    if (!selectedPreparedAction || !activeMetaPublicationChannel || !canEditPublicationSoundtrack || publishSoundtrackLocked) return;
+    const targetActionId = selectedPreparedAction.id;
+    const targetChannel = activeMetaPublicationChannel;
+    if (scheduledEditSession) {
+      updateScheduledEditAction(action => ({ ...action,
+        payload: applyInrAgentPublicationSoundtrack(action.payload || {}, targetChannel, soundtrackId),
+      }));
+      return;
+    }
+    const draftKey = `${targetActionId}:${targetChannel}`;
+    const version = (publishSoundtrackVersionsRef.current.get(draftKey) || 0) + 1;
+    publishSoundtrackVersionsRef.current.set(draftKey, version);
+    setPublishSoundtrackDrafts(current => ({ ...current, [draftKey]: soundtrackId }));
+    let queue = publishSoundtrackQueuesRef.current.get(targetActionId);
+    if (!queue) {
+      queue = createInrAgentPublicationSoundtrackSaveQueue();
+      publishSoundtrackQueuesRef.current.set(targetActionId, queue);
+    }
+    const saveQueue = queue;
+    const clearCurrentDraft = () => {
+      if (publishSoundtrackVersionsRef.current.get(draftKey) !== version) return;
+      setPublishSoundtrackDrafts(current => {
+        const next = { ...current };
+        delete next[draftKey];
+        return next;
+      });
+    };
+    void saveQueue.enqueue(async () => {
+        const response = await fetch("/api/agent/actions", {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ actionId: targetActionId, editType: "publish_channel_soundtrack", channel: targetChannel, soundtrackId }),
+        });
+        const payload = await response.json().catch(() => null) as { action?: AgentPreparedAction; error?: string } | null;
+        if (!response.ok || !payload?.action || payload.action.id !== targetActionId) {
+          throw new Error(payload?.error || i18nT("publication_mode_update_failed"));
+        }
+        const updatedAction = payload.action;
+        publishSoundtrackSavedActionsRef.current.set(targetActionId, updatedAction);
+        setActions(current => current.map(action => action.id === updatedAction.id ? updatedAction : action));
+        if (inrAgentPublicationNeedsRevisionReview(updatedAction.payload)) await refreshScheduledActions(true);
+    }, targetChannel).then(clearCurrentDraft).catch(error => {
+      if (publishSoundtrackVersionsRef.current.get(draftKey) !== version) return;
+      clearCurrentDraft();
+      saveQueue.acknowledgeFailure(targetChannel);
+      showNotice(error instanceof Error ? error.message : i18nT("publication_mode_update_failed"));
+    });
   }
 
   async function saveTiktokPhotoFormat(fullScreen: boolean) {
@@ -3351,6 +3408,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     setNotice(null);
 
     try {
+      await flushPublishSoundtrackSaves(selectedPreparedAction);
       const response = await fetch("/api/agent/actions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -3936,6 +3994,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     setNotice(null);
 
     try {
+      await flushPublishSoundtrackSaves(selectedPreparedAction);
       const response = await fetch("/api/agent/actions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -3970,7 +4029,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   }
 
   async function savePublicationChannelSelection(nextChannels: ChannelKey[], tiktokPublicationSettings?: TiktokPublicationSettings | null, confirmPending = false) {
-    const action = selectedPreparedAction;
+    let action = selectedPreparedAction;
     if (!action || !canEditPublicationChannels || publishChannelSelectionBusy.current) return;
     if (nextChannels.includes("tiktok") && preparedChannels.includes("tiktok") && (!selectedPublishChannels.includes("tiktok") || confirmPending && unvalidatedPublicationChannels.includes("tiktok")) && (scheduledEditSession || ["validated", "scheduled"].includes(action.status)) && !tiktokPublicationSettings) {
       openAgentTiktokSettings({ kind: "channel_selection", channels: nextChannels, confirmPending });
@@ -3980,6 +4039,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     publishChannelSelectionBusy.current = true;
     setPublishChannelSelectionSaving(true);
     try {
+      action = await flushPublishSoundtrackSaves(action);
       const response = await fetch(scheduledEditSession ? `/api/agent/scheduled-actions/${scheduledEditSession.scheduledAction.id}` : "/api/agent/actions", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ actionId: scheduledEditSession ? undefined : action.id, editType: "publish_channel_selection", channels: nextChannels.map(boosterChannelKeyFromAgentChannel), expectedUpdatedAt: scheduledEditSession?.scheduledAction.updatedAt || action.updatedAt || null, confirmPending, ...(tiktokPublicationSettings ? { tiktokPublicationSettings } : {}) }),
@@ -4844,6 +4904,8 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     successMessage = i18nT("scheduled_action_success"),
     options: { closeSchedule?: boolean; showSuccessNotice?: boolean } = {}
   ) {
+    const soundtrackActionId = typeof body.actionId === "string" ? body.actionId : null;
+    if (soundtrackActionId) await publishSoundtrackQueuesRef.current.get(soundtrackActionId)?.flush();
     const response = await fetch("/api/agent/actions/schedule", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -5257,6 +5319,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     patchScheduledAction,
     exitScheduledEditSession,
     deleteScheduledEditAction,
+    beforePublicationMutation: flushPublishSoundtrackSaves,
     showNotice,
   });
 
@@ -5379,6 +5442,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
           asRecord(selectedPreparedAction.payload.publishPayload)?.inrAgentActionId)
       : selectedPreparedAction.id;
     try {
+      const latestAction = await flushPublishSoundtrackSaves(selectedPreparedAction);
       const response = await fetch("/api/agent/actions/regenerate-channel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -5387,7 +5451,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
           channel: boosterChannelKeyFromAgentChannel(channel),
           kind,
           scope,
-          ...(!scheduledEditSession ? { expectedUpdatedAt: selectedPreparedAction.updatedAt } : {}),
+          ...(!scheduledEditSession ? { expectedUpdatedAt: latestAction.updatedAt } : {}),
         }),
       });
       const payload = (await response.json().catch(() => null)) as {
@@ -6104,17 +6168,12 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                             <span className={styles.publishPlacementControls}>
                               <select
                                 className={styles.publishPlacementSelect}
-                                value={publishPlacement}
+                                value={publishContentFormat}
                                 onChange={(event) => {
-                                  const nextPlacement = event.target
-                                    .value as InrAgentPublicationPlacement;
-                                  void savePublishPlacement(
-                                    nextPlacement,
-                                    nextPlacement === "story" ||
-                                      publishPlacement === "story"
-                                      ? false
-                                      : publishIncludeStory
-                                  );
+                                  const value = event.target.value;
+                                  if (value === "classic_story") void savePublishPlacement("classic", true);
+                                  else if (value === "reel_story") void savePublishPlacement("reel", true);
+                                  else if (value === "classic" || value === "reel" || value === "story") void savePublishPlacement(value, false);
                                 }}
                                 disabled={
                                   !selectedPreparedAction ||
@@ -6124,71 +6183,26 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                                 aria-label={i18nT("publication_mode_label")}
                                 title={i18nT("publication_mode_help")}
                               >
-                                {!publishPlacementEnabled &&
-                                publishPlacement !== "classic" ? (
-                                  <option value={publishPlacement} disabled>
-                                    {publishPlacement === "reel"
-                                      ? i18nT("publication_mode_reel_disabled")
-                                      : i18nT(
-                                          "publication_mode_story_disabled"
-                                        )}
-                                  </option>
-                                ) : null}
-                                {publishPlacementOptions.map((placement) => (
-                                  <option key={placement} value={placement}>
-                                    {placement === "reel"
-                                      ? i18nT("publication_mode_reel")
-                                      : placement === "story"
-                                      ? i18nT("publication_mode_story")
-                                      : i18nT("publication_mode_classic")}
-                                  </option>
-                                ))}
+                                <option value="classic">{i18nT("publication_mode_classic")}</option>
+                                <option value="reel" disabled={!publishPlacementOptions.includes("reel")}>{i18nT("publication_mode_reel")}</option>
+                                <option value="story" disabled={!publishPlacementOptions.includes("story")}>{i18nT("publication_mode_story")}</option>
+                                <option value="classic_story" disabled={!publishStoryOptionEnabled}>{i18nT("publication_mode_classic")} + {i18nT("publication_mode_story")}</option>
+                                <option value="reel_story" disabled={!publishPlacementOptions.includes("reel") || !publishStoryOptionEnabled}>{i18nT("publication_mode_reel")} + {i18nT("publication_mode_story")}</option>
                               </select>
-                              {publishPlacement !== "story" &&
-                              (publishStoryOptionEnabled ||
-                                publishIncludeStory) ? (
-                                <label
-                                  className={styles.publishStoryOption}
-                                  data-active={publishIncludeStory}
-                                  title={
-                                    publishStoryOptionEnabled
-                                      ? `+ ${i18nT(
-                                          "publication_mode_story"
-                                        )}`
-                                      : i18nT(
-                                          "publication_mode_story_disabled"
-                                        )
-                                  }
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={publishIncludeStory}
-                                    onChange={(event) => {
-                                      void savePublishPlacement(
-                                        publishPlacement,
-                                        event.target.checked
-                                      );
-                                    }}
-                                    disabled={
-                                      !selectedPreparedAction ||
-                                      !canReviewSelectedAction ||
-                                      actionMutationState === "saving"
-                                    }
-                                    aria-label={`+ ${i18nT(
-                                      "publication_mode_story"
-                                    )}`}
-                                  />
-                                  <span>
-                                    + {i18nT("publication_mode_story")}
-                                  </span>
-                                </label>
-                              ) : null}
-                              {publishIncludeStory && publishPlacement === "classic" && secondaryStoryAvailable ? (
-                                <button type="button" className={styles.publishStoryOption} aria-pressed={showingSecondaryStory}
-                                  onClick={() => setPublishStoryPreviewKey(showingSecondaryStory ? "" : secondaryStoryKey)}>
-                                  {i18nT("preview_label")} · {i18nT(showingSecondaryStory ? "publication_mode_classic" : "publication_mode_story")}
-                                </button>
-                              ) : null}
+                              <span className={styles.publicationMusicControl} data-agent-publication-music={activeMetaPublicationChannel}>
+                                <MediaSoundtrackSelector inline
+                                  key={`${selectedPreparedAction?.id || "empty"}:${activeMetaPublicationChannel}`}
+                                  channelLabel={agentChannelLabel(activeMetaPublicationChannel, runtimeT)}
+                                  channelStyle={{ "--channel-color": PUBLISH_CHANNEL_IDENTITY[activeMetaPublicationChannel].color,
+                                    "--channel-rgb": PUBLISH_CHANNEL_IDENTITY[activeMetaPublicationChannel].rgb,
+                                    "--channel-gradient": PUBLISH_CHANNEL_IDENTITY[activeMetaPublicationChannel].gradient } as CSSProperties}
+                                  soundtrackId={publishSoundtrackId}
+                                  onChange={id => { void savePublishSoundtrack(id); }}
+                                  scopeKey={`${selectedPreparedAction?.id || "empty"}:${activeMetaPublicationChannel}`}
+                                  disabled={!selectedPreparedAction || !canEditPublicationSoundtrack || actionMutationState === "saving"}
+                                  selectionLocked={publishSoundtrackLocked}
+                                  inactiveHint={publishSoundtrackEligible ? undefined : boosterT("publication_music_reserved_hint")} />
+                              </span>
                             </span>
                           ) : activePreviewChannel === "tiktok" && publishMediaPreview?.kind === "image" && asRecord(selectedPreparedAction?.payload.mediaFormatVariants)?.kind === "image" && !scheduledEditSession ? (
                             <span className={styles.publishPlacementControls}>

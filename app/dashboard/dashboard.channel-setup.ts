@@ -1,7 +1,9 @@
 export const DASHBOARD_CHANNEL_SETUP = [
   // Les 12 connexions ont des poids fixes qui totalisent 100 %.
+  // L’annuaire et iNr’Badge restent présents dans le bilan sans modifier les poids historiques.
   // iNr'Badge reste présent dans le bilan, sans contribuer à la jauge Canaux.
   { key: "inrbadge", weight: 0, createHref: null },
+  { key: "inr_directory", weight: 0, createHref: null },
   { key: "site_web", weight: 15, createHref: null },
   { key: "gmb", weight: 15, createHref: "https://business.google.com/create" },
   { key: "inr_search", weight: 5, createHref: null },

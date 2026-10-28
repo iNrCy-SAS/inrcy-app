@@ -7,7 +7,12 @@ import { NextResponse } from "next/server";
 import { saveAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelectionServer";
 import { saveInrAgentPublicationRevision } from "@/lib/inrAgentPublicationRevisionServer";
 import { inrAgentPublicationNeedsRevisionReview } from "@/lib/inrAgentPublicationRevision";
-import { filterInrAgentPublicationChannels, selectedInrAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelection";
+import { normalizeBoosterSoundtrackId } from "@/lib/boosterSoundtracks";
+import {
+  applyInrAgentPublicationSoundtrack,
+  isInrAgentPublicationSoundtrackLocked,
+} from "@/lib/inrAgentPublicationSoundtrack";
+import { filterInrAgentPublicationChannels, preparedInrAgentPublicationChannels, selectedInrAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelection";
 import { ensureInrAgentMediaFormats } from "@/lib/inrAgentMediaFormatGeneration";
 import { readInrAgentMediaFormatVariants } from "@/lib/inrAgentMediaFormats";
 import {
@@ -1401,6 +1406,7 @@ export async function PATCH(request: Request) {
     channel?: unknown;
     placement?: unknown;
     includeStory?: unknown;
+    soundtrackId?: unknown;
     fullScreen?: unknown;
     mode?: unknown;
     boardId?: unknown;
@@ -1876,6 +1882,54 @@ export async function PATCH(request: Request) {
     if (error) return NextResponse.json({ error: "Impossible de mettre à jour le format Threads." }, { status: 500 });
     if (!data) return NextResponse.json({ error: "Cette publication a changé. Rechargez-la avant de modifier son format.", code: "INR_AGENT_PUBLICATION_CHANGED" }, { status: 409 });
     return NextResponse.json({ action: await refreshActionImageUrls(rowToInrAgentAction(data)), saved: true });
+  }
+
+  if (editType === "publish_channel_soundtrack") {
+    const channel = requestBody?.channel;
+    if (!isInrAgentActionId(actionId) || !isInrAgentMetaChannel(channel)
+      || !requestBody || !Object.hasOwn(requestBody, "soundtrackId") || requestBody.soundtrackId === undefined) {
+      return NextResponse.json({ error: "Choix de musique invalide.", code: "booster_soundtrack_invalid" }, { status: 400 });
+    }
+    let soundtrackId: string | null;
+    try {
+      soundtrackId = normalizeBoosterSoundtrackId(requestBody.soundtrackId);
+    } catch {
+      return NextResponse.json({ error: "Cette musique n’est pas disponible.", code: "booster_soundtrack_invalid" }, { status: 400 });
+    }
+    const { data: currentRow, error: readError } = await supabaseAdmin.from("inr_agent_actions")
+      .select(ACTION_SELECT).eq("id", actionId).eq("user_id", activeUserId).single();
+    if (readError || !currentRow) {
+      return NextResponse.json({ error: "Action iNr’Agent introuvable." }, { status: 404 });
+    }
+    const currentAction = rowToInrAgentAction(currentRow);
+    if (!isPublishAction(currentAction)) {
+      return NextResponse.json({ error: "Cette modification est réservée aux publications Booster." }, { status: 400 });
+    }
+    const currentPayload = currentAction.payload || {};
+    const actionChannels = selectedInrAgentPublicationChannels(currentPayload,
+      preparedInrAgentPublicationChannels(currentPayload, currentAction.targetChannels));
+    if (!actionChannels.includes(channel)) {
+      return NextResponse.json({ error: "Ce canal ne fait plus partie de cette publication." }, { status: 409 });
+    }
+    if (isInrAgentPublicationSoundtrackLocked(currentPayload, channel)) {
+      return NextResponse.json({ error: "La diffusion a commencé. Sa musique est conservée pour la reprise.", code: "INR_AGENT_SOUNDTRACK_LOCKED" }, { status: 409 });
+    }
+    if (requestBody.expectedUpdatedAt !== undefined && requestBody.expectedUpdatedAt !== currentAction.updatedAt) {
+      return NextResponse.json({ error: "Cette publication a changé. Actualisez avant de modifier sa musique.", code: "INR_AGENT_PUBLICATION_CHANGED" }, { status: 409 });
+    }
+    const nextPayload = {
+      ...applyInrAgentPublicationSoundtrack(currentPayload, channel, soundtrackId),
+      lastManualEdit: { channel, editType: "publish_channel_soundtrack", editedAt: new Date().toISOString() },
+    };
+    try {
+      // No media generation or checkpoint deletion: the render key includes
+      // the soundtrack SHA; approved snapshots must first return to review.
+      const saved = await saveInrAgentPublicationRevision({ accountId: activeUserId, action: currentAction, payload: nextPayload });
+      return NextResponse.json({ action: await refreshActionImageUrls(saved), saved: true });
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : "Modification de la musique impossible." },
+        { status: error && typeof error === "object" && "status" in error && error.status === 409 ? 409 : 500 });
+    }
   }
 
   if (editType === "publish_channel_placement" || editType === "publish_photo_format") {

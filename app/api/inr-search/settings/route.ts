@@ -1,3 +1,5 @@
+import { isInrDirectoryEnabled } from "@/lib/inrDirectorySettings";
+import { POST as updateDirectorySettings } from "@/app/api/inr-directory/settings/route";
 import { NextResponse } from "next/server";
 
 import { purgeInrSearchDirectoryCache } from "@/lib/inrSearchDirectoryCache";
@@ -31,6 +33,7 @@ async function syncSystemManagedPage(directoryCache?: DirectoryCacheSync) {
       {
         ok: true,
         inrSearch: provisioned.inrSearch,
+        directoryEnabled: isInrDirectoryEnabled(provisioned.root),
         publication: {
           allowed: publicStatus.published,
           reason: publicStatus.reason,
@@ -55,6 +58,7 @@ async function applyAction(request: Request) {
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const action = typeof body.action === "string" ? body.action as InrSearchAction : null;
   if (!action) return syncSystemManagedPage();
+  if (action === "directory") return updateDirectorySettings(new Request(request.url, { method: "POST", headers: request.headers, body: JSON.stringify({ enabled: body.enabled }) }));
 
   if (!["connect", "disconnect", "directory"].includes(action)) {
     return NextResponse.json({ ok: false, error: "Action iNr'Search inconnue." }, { status: 400 });
@@ -84,11 +88,7 @@ async function applyAction(request: Request) {
         : action === "disconnect"
           ? false
           : Boolean(current.enabled),
-      directoryEnabled: action === "directory"
-        ? Boolean(current.enabled) && Boolean(body.enabled)
-        : action === "disconnect"
-          ? false
-          : Boolean(current.directoryEnabled),
+      directoryEnabled: Boolean(current.directoryEnabled),
       updatedAt: now,
       publishedAt: action === "connect" ? String(current.publishedAt || now) : current.publishedAt || null,
       indexingRequestedAt: action === "connect" ? now : current.indexingRequestedAt || null,
@@ -96,7 +96,7 @@ async function applyAction(request: Request) {
 
     const update = await supabaseAdmin
       .from("pro_tools_configs")
-      .upsert({ user_id: activeUserId, settings: { ...provisioned.root, inrSearch: next } }, { onConflict: "user_id" });
+      .upsert({ user_id: activeUserId, settings: { ...provisioned.root, inrDirectory: { ...((provisioned.root.inrDirectory || {}) as Record<string, unknown>), enabled: isInrDirectoryEnabled(provisioned.root) }, inrSearch: next } }, { onConflict: "user_id" });
     if (update.error) throw update.error;
 
     revalidateInrSearchPublicRoutes(slug);
@@ -104,9 +104,7 @@ async function applyAction(request: Request) {
     let directoryCache: DirectoryCacheSync;
     try {
       const purge = await purgeInrSearchDirectoryCache({
-        reason: action === "directory"
-          ? (Boolean(body.enabled) ? "directory_enabled" : "directory_disabled")
-          : action,
+        reason: action,
         slug,
       });
       directoryCache = {

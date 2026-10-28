@@ -11,33 +11,22 @@ type Props = {
   onDesktopLeftHost: (host: HTMLDivElement | null) => void;
   onDesktopRightHost: (host: HTMLDivElement | null) => void;
   onOpenGeneratorHelp: () => void;
-  onOpenGeneratorSettings: () => void;
   onRefreshGenerator: () => void;
   kpisLoading: boolean;
   generatorIsActive: boolean;
-  inertiaSnapshot: { multiplier: number; connectedCount: number; totalChannels: number };
 };
 
 export default function DashboardGeneratorHub({
   onDesktopLeftHost,
   onDesktopRightHost,
   onOpenGeneratorHelp,
-  onOpenGeneratorSettings,
   onRefreshGenerator,
   kpisLoading,
   generatorIsActive,
-  inertiaSnapshot,
 }: Props) {
   const t = useDashboardI18n();
   const heroT = useTranslations("dashboard.hero");
   const helpT = useTranslations("dashboard.helpCenter");
-  const shellT = useTranslations("shell");
-  const inertiaHint = shellT("turbo_ui_value_value_value_value_9a1ca86b", {
-    value0: inertiaSnapshot.multiplier,
-    value1: inertiaSnapshot.connectedCount,
-    value2: inertiaSnapshot.totalChannels,
-    value3: t.hero.channels,
-  });
 
   return (
     <div className={styles.hubRow}>
@@ -53,11 +42,11 @@ export default function DashboardGeneratorHub({
             <DashboardNavigationIcon kind="refresh" />
           </button>
         </div>
-        <button type="button" className={`${styles.channelsHub} ${orbStyles.host}`} onClick={onOpenGeneratorSettings}
-          aria-label={`${heroT("settingsAria")} · ${generatorIsActive ? t.hero.active : t.hero.waiting}`} title={`${heroT("settingsTitle")} · ${generatorIsActive ? t.hero.active : t.hero.waiting} · ${inertiaHint}`}
-          aria-haspopup="dialog" data-testid="dashboard-generator-hub" data-active={generatorIsActive}>
+        <div className={`${styles.channelsHub} ${orbStyles.host}`} role="img"
+          aria-label={`${heroT("generatorShortTitle")} · ${generatorIsActive ? t.hero.active : t.hero.waiting}`}
+          data-testid="dashboard-generator-hub" data-active={generatorIsActive}>
           <DashboardGeneratorOrb isActive={generatorIsActive} className={orbStyles.fill} />
-        </button>
+        </div>
         <div className={`${styles.desktopToolsHost} ${styles.desktopToolsRight}`} ref={onDesktopRightHost} />
       </div>
     </div>

@@ -16,7 +16,7 @@ export default function DashboardAssistantTrigger() {
     aria-label={assistantLabel} title={assistantLabel} aria-haspopup="dialog"
     aria-controls="inrcy-assistant-dialog" aria-expanded={assistantOpen}
     aria-busy={assistantPending || undefined} data-dashboard-assistant-trigger>
-    <Image src="/agent/agent-assist-pink-v2.png" width={30} height={30} sizes="30px" alt="" draggable={false} />
+    <Image src="/agent/agent-assist-pink-v2.png" width={36} height={36} sizes="36px" alt="" draggable={false} />
     <DashboardAssistantBadge state={assistantBadgeState} />
   </button>;
 }

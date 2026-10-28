@@ -10,6 +10,8 @@ import {
 import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
 import { compactInrAgentScheduledPayload, hasUnauthorizedScheduledStorageReference } from "@/lib/inrAgentScheduledPayload";
 import { buildAbsoluteStorageContentUrl } from "@/lib/storageContentUrl";
+import { normalizeBoosterSoundtrackByChannel, normalizeBoosterSoundtrackId } from "@/lib/boosterSoundtracks";
+import { isInrAgentPublicationSoundtrackLocked, readInrAgentPublicationSoundtrack } from "@/lib/inrAgentPublicationSoundtrack";
 
 export const runtime = "nodejs";
 
@@ -208,13 +210,53 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     }
   }
 
-  const { data, error } = await supabaseAdmin
+  let soundtrackRevisionRow: Record<string, unknown> | null = null;
+  if (record && "payload" in record) {
+    const { data: currentRow, error: currentError } = await supabaseAdmin.from("inr_agent_scheduled_actions")
+      .select(SCHEDULED_ACTION_SELECT).eq("id", id).eq("user_id", activeUserId).maybeSingle();
+    if (currentError) return NextResponse.json({ error: "Vérification de la programmation impossible." }, { status: 500 });
+    if (!currentRow) return NextResponse.json({ error: "Action programmée introuvable" }, { status: 404 });
+    if (currentRow.action_type === "publication" && currentRow.target_tool === "booster") {
+      const nextPayload = asRecord(updates.payload) || {};
+      const nextPublishPayload = asRecord(nextPayload.publishPayload) || {};
+      try {
+        for (const source of [nextPayload, nextPublishPayload]) {
+          normalizeBoosterSoundtrackId(source.soundtrackId);
+          normalizeBoosterSoundtrackByChannel(source.soundtrackByChannel);
+        }
+      } catch {
+        return NextResponse.json({ error: "Choix de musique invalide.", code: "booster_soundtrack_invalid" }, { status: 400 });
+      }
+      const oldPayload = asRecord(currentRow.payload) || {};
+      const changedChannels = (["facebook", "instagram"] as const).filter(channel =>
+        readInrAgentPublicationSoundtrack(oldPayload, channel) !== readInrAgentPublicationSoundtrack(nextPayload, channel));
+      if (changedChannels.length) {
+        const oldPublishPayload = asRecord(oldPayload.publishPayload) || {};
+        if (oldPayload.sourceActionId || oldPublishPayload.inrAgentActionId) {
+          return NextResponse.json({ error: "Modifiez la musique depuis la publication iNr’Agent, puis validez sa nouvelle programmation.", code: "INR_AGENT_PUBLICATION_REVIEW_REQUIRED" }, { status: 409 });
+        }
+        if (currentRow.status !== "scheduled" || Number(currentRow.attempt_count) > 0 || currentRow.executed_at
+          || !currentRow.updated_at || new Date(String(currentRow.scheduled_at)).getTime() <= Date.now()
+          || changedChannels.some(channel => isInrAgentPublicationSoundtrackLocked(oldPayload, channel))) {
+          return NextResponse.json({ error: "La diffusion a commencé. Sa musique est conservée pour la reprise.", code: "INR_AGENT_SOUNDTRACK_LOCKED" }, { status: 409 });
+        }
+        soundtrackRevisionRow = currentRow;
+      }
+    }
+  }
+
+  let updateQuery = supabaseAdmin
     .from("inr_agent_scheduled_actions")
     .update(updates)
     .eq("id", id)
-    .eq("user_id", activeUserId)
-    .select(SCHEDULED_ACTION_SELECT)
-    .maybeSingle();
+    .eq("user_id", activeUserId);
+  if (soundtrackRevisionRow) {
+    updateQuery = updateQuery.eq("status", "scheduled").eq("updated_at", soundtrackRevisionRow.updated_at)
+      .is("executed_at", null);
+    updateQuery = soundtrackRevisionRow.attempt_count == null
+      ? updateQuery.is("attempt_count", null) : updateQuery.eq("attempt_count", soundtrackRevisionRow.attempt_count);
+  }
+  const { data, error } = await updateQuery.select(SCHEDULED_ACTION_SELECT).maybeSingle();
 
   if (error) {
     if (isMissingTableError(error)) {
@@ -225,7 +267,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: "Modification de l’action programmée impossible" }, { status: 500 });
   }
 
-  if (!data) return NextResponse.json({ error: "Action programmée introuvable" }, { status: 404 });
+  if (!data) return NextResponse.json({ error: soundtrackRevisionRow ? "La programmation a changé. Actualisez avant de modifier sa musique." : "Action programmée introuvable" }, { status: soundtrackRevisionRow ? 409 : 404 });
   return NextResponse.json({
     scheduledAction: scheduledActionForResponse(data, request.url, activeUserId),
     tableMissing: false,

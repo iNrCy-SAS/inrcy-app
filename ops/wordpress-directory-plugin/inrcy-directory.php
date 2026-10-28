@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: iNrCy Annuaire
- * Description: Affiche dans WordPress un annuaire server-side des pages iNr’Search publiées.
- * Version: 1.4.2
+ * Description: Affiche les professionnels inscrits à iNr’Annuaire et leurs QR codes iNr’Badge.
+ * Version: 2.0.0
  * Author: iNrCy
  * License: GPL-2.0-or-later
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('INRCY_DIRECTORY_API_URL', 'https://app.inrcy.com/api/public/inrsearch/directory');
+define('INRCY_DIRECTORY_API_URL', 'https://app.inrcy.com/api/public/directory');
 define('INRCY_DIRECTORY_CACHE_TTL', HOUR_IN_SECONDS);
 define('INRCY_DIRECTORY_STALE_TTL', DAY_IN_SECONDS);
 define('INRCY_DIRECTORY_CACHE_VERSION_OPTION', 'inrcy_directory_cache_version');
@@ -172,11 +172,20 @@ function inrcy_directory_render_options($items, $selected) {
         return;
     }
 
+    $current_sector = null;
     foreach ($items as $item) {
         if (!is_array($item) || empty($item['slug']) || empty($item['label'])) {
             continue;
         }
 
+        if (isset($item['sector'])) {
+            $sector = sanitize_text_field((string) $item['sector']);
+            if ($sector !== $current_sector) {
+                if ($current_sector !== null) echo '</optgroup>';
+                echo '<optgroup label="' . esc_attr($sector) . '">';
+                $current_sector = $sector;
+            }
+        }
         $value = sanitize_text_field((string) $item['slug']);
         $label = sanitize_text_field((string) $item['label']);
         $count = isset($item['count']) ? absint($item['count']) : 0;
@@ -185,9 +194,10 @@ function inrcy_directory_render_options($items, $selected) {
             esc_attr($value),
             selected($selected, $value, false),
             esc_html($label),
-            $count ? esc_html(' (' . $count . ')') : ''
+            esc_html(' (' . $count . ')')
         );
     }
+    if ($current_sector !== null) echo '</optgroup>';
 }
 
 function inrcy_directory_render_pagination($page, $has_next, $filters, $total, $page_size = 12) {
@@ -327,7 +337,7 @@ function inrcy_directory_shortcode() {
         <div class="inrcy-directory__hero">
             <span class="inrcy-directory__eyebrow">Annuaire professionnel iNrCy</span>
             <h1 id="inrcy-directory-title">Trouvez le bon professionnel près de chez vous</h1>
-            <p>Explorez les pages iNr’Search des professionnels accompagnés par iNrCy. Chaque profil présente son activité, ses services et sa zone d’intervention.</p>
+            <p>Trouvez un professionnel par métier et par lieu. Scannez son QR code ou ouvrez son iNr’Badge pour le découvrir et le contacter.</p>
         </div>
 
         <form class="inrcy-directory__filters" method="get" action="<?php echo esc_url(get_permalink()); ?>" role="search">
@@ -382,7 +392,7 @@ function inrcy_directory_shortcode() {
                     ?>
                     <article class="inrcy-directory__card">
                         <div class="inrcy-directory__card-top">
-                            <span class="inrcy-directory__card-kicker">Profil iNr’Search</span>
+                            <span class="inrcy-directory__card-kicker">Professionnel iNrCy</span>
                             <span class="inrcy-directory__card-mark" aria-hidden="true">iN</span>
                         </div>
                         <h2><?php echo esc_html($item['companyName']); ?></h2>
@@ -390,17 +400,20 @@ function inrcy_directory_shortcode() {
                             <p class="inrcy-directory__profession"><?php echo esc_html($item['profession']); ?></p>
                         <?php endif; ?>
                         <?php if ($location) : ?>
-                            <p class="inrcy-directory__location">⌖ <?php echo esc_html($location); ?></p>
+                            <p class="inrcy-directory__location" title="<?php echo esc_attr($location); ?>">⌖ <?php echo esc_html($location); ?></p>
                         <?php endif; ?>
-                        <?php if (!empty($item['pageDescription'])) : ?>
-                            <p><?php echo esc_html(wp_trim_words((string) $item['pageDescription'], 30)); ?></p>
+                        <?php if (!empty($item['qrUrl'])) : ?>
+                            <a class="inrcy-directory__qr" href="<?php echo esc_url(add_query_arg('src', 'directory', $item['url'])); ?>" aria-label="<?php echo esc_attr(sprintf('Ouvrir l’iNr’Badge de %s', (string) $item['companyName'])); ?>">
+                                <img src="<?php echo esc_url($item['qrUrl']); ?>" width="140" height="140" loading="lazy" alt="<?php echo esc_attr(sprintf('QR code vers l’iNr’Badge de %s', (string) $item['companyName'])); ?>" />
+                                <span>Scannez pour faire connaissance</span>
+                            </a>
                         <?php endif; ?>
                         <a
                             class="inrcy-directory__card-link"
                             href="<?php echo esc_url($item['url']); ?>"
-                            aria-label="<?php echo esc_attr(sprintf('Voir le profil iNr’Search de %s', (string) $item['companyName'])); ?>"
+                            aria-label="<?php echo esc_attr(sprintf('Ouvrir l’iNr’Badge de %s', (string) $item['companyName'])); ?>"
                         >
-                            <span>Voir le profil</span>
+                            <span>Ouvrir l’iNr’Badge</span>
                             <span class="inrcy-directory__card-arrow" aria-hidden="true">↗</span>
                         </a>
                     </article>
@@ -424,7 +437,7 @@ function inrcy_directory_shortcode() {
             <div>
                 <span class="inrcy-directory__join-kicker">Professionnels</span>
                 <h2 id="inrcy-directory-join-title">Vous souhaitez être trouvé par vos futurs clients&nbsp;?</h2>
-                <p>Activez votre page iNr’Search et choisissez librement de la rendre visible dans l’annuaire public iNrCy.</p>
+                <p>Activez votre présence depuis la bulle iNr’Annuaire de votre application. Votre fiche renvoie directement à votre iNr’Badge.</p>
             </div>
             <a class="inrcy-directory__join-link" href="<?php echo esc_url(home_url('/s-inscrire/')); ?>">
                 Activer ma visibilité <span aria-hidden="true">↗</span>
@@ -465,7 +478,7 @@ function inrcy_directory_enqueue_styles() {
         return;
     }
 
-    wp_register_style('inrcy-directory', false, array(), '1.4.2');
+    wp_register_style('inrcy-directory', false, array(), '2.0.0');
     wp_enqueue_style('inrcy-directory');
     $css = <<<'INRCY_DIRECTORY_CSS'
         .inrcy-directory-page .ast-article-single>.entry-header{display:none}
@@ -484,23 +497,23 @@ function inrcy_directory_enqueue_styles() {
         body.inrcy-directory-page .inrcy-directory__reset{grid-column:1/-1;width:max-content;color:#6a45be;font-size:14px;font-weight:750;text-decoration:underline;text-underline-offset:3px}
         body.inrcy-directory-page .inrcy-directory__summary{margin:24px 0 16px;color:#687693;font-size:15px}
         body.inrcy-directory-page .inrcy-directory__summary strong{color:#16213f;font-size:22px}
-        body.inrcy-directory-page .inrcy-directory__grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px}
-        body.inrcy-directory-page .inrcy-directory__card{position:relative;display:flex;min-width:0;min-height:300px;overflow:hidden;flex-direction:column;padding:20px;border:1px solid rgba(126,98,255,.28);border-radius:22px;background:radial-gradient(circle at 90% 0%,rgba(47,190,255,.24),transparent 40%),linear-gradient(145deg,#101a38,#211b4d 58%,#172c5c);box-shadow:0 16px 34px rgba(25,35,83,.18);color:#f8fafc;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
-        body.inrcy-directory-page .inrcy-directory__card::after{position:absolute;right:-38px;bottom:-54px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(255,67,151,.26),transparent 68%);content:"";pointer-events:none}
-        body.inrcy-directory-page .inrcy-directory__card:hover,body.inrcy-directory-page .inrcy-directory__card:focus-within{transform:translateY(-4px);border-color:rgba(82,194,255,.68);box-shadow:0 24px 48px rgba(29,43,111,.28)}
-        body.inrcy-directory-page .inrcy-directory__card-top{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px}
-        body.inrcy-directory-page .inrcy-directory__card-kicker{color:#c4b5fd;font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
-        body.inrcy-directory-page .inrcy-directory__card-mark{display:grid;width:36px;height:36px;flex:0 0 36px;place-items:center;border:1px solid rgba(98,211,255,.45);border-radius:11px;background:linear-gradient(145deg,#ff3d9a,#8157ff 58%,#1cacf4);color:#fff;font-size:12px;font-weight:950;box-shadow:0 7px 18px rgba(91,84,255,.35)}
-        body.inrcy-directory-page .inrcy-directory__card h2{position:relative;z-index:1;margin:18px 0 7px;color:#fff;font-size:clamp(22px,2vw,27px);font-weight:850;line-height:1.12;letter-spacing:-.025em}
-        body.inrcy-directory-page .inrcy-directory__profession{position:relative;z-index:1;margin:0;color:#ff83b7;font-size:14px;font-weight:850}
-        body.inrcy-directory-page .inrcy-directory__location{position:relative;z-index:1;margin:12px 0 0;color:#cbd5e1;font-size:13px;line-height:1.45}
-        body.inrcy-directory-page .inrcy-directory__card>p:not(.inrcy-directory__profession):not(.inrcy-directory__location){position:relative;z-index:1;display:-webkit-box;overflow:hidden;margin:16px 0 0;color:#d3daea;font-size:14px;line-height:1.55;-webkit-line-clamp:3;-webkit-box-orient:vertical}
-        body.inrcy-directory-page .inrcy-directory__card-link{position:relative;z-index:2;display:flex;min-height:44px;align-items:center;justify-content:space-between;gap:12px;margin-top:auto;padding-top:14px;color:#fff;font-size:14px;font-weight:900;text-decoration:none}
-        body.inrcy-directory-page .inrcy-directory__card-link::after{position:absolute;z-index:3;inset:-256px -20px -20px;content:""}
-        body.inrcy-directory-page .inrcy-directory__card-link>span{position:relative;z-index:4}
-        body.inrcy-directory-page .inrcy-directory__card-link:hover{color:#8be7ff}
-        body.inrcy-directory-page .inrcy-directory__card-arrow{display:grid;width:36px;height:36px;place-items:center;border:1px solid rgba(255,255,255,.22);border-radius:50%;color:#fff;font-size:18px;transition:transform .18s ease,background .18s ease}
-        body.inrcy-directory-page .inrcy-directory__card:hover .inrcy-directory__card-arrow,body.inrcy-directory-page .inrcy-directory__card:focus-within .inrcy-directory__card-arrow{transform:translate(2px,-2px);background:rgba(255,255,255,.14)}
+        body.inrcy-directory-page .inrcy-directory__grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:18px;position:relative;isolation:isolate;align-items:stretch}
+        body.inrcy-directory-page .inrcy-directory__card{position:relative;isolation:isolate;display:flex;min-width:0;overflow:hidden;flex-direction:column;padding:18px 20px 12px;border:1px solid #7187c64d;border-radius:22px;background:linear-gradient(145deg,#0b1734 0%,#101835 64%,#151533 100%);box-shadow:inset 0 1px 0 #dceaff24,inset 1px 0 0 #b3d8ff0a,0 10px 24px #12223d15;color:#f7faff;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+        body.inrcy-directory-page .inrcy-directory__card::before{content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;background:radial-gradient(ellipse at 0 0,#5eb8ed12,transparent 52%),radial-gradient(ellipse at 100% 100%,#aa62e414,transparent 58%),linear-gradient(125deg,#ffffff06,transparent 38%)}
+        body.inrcy-directory-page .inrcy-directory__card::after{content:"";position:absolute;inset:1px;border-radius:21px;border-top:1px solid #b6dcff24;pointer-events:none}
+        body.inrcy-directory-page .inrcy-directory__card:hover,body.inrcy-directory-page .inrcy-directory__card:focus-within{transform:translateY(-3px);border-color:#91b4e78c;box-shadow:inset 0 1px 0 #dceaff32,0 16px 30px #12223d24}
+        body.inrcy-directory-page .inrcy-directory__card-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+        body.inrcy-directory-page .inrcy-directory__card-kicker{font-size:10px;line-height:1.4;letter-spacing:.06em;font-weight:800;color:#c2c8ff;text-transform:uppercase}
+        body.inrcy-directory-page .inrcy-directory__card-mark{display:grid;place-items:center;width:27px;height:27px;flex-shrink:0;background:linear-gradient(135deg,#ed4baf,#8355e8,#2b9cf6);border:1px solid #b0c8ff45;border-radius:9px;color:#fff;font-size:10px;font-weight:800}
+        body.inrcy-directory-page .inrcy-directory__card h2{font-size:23px;letter-spacing:-.025em;line-height:1.15;font-weight:750;color:#f7faff;margin:13px 0 8px;overflow-wrap:anywhere}
+        body.inrcy-directory-page .inrcy-directory__profession{font-size:14px;line-height:1.4;color:#ff8cc5;font-weight:750;margin:0}
+        body.inrcy-directory-page .inrcy-directory__location{font-size:13px;line-height:1.5;color:#d0ddf2;margin:8px 0 0;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;block-size:3em;min-block-size:3em;overflow:hidden;flex-shrink:0}
+        body.inrcy-directory-page .inrcy-directory__qr{display:flex;flex-direction:column;align-items:center;gap:7px;margin:auto 0 12px;padding:14px 0 0;color:#cbd8ef;text-decoration:none;text-align:center;flex-shrink:0}
+        body.inrcy-directory-page .inrcy-directory__qr img{display:block;width:124px;height:124px;box-sizing:border-box;padding:5px;background:#fff;border-radius:13px;box-shadow:0 4px 14px #00000024;flex-shrink:0}
+        body.inrcy-directory-page .inrcy-directory__qr span{display:flex;max-width:100%;color:#cbd8ef;font-size:12px;font-weight:500;line-height:1.4;text-align:center;block-size:2.8em;min-block-size:2.8em;align-items:center;justify-content:center}
+        body.inrcy-directory-page .inrcy-directory__card-link{position:relative;display:flex;box-sizing:border-box;align-items:center;justify-content:center;gap:8px;min-height:44px;margin-top:0;padding:8px 31px 0;border-top:1px solid #b4c8ef26;color:#fff;text-decoration:none;font-size:14px;line-height:1.35;font-weight:750;text-align:center;height:44px;flex-shrink:0}
+        body.inrcy-directory-page .inrcy-directory__card-link>.inrcy-directory__card-arrow{position:absolute;right:0;top:10px;display:grid;place-items:center;width:28px;height:28px;border:1px solid #b4c8ef36;border-radius:50%;background:#ffffff06;color:#e9f4ff;font-size:17px}
+        body.inrcy-directory-page .inrcy-directory__card-link:hover{color:#b9eaff}
         body.inrcy-directory-page .inrcy-directory__empty{padding:38px;border-radius:22px;background:#f8f9ff;text-align:center}
         body.inrcy-directory-page .inrcy-directory__empty h2{margin:0 0 8px;color:#1c2746;font-size:25px}
         body.inrcy-directory-page .inrcy-directory__empty p{margin:0;color:#69758e}
@@ -517,7 +530,7 @@ function inrcy_directory_enqueue_styles() {
         body.inrcy-directory-page .inrcy-directory__note{margin:24px 0 0;color:#8490a7;font-size:13px;text-align:center}
         body.inrcy-directory-page .inrcy-directory :is(a,button,input,select):focus-visible{outline:3px solid #22b9f3;outline-offset:3px}
         @media (max-width:1050px){body.inrcy-directory-page .inrcy-directory__filters{grid-template-columns:repeat(2,minmax(0,1fr))}body.inrcy-directory-page .inrcy-directory__field--wide,body.inrcy-directory-page .inrcy-directory__submit{grid-column:1/-1}body.inrcy-directory-page .inrcy-directory__grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-        @media (max-width:700px){body.inrcy-directory-page .inrcy-directory{padding:40px 16px 64px}body.inrcy-directory-page .inrcy-directory__hero{margin-bottom:22px}body.inrcy-directory-page .inrcy-directory h1{font-size:clamp(34px,11vw,44px)}body.inrcy-directory-page .inrcy-directory__hero p{font-size:15px;line-height:1.6}body.inrcy-directory-page .inrcy-directory__filters{grid-template-columns:1fr;margin:22px 0 17px;padding:16px;gap:10px}body.inrcy-directory-page .inrcy-directory__field--wide,body.inrcy-directory-page .inrcy-directory__submit{grid-column:auto}body.inrcy-directory-page .inrcy-directory__grid{grid-template-columns:1fr}body.inrcy-directory-page .inrcy-directory__card{min-height:272px}body.inrcy-directory-page .inrcy-directory__join{align-items:stretch;flex-direction:column;padding:22px}body.inrcy-directory-page .inrcy-directory__join-link{justify-content:center}}
+        @media (max-width:700px){body.inrcy-directory-page .inrcy-directory{padding:40px 16px 64px}body.inrcy-directory-page .inrcy-directory__hero{margin-bottom:22px}body.inrcy-directory-page .inrcy-directory h1{font-size:clamp(34px,11vw,44px)}body.inrcy-directory-page .inrcy-directory__hero p{font-size:15px;line-height:1.6}body.inrcy-directory-page .inrcy-directory__filters{grid-template-columns:1fr;margin:22px 0 17px;padding:16px;gap:10px}body.inrcy-directory-page .inrcy-directory__field--wide,body.inrcy-directory-page .inrcy-directory__submit{grid-column:auto}body.inrcy-directory-page .inrcy-directory__grid{grid-template-columns:1fr}body.inrcy-directory-page .inrcy-directory__card{padding:20px 22px 12px}body.inrcy-directory-page .inrcy-directory__card h2{font-size:25px}body.inrcy-directory-page .inrcy-directory__qr img{width:132px;height:132px}body.inrcy-directory-page .inrcy-directory__join{align-items:stretch;flex-direction:column;padding:22px}body.inrcy-directory-page .inrcy-directory__join-link{justify-content:center}}
         @media (prefers-reduced-motion:reduce){body.inrcy-directory-page .inrcy-directory *,body.inrcy-directory-page .inrcy-directory *::before,body.inrcy-directory-page .inrcy-directory *::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
     INRCY_DIRECTORY_CSS;
     wp_add_inline_style('inrcy-directory', $css);
@@ -535,7 +548,7 @@ function inrcy_directory_rank_math_title($title) {
 
 function inrcy_directory_rank_math_description($description) {
     if (is_page('annuaire')) {
-        return 'Trouvez un professionnel par métier et par zone géographique grâce à l’annuaire iNrCy et découvrez sa page iNr’Search.';
+        return 'Trouvez un professionnel par métier et par zone géographique grâce à l’annuaire iNrCy et contactez-le depuis son iNr’Badge.';
     }
 
     return $description;

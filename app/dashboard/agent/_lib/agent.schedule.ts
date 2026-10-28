@@ -1065,6 +1065,10 @@ export function scheduledEditUpdateFromAction(
     const video = asRecord(payload.video) || asRecord(publishPayload.video) || null;
     const nextPublishPayload: Record<string, unknown> = {
       ...publishPayload,
+      ...(Object.hasOwn(payload, "soundtrackId") ? { soundtrackId: payload.soundtrackId } : {}),
+      ...(Object.hasOwn(payload, "soundtrackByChannel") || Object.hasOwn(publishPayload, "soundtrackByChannel") ? {
+        soundtrackByChannel: { ...(asRecord(publishPayload.soundtrackByChannel) || {}), ...(asRecord(payload.soundtrackByChannel) || {}) },
+      } : {}),
       channels,
       post: firstPost,
       postByChannel: canonicalPostByChannel,

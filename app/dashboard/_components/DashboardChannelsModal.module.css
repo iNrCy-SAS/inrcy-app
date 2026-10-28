@@ -120,6 +120,7 @@
   .toolbarActions { grid-column: 2; grid-row: 1; }
 }
 @media (max-width: 1100px) {
+  .dialog { height: calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom,0px)))); z-index: 100; animation: none; }
   .surface { padding: 24px; }
   .scene { flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; min-height: 0; padding: 40px 0 24px; }
   .selectedArea { --center-size: 300px; position: relative; top: auto; left: auto; transform: none; width: 300px; min-width: 0; flex-shrink: 0; margin-bottom: 26px; }
@@ -174,3 +175,27 @@
 @media (prefers-reduced-motion: reduce) {
   .dialog,.dialog *,.dialog *::before,.dialog *::after { animation: none !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+.mobileChannelGrid{display:none}
+@media(max-width:1100px){
+ .scene{padding-top:20px;gap:0}
+ .selectedArea{display:grid;grid-template-columns:1fr 1fr;column-gap:16px;row-gap:20px;width:min(320px,100%);--center-size:320px;margin-bottom:20px}
+ .selectedHalo{grid-column:1/-1;grid-row:1;pointer-events:none}
+ .selectedBubble{grid-column:1/-1;grid-row:1;touch-action:pan-y}
+ .channelArrow{position:relative;inset:auto;top:auto;left:auto;right:auto;transform:none;width:36px;height:36px;grid-row:2;margin:0}
+ .arrowPrevious{grid-column:1;justify-self:end}.arrowNext{grid-column:2;justify-self:start}
+ .selectedBubble [data-channel-feedback]{margin-top:18px}
+ .selectedArea>span{grid-column:1/-1}
+ .satellites{display:none}
+ .mobileChannelGrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px 6px;width:min(100%,420px);margin:0 auto;padding:3px 0 12px}
+ .mobileChannelButton{position:relative;display:grid;place-items:center;min-width:0;width:100%;height:44px;border:1px solid #b2d7ff30;border-radius:13px;padding:5px;background:linear-gradient(140deg,#60b9ff13,#aa68e816);box-shadow:inset 0 1px 0 #ffffff0d;color:white;cursor:pointer;transition:background .18s,border-color .18s,box-shadow .18s;touch-action:manipulation}
+ .mobileChannelButton img{width:30px;height:30px;object-fit:contain;border-radius:50%}
+ .mobileChannelButton[aria-pressed=true]{border-color:#81ddff;background:linear-gradient(130deg,#36beff3c,#a269ff40);box-shadow:0 0 0 1px #b0e5ff50,inset 0 1px 0 #ffffff26,0 0 14px #53b9ff2b}
+ .mobileChannelButton:focus-visible{outline:2px solid #d4f3ff;outline-offset:3px}
+ .miniStatus{position:absolute;right:3px;top:3px;width:5px;height:5px;background:#38ddbf;border-radius:50%;box-shadow:0 0 5px #38ddbf80}
+ .mobileChannelButton[data-tone=available] .miniStatus,.mobileChannelButton[data-tone=warning] .miniStatus{background:#ffc863;box-shadow:none}.mobileChannelButton[data-tone=disabled] .miniStatus{background:#8794ad;box-shadow:none}
+}
+@media(max-width:720px){.surface{padding:16px}.scene{padding-top:18px}.selectedArea{width:min(304px,100%);--center-size:304px;row-gap:18px;margin-bottom:18px}.mobileChannelGrid{gap:8px 5px}}
+@media(max-width:360px){.surface{padding:12px}.scene{padding-bottom:4px}.selectedArea{width:min(272px,100%);--center-size:272px;margin-bottom:14px}.mobileChannelGrid{gap:7px 4px;padding-bottom:4px}.mobileChannelButton{height:40px;padding:4px}.mobileChannelButton img{width:28px;height:28px}}
+
+@media(max-width:1100px){.selectedArea{row-gap:26px}.selectedBubble [data-channel-feedback]{margin-top:24px}}

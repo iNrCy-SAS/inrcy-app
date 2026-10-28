@@ -31,16 +31,17 @@ export const CHANNEL_BUBBLE_EDGE = 24;
 const CONSTELLATION_ANCHORS = [
   [0.105, 0.20, 1.07], [0.30, 0.14, 0.91],
   [0.245, 0.465, 1.01], [0.075, 0.63, 0.90],
-  [0.185, 0.90, 0.96], [0.335, 0.755, 1.04],
+  [0.16, 0.90, 0.96], [0.285, 0.77, 1.04],
   [0.72, 0.22, 0.94], [0.90, 0.14, 1.08],
   [0.80, 0.50, 1.02], [0.94, 0.64, 0.88],
   [0.87, 0.89, 0.97], [0.68, 0.69, 0.92],
+  [0.51, 0.075, 0.85],
 ] as const;
 
 type ChannelSceneSlot = { x: number; y: number; size: number };
 
 /**
- * Twelve individually sized satellites around a protected central sphere.
+ * Thirteen individually sized satellites around a protected central sphere.
  * A 44px resting gap leaves >=24px even with +/-6px x, +/-8px y motion.
  * The 24px edge inset leaves >=16px at the extreme vertical phase.
  */
@@ -70,7 +71,7 @@ export function getChannelSceneLayout(width: number, height: number) {
   };
   let slots: ChannelSceneSlot[] = [];
 
-  // Only 12 circles, with a fixed small bound. Most desktop sizes accept attempt 0.
+  // Thirteen satellites, with a fixed small bound. Most desktop sizes accept attempt 0.
   for (let attempt = 0; attempt < 10; attempt += 1) {
     slots = CONSTELLATION_ANCHORS.map(([x, y, scale]) => ({
       x: x * width,
@@ -79,7 +80,7 @@ export function getChannelSceneLayout(width: number, height: number) {
     }));
     slots.forEach(fitWithinBounds);
 
-    for (let step = 0; step < 160; step += 1) {
+    for (let step = 0; step < 420; step += 1) {
       let largestCorrection = 0;
       for (let index = 0; index < slots.length; index += 1) {
         const slot = slots[index];

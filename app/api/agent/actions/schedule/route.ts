@@ -1009,7 +1009,10 @@ async function buildScheduledPayload(
     action.actionType === "publication"
   ) {
     const soundtrackId = normalizeBoosterSoundtrackId(Object.hasOwn(payload, "soundtrackId") ? payload.soundtrackId : nestedPublishPayload.soundtrackId);
-    const soundtrackByChannel = normalizeBoosterSoundtrackByChannel(Object.hasOwn(payload, "soundtrackByChannel") ? payload.soundtrackByChannel : nestedPublishPayload.soundtrackByChannel);
+    const soundtrackByChannel = {
+      ...normalizeBoosterSoundtrackByChannel(nestedPublishPayload.soundtrackByChannel),
+      ...normalizeBoosterSoundtrackByChannel(payload.soundtrackByChannel),
+    };
     // Preserve the workspace identity when the action was prepared from the
     // unified media pipeline. It is replaced by a private snapshot immediately
     // after this endpoint creates each scheduled row.

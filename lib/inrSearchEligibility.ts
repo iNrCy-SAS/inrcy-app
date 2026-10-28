@@ -73,7 +73,9 @@ function pickAuthUserId(accountId: string, rows: MembershipRow[]) {
   return clean(candidates[0]?.auth_user_id) || accountId;
 }
 
-async function loadEligibilityInputs(accountIds: string[]) {
+type PublicPresenceBubble = "inr_search" | "inr_directory";
+
+async function loadEligibilityInputs(accountIds: string[], bubbleKey: PublicPresenceBubble = "inr_search") {
   const uniqueAccountIds = Array.from(new Set(accountIds.map((value) => clean(value)).filter(Boolean)));
   if (!uniqueAccountIds.length) {
     return {
@@ -89,13 +91,15 @@ async function loadEligibilityInputs(accountIds: string[]) {
       .from("app_bubble_access")
       .select("user_id,bubble_key,enabled")
       .in("user_id", uniqueAccountIds)
-      .eq("bubble_key", "inr_search"),
+      .in("bubble_key", bubbleKey === "inr_directory" ? ["inr_directory", "inrbadge"] : [bubbleKey]),
     supabaseAdmin
       .from("inrcy_account_members")
       .select("account_id,auth_user_id,is_default,created_at")
       .in("account_id", uniqueAccountIds),
   ]);
 
+  if (accessRes.error) throw accessRes.error;
+  if (membershipsRes.error) throw membershipsRes.error;
   const accessRows = Array.isArray(accessRes.data) ? accessRes.data : [];
   const membershipRows = Array.isArray(membershipsRes.data)
     ? membershipsRes.data as MembershipRow[]
@@ -106,7 +110,8 @@ async function loadEligibilityInputs(accountIds: string[]) {
     const rows = accessRows
       .filter((row: any) => clean(row?.user_id) === accountId)
       .map((row: any) => ({ bubble_key: row?.bubble_key, enabled: row?.enabled })) as AppBubbleAccessRow[];
-    accessByAccount.set(accountId, buildBubbleAccessMap(rows).inr_search);
+    const access = buildBubbleAccessMap(rows);
+    accessByAccount.set(accountId, access[bubbleKey] && (bubbleKey !== "inr_directory" || access.inrbadge));
   }
 
   const authUserByAccount = new Map<string, string>();
@@ -130,6 +135,8 @@ async function loadEligibilityInputs(accountIds: string[]) {
       .in("user_id", subscriptionOwnerIds),
   ]);
 
+  if (subscriptionsRes.error) throw subscriptionsRes.error;
+  if (profilesRes.error) throw profilesRes.error;
   const subscriptionByAuthUser = new Map<string, SubscriptionRow>();
   for (const row of Array.isArray(subscriptionsRes.data) ? subscriptionsRes.data : []) {
     const userId = clean((row as any)?.user_id);
@@ -149,9 +156,10 @@ async function loadEligibilityInputs(accountIds: string[]) {
 
 export async function getInrSearchPublicationEligibility(
   accountIdValue: unknown,
+  bubbleKey: PublicPresenceBubble = "inr_search",
 ): Promise<InrSearchPublicationEligibility> {
   const accountId = clean(accountIdValue);
-  const inputs = await loadEligibilityInputs(accountId ? [accountId] : []);
+  const inputs = await loadEligibilityInputs(accountId ? [accountId] : [], bubbleKey);
   const authUserId = inputs.authUserByAccount.get(accountId) || accountId;
   const subscription = inputs.subscriptionByAuthUser.get(authUserId)
     || inputs.subscriptionByAuthUser.get(accountId)
@@ -169,9 +177,9 @@ export async function getInrSearchPublicationEligibility(
   return { allowed: true, reason: "published", accountId, authUserId, subscriptionStatus };
 }
 
-export async function filterEligibleInrSearchAccountIds(accountIds: string[]) {
+export async function filterEligibleInrSearchAccountIds(accountIds: string[], bubbleKey: PublicPresenceBubble = "inr_search") {
   const uniqueAccountIds = Array.from(new Set(accountIds.map((value) => clean(value)).filter(Boolean)));
-  const inputs = await loadEligibilityInputs(uniqueAccountIds);
+  const inputs = await loadEligibilityInputs(uniqueAccountIds, bubbleKey);
   const eligible = new Set<string>();
 
   for (const accountId of uniqueAccountIds) {
@@ -186,4 +194,11 @@ export async function filterEligibleInrSearchAccountIds(accountIds: string[]) {
   }
 
   return eligible;
+}
+
+export function getInrDirectoryPublicationEligibility(accountId: unknown) {
+  return getInrSearchPublicationEligibility(accountId, "inr_directory");
+}
+export function filterEligibleInrDirectoryAccountIds(accountIds: string[]) {
+  return filterEligibleInrSearchAccountIds(accountIds, "inr_directory");
 }

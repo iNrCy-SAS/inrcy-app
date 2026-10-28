@@ -63,7 +63,7 @@ test("le canal retiré n'ouvre plus de panneau ni d'aide ni de configuration", (
   assert.doesNotMatch(helpModalsSource, /Site iNrCy|siteInrcy|SiteInrcy/);
 });
 
-test("les deux offres montrent douze canaux, Mails restant verrouillé en Standard", () => {
+test("les deux offres montrent treize canaux, ou quatorze avec Threads, Mails restant verrouillé en Standard", () => {
   assert.match(
     channelsSectionSource,
     /const total = fluxBubbleItems\.length;/,
@@ -91,11 +91,11 @@ test("les deux offres montrent douze canaux, Mails restant verrouillé en Standa
   }));
   const standard = collapseDashboardWebsiteChannels(buildItems(true));
   const premium = collapseDashboardWebsiteChannels(buildItems(false));
-  assert.equal(standard.length, 12);
-  assert.equal(premium.length, 12);
-  assert.equal(collapseDashboardWebsiteChannels(buildItems(false, true)).length, 13, "le pilote ADMIN ajoute Threads");
-  assert.equal(standard.filter((item) => getChannelTone(item) === "connected").length, 7);
-  assert.equal(premium.filter((item) => getChannelTone(item) === "connected").length, 8);
+  assert.equal(standard.length, 13);
+  assert.equal(premium.length, 13);
+  assert.equal(collapseDashboardWebsiteChannels(buildItems(false, true)).length, 14, "le pilote ADMIN ajoute Threads");
+  assert.equal(standard.filter((item) => getChannelTone(item) === "connected").length, 8);
+  assert.equal(premium.filter((item) => getChannelTone(item) === "connected").length, 9);
   assert.equal(standard.find((item) => item.key === "site_web")?.bubbleStatus, "available", "le site unique conserve son état canonique");
   assert.equal(standard.find((item) => item.key === "mails")?.bubbleStatus, "coming", "Mails reste visible mais verrouillé");
 });
@@ -117,12 +117,12 @@ test("la présence du site unique conserve ses actions et sa connexion sans dép
 });
 
 test("la puissance garde les poids fixes des douze connexions, même si Threads est masqué", () => {
-  assert.equal(DASHBOARD_CHANNEL_SETUP.length, 13);
-  assert.equal(getDashboardChannelSetup(false).length, 12);
+  assert.equal(DASHBOARD_CHANNEL_SETUP.length, 14);
+  assert.equal(getDashboardChannelSetup(false).length, 13);
   assert.equal(getDashboardChannelPowerSetup(true).length, 12);
 
   const channelKeys = DASHBOARD_CHANNEL_SETUP.map((channel) => channel.key);
-  assert.equal(new Set(channelKeys).size, 13, "chaque canal doit apparaître une seule fois");
+  assert.equal(new Set(channelKeys).size, 14, "chaque canal doit apparaître une seule fois");
 
   const weightedChannels = getDashboardChannelSetup(false).filter((channel) => channel.weight > 0);
   assert.equal(weightedChannels.length, 11);

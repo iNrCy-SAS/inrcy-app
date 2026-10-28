@@ -35,9 +35,9 @@ test("le dashboard conserve le cockpit et place le Générateur au centre sans s
   assert.doesNotMatch(dashboard + channels, /dashboardQuickJump|scrollToDashboardAnchor/);
   assert.doesNotMatch(channels, /<DashboardFluxBubble\b|fluxCarousel|carouselTrack/);
   assert.match(generator, /data-testid="dashboard-generator-hub"/);
-  assert.match(generator, /onClick=\{onOpenGeneratorSettings\}/);
-  assert.match(generator, /aria-haspopup="dialog"/);
-  assert.match(generator, /aria-label=\{`\$\{heroT\("settingsAria"\)\} · \$\{generatorIsActive \? t\.hero\.active : t\.hero\.waiting\}`\}/);
+  assert.doesNotMatch(generator, /onOpenGeneratorSettings|settingsAria|settingsTitle/);
+  assert.match(generator, /role="img"/);
+  assert.match(generator, /aria-label=\{`\$\{heroT\("generatorShortTitle"\)\} · \$\{generatorIsActive \? t\.hero\.active : t\.hero\.waiting\}`\}/);
   assert.match(generator, /<DashboardGeneratorOrb isActive=\{generatorIsActive\}/);
   assert.match(generatorOrb, /data-active=\{isActive === null \? "unknown" : String\(isActive\)\} aria-hidden="true"/);
   assert.doesNotMatch(channels, /dashboard-channels-hub|styles\.hubRow/);
@@ -156,13 +156,16 @@ test("la grande fenêtre réutilise les actions et protections des bulles exista
   assert.doesNotMatch(modal, /closeDialog\(\); onOpenHelp\(\)/);
 });
 
-test("la fenêtre native gère le clavier, le retour du focus et le verrouillage du défilement", () => {
+test("les canaux gardent une fenêtre modale sur PC et un espace non modal au-dessus du dock mobile", () => {
   assert.match(modal, /<dialog[\s\S]*?aria-labelledby=\{titleId\}[\s\S]*?aria-describedby=\{descriptionId\}/);
-  assert.match(modal, /dialog\?\.showModal\(\)/);
+  assert.match(modal, /const mobile = window\.matchMedia\("\(max-width: 1100px\)"\)/);
+  assert.match(modal, /const shouldBeModal = !mobile\.matches/);
+  assert.match(modal, /dialog\.setAttribute\("aria-modal", String\(shouldBeModal\)\)/);
+  assert.match(modal, /if \(shouldBeModal\) dialog\.showModal\(\); else dialog\.show\(\);/);
   assert.match(modal, /closeButtonRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
   assert.match(modal, /const previousOverflow = document\.body\.style\.overflow/);
   assert.match(modal, /document\.body\.style\.overflow = "hidden"/);
-  assert.match(modal, /return \(\) => \{\s*dialog\?\.close\(\);\s*document\.body\.style\.overflow = previousOverflow;\s*document\.documentElement\.style\.overflow = previousHtmlOverflow;\s*if \(opener\?\.isConnected\) opener\.focus\(\{ preventScroll: true \}\);/);
+  assert.match(modal, /return \(\) => \{\s*mobile\.removeEventListener\("change", syncPresentation\);\s*document\.removeEventListener\("close", nestedClosed, true\);\s*dialog\.close\(\);\s*document\.body\.style\.overflow = previousOverflow;\s*document\.documentElement\.style\.overflow = previousHtmlOverflow;\s*if \(opener\?\.isConnected\) opener\.focus\(\{ preventScroll: true \}\);/);
   assert.match(modal, /onCancel=\{\(event\) => \{ event\.preventDefault\(\); closeDialog\(\); \}\}/);
   assert.match(modal, /event\.target !== event\.currentTarget/);
   assert.match(modal, /event\.clientX < bounds\.left[\s\S]*?closeDialog\(\)/);
@@ -187,7 +190,9 @@ test("les canaux occupent tout l’écran sans marges et se réorganisent sur mo
   assert.match(modalCss, /height: 100dvh/);
   assert.match(modalCss, /max-height: none/);
   assert.match(modalCss, /\.dialog::backdrop\s*\{[^}]*backdrop-filter: blur\(13px\)/);
-  assert.match(modalCss, /@media \(max-width: 720px\)[\s\S]*?grid-template-columns: repeat\(3,minmax\(0,1fr\)\)/);
+  assert.match(modalCss, /\.mobileChannelGrid\s*\{[^}]*grid-template-columns:repeat\(7,minmax\(0,1fr\)\)/);
+  assert.match(modalCss, /\.satellites\s*\{display:none\}/);
+  assert.match(modal, /filteredItems\.map\(item => <button[^\n]*data-channel-mini=\{item\.key\}/);
   assert.match(modalCss, /\.surface\s*\{[^}]*overflow-y: auto/);
   assert.match(toolsCss, /@media \(max-width: 1100px\)[\s\S]*?\.lowerRow\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
 });
@@ -196,7 +201,7 @@ test("les bulles gardent un espace libre même à l'amplitude maximale de leur m
   for (const [width, height] of [[1000, 430], [1100, 430], [1280, 470], [1550, 520], [1800, 780]]) {
     const layout = getChannelSceneLayout(width, height);
     assert.ok(layout.satelliteSize > 50);
-    assert.equal(layout.slots.length, 12);
+    assert.equal(layout.slots.length, 13);
     const circles = [
       { x: width / 2, y: layout.centerY, radius: layout.centerSize / 2 },
       ...layout.slots.map((slot) => ({ ...slot, radius: slot.size / 2 })),
@@ -255,7 +260,7 @@ test("le cockpit garde ses trois actions et son solde UI, les métriques réelle
   assert.match(hero, /uiBalance\.toLocaleString\(locale\)/);
   for (const metric of ["leadsWeek", "leadsMonth", "oppTotal", "estimatedValue"]) assert.ok(modules.includes(`overview.${metric}`), metric);
   assert.match(generator, /onClick=\{onRefreshGenerator\}[\s\S]*?disabled=\{kpisLoading\}/);
-  assert.match(generator, /onClick=\{onOpenGeneratorSettings\}/);
+  assert.doesNotMatch(generator, /onOpenGeneratorSettings|settingsAria|settingsTitle/);
   assert.match(generator, /onClick=\{onOpenGeneratorHelp\}/);
   assert.match(modules, /startModuleNavigation\("\/dashboard\/stats", onOpenStats\)/);
   assert.match(hero, /role="progressbar"[\s\S]*?aria-valuenow=\{step\.value\}/);

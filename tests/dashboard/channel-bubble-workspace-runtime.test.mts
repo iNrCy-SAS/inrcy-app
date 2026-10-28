@@ -155,7 +155,7 @@ test("an empty resource selector shows one loading message during discovery and 
   }
   const selected = h.render("default", { item: { ...item, connection: { accountConnected: true, value: "locations/1", resourceLabel: "iNrCy", onSelect() {}, busy: true } } });
   assert.equal(nodes(selected).find(node => node.type === "select")!.props.value, "locations/1");
-  assert.equal(nodes(selected).find(node => node.type === "p" && node.props.children === labels.loading)!.props.children, labels.loading);
+  assert.ok(!nodes(selected).some(node => node.props["data-channel-feedback"]));
 });
 
 test("reconnect stays in the main action without a duplicate subtitle and preserves operation feedback", () => {
@@ -170,13 +170,12 @@ test("reconnect stays in the main action without a duplicate subtitle and preser
   const failed = h.render("default", { item: { ...reconnect, connection: { ...reconnect.connection, error: "Impossible de mettre à jour le lien." } } });
   assert.equal(nodes(nodes(failed).find(node => node.props.role === "alert")!).find(node => node.type === "p")!.props.children, "Impossible de mettre à jour le lien.");
   const saved = h.render("default", { item: { ...reconnect, connection: { ...reconnect.connection, notice: "Lien mis à jour." } } });
-  const notice = nodes(saved).find(node => node.props.role === "status")!;
-  assert.equal(nodes(notice).find(node => node.type === "p")!.props.children, "Lien mis à jour.");
+  assert.ok(!nodes(saved).some(node => node.props["data-channel-feedback"]));
 });
 
-test("channel errors and confirmations remain readable below the main bubble, never inside its controls", () => {
+test("only channel errors remain readable below the main bubble, never inside its controls", () => {
   const h = runtime("app/dashboard/_components/DashboardFluxBubble.tsx");
-  for (const feedback of [{ error: "Votre compte Instagram doit être Professionnel ou Créateur et associé à votre Page Facebook professionnelle." }, { notice: "Tableau « Actualités » créé sur Pinterest." }]) {
+  for (const feedback of [{ error: "Votre compte Instagram doit être Professionnel ou Créateur et associé à votre Page Facebook professionnelle." }]) {
     const tree = h.render("default", { item: { ...item, connection: { accountConnected: true, ...feedback } } });
     const article = nodes(tree).find(node => node.type === "article")!;
     const message = nodes(tree).find(node => node.props["data-channel-feedback"])!;
@@ -184,7 +183,7 @@ test("channel errors and confirmations remain readable below the main bubble, ne
     assert.ok(!nodes(article).includes(message));
     assert.ok(!nodes(article).some(node => node.props.role === "alert" || node.props.role === "status"));
     assert.equal(message.props.role, feedback.error ? "alert" : "status");
-    const text = feedback.error || feedback.notice;
+    const text = feedback.error;
     assert.equal(renderToStaticMarkup(tree).split(text!).length - 1, 1, "The entire message is shown once without a duplicate tooltip");
   }
 });

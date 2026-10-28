@@ -422,6 +422,12 @@
       "description": "Ga in gesprek met uw community 💬",
       "view": "Account bekijken",
       "connect": "Instagram koppelen"
+    },
+    "inr_directory": {
+      "name": "iNr’Annuaire",
+      "description": "Word gevonden in de buurt 📍",
+      "view": "Bekijk de bedrijvengids",
+      "connect": "Instellen"
     }
   },
   "bubble": {

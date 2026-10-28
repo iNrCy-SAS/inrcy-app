@@ -1,3 +1,4 @@
+import { isInrDirectoryEnabled } from "@/lib/inrDirectorySettings";
 import { asRecord, asString } from "@/lib/tsSafe";
 import { getConnectionDisplayStatus, mailConnectionKind, type ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -501,7 +502,7 @@ export async function getChannelConnectionStates(
   const inrSearchOrigin = ((process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, "") === "https://inrcy.com" ? "https://app.inrcy.com" : (process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, ""));
   const inrSearchProfileUrl = inrSearchEnabled ? `${inrSearchOrigin}/entreprises/${inrSearchSlug}` : null;
   const inrSearchBusinessName = asString(inrSearchSettings.pageTitle) || null;
-  const inrSearchDirectoryEnabled = Boolean(inrSearchEnabled && inrSearchSettings.directoryEnabled);
+  const inrSearchDirectoryEnabled = isInrDirectoryEnabled(settings);
 
   const gmb = latestIntegration(rows, "google", "gmb", "gmb");
   const gmbSettings = asRecord(settings.gmb);
