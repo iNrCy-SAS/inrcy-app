@@ -182,9 +182,9 @@ test("Pilot channel weights stay fixed and inertia excludes Threads from USER de
   assert.equal(setup.getDashboardChannelSetup(false).some((channel: any) => channel.key === "threads"), false);
   const basePower = setup.getDashboardChannelPowerSetup(false).reduce((sum: number, row: any) => sum + row.weight, 0);
   const adminPower = setup.getDashboardChannelPowerSetup(true);
-  assert.equal(basePower, 96);
+  assert.equal(basePower, 94);
   assert.equal(adminPower.reduce((sum: number, row: any) => sum + row.weight, 0), 100);
-  assert.equal(adminPower.find((row: any) => row.key === "threads").weight, 4);
+  assert.equal(adminPower.find((row: any) => row.key === "threads").weight, 6);
   const inertia = load("lib/loyalty/inertia.ts");
   const input = { site_web: false, gmb: false, facebook: false, instagram: false, linkedin: false, x: false, tiktok: false, youtube_shorts: false };
   assert.equal(inertia.computeInertiaSnapshot(input).totalChannels, 8);
