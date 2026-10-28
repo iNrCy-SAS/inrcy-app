@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import * as reviewerAccess from "../../lib/reviewerAccess.ts";
 import * as editionPolicy from "../../lib/dashboardEdition.ts";
+import * as directorySettings from "../../lib/inrDirectorySettings.ts";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import * as crypto from "node:crypto";
@@ -200,6 +201,7 @@ test("Threads public URL accepts a profile on official domains and rejects posts
 test("Canonical state retains legacy Instagram and blocks expired direct tokens and USER pilot identities", async () => {
   const safe = load("lib/tsSafe.ts");
   const stateModule = (enabled: boolean) => load("lib/channelConnectionState.ts", {
+    "@/lib/inrDirectorySettings": directorySettings,
     "@/lib/tsSafe": safe,
     "@/lib/connectionVersions": { getConnectionDisplayStatus: (connected: boolean, _kind: string, meta: any) => meta?.needs_reconnect ? "needs_update" : connected ? "connected" : "disconnected", mailConnectionKind: () => "mail" },
     "@/lib/supabaseAdmin": { supabaseAdmin: {} },

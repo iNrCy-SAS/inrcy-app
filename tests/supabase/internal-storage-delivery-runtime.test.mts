@@ -8,6 +8,7 @@ import ts from "typescript";
 import * as policy from "../../lib/storageDeliveryPolicy.ts";
 import * as payloads from "../../lib/inrAgentScheduledPayload.ts";
 import * as metaImageMotionTiming from "../../lib/metaImageMotionTiming.ts";
+import * as agentSoundtrack from "../../lib/inrAgentPublicationSoundtrack.ts";
 
 const account = "11111111-1111-4111-8111-111111111111";
 const other = "22222222-2222-4222-8222-222222222222";
@@ -117,6 +118,7 @@ function scheduledRoute(file: string) {
     maybeSingle: async () => ({ data: { ...row, id: "schedule-a" }, error: null }) };
   const route = load(file, {
     "@/lib/boosterSoundtracks": soundtrackSelection,
+    "@/lib/inrAgentPublicationSoundtrack": agentSoundtrack,
     "@/lib/inrAgentScheduledActions": { scheduledActionToDbRow: (args: AnyRecord) => ({ ...args, user_id: args.userId, action_type: "custom", target_tool: "agent" }), rowToInrAgentScheduledAction: (value: AnyRecord) => value },
     "@/lib/inrAgentSettings": { INR_AGENT_AUTOMATION_KEYS: [] },
     "@/lib/inrAgentActions": { INR_AGENT_ACTION_TYPES: [], INR_AGENT_TARGET_TOOLS: [] },

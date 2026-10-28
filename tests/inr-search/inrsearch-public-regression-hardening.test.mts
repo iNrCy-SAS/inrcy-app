@@ -27,17 +27,21 @@ test("website embeds renew private booster and universal media URLs from durable
   assert.match(render, /Vidéo indisponible/);
 });
 
-test("the iNrSearch settings drawer overrides the dashboard touch nowrap rule locally", () => {
+test("the iNrSearch information panel remains readable and has no directory settings", () => {
   const source = read("app/dashboard/settings/_components/InrSearchSettingsContent.tsx");
-  const css = read("app/dashboard/settings/_components/InrSearchSettingsContent.module.css");
+  const css = read("app/dashboard/_components/ChannelParametersDialog.module.css");
+  const information = source.slice(source.indexOf("  const parameters = "), source.indexOf("  return <>"));
 
-  assert.match(source, /InrSearchSettingsContent\.module\.css/);
-  assert.match(source, /localStyles\.muted/);
-  assert.match(source, /localStyles\.directoryButton/);
-  assert.match(css, /white-space:\s*normal !important/);
-  assert.match(css, /margin-left:\s*0 !important/);
-  assert.match(css, /min-width:\s*0/);
-  assert.match(css, /overflow-wrap:\s*anywhere/);
+  assert.match(source, /parametersLabel: "Informations"/);
+  assert.match(source, /parametersIcon: "info"/);
+  assert.match(source, /parametersAlwaysVisible: true/);
+  assert.match(information, /À quoi sert iNr’Search/);
+  assert.match(information, /site automatisé/);
+  assert.match(information, /moteurs de recherche et les assistants IA/);
+  assert.match(information, /lineHeight: 1\.7/);
+  assert.doesNotMatch(information, /<(?:button|input|select|form)\b|directoryButton|whiteSpace: "nowrap"/);
+  assert.match(css, /\.content\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto/);
+  assert.match(css, /\.content button,\.content select,\.content input,\.content textarea[^}]*max-width:\s*100%/);
 });
 
 test("public iNrSearch logos can fall back from the account profile to the owner profile", () => {

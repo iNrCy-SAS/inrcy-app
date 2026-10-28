@@ -28,7 +28,7 @@ function nodes(tree: any): any[] {
   return [tree, ...nodes(tree.props?.children)];
 }
 
-function runtime(fetch: any, initialConnected = true, cached?: Dict) {
+function runtime(fetch: any, initialConnected = true, cached?: Dict, controller: "search" | "directory" = "search") {
   const slots: any[] = [];
   const effects: Array<() => any> = [];
   const cleanups: Array<() => void> = [];
@@ -60,7 +60,7 @@ function runtime(fetch: any, initialConnected = true, cached?: Dict) {
     if (name.endsWith("ChannelParametersDialog") || name.endsWith("StatusMessage")) return (props: any) => props.children;
     throw new Error(`Unexpected dependency ${name}`);
   };
-  const source = readFileSync(new URL("../../app/dashboard/settings/_components/InrSearchSettingsContent.tsx", import.meta.url), "utf8");
+  const source = readFileSync(new URL(`../../app/dashboard/settings/_components/${controller === "directory" ? "InrDirectorySettingsContent" : "InrSearchSettingsContent"}.tsx`, import.meta.url), "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loaded = { exports: {} as Dict };
   const win = {
@@ -75,7 +75,7 @@ function runtime(fetch: any, initialConnected = true, cached?: Dict) {
   );
   const render = () => {
     cursor = 0;
-    const tree = loaded.exports.default({ initialConnected, initialPublicUrl: "https://app.inrcy.com/entreprises/business-a", initialDirectoryEnabled: initialConnected, renderBubble: (value: Dict) => { bubble = value; return null; } });
+    const tree = loaded.exports.default({ initialEnabled: initialConnected, initialConnected, initialPublicUrl: "https://app.inrcy.com/entreprises/business-a", initialDirectoryEnabled: initialConnected, renderBubble: (value: Dict) => { bubble = value; return null; } });
     if (!mounted) {
       mounted = true;
       for (const effect of effects) { const cleanup = effect(); if (typeof cleanup === "function") cleanups.push(cleanup); }
@@ -109,7 +109,8 @@ test("iNrSearch: a confirmed connection supersedes a GET started before the acti
   assert.equal(h.render().bubble.accountConnected, true);
   assert.equal(calls.length, 2, "one GET and one POST, including a duplicate click");
   assert.equal(h.events.length, 1);
-  assert.deepEqual(h.events[0].detail, { connected: true, directoryEnabled: true, profileUrl: "http://localhost:3000/entreprises/business-a", refresh: true });
+  assert.deepEqual(h.events[0].detail, { connected: true, profileUrl: "http://localhost:3000/entreprises/business-a", refresh: true });
+  assert.equal(Object.hasOwn(h.events[0].detail, "directoryEnabled"), false, "Search confirmation cannot change the independent directory state");
   assert.equal(h.cache().settings.enabled, true);
 });
 
@@ -132,30 +133,42 @@ test("iNrSearch: disconnect cannot be undone by an older connected GET", async (
   assert.equal(h.cache().settings.enabled, false);
   assert.equal(h.events.length, 1);
   assert.equal(h.events[0].detail.connected, false);
-  assert.equal(h.events[0].detail.directoryEnabled, false);
+  assert.equal(Object.hasOwn(h.events[0].detail, "directoryEnabled"), false, "Search disconnect cannot withdraw the directory listing");
 });
 
-test("iNrSearch: directory changes preserve the page connection and ignore old directory state", async () => {
-  const oldRead = deferred<any>();
+test("iNrAnnuaire: a directory mutation stays independent when an older Search read arrives", async () => {
+  const oldSearchRead = deferred<any>();
+  const search = runtime(() => oldSearchRead.promise);
+  search.render();
   const write = deferred<any>();
   const calls: Dict[] = [];
-  const h = runtime((_url: string, options: Dict) => { calls.push(options); return options.method === "POST" ? write.promise : oldRead.promise; });
-  const params = h.render().bubble.parameters;
-  const toggle = nodes(params).find(node => node.type === "button" && "aria-pressed" in node.props);
-  assert.ok(toggle);
-  toggle.props.onClick();
-  const refresh = nodes(params).find(node => node.type === "button" && node.props.children === "actualiser_9d3b2a7d");
-  refresh.props.onClick();
-  assert.equal(calls.length, 2, "focus/manual refresh cannot race an ongoing write");
-  assert.deepEqual(JSON.parse(calls[1].body), { action: "directory", enabled: false });
-  write.resolve(response(snapshot(true, false)));
+  const directorySnapshot = (enabled: boolean) => ({ ok: true, accountId: "account-a", enabled, visible: enabled,
+    allowed: true, profileReady: true, companyName: "Business A", city: "Arras", profession: "Maçon", badgeUrl: "http://localhost:3000/badge/business-a" });
+  const directory = runtime((url: string, options: Dict) => {
+    calls.push({ url, ...options });
+    return options.method === "POST" ? write.promise : Promise.resolve(response(directorySnapshot(true)));
+  }, true, undefined, "directory");
+  directory.render();
   await tick();
-  oldRead.resolve(response(snapshot(true, true)));
+  const controls = directory.render().bubble;
+  assert.equal(controls.accountConnected, true);
+  assert.equal(controls.parameters, undefined, "directory actions stay on the bubble without a settings panel");
+  const action = controls.onDisconnect();
+  await directory.render().bubble.onDisconnect();
+  assert.equal(calls.length, 2, "one initial read and one write, including a duplicate click");
+  assert.ok(calls.every(call => call.url === "/api/inr-directory/settings"));
+  assert.deepEqual(JSON.parse(calls[1].body), { enabled: false, accountId: "account-a" });
+  write.resolve(response(directorySnapshot(false)));
+  await action;
+  oldSearchRead.resolve(response(snapshot(true, true)));
   await tick();
-  assert.equal(h.render().bubble.accountConnected, true);
-  assert.equal(h.cache().settings.directoryEnabled, false);
-  assert.equal(h.events.length, 1);
-  assert.equal(h.events[0].detail.directoryEnabled, false);
+  assert.equal(directory.render().bubble.accountConnected, false, "a stale Search response cannot restore directory membership");
+  assert.equal(search.render().bubble.accountConnected, true, "directory withdrawal does not disconnect Search");
+  assert.equal(directory.events.length, 2, "one confirmed initial snapshot and one mutation");
+  assert.ok(directory.events.every(event => event.type === "inrcy:inr-directory-settings-updated"));
+  assert.deepEqual(directory.events[1].detail, { accountId: "account-a", directoryEnabled: false });
+  assert.equal(search.events.length, 1);
+  assert.equal(Object.hasOwn(search.events[0].detail, "directoryEnabled"), false);
 });
 
 test("iNrSearch: a failed mutation preserves confirmed state and exposes the failure", async () => {

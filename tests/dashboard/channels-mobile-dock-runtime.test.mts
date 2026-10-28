@@ -30,7 +30,7 @@ function require(name){
 const React=require('react'),Channels=require('channels').default,root=require('react-dom/client').createRoot(document.getElementById('root'));
 window.allowClose=true;window.guardCalls=0;window.homeNavigations=0;window.assistantClicks=0;window.menuClicks=0;
 const image='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="15" fill="#67d3ff"/></svg>');
-const items=Array.from({length:13},(_,index)=>({key:index===0?'gmb':'channel-'+index,name:'Canal '+index,logoSrc:image,bubbleStatusText:'Connecté',onConfigure(){}}));
+const items=Array.from({length:14},(_,index)=>({key:index===0?'gmb':'channel-'+index,name:'Canal '+index,logoSrc:image,bubbleStatusText:'Connecté',onConfigure(){}}));
 function Fixture(){
  const [open,setOpen]=React.useState(true),[menuOpen,setMenuOpen]=React.useState(false);
  const icon=()=>React.createElement('svg',{width:24,height:24},React.createElement('circle',{cx:12,cy:12,r:9}));
@@ -51,7 +51,24 @@ test("Mes canaux keeps the actual five-item mobile dock above its scroll area an
   const channels=page.locator('[data-dashboard-channels-dialog]'),dock=page.locator('[data-dashboard-mobile-nav]'),home=dock.locator('[data-dashboard-mobile-home]');await channels.waitFor();assert.equal(await channels.evaluate(element=>element.matches(':modal')),false);
   const bounds=await channels.boundingBox(),bar=await page.locator('.nav-bar').boundingBox();assert.ok(bounds&&bar);assert.ok(Math.abs(bounds.height-(viewport.height-70))<1);assert.ok(Math.abs(bar.y+bar.height-viewport.height)<1);
   assert.ok(bounds.y+bounds.height<=bar.y+1,"Channel scrolling stops before the navigation and its safe area");
-  await channels.locator('.channels-surface').evaluate(element=>element.scrollTop=element.scrollHeight);assert.ok(await channels.locator('.channels-surface').evaluate(element=>element.scrollTop>0));assert.equal(await home.isVisible(),true);
+  const logos=channels.locator('[data-channel-mini]');assert.equal(await logos.count(),14);
+  const logoBounds=await logos.evaluateAll(elements=>elements.map(element=>{const box=element.getBoundingClientRect();return {top:Math.round(box.top),bottom:box.bottom}}));
+  const rows=new Map<number,number>();for(const box of logoBounds)rows.set(box.top,(rows.get(box.top)||0)+1);
+  assert.deepEqual([...rows.values()],[7,7],"All fourteen channels remain reachable in the compact two-row chooser");
+  assert.ok(Math.max(...logoBounds.map(box=>box.bottom))<=bar.y+1,"The compact chooser fits above the dock before any scrolling");
+  // A real long feedback block must still be scrollable without moving the dock.
+  await channels.locator('.channels-selectedBubble').evaluate(element=>{
+    const feedback=document.createElement('div');feedback.setAttribute('data-channel-feedback','error');feedback.setAttribute('role','alert');
+    feedback.style.cssText='padding:14px;line-height:1.6;font-size:13px;white-space:pre-line';
+    feedback.textContent=Array.from({length:24},()=> 'La connexion a expiré. Reconnectez le canal pour continuer.').join('\n');element.append(feedback);
+  });
+  const scrollArea=channels.locator('.channels-surface');
+  assert.ok(await scrollArea.evaluate(element=>element.scrollHeight>element.clientHeight),"Long channel feedback must remain reachable through the workspace scroll area");
+  await scrollArea.evaluate(element=>element.scrollTop=element.scrollHeight);assert.ok(await scrollArea.evaluate(element=>element.scrollTop>0));
+  const afterScrollBar=await page.locator('.nav-bar').boundingBox(),lastLogo=await logos.last().boundingBox();assert.ok(afterScrollBar&&lastLogo);
+  assert.ok(Math.abs(afterScrollBar.y-bar.y)<1,"The dock never moves with long channel feedback");
+  assert.ok(lastLogo.y+lastLogo.height<=afterScrollBar.y+1,"The last chooser row remains reachable above the dock after scrolling");
+  assert.equal(await home.isVisible(),true);
   await page.locator('#background').evaluate(element=>(element as HTMLElement).focus());assert.equal(await channels.getByRole('button',{name:'Fermer les canaux'}).evaluate(element=>element===document.activeElement),true,"Keyboard focus cannot enter covered dashboard content");
   await dock.getByRole('button',{name:'Assistant',exact:true}).click();await page.locator('#inrcy-assistant-dialog input').fill('Message');assert.equal(await page.evaluate(()=>(window as unknown as {assistantClicks:number}).assistantClicks),1);await page.getByRole('button',{name:'Fermer Assistant',exact:true}).click();
   await page.evaluate(()=>document.querySelector<HTMLDialogElement>('#blocking')!.showModal());await assert.rejects(home.click({timeout:350}),/Timeout/);assert.equal(await channels.isVisible(),true);await page.getByRole('button',{name:'Fermer la confirmation'}).click();

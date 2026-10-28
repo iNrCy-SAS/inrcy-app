@@ -69,7 +69,15 @@ test("public badge mini-sheets delegate emergency scrolling to their overlay", (
 });
 
 test("informational mini-modals remain bounded and usable on short screens", () => {
-  assert.match(inrSearchSettings, /<details[\s\S]*?<summary[\s\S]*?<\/details>/);
+  assert.match(inrSearchSettings, /parametersLabel: "Informations"/);
+  assert.match(inrSearchSettings, /parametersIcon: "info"/);
+  assert.match(inrSearchSettings, /parametersAlwaysVisible: true/);
+  assert.match(inrSearchSettings, /À quoi sert iNr’Search \?/);
+  assert.match(inrSearchSettings, /site automatisé[\s\S]*moteurs de recherche et les assistants IA/);
+  assert.doesNotMatch(inrSearchSettings, /<details|<summary/);
+  const bubble = read("app/dashboard/_components/DashboardFluxBubble.tsx");
+  assert.match(bubble, /<ChannelParametersDialog name=\{item\.name\}[^>]*contentOnly=\{connection\?\.parametersOwnHeading\}/);
+  assert.match(bubble, /parametersAlwaysVisible \|\| !canConnect \|\| hasResource/);
   assert.match(inrSearchSettings, /<ChannelParametersDialog name="iNr’Search"/);
   assert.doesNotMatch(inrSearchSettings, /inrsearch-helper-title|helperDialog|confirmDialog/);
   assert.match(channelDialogStyles, /\.dialog \{[^}]*max-height: calc\(100dvh - 48px\)[^}]*overflow: hidden/);

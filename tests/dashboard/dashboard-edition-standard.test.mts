@@ -49,14 +49,6 @@ const sharedModulesSource = readFileSync(
   new URL("../../app/dashboard/_components/DashboardModulesCard.tsx", import.meta.url),
   "utf8",
 );
-const sharedModulesCssSource = readFileSync(
-  new URL("../../app/dashboard/_components/DashboardSignatureTools.module.css", import.meta.url),
-  "utf8",
-);
-const campaignChoicesSource = readFileSync(
-  new URL("../../app/dashboard/_components/DashboardCampaignChoices.tsx", import.meta.url),
-  "utf8",
-);
 const fluxBubblesSource = readFileSync(
   new URL("../../app/dashboard/dashboard.flux-bubbles.ts", import.meta.url),
   "utf8",
@@ -290,9 +282,11 @@ test("l'aperçu local ne peut jamais forcer Standard en production", () => {
   }), "premium");
 });
 
-test("le catalogue Standard contient Threads pilote et iNrBadge en bonus", () => {
+test("le catalogue Standard contient Threads pilote, iNrBadge et iNrAnnuaire en bonus", () => {
   assert.equal(STANDARD_PUBLICATION_CHANNEL_KEYS.length, 11);
-  assert.deepEqual(STANDARD_BONUS_CHANNEL_KEYS, ["inrbadge"]);
+  assert.deepEqual(STANDARD_BONUS_CHANNEL_KEYS, ["inrbadge", "inr_directory"]);
+  assert.equal(STANDARD_PUBLICATION_CHANNEL_KEYS.includes("inr_directory" as never), false, "Directory visibility is separate from publication destinations");
+  assert.equal(isStandardDashboardRouteAllowed("/dashboard",new URLSearchParams("panel=inr_directory")),true);
   assert.equal(STANDARD_PUBLICATION_CHANNEL_KEYS.includes("inrbadge" as never), false);
   assert.equal(STANDARD_PUBLICATION_CHANNEL_KEYS.includes("mails" as never), false);
 });

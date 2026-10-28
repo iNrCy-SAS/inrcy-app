@@ -185,9 +185,11 @@ test("the shared bubble hub counts only the channels available to USER and ADMIN
     const modal = renderNodes(renderChannelConnections(pilot)).find(node => node.type === "./DashboardChannelsModal");
     assert.ok(modal);
     const summary = modal.props.summary as { connected: number; total: number };
-    assert.deepEqual(summary, { connected: pilot ? 13 : 12, total: pilot ? 13 : 12 });
+    assert.deepEqual(summary, { connected: pilot ? 14 : 13, total: pilot ? 14 : 13 });
     const items = modal.props.items as Array<{ key: string }>;
     assert.equal(items.some(item => item.key === "threads"), pilot);
+    assert.equal(items.filter(item => item.key === "inr_directory").length, 1, "Annuaire is a separate channel in both account contexts");
+    assert.equal(new Set(items.map(item => item.key)).size, items.length);
   }
 });
 

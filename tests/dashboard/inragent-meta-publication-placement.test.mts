@@ -120,7 +120,10 @@ test("the Channel card exposes the selector and media-only mode never erases con
   assert.match(client, /className=\{styles\.publishPlacementSelect\}/);
   assert.match(client, /savePublishPlacement/);
   assert.match(client, /publishIncludeStory/);
-  assert.match(client, /className=\{styles\.publishStoryOption\}/);
+  const formatSelector = metaFormatSelector();
+  assert.match(formatSelector, /value=\{publishContentFormat\}/);
+  assert.match(formatSelector, /<option value="classic_story" disabled=\{!publishStoryOptionEnabled\}/);
+  assert.match(formatSelector, /<option value="reel_story" disabled=\{!publishPlacementOptions\.includes\("reel"\) \|\| !publishStoryOptionEnabled\}/);
   assert.match(client, /includeStory:\s*normalizedIncludeStory/);
   assert.match(client, /publication_mode_media_only_help/);
   assert.match(
@@ -132,6 +135,40 @@ test("the Channel card exposes the selector and media-only mode never erases con
     client,
     /savePublishPlacement[\s\S]{0,2500}?setPostsByChannel\s*\(\s*\{\s*\}\s*\)/,
   );
+});
+
+function metaFormatSelector() {
+  const selector = Array.from(client.matchAll(/<select\b[\s\S]*?<\/select>/g), match => match[0])
+    .find(select => select.includes("value={publishContentFormat}"));
+  assert.ok(selector, "The Meta channel card must expose its controlled format selector");
+  return selector;
+}
+
+test("the combined Meta format selector preserves the primary placement and additional Story choice", () => {
+  const selector = metaFormatSelector();
+  const handler = selector.match(/onChange=\{\s*(\(event\)\s*=>\s*\{[\s\S]*?\})\s*\}\s*disabled=/)?.[1];
+  const formatExpression = client.match(/const publishContentFormat\s*=\s*([\s\S]*?);/)?.[1];
+  assert.ok(handler, "The actual format selector must save its selected placement");
+  assert.ok(formatExpression, "The format selector must reflect the saved placement and Story flag");
+  const calls: Array<[string, boolean]> = [];
+  const onChange = new Function("savePublishPlacement", "return (" + handler + ");")(
+    (placement: string, includeStory: boolean) => { calls.push([placement, includeStory]); },
+  ) as (event: { target: { value: string } }) => void;
+  const displayedFormat = new Function("publishPlacement", "publishIncludeStory", "return (" + formatExpression + ");") as (placement: string, includeStory: boolean) => string;
+  const choices: Array<[string, string, boolean]> = [
+    ["classic", "classic", false], ["reel", "reel", false], ["story", "story", false],
+    ["classic_story", "classic", true], ["reel_story", "reel", true],
+  ];
+  for (const [value, placement, includeStory] of choices) {
+    assert.match(selector, new RegExp('<option value="' + value + '"'), "The selected format must have a visible option");
+    onChange({ target: { value } });
+    assert.deepEqual(calls.at(-1), [placement, includeStory]);
+    assert.equal(displayedFormat(placement, includeStory), value);
+  }
+  const savedChoices = calls.length;
+  onChange({ target: { value: "unknown" } });
+  assert.equal(calls.length, savedChoices, "Unknown format values must not be saved");
+  assert.equal(displayedFormat("story", true), "story", "A primary Story must not become a duplicate Story format");
 });
 
 test("the edit API gates optional formats by account preferences and requires media", () => {

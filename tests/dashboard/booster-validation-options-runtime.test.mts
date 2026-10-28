@@ -101,7 +101,9 @@ test("the actual Validation options remain controlled across external updates, M
     for (const config of [{ threadsPreferencesLoading: true }, { threadsPreferencesLoading: false, threadsPreferencesFailed: true }, { threadsPreferencesFailed: false, threadsPublicationPreferences: { ghostEnabled: false } }]) {
       await page.evaluate(() => (window as unknown as FixtureState).configure({ threadsPreferencesLoading: false, threadsPreferencesFailed: false, threadsPublicationPreferences: { ghostEnabled: true } }));
       await page.waitForFunction(() => (document.querySelector('[data-channel-validation-options="threads"] option[value="ghost"]') as HTMLOptionElement)?.disabled === false);
-      await page.evaluate(config => (window as unknown as FixtureState).configure(config), config); await page.waitForFunction(() => (document.querySelector('[data-channel-validation-options="threads"] option[value="ghost"]') as HTMLOptionElement)?.disabled); assert.equal(await threads.locator('option[value="ghost"]').isDisabled(), true);
+      await page.evaluate(config => (window as unknown as FixtureState).configure(config), config); await page.waitForFunction(() => (document.querySelector('[data-channel-validation-options="threads"] option[value="ghost"]') as HTMLOptionElement)?.disabled); // Playwright follows the enclosing label to the enabled select; inspect the native option instead.
+      assert.equal(await threads.locator('option[value="ghost"]').evaluate(option => (option as HTMLOptionElement).disabled), true);
+      assert.equal(await threads.isEnabled(), true, "Classic remains available when Ghost is blocked");
     }
     await page.evaluate(() => (window as unknown as FixtureState).configure({ disabled: true })); await page.waitForFunction(() => Array.from(document.querySelectorAll('select')).every(select => select.disabled)); for (const select of await page.getByRole("combobox").all()) assert.equal(await select.isDisabled(), true);
     assert.deepEqual(await page.evaluate(() => (window as unknown as FixtureState).requests), []); assert.deepEqual(errors, []); await page.close();

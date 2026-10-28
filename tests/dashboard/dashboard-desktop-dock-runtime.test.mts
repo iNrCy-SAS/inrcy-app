@@ -18,9 +18,9 @@ const compiled = new Map(["DashboardTopbar", "DashboardGeneratorHub", "Dashboard
 type Props = Record<string, unknown>;
 type Element = ReactElement<Props>;
 type Effect = () => void | (() => void);
-const NotificationMenu = (_props: Props) => null;
-const EstablishmentMenu = (_props: Props) => null;
-const LanguageSelector = (_props: Props) => null;
+const NotificationMenu = () => null;
+const EstablishmentMenu = () => null;
+const LanguageSelector = () => null;
 
 function elements(tree: ReactNode): Element[] {
   if (Array.isArray(tree)) return tree.flatMap(elements);
@@ -95,7 +95,7 @@ function harness(edition: editionPolicy.DashboardEdition = "premium") {
     notificationMenuOpen: true, setNotificationMenuOpen: (open: boolean) => { calls.notificationMenu.push(open); },
     unreadNotificationsCount: 12, refreshNotifications: () => {}, notificationsLoading: false,
     notifications: [{ id: "notification-1" }], notificationsError: null,
-    markAllNotificationsRead: () => {}, markNotificationRead: (_id: string) => {}, deleteNotification: (_id: string) => {},
+    markAllNotificationsRead: () => {}, markNotificationRead: () => {}, deleteNotification: () => {},
     onNavigateCta: (route: string) => { calls.routes.push(route); }, openPanel: (panel: string) => { calls.panels.push(panel); },
     inrAgentEnabled: true, showInrAgent: false, userEmail: "qa@example.invalid", userFirstLetter: "Q", profileIncomplete: false, activityIncomplete: false,
     userMenuOpen: false, setUserMenuOpen: (open: boolean) => { calls.userMenu.push(open); },
@@ -227,25 +227,29 @@ for (const enabled of [false, true]) {
 
 for (const active of [false, true]) {
   for (const loading of [false, true]) {
-    test(`the generator keeps its real accessible state and callback guards: ${active ? "active" : "waiting"}, ${loading ? "loading" : "ready"}`, () => {
+    test(`the decorative generator keeps its real accessible state and adjacent command guards: ${active ? "active" : "waiting"}, ${loading ? "loading" : "ready"}`, () => {
       const view = harness();
       const commands: string[] = [];
       const hostCallbacks = { left: () => {}, right: () => {} };
       const tree = view.render("DashboardGeneratorHub", {
         onDesktopLeftHost: hostCallbacks.left, onDesktopRightHost: hostCallbacks.right,
-        onOpenGeneratorHelp: () => commands.push("help"), onOpenGeneratorSettings: () => commands.push("settings"), onRefreshGenerator: () => commands.push("refresh"),
+        onOpenGeneratorHelp: () => commands.push("help"), onRefreshGenerator: () => commands.push("refresh"),
         generatorIsActive: active, kpisLoading: loading,
-        inertiaSnapshot: { multiplier: 6.5, connectedCount: 9, totalChannels: 13 },
       });
       const hub = find(tree, (node) => node.props["data-testid"] === "dashboard-generator-hub");
       const status = active ? dashboard.hero.active : dashboard.hero.waiting;
       assert.equal(hub.props["data-active"], active);
-      assert.equal(hub.props["aria-label"], `${dashboard.hero.settingsAria} · ${status}`);
-      assert.ok(String(hub.props.title).includes(`${dashboard.hero.settingsTitle} · ${status}`));
-      assert.equal(hub.props["aria-haspopup"], "dialog");
+      assert.equal(hub.type,"div");assert.equal(hub.props.role,"img");
+      assert.equal(hub.props["aria-label"], `${dashboard.hero.generatorShortTitle} · ${status}`);
+      for(const key of ["onClick","onClickCapture","onKeyDown","onKeyUp","onPointerDown","tabIndex","href","title","aria-haspopup"])assert.equal(hub.props[key],undefined,key);
+      assert.equal(elements(hub).filter(node=>node.type==="button"||node.type==="a").length,0,"The orb contains only a decorative drawing");
+      for(const ancestor of elements(tree).filter(node=>node!==hub&&elements(node.props.children as ReactNode).includes(hub))){
+        assert.notEqual(ancestor.type,"button");assert.notEqual(ancestor.type,"a");assert.notEqual(ancestor.props.role,"button");
+        for(const key of ["onClick","onClickCapture","onKeyDown","onKeyUp","onPointerDown","tabIndex","href"])assert.equal(ancestor.props[key],undefined,`Ancestor ${key}`);
+      }
       assert.equal(content(hub), "", "The generator orb must not contain visible title or status text");
       const orb = find(hub, (node) => typeof node.type === "function" && "isActive" in node.props);
-      assert.equal(orb.props.isActive, active, "The shared drawing receives the same live state as its accessible action");
+      assert.equal(orb.props.isActive, active, "The shared drawing receives the same live state as its decorative accessible host");
       const drawing = (orb.type as (props: Props) => ReactNode)(orb.props);
       const visual = find(drawing, (node) => node.props["data-generator-orb"] === "true");
       assert.equal(visual.props["data-active"], String(active));
@@ -265,12 +269,11 @@ for (const active of [false, true]) {
       assert.equal(rowChildren[1], hub);
       assert.equal(rowChildren[2], find(tree, node => hasClass(node, "desktopToolsRight")));
       click(find(tree, (node) => node.type === "button" && node.props["aria-label"] === dashboard.helpCenter.aria));
-      click(hub);
       const refresh = find(tree, (node) => node.type === "button" && node.props["aria-label"] === dashboard.hero.refreshAria);
       assert.equal(refresh.props.disabled, loading);
       assert.equal(refresh.props["aria-busy"], loading || undefined);
       if (!loading) click(refresh);
-      assert.deepEqual(commands, loading ? ["help", "settings"] : ["help", "settings", "refresh"]);
+      assert.deepEqual(commands, loading ? ["help"] : ["help", "refresh"]);
       assert.deepEqual(view.calls.routes, []);
       assert.equal(view.calls.logout, 0);
     });
