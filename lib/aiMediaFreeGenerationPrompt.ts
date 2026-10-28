@@ -218,20 +218,38 @@ export function getAiMediaFreeBrandPolicy(prompt: string, companyName = "", useB
   const normalized = prompt.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const company = companyName.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
   const companyNamed = company.length > 2 && new RegExp(`(?:^|[^a-z0-9])${company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:$|[^a-z0-9])`).test(normalized);
-  const useCompanyContext = useBusinessDna === true || companyNamed || /\b(?:mon|notre|ma|mes|nos)\s+(?:entreprise|marque|activite|societe|commerce|logo|charte|couleurs|site)\b|\b(?:my|our)\s+(?:company|business|brand|logo|colors|website)\b|\badn\b/.test(normalized);
+  const profileLogoNamed = /\blogo\b[^.!?\n,]{0,100}\b(?:profil|profile|adn)\b|\b(?:profil|profile)\b[^.!?\n,]{0,45}\blogo\b|\blogo\s+(?:officiel|enregistre|sauvegarde)\b|\b(?:official|saved|registered)\s+logo\b/.test(normalized);
+  const useCompanyContext = useBusinessDna === true || companyNamed || profileLogoNamed || /\b(?:mon|notre|ma|mes|nos)\s+(?:entreprise|marque|activite|societe|commerce|logo|charte|couleurs|site)\b|\b(?:my|our)\s+(?:company|business|brand|logo|colors|website)\b|\badn\b/.test(normalized);
   // Negations attach to the named object, not every later word in the clause:
   // “sans texte, avec notre logo” and “ne pas oublier le logo” are requests.
   const exclusion = (object: string) => new RegExp(`\\b(?:sans|aucune?|no|without|(?:pas|jamais)\\s+(?:(?:ajouter|mettre|afficher|inclure|utiliser|integrer|add|include|show|use)\\s+)?|retirer|supprimer|omettre|remove|omit)\\s*(?:(?:le|la|les|de|du|des|mon|ma|notre|nos|mes|the|any|our|my)\\s+)*(?:${object})\\b|\\b(?:${object})\\b\\s*(?:officiel\\s*)?(?:interdit|exclu|absent|a\\s+(?:retirer|supprimer))\\b`).test(normalized);
   const logoExcluded = exclusion("logo");
   const colorsExcluded = exclusion("charte|couleurs?|palette|brand colors");
-  const newLogo = /\b(?:nouveau|nouvel|new)\s+logo\b|\b(?:creer|dessiner|concevoir|create|design)\s+(?:un|a|my|mon|notre)\s+logo\b/.test(normalized);
-  const logoOwner = normalized.match(/\blogo\s+(?:d['’]|de |du |des )([^.!?\n,]+)/)?.[1] || "";
-  const otherLogo = useBusinessDna && (/\b(?:autre logo|logo (?:fourni|(?:ci[- ]?)?joint|importe|de reference))\b/.test(normalized) || Boolean(logoOwner && !/^(?:mon|notre|ma|mes|nos|l['’]entreprise|la marque|l['’]agence)\b/.test(logoOwner) && !(company && logoOwner.startsWith(company))));
+  // “Ne crée pas un nouveau logo, utilise celui du profil” requests the
+  // existing file. A prohibition on inventing it is not a redesign request.
+  const redesignBrief = normalized.replace(/\b(?:(?:(?:ne\s+|n['’])?)(?:cree|creer|dessine|dessiner|invente|inventer|concois|concevoir)\s+(?:pas|jamais)|(?:ne\s+)?(?:pas|jamais)\s+(?:creer|dessiner|inventer|concevoir)|(?:do not|don't|never)\s+(?:create|draw|invent|design))\s+(?:(?:un|de|a|any)\s+)?(?:(?:nouveau|nouvel|new)\s+)?logo\b/g, "");
+  const newLogo = /\b(?:nouveau|nouvel|new)\s+logo\b|\b(?:creer|dessiner|concevoir|create|design)\s+(?:un|a|my|mon|notre)\s+logo\b/.test(redesignBrief);
+  const logoOwner = normalized.match(/\blogo(?:\s+(?:officiel|enregistre|sauvegarde|official|saved|registered))*\s+(?:d['’]|de |du |des |of )([^.!?\n,]+)/)?.[1] || "";
+  const ownLogoOwner = /^(?:mon|notre|ma|mes|nos|l['’]entreprise|la marque|l['’]agence|profil|profile|compte|adn)\b/.test(logoOwner) || Boolean(company && logoOwner.startsWith(company));
+  const profileOwner = normalized.match(/\b(?:profil|profile|compte|account)\s+(?:de\s+|du\s+|des\s+|d['’]|of\s+)([^.!?\n,]+)/)?.[1] || "";
+  const externalProfile = Boolean(profileOwner && !/^(?:mon|notre|my|our)\s+(?:entreprise|societe|marque|company|business)\b/.test(profileOwner) && !(company && profileOwner.startsWith(company)));
+  const otherLogo = externalProfile || /\b(?:autre logo|logo (?:fourni|(?:ci[- ]?)?joint|importe|de reference))\b|\blogo\b[^.!?\n,]{0,70}\b(?:mon|notre|un|autre|my|our|another)\s+(?:client|cliente|partenaire|customer|partner)\b/.test(normalized) || Boolean(logoOwner && !ownLogoOwner);
   const otherPalette = useBusinessDna && /#[0-9a-f]{3,8}\b|\b(?:noir et blanc|black and white|monochrome)\b|\b(?:palette|charte|couleurs?|tons?)\b[^.!?\n]{0,35}\b(?:rouge|bleu|vert|jaune|orange|rose|violet|noir|blanc|red|blue|green|pink|purple|black|white)\b/.test(normalized);
   const noBranding = useBusinessDna && /\b(?:sans|aucun|no|without)\s+(?:identite de marque|branding)\b/.test(normalized);
   const useLogo = useCompanyContext && (useBusinessDna || /\blogo\b/.test(normalized)) && !logoExcluded && !newLogo && !otherLogo && !noBranding;
   const useBrandColors = useCompanyContext && !colorsExcluded && !otherPalette && !noBranding && (useBusinessDna || /\b(?:charte|couleurs? (?:de |d['’])?(?:mon|notre|ma|la) (?:marque|entreprise|logo)|mes couleurs|nos couleurs)\b/.test(normalized));
   return { useCompanyContext, useLogo, useBrandColors };
+}
+
+/** Modifier has no automatic branding: only an explicit application request
+ * may load the account's logo. Keeping/removing an existing mark is an edit of
+ * the source image, not permission to add the profile logo again. */
+export function isAiMediaProfileLogoApplicationRequested(prompt: string, companyName = "") {
+  if (!getAiMediaFreeBrandPolicy(prompt, companyName, false).useLogo) return false;
+  const normalized = prompt.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return /\b(?:ajoute[r]?|mets?|mettre|integre[r]?|insere[r]?|utilise[r]?|reprend[rs]?|reprendre|applique[r]?|remplace[r]?|corrige[r]?|affiche[r]?|pose[r]?|colle[r]?|veux|voudrais|add|put|insert|use|apply|replace|include|want)\b[^.!?\n]{0,160}\blogo\b|\blogo\b[^.!?\n]{0,100}\b(?:a ajouter|a integrer|a utiliser|a remplacer)\b/.test(normalized)
+    && !/\b(?:conserve[r]?|garde[r]?|preserve|keep)\b[^.!?\n,]{0,35}\blogo\b/.test(normalized)
+    && !/\b(?:ne\s+)?(?:pas|jamais|not|never)\s+(?:ajouter|mettre|integrer|inserer|utiliser|reprendre|appliquer|remplacer|afficher|poser|coller|add|put|insert|use|apply|replace)\b/.test(normalized);
 }
 
 export type AiMediaFreeLogoPlacement = {

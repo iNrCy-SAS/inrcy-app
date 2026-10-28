@@ -1,0 +1,14 @@
+.dialog { position:fixed; inset:0; width:100vw; height:100dvh; max-width:none; max-height:none; margin:0; padding:0; border:0; box-sizing:border-box; overflow:hidden; color:#f3f8ff; background:#070d1a; }
+.dialog[open] { display:grid; grid-template-rows:auto minmax(0,1fr) auto; }
+.dialog::backdrop { background:#070d1a; }
+.header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px; border-bottom:1px solid #344466; }
+.header h2 { margin:0; min-width:0; overflow-wrap:anywhere; font-size:16px; line-height:1.4; }
+.header button,.controls button { flex:none; min-width:44px; min-height:44px; padding:8px 14px; border:1px solid #6c8db7; border-radius:10px; color:#f3f8ff; background:#162640; font:inherit; cursor:pointer; }
+.header button span { margin-left:5px; font-size:22px; }
+.header button:focus-visible,.controls button:focus-visible { outline:3px solid #8bdaff; outline-offset:2px; }
+.controls button:disabled { opacity:.4; cursor:default; }
+.viewport { min-width:0; min-height:0; overflow:auto; overscroll-behavior:contain; touch-action:pan-x pan-y pinch-zoom; }
+.canvas { position:relative; min-width:100%; min-height:100%; }
+.canvas img,.canvas video { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; user-select:none; }
+.focusBoundary { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.controls { display:flex; justify-content:center; gap:10px; padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px)); border-top:1px solid #344466; }

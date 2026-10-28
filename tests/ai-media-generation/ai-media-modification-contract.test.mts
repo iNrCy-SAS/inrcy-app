@@ -345,7 +345,8 @@ test("Modifier garde les corrections textuelles explicites sans originalité ni 
   const server = readFileSync(path.join(LIB_ROOT, "aiMediaGenerationServer.ts"), "utf8");
   assert.match(server, /const profilePhoneDisplayRequested =\s*!isFreeCreation &&\s*providerRequest\.operation !== "modify" &&/);
   assert.match(server, /const useDeterministicImageComposition =\s*!isFreeCreation &&\s*providerRequest\.operation !== "modify" &&/);
-  assert.match(server, /const officialLogo =\s*isFreeCreation \? \(freeBrandPolicy\?\.useLogo \? brandKit\.logo : null\) :\s*providerRequest\.operation === "modify" \|\| providerRequest\.logoMode === "none"\s*\? null/);
+  assert.match(server, /const profileLogoRequested = providerRequest\.operation === "modify" \? providerRequest\.kind === "image" && explicitProfileLogo/);
+  assert.match(server, /const explicitProfileLogo = providerRequest\.kind === "image" && isAiMediaProfileLogoApplicationRequested/);
 });
 
 test("Modifier refuse la vidéo", () => {

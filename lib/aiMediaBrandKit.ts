@@ -156,6 +156,7 @@ async function downloadStorageAsset(
 async function loadCurrentLogoProfile(
   accountId: string,
   fallbackProfile: JsonRecord | null,
+  requireFreshLogo = false,
 ) {
   try {
     const result = await supabaseAdmin
@@ -168,14 +169,14 @@ async function loadCurrentLogoProfile(
     // The cached generation context keeps generation available during a
     // transient database read failure, but is never preferred over live data.
   }
-  return fallbackProfile;
+  return requireFreshLogo ? null : fallbackProfile;
 }
 
 async function loadOwnedLogo(accountId: string, profile: JsonRecord | null) {
   const logoPath =
     extractLogoPathFromUrl(clean(profile?.logo_path)) ||
     extractLogoPathFromUrl(clean(profile?.logo_url));
-  if (!logoPath || !logoPath.startsWith(`${accountId}/`)) {
+  if (!logoPath || !logoPath.startsWith(`${accountId}/`) || logoPath.includes("\\") || logoPath.split("/").some((part) => !part || part === "." || part === ".." || /%2e|%2f|%5c/i.test(part))) {
     return { logo: null, logoPath: null, logoVersion: null };
   }
   const logoVersion = getProfileLogoVersion(clean(profile?.logo_url));
@@ -210,10 +211,12 @@ async function loadOwnedLogo(accountId: string, profile: JsonRecord | null) {
 export async function loadAiMediaBrandKit(args: {
   accountId: string;
   profile: JsonRecord | null;
+  requireFreshLogo?: boolean;
 }): Promise<AiMediaBrandKit> {
   const currentProfile = await loadCurrentLogoProfile(
     args.accountId,
     args.profile,
+    args.requireFreshLogo,
   );
   const ownedLogo = await loadOwnedLogo(args.accountId, currentProfile);
   const officialPalette = ownedLogo.logo

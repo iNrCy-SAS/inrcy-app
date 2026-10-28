@@ -24,6 +24,8 @@ type RenderBaseArgs = {
   width: number;
   height: number;
   logo: Buffer | null;
+  /** A requested official asset must not silently disappear from the result. */
+  requireLogo?: boolean;
   colors: [string, string, string];
   companyName: string;
   visualStyle: AiMediaVisualStyle;
@@ -1067,7 +1069,10 @@ async function buildBrandOverlays(
   const overlays: Array<{ input: Buffer; top?: number; left?: number }> = [
     { input: args.copyOverlay, top: 0, left: 0 },
   ];
-  if (args.logoMode === "none") return overlays;
+  if (args.logoMode === "none") {
+    if (args.requireLogo) throw new Error("ai_media_required_logo_not_composed");
+    return overlays;
+  }
 
   const preparedLogo = await prepareLogo(
     args.logo,
@@ -1076,7 +1081,10 @@ async function buildBrandOverlays(
     args.logoMode,
     args.logoPlacement
   );
-  if (!preparedLogo) return overlays;
+  if (!preparedLogo) {
+    if (args.requireLogo) throw new Error("ai_media_required_logo_not_composed");
+    return overlays;
+  }
 
   // La copie éditoriale occupe la zone basse. Le logo reste donc dans le
   // coin supérieur droit, à taille discrète et avec une marge sûre de 4,5 %.

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { useId, useState, type ReactNode } from "react";
+import { useCallback, useId, useState, type ReactNode } from "react";
 import type {
   MediaGenerationFormat,
   MediaGenerationKind,
@@ -10,8 +10,10 @@ import type {
 } from "@/app/dashboard/_hooks/useMediaGeneration";
 import { resolveAiMediaPreviewFormat } from "@/lib/aiMediaGenerationContracts";
 import { AI_MEDIA_VIDEO_MODELS } from "@/lib/aiMediaModelCatalog";
+import { useMediaResultReveal } from "@/app/dashboard/_hooks/useMediaResultReveal";
 import { MediaGenerationActions } from "./MediaEngineCreditControls";
 import DashboardMobileSelect from "./DashboardMobileSelect";
+import MediaResultViewer from "./MediaResultViewer";
 import styles from "./MediaGenerator.module.css";
 import editorStyles from "./MediaGenerationCreationWorkspace.module.css";
 
@@ -23,6 +25,7 @@ type RegenerationConsent = {
 };
 
 type Props = {
+  accountId?: string | null;
   variant?: "full" | "embedded";
   creationStarted?: boolean;
   generationInProgress?: boolean;
@@ -141,6 +144,7 @@ function GeneratedMediaPreview({ item, alt }: { item: MediaGenerationResult["ite
 
 /** Presentation only: both creation paths retain their own requests and lifecycle. */
 export default function MediaGenerationCreationWorkspace({
+  accountId,
   variant = "full",
   creationStarted = true,
   generationInProgress,
@@ -181,8 +185,17 @@ export default function MediaGenerationCreationWorkspace({
 }: Props) {
   const t = useTranslations("media");
   const instanceId = useId();
+  const [expandedResult, setExpandedResult] = useState<string | null>(null);
+  const closeExpandedResult = useCallback(() => setExpandedResult(null), []);
+  const resultKey = generationResult ? `${accountId}:${generationResult.item.id}` : null;
   const embedded = variant === "embedded";
   const rendering = generationInProgress ?? operationLocked;
+  const { reviewRef, headingRef } = useMediaResultReveal({
+    accountId,
+    running: rendering,
+    resultId: generationResult?.item.id,
+    resultAccountId: generationResult?.quota?.accountId,
+  });
   const creationError = actionError || error;
   const showCreationError = !rendering && !generationResult &&
     (embedded ? Boolean(creationError) : creationStarted);
@@ -335,11 +348,11 @@ export default function MediaGenerationCreationWorkspace({
       ) : null}
 
       {generationResult ? (
-        <div className={styles.reviewWorkspace} data-media-review>
+        <div ref={reviewRef} className={styles.reviewWorkspace} data-media-review>
           <div className={styles.reviewHeading} data-media-review-heading>
             <div>
               <p>{t("ai_generator_ready")}</p>
-              <h3>
+              <h3 ref={headingRef} tabIndex={-1} className={editorStyles.resultHeading}>
                 {t(
                   previewKind === "video"
                     ? "ai_generator_video_ready_title"
@@ -348,6 +361,11 @@ export default function MediaGenerationCreationWorkspace({
               </h3>
             </div>
             <div className={styles.reviewBadges}>
+              {generationResult.item.signed_url ? <button type="button" className={editorStyles.expandButton}
+                aria-label={t("agrandir_le_media_55f536e4")} title={t("agrandir_le_media_55f536e4")} aria-haspopup="dialog"
+                onClick={() => { reviewRef.current?.querySelector("video")?.pause(); setExpandedResult(resultKey); }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button> : null}
               <span>
                 {
                   FORMATS.find((item) => item.id === resultPreviewFormat)
@@ -382,6 +400,12 @@ export default function MediaGenerationCreationWorkspace({
               )}
             </div>
           </div>
+          {expandedResult && expandedResult === resultKey && generationResult.item.signed_url ?
+            <MediaResultViewer accountId={accountId} title={generationResult.item.title || t("ai_generator_preview_alt")}
+              video={previewKind === "video"} onClose={closeExpandedResult}>
+              <GeneratedMediaPreview key={`${generationResult.item.id}:${generationResult.item.signed_url}`}
+                item={generationResult.item} alt={generationResult.item.title || t("ai_generator_preview_alt")} />
+            </MediaResultViewer> : null}
           <div className={styles.savedStatus} role="status" data-media-saved-status>
             <span aria-hidden="true">✓</span>
             {resultSavedToLibrary

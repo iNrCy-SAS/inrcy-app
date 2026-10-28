@@ -52,6 +52,7 @@ export async function composeAiMediaContactImage(args: {
   headline?: string;
   phone?: string;
   officialLogo?: Buffer | null;
+  requireLogo?: boolean;
   logoMode: AiMediaLogoMode;
   brandColors?: readonly string[];
 }) {
@@ -126,6 +127,7 @@ export async function composeAiMediaContactImage(args: {
     : "";
 
   const logoVisible = args.logoMode !== "none" && Boolean(args.officialLogo?.byteLength);
+  if (args.requireLogo && !logoVisible) throw new Error("ai_media_required_logo_not_composed");
   const logoAreaWidth = Math.round(
     width * (args.logoMode === "visible" ? (isTall ? 0.27 : 0.22) : isTall ? 0.21 : 0.17),
   );
@@ -178,7 +180,8 @@ export async function composeAiMediaContactImage(args: {
         left: logoLeft + Math.round((logoAreaWidth - renderedLogo.info.width) / 2),
         top: logoTop + Math.round((logoAreaHeight - renderedLogo.info.height) / 2),
       });
-    } catch {
+    } catch (error) {
+      if (args.requireLogo) throw new Error("ai_media_required_logo_not_composed", { cause: error });
       // Un ancien logo illisible ne doit jamais annuler l'image ni le numéro.
     }
   }

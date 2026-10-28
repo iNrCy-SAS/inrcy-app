@@ -78,11 +78,13 @@ function click(node: Element) {
 let instanceCount = 0;
 const modules = new Map<string, unknown>([
   ["react/jsx-runtime", { jsx: element, jsxs: element, Fragment: "fragment" }],
-  ["react", { useId: () => `creation-test-${++instanceCount}`, useState }],
+  ["react", { useId: () => `creation-test-${++instanceCount}`, useState, useCallback: (callback: unknown) => callback }],
+  ["./MediaResultViewer", { __esModule: true, default: () => null }],
   ["next/image", { __esModule: true, default: (props: Props) => element("img", props) }],
   ["next-intl", { useTranslations: () => (key: string) => key }],
   ["@/lib/aiMediaGenerationContracts", contracts],
   ["@/lib/aiMediaModelCatalog", mediaModels],
+  ["@/app/dashboard/_hooks/useMediaResultReveal", { useMediaResultReveal: () => ({ reviewRef: { current: null }, headingRef: { current: null } }) }],
   ["@/lib/aiMediaVideoTimeline", videoTimeline],
   ["@/lib/aiMediaVideoClientOptions", videoOptions],
   ["./MediaGenerator.module.css", { __esModule: true, default: new Proxy({}, { get: (_target, key) => key }) }],
@@ -124,7 +126,7 @@ new Function("module", "exports", "require", "document", "fetch", output)(record
 
 function render(overrides: Props = {}, mountedState: HookStore = new Map()) {
   hookStore = mountedState;
-  return record.exports.default({
+  return element(record.exports.default, {
     kind: "image", format: "square", durationSeconds: 8, creationMode: "guided", origin: "menu",
     progress: 0, operationLocked: false, finishing: false, generationResult: null,
     generationCancellable: false, cancelConfirmationOpen: false,

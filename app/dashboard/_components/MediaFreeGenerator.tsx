@@ -780,6 +780,7 @@ export default function MediaFreeGenerator({
 
   const preview = (
       <MediaGenerationCreationWorkspace
+        accountId={quota?.accountId}
         variant="embedded"
         creationStarted={creationScreen}
         generationInProgress={busy}

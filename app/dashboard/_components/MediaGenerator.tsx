@@ -1614,6 +1614,7 @@ export default function MediaGenerator({
 
   const preview = (
       <MediaGenerationCreationWorkspace
+        accountId={quota?.accountId}
         variant="embedded"
         creationStarted={creationScreen}
         generationInProgress={generationBusy}

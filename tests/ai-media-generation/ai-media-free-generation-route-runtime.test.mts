@@ -34,7 +34,7 @@ type ReservationCall = {
   requestFingerprint: string; mediaKind: string; surface: string; quotaAmount: number; quotaUnit: string;
 };
 
-function loadRoute(options: { authenticated?: boolean; authentication?: Promise<void>; cancelledKey?: string; cancellationConflictKey?: string; providerFails?: boolean; providerError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean; preparation?: Promise<void>; work?: Promise<void>; checkpoint?: "saved" | "lost_ack" | "unavailable"; compositionFails?: boolean; cleanupFails?: boolean } = {}) {
+function loadRoute(options: { authenticated?: boolean; authentication?: Promise<void>; cancelledKey?: string; cancellationConflictKey?: string; providerFails?: boolean; providerError?: Error; preparationError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean; preparation?: Promise<void>; work?: Promise<void>; checkpoint?: "saved" | "lost_ack" | "unavailable"; compositionFails?: boolean; cleanupFails?: boolean } = {}) {
   const reservationCalls: ReservationCall[] = [];
   const generationCalls: Array<{ request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string; signal?: AbortSignal }> = [];
   const lifetimes: Promise<unknown>[] = [];
@@ -109,6 +109,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
         generationCalls.push(args);
         await options.preparation;
         args.signal?.throwIfAborted();
+        if (options.preparationError) throw options.preparationError;
         await args.onBillableWorkStarted?.();
         paidCalls += 1;
         if (options.checkpoint) await args.onCompositionReady?.({ input: {}, metadata: {} });
@@ -174,6 +175,29 @@ test("les créations libres passent par la même authentification avant tout dé
   assert.equal(response.status, 401);
   assert.equal(route.reservationCalls.length, 0);
   assert.equal(route.generationCalls.length, 0);
+});
+
+test("an unavailable requested profile logo releases the reservation without paid work or a saved result", async () => {
+  const message = "Le logo enregistré dans votre Profil est absent ou illisible. Ajoutez-le à nouveau dans votre Profil, puis relancez la création. Aucun logo de remplacement ne sera inventé.";
+  for (const streamed of [false, true]) {
+    const route = loadRoute({ preparationError: new contracts.AiMediaRequestValidationError(message) });
+    const raw = await route.post(body({ freePrompt: "Ajoute le logo du profil sur cette affiche.", useBusinessDna: true }), streamed ? {
+      headers: { "Content-Type": "application/json", Accept: generationTransport.AI_MEDIA_GENERATION_STREAM_TYPE },
+    } : {});
+    const response = await generationTransport.readAiMediaGenerationResponse(raw, () => {});
+    const payload = response.payload as Record<string, unknown>;
+    assert.equal(response.status, 400);
+    assert.equal(payload.error, message);
+    assert.equal(payload.item, undefined);
+    assert.equal(route.reservationCalls.length, 1);
+    assert.equal(route.paidCalls(), 0);
+    assert.equal(route.completionCalls.length, 0);
+    assert.equal(route.failureCalls.length, 1);
+    const release = route.failureCalls[0] as { accountId: string; jobId: string; errorMessage: string };
+    assert.equal(release.accountId, "active-account-test");
+    assert.equal(release.jobId, route.generationCalls[0].jobId);
+    assert.equal(release.errorMessage, message);
+  }
 });
 
 test("a previously valid HeyGen quote cannot reserve credits or start generation after retirement", async () => {

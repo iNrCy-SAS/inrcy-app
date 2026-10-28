@@ -1340,8 +1340,9 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   );
   assert.match(
     server,
-    /const officialLogo =\s*isFreeCreation \? \(freeBrandPolicy\?\.useLogo \? brandKit\.logo : null\) :\s*providerRequest\.operation === "modify" \|\| providerRequest\.logoMode === "none"\s*\? null\s*: brandKit\.logo/
+    /const officialLogo = profileLogoRequested \? brandKit\.logo : null/
   );
+  assert.match(server, /providerRequest\.operation === "modify" \? providerRequest\.kind === "image" && explicitProfileLogo/);
   assert.match(
     server,
     /generateAiMediaImage\(\{[\s\S]*?identityReferences: preparedIdentityReferences\.buffers,[\s\S]*?officialLogo,/

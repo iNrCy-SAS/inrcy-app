@@ -567,6 +567,7 @@ export default function MediaModifier({
           ) : result || generationBusy || cancellationPending || canRecover || actionError || error ? (
             <div className={styles.mediaStage} data-modifier-preview>
               <MediaGenerationCreationWorkspace
+                accountId={quota?.accountId}
                 variant="embedded"
                 creationStarted
                 generationInProgress={sourceBusy || generationBusy || recovering}

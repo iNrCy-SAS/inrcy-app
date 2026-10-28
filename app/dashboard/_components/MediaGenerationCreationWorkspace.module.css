@@ -12,9 +12,13 @@
 .idleIcon { display:inline-grid;place-items:center;width:82px;height:82px;border:1px solid #5a91be;border-radius:25px;background:linear-gradient(135deg,#164065,#302351);color:#a0deff;font-size:38px;box-shadow:0 0 50px rgba(50,152,226,.14); }
 .idle h3 { margin:12px 0;font-size:24px;color:#eff8ff;line-height:1.3; }
 .idle p { font-size:13px;line-height:1.6; }
-.embedded [data-media-review] { width:100%;height:100%;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;gap:12px;padding:18px;overflow:hidden; }
+.embedded [data-media-review] { width:100%;height:100%;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;gap:12px;padding:18px;overflow:hidden;overscroll-behavior:auto; }
 .embedded [data-media-review-heading] { grid-column:1;grid-row:1;align-self:start;display:flex;align-items:center;justify-content:space-between;gap:10px; }
 .embedded [data-media-review-heading] h3 { font-size:20px;line-height:1.25; }
+.resultHeading:focus-visible { outline:2px solid #8bdaff;outline-offset:4px;border-radius:4px; }
+.expandButton { display:inline-grid;place-items:center;flex:none;min-width:44px;min-height:44px;padding:9px;border:1px solid #72b9e8;border-radius:12px;background:#163c60;color:#eefaff;cursor:pointer; }
+.expandButton svg { width:24px;height:24px; }
+.expandButton:focus-visible { outline:3px solid #8bdaff;outline-offset:2px; }
 .embedded [data-media-preview] { grid-column:1;grid-row:2;min-height:0; }
 .embedded [data-media-saved-status] { grid-column:1;grid-row:3; }
 .embedded [data-media-result-actions] { grid-column:1;grid-row:4;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;width:100%; }

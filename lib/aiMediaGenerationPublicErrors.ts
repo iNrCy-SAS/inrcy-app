@@ -9,6 +9,11 @@ type Explanation = {
 };
 
 export const AI_MEDIA_PUBLIC_ERROR_CATALOG = {
+  AI_MEDIA_PROFILE_LOGO_UNAVAILABLE: {
+    status: 400,
+    reason: "Le logo enregistré dans votre Profil est absent ou illisible.",
+    action: "Ajoutez-le à nouveau dans votre Profil, puis relancez la création. Aucun logo de remplacement ne sera inventé.",
+  },
   AI_MEDIA_CHARACTER_VOICE_INVALID: {
     status: 400,
     reason: "Un vocal de personnage est manquant, invalide ou expiré.",
@@ -374,6 +379,7 @@ export function classifyAiMediaGenerationError(error: unknown): AiMediaPublicErr
   const plain = text.replace(/[_-]+/g, " ");
   const match = (pattern: RegExp) => pattern.test(text);
   const result = (code: AiMediaPublicErrorCode) => explanation(code);
+  if (match(/\bai_media_profile_logo_unavailable\b|logo enregistre dans votre profil est absent ou illisible/)) return result("AI_MEDIA_PROFILE_LOGO_UNAVAILABLE");
   if (match(/\bvoice_(?:reference_(?:invalid_or_expired|missing)|audio_\w+|account_invalid)\b|ai_video_reference_voice_(?:url_missing|assignment_invalid)/)) return result("AI_MEDIA_CHARACTER_VOICE_INVALID");
   if (match(/\bvoice_(?:storage_unavailable|reference_unavailable)\b/)) return result("AI_MEDIA_CHARACTER_VOICE_UNAVAILABLE");
   // These are iNrCy wallet/session failures, never supplier billing failures.

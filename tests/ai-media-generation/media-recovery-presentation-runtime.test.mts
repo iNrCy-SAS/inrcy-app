@@ -156,6 +156,8 @@ test("uncertain recovery is presented separately from a confirmed generation fai
   const deps = new Map(common);
   deps.set("next/image", { __esModule: true, default: "image" });
   deps.set("./MediaEngineCreditControls", { MediaGenerationActions: "actions" });
+  deps.set("./MediaResultViewer", { __esModule: true, default: () => null });
+  deps.set("@/app/dashboard/_hooks/useMediaResultReveal", { useMediaResultReveal: () => ({ reviewRef: { current: null }, headingRef: { current: null } }) });
   const view = runtime("app/dashboard/_components/MediaGenerationCreationWorkspace.tsx", deps);
   const props = { variant: "embedded", kind: "video", format: "story", durationSeconds: 15, progress: 0, operationLocked: false, generationInProgress: false, finishing: false, generationResult: null, generationCancellable: false, disabled: true, error: "Le résultat n'a pas encore pu être vérifié.", acceptMode: "library" };
   const pending = view.render({ ...props, recoveryPending: true });
