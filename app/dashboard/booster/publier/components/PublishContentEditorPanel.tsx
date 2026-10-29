@@ -230,6 +230,8 @@ type PublishContentEditorPanelProps = {
   setXHashtagsInput: Dispatch<SetStateAction<string>>;
   duplicateFeedback: DuplicateFeedback;
   onDuplicateContentToAllChannels: () => void;
+  onAdjustGeneration?: () => void;
+  adjustmentDisabled?: boolean;
   pinterestBoards: Array<{ id: string; name: string }>;
   pinterestBoardId: string;
   pinterestBoardsLoading: boolean;
@@ -285,6 +287,8 @@ export default function PublishContentEditorPanel({
   setXHashtagsInput,
   duplicateFeedback,
   onDuplicateContentToAllChannels,
+  onAdjustGeneration,
+  adjustmentDisabled = false,
   pinterestBoards,
   pinterestBoardId,
   pinterestBoardsLoading,
@@ -624,6 +628,7 @@ export default function PublishContentEditorPanel({
         content={`${getDisplayPost(activeCard).title}\n${getDisplayPost(activeCard).content}`}
       />
       {duplicateAction}
+      {onAdjustGeneration ? <button type="button" className={`${styles.secondaryBtn} ${css.adjustButton}`} data-publish-adjust-action onClick={onAdjustGeneration} disabled={voiceBusy || adjustmentDisabled}><span aria-hidden="true">✧</span>{i18nT("adjust_title")}</button> : null}
     </div>
   );
 

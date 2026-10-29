@@ -5,6 +5,8 @@ import PublishWizardFrame, { PublishWizardScreen } from "./components/PublishWiz
 import { canOpenPublishWizardStep, getPublishWizardSteps, getRestoredPublishWizardStep, type PublishWizardStep } from "./components/publishWizard";
 import wizardStyles from "./components/publishWizard.module.css";
 import intentStyles from "./components/PublishIntentPanel.module.css";
+import PublishContentAdjustmentModal, { type PublishContentAdjustmentInput } from "./components/PublishContentAdjustmentModal";
+import { mergeBoosterContentAdjustment, normalizeBoosterContentAdjustment } from "@/lib/boosterContentAdjustment";
 import { getActionablePublicationWarningCodes, getPublicationMediaPoolDefaults } from "./publicationMediaPool";
 import { setImageKeysForChannel } from "./imageChannelAssignment";
 import TiktokReviewCheckbox from "./components/TiktokReviewCheckbox";
@@ -591,6 +593,8 @@ export default function PublishModal({
   const [saving, setSaving] = useState(false);
   const [idea, setIdea] = useState("");
   const [publicationInstruction, setPublicationInstruction] = useState("");
+  const [contentAdjustmentSession, setContentAdjustmentSession] = useState<{ idea: string; instruction: string; channels: ChannelKey[] } | null>(null);
+  const generationInFlightRef = useRef(false);
   const [documentFiles, setDocumentFiles] = useState<File[]>([]);
   const pdfFile = documentFiles[0] || null;
   const [pdfAttachmentError, setPdfAttachmentError] = useState("");
@@ -667,6 +671,7 @@ export default function PublishModal({
     latestPublicationSummaryRef.current = null;
     setLivePublicationResult(null);
     setSoundtrackByChannel({});
+    setContentAdjustmentSession(null);
   }, [actorUserId, activeAccountId]);
   const handlePublicationSummaryChange = useCallback((summary: PublishExecutionSummary) => {
     latestPublicationSummaryRef.current = summary;
@@ -686,6 +691,8 @@ export default function PublishModal({
     Partial<Record<ChannelKey, ChannelPost>>
   >({});
   const [contentWorkspaceOpen, setContentWorkspaceOpen] = useState(false);
+  const currentPostsRef = useRef(postsByChannel);
+  useEffect(() => { currentPostsRef.current = postsByChannel; }, [postsByChannel]);
   const [wizardStep, setWizardStep] = useState<PublishWizardStep>("mode");
   const [intentActionsContainer, setIntentActionsContainer] = useState<HTMLDivElement | null>(null);
   const [contentActionsContainer, setContentActionsContainer] = useState<HTMLDivElement | null>(null);
@@ -1448,6 +1455,7 @@ export default function PublishModal({
   useEffect(() => {
     if (!generating) return;
     const timerId = window.setTimeout(() => {
+      if (contentAdjustmentSession || wizardStep !== "intention") return;
       generationProgressRef.current?.scrollIntoView({
         behavior: "smooth",
         block: "center",
@@ -1455,7 +1463,7 @@ export default function PublishModal({
       });
     }, 80);
     return () => window.clearTimeout(timerId);
-  }, [generating]);
+  }, [generating, contentAdjustmentSession, wizardStep]);
 
   useEffect(() => {
     if (!saving || !phasedPublicationProgressRef.current) return;
@@ -1500,12 +1508,13 @@ export default function PublishModal({
   }, [postsByChannel.instagram?.hashtags?.join("|") ?? ""]);
 
   useEffect(() => {
-    onOverlayOpenChange?.(aiConfigurationOpen);
+    onOverlayOpenChange?.(aiConfigurationOpen || Boolean(contentAdjustmentSession));
     return () => {
       onOverlayOpenChange?.(false);
     };
   }, [
     aiConfigurationOpen,
+    contentAdjustmentSession,
     onOverlayOpenChange,
   ]);
 
@@ -3953,8 +3962,8 @@ export default function PublishModal({
     if (pdfInputRef.current) pdfInputRef.current.value = "";
   };
 
-  const onGenerate = async () => {
-    if (generating) return;
+  const onGenerate = async (adjustmentInput?: PublishContentAdjustmentInput & { previousIdea: string; previousInstruction: string }) => {
+    if (generating || generationInFlightRef.current) return;
     setGenError("");
     setImgError("");
     setGenerationNotice("");
@@ -3967,7 +3976,23 @@ export default function PublishModal({
       return;
     }
 
-    const trimmed = idea.trim();
+    const trimmed = (adjustmentInput?.idea ?? idea).trim();
+    const generationInstruction = (adjustmentInput?.instruction ?? publicationInstruction).trim();
+    const generationChannels = adjustmentInput ? selectedForGeneration.filter(channel => adjustmentInput.channels.includes(channel)) : selectedForGeneration;
+    if (!generationChannels.length) {
+      setGenError(i18nT("veuillez_selectionner_au_moins_1_canal_0e52243b"));
+      return;
+    }
+    const generationScope = { ...publicationActorScopeRef.current };
+    const generationIsCurrent = () => publicationActorScopeRef.current.actorUserId === generationScope.actorUserId && publicationActorScopeRef.current.accountId === generationScope.accountId && (!getActiveBrowserUserId() || getActiveBrowserUserId() === generationScope.accountId);
+    const baselinePosts = currentPostsRef.current;
+    let contentAdjustment;
+    if (adjustmentInput) {
+      try {
+        contentAdjustment = normalizeBoosterContentAdjustment({ previousIdea: adjustmentInput.previousIdea, previousInstruction: adjustmentInput.previousInstruction,
+          versions: Object.fromEntries(generationChannels.map(channel => [channel, { ...getDisplayPost(channel), ...(channel === "instagram" ? { hashtags: getLiveInstagramHashtags() } : channel === "x" ? { hashtags: parseInstagramHashtagsInput(xHashtagsInput) } : {}) }])) }, generationChannels);
+      } catch (error) { setGenError(error instanceof Error ? error.message : i18nT("generation_failed_retry")); return; }
+    }
     if (!selectedChannels.length) {
       setGenError(i18nT("veuillez_selectionner_au_moins_1_canal_0e52243b"));
       return;
@@ -3978,7 +4003,7 @@ export default function PublishModal({
     }
 
     const selectedAiEngineOption = getAiEngineOption(selectedAiPreferredEngine);
-    if (hasWrittenChannelContent) {
+    if (hasWrittenChannelContent && !contentAdjustment) {
       const confirmed = await confirmInrcy({
         eyebrow: i18nT("contenus_deja_presents_37541640"),
         title: i18nT("generer_de_nouveaux_contenus_8a601a4e"),
@@ -4012,6 +4037,7 @@ export default function PublishModal({
     let temporaryPdfReference: BoosterPdfAttachmentRef | null = null;
     const temporaryDocumentReferences: BoosterDocumentAttachmentRef[] = [];
     resetGenerationProgress();
+    generationInFlightRef.current = true;
     setGenerating(true);
     setGenerationProgressPhase(
       "initialization",
@@ -4279,13 +4305,14 @@ export default function PublishModal({
           shouldUsePersistentMediaWorkspaceForAi &&
           Boolean(readyMediaWorkspaceId),
         idea: trimmed,
-        publicationInstruction: publicationInstruction.trim(),
+        publicationInstruction: generationInstruction,
+        ...(contentAdjustment ? { contentAdjustment } : {}),
         documentForAI: temporaryPdfReference,
         documentsForAI: temporaryDocumentReferences,
         theme,
         style: contentStyle,
         aiPreferredEngine: selectedAiPreferredEngine,
-        channels: selectedForGeneration,
+        channels: generationChannels,
         mediaType: hasVideoForGeneration ? "video" : "images",
         useImagesForAI: shouldUseImagesForAI,
         imageCount: mediaPipelineCutoverEnabled ? 0 : imagesForAI.length,
@@ -4378,7 +4405,7 @@ export default function PublishModal({
             recovered,
             attempts: recovery.attempts,
             elapsedMs: recovery.elapsedMs,
-            channelCount: selectedForGeneration.length,
+            channelCount: generationChannels.length,
             mediaType: hasVideoForGeneration ? "video" : "images",
             engine,
           });
@@ -4416,7 +4443,7 @@ export default function PublishModal({
           generationRequestVisualPhase = "channel_adaptation";
           setGenerationProgressPhase(
             "channel_adaptation",
-            i18nT("generation_channel_adaptation_progress", { value0: selectedForGeneration.length, value1: selectedForGeneration.length > 1 ? "canaux" : "canal" }),
+            i18nT("generation_channel_adaptation_progress", { value0: generationChannels.length, value1: generationChannels.length > 1 ? "canaux" : "canal" }),
             81,
           );
           return;
@@ -4495,15 +4522,27 @@ export default function PublishModal({
         );
       }
       const versions = json?.versions || {};
-      setPostsByChannel(sanitizePostsForEditor(versions, ctaDefaults));
+      if (!generationIsCurrent()) return;
+      const sanitizedVersions = sanitizePostsForEditor(versions, ctaDefaults);
+      if (contentAdjustment) {
+        if (generationChannels.some(channel => JSON.stringify(currentPostsRef.current[channel]) !== JSON.stringify(baselinePosts[channel]))) throw new Error(i18nT("adjust_conflict"));
+        const revised = mergeBoosterContentAdjustment(currentPostsRef.current, sanitizedVersions, generationChannels);
+        setPostsByChannel(revised);
+        setIdea(trimmed);
+        setPublicationInstruction(generationInstruction);
+        if (generationChannels.includes("x")) setXHashtagsInput((revised.x?.hashtags || []).join(" "));
+        setContentAdjustmentSession(null);
+      } else {
+        setPostsByChannel(sanitizedVersions);
+      }
       // Le document source a été consommé par cette génération. On libère le
       // File local pour qu'un brouillon enregistré ensuite soit réellement net.
       setDocumentFiles([]);
       setPdfAttachmentError("");
       if (pdfInputRef.current) pdfInputRef.current.value = "";
       setContentWorkspaceOpen(true);
-      if (selectedForGeneration.length) {
-        setSynchronizedActiveChannel(selectedForGeneration[0]);
+      if (generationChannels.length) {
+        setSynchronizedActiveChannel(generationChannels[0]);
       }
       scrollToContentWorkspace();
       const mediaAnalysisFallback = json?.mediaAnalysisFallback;
@@ -4585,6 +4624,7 @@ export default function PublishModal({
         }
       }
       clearGenerationTimers();
+      generationInFlightRef.current = false;
       setGenerating(false);
       resetGenerationProgress();
     }
@@ -8269,6 +8309,13 @@ export default function PublishModal({
 
   return (
     <div ref={publishRootRef} style={{ display: "flex", flexDirection: "column", flex: 1, height: "100%", minHeight: 0, minWidth: 0 }}>
+      {contentAdjustmentSession ? <PublishContentAdjustmentModal
+        idea={contentAdjustmentSession.idea} instruction={contentAdjustmentSession.instruction}
+        channels={contentAdjustmentSession.channels.map(key => ({ key, label: getLocalizedChannelLabel(key, runtimeT) }))}
+        busy={generating} progress={generationProgress} progressLabel={generationPhaseLabel} error={genError}
+        onClose={() => { if (!generationInFlightRef.current) { setContentAdjustmentSession(null); setGenError(""); } }}
+        onApply={input => void onGenerate({ ...input, previousIdea: contentAdjustmentSession.idea, previousInstruction: contentAdjustmentSession.instruction })}
+      /> : null}
       {studio}
       <TiktokPublicationSettingsModal
         showPreview={false}
@@ -8570,7 +8617,7 @@ export default function PublishModal({
               aiEngineRestoredFromDraftRef.current = true;
               setSelectedAiPreferredEngine(normalizeAiPreferredEngine(engine));
             }}
-            onGenerate={onGenerate}
+            onGenerate={() => void onGenerate()}
             onOpenAiConfiguration={() => setAiConfigurationOpen(true)}
             onVoiceBusyChange={setIntentVoiceBusy}
           />
@@ -8674,6 +8721,11 @@ export default function PublishModal({
               setXHashtagsInput={setXHashtagsInput}
               duplicateFeedback={duplicateFeedback}
               onDuplicateContentToAllChannels={onDuplicateContentToAllChannels}
+              adjustmentDisabled={wizardBusy || !selectedForGeneration.length}
+              onAdjustGeneration={creationMode === "ai" ? () => {
+                setGenError("");
+                setContentAdjustmentSession({ idea, instruction: publicationInstruction, channels: selectedForGeneration.filter(channel => Boolean(getDisplayPost(channel).content.trim())) });
+              } : undefined}
               pinterestBoards={pinterestBoards}
               pinterestBoardId={pinterestBoardId}
               pinterestBoardsLoading={pinterestBoardsLoading}

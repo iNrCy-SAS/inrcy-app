@@ -71,8 +71,10 @@ test("Step 10 octies saves, restores, resets and submits the one-publication ins
   assert.match(modal, /setPublicationInstruction\(""\)/);
   assert.ok(
     (modal.match(/publicationInstruction:\s*publicationInstruction\.trim\(\)/g) || [])
-      .length >= 3,
+      .length >= 2,
   );
+  assert.match(modal, /publicationInstruction: generationInstruction/);
+  assert.match(modal, /adjustmentInput\?\.instruction \?\? publicationInstruction/);
   assert.match(route, /publicationInstruction\?: string/);
   assert.match(route, /slice\(0, 4_000\)/);
   assert.match(route, /publicationInstruction,\s*\n\s*theme/);

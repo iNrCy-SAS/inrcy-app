@@ -12,18 +12,20 @@ export const INR_ASSISTANT_CREATION_GUIDES: readonly InrAssistantCreationGuide[]
     id: "booster",
     title: "Booster : créer, publier ou programmer un contenu",
     keywords: ["booster", "publier", "publication", "programmer", "réseaux", "contenus", "brouillon", "tiktok", "musique", "stories", "reel"],
-    content: `Ouvrir [Publier](/dashboard?action=publish), depuis le bouton Publier du bloc Booster ou du menu. Le parcours actuel est Préparation → Idée → Contenus → Médias → Validation → Bilan. En mode Manuel, l’étape Idée est retirée. Ne pas indiquer un ancien onglet « Configurer ».
+    content: `Ouvrir [Publier](/dashboard?action=publish) depuis Booster ou le menu. Parcours : Préparation → Idée → Contenus → Médias → Validation → Bilan. En mode Manuel, l’étape Idée est retirée.
 1. Préparation : sélectionner les canaux connectés, puis Automatique ou Manuel ; Continuer. Un canal indisponible doit être connecté/reconnecté dans le cockpit, pas forcé dans la publication.
-2. Automatique : dans Idée, décrire le sujet, fournir si utile des médias/documents et utiliser « ✨ Générer avec iNrCy ». Manuel : rédiger directement dans Contenus. Vérifier et ajuster le contenu propre à chaque canal.
+2. Automatique : dans Idée, décrire le sujet, joindre les médias/documents utiles puis « ✨ Générer avec iNrCy ». Manuel : rédiger dans Contenus. Vérifier chaque canal. « Ajuster la génération » (avant Continuer) : 1) compléter sujet/consigne préremplis ; 2) choisir les canaux (tous cochés), puis « Adapter les contenus ». L’IA retouche les textes actuels, modifications manuelles incluses. Canaux décochés, médias et boutons restent inchangés. Annuler ne modifie rien.
 3. Médias : ajouter depuis l’appareil ou la Médiathèque, générer dans iNrStudio, adapter au canal. « Modifier » ouvre la modification IA avec l’image choisie ; « Retoucher » ouvre l’édition manuelle. Images : Stories de 4 s chacune ; Reel de 3 s par image (5 images = 15 s). Une reprise conserve la musique et les Stories confirmées. Vérifier l’aperçu final par canal.
 4. Validation : vérifier alertes et aperçus. Les cartes permettent de changer le format Facebook/Instagram et la case Story, le tableau Pinterest et le mode Threads ; ces choix restent synchronisés avec Contenus. « Musique » reste visible sur Facebook/Instagram, grisée en Classique avec « Réservé aux Stories et Reels ». Pour les Stories/Reels créés depuis les images, choisir Auto ou un des 30 sons avec préécoute dans la modale : une seule piste par canal. Les photos Google Business/Threads et le son des vidéos importées sont conservés. TikTok garde son option native pour les photos. « Publier » ouvre « Confirmer la publication ? », puis confirmer avec « Publier ». « 🕒 Programmer » ouvre la date/heure ; confirmer. Ne pas annoncer une publication avant le retour effectif. TikTok peut demander une validation supplémentaire ; YouTube exige une vidéo.
-5. Bilan : consulter le résultat par canal ; un succès partiel ne signifie pas que tous les canaux ont publié. Le menu Brouillons du header rouvre les brouillons ; l’icône d’enregistrement a pour libellé « Enregistrer le brouillon publication ».
+5. Bilan : vérifier le résultat par canal ; un succès partiel ne signifie pas que tous ont publié. « Brouillons » rouvre les brouillons ; l’icône de sauvegarde : « Enregistrer le brouillon publication ».
 Accès : Standard (essai inclus) et Premium ; les canaux utilisables dépendent des connexions, autorisations et règles du canal. La génération de médias conserve ses crédits iNrStudio.`,
     sourceFiles: [
       "app/dashboard/_components/dashboardMobileMenuModel.ts",
       "app/dashboard/booster/publier/PublishModal.tsx",
       "app/dashboard/booster/publier/components/publishWizard.ts",
       "app/dashboard/booster/publier/components/PublishCreationModePanel.tsx",
+      "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx",
+      "lib/boosterContentAdjustment.ts",
       "app/dashboard/booster/publier/components/PublishFinalReviewModal.tsx",
       "app/dashboard/booster/publier/components/PublishFooterActions.tsx",
       "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx",

@@ -51,6 +51,7 @@ import {
 import { isLegacyMediaTransportCutoverEnabled } from "@/lib/mediaPipelineLegacyCutoverPolicy";
 import type { WorkspaceAiConsumptionDiagnostics } from "@/lib/workspaceAiMixedConsumption";
 import { normalizeBoosterGenerationRequestId } from "@/lib/boosterGenerationRecovery";
+import { normalizeBoosterContentAdjustment } from "@/lib/boosterContentAdjustment";
 
 export const maxDuration = 120;
 
@@ -62,6 +63,7 @@ const BOOSTER_GENERATION_CLOSE_MARGIN_MS = 1_500;
 const BOOSTER_MEDIA_CONTEXT_SAFETY_BUDGET_MS = 7_500;
 
 type Payload = {
+  contentAdjustment?: unknown;
   creationMode?: "ai" | "manual";
   generationRequestId?: string;
   generationDeadlineAt?: number;
@@ -676,6 +678,12 @@ const handler = async (req: Request) => {
       return NextResponse.json({ error: "Canaux manquants." }, { status: 400 });
     }
     timingContext.selectedChannels = channels.length;
+    let contentAdjustment;
+    try {
+      contentAdjustment = normalizeBoosterContentAdjustment(body.contentAdjustment, channels);
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : "Contexte d’ajustement invalide." }, { status: 400 });
+    }
 
     let mediaType = normalizeGenerationMediaType(body.mediaType);
     const strictMediaCutover =
@@ -1158,6 +1166,8 @@ const handler = async (req: Request) => {
     const generationStartedAt = Date.now();
     try {
       generationResult = await generateSharedBoosterPosts({
+        contentAdjustment,
+        allowLocalFallback: contentAdjustment ? false : undefined,
         idea,
         publicationInstruction,
         theme,

@@ -354,6 +354,7 @@ const similarityStopWords = new Set([
 ]);
 
 export type GenerateSharedBoosterPostsArgs = {
+  contentAdjustment?: import("./boosterContentAdjustment.ts").BoosterContentAdjustment;
   idea: string;
   mediaSubjectSource?: AiMediaSubjectSource;
   /** Server-attested transcript from the selected existing video. */
@@ -1044,6 +1045,7 @@ function computeGenerationTimeoutMs(args: {
 }
 
 async function generateVersions(args: {
+  contentAdjustment?: import("./boosterContentAdjustment.ts").BoosterContentAdjustment;
   idea: string;
   mediaSubjectSource?: AiMediaSubjectSource;
   publicationInstruction?: string;
@@ -1067,6 +1069,7 @@ async function generateVersions(args: {
 }) {
   const mode = args.mode || "primary";
   const compiledPrompt = compileBoosterGenerationPrompt({
+    contentAdjustment: args.contentAdjustment,
     idea: args.idea,
     mediaSubjectSource: args.mediaSubjectSource,
     publicationInstruction: args.publicationInstruction,
@@ -1295,6 +1298,7 @@ function buildSingleRepairInstructions(args: {
 }
 
 async function repairChannelsOnce(args: {
+  contentAdjustment?: import("./boosterContentAdjustment.ts").BoosterContentAdjustment;
   channels: BoosterChannels[];
   issues: Map<BoosterChannels, ChannelQualityIssue[]>;
   versions: Partial<Record<BoosterChannels, ChannelPost>>;
@@ -1323,6 +1327,7 @@ async function repairChannelsOnce(args: {
   }
 
   const out = await generateVersions({
+    contentAdjustment: args.contentAdjustment,
     idea: args.idea,
     mediaSubjectSource: args.mediaSubjectSource,
     publicationInstruction: args.publicationInstruction,
@@ -1737,6 +1742,7 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
     const primaryResults = await Promise.allSettled(
       primaryBatches.map((batch) =>
         generateVersions({
+          contentAdjustment: args.contentAdjustment,
           idea: args.idea,
           mediaSubjectSource: args.mediaSubjectSource,
           publicationInstruction: args.publicationInstruction,
@@ -1858,6 +1864,7 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
       const repairResults = await Promise.allSettled(
         repairBatches.map((batch) =>
           repairChannelsOnce({
+            contentAdjustment: args.contentAdjustment,
             channels: batch,
             issues: repairIssues,
             versions: safeVersions,

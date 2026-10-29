@@ -47,7 +47,9 @@ test("Step 10 nonies protects current branch work before changing mode or regene
   assert.match(modal, /Passer à la création manuelle/);
   assert.match(modal, /Passer à la création avec iNrCy/);
   assert.match(modal, /Vos canaux et vos médias seront conservés/);
-  assert.match(modal, /if \(hasWrittenChannelContent\)/);
+  // Targeted adjustment already confirms its scope in the two-step dialog.
+  // Replacing all content must still ask for explicit confirmation.
+  assert.match(modal, /if \(hasWrittenChannelContent && !contentAdjustment\)/);
   assert.match(modal, /i18nT\("generer_de_nouveaux_contenus_8a601a4e"\)/);
 });
 
