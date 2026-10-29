@@ -58,6 +58,9 @@ test("generation handler rejects blank subjects before any engine or media prepa
     const noop = () => {};
     const generate = evaluate(handler, modal, {
       generating: false, creationMode: "ai", idea, selectedChannels: ["facebook"],
+      generationInFlightRef: { current: false }, selectedForGeneration: ["facebook"],
+      publicationActorScopeRef: { current: { actorUserId: "test-user", accountId: "test-account" } },
+      currentPostsRef: { current: {} },
       publicationInstruction: "Ton professionnel", images: [{}], videoFile: {}, pdfFile: {},
       setGenError: (error: string) => errors.push(error), setImgError: noop,
       setGenerationNotice: noop, setGenerationMediaWarning: noop,
