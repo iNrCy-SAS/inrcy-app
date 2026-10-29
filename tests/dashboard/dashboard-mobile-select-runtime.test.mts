@@ -8,6 +8,7 @@ import * as statsNavigation from "../../app/dashboard/stats/stats.navigation.ts"
 import * as adsLifecycle from "../../lib/adsCampaignLifecycle.ts";
 import * as adsMetrics from "../../lib/adsCampaignMetrics.ts";
 import * as adsLabels from "../../app/dashboard/mails/_components/adsCampaignsFolder.shared.ts";
+import * as reviewPageCache from "../../app/dashboard/e-reputation/review-page-cache.ts";
 
 const require = createRequire(import.meta.url);
 type Props = Record<string, unknown>;
@@ -89,6 +90,8 @@ test("review platform navigation keeps the active selection and blocks changes w
     "@/app/dashboard/booster/publier/components/PublishAiConfigurationDrawer": { __esModule: true, default: "ai-drawer" },
     "@/app/dashboard/_components/DashboardMobileSelect": mobile,
     "@/lib/browserModuleSnapshotCache": { MODULE_SNAPSHOT_KEYS: { eReputationGoogle: "reviews" }, readModuleSnapshot: () => null, writeModuleSnapshot() {} },
+    "@/lib/browserAccountCache": { getActiveBrowserUserId: () => "reviews-account" },
+    "./review-page-cache": reviewPageCache,
   }, () => pending);
   // The second source is a fixture for the already-supported multi-platform branch.
   const platforms = ["google", "fixture-source"].map((id) => ({ id, label: id, shortLabel: id, iconSrc: "/fixture.svg", reviews: [], reviewsReady: true, reviewsError: null, connected: true }));

@@ -17,14 +17,16 @@ function sourceFiles(directory: string): string[] {
   );
 }
 
-test("la clé i18n e-réputation correspond aux catalogues", () => {
+test("l’ancienne route Réputation ouvre les avis Google et les traductions du tableau restent disponibles", () => {
   const page = read("app/dashboard/e-reputation/page.tsx");
-  assert.match(page, /repondez_a_vos_avis_avec_inrcy_49a4b027/);
-  assert.doesNotMatch(page, /repondez_a_vos_avis_avec_inrcy_49a4a027/);
+  const client = read("app/dashboard/e-reputation/EReputationReviewsClient.tsx");
+  assert.match(page, /redirect\("\/dashboard\?panel=gmb&googleReviews=1"\)/);
+  assert.match(client, /useTranslations\("reputation"\)/);
+  assert.match(client, /i18nT\("refresh_reviews_aria"\)/);
   for (const locale of ["fr-FR", "en-GB"]) {
     assert.match(
       read(`messages/${locale}/reputation.json`),
-      /repondez_a_vos_avis_avec_inrcy_49a4b027/,
+      /"refresh_reviews_aria"\s*:/,
     );
   }
 });

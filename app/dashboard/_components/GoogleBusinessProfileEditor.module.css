@@ -14,10 +14,13 @@
 .sectionTop > label { flex: 1; }
 .sectionTop > p { flex: 1; }
 .fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.informationFields { flex: 1; min-height: 0; grid-template-rows: auto auto minmax(0,1fr); }
 .wide { grid-column: 1 / -1; }
 .editor label { display: grid; min-width: 0; gap: 5px; font-size: 12px; color: #d5e6f7; }
+.editor .descriptionField { min-height: 0; grid-template-rows: auto minmax(0,1fr) auto; }
 .editor input,.editor textarea,.editor select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 38px; padding: 8px 10px; border: 1px solid #98b8ed60; border-radius: 10px; background: #07162cbd; color: #eff7ff; font: inherit; font-size: 14px; }
 .editor textarea { resize: none; line-height: 1.45; }
+.editor .descriptionField textarea { height: 100%; min-height: 0; max-height: none; }
 .editor small { text-align: right; color: #b7cce3; font-size: 10px; }
 .editor button { width: fit-content; max-width: 100%; min-height: 40px; padding: 8px 13px; border: 1px solid #8fc4f580; border-radius: 11px; background: #365c9945; color: #f1f7ff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .editor button:disabled { opacity: .45; cursor: default; }

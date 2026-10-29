@@ -9,7 +9,7 @@ const routes = [
   ["/dashboard/stats", "", "iNr’Stats"], ["/dashboard/ads", "", "iNr’ADS"], ["/dashboard/propulser", "", "Propulser"], ["/dashboard/fideliser", "", "Fidéliser"],
   ["/dashboard", "action=campaigns", "Campagnes mails"], ["/dashboard/mails", "", "iNr’Send"], ["/dashboard/crm", "", "iNr’CRM"], ["/dashboard/agenda", "", "iNr’Calendar"],
   ["/dashboard/adn-entreprise", "", "ADN de l’entreprise"], ["/dashboard/configuration-ia", "", "Configuration IA"], ["/dashboard", "action=channels", "Mes canaux"],
-  ["/dashboard", "panel=compte", "Mon compte"], ["/dashboard", "panel=abonnement", "Mon abonnement"], ["/dashboard/e-reputation", "", "Réputation"],
+  ["/dashboard", "panel=compte", "Mon compte"], ["/dashboard", "panel=abonnement", "Mon abonnement"], ["/dashboard/e-reputation", "", "Avis Google"],
   ["/dashboard/agent", "", "Agents IA"], ["/dashboard/agent/publications", "", "Agent Publications"], ["/dashboard/agent/stats", "", "Agent Stats"], ["/dashboard/agent/campagnes-mails", "", "Agent Emailings"],
   ["/dashboard/devis/new", "", "Mes devis"], ["/dashboard/factures/new", "", "Mes factures"], ["/dashboard", "panel=documents", "Devis et factures"], ["/dashboard/boutique/recharges", "", "Boutique"],
 ] as const;

@@ -381,11 +381,11 @@ test("un canal desactive reste gris tandis qu'un canal a connecter garde son eta
   assert.match(channelsModalCssSource, /\.selectedBubble\[data-tone="disabled"\] > article\s*\{[^}]*border-color: #9ba7c0/);
 });
 
-test("les blocs inférieurs Standard conservent Stats, Publications, Réputation, Booster, iNrAgent et iNrStudio", () => {
+test("les blocs inférieurs Standard conservent Stats, Publications, Booster, iNrAgent et iNrStudio sans carte Réputation", () => {
   assert.match(sharedModulesSource, /\/dashboard\/stats/);
   assert.match(sharedModulesSource, /path: standardMode \? "\/dashboard\/mails\?folder=publications&boxView=sent" : "\/dashboard\/mails"/);
   assert.match(sharedModulesSource, /description: standardT\("sendDescription"\)/);
-  assert.match(sharedModulesSource, /\/dashboard\/e-reputation/);
+  assert.doesNotMatch(sharedModulesSource, /\/dashboard\/e-reputation|tone: "reputationCard"/);
   assert.match(sharedModulesSource, /onClick=\{openPublishModal\}/);
   assert.match(sharedModulesSource, /agentControls\("publications",/);
   assert.match(sharedModulesSource, /agentControls\("stats",/);

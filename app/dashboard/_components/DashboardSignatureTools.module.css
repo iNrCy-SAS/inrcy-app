@@ -335,8 +335,10 @@
 .adsArtwork { z-index: 0; bottom: 4px; right: 3px; width: 130px; height: 80px; opacity: .7; }
 .mailArtwork { z-index: 0; right: 4px; top: 28%; width: 120px; height: 70px; opacity: .45; }
 .studioCard.signatureCard { border-color: #42b8efb3; background: radial-gradient(ellipse at 8% 0%, #1578c344, transparent 70%), linear-gradient(125deg, #0b356b, #12285b 65%, #292365); }
-.sendCard.signatureCard { --tool-accent: #f79bd2; border-color: #e879b9bf; background: radial-gradient(ellipse at 8% 0%, #d658a43b, transparent 70%), linear-gradient(125deg, #551b44, #42203d 65%, #3a1c36); }
-.sendCard .toolButton { border-color: #f5a1cfbd; background: linear-gradient(110deg, #b82f83, #923574); }
+.sendCard.signatureCard { --tool-accent: #f1c49c; border-color: #c28d62bf; background: radial-gradient(ellipse at 8% 0%, #c3874f26, transparent 70%), linear-gradient(125deg, #35271f, #291f1b 65%, #211a18); }
+.sendCard .toolButton { border-color: #edbd91bd; background: linear-gradient(110deg, #a36335, #834b2b); }
+.sendCard .signatureLogo { filter: brightness(1.2) drop-shadow(0 0 7px #33baff66); }
+.sendCard .creationArtwork { opacity: 1; filter: drop-shadow(0 0 6px #4eaeff40); }
 .reputationCard.signatureCard { --tool-accent: #ec93ce; border-color: #cc70b5a8; background: radial-gradient(ellipse at 92% 100%, #bf3f9555, transparent 65%), linear-gradient(125deg, #3d2453, #39204d 65%, #5a2358); }
 .creationGrid > article { box-shadow: inset 0 1px 0 #e2ceff21, 0 4px 16px #050a251f; }
 
@@ -586,10 +588,10 @@
   --control-end: #254584;
 }
 .sendCard {
-  --control-border: #e9a0c8;
-  --control-icon: #fff0fa;
-  --control-start: #91406f;
-  --control-end: #64254e;
+  --control-border: #e9bb92;
+  --control-icon: #fff1e4;
+  --control-start: #a3714d;
+  --control-end: #714a32;
 }
 .statsCard {
   --control-border: #bea2f4;
