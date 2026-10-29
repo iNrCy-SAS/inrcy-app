@@ -7,6 +7,7 @@ import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import type { DashboardChannelKey } from "@/lib/dashboardChannels";
 import type { InrstatsChannelBlock } from "@/lib/inrstats/channelBlocks";
 import type { ChannelResourcePhase } from "./channelResourcePhase";
+import type { GoogleBusinessLocation } from "@/lib/googleBusinessLocations";
 
 type PatchChannelConnectionLocally = (
   channel: DashboardChannelKey,
@@ -49,7 +50,7 @@ export function useGoogleBusinessChannel({
   const [gmbUrlError, setGmbUrlError] = useState<string | null>(null);
 
   const [gmbAccounts, setGmbAccounts] = useState<Array<{ name: string; accountName?: string; type?: string }>>([]);
-  const [gmbLocations, setGmbLocations] = useState<Array<{ name: string; title?: string }>>([]);
+  const [gmbLocations, setGmbLocations] = useState<GoogleBusinessLocation[]>([]);
   const [gmbAccountName, setGmbAccountName] = useState<string>("");
   const [gmbLocationName, setGmbLocationName] = useState<string>(() => typeof initialState?.gmbLocationName === "string" ? initialState.gmbLocationName : "");
   const [gmbLocationLabel, setGmbLocationLabel] = useState<string>(() => typeof initialState?.gmbLocationLabel === "string" ? initialState.gmbLocationLabel : "");
@@ -60,12 +61,9 @@ export function useGoogleBusinessChannel({
 
   const connectionRevisionRef = useRef(0);
   const selectionIntentRef = useRef(0);
-  const configuredRef = useRef(gmbConfigured);
-  configuredRef.current = gmbConfigured;
   const locationsInFlightRef = useRef<{
     accountScope: string | null;
     revision: number;
-    autoSelect: boolean;
     promise: Promise<void>;
   } | null>(null);
   const selectionInFlightRef = useRef<{
@@ -236,19 +234,16 @@ export function useGoogleBusinessChannel({
     // return, start discovery without waiting for dashboard hydration.
     if (!gmbAccountConnected && !options?.afterOAuth) return Promise.resolve();
     const revision = connectionRevisionRef.current;
-    const selectionIntent = selectionIntentRef.current;
     const accountScope = getActiveBrowserUserId();
-    const autoSelect = options?.autoSelect !== false;
     const existing = locationsInFlightRef.current;
     if (existing?.accountScope === accountScope && existing.revision === revision) {
-      existing.autoSelect ||= autoSelect;
       return existing.promise;
     }
     setGmbLoadingList(true);
     setGmbLocationsPhase("searching");
     setGmbListError(null);
     const isCurrent = () => revision === connectionRevisionRef.current && accountScope === getActiveBrowserUserId();
-    const operation = { accountScope, revision, autoSelect, promise: Promise.resolve() };
+    const operation = { accountScope, revision, promise: Promise.resolve() };
     operation.promise = (async () => {
       try {
         const response = await fetch("/api/integrations/google-business/locations", { cache: "no-store" });
@@ -261,15 +256,7 @@ export function useGoogleBusinessChannel({
         setGmbAccountName(payload.accountName || "");
         setGmbLocations(locations);
         if (payload.locationsError) setGmbListError(payload.locationsError);
-        if (!operation.autoSelect || configuredRef.current || selectionIntent !== selectionIntentRef.current) return;
-
-        // One location can be confirmed directly after OAuth. With several
-        // locations, retain the user's choice rather than choosing the first.
-        if (locations.length === 1 && payload.accountName) {
-          const only = locations[0];
-          setGmbLocationsPhase("connecting");
-          await persistGmbLocation(String(payload.accountName), String(only.name), only.title ? String(only.title) : null);
-        }
+        // Discovery only reads. Even one returned establishment needs an explicit choice.
       } catch (error) {
         if (isCurrent()) setGmbListError(getSimpleFrenchErrorMessage(error, "Impossible de charger les établissements Google Business."));
       } finally {
@@ -282,7 +269,7 @@ export function useGoogleBusinessChannel({
     })();
     locationsInFlightRef.current = operation;
     return operation.promise;
-  }, [gmbAccountConnected, persistGmbLocation]);
+  }, [gmbAccountConnected]);
 
   const oauthAccountScope = getActiveBrowserUserId();
   useEffect(() => {
@@ -300,9 +287,11 @@ export function useGoogleBusinessChannel({
   }, [searchParams, oauthAccountScope, gmbConfigured, loadGmbAccountsAndLocations]);
 
   const saveGmbLocation = useCallback((selectedLocationName = gmbLocationName) => {
-    if (!gmbAccountName || !selectedLocationName) return Promise.resolve(false);
+    if (!selectedLocationName) return Promise.resolve(false);
     const picked = gmbLocations.find(location => location.name === selectedLocationName);
-    return persistGmbLocation(gmbAccountName, selectedLocationName, picked?.title || null);
+    const accountName = picked?.accountName || gmbAccountName;
+    if (!accountName || !picked) return Promise.resolve(false);
+    return persistGmbLocation(accountName, selectedLocationName, picked.title || null);
   }, [gmbAccountName, gmbLocationName, gmbLocations, persistGmbLocation]);
 
   return {

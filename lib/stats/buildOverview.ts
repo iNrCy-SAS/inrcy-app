@@ -1398,60 +1398,6 @@ export async function buildStatsOverview(args: {
           });
           sourcesStatus.gmb.metrics = recovered.metrics;
 
-          if (
-            recovered.recovered &&
-            recovered.locationName &&
-            recovered.locationName !== loc
-          ) {
-            const nextMeta = {
-              ...asRecord(gmbRow["meta"]),
-              ...(recovered.accountName
-                ? { account: recovered.accountName }
-                : {}),
-            };
-            try {
-              await supabase
-                .from("integrations")
-                .update({
-                  resource_id: recovered.locationName,
-                  resource_label: recovered.locationTitle,
-                  meta: nextMeta,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("user_id", userId)
-                .eq("provider", "google")
-                .eq("source", "gmb")
-                .eq("product", "gmb");
-            } catch {}
-
-            try {
-              const currentGmb = asRecord(asRecord(proSettings)["gmb"]);
-              const mergedSettings = {
-                ...proSettings,
-                gmb: {
-                  ...currentGmb,
-                  accountName:
-                    recovered.accountName || currentGmb["accountName"] || null,
-                  locationName: recovered.locationName,
-                  locationTitle:
-                    recovered.locationTitle ||
-                    currentGmb["locationTitle"] ||
-                    null,
-                  resource_id: recovered.locationName,
-                  resource_label:
-                    recovered.locationTitle ||
-                    currentGmb["resource_label"] ||
-                    null,
-                },
-              };
-              await supabase
-                .from("pro_tools_configs")
-                .upsert(
-                  { user_id: userId, settings: mergedSettings },
-                  { onConflict: "user_id" },
-                );
-            } catch {}
-          }
         } catch (e) {
           const reconnectPersisted = await markPublishChannelReconnectRequired({
             channel: "gmb",

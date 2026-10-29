@@ -67,6 +67,7 @@ export default function EmojiPickerButton({
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState<string[]>([]);
   const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [portalTarget, setPortalTarget] = useState<Element | null>(null);
 
   useEffect(() => {
     try {
@@ -113,7 +114,7 @@ export default function EmojiPickerButton({
       setOpen(false);
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setOpen(false); buttonRef.current?.focus({ preventScroll: true }); }
     };
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
@@ -125,7 +126,7 @@ export default function EmojiPickerButton({
 
   const toggle = () => {
     if (disabled) return;
-    if (!open) onBeforeOpen?.();
+    if (!open) { onBeforeOpen?.(); setPortalTarget(buttonRef.current?.closest("dialog[open]") || null); }
     setOpen((current) => !current);
     if (open) setQuery("");
   };
@@ -271,7 +272,7 @@ export default function EmojiPickerButton({
                 ))}
               </div>
             </div>,
-            document.body,
+            portalTarget || document.body,
           )
         : null}
     </>

@@ -45,6 +45,7 @@ function runtime(path: string, overrides: Props = {}) {
     if (specifier.endsWith("channel-workspace-snapshot")) return { readChannelWorkspaceSnapshot: (_channel: string, fallback: unknown) => fallback, writeChannelWorkspaceSnapshot() {} };
     if (specifier === "next-intl") return { useTranslations: () => (key: string, values: Props = {}) => String(labels[key] || key).replace(/\{(\w+)\}/g, (match, name) => String(values[name] ?? match)) };
     if (specifier === "next/dynamic") return { __esModule: true, default: () => stub };
+    if (specifier === "next/navigation") return { useRouter: () => ({ replace() {} }), useSearchParams: () => new URLSearchParams() };
     if (specifier.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: false }) };
     if (specifier.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
     if (specifier.endsWith("useUnsavedExitGuard")) return { useUnsavedExitGuard() {} };
@@ -129,7 +130,7 @@ test("connected channels replace the plug with a single red X between view and p
   assert.match(html, /Augmente les appels/);
 });
 
-test("resource bubbles preserve the old single-resource setup but never replace an existing selection", async () => {
+test("Google requires an explicit establishment choice while other channels preserve their single-resource setup", async () => {
   for (const [key, prop, list, configured, load] of [
     ["gmb", "gmbPanelProps", "gmbLocations", "gmbConfigured", "loadGmbAccountsAndLocations"],
     ["facebook", "facebookPanelProps", "fbPages", "facebookPageConnected", "loadFacebookPages"],
@@ -141,7 +142,7 @@ test("resource bubbles preserve the old single-resource setup but never replace 
       const tree = h.render("default", { item: { ...item, key }, [prop]: { [list]: [], [configured]: selected, [load]: (options: { autoSelect: boolean }) => calls.push(options.autoSelect) } });
       await nodes(tree).find(node => node.props.item?.connection)!.props.item.connection.onLoad();
     }
-    assert.deepEqual(calls, [true, false], key);
+    assert.deepEqual(calls, key === "gmb" ? [false, false] : [true, false], key);
   }
 });
 
@@ -189,7 +190,7 @@ test("only channel errors remain readable below the main bubble, never inside it
   }
 });
 
-test("Google Business prevents a disconnect from racing the automatic selection write", () => {
+test("Google Business prevents a disconnect from racing a pending selection write", () => {
   const workspace = runtime("app/dashboard/_components/DashboardChannelWorkspace.tsx");
   const bubble = runtime("app/dashboard/_components/DashboardFluxBubble.tsx");
   const tree = workspace.render("default", { item, gmbPanelProps: { gmbAccountConnected: true, gmbLocations: [], gmbLocationsPhase: "connecting", gmbLoadingList: true, saveGmbLocation() {}, disconnectGmbAccount() {} } });
@@ -355,6 +356,58 @@ test("the explicit Instagram connection button preserves the existing provider c
   assert.ok(nodes(tree).some(node => node.type === "button" && React.Children.toArray(node.props.children).includes("Via Facebook")));
   await business.props.onClick();
   assert.equal(businessConnections, 1);
+});
+
+test("Meta choices navigate natively at the top level and remain visible until navigation", () => {
+  let callbacks = 0;
+  const h = runtime("app/dashboard/_components/DashboardFluxBubble.tsx");
+  const connection = { accountConnected: false, connectOptions: [{ label: "Connexion Facebook", href: "/api/integrations/facebook/start?mode=standard", onConnect() { callbacks++; } }] };
+  const props = { item: { ...item, key: "facebook", name: "Facebook", bubbleStatus: "available", connection } };
+  nodes(h.render("default", props)).find(node => node.props["aria-label"] === "Connecter — Facebook")!.props.onClick();
+  let prevented = false;
+  const link = nodes(h.render("default", props)).find(node => node.type === "a" && node.props.href === connection.connectOptions[0].href)!;
+  assert.ok(link);
+  assert.equal(link.props.target, "_top");
+  link.props.onClick({ preventDefault() { prevented = true; } });
+  assert.equal(prevented, false, "The browser must perform the OAuth navigation directly");
+  assert.equal(callbacks, 0);
+  assert.ok(nodes(h.render("default", props)).some(node => node === link || node.props.href === link.props.href), "A failed navigation must not silently hide the choices");
+  const busy = nodes(h.render("default", { item: { ...props.item, connection: { ...connection, busy: true } } })).find(node => node.type === "a" && node.props.href === link.props.href)!;
+  busy.props.onClick({ preventDefault() { prevented = true; } });
+  assert.equal(prevented, true, "A pending mutation still blocks a new OAuth connection");
+});
+
+test("nested Meta connection choices also use native links without invoking a second callback", () => {
+  const h = runtime("app/dashboard/_components/ChannelConnectionMenu.tsx");
+  const props = { label: "Connexion par Facebook", disabled: false, options: [{ label: "Classique", href: "/api/integrations/instagram/start?mode=standard&repair=1", onConnect() {} }], onChoose() { throw Error("Native navigation must not call the JavaScript chooser"); } };
+  nodes(h.render("default", props)).find(node => node.type === "button")!.props.onClick();
+  let prevented = false;
+  const link = nodes(h.render("default", props)).find(node => node.type === "a")!;
+  assert.equal(link.props.target, "_top");
+  link.props.onClick({ preventDefault() { prevented = true; } });
+  assert.equal(prevented, false);
+  const disabled = nodes(h.render("default", { ...props, disabled: true })).find(node => node.type === "a")!;
+  disabled.props.onClick({ preventDefault() { prevented = true; } });
+  assert.equal(prevented, true);
+});
+
+test("Meta native links retain the requested channel, OAuth mode and Instagram repair flag", () => {
+  const h = runtime("app/dashboard/_components/DashboardChannelWorkspace.tsx", { "./DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ metaPilotEnabled: true }) } });
+  for (const key of ["facebook", "instagram"]) {
+    for (const status of ["available", "reconnect"]) {
+      const tree = h.render("default", { item: { ...item, key, bubbleStatus: status }, facebookPanelProps: { fbPages: [] }, instagramPanelProps: { igAccounts: [] } });
+      const choices = nodes(tree).find(node => node.props.item?.connection)!.props.item.connection.connectOptions as Props[];
+      for (const option of choices) {
+        const url = new URL(option.href, "https://app.inrcy.test");
+        assert.equal(url.origin, "https://app.inrcy.test");
+        assert.equal(url.searchParams.get("returnTo"), `/dashboard?panel=${key}`);
+        if (url.pathname.includes("instagram-direct")) assert.equal(url.searchParams.has("mode"), false);
+        else assert.ok(["standard", "business"].includes(url.searchParams.get("mode")!));
+        assert.equal(url.searchParams.has("repair"), key === "instagram" && status === "reconnect" && url.searchParams.get("mode") === "standard");
+      }
+      assert.equal(choices.length, key === "facebook" ? 2 : 3);
+    }
+  }
 });
 
 test("selecting a known bubble never reloads its resource list; opening its selector loads once without hiding the current page", async () => {
@@ -714,11 +767,15 @@ test("a connected account awaiting a resource keeps board creation without showi
   assert.ok(!nodes(tree).some(node => node.props.href === "https://pinterest.com/business/create"));
 });
 
-test("Google Business has no settings while Facebook and Instagram expose only inline publication types", () => {
+test("Google Business exposes profile editing and reviews while Facebook and Instagram retain inline publication types", () => {
   const h = runtime("app/dashboard/_components/DashboardChannelWorkspace.tsx");
   const connectionOf = (tree: React.ReactNode) => nodes(tree).find(node => node.props.item?.connection)!.props.item.connection;
   const google = connectionOf(h.render("default", { item, gmbPanelProps: { gmbLocations: [], gmbConfigured: true, gmbLocationName: "1", gmbLocationLabel: "iNrCy" } }));
-  assert.equal(google.parameters, undefined);
+  assert.ok(google.parameters);
+  assert.equal(google.parametersCompact, true);
+  assert.equal(google.parametersIcon, "businessProfile");
+  assert.equal(google.extraActions.type, "button");
+  assert.equal(google.extraActions.props["aria-label"], `${labels.googleReviews} — Google Business`);
   for (const channel of ["facebook", "instagram"]) {
     const title = channel === "facebook" ? "Facebook" : "Instagram";
     const save = async () => true;

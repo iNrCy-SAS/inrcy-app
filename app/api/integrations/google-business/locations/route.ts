@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
-import { getGmbToken, gmbListAccounts, gmbListLocationsWithFallback } from "@/lib/googleBusiness";
-import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getGmbToken } from "@/lib/googleBusiness";
+import { discoverGoogleBusinessLocations } from "@/lib/googleBusinessLocations";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
     const supabase = await createSupabaseServer();
     const { data: auth, error } = await supabase.auth.getUser();
@@ -13,24 +13,12 @@ export async function GET(req: Request) {
     const tok = await getGmbToken();
     if (!tok?.accessToken) return NextResponse.json({ error: "Compte Google Business non connecté." }, { status: 400 });
 
-    const accounts = await gmbListAccounts(tok.accessToken);
-
-    const url = new URL(req.url);
-    const accountName = url.searchParams.get("account") || accounts?.[0]?.name || null;
-
-    let locations: unknown[] = [];
-    let locationsError: string | null = null;
-
-    if (accountName) {
-      try {
-        locations = await gmbListLocationsWithFallback(tok.accessToken, accountName);
-      } catch (e: unknown) {
-        locationsError = getSimpleFrenchErrorMessage(e, "Impossible de charger les établissements pour ce compte.");
-        locations = [];
-      }
-    }
-
-    return NextResponse.json({ accounts, accountName, locations, locationsError });
+    const discovery = await discoverGoogleBusinessLocations(tok.accessToken, String(tok.row.meta?.account || ""));
+    return NextResponse.json({
+      ...discovery,
+      accountName: discovery.accounts.length === 1 ? discovery.accounts[0].name : null,
+      locationsError: discovery.complete ? null : "Certains comptes Google Business n’ont pas pu être chargés. Réessayez pour afficher tous leurs établissements.",
+    });
   } catch (e: unknown) {
     return jsonUserFacingError(e, { status: 500 });
   }

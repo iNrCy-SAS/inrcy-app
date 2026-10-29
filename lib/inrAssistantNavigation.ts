@@ -10,7 +10,7 @@ const TOOL_ROUTES: Readonly<Record<string, string>> = {
   "/dashboard/booster": "Booster",
   "/dashboard/booster/publier": "Booster",
   "/dashboard/ads": "iNr’ADS",
-  "/dashboard/e-reputation": "Réputation",
+  "/dashboard/e-reputation": "Avis Google",
   "/dashboard/propulser": "Propulser",
   "/dashboard/fideliser": "Fidéliser",
   "/dashboard/stats": "iNr’Stats",

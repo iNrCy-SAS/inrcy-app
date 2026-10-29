@@ -86,40 +86,29 @@ function runtime(options: {
   };
 }
 
-test("OAuth return discovers and selects its sole location without waiting for channel hydration or Stats", async () => {
+test("OAuth discovery never selects even its sole location; an explicit choice is required", async () => {
   const list = deferred<Reply>();
   const selection = deferred<Reply>();
-  const stats = deferred<void>();
-  const h = runtime({ panel: "mails", fetch: url => url === listUrl ? list.promise : selection.promise, refresh: () => stats.promise });
-  assert.equal(h.render().gmbAccountConnected, false);
-  h.flushEffects();
-  assert.deepEqual(h.requests.map(request => request.url), [listUrl], "OAuth must not wait for gmbAccountConnected hydration");
+  const h = runtime({ panel: "mails", fetch: url => url === listUrl ? list.promise : selection.promise });
   h.render(); h.flushEffects();
+  assert.deepEqual(h.requests.map(request => request.url), [listUrl]);
   list.resolve(response(oneLocation));
   await settle();
-  const choosing = h.render();
-  h.flushEffects();
-  assert.equal(choosing.gmbLocationsPhase, "connecting");
-  assert.equal(choosing.gmbConfigured, false, "Selection is not confirmed before its POST succeeds");
-  assert.deepEqual(h.requests.map(request => request.url), [listUrl, selectUrl]);
-  const manual = choosing.saveGmbLocation("locations/1");
-  assert.equal(h.requests.filter(request => request.url === selectUrl).length, 1, "Choosing the sole location while auto-selection is pending reuses its POST");
+  const discovered = h.render(); h.flushEffects();
+  assert.equal(discovered.gmbConfigured, false);
+  assert.equal(discovered.gmbLocationsPhase, "idle");
+  assert.equal(h.requests.length, 1, "A GET must never trigger a selection POST");
+  const manual = discovered.saveGmbLocation("locations/1");
+  const duplicate = h.render().saveGmbLocation("locations/1");
+  assert.equal(h.requests.filter(request => request.url === selectUrl).length, 1);
   selection.resolve(response(saved));
   assert.equal(await manual, true);
-  await settle();
-  const connected = h.render(); h.flushEffects();
-  assert.equal(connected.gmbAccountConnected, true);
-  assert.equal(connected.gmbConfigured, true);
-  assert.equal(connected.gmbConnected, true);
-  assert.equal(connected.gmbConnectionStatus, "connected");
-  assert.equal(connected.gmbLocationName, "locations/1");
-  assert.equal(connected.gmbLoadingList, false);
-  assert.equal(h.refreshes, 1);
-  assert.equal(h.requests.length, 2);
-  stats.resolve();
+  assert.equal(await duplicate, true);
+  assert.equal(h.render().gmbLocationName, "locations/1");
+  assert.equal(h.render().gmbConfigured, true);
 });
 
-test("A selector GET already in flight is shared with the explicit OAuth auto-selection", async () => {
+test("A selector GET already in flight is shared with OAuth discovery without any write", async () => {
   const list = deferred<Reply>();
   const h = runtime({ initial: { gmbAccountConnected: true }, fetch: async url => url === listUrl ? list.promise : response(saved) });
   const manualRead = h.render().loadGmbAccountsAndLocations({ autoSelect: false });
@@ -131,8 +120,8 @@ test("A selector GET already in flight is shared with the explicit OAuth auto-se
   await manualRead;
   await settle();
   assert.equal(h.requests.filter(request => request.url === listUrl).length, 1);
-  assert.equal(h.requests.filter(request => request.url === selectUrl).length, 1);
-  assert.equal(h.render().gmbConfigured, true);
+  assert.equal(h.requests.filter(request => request.url === selectUrl).length, 0);
+  assert.equal(h.render().gmbConfigured, false);
 });
 
 test("Repeated read-only selector loads share one request and never select a location", async () => {
@@ -247,13 +236,14 @@ test("A manual choice made while discovery is pending prevents a late automatic 
   assert.equal(h.patches.at(-1)?.resourceId, "locations/2");
 });
 
-test("A new manual target waits for the old auto-POST and remains the last server and UI choice", async () => {
+test("A newer explicit target waits for the older POST and remains the last server and UI choice", async () => {
   const automatic = deferred<Reply>();
   const manual = deferred<Reply>();
   let selectionCount = 0;
   const h = runtime({ fetch: async url => url === listUrl ? response(oneLocation) : ++selectionCount === 1 ? automatic.promise : manual.promise });
   h.render(); h.flushEffects();
   await settle();
+  void h.render().saveGmbLocation("locations/1");
   assert.equal(selectionCount, 1);
   const choosing = h.render();
   choosing.setGmbLocations([...oneLocation.locations, { name: "locations/2", title: "Manual choice" }]);
@@ -268,4 +258,11 @@ test("A new manual target waits for the old auto-POST and remains the last serve
   assert.equal(h.render().gmbLocationName, "locations/2");
   assert.equal(h.patches.length, 1);
   assert.deepEqual(h.requests.filter(request => request.url === selectUrl).map(request => JSON.parse(String(request.init?.body)).locationName), ["locations/1", "locations/2"]);
+});
+
+test("A choice uses its own Google account parent, not the first account hint", async () => {
+  const h = runtime({ fetch: async url => response(url === listUrl ? { ...oneLocation, locations: [{ name: "locations/2", title: "Second account", accountName: "accounts/second" }] } : saved) });
+  h.render(); h.flushEffects(); await settle();
+  assert.equal(await h.render().saveGmbLocation("locations/2"), true);
+  assert.equal(JSON.parse(String(h.requests.at(-1)?.init?.body)).accountName, "accounts/second");
 });

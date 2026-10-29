@@ -29,10 +29,12 @@ export type DashboardFluxBubbleData = {
   connection?: ChannelBubbleConnection;
 };
 
-export function ChannelBubbleIcon({ kind }: { kind: "eye" | "plug" | "disconnect" | "settings" | "create" | "widget" | "info" }) {
+export function ChannelBubbleIcon({ kind }: { kind: "eye" | "plug" | "disconnect" | "settings" | "create" | "widget" | "info" | "reviews" | "businessProfile" }) {
   if (kind === "disconnect") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>;
   if (kind === "info") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10v.1" /></svg>;
   if (kind === "widget") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="18" rx="3" /><path d="M2 8h20M9 12l-3 3 3 3m6-6 3 3-3 3" /></svg>;
+  if (kind === "reviews") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 15a3 3 0 0 1-3 3H9l-5 3V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3Z" /><path d="m12 6 1.2 2.4 2.6.4-1.9 1.9.5 2.6L12 12l-2.4 1.3.5-2.6-1.9-1.9 2.6-.4Z" /></svg>;
+  if (kind === "businessProfile") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 10v10h16V10M3 10l2-7h14l2 7M3 10c0 3 4 3 4 0 0 3 5 3 5 0 0 3 5 3 5 0 0 3 4 3 4 0M9 20v-6h6v6" /></svg>;
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     {kind === "eye" ? <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></> : kind === "plug" ? <><path d="M7 3v5m6-5v5M5 8h10v4a5 5 0 0 1-10 0V8Zm5 9v5m7-8h6m-3-3v6" /></> : kind === "settings" ? <><path d="m9 3-.6 2.3-2 .9-2.1-.6-1.6 2.8 1.5 1.7-.2 2.2-1.5 1.6 1.6 2.8 2.2-.5 1.9 1 .6 2.3h3.2l.7-2.3 1.9-1 2.2.5 1.6-2.8-1.5-1.6.1-2.2 1.4-1.7-1.6-2.8-2.1.6-2-.9L13 3H9Z" /><circle cx="11" cy="11.5" r="3" /></> : <path d="M12 5v14M5 12h14" />}
   </svg>;
@@ -137,11 +139,11 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
       <svg className={bubbleStyles.channelFeedbackIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v6m0 3v1" /></svg>
       <p>{feedback}</p>
     </div> : null}
-    {parametersOpen && hasParameters ? <ChannelParametersDialog name={item.name} title={`${parametersLabel} — ${item.name}`} contentOnly={connection?.parametersOwnHeading} fullScreen={connection?.parametersFullScreen} onClose={() => { void requestNavigation(() => setParametersOpen(false)); }}>{connection?.parameters}</ChannelParametersDialog> : null}
+    {parametersOpen && hasParameters ? <ChannelParametersDialog name={item.name} title={connection?.parametersCompact ? parametersLabel : `${parametersLabel} — ${item.name}`} contentOnly={connection?.parametersOwnHeading} fullScreen={connection?.parametersFullScreen} layout={connection?.parametersCompact ? "compact" : undefined} onClose={() => { void requestNavigation(() => setParametersOpen(false)); }}>{connection?.parameters}</ChannelParametersDialog> : null}
     {connectOpen ? <ChannelParametersDialog name={item.name} title={`${connectLabel} — ${item.name}`} onClose={() => setConnectOpen(false)}>
       {connection?.connectNotice ? <p className={bubbleStyles.connectNotice}>{connection.connectNotice}</p> : null}
       <div className={bubbleStyles.connectChoices}>
-        {connection?.connectOptions?.filter(option => !option.menu).map(option => <button key={option.label} type="button" className={`${styles.actionBtn} ${styles.connectBtn} ${option.primary ? bubbleStyles.connectPrimary : ""}`} disabled={Boolean(busy || disabled)} onClick={() => chooseConnection(option)}><ChannelBubbleIcon kind="plug" />{option.label}</button>)}
+        {connection?.connectOptions?.filter(option => !option.menu).map(option => option.href ? <a key={option.label} href={option.href} target="_top" className={`${styles.actionBtn} ${styles.connectBtn} ${option.primary ? bubbleStyles.connectPrimary : ""}`} aria-disabled={Boolean(busy || disabled)} onClick={event => { if (busy || disabled) event.preventDefault(); }}><ChannelBubbleIcon kind="plug" />{option.label}</a> : <button key={option.label} type="button" className={`${styles.actionBtn} ${styles.connectBtn} ${option.primary ? bubbleStyles.connectPrimary : ""}`} disabled={Boolean(busy || disabled)} onClick={() => chooseConnection(option)}><ChannelBubbleIcon kind="plug" />{option.label}</button>)}
         {connectMenus.map(label => <ChannelConnectionMenu key={label} label={label} options={connection?.connectOptions?.filter(option => option.menu === label) ?? []} disabled={Boolean(busy || disabled)} onChoose={chooseConnection} icon={<ChannelBubbleIcon kind="plug" />} />)}
       </div>
       {feedback ? <p role="alert" className={bubbleStyles.channelFeedbackError}>{feedback}</p> : null}

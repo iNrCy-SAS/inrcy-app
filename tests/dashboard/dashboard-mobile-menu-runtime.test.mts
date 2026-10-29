@@ -25,8 +25,8 @@ function evaluate(expression: string, globals: Record<string, unknown>) {
 
 test("the mobile menu presents current tools once, with Founder-only accounting", () => {
   const ids = (edition: "standard" | "premium" | "founder") => getDashboardMobileMenu(edition).flatMap((group) => group.tools.map((tool) => tool.id));
-  assert.deepEqual(ids("standard"), ["publish", "studio", "media", "reputation", "stats", "send"]);
-  assert.deepEqual(ids("premium"), ["publish", "studio", "media", "ads", "campaigns", "reputation", "stats", "send", "calendar", "crm"]);
+  assert.deepEqual(ids("standard"), ["publish", "studio", "media", "stats", "send"]);
+  assert.deepEqual(ids("premium"), ["publish", "studio", "media", "ads", "campaigns", "stats", "send", "calendar", "crm"]);
   assert.deepEqual(ids("founder"), [...ids("premium"), "cash"]);
   for (const edition of ["standard", "premium", "founder"] as const) {
     const tools = getDashboardMobileMenu(edition).flatMap((group) => group.tools);

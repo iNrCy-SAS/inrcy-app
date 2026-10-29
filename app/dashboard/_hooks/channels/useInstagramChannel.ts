@@ -359,16 +359,14 @@ export function useInstagramChannel({
       if (revision !== connectionRevisionRef.current || accountScope !== getActiveBrowserUserId()) return;
       const accounts = Array.isArray(j.accounts) ? j.accounts.map((account: Record<string, unknown>) => ({ page_id: String(account.page_id || ""), page_name: String(account.page_name || ""), ig_id: String(account.ig_id || ""), username: String(account.username || "") })) : [];
       setIgAccounts(accounts);
-      if (options?.autoSelect === false) return;
+      if (options?.autoSelect === false || instagramConnected) return;
       if (!accounts.length) {
         setIgAccountsError(
           `Aucun profil Instagram compatible n’a été trouvé. ${INSTAGRAM_SETUP_HELP}`,
         );
         return false;
       }
-      if (!igSelectedPageId && accounts[0]?.page_id) setIgSelectedPageId(accounts[0].page_id);
-
-      if (accounts.length === 1) {
+      if (accounts.length === 1 && j.discovery?.complete !== false) {
         const only = accounts[0];
         setIgAccountsPhase("connecting");
         const autoRes = await fetch("/api/integrations/instagram/select-profile", {
@@ -380,6 +378,7 @@ export function useInstagramChannel({
         if (!autoRes.ok) throw new Error(autoJson?.error || "Impossible d’enregistrer Instagram.");
         if (revision !== connectionRevisionRef.current || accountScope !== getActiveBrowserUserId()) return;
         setInstagramConnected(true);
+        setIgSelectedPageId(only.page_id);
         const nextUsername = autoJson?.username ? String(autoJson.username) : String(only.username || "");
         if (nextUsername) setInstagramUsername(nextUsername);
         const nextInstagramUrl = autoJson?.profileUrl ? String(autoJson.profileUrl) : (only.username ? `https://www.instagram.com/${only.username}/` : "");
@@ -407,7 +406,7 @@ export function useInstagramChannel({
         setIgAccountsPhase("idle");
       }
     }
-  }, [instagramAccountConnected, instagramAuthMode, igSelectedPageId, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh, syncInstagramStateFromServer]);
+  }, [instagramAccountConnected, instagramConnected, instagramAuthMode, igSelectedPageId, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh, syncInstagramStateFromServer]);
 
   useEffect(() => {
     const linked = searchParams.get("linked");

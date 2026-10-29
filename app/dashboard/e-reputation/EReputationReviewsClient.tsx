@@ -13,6 +13,7 @@ import AiConfigurationIcon from "@/app/dashboard/_components/AiConfigurationIcon
 import DashboardMobileSelect from "@/app/dashboard/_components/DashboardMobileSelect";
 import PublishAiConfigurationDrawer from "@/app/dashboard/booster/publier/components/PublishAiConfigurationDrawer";
 import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import styles from "./eReputation.module.css";
 
 type ReputationTranslator = (
@@ -62,6 +63,9 @@ export type EReputationReviewsPlatform = {
 };
 
 type Props = {
+  embedded?: boolean;
+  locationName?: string;
+  onDirtyChange?: (dirty: boolean) => void;
   reviews: EReputationReviewItem[];
   reviewsReady: boolean;
   reviewsError: string | null;
@@ -116,6 +120,7 @@ type ApiReview = {
 };
 
 type ReviewsResponse = {
+  locationName?: string | null;
   error?: string;
   user_message?: string;
   connected?: boolean;
@@ -485,7 +490,8 @@ export default function EReputationReviewsClient(props: Props) {
 
   const [platformData, setPlatformData] = useState<EReputationReviewsPlatform[]>(() => {
     const snapshot = readModuleSnapshot<ReviewsResponse>(MODULE_SNAPSHOT_KEYS.eReputationGoogle)?.data ?? null;
-    return normalizedPlatforms.map((platform) => platform.id === "google" ? platformFromSnapshot(platform, snapshot, locale, runtimeT) : platform);
+    const matchingSnapshot = props.locationName && snapshot?.locationName !== props.locationName ? null : snapshot;
+    return normalizedPlatforms.map((platform) => platform.id === "google" ? platformFromSnapshot(platform, matchingSnapshot, locale, runtimeT) : platform);
   });
   const [activePlatformId, setActivePlatformId] = useState<EReputationPlatformId>(() => {
     const initial = platformData.find((platform) => platform.connected) || platformData[0];
@@ -508,6 +514,9 @@ export default function EReputationReviewsClient(props: Props) {
   const [listNotice, setListNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [aiConfigurationOpen, setAiConfigurationOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(Boolean(props.embedded));
+  const [embeddedRoot, setEmbeddedRoot] = useState<HTMLDivElement | null>(null);
+  const detailsRef = useRef<HTMLElement>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const replySelectionRef = useRef<{ start: number; end: number } | null>(null);
   const backgroundRefreshRef = useRef<(silent?: boolean) => Promise<void>>(async () => undefined);
@@ -633,12 +642,15 @@ export default function EReputationReviewsClient(props: Props) {
 
   useEffect(() => {
     if (!detailsOpen) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    detailsRef.current?.focus({ preventScroll: true });
     const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    if (!props.embedded) document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = previousOverflow;
+      if (!props.embedded) document.body.style.overflow = previousOverflow;
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
     };
-  }, [detailsOpen]);
+  }, [detailsOpen, props.embedded]);
 
   const busy = publishing || generating || deleting || loadingMore || refreshing;
   const selectedAlreadyAnswered = selectedReview?.status === "Répondu";
@@ -649,7 +661,7 @@ export default function EReputationReviewsClient(props: Props) {
   const canReport = Boolean(selectedReview?.live && activePlatform.reportUrl && activePlatform.id === "google");
   const loadedLabel = totalReviewCount > 0 ? `${items.length.toLocaleString(locale)} / ${totalReviewCount.toLocaleString(locale)}` : items.length.toLocaleString(locale);
   const totalReviewsLabel = (totalReviewCount > 0 ? totalReviewCount : stats.total).toLocaleString(locale);
-  const totalReviewsCaption = reviewsReady
+  const totalReviewsCaption = reviewsReady || props.embedded
     ? i18nT("review_quantity", { count: totalReviewsLabel })
     : i18nT("example_quantity", { count: totalReviewsLabel });
   const summaryStatusLabel = reviewsReady ? i18nT("reviews_loaded") : activePlatform.statusLabel || platformLabel;
@@ -671,6 +683,10 @@ export default function EReputationReviewsClient(props: Props) {
   const replyHasUnsavedChanges = Boolean(
     selectedReview && replyText.trim() !== defaultReplyFor(selectedReview, runtimeT).trim(),
   );
+  useEffect(() => {
+    props.onDirtyChange?.(detailsOpen && replyHasUnsavedChanges);
+    return () => props.onDirtyChange?.(false);
+  }, [detailsOpen, replyHasUnsavedChanges, props.onDirtyChange]);
 
   function openDetails(review: EReputationReviewItem) {
     setSelectedId(review.id);
@@ -808,8 +824,10 @@ export default function EReputationReviewsClient(props: Props) {
   }
 
   async function requestReviews(pageToken?: string | null) {
+    const requestingAccount = getActiveBrowserUserId();
     const params = new URLSearchParams({ pageSize: String(REVIEWS_PAGE_SIZE) });
     if (pageToken) params.set("pageToken", pageToken);
+    if (props.locationName) params.set("locationName", props.locationName);
 
     const response = await fetch(`${platformApiBase}/reviews?${params.toString()}`, {
       method: "GET",
@@ -820,6 +838,9 @@ export default function EReputationReviewsClient(props: Props) {
 
     if (!response.ok || !payload) {
       throw new Error(getErrorMessage(payload, i18nT("unable_load_reviews_source", { value0: platformLabel })));
+    }
+    if (requestingAccount !== getActiveBrowserUserId() || (props.locationName && payload.locationName !== props.locationName)) {
+      throw new Error(i18nT("unable_load_reviews_source", { value0: platformLabel }));
     }
 
     // Le snapshot d'ouverture doit toujours rester la première page complète.
@@ -891,9 +912,10 @@ export default function EReputationReviewsClient(props: Props) {
     } catch (error) {
       const message = error instanceof Error ? error.message : i18nT("unable_refresh_reviews_source", { value0: platformLabel });
       if (!silent) setListNotice({ type: "error", text: message });
-      updateActivePlatform((platform) => ({ ...platform, reviewsError: message }));
+      updateActivePlatform((platform) => ({ ...platform, reviewsError: message, ...(props.embedded ? { canReply: false } : {}) }));
     } finally {
       if (!silent) setRefreshing(false);
+      setInitialLoading(false);
     }
   }
 
@@ -1069,7 +1091,11 @@ export default function EReputationReviewsClient(props: Props) {
   }
 
   return (
-    <>
+    <div ref={setEmbeddedRoot} className={props.embedded ? styles.embedded : undefined} data-google-reviews={props.embedded ? "modal" : undefined} onKeyDown={event => {
+      if (event.key !== "Escape" || event.defaultPrevented || !detailsOpen || aiConfigurationOpen) return;
+      if (event.target instanceof Element && event.target.closest('[role="dialog"]') !== detailsRef.current) return;
+      event.preventDefault(); event.stopPropagation(); void requestCloseDetails();
+    }}>
       {aiConfigurationOpen && typeof document !== "undefined"
         ? createPortal(
             <PublishAiConfigurationDrawer
@@ -1077,8 +1103,9 @@ export default function EReputationReviewsClient(props: Props) {
               isMobile={isMobile}
               drawerHeight="100dvh"
               onClose={() => setAiConfigurationOpen(false)}
+              portalTarget={props.embedded ? embeddedRoot?.closest("dialog") || undefined : undefined}
             />,
-            document.body,
+            props.embedded && embeddedRoot ? embeddedRoot : document.body,
           )
         : null}
       <section className={styles.mailboxPanel} aria-label={i18nT("gestion_des_avis_value_3fa4a9b6", { value0: platformLabel })}>
@@ -1119,7 +1146,7 @@ export default function EReputationReviewsClient(props: Props) {
               <option value="todo">{i18nT("a_repondre_6f7c5ab8")}</option>
               <option value="answered">{i18nT("repondus_c1c02d63")}</option>
             </select>
-            <select id="review-star-filter" className={styles.select} value={starFilter} onChange={(event) => setStarFilter(event.target.value as "all" | "5" | "4" | "3" | "2" | "1")}>
+            <select id="review-star-filter" aria-label={i18nT("toutes_les_notes_6126cdb9")} className={styles.select} value={starFilter} onChange={(event) => setStarFilter(event.target.value as "all" | "5" | "4" | "3" | "2" | "1")}>
               <option value="all">{i18nT("toutes_les_notes_6126cdb9")}</option>
               <option value="5">{i18nT("5_etoiles_ee75ad7d")}</option>
               <option value="4">{i18nT("4_etoiles_de837521")}</option>
@@ -1127,7 +1154,7 @@ export default function EReputationReviewsClient(props: Props) {
               <option value="2">{i18nT("2_etoiles_0b452909")}</option>
               <option value="1">{i18nT("1_etoile_cd0c0850")}</option>
             </select>
-            <input className={styles.searchInput} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={i18nT("rechercher_un_avis_572722a7")} type="search" />
+            <input className={styles.searchInput} aria-label={i18nT("rechercher_un_avis_572722a7")} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={i18nT("rechercher_un_avis_572722a7")} type="search" />
           </div>
           <div className={styles.toolbarRight}>
             <div className={`${styles.reputationSummaryChip} ${activePlatform.connected ? styles.reputationSummaryReady : ""}`} aria-label={i18nT("value_value_value_note_value_8e0d66cb", { value0: locationLabel, value1: summaryStatusLabel, value2: totalReviewsCaption, value3: averageRatingLabel })}>
@@ -1161,7 +1188,8 @@ export default function EReputationReviewsClient(props: Props) {
           </div>
         ) : null}
 
-        {!reviewsReady ? (
+        {initialLoading ? <div className={styles.noticeInfo} role="status">{i18nT("synchronisation_google_0008de4a")}</div> : null}
+        {!reviewsReady && !props.embedded ? (
           <div className={`${styles.noticeInfo} ${styles.previewNotice}`}>
             <div className={styles.previewNoticeCopy}>
               <strong>{i18nT("avis_d_exemple_aucun_avis_google_a67550e6")}</strong>
@@ -1223,7 +1251,7 @@ export default function EReputationReviewsClient(props: Props) {
               ) : (
                 <tr>
                   <td colSpan={5}>
-                    <div className={styles.emptyState}>
+                    <div className={styles.emptyState} aria-busy={initialLoading}>
                       <strong>{i18nT("aucun_avis_dans_ce_filtre_9ec92ee7")}</strong>
                       <span>{i18nT("changez_de_filtre_ou_reclamez_de_37e61258")}</span>
                     </div>
@@ -1244,7 +1272,7 @@ export default function EReputationReviewsClient(props: Props) {
                     total: footerTotalReviews.toLocaleString(locale),
                   })
                 : i18nT("no_reviews_displayed"), value1: loadedLabel })
-              : i18nT("value_exemples_fictifs_affiches_56447aa0", { value0: paginatedReviews.length.toLocaleString(locale) })}
+              : props.embedded ? i18nT("synchronisation_google_0008de4a") : i18nT("value_exemples_fictifs_affiches_56447aa0", { value0: paginatedReviews.length.toLocaleString(locale) })}
           </span>
           {reviewsReady ? (
             <div className={styles.paginationControls} aria-label={i18nT("pagination_des_avis_49f33c6b")}>
@@ -1264,14 +1292,14 @@ export default function EReputationReviewsClient(props: Props) {
 
       {detailsOpen && selectedReview && typeof document !== "undefined"
         ? createPortal(
-            <div data-inrcy-tool-overlay
+            <div data-inrcy-tool-overlay={props.embedded ? undefined : ""}
               className={styles.modalBackdrop}
               role="presentation"
               onMouseDown={(event) => {
                 if (event.target === event.currentTarget) void requestCloseDetails();
               }}
             >
-              <section data-inrcy-tool-dialog className={styles.detailsModal} role="dialog" aria-modal="true" aria-labelledby="review-details-title" onMouseDown={(event) => event.stopPropagation()}>
+              <section ref={detailsRef} tabIndex={-1} data-inrcy-tool-dialog={props.embedded ? undefined : ""} data-review-details className={styles.detailsModal} role="dialog" aria-modal="true" aria-labelledby="review-details-title" onMouseDown={(event) => event.stopPropagation()}>
                 <header className={styles.modalHeader}>
                   <span className={styles.modalKicker}>{activePlatform.modalKicker}</span>
                   <h2 id="review-details-title">{i18nT("details_de_l_avis_3fc3ec16")}</h2>
@@ -1399,9 +1427,9 @@ export default function EReputationReviewsClient(props: Props) {
                 </div>
               </section>
             </div>,
-            document.body,
+            props.embedded && embeddedRoot ? embeddedRoot : document.body,
           )
         : null}
-    </>
+    </div>
   );
 }

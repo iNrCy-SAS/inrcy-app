@@ -29,7 +29,7 @@ const channels: Channel[] = [
     connected: "gmbConnected", account: "gmbAccountConnected", status: "gmbConnectionStatus", selected: "gmbLocationName", url: "gmbUrl", error: "gmbUrlError",
     disconnect: "disconnectGmbAccount", resourceDisconnect: "disconnectGmbBusiness", resourceEndpoint: "/api/integrations/google-business/disconnect-location",
     load: "loadGmbAccountsAndLocations", listEndpoint: "/api/integrations/google-business/locations",
-    list: { accounts: [{ name: "accounts/1" }], accountName: "accounts/1", locations: [{ name: "locations/new", title: "New location" }] },
+    list: { accounts: [{ name: "accounts/1" }], accountName: "accounts/1", locations: [{ name: "locations/new", title: "New location", accountName: "accounts/1" }] },
     save: "saveGmbLocation", target: "locations/new", saveEndpoint: "/api/integrations/google-business/select-location", saved: { ok: true, url: "https://maps.google.com/new" },
   },
   {
@@ -191,9 +191,9 @@ for (const channel of channels) {
     });
   }
 
-  test(`${channel.name}: an automatic selection POST already in flight cannot restore a confirmed disconnection`, async () => {
+  if (channel.key !== "gmb") test(`${channel.name}: an automatic selection POST already in flight cannot restore a confirmed disconnection`, async () => {
     const selection = deferred<Reply>();
-    const h = runtime(channel, { initial: { gmbConfigured: false }, fetch: async url => url === channel.listEndpoint ? response(channel.list) : url === channel.saveEndpoint ? selection.promise : response({ ok: true }) });
+    const h = runtime(channel, { initial: { [channel.connected]: false, [channel.selected]: "" }, fetch: async url => url === channel.listEndpoint ? response(channel.list) : url === channel.saveEndpoint ? selection.promise : response({ ok: true }) });
     const pendingList = h.render()[channel.load]();
     await settle();
     assert.equal(h.requests.filter(request => request.url === channel.saveEndpoint).length, 1, "Fixture must reach automatic resource selection");
@@ -282,6 +282,52 @@ for (const channel of channels) {
       assert.equal(h.settingsWrites.length, 0);
       assert.equal(h.patches.at(-1)?.patch.accountConnected, true);
     } finally { refresh.resolve(); await pending; }
+  });
+}
+
+test("Google Business always waits for the establishment choice, even when the list contains one result", async () => {
+  const channel = channels[0];
+  const h = runtime(channel, { initial: { gmbConfigured: false, gmbConnected: false, gmbLocationName: "" } });
+  await h.render()[channel.load]();
+  assert.equal(h.render().gmbLocationName, "");
+  assert.equal(h.requests.filter(request => request.init?.method === "POST").length, 0);
+});
+
+for (const channel of channels.filter(item => item.key === "facebook" || item.key === "instagram")) {
+  const listKey = channel.key === "facebook" ? "pages" : "accounts";
+  const unconfigured = { [channel.connected]: false, [channel.selected]: "" };
+  test(`${channel.name}: one authorized profile connects automatically after complete discovery`, async () => {
+    const h = runtime(channel, { initial: unconfigured });
+    await h.render()[channel.load]();
+    const writes = h.requests.filter(request => request.url === channel.saveEndpoint);
+    assert.equal(writes.length, 1);
+    assert.equal(JSON.parse(String(writes[0].init?.body)).pageId, channel.target);
+    assert.equal(h.render()[channel.connected], true);
+    assert.equal(h.render()[channel.selected], channel.target);
+  });
+
+  for (const scenario of ["multiple", "partial"] as const) {
+    test(`${channel.name}: ${scenario} discovery waits for the professional to choose`, async () => {
+      const list = scenario === "multiple"
+        ? { ...channel.list, [listKey]: [...channel.list[listKey], channel.key === "facebook" ? { id: "another", name: "Another page" } : { page_id: "another", ig_id: "ig-other", username: "another" }], discovery: { complete: true } }
+        : { ...channel.list, discovery: { complete: false } };
+      const h = runtime(channel, { initial: unconfigured, fetch: async url => response(url === channel.listEndpoint ? list : channel.saved) });
+      await h.render()[channel.load]();
+      assert.equal(h.requests.filter(request => request.init?.method === "POST").length, 0);
+      assert.equal(h.render()[channel.selected], "", "The first result must not masquerade as a saved selection");
+      assert.equal(h.render()[channel.connected], false);
+      assert.equal(await h.render()[channel.save](channel.target), true, "An explicit choice remains available");
+      assert.equal(h.requests.filter(request => request.url === channel.saveEndpoint).length, 1);
+    });
+  }
+
+  test(`${channel.name}: refreshing the list preserves a configured profile`, async () => {
+    const h = runtime(channel);
+    const before = h.render();
+    await before[channel.load]();
+    assert.equal(h.requests.filter(request => request.init?.method === "POST").length, 0);
+    assert.equal(h.render()[channel.selected], before[channel.selected]);
+    assert.equal(h.render()[channel.url], before[channel.url]);
   });
 }
 

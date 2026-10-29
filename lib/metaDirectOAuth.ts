@@ -75,7 +75,6 @@ export async function startMetaDirectOAuth(request: Request, provider: MetaDirec
   authorization.searchParams.set("state", state.stateB64);
   if (provider === "instagram") {
     authorization.searchParams.set("enable_fb_login", "0");
-    authorization.searchParams.set("force_authentication", "1");
   }
   const response = NextResponse.redirect(authorization);
   response.cookies.set(state.cookieName, state.cookieValue, {

@@ -88,7 +88,6 @@ export async function GET() {
       page_name: page.name || null,
       ig_id: page.instagram_business_account?.id || "",
       username: page.instagram_business_account?.username || "",
-      page_access_token: page.access_token || null,
       source: page.source,
       business_name: page.business_name || null,
     }));
@@ -108,6 +107,7 @@ export async function GET() {
     return jsonNoStore({
       accounts,
       discovery: {
+        complete: !discovery.diagnostics.issues.some(issue => !issue.optional),
         page_count: discovery.pages.length,
         recovered: discovery.diagnostics.recovered_token_count > 0,
       },

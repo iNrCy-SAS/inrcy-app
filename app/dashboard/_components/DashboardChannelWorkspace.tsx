@@ -1,22 +1,29 @@
 "use client";
 
-import { lazy, useState } from "react";
+import { lazy, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useInrAssistantScreen } from "./DashboardAssistantScreenContext";
 import { useTranslations } from "next-intl";
-import DashboardFluxBubble, { type DashboardFluxBubbleData } from "./DashboardFluxBubble";
+import DashboardFluxBubble, { ChannelBubbleIcon, type DashboardFluxBubbleData } from "./DashboardFluxBubble";
+import bubbleStyles from "./DashboardChannelBubble.module.css";
 import type { ChannelBubbleConnection, ChannelBubbleRenderer } from "./channel-bubble.types";
 import type { buildDashboardPanelProps } from "../dashboard.panel-props";
 import type { useThreadsChannel } from "../_hooks/channels/useThreadsChannel";
 import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
+import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvider";
+import ChannelParametersDialog from "./ChannelParametersDialog";
 import EditableChannelUrlField from "./EditableChannelUrlField";
 import type { EditableChannelPublicUrlChannel, LinkedinPublicUrlTarget } from "@/lib/channelPublicUrl";
+import type { GoogleBusinessLocation } from "@/lib/googleBusinessLocations";
 import SiteWebBubbleControls from "./SiteWebBubbleControls";
 import SiteWebWidgetSettings from "./SiteWebWidgetSettings";
 import { InrBadgeQrButton, InrBadgeDownloadButton, InrBadgeCopyButton } from "./InrBadgeBubbleActions";
 
 const ThreadsPublicationSettings = lazy(() => import("./ThreadsPublicationSettings"));
 const InrBadgeSettingsContent = lazy(() => import("../settings/_components/InrBadgeSettingsContent"));
+const GoogleBusinessProfileEditor = lazy(() => import("./GoogleBusinessProfileEditor"));
+const GoogleBusinessReviews = lazy(() => import("../e-reputation/EReputationReviewsClient"));
 // Load controls with the workspace so switching bubbles never shows an incomplete action row.
 // Only the selected controller mounts; secondary parameter forms stay lazy.
 import XSettingsContent from "../settings/_components/XSettingsContent";
@@ -39,7 +46,26 @@ export default function DashboardChannelWorkspace(props: Props) {
   const { item, siteWebPanelProps: site, gmbPanelProps: gmb, facebookPanelProps: fb, instagramPanelProps: ig, linkedinPanelProps: li, tiktokPanelProps: tik, threadsChannel: threads } = props;
   const t = useTranslations("dashboard.channelBubble");
   const shell = useTranslations("shell");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { requestNavigation } = useDashboardUnsavedNavigation();
+  const reviewsRequested = searchParams.get("googleReviews") === "1";
+  // Open after the channel dialog mounts, so its native top layer exists first.
+  const [reviewsOpen, setReviewsOpen] = useState(false);
+  const [reviewsDirty, setReviewsDirty] = useState(false);
+  useEffect(() => { setReviewsOpen(reviewsRequested); }, [reviewsRequested]);
+  const closeReviews = () => void requestNavigation(() => {
+    setReviewsOpen(false);
+    if (reviewsRequested) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("googleReviews");
+      router.replace(`/dashboard?${params.toString()}`, { scroll: false });
+    }
+  });
   const { metaPilotEnabled } = useDashboardViewerAccess();
+  useEffect(() => {
+    if (item.key === "gmb" && gmb.gmbAccountConnected && !item.configureDisabled && !item.premiumLocked) void gmb.loadGmbAccountsAndLocations({ autoSelect: false });
+  }, [item.key, item.configureDisabled, item.premiumLocked, gmb?.gmbAccountConnected, gmb?.loadGmbAccountsAndLocations]);
   const [dirty, setDirty] = useState(false);
   const [profileLinkDirty, setProfileLinkDirty] = useState(false);
   const [organizationLinkDirty, setOrganizationLinkDirty] = useState(false);
@@ -48,9 +74,9 @@ export default function DashboardChannelWorkspace(props: Props) {
   const [actionFeedback, setActionFeedback] = useState<{ channel: string; error?: string; notice?: string } | null>(null);
   const onActionError = (error: string) => setActionFeedback({ channel: item.key, error });
   const onActionNotice = (notice: string) => setActionFeedback({ channel: item.key, notice });
-  const hasUnsavedChanges = dirty || profileLinkDirty || organizationLinkDirty || widgetDirty;
+  const hasUnsavedChanges = dirty || profileLinkDirty || organizationLinkDirty || widgetDirty || reviewsDirty;
   useInrAssistantScreen({ action: "channels", channel: item.key, pendingChanges: hasUnsavedChanges });
-  useUnsavedExitGuard({ active: hasUnsavedChanges, shouldBlock: hasUnsavedChanges, onConfirmExit: () => { setDirty(false); setProfileLinkDirty(false); setOrganizationLinkDirty(false); setWidgetDirty(false); setRevision(value => value + 1); } });
+  useUnsavedExitGuard({ active: hasUnsavedChanges, shouldBlock: hasUnsavedChanges, onConfirmExit: () => { setDirty(false); setProfileLinkDirty(false); setOrganizationLinkDirty(false); setWidgetDirty(false); setReviewsDirty(false); setRevision(value => value + 1); } });
   const knownConnection = getKnownChannelConnection(item);
   const renderBubble: ChannelBubbleRenderer = connection => <DashboardFluxBubble key={revision} item={{ ...item, connection: { ...(connection.loading && knownConnection.accountConnected ? {
     ...connection,
@@ -78,15 +104,20 @@ export default function DashboardChannelWorkspace(props: Props) {
         accountLabel: gmb.gmbAccountEmail || undefined,
         resourceLabel: gmb.gmbConfigured ? gmb.gmbLocationLabel : gmb.gmbAccountEmail,
         value: gmb.gmbConfigured ? gmb.gmbLocationName : "",
-        options: gmb.gmbLocations.map((location: { name: string; title?: string }) => ({ value: location.name, label: location.title || location.name })),
+        options: gmb.gmbLocations.map((location: GoogleBusinessLocation) => ({ value: location.name, label: location.title || location.name })),
         onSelect: gmb.saveGmbLocation,
-        onLoad: () => gmb.loadGmbAccountsAndLocations({ autoSelect: !gmb.gmbConfigured }),
+        onLoad: () => gmb.loadGmbAccountsAndLocations({ autoSelect: false }),
         onConnect: gmb.connectGmbAccount,
         onDisconnect: gmb.gmbConfigured ? gmb.disconnectGmbBusiness : gmb.disconnectGmbAccount,
         onDisconnectAccount: gmb.gmbConfigured ? gmb.disconnectGmbAccount : undefined,
         publicLinks: publicLink("gmb", gmb.gmbUrl, gmb.setGmbUrl, gmb.gmbConfigured),
         loading: gmb.gmbLoadingList, busy: gmb.gmbLocationBusy || gmb.gmbAccountBusy || gmb.gmbLocationsPhase === "connecting",
         error: gmb.gmbUrlError || gmb.gmbListError,
+        extraActions: gmb.gmbConfigured ? <button type="button" className={bubbleStyles.iconAction} title={t("googleReviews")} aria-label={`${t("googleReviews")} — Google Business`} onClick={() => setReviewsOpen(true)}><ChannelBubbleIcon kind="reviews" /></button> : undefined,
+        parameters: gmb.gmbConfigured ? <GoogleBusinessProfileEditor key={gmb.gmbLocationName} locationName={gmb.gmbLocationName} onDirtyChange={setDirty} /> : undefined,
+        parametersLabel: t("manageGoogleProfile"),
+        parametersIcon: "businessProfile",
+        parametersCompact: true,
       }; break;
     case "facebook":
       connection = {
@@ -96,7 +127,7 @@ export default function DashboardChannelWorkspace(props: Props) {
         value: fb.facebookPageConnected ? fb.fbSelectedPageId : "",
         options: fb.fbPages.map((page: { id: string; name?: string }) => ({ value: page.id, label: page.name || page.id })),
         onSelect: fb.saveFacebookPage, onLoad: () => fb.loadFacebookPages({ autoSelect: !fb.facebookPageConnected }),
-        connectOptions: [{ label: "Connexion Facebook", onConnect: fb.connectFacebookAccount }, { label: "Connexion Business", onConnect: fb.connectFacebookBusinessAccount }],
+        connectOptions: [{ label: "Connexion Facebook", href: "/api/integrations/facebook/start?returnTo=%2Fdashboard%3Fpanel%3Dfacebook&mode=standard", onConnect: fb.connectFacebookAccount }, { label: "Connexion Business", href: "/api/integrations/facebook/start?returnTo=%2Fdashboard%3Fpanel%3Dfacebook&mode=business", onConnect: fb.connectFacebookBusinessAccount }],
         connectNotice: t("facebookPageRequired"),
         onDisconnect: fb.facebookPageConnected ? fb.disconnectFacebookPage : fb.disconnectFacebookAccount,
         onDisconnectAccount: fb.facebookPageConnected ? fb.disconnectFacebookAccount : undefined,
@@ -116,9 +147,9 @@ export default function DashboardChannelWorkspace(props: Props) {
         }),
         connectNotice: t("instagramProfessionalRequired"),
         connectOptions: [
-          ...(metaPilotEnabled ? [{ label: t("directConnection"), primary: true, onConnect: ig.connectInstagramDirectAccount }] : []),
-          { label: t("classicConnection"), menu: t("facebookConnection"), onConnect: item.bubbleStatus === "reconnect" ? () => ig.connectInstagramAccount({ repair: true }) : ig.connectInstagramAccount },
-          { label: t("businessConnection"), menu: t("facebookConnection"), onConnect: ig.connectInstagramBusinessAccount },
+          ...(metaPilotEnabled ? [{ label: t("directConnection"), primary: true, href: "/api/integrations/instagram-direct/start?returnTo=%2Fdashboard%3Fpanel%3Dinstagram", onConnect: ig.connectInstagramDirectAccount }] : []),
+          { label: t("classicConnection"), menu: t("facebookConnection"), href: `/api/integrations/instagram/start?returnTo=%2Fdashboard%3Fpanel%3Dinstagram&mode=standard${item.bubbleStatus === "reconnect" ? "&repair=1" : ""}`, onConnect: item.bubbleStatus === "reconnect" ? () => ig.connectInstagramAccount({ repair: true }) : ig.connectInstagramAccount },
+          { label: t("businessConnection"), menu: t("facebookConnection"), href: "/api/integrations/instagram/start?returnTo=%2Fdashboard%3Fpanel%3Dinstagram&mode=business", onConnect: ig.connectInstagramBusinessAccount },
         ],
         onDisconnect: ig.instagramConnected ? ig.disconnectInstagramProfile : ig.disconnectInstagramAccount,
         onDisconnectAccount: ig.instagramConnected ? ig.disconnectInstagramAccount : undefined,
@@ -181,7 +212,7 @@ export default function DashboardChannelWorkspace(props: Props) {
       }; break;
     default: return <DashboardFluxBubble item={item} />;
   }
-  return <>{renderBubble(connection)}</>;
+  return <>{renderBubble(connection)}{item.key === "gmb" && reviewsOpen ? <ChannelParametersDialog name="Google Business" title={t("googleReviews")} contentOnly layout="reviews" onClose={closeReviews}><GoogleBusinessReviews key={`${revision}:${gmb.gmbLocationName}`} embedded locationName={gmb.gmbLocationName} onDirtyChange={setReviewsDirty} reviews={[]} reviewsReady={false} reviewsError={null} locationLabel={gmb.gmbLocationLabel} gmbReady={gmb.gmbConfigured} /></ChannelParametersDialog> : null}</>;
 }
 
 /** The dashboard already knows connection status and the public destination. */

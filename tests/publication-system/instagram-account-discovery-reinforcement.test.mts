@@ -51,7 +51,7 @@ test("la réparation OAuth est explicite et ne modifie pas la connexion normale"
   assert.match(start, /rerequest/);
   assert.match(hook, /repairParam/);
   assert.match(hook, /const repairParam = options\?\.repair \? "&repair=1" : ""/);
-  assert.match(workspace, /label: t\("classicConnection"\), menu: t\("facebookConnection"\), onConnect: item\.bubbleStatus === "reconnect" \? \(\) => ig\.connectInstagramAccount\(\{ repair: true \}\) : ig\.connectInstagramAccount/);
+  assert.match(workspace, /label: t\("classicConnection"\), menu: t\("facebookConnection"\), href: [^\n]+onConnect: item\.bubbleStatus === "reconnect" \? \(\) => ig\.connectInstagramAccount\(\{ repair: true \}\) : ig\.connectInstagramAccount/);
   assert.match(bubble, /const connectLabel = connection\?\.connectLabel \|\| \(item\.bubbleStatus === "reconnect" \|\| connection\?\.accountConnected \? t\("reconnect"\) : t\("connect"\)\)/);
   assert.match(bubble, /const showConnect = canConnect && !showDisconnect/);
   assert.match(bubble, /showConnect \? <[\s\S]*?connection\?\.connectOptions\?\.length \? setConnectOpen\(true\)/);

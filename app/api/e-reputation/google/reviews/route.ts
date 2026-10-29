@@ -55,6 +55,10 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url);
+    const expectedLocation = url.searchParams.get("locationName");
+    if (expectedLocation && expectedLocation !== target.locationName) {
+      return NextResponse.json({ error: "google_business_selection_changed", user_message: "La fiche Google sélectionnée a changé. Fermez puis rouvrez les avis." }, { status: 409 });
+    }
     const pageSize = Number(url.searchParams.get("pageSize") || 50);
     const pageToken = url.searchParams.get("pageToken");
     const requestedOrderBy = url.searchParams.get("orderBy") || "updateTime desc";
@@ -70,6 +74,8 @@ export async function GET(req: Request) {
       ...payload,
       connected: true,
       configured: true,
+      accountName: target.accountName,
+      locationName: target.locationName,
       locationTitle: target.locationTitle,
       reportUrl: resolveGoogleBusinessUrl(token.row, target.locationTitle),
     });

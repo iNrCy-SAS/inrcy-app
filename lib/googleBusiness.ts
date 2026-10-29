@@ -1,27 +1,11 @@
+import { listAllGoogleBusinessAccounts, listAllGoogleBusinessLocations } from "@/lib/googleBusinessLocations";
 import { getGoogleTokenForAnyGoogle } from "@/lib/googleStats";
 import { postGoogleBusinessLocalPost } from "@/lib/googleBusinessPostTransport";
 
-type GMBAccount = { name: string; accountName?: string; type?: string };
 type GMBLocation = { name: string; title?: string; storefrontAddress?: any };
 
 export async function gmbListAccounts(accessToken: string) {
-  const r = await fetch("https://mybusinessaccountmanagement.googleapis.com/v1/accounts", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  const raw = await r.text().catch(() => "");
-  let j: any = {};
-  try {
-    j = raw ? JSON.parse(raw) : {};
-  } catch {
-    j = {};
-  }
-
-  if (!r.ok) {
-    const msg = j?.error?.message || j?.error_description || raw || "Impossible de récupérer les comptes Google Business pour le moment.";
-    throw new Error(`GMB accounts error (${r.status}): ${msg}`);
-  }
-  return (j.accounts || []) as GMBAccount[];
+  return listAllGoogleBusinessAccounts(accessToken);
 }
 
 function normalizeLocationName(name: string): string {
@@ -49,52 +33,11 @@ async function fetchJsonOrThrow(r: Response, label: string) {
   return j;
 }
 
-// Primary (recommended) API: Business Profile Business Information API (v1)
 export async function gmbListLocations(accessToken: string, accountName: string) {
-  const url = new URL(`https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations`);
-  // Keep it small and compatible; some projects reject storefrontAddress in readMask depending on rollout.
-  url.searchParams.set("readMask", "name,title");
-  url.searchParams.set("pageSize", "100");
-
-  const r = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
-  const j = await fetchJsonOrThrow(r, "Impossible de récupérer les établissements Google Business pour le moment.");
-
-  const items = (j.locations || []) as GMBLocation[];
-  return items.map((l: any) => ({ ...l, name: normalizeLocationName(l.name) }));
+  return listAllGoogleBusinessLocations(accessToken, accountName);
 }
 
-// Fallback API: older My Business API (v4). Useful when the v1 API is not enabled on the GCP project.
-async function gmbListLocationsV4(accessToken: string, accountName: string) {
-  const accountId = accountName.split("/").pop();
-  if (!accountId) throw new Error("Compte Google Business invalide.");
-
-  const url = new URL(`https://mybusiness.googleapis.com/v4/accounts/${accountId}/locations`);
-  url.searchParams.set("pageSize", "100");
-
-  const r = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
-  const j = await fetchJsonOrThrow(r, "Impossible de récupérer les établissements Google Business pour le moment.");
-
-  const locations = (j.locations || []) as any[];
-  return locations.map((l) => ({
-    name: normalizeLocationName(l.locationName || l.name),
-    title: l.locationName || l.name,
-    storefrontAddress: l.address || l.storefrontAddress,
-  })) as GMBLocation[];
-}
-
-// Wrapper with fallback + pagination support if needed later
-export async function gmbListLocationsWithFallback(accessToken: string, accountName: string) {
-  try {
-    return await gmbListLocations(accessToken, accountName);
-  } catch (e: any) {
-    const msg = String(e?.message || e);
-    // If the primary API isn't enabled / configured, try v4.
-    if (/Access Not Configured|accessNotConfigured|has not been used|API.*not enabled/i.test(msg)) {
-      return await gmbListLocationsV4(accessToken, accountName);
-    }
-    throw e;
-  }
-}
+export const gmbListLocationsWithFallback = gmbListLocations;
 
 /**
  * Returns an access token + the stored integration row for the current user,
@@ -317,10 +260,7 @@ function locationIdOf(name: string): string {
   return normalized.split("/").pop() || normalized;
 }
 
-function isRecoverableMissingLocationError(error: unknown): boolean {
-  const msg = String(error instanceof Error ? error.message : error || "");
-  return /not found|introuvable|requested entity was not found|requested entity|404/i.test(msg);
-}
+
 
 export type ResolvedGmbLocation = {
   accountName: string;
@@ -360,7 +300,6 @@ export async function gmbResolveWorkingLocation(
   });
 
   const exactMatches: ResolvedGmbLocation[] = [];
-  const fallbacks: ResolvedGmbLocation[] = [];
 
   for (const account of orderedAccounts) {
     if (!account?.name) continue;
@@ -380,19 +319,16 @@ export async function gmbResolveWorkingLocation(
       };
       if (locationIdOf(normalizedName) === targetId || normalizedName === normalizeLocationName(preferredLocationName)) {
         exactMatches.push(candidate);
-      } else {
-        fallbacks.push(candidate);
       }
     }
   }
 
-  const candidates = [...exactMatches, ...fallbacks];
+  const candidates = exactMatches;
   if (!candidates.length) return null;
 
   if (!start || !end) {
     if (exactMatches.length > 0) return exactMatches[0];
-    if (fallbacks.length === 1) return fallbacks[0];
-    return fallbacks[0] ?? null;
+    return null;
   }
 
   for (const candidate of candidates) {
@@ -590,35 +526,8 @@ export async function gmbFetchDailyMetricsNormalizedWithRecovery(args: {
   end: Date;
   preferredAccountName?: string | null;
 }) {
-  const normalizedLocationName = normalizeLocationName(args.locationName);
-  try {
-    const metrics = await gmbFetchDailyMetricsNormalized(args.accessToken, normalizedLocationName, args.start, args.end);
-    return {
-      metrics,
-      locationName: normalizedLocationName,
-      locationTitle: null,
-      accountName: args.preferredAccountName ?? null,
-      recovered: false,
-    };
-  } catch (error) {
-    if (!isRecoverableMissingLocationError(error)) throw error;
-
-    const candidate = await gmbResolveWorkingLocation(
-      args.accessToken,
-      normalizedLocationName,
-      args.preferredAccountName ?? null,
-      args.start,
-      args.end
-    );
-    if (!candidate || candidate.locationName === normalizedLocationName) throw error;
-
-    const metrics = await gmbFetchDailyMetricsNormalized(args.accessToken, candidate.locationName, args.start, args.end);
-    return {
-      metrics,
-      locationName: candidate.locationName,
-      locationTitle: candidate.locationTitle,
-      accountName: candidate.accountName,
-      recovered: true,
-    };
-  }
+  // Reading statistics must never select a different establishment.
+  const locationName = normalizeLocationName(args.locationName);
+  const metrics = await gmbFetchDailyMetricsNormalized(args.accessToken, locationName, args.start, args.end);
+  return { metrics, locationName, locationTitle: null, accountName: args.preferredAccountName ?? null, recovered: false };
 }

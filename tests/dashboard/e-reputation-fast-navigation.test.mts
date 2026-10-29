@@ -4,12 +4,14 @@ import { readFileSync } from "node:fs";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("E-reputation renders its shell without waiting for Google and hydrates from a browser snapshot", () => {
+test("the retired reputation route opens the Google reviews modal and keeps account-scoped fast hydration", () => {
   const page = read("app/dashboard/e-reputation/page.tsx");
   const client = read("app/dashboard/e-reputation/EReputationReviewsClient.tsx");
   const snapshots = read("lib/browserModuleSnapshotCache.ts");
 
   assert.doesNotMatch(page, /force-dynamic|revalidate\s*=\s*0|getGmbToken|gmbListReviews|createSupabaseServer/);
+  assert.match(page, /redirect\("\/dashboard\?panel=gmb&googleReviews=1"\)/);
+  assert.doesNotMatch(page, /EReputationHeader/);
   assert.match(client, /MODULE_SNAPSHOT_KEYS\.eReputationGoogle/);
   assert.match(client, /readModuleSnapshot/);
   assert.match(client, /backgroundRefreshRef/);

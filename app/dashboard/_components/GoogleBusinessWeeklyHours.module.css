@@ -1,0 +1,50 @@
+.week { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.weekFields { margin: 0; padding: 0; border: 0; min-width: 0; }
+.table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.table th,.table td { padding: 5px 5px; border-bottom: 1px solid #a9c5ee20; text-align: left; }
+.table thead th { font-size: 11px; font-weight: 500; color: #bcd5ed; padding-top: 0; padding-bottom: 7px; }
+.table th:first-child { width: 27%; padding-left: 0; }
+.table th:last-child { width: 32px; padding-right: 0; }
+.table tr:last-child th,.table tr:last-child td { border-bottom: 0; }
+.week .dayLabel { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.week .dayLabel input,.week .fullDay input { flex: 0 0 auto; width: 16px; min-height: 16px; height: 16px; margin: 0; accent-color: #38bdf8; }
+.week .time { width: 100%; min-height: 32px; height: 32px; padding: 4px 8px; font-size: 13px; }
+.time:disabled { opacity: .3; }
+.week .more { display: grid; place-items: center; width: 30px; min-height: 30px; padding: 0; border-radius: 9px; font-size: 17px; }
+.closingCell { position: relative; }
+.nextDay { position: absolute; right: 7px; bottom: 1px; padding: 0 3px; border-radius: 4px; background: #174770; color: #c9f3ff; font-size: 8px; }
+.week .allDay { width: 100%; min-height: 32px; padding: 4px 8px; color: #99ead4; font-size: 12px; }
+.week .hint { margin: 8px 0 0; color: #bad3ed; font-size: 11px; line-height: 1.35; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.overlay { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; padding: 14px; background: #08132cb5; backdrop-filter: blur(4px); }
+.dayEditor { box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; width: min(400px,100%); max-height: 100%; padding: 14px; border: 1px solid #80b9f580; border-radius: 16px; background: linear-gradient(130deg,#112d4f,#21173f); box-shadow: 0 12px 40px #0007; }
+.dayEditor header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.dayEditor h4 { margin: 0; font-size: 17px; }
+.dayEditor label { display: grid; gap: 5px; font-size: 12px; color: #d5e6f7; }
+.dayEditor input,.dayEditor select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 36px; padding: 7px 10px; border: 1px solid #98b8ed60; border-radius: 10px; background: #07162c; color: #eff7ff; font: inherit; font-size: 14px; }
+.dayEditor button { min-height: 36px; padding: 8px 12px; border: 1px solid #8fc4f580; border-radius: 10px; background: #365c9945; color: #f1f7ff; font: inherit; font-size: 12px; cursor: pointer; }
+.dayEditor button:disabled { opacity: .4; cursor: default; }
+.dayEditor header button { width: 30px; min-height: 30px; padding: 0; font-size: 22px; }
+.dayEditor .fullDay { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+.dayEditor .fullDay input { width: 16px; min-height: 16px; height: 16px; margin: 0; accent-color: #38bdf8; }
+.slotNav { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.slotNav button { width: 28px; min-height: 28px; padding: 0; font-size: 20px; }
+.slotNav span { color: #c5def7; font-size: 12px; }
+.slotTimes { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.dayActions { display: flex; gap: 8px; }
+.dayActions button { flex: 1; min-height: 32px; padding: 5px; font-size: 11px; }
+.done { align-self: flex-end; min-height: 34px; background: linear-gradient(110deg,#087fba,#6a3fce) !important; }
+@media(max-width:640px) {
+  .table th,.table td { padding: 4px 3px; }
+  .table th:first-child { width: 27%; }
+  .table th:last-child { width: 26px; }
+  .week .dayLabel { gap: 5px; font-size: 11px; }
+  .week .dayLabel input { width: 14px; height: 14px; min-height: 14px; }
+  .week .time { height: 30px; min-height: 30px; padding: 3px 4px; font-size: 12px; }
+  .time::-webkit-calendar-picker-indicator { display: none; }
+  .week .more { width: 25px; min-height: 28px; font-size: 14px; }
+  .table thead th { font-size: 10px; }
+  .dayEditor { gap: 8px; padding: 10px; }
+  .dayEditor input,.dayEditor select { min-height: 32px; padding: 5px 8px; }
+}
+@media(max-height:600px) { .table th,.table td { padding-top: 2px; padding-bottom: 2px; } .week .hint { margin-top: 4px; font-size: 10px; } }

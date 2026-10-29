@@ -60,7 +60,7 @@ export async function GET() {
         business_id: page.business_id || null,
         business_name: page.business_name || null,
       }));
-      return jsonNoStore({ pages });
+      return jsonNoStore({ pages, discovery: { complete: !discovery.diagnostics.issues.some(issue => !issue.optional) } });
     }
 
     const checks = await Promise.all(userTokens.map((token) => inspectFacebookUserTokenPermissions(token)));

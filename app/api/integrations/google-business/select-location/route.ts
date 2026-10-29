@@ -7,6 +7,8 @@ import { clearAllToolCaches } from "@/lib/statsCache";
 
 import { withCurrentConnectionVersion } from "@/lib/connectionVersions";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
+import { getGmbToken } from "@/lib/googleBusiness";
+import { listAllGoogleBusinessAccounts, listAllGoogleBusinessLocations } from "@/lib/googleBusinessLocations";
 export async function POST(req: Request) {
   try {
     const supabase = await createSupabaseServer();
@@ -19,15 +21,20 @@ export async function POST(req: Request) {
 
     const accountName = String(body.accountName || "").trim(); // "accounts/123"
     const locationName = String(body.locationName || "").trim(); // "locations/456"
-    const locationTitle = String(body.locationTitle || "").trim() || null;
-
-    // Best-effort public link for the selected location.
-    // We use a Google Maps search link (reliable, no extra API calls, works even without Place IDs).
-    const gmbUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationTitle || locationName)}`;
-
-    if (!accountName || !locationName) {
+    if (!/^accounts\/[a-zA-Z0-9_-]+$/.test(accountName) || !/^locations\/[a-zA-Z0-9_-]+$/.test(locationName)) {
       return NextResponse.json({ error: "Établissement Google Business incomplet." }, { status: 400 });
     }
+
+    const token = await getGmbToken({ supabase, userId });
+    if (!token?.accessToken) return NextResponse.json({ error: "Reconnectez votre compte Google Business." }, { status: 401 });
+    const accounts = await listAllGoogleBusinessAccounts(token.accessToken);
+    if (!accounts.some(account => account.name === accountName)) return NextResponse.json({ error: "Ce compte Google Business n’est pas accessible." }, { status: 403 });
+    const locations = await listAllGoogleBusinessLocations(token.accessToken, accountName);
+    const selected = locations.find(location => location.name === locationName);
+    if (!selected) return NextResponse.json({ error: "Cet établissement n’est pas accessible dans ce compte Google Business. Actualisez la liste." }, { status: 409 });
+    // Closed establishments remain selectable; their status never authorizes guessing another target.
+    const locationTitle = selected.title || null;
+    const gmbUrl = selected.mapsUri || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([locationTitle || locationName, selected.addressLabel].filter(Boolean).join(" "))}`;
 
     const { data: existingIntegration, error: existingError } = await supabaseAdmin
       .from("integrations")
@@ -60,6 +67,7 @@ export async function POST(req: Request) {
       })
       .eq("id", existingIntegration.id)
       .eq("user_id", userId)
+      .eq("email_address", token.row.email_address)
       .select("id,status,resource_id,resource_label,meta")
       .single();
 

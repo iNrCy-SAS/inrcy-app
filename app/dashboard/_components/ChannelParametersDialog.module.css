@@ -17,4 +17,12 @@
 .contentOnly [data-mail-signature] > header { padding-right: 38px; }
 .contentOnly .content { container-type: inline-size; }
 .content button,.content select,.content input,.content textarea { max-width: 100%; box-sizing: border-box; }
+.compact { width: min(850px, calc(100vw - 40px)); height: min(680px, calc(100dvh - 48px)); }
+.reviews { width: min(1180px, calc(100vw - 64px)); height: min(740px, calc(100dvh - 72px)); }
+.compact .content,.reviews .content { display: flex; flex-direction: column; overflow: hidden; }
+.reviews .content { padding: 0; }
+.reviews .floatingClose { top: 12px; right: 12px; }
+.reviews:has([data-review-details]) > .floatingClose { display: none; }
 @media(max-width:720px) { .dialog { width: calc(100vw - 20px); max-height: calc(100dvh - 28px); border-radius: 18px; } .header { padding: 12px 14px; } .header h2 { font-size: 18px; } .content { padding: 14px; } .fullScreen { inset: 6px; width: calc(100vw - 12px); height: calc(100dvh - 12px); max-height: none; } }
+@media(max-width:720px) { .compact { height: min(650px, calc(100dvh - 28px)); } .reviews { height: calc(100dvh - 40px); } }
+@media(max-height:600px) { .compact { height: calc(100dvh - 16px); max-height: calc(100dvh - 16px); } .compact .header { padding: 6px 14px; } .compact .content { padding: 10px 14px; } }

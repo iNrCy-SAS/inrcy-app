@@ -261,7 +261,6 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
     { path: standardMode ? "/dashboard/mails?folder=publications&boxView=sent" : "/dashboard/mails", title: sendLabel, description: standardT("sendDescription"), logo: "/inrsend-logo-seul.png", tone: "sendCard", glyph: "mail", action: standardMode ? standardT("sendCta") : copy.manage, panel: "mails", settingsLabel: t.modules.mailsSettingsAria },
     { path: studioPath, title: "iNr’Studio", description: `${standardT("studioLine1")} ${standardT("studioLine2")}`, tone: "studioCard", glyph: "sparkles", action: copy.open, testId: standardMode ? "standard-studio-open" : "premium-studio-open" },
     { path: "/dashboard/stats", title: statsLabel, description: t.modules.statsSub, logo: "/inrstats-logo-seul.png", tone: "statsCard", glyph: "stats", action: copy.viewStats },
-    { path: "/dashboard/e-reputation", title: standardT("reputationName"), description: t.modules.reputationSub, tone: "reputationCard", glyph: "trophy", action: t.modules.reputationCta },
     { path: "/dashboard/agenda", title: calendarLabel, description: t.modules.agendaSub, logo: "/mobile-shortcuts/inrcalendar-bubble.png", tone: "calendarCard", glyph: "planning", action: copy.open, panel: "agenda", settingsLabel: t.modules.agendaSettingsAria, premiumOnly: true },
     { path: "/dashboard/crm", title: crmLabel, description: t.modules.crmSub, logo: "/mobile-shortcuts/inrcrm-bubble.png", tone: "crmCard", glyph: "people", action: copy.access, premiumOnly: true },
     { path: "/dashboard/ads", title: "iNr’ADS", description: copy.adsDescription, tone: "adsCard", glyph: "ads", action: copy.createCampaign, premiumOnly: true, unavailable: !adsPilotEnabled, testId: adsPilotEnabled ? (standardMode ? "standard-campaign-ads" : "premium-campaign-ads") : "campaign-ads-coming-soon" },
@@ -293,7 +292,7 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
   };
   const pilotTools = [
     ...signatureTools.filter((tool) => tool.tone === "statsCard"),
-    ...signatureTools.filter((tool) => tool.tone === "sendCard" || tool.tone === "studioCard" || tool.tone === "reputationCard"),
+    ...signatureTools.filter((tool) => tool.tone === "sendCard" || tool.tone === "studioCard"),
   ];
   const premiumTools = ["adsCard", "campaignCard", "calendarCard", "crmCard"].map(tone => signatureTools.find(tool => tool.tone === tone)!);
   const renderSignatureTool = (tool: (typeof signatureTools)[number]) => (

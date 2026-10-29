@@ -1,0 +1,67 @@
+.editor { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 12px; color: #edf4ff; }
+.intro { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 16px; }
+.intro p { margin: 0 0 3px; color: #bad3ed; font-size: 12px; }
+.intro h3 { margin: 0; font-size: 19px; overflow-wrap: anywhere; }
+.intro > span { border: 1px solid #82c7ff55; border-radius: 20px; padding: 7px 13px; color: #cbe8ff; font-size: 12px; }
+.tabs { display: grid; flex-shrink: 0; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; }
+.editor .tabs button { width: 100%; padding: 8px 5px; min-height: 38px; font-size: 13px; }
+.tabs button[aria-selected="true"] { background: linear-gradient(110deg,#087fba,#6a3fce); border-color: #8acaffaa; }
+.section { display: flex; flex: 1 1 auto; min-height: 0; min-width: 0; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #899ddc40; border-radius: 16px; background: #152a4c77; }
+.hoursSection { padding: 10px 16px; }
+.section h3,.change h4 { margin: 0; font-size: 16px; }
+.section p { margin: 0; color: #c5d7ed; line-height: 1.4; font-size: 12px; }
+.sectionTop { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+.sectionTop > label { flex: 1; }
+.sectionTop > p { flex: 1; }
+.fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.wide { grid-column: 1 / -1; }
+.editor label { display: grid; min-width: 0; gap: 5px; font-size: 12px; color: #d5e6f7; }
+.editor input,.editor textarea,.editor select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 38px; padding: 8px 10px; border: 1px solid #98b8ed60; border-radius: 10px; background: #07162cbd; color: #eff7ff; font: inherit; font-size: 14px; }
+.editor textarea { resize: none; line-height: 1.45; }
+.editor small { text-align: right; color: #b7cce3; font-size: 10px; }
+.editor button { width: fit-content; max-width: 100%; min-height: 40px; padding: 8px 13px; border: 1px solid #8fc4f580; border-radius: 11px; background: #365c9945; color: #f1f7ff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.editor button:disabled { opacity: .45; cursor: default; }
+.editor input:focus-visible,.editor select:focus-visible,.editor textarea:focus-visible,.editor button:focus-visible { outline: 2px solid #8ee9ff; outline-offset: 2px; }
+.editor button.primary { background: linear-gradient(110deg,#087fba,#6a3fce); border-color: #8acaffaa; }
+.editor .check { display: flex; align-items: center; gap: 6px; min-height: 24px; }
+.check input { width: 16px; min-height: 16px; height: 16px; margin: 0; accent-color: #55c2ff; }
+.timeField { display: grid; gap: 4px; align-content: start; }
+.pager { display: flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 8px; }
+.editor .pager button { width: 32px; min-height: 32px; padding: 0; font-size: 21px; }
+.pager span { min-width: 38px; font-size: 12px; text-align: center; }
+.rowActions { display: flex; gap: 8px; margin-top: auto; }
+.rowActions button { font-size: 11px; }
+.empty { margin: auto !important; text-align: center; }
+.footer { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid #91c3ee40; }
+.footer > span { color: #c7d9ed; font-size: 11px; }
+.actions { display: flex; justify-content: flex-end; margin-left: auto; gap: 8px; }
+.error,.success { flex-shrink: 0; margin: 0; padding: 8px 12px; border: 1px solid #f3a3b966; border-radius: 10px; background: #77273c44; line-height: 1.4; font-size: 12px; }
+.success { border-color: #84e5bf66; background: #17684944; }
+.change { display: grid; min-height: 0; gap: 10px; }
+.comparison { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.comparison textarea { min-height: 130px; }
+@media(max-width:640px) {
+  .editor { gap: 10px; }
+  .intro h3 { font-size: 17px; }
+  .intro > span { display: none; }
+  .section { padding: 12px; gap: 10px; }
+  .fields { gap: 10px; }
+  .editor .tabs button { font-size: 11px; }
+  .footer { flex-wrap: wrap; gap: 6px; }
+  .footer > span { flex-basis: 100%; }
+  .actions { width: 100%; }
+  .actions button { flex: 1; }
+  .comparison { grid-template-columns: minmax(0,1fr); }
+  .comparison textarea { min-height: 80px; max-height: 90px; }
+}
+@media(max-height:700px) { .intro { display: none; } .hoursSection { padding: 8px 10px; } }
+@media(max-height:600px) {
+  .intro { display: none; }
+  .editor,.section { gap: 8px; }
+  .section { padding: 10px; }
+  .editor input,.editor select { min-height: 32px; padding: 5px 8px; }
+  .editor textarea { max-height: 64px; }
+  .footer > span { display: none; }
+  .footer { padding-top: 6px; }
+  .fields { gap: 8px; }
+}

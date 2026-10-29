@@ -283,17 +283,12 @@ export function useFacebookChannel({
       if (revision !== connectionRevisionRef.current || accountScope !== getActiveBrowserUserId()) return;
       const pages = Array.isArray(j.pages) ? j.pages : [];
       setFbPages(pages);
-      if (options?.autoSelect === false) return;
+      if (options?.autoSelect === false || facebookPageConnected) return;
 
       const matchedSelected = pages.find((p: { id: string; name?: string | null }) => p.id === fbSelectedPageId);
       if (matchedSelected?.name) setFbSelectedPageName(String(matchedSelected.name));
 
-      if (!fbSelectedPageId && pages?.[0]?.id) {
-        setFbSelectedPageId(pages[0].id);
-        if (pages[0]?.name) setFbSelectedPageName(String(pages[0].name));
-      }
-
-      if (pages.length === 1) {
+      if (pages.length === 1 && j.discovery?.complete !== false) {
         const only = pages[0];
         if (only?.id) {
           setFbPagesPhase("connecting");
@@ -335,7 +330,7 @@ export function useFacebookChannel({
         setFbPagesPhase("idle");
       }
     }
-  }, [facebookAccountConnected, fbSelectedPageId, facebookAccountEmail, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh]);
+  }, [facebookAccountConnected, facebookPageConnected, fbSelectedPageId, facebookAccountEmail, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh]);
 
   useEffect(() => {
     const linked = searchParams.get("linked");

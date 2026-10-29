@@ -7,7 +7,7 @@ import type { ChannelBubbleConnection } from "./channel-bubble.types";
 
 type ConnectionOption = NonNullable<ChannelBubbleConnection["connectOptions"]>[number];
 
-/** A disclosure with normal buttons: Enter/Space opens it, Tab visits each choice. */
+/** Enter/Space opens the disclosure; Tab visits its buttons or native OAuth links. */
 export default function ChannelConnectionMenu({ label, options, disabled, onChoose, icon }: {
   label: string;
   options: ConnectionOption[];
@@ -51,7 +51,7 @@ export default function ChannelConnectionMenu({ label, options, disabled, onChoo
       if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); }
     }}>{icon}<span>{label}</span><span aria-hidden="true">▾</span></button>
     {open ? <div id={id} role="group" aria-label={label} className={bubbleStyles.connectMenuChoices}>
-      {options.map(option => <button key={option.label} type="button" disabled={disabled} onClick={() => { setOpen(false); onChoose(option); }}>{option.label}</button>)}
+      {options.map(option => option.href ? <a key={option.label} href={option.href} target="_top" aria-disabled={disabled} onClick={event => { if (disabled) event.preventDefault(); }}>{option.label}</a> : <button key={option.label} type="button" disabled={disabled} onClick={() => { setOpen(false); onChoose(option); }}>{option.label}</button>)}
     </div> : null}
   </div>;
 }

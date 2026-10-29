@@ -89,6 +89,19 @@ function harness(options: { publicEnabled?: boolean; noSession?: boolean; actorA
   return { module: oauth, calls, saves, events, steps, callback };
 }
 
+test("Instagram does not force fresh credentials while keeping the signed actor and account binding", async () => configured(async () => {
+  const h = harness();
+  const result = await h.module.startMetaDirectOAuth(new Request("https://fixture.example/start"), "instagram");
+  assert.equal(result.status, 307);
+  const authorization = new URL(result.headers.get("location"));
+  assert.equal(authorization.searchParams.get("enable_fb_login"), "0");
+  assert.equal(authorization.searchParams.has("force_authentication"), false);
+  assert.equal(authorization.searchParams.has("force_reauth"), false);
+  const state = security.b64urlJsonDecode(authorization.searchParams.get("state"));
+  assert.equal(state.authUserId, ACTOR);
+  assert.equal(state.accountId, ACCOUNT);
+}));
+
 test("closed rollout mode rejects USER/staff or a non-admin account before contacting Meta", async () => configured(async () => {
   for (const options of [{ actorAdmin: false }, { accountRole: "user" }, { accountRole: "staff" }]) for (const provider of ["instagram", "threads"]) {
     const h = harness(options); const result = await h.module.startMetaDirectOAuth(new Request("https://fixture.example/start"), provider);

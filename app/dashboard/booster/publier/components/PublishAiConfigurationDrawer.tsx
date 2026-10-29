@@ -25,6 +25,7 @@ type PublishAiConfigurationDrawerProps = {
   drawerHeight: string;
   onClose: () => void;
   presentation?: "drawer" | "workspace";
+  portalTarget?: Element;
 };
 
 type AiConfigurationSurfaceProps = Omit<
@@ -57,6 +58,7 @@ function getFocusableElements(container: HTMLElement | null) {
 function PublishAiConfigurationWorkspace({
   drawerHeight,
   onClose,
+  portalTarget,
 }: AiConfigurationSurfaceProps) {
   const i18nT = useTranslations("booster");
   const settingsT = useTranslations("settings");
@@ -277,7 +279,7 @@ function PublishAiConfigurationWorkspace({
         </DrawerHeaderTabsContext.Provider>
       </section>
     </main>,
-    document.body,
+    portalTarget || document.body,
   );
 }
 
@@ -285,6 +287,7 @@ function PublishAiConfigurationSideDrawer({
   isMobile,
   drawerHeight,
   onClose,
+  portalTarget,
 }: AiConfigurationSurfaceProps) {
   const i18nT = useTranslations("booster");
   const settingsT = useTranslations("settings");
@@ -552,7 +555,7 @@ function PublishAiConfigurationSideDrawer({
         </div>
       </aside>
     </div>,
-    document.body,
+    portalTarget || document.body,
   );
 }
 
@@ -562,10 +565,11 @@ export default function PublishAiConfigurationDrawer({
   drawerHeight,
   onClose,
   presentation = "drawer",
+  portalTarget,
 }: PublishAiConfigurationDrawerProps) {
   if (!open) return null;
 
-  const surfaceProps = { isMobile, drawerHeight, onClose };
+  const surfaceProps = { isMobile, drawerHeight, onClose, portalTarget };
   return presentation === "workspace" ? (
     <PublishAiConfigurationWorkspace {...surfaceProps} />
   ) : (

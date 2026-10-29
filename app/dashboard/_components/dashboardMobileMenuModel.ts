@@ -14,7 +14,6 @@ const CREATE_TOOLS: readonly DashboardMobileTool[] = [
   { id: "media", href: "/dashboard/mediatheque", tone: "blue" },
   { id: "ads", href: "/dashboard/ads", tone: "pink" },
   { id: "campaigns", href: "/dashboard?action=campaigns", tone: "amber" },
-  { id: "reputation", href: "/dashboard/e-reputation", tone: "pink" },
 ];
 
 const MANAGE_TOOLS: readonly DashboardMobileTool[] = [
