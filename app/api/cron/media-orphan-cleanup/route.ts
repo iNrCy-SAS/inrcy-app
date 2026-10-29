@@ -4,6 +4,7 @@ import { purgeExpiredAiMediaProviderImages } from "@/lib/aiMediaProviderImageCle
 import { purgeExpiredAiMediaCharacterVoices } from "@/lib/aiMediaCharacterVoiceStorage";
 import { purgeExpiredAiMediaCompositionObjects } from "@/lib/aiMediaCompositionRecovery";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { isMediaReferencedByPublishedContent } from "@/lib/publishedMediaRetention";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,7 +82,23 @@ async function runCleanup(request: Request) {
         .select("media_id", { count: "exact", head: true })
         .eq("media_id", mediaId);
       if (associations.error) throw associations.error;
-      if ((associations.count || 0) > 0) {
+
+      // Published images may only reference a normalized variant, not the source.
+      const variants = await supabaseAdmin
+        .from("media_variants")
+        .select("id,bucket_name,storage_path")
+        .eq("media_id", mediaId)
+        .eq("account_id", media.user_id)
+        .neq("status", "removed");
+      if (variants.error) throw variants.error;
+
+      if (
+        (associations.count || 0) > 0 ||
+        await isMediaReferencedByPublishedContent(supabaseAdmin, {
+          ...media,
+          variant_storage_paths: (variants.data || []).map(variant => String(variant.storage_path || "")).filter(Boolean),
+        })
+      ) {
         retained += 1;
         const reset = await supabaseAdmin
           .from("pro_media_library")
@@ -91,14 +108,6 @@ async function runCleanup(request: Request) {
         if (reset.error) throw reset.error;
         continue;
       }
-
-      const variants = await supabaseAdmin
-        .from("media_variants")
-        .select("id,bucket_name,storage_path")
-        .eq("media_id", mediaId)
-        .eq("account_id", media.user_id)
-        .neq("status", "removed");
-      if (variants.error) throw variants.error;
 
       const pathsByBucket = new Map<string, Set<string>>();
       const addPath = (bucketValue: unknown, pathValue: unknown) => {
