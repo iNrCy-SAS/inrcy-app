@@ -38,7 +38,7 @@ export function channelRuntime(path: string, overrides: Props = {}) {
     if (specifier.endsWith(".css")) return css;
     if (specifier === "next/image") return { __esModule: true, default: "img" };
     if (specifier === "next-intl") return { useTranslations: (scope: string) => (key: string) => (scope === "shell" ? shellLabels : bubbleLabels)[key] || key };
-    if (specifier === "next/navigation") return { useSearchParams: () => new URLSearchParams() };
+    if (specifier === "next/navigation") return { useRouter: () => ({ replace() {} }), useSearchParams: () => new URLSearchParams() };
     if (specifier.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: false }) };
     if (specifier.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
     if (specifier.endsWith("useUnsavedExitGuard")) return { useUnsavedExitGuard() {} };

@@ -880,7 +880,9 @@
     "configureAutomation": "Configure automation",
     "agentButton": "AI agent",
     "automation": "Automation",
-    "manual": "Manual actions"
+    "manual": "Manual actions",
+    "activateAutomation": "Enable automation",
+    "deactivateAutomation": "Disable automation"
   },
   "regenerate_media_scope_title": "Regenerate media",
   "regenerate_media_scope_message": "Regenerate media for every channel or only {channel}? Text and dates stay unchanged. An approved publication will require approval again.",
@@ -892,5 +894,11 @@
   "publication_refusal_restored": "Publication returned to pending validation.",
   "publication_refusal_restore_failed": "Unable to undo rejection. Check that the publication has not changed and its date has not passed.",
   "publication_validation_restore": "Undo approval and return to pending",
-  "publication_review_restore_failed": "Unable to return the publication to pending. Please try again shortly."
+  "publication_review_restore_failed": "Unable to return the publication to pending. Please try again shortly.",
+  "automation_enable_confirm_title": "Do you confirm the current settings?",
+  "automation_enable_confirm_message": "The automation will use your saved settings.",
+  "automation_enable_confirm_yes": "Yes",
+  "automation_enable_confirm_verify": "Check my settings",
+  "automation_enabled_notice": "Automation enabled.",
+  "automation_enable_unavailable": "Check the channels and settings before enabling automation."
 }

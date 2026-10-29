@@ -113,7 +113,7 @@ export default function DashboardChannelWorkspace(props: Props) {
         publicLinks: publicLink("gmb", gmb.gmbUrl, gmb.setGmbUrl, gmb.gmbConfigured),
         loading: gmb.gmbLoadingList, busy: gmb.gmbLocationBusy || gmb.gmbAccountBusy || gmb.gmbLocationsPhase === "connecting",
         error: gmb.gmbUrlError || gmb.gmbListError,
-        extraActions: gmb.gmbConfigured ? <button type="button" className={bubbleStyles.iconAction} title={t("googleReviews")} aria-label={`${t("googleReviews")} — Google Business`} onClick={() => setReviewsOpen(true)}><ChannelBubbleIcon kind="reviews" /></button> : undefined,
+        extraActions: gmb.gmbConfigured ? <button type="button" className={`${bubbleStyles.iconAction} ${bubbleStyles.googleReviewsAction}`} title={t("googleReviews")} aria-label={`${t("googleReviews")} — Google Business`} onClick={() => setReviewsOpen(true)}><ChannelBubbleIcon kind="reviews" /></button> : undefined,
         parameters: gmb.gmbConfigured ? <GoogleBusinessProfileEditor key={gmb.gmbLocationName} locationName={gmb.gmbLocationName} onDirtyChange={setDirty} /> : undefined,
         parametersLabel: t("manageGoogleProfile"),
         parametersIcon: "businessProfile",

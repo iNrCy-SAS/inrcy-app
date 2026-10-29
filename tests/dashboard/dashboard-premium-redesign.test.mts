@@ -46,9 +46,11 @@ test("le dashboard conserve le cockpit et place le Générateur au centre sans s
   assert.match(dashboard, /import DashboardChannelWorkspace from "\.\/_components\/DashboardChannelWorkspace"/);
 });
 
-test("le socle réunit Stats puis Send, Studio et Réputation, et Premium regroupe quatre outils", () => {
+test("le socle réunit Stats puis Send et Studio, et Premium regroupe quatre outils", () => {
   assertOrdered(modules, "{cockpit}", "signatureStyles.boosterCard", "{generator}", 'aria-labelledby="dashboard-pilot-title"', "pilotTools.map(renderSignatureTool)", 'aria-labelledby="dashboard-premium-title"', "premiumTools.map(renderSignatureTool)");
-  assertOrdered(modules, "const pilotTools", 'tool.tone === "statsCard"', 'tool.tone === "sendCard"', 'tool.tone === "studioCard"', 'tool.tone === "reputationCard"');
+  const pilotTools = modules.slice(modules.indexOf("const pilotTools"), modules.indexOf("const premiumTools"));
+  assertOrdered(pilotTools, "const pilotTools", 'tool.tone === "statsCard"', 'tool.tone === "sendCard"', 'tool.tone === "studioCard"');
+  assert.doesNotMatch(pilotTools, /reputationCard/);
   assert.match(modules, /const premiumTools = \["adsCard", "campaignCard", "calendarCard", "crmCard"\]/);
   assert.match(toolsCss, /grid-template-areas: "cockpit booster" "generator generator" "create pilot"/);
   assert.match(toolsCss, /\.signatureGrid\.premiumGrid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
@@ -109,7 +111,7 @@ test("les outils conservent leurs destinations et les callbacks de publication, 
   assert.match(modules, /onClick=\{openPublishModal\}/);
   assert.match(modules, /onClick=\{openBoosterSummary\}/);
   assert.match(modules, /const studioPath = "\/dashboard\/generer-media"/);
-  assert.match(modules, /path: "\/dashboard\/e-reputation"/);
+  assert.doesNotMatch(modules, /path: "\/dashboard\/e-reputation"/);
   for (const destination of ["propulser", "fideliser"]) {
     assert.ok(modules.includes(`startModuleNavigation("/dashboard/${destination}")`), destination);
   }

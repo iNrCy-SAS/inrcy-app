@@ -82,15 +82,15 @@ test("le cockpit validé conserve Booster distinct, les outils quotidiens et les
     signatureDefinitions.matchAll(/tone: "([^"]+)"/g),
     (match) => match[1],
   );
-  assert.deepEqual(signatureNames, ["sendCard", "studioCard", "statsCard", "reputationCard", "calendarCard", "crmCard", "adsCard", "campaignCard"]);
+  assert.deepEqual(signatureNames, ["sendCard", "studioCard", "statsCard", "calendarCard", "crmCard", "adsCard", "campaignCard"]);
   assert.match(signatureDefinitions, /path: standardMode \? "\/dashboard\/mails\?folder=publications&boxView=sent" : "\/dashboard\/mails"/);
-  assert.deepEqual([...signatureDefinitions.matchAll(/\{ path: "(\/dashboard[^\"]+)"/g)].map((match) => match[1]), ["/dashboard/stats", "/dashboard/e-reputation", "/dashboard/agenda", "/dashboard/crm", "/dashboard/ads", "/dashboard?action=campaigns"]);
+  assert.deepEqual([...signatureDefinitions.matchAll(/\{ path: "(\/dashboard[^\"]+)"/g)].map((match) => match[1]), ["/dashboard/stats", "/dashboard/agenda", "/dashboard/crm", "/dashboard/ads", "/dashboard?action=campaigns"]);
   assert.match(source, /className=\{signatureStyles\.signatureGrid\}/);
-  assert.match(source, /tone: "reputationCard"/);
+  assert.doesNotMatch(signatureDefinitions, /tone: "reputationCard"/);
   assert.match(source, /const premiumTools = \["adsCard", "campaignCard", "calendarCard", "crmCard"\]/);
   assert.match(styles, /\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/);
   assert.match(styles, /\.creationGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /\.signatureGrid\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.signatureGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.statsCard\s*\{[^}]*grid-column: 1 \/ -1/);
   assert.match(styles, /@media \(max-width: 1100px\)[\s\S]*?\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
   assert.match(source, /pilotTools\.map\(renderSignatureTool\)/);

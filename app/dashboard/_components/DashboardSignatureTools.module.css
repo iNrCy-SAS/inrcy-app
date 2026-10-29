@@ -335,6 +335,8 @@
 .adsArtwork { z-index: 0; bottom: 4px; right: 3px; width: 130px; height: 80px; opacity: .7; }
 .mailArtwork { z-index: 0; right: 4px; top: 28%; width: 120px; height: 70px; opacity: .45; }
 .studioCard.signatureCard { border-color: #42b8efb3; background: radial-gradient(ellipse at 8% 0%, #1578c344, transparent 70%), linear-gradient(125deg, #0b356b, #12285b 65%, #292365); }
+.sendCard.signatureCard { --tool-accent: #f79bd2; border-color: #e879b9bf; background: radial-gradient(ellipse at 8% 0%, #d658a43b, transparent 70%), linear-gradient(125deg, #551b44, #42203d 65%, #3a1c36); }
+.sendCard .toolButton { border-color: #f5a1cfbd; background: linear-gradient(110deg, #b82f83, #923574); }
 .reputationCard.signatureCard { --tool-accent: #ec93ce; border-color: #cc70b5a8; background: radial-gradient(ellipse at 92% 100%, #bf3f9555, transparent 65%), linear-gradient(125deg, #3d2453, #39204d 65%, #5a2358); }
 .creationGrid > article { box-shadow: inset 0 1px 0 #e2ceff21, 0 4px 16px #050a251f; }
 
@@ -577,12 +579,17 @@
 /* Secondary controls inherit the palette of their card, across all functions. */
 .lowerRow,
 .boosterCard,
-.studioCard,
-.sendCard {
+.studioCard {
   --control-border: #8fbeff;
   --control-icon: #e8f5ff;
   --control-start: #2866ae;
   --control-end: #254584;
+}
+.sendCard {
+  --control-border: #e9a0c8;
+  --control-icon: #fff0fa;
+  --control-start: #91406f;
+  --control-end: #64254e;
 }
 .statsCard {
   --control-border: #bea2f4;

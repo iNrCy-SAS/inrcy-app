@@ -977,6 +977,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     updateConfigScheduleSlot,
     updateConfigMonthDay,
     saveSettings,
+    setAutomationEnabled,
     confirmEditorialPlanSettings,
     testAutomationNow,
     confirmPrepareNowReplacement,
@@ -4143,6 +4144,20 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     setAgentConfirmDialog(config);
   }
 
+  function requestAutomationToggle(key: AutomationKey) {
+    if (loadState === "loading" || saveState === "saving") return;
+    if (configs[key].enabled) { void setAutomationEnabled(key, false); return; }
+    openAgentConfirmDialog({
+      title: i18nT("automation_enable_confirm_title"),
+      message: i18nT("automation_enable_confirm_message"),
+      confirmLabel: i18nT("automation_enable_confirm_yes"),
+      alternateLabel: i18nT("automation_enable_confirm_verify"),
+      hideCancel: true,
+      onConfirm: async () => { await setAutomationEnabled(key, true); },
+      onAlternate: () => { setPublicationIdeasOpen(false); setSettingsKey(key); },
+    });
+  }
+
   async function confirmAgentDialog() {
     const dialog = agentConfirmDialog;
     if (!dialog) return;
@@ -5650,8 +5665,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
             exitScheduledEditSession({ silent: true, onAfterExit: open });
           }}
           onToggle={() => {
-            const open = () => { setPublicationIdeasOpen(false); setSettingsKey(selected.key); };
-            exitScheduledEditSession({ silent: true, onAfterExit: open });
+            exitScheduledEditSession({ silent: true, onAfterExit: () => requestAutomationToggle(selected.key) });
           }}
           onClose={() => {
             const close = () => router.push("/dashboard");
@@ -5664,7 +5678,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
             || (selected.key !== "stats" && connectedChannelsLoadState === "ready" && selectedAvailableChannels.length === 0)
             || (selected.key === "publish" && !manualCredits.availability?.allowed)}
           prepareHelp={selected.key === "publish" ? manualCreditHelp || i18nT("instant_publish_action_help") : undefined}
-          status={loadState === "loading" ? i18nT("synchronisation_60a2d2da")
+          status={isInstantPublicationPreview ? undefined : loadState === "loading" ? i18nT("synchronisation_60a2d2da")
             : agentWorking ? `${agentWorkingLabel}${prepareProgress ? ` · ${prepareProgress.percent}%` : ""}`
             : showEditorialCronWait && workspace === "publications" ? i18nT("next_editorial_publication_in_a_few_minutes") : undefined}
         />
@@ -8353,44 +8367,6 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
               </div>
 
               <div className={styles.settingsModalHeaderActions}>
-                {!publicationIdeasOpen ? (
-                <label
-                  className={styles.settingsHeaderSwitch}
-                  data-enabled={settingsConfig.enabled}
-                  data-blocked={settingsNoConnectedChannelBlock}
-                  title={
-                    settingsConnectedChannelMessage ||
-                    (settingsConfig.enabled
-                      ? i18nT("le_robot_peut_preparer_cette_action_e4d59f66")
-                      : i18nT("cette_automatisation_est_en_pause_90aa064a"))
-                  }
-                >
-                  <span>
-                    {settingsConfig.enabled
-                      ? i18nT("automatisation_activee_4636ff37")
-                      : i18nT("automation_disabled")}
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={settingsConfig.enabled}
-                    disabled={
-                      settingsNoConnectedChannelBlock ||
-                      settingsPublicationIdeaVoiceBusy
-                    }
-                    aria-label={`${i18nT("statut_659499f3")} : ${
-                      settingsConfig.enabled
-                        ? i18nT("automatisation_activee_4636ff37")
-                        : i18nT("automation_disabled")
-                    }`}
-                    onChange={(event) =>
-                      updateConfig(settingsAutomation.key, {
-                        enabled: event.target.checked,
-                      })
-                    }
-                  />
-                </label>
-                ) : null}
-
                 <button
                   type="button"
                   className={styles.modalClose}

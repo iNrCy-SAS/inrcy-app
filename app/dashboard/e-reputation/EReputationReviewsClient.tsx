@@ -4,7 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import EmojiPickerButton from "@/app/dashboard/_components/EmojiPickerButton";
@@ -14,6 +14,7 @@ import DashboardMobileSelect from "@/app/dashboard/_components/DashboardMobileSe
 import PublishAiConfigurationDrawer from "@/app/dashboard/booster/publier/components/PublishAiConfigurationDrawer";
 import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { DiscardedReviewPageError, ReviewPageCache } from "./review-page-cache";
 import styles from "./eReputation.module.css";
 
 type ReputationTranslator = (
@@ -131,6 +132,19 @@ type ReviewsResponse = {
   nextPageToken?: string | null;
   totalReviewCount?: number;
   reviews?: ApiReview[];
+};
+
+type ReviewPage = {
+  incoming: EReputationReviewItem[];
+  nextToken: string | null;
+  total: number;
+  connected: boolean;
+  configured: boolean;
+  ready: boolean;
+  locationLabel: string;
+  averageRatingLabel: string;
+  reportUrl: string | null;
+  snapshot: ReviewsResponse;
 };
 
 const REVIEWS_PAGE_SIZE = 50;
@@ -521,6 +535,10 @@ export default function EReputationReviewsClient(props: Props) {
   const replySelectionRef = useRef<{ start: number; end: number } | null>(null);
   const backgroundRefreshRef = useRef<(silent?: boolean) => Promise<void>>(async () => undefined);
   const refreshedPlatformRef = useRef<EReputationPlatformId | null>(null);
+  const reviewPagesRef = useRef(new ReviewPageCache<ReviewPage>());
+  const refreshRunRef = useRef(0);
+  const firstPageLoadingRef = useRef(false);
+  useEffect(() => () => { reviewPagesRef.current.clear(); }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -541,9 +559,9 @@ export default function EReputationReviewsClient(props: Props) {
   const platformShortLabel = activePlatform.shortLabel || activePlatform.label;
   const platformCanReply = Boolean(activePlatform.canReply);
 
-  function updateActivePlatform(updater: (platform: EReputationReviewsPlatform) => EReputationReviewsPlatform) {
+  const updateActivePlatform = useCallback((updater: (platform: EReputationReviewsPlatform) => EReputationReviewsPlatform) => {
     setPlatformData((current) => current.map((platform) => platform.id === activePlatform.id ? updater(platform) : platform));
-  }
+  }, [activePlatform.id]);
 
   function setItems(next: EReputationReviewItem[] | ((current: EReputationReviewItem[]) => EReputationReviewItem[])) {
     updateActivePlatform((platform) => ({
@@ -823,12 +841,14 @@ export default function EReputationReviewsClient(props: Props) {
     setActivePlatformId(platformId);
   }
 
-  async function requestReviews(pageToken?: string | null) {
+  const requestReviews = useCallback(async (pageToken?: string | null) => {
     const requestingAccount = getActiveBrowserUserId();
+    const scope = JSON.stringify([requestingAccount, props.locationName || "", activePlatform.id, locale]);
     const params = new URLSearchParams({ pageSize: String(REVIEWS_PAGE_SIZE) });
     if (pageToken) params.set("pageToken", pageToken);
     if (props.locationName) params.set("locationName", props.locationName);
 
+    const pending = reviewPagesRef.current.load(scope, pageToken || "", async () => {
     const response = await fetch(`${platformApiBase}/reviews?${params.toString()}`, {
       method: "GET",
       credentials: "include",
@@ -843,13 +863,9 @@ export default function EReputationReviewsClient(props: Props) {
       throw new Error(i18nT("unable_load_reviews_source", { value0: platformLabel }));
     }
 
-    // Le snapshot d'ouverture doit toujours rester la première page complète.
-    // Un chargement "Suivant" ne doit pas remplacer le cache par un lot isolé.
-    if (!pageToken) {
-      writeModuleSnapshot(MODULE_SNAPSHOT_KEYS.eReputationGoogle, payload);
-    }
     const connected = Boolean(payload.connected);
     const configured = Boolean(payload.configured);
+    if (pageToken && !(connected && configured)) throw new Error(i18nT("unable_load_review_page"));
 
     return {
       incoming: Array.isArray(payload.reviews) ? payload.reviews.map((review) => toReviewItem(review, activePlatform.id, locale, runtimeT)) : [],
@@ -861,8 +877,16 @@ export default function EReputationReviewsClient(props: Props) {
       locationLabel: String(payload.locationTitle || activePlatform.locationLabel || i18nT("fiche_google_business_09b337dd")),
       averageRatingLabel: connected && configured ? formatAverageRating(payload.averageRating, locale) : "—",
       reportUrl: payload.reportUrl || null,
+      snapshot: payload,
     };
-  }
+    });
+    const revision = reviewPagesRef.current.revision;
+    const page = await pending;
+    if (!reviewPagesRef.current.isCurrent(scope, revision) || requestingAccount !== getActiveBrowserUserId()) throw new DiscardedReviewPageError();
+    // Keep the opening snapshot complete; a prefetched batch must not replace page one.
+    if (!pageToken) writeModuleSnapshot(MODULE_SNAPSHOT_KEYS.eReputationGoogle, page.snapshot);
+    return page;
+  }, [activePlatform, props.locationName, locale, platformApiBase, platformLabel, i18nT, runtimeT]);
 
   async function fetchReviews({ pageToken, replace }: { pageToken?: string | null; replace?: boolean } = {}) {
     const payload = await requestReviews(pageToken);
@@ -895,6 +919,9 @@ export default function EReputationReviewsClient(props: Props) {
   }
 
   async function refreshReviews(silent = false) {
+    const run = ++refreshRunRef.current;
+    firstPageLoadingRef.current = true;
+    reviewPagesRef.current.clear();
     if (!silent) {
       setRefreshing(true);
       setListNotice(null);
@@ -910,12 +937,16 @@ export default function EReputationReviewsClient(props: Props) {
         });
       }
     } catch (error) {
+      if (run !== refreshRunRef.current || error instanceof DiscardedReviewPageError) return;
       const message = error instanceof Error ? error.message : i18nT("unable_refresh_reviews_source", { value0: platformLabel });
       if (!silent) setListNotice({ type: "error", text: message });
       updateActivePlatform((platform) => ({ ...platform, reviewsError: message, ...(props.embedded ? { canReply: false } : {}) }));
     } finally {
-      if (!silent) setRefreshing(false);
-      setInitialLoading(false);
+      if (run === refreshRunRef.current) {
+        firstPageLoadingRef.current = false;
+        if (!silent) setRefreshing(false);
+        setInitialLoading(false);
+      }
     }
   }
 
@@ -928,6 +959,27 @@ export default function EReputationReviewsClient(props: Props) {
     refreshedPlatformRef.current = activePlatform.id;
     void backgroundRefreshRef.current(true);
   }, [activePlatform.id]);
+
+  useEffect(() => {
+    // One page ahead, without disabling controls or moving the visible page.
+    if (!reviewsReady || initialLoading || refreshing || firstPageLoadingRef.current || hasLocalFilter || !nextPageToken || !items.length || items.length >= (safeCurrentPage + 1) * REVIEWS_PAGE_SIZE) return;
+    let ignored = false;
+    const token = nextPageToken;
+    const requestingAccount = getActiveBrowserUserId();
+    const scope = JSON.stringify([requestingAccount, props.locationName || "", activePlatform.id, locale]);
+    const pending = requestReviews(token);
+    const revision = reviewPagesRef.current.revision;
+    void pending.then(payload => {
+      if (ignored || !payload.ready || requestingAccount !== getActiveBrowserUserId() || !reviewPagesRef.current.isCurrent(scope, revision)) return;
+      updateActivePlatform(platform => platform.initialNextPageToken !== token ? platform : ({
+        ...platform,
+        reviews: mergeReviews(platform.reviews, payload.incoming),
+        initialNextPageToken: payload.nextToken === token ? null : payload.nextToken,
+        totalReviewCount: payload.total,
+      }));
+    }).catch(() => { /* A failed preload can be retried by an explicit page request. */ });
+    return () => { ignored = true; };
+  }, [safeCurrentPage, items.length, nextPageToken, reviewsReady, initialLoading, refreshing, hasLocalFilter, activePlatform.id, props.locationName, locale, requestReviews, updateActivePlatform]);
 
   async function loadMoreReviews() {
     if (!nextPageToken || !reviewsReady) return;
@@ -974,7 +1026,6 @@ export default function EReputationReviewsClient(props: Props) {
       setNextPageToken(token);
       updateActivePlatform((platform) => ({ ...platform, totalReviewCount: total }));
       setCurrentPage(Math.min(cleanTarget, Math.max(1, Math.ceil(accumulated.length / REVIEWS_PAGE_SIZE))));
-      setListNotice({ type: "success", text: i18nT("page_d_avis_chargee_ff57e1db") });
     } catch (error) {
       const message = error instanceof Error ? error.message : i18nT("unable_load_review_page");
       setListNotice({ type: "error", text: message });

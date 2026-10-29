@@ -880,7 +880,9 @@
     "configureAutomation": "Automatisierung einstellen",
     "agentButton": "KI-Agent",
     "automation": "Automatisierung",
-    "manual": "Manuelle Aktionen"
+    "manual": "Manuelle Aktionen",
+    "activateAutomation": "Automatisierung aktivieren",
+    "deactivateAutomation": "Automatisierung deaktivieren"
   },
   "regenerate_media_scope_title": "Medien neu erstellen",
   "regenerate_media_scope_message": "Medien für alle Kanäle oder nur für {channel} neu erstellen? Texte und Termine bleiben unverändert. Freigegebene Beiträge müssen erneut bestätigt werden.",
@@ -892,5 +894,11 @@
   "publication_refusal_restored": "Beitrag wartet wieder auf Freigabe.",
   "publication_refusal_restore_failed": "Ablehnung kann nicht zurückgenommen werden. Prüfen Sie, ob der Beitrag geändert wurde oder der Termin verstrichen ist.",
   "publication_validation_restore": "Freigabe zurücknehmen und auf ausstehend setzen",
-  "publication_review_restore_failed": "Die Veröffentlichung kann nicht auf ausstehend gesetzt werden. Bitte versuchen Sie es gleich erneut."
+  "publication_review_restore_failed": "Die Veröffentlichung kann nicht auf ausstehend gesetzt werden. Bitte versuchen Sie es gleich erneut.",
+  "automation_enable_confirm_title": "Bestätigen Sie die aktuellen Einstellungen?",
+  "automation_enable_confirm_message": "Die Automatisierung verwendet Ihre gespeicherten Einstellungen.",
+  "automation_enable_confirm_yes": "Ja",
+  "automation_enable_confirm_verify": "Einstellungen prüfen",
+  "automation_enabled_notice": "Automatisierung aktiviert.",
+  "automation_enable_unavailable": "Prüfen Sie Kanäle und Einstellungen, bevor Sie die Automatisierung aktivieren."
 }

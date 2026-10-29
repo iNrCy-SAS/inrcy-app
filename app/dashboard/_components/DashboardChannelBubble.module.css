@@ -618,6 +618,9 @@
 .iconActions { display: flex; align-items: center; justify-content: center; gap: clamp(10px,4cqi,18px); width: 100%; }
 .iconAction { box-sizing: border-box; flex-shrink: 0; display: grid; place-items: center; width: clamp(36px,11.5cqi,46px); height: clamp(36px,11.5cqi,46px); padding: 9px; border: 1px solid #a7c9ff80; border-radius: 50%; color: #f4f7ff; background: radial-gradient(circle at 25% 15%,#94ccff40,transparent 65%),linear-gradient(130deg,#22499a99,#583b9e99); box-shadow: inset 0 1px 2px #d7eeff70,0 3px 14px #071f4740; cursor: pointer; transition: border-color .2s,transform .2s; }
 .iconAction svg { width: 100%; height: 100%; }
+.googleReviewsAction { color: #fbbc04; border-color: #fbbc048c; }
+.googleReviewsAction:hover { border-color: #ffe082; }
+.businessProfileIcon { color: #7daeff; }
 .iconActions .iconAction { position: relative; }
 .actionText { position: absolute; top: calc(100% + 5px); left: 50%; transform: translateX(-50%); width: max-content; max-width: 62px; color: #d7e8ff; font-size: clamp(8px,2.5cqi,10px); line-height: 1.2; font-weight: 650; text-align: center; white-space: normal; overflow-wrap: normal; pointer-events: none; }
 .iconAction:hover { transform: translateY(-2px); border-color: #c3edff; }

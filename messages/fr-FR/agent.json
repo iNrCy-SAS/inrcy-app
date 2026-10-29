@@ -880,7 +880,9 @@
     "configureAutomation": "Régler l’automatisation",
     "agentButton": "Agent IA",
     "automation": "Automatisation",
-    "manual": "Actions manuelles"
+    "manual": "Actions manuelles",
+    "activateAutomation": "Activer l’automatisation",
+    "deactivateAutomation": "Désactiver l’automatisation"
   },
   "regenerate_media_scope_title": "Régénérer le média",
   "regenerate_media_scope_message": "Régénérer le média pour tous les canaux ou uniquement pour {channel} ? Les textes et les dates restent inchangés. Toute publication validée devra être validée de nouveau.",
@@ -892,5 +894,11 @@
   "publication_refusal_restored": "Publication remise en attente de validation.",
   "publication_refusal_restore_failed": "Impossible d’annuler le refus. Vérifiez que la publication n’a pas changé et que sa date n’est pas dépassée.",
   "publication_validation_restore": "Annuler la validation et remettre en attente",
-  "publication_review_restore_failed": "Impossible de remettre la publication en attente. Réessayez dans un instant."
+  "publication_review_restore_failed": "Impossible de remettre la publication en attente. Réessayez dans un instant.",
+  "automation_enable_confirm_title": "Validez-vous les réglages actuels ?",
+  "automation_enable_confirm_message": "L’automatisation utilisera vos réglages enregistrés.",
+  "automation_enable_confirm_yes": "Oui",
+  "automation_enable_confirm_verify": "Vérifier mes réglages",
+  "automation_enabled_notice": "Automatisation activée.",
+  "automation_enable_unavailable": "Vérifiez les canaux et les réglages avant d’activer l’automatisation."
 }

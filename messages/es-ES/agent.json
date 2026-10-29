@@ -880,7 +880,9 @@
     "configureAutomation": "Configurar automatización",
     "agentButton": "Agente IA",
     "automation": "Automatización",
-    "manual": "Acciones manuales"
+    "manual": "Acciones manuales",
+    "activateAutomation": "Activar la automatización",
+    "deactivateAutomation": "Desactivar la automatización"
   },
   "regenerate_media_scope_title": "Regenerar el contenido multimedia",
   "regenerate_media_scope_message": "¿Regenerar para todos los canales o solo para {channel}? Los textos y las fechas no cambian. Una publicación aprobada necesitará una nueva aprobación.",
@@ -892,5 +894,11 @@
   "publication_refusal_restored": "Publicación pendiente de validación de nuevo.",
   "publication_refusal_restore_failed": "No se pudo deshacer el rechazo. Comprueba que la publicación no ha cambiado y que su fecha no ha pasado.",
   "publication_validation_restore": "Anular la validación y volver a pendiente",
-  "publication_review_restore_failed": "No se puede devolver la publicación a pendiente. Inténtalo de nuevo en un momento."
+  "publication_review_restore_failed": "No se puede devolver la publicación a pendiente. Inténtalo de nuevo en un momento.",
+  "automation_enable_confirm_title": "¿Confirma los ajustes actuales?",
+  "automation_enable_confirm_message": "La automatización utilizará los ajustes guardados.",
+  "automation_enable_confirm_yes": "Sí",
+  "automation_enable_confirm_verify": "Revisar mis ajustes",
+  "automation_enabled_notice": "Automatización activada.",
+  "automation_enable_unavailable": "Revise los canales y los ajustes antes de activar la automatización."
 }

@@ -368,6 +368,7 @@ export type AgentConfirmDialogState = {
   choiceLayout?: "regeneration";
   channelIcon?: string;
   cancelLabel?: string;
+  hideCancel?: boolean;
   tone?: "warning" | "danger";
   onConfirm: () => void | Promise<void>;
   onAlternate?: () => void | Promise<void>;

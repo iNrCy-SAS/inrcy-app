@@ -283,14 +283,25 @@ test("Instagram groups both Facebook logins and highlights direct login when the
     const connect = channelNodes(runtime.render(props)).find(node => node.props["aria-label"] === "Connecter — Instagram")!;
     connect.props.onClick();
     const choices = channelNodes(runtime.render(props)).find(node => node.props.className === "connectChoices")!;
-    const buttons = channelNodes(choices).filter(node => node.type === "button");
-    assert.deepEqual(buttons.map(node => node.props.children[1]), pilot ? ["Connexion directe"] : []);
+    const links = channelNodes(choices).filter(node => node.type === "a");
+    assert.deepEqual(links.map(node => node.props.children[1]), pilot ? ["Connexion directe"] : []);
+    for (const link of links) {
+      assert.equal(link.props.target, "_top");
+      assert.match(link.props.href, /^\/api\/integrations\/instagram-direct\/start\?/);
+      link.props.onClick({ preventDefault() { assert.fail("The direct link must navigate natively"); } });
+    }
     const menu = channelNodes(choices).find(node => node.props.label === "Connexion via Facebook")!;
     assert.ok(menu);
     assert.deepEqual(menu.props.options.map((option: { label: string }) => option.label), ["Connexion classique", "Connexion Business"]);
-    for (const button of buttons) { button.props.onClick(); await Promise.resolve(); await Promise.resolve(); }
-    for (const option of menu.props.options) { menu.props.onChoose(option); await Promise.resolve(); await Promise.resolve(); }
-    assert.deepEqual(calls, pilot ? ["direct", "standard", "business"] : ["standard", "business"]);
+    const menuRuntime = channelRuntime("app/dashboard/_components/ChannelConnectionMenu.tsx");
+    channelNodes(menuRuntime.render(menu.props)).find(node => node.type === "button")!.props.onClick();
+    const menuLinks = channelNodes(menuRuntime.render(menu.props)).filter(node => node.type === "a");
+    assert.deepEqual(menuLinks.map(node => new URL(node.props.href, "https://app.inrcy.test").searchParams.get("mode")), ["standard", "business"]);
+    for (const link of menuLinks) {
+      assert.equal(link.props.target, "_top");
+      link.props.onClick({ preventDefault() { assert.fail("Facebook choices must navigate natively"); } });
+    }
+    assert.deepEqual(calls, [], "Native OAuth links must not invoke a second JavaScript navigation");
   }
 });
 

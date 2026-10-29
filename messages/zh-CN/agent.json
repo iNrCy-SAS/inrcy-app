@@ -880,7 +880,9 @@
     "configureAutomation": "设置自动化",
     "agentButton": "AI 代理",
     "automation": "自动化",
-    "manual": "手动操作"
+    "manual": "手动操作",
+    "activateAutomation": "启用自动化",
+    "deactivateAutomation": "停用自动化"
   },
   "regenerate_media_scope_title": "重新生成媒体",
   "regenerate_media_scope_message": "为所有渠道还是仅为 {channel} 重新生成媒体？文字和日期保持不变。已批准的发布需要重新批准。",
@@ -892,5 +894,11 @@
   "publication_refusal_restored": "发布内容已恢复为待审核。",
   "publication_refusal_restore_failed": "无法撤销拒绝。请检查发布内容是否已更改或日期是否已过。",
   "publication_validation_restore": "撤销审核并重新设为待审核",
-  "publication_review_restore_failed": "无法将发布内容重新设为待审核，请稍后重试。"
+  "publication_review_restore_failed": "无法将发布内容重新设为待审核，请稍后重试。",
+  "automation_enable_confirm_title": "确认当前设置吗？",
+  "automation_enable_confirm_message": "自动化将使用您已保存的设置。",
+  "automation_enable_confirm_yes": "是",
+  "automation_enable_confirm_verify": "检查我的设置",
+  "automation_enabled_notice": "自动化已启用。",
+  "automation_enable_unavailable": "启用自动化前，请检查渠道和设置。"
 }

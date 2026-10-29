@@ -429,7 +429,7 @@ test("les réglages globaux et les automatisations sont enregistrés atomiquemen
   assert.match(migration, /grant execute[\s\S]*?to service_role/);
 });
 
-test("l'activation des réglages reste compacte dans le header", () => {
+test("les réglages restent compacts et l'activation passe par l'accueil de l'agent", () => {
   const client = read("app/dashboard/agent/AgentClient.tsx");
   const styles = read("app/dashboard/agent/agent.module.css");
   const settingsModal = client.slice(
@@ -441,11 +441,8 @@ test("l'activation des réglages reste compacte dans le header", () => {
     settingsModal,
     /<header[\s\S]{0,180}?className=\{styles\.settingsModalHeader\}/
   );
-  assert.match(settingsModal, /className=\{styles\.settingsHeaderSwitch\}/);
-  assert.match(
-    settingsModal,
-    /disabled=\{\s*settingsNoConnectedChannelBlock \|\|\s*settingsPublicationIdeaVoiceBusy\s*\}/
-  );
+  assert.doesNotMatch(settingsModal, /checked=\{settingsConfig\.enabled\}/);
+  assert.match(client, /onToggle=\{[\s\S]*?requestAutomationToggle\(selected\.key\)/);
   assert.match(settingsModal, /className=\{styles\.modalClose\}/);
   assert.doesNotMatch(settingsModal, /className=\{styles\.switchLine\}/);
   assert.match(styles, /\.settingsModalHeaderActions[\s\S]*?display: flex;/);

@@ -880,7 +880,9 @@
     "configureAutomation": "ตั้งค่าระบบอัตโนมัติ",
     "agentButton": "เอเจนต์ AI",
     "automation": "ระบบอัตโนมัติ",
-    "manual": "ดำเนินการเอง"
+    "manual": "ดำเนินการเอง",
+    "activateAutomation": "เปิดใช้งานระบบอัตโนมัติ",
+    "deactivateAutomation": "ปิดใช้งานระบบอัตโนมัติ"
   },
   "regenerate_media_scope_title": "สร้างสื่อใหม่",
   "regenerate_media_scope_message": "สร้างสื่อใหม่สำหรับทุกช่องทางหรือเฉพาะ {channel}? ข้อความและวันที่จะไม่เปลี่ยนแปลง โพสต์ที่อนุมัติแล้วจะต้องได้รับการอนุมัติอีกครั้ง",
@@ -892,5 +894,11 @@
   "publication_refusal_restored": "โพสต์กลับไปรอการอนุมัติแล้ว",
   "publication_refusal_restore_failed": "ไม่สามารถยกเลิกการปฏิเสธได้ โปรดตรวจสอบว่าโพสต์ไม่มีการเปลี่ยนแปลงและยังไม่ถึงกำหนด",
   "publication_validation_restore": "ยกเลิกการอนุมัติและกลับไปรอการตรวจสอบ",
-  "publication_review_restore_failed": "ไม่สามารถเปลี่ยนสิ่งพิมพ์กลับเป็นรอการตรวจสอบได้ โปรดลองอีกครั้งในอีกสักครู่"
+  "publication_review_restore_failed": "ไม่สามารถเปลี่ยนสิ่งพิมพ์กลับเป็นรอการตรวจสอบได้ โปรดลองอีกครั้งในอีกสักครู่",
+  "automation_enable_confirm_title": "ยืนยันการตั้งค่าปัจจุบันหรือไม่?",
+  "automation_enable_confirm_message": "ระบบอัตโนมัติจะใช้การตั้งค่าที่บันทึกไว้",
+  "automation_enable_confirm_yes": "ใช่",
+  "automation_enable_confirm_verify": "ตรวจสอบการตั้งค่าของฉัน",
+  "automation_enabled_notice": "เปิดใช้งานระบบอัตโนมัติแล้ว",
+  "automation_enable_unavailable": "ตรวจสอบช่องทางและการตั้งค่าก่อนเปิดใช้งานระบบอัตโนมัติ"
 }

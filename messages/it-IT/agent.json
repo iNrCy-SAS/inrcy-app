@@ -880,7 +880,9 @@
     "configureAutomation": "Configura automazione",
     "agentButton": "Agente IA",
     "automation": "Automazione",
-    "manual": "Azioni manuali"
+    "manual": "Azioni manuali",
+    "activateAutomation": "Attiva l’automazione",
+    "deactivateAutomation": "Disattiva l’automazione"
   },
   "regenerate_media_scope_title": "Rigenera i media",
   "regenerate_media_scope_message": "Rigenerare i media per tutti i canali o solo per {channel}? Testi e date restano invariati. Una pubblicazione approvata richiederà una nuova approvazione.",
@@ -892,5 +894,11 @@
   "publication_refusal_restored": "Pubblicazione di nuovo in attesa di convalida.",
   "publication_refusal_restore_failed": "Impossibile annullare il rifiuto. Verifica che la pubblicazione non sia cambiata e che la data non sia passata.",
   "publication_validation_restore": "Annulla la convalida e rimetti in attesa",
-  "publication_review_restore_failed": "Impossibile rimettere la pubblicazione in attesa. Riprova tra poco."
+  "publication_review_restore_failed": "Impossibile rimettere la pubblicazione in attesa. Riprova tra poco.",
+  "automation_enable_confirm_title": "Confermi le impostazioni attuali?",
+  "automation_enable_confirm_message": "L’automazione utilizzerà le impostazioni salvate.",
+  "automation_enable_confirm_yes": "Sì",
+  "automation_enable_confirm_verify": "Verifica le mie impostazioni",
+  "automation_enabled_notice": "Automazione attivata.",
+  "automation_enable_unavailable": "Verifica i canali e le impostazioni prima di attivare l’automazione."
 }

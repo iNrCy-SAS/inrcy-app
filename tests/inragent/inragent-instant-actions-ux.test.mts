@@ -86,12 +86,12 @@ test("enregistrer ferme les réglages uniquement après une sauvegarde réussie,
   const runStart = controller.indexOf("async function runAutomationNow", saveStart);
   assert.ok(saveStart >= 0 && runStart > saveStart);
   const saveFlow = ts.transpileModule(controller.slice(saveStart, runStart), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  const makeActions = new Function("persistSettings", "setSettingsKey", "showNotice", `${saveFlow}; return { saveSettings, confirmEditorialPlanSettings };`);
+  const makeActions = new Function("persistSettings", "setSettingsKey", "showNotice", "pendingPlanConfigsRef", `${saveFlow}; return { saveSettings, confirmEditorialPlanSettings };`);
   for (const success of [false, true]) {
     let complete: (result: boolean) => void = () => {};
     const calls: unknown[] = [];
     const pending = new Promise<boolean>((resolve) => { complete = resolve; });
-    const actions = makeActions(() => pending, (value: unknown) => calls.push(value), () => {});
+    const actions = makeActions(() => pending, (value: unknown) => calls.push(value), () => {}, { current: null });
     const save = actions.saveSettings();
     assert.equal(calls.length, 0, "le clic ne ferme pas la modale avant la réponse serveur");
     complete(success);

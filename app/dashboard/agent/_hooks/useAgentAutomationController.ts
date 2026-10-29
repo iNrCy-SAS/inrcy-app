@@ -107,6 +107,8 @@ export function useAgentAutomationController({
   const i18nT = useTranslations("agent");
   const runtimeT = i18nT as unknown as AgentTranslator;
   const runningNow = useRef(false);
+  const automationTogglePendingRef = useRef(false);
+  const pendingPlanConfigsRef = useRef<Record<AutomationKey, AutomationConfig> | null>(null);
   const [prepareActionState, setPrepareActionState] =
     useState<PrepareActionState>("idle");
   const [prepareProgress, setPrepareProgress] =
@@ -212,17 +214,20 @@ export function useAgentAutomationController({
     options: {
       showSuccess?: boolean;
       editorialPlanApplyMode?: EditorialPlanApplyMode;
+      configsOverride?: Record<AutomationKey, AutomationConfig>;
     } = {},
   ) {
     const {
       showSuccess = true,
       editorialPlanApplyMode,
+      configsOverride,
     } = options;
+    const requestedConfigs = configsOverride ?? configs;
     const safeConfigs = agentConnectedChannels
-      ? normalizeConfigsForConnectedChannels(configs, agentConnectedChannels)
-      : configs;
+      ? normalizeConfigsForConnectedChannels(requestedConfigs, agentConnectedChannels)
+      : requestedConfigs;
     const nextSettings = configsToSettings(agentSettings, safeConfigs);
-    setConfigs(safeConfigs);
+    if (!configsOverride) setConfigs(safeConfigs);
     setSaveState("saving");
     setNotice(null);
 
@@ -253,6 +258,7 @@ export function useAgentAutomationController({
           payload.impact
         ) {
           setSettingsPlanImpact(payload.impact);
+          pendingPlanConfigsRef.current = configsOverride ?? null;
           setSaveState("idle");
           if (payload.code === "EDITORIAL_PLAN_QUOTA_INSUFFICIENT") {
             showNotice(
@@ -276,6 +282,7 @@ export function useAgentAutomationController({
       });
       await refreshActions(true);
       setSettingsPlanImpact(null);
+      pendingPlanConfigsRef.current = null;
       setSaveState("saved");
       if (showSuccess) showNotice(i18nT("agent_settings_saved"));
       return true;
@@ -290,12 +297,34 @@ export function useAgentAutomationController({
     if (await persistSettings()) setSettingsKey(null);
   }
 
+  async function setAutomationEnabled(key: AutomationKey, enabled: boolean) {
+    if (automationTogglePendingRef.current || saveState === "saving") return false;
+    // Activation uses saved settings, never an unrelated unfinished modal draft.
+    const savedConfigs = settingsToConfigs(agentSettings);
+    const nextConfigs = { ...savedConfigs, [key]: { ...savedConfigs[key], enabled } };
+    const available = agentConnectedChannels ? normalizeConfigsForConnectedChannels(nextConfigs, agentConnectedChannels) : nextConfigs;
+    if (enabled && (key !== "stats" && connectedChannelsLoadState !== "ready" || !available[key].enabled)) {
+      showNotice(i18nT("automation_enable_unavailable"));
+      setSettingsKey(key);
+      return false;
+    }
+    automationTogglePendingRef.current = true;
+    try {
+      const saved = await persistSettings({ configsOverride: nextConfigs, showSuccess: false });
+      if (saved) showNotice(i18nT(enabled ? "automation_enabled_notice" : "automation_disabled_notice"));
+      return saved;
+    } finally {
+      automationTogglePendingRef.current = false;
+    }
+  }
+
   async function confirmEditorialPlanSettings(
     mode: EditorialPlanApplyMode,
   ) {
     const saved = await persistSettings({
       editorialPlanApplyMode: mode,
       showSuccess: false,
+      configsOverride: pendingPlanConfigsRef.current ?? undefined,
     });
     if (!saved) return;
     setSettingsKey(null);
@@ -657,6 +686,7 @@ export function useAgentAutomationController({
     updateConfigScheduleSlot,
     updateConfigMonthDay,
     saveSettings,
+    setAutomationEnabled,
     confirmEditorialPlanSettings,
     testAutomationNow,
     confirmPrepareNowReplacement,

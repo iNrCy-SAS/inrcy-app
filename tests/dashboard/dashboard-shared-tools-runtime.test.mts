@@ -189,14 +189,15 @@ function harness(options: HarnessOptions = {}) {
 const variants = [{ adapter: true, edition: "standard" as const }, { edition: "premium" as const }, { edition: "founder" as const }];
 
 test("Standard, Premium and Founder render the same signature cards, hierarchy and shared CSS", () => {
-  const expected = ["boosterCard", "statsCard", "sendCard", "studioCard", "reputationCard", "adsCard", "campaignCard", "calendarCard", "crmCard"];
+  const expected = ["boosterCard", "statsCard", "sendCard", "studioCard", "adsCard", "campaignCard", "calendarCard", "crmCard"];
   for (const variant of variants) {
     const { tree, html } = harness(variant).render();
     const cards = elements(tree).flatMap((node) => expected.filter((name) => hasClass(node, name)));
     assert.deepEqual(cards, expected);
     assert.equal(elements(tree).filter((node) => hasClass(node, "signatureGrid")).length, 2);
     const toolsGrid = find(tree, (node) => node.props["data-dashboard-relationship-tools"] === "true");
-    assert.deepEqual(elements(toolsGrid).filter((node) => node.type === "article").map((node) => expected.find((name) => hasClass(node, name))), ["statsCard", "sendCard", "studioCard", "reputationCard"]);
+    assert.deepEqual(elements(toolsGrid).filter((node) => node.type === "article").map((node) => expected.find((name) => hasClass(node, name))), ["statsCard", "sendCard", "studioCard"]);
+    assert.equal(elements(tree).some(node => hasClass(node, "reputationCard")), false);
     const premiumGrid = find(tree, (node) => node.props["data-dashboard-premium-tools"] === "true");
     assert.deepEqual(elements(premiumGrid).filter((node) => node.type === "article").map((node) => expected.find((name) => hasClass(node, name))), ["adsCard", "campaignCard", "calendarCard", "crmCard"]);
     assert.equal(elements(premiumGrid).filter((node) => hasClass(node, "boosterCard")).length, 0);
@@ -419,9 +420,9 @@ test("both editions preserve Booster publish, distinct Bilan and Stats callbacks
   }
 });
 
-test("Studio, Agent and Reputation keep their existing accessible routes in every edition", () => {
+test("Studio keeps its accessible route while Google reviews leave the dashboard cards in every edition", () => {
   for (const variant of variants) {
-    for (const [name, path] of [["studioCard", "/dashboard/generer-media"], ["reputationCard", "/dashboard/e-reputation"]]) {
+    for (const [name, path] of [["studioCard", "/dashboard/generer-media"]]) {
       const view = harness(variant);
       click(action(view.render().tree, name));
       assert.deepEqual(view.calls.routes, [path]);

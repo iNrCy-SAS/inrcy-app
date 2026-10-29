@@ -169,9 +169,9 @@ export default function AgentFeedbackModals({
               </div>
             ) : (
             <div className={styles.modalActionButtonRow}>
-              <button type="button" className={styles.modalActionSecondaryButton} onClick={onCloseConfirm}>
+              {!confirmDialog.hideCancel ? <button type="button" className={styles.modalActionSecondaryButton} onClick={onCloseConfirm}>
                 {confirmDialog.cancelLabel || i18nT("annuler_49ba3292")}
-              </button>
+              </button> : null}
               {confirmDialog.onAlternate && confirmDialog.alternateLabel ? (
                 <button
                   type="button"
