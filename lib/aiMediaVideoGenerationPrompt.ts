@@ -1,5 +1,6 @@
 import { AI_MEDIA_FORMAT_SPECS } from "@/lib/aiMediaGenerationContracts";
 import { getAiLanguageLabel } from "@/lib/aiWritingProfile";
+import { buildAiContentLocationInstruction } from "./aiContentLocation.ts";
 import {
   AI_MEDIA_COMPILED_PROMPT_MAX_CHARS,
   AI_MEDIA_PROMPT_VERSION,
@@ -133,7 +134,7 @@ function buildCompactVideoTextContract(args: AiMediaPromptBuilderArgs) {
   if (textMode === "exact") {
     const exactText = cleanAiMediaPromptStructuredText(request.exactText, 600);
     return [
-      `TEXTE EXACT VALIDÉ (${language}) pour l’habillage local iNrCy : « ${exactText} ». Conserver chaque caractère ; aucune reformulation, traduction, correction, addition ni omission.`,
+      `TEXTE EXACT VALIDÉ (${language}) pour l’habillage local : « ${exactText} ». Conserver chaque caractère ; aucune reformulation, traduction, correction, addition ni omission.`,
       "Moteur visuel : aucun mot, lettre, chiffre, enseigne, CTA, interface ni pseudo-texte ; réserver une zone calme stable loin du sujet.",
     ].join("\n");
   }
@@ -144,7 +145,7 @@ function buildCompactVideoTextContract(args: AiMediaPromptBuilderArgs) {
       .filter(Boolean)
       .join(", ");
     return [
-      `TEXTE IA VALIDÉ (${language}) pour l’habillage local iNrCy : « ${headline} ». Conserver cette accroche sans ajout${
+      `TEXTE IA VALIDÉ (${language}) pour l’habillage local : « ${headline} ». Conserver cette accroche sans ajout${
         keywords ? ` ; mots-clés imposés : ${keywords}` : ""
       }.`,
       "Le moteur visuel ne dessine aucun texte, chiffre, enseigne, interface ni pseudo-texte ; réserver une zone calme stable.",
@@ -168,8 +169,8 @@ function assembleBudgetedVideoPrompt(args: {
   dna: string;
   history: string;
 }) {
-  const dnaMarker = "[… contexte ADN compacté automatiquement par iNrCy …]";
-  const historyMarker = "[… historique compacté automatiquement par iNrCy …]";
+  const dnaMarker = "[… contexte ADN compacté automatiquement …]";
+  const historyMarker = "[… historique compacté automatiquement …]";
   const render = (dna: string, history: string) =>
     [
       ...args.requiredSections,
@@ -241,7 +242,7 @@ export function buildAiMediaVideoGenerationPrompt(
       : "",
     "MODULE TEXTE VISIBLE :",
     buildAiMediaVideoTextContract(args),
-    `LOGO STRUCTURÉ — ${request.logoMode} : ne produire aucun logo ni pseudo-logo dans les plans ; iNrCy appliquera ensuite le logo officiel ${
+    `LOGO STRUCTURÉ — ${request.logoMode} : ne produire aucun logo ni pseudo-logo dans les plans ; le logo officiel sera ajouté ensuite ${
       request.logoMode === "none"
         ? "— aucun logo ne sera ajouté"
         : request.logoMode === "visible"
@@ -255,6 +256,7 @@ export function buildAiMediaVideoGenerationPrompt(
     "MODULE AUDIO ET PAROLE :",
     buildAiMediaVideoAudioContract(args),
     "ADN PROFESSIONNEL AUTORISÉ — utiliser uniquement les éléments pertinents pour le sujet, sans afficher ni recopier ce bloc :",
+    request.subjectSource === "custom" ? "" : buildAiContentLocationInstruction(profile),
     buildAiMediaPromptBusinessDna(profile, request),
     "HISTORIQUE RÉCENT À NE PAS COPIER (éviter les répétitions visuelles, narratives et lexicales) :",
     buildAiMediaPromptHistory(args.recentPublications || []),
@@ -262,7 +264,7 @@ export function buildAiMediaVideoGenerationPrompt(
     "RÈGLES IMPÉRATIVES VIDÉO :",
     "Les paramètres techniques, la durée, les rôles des références et les couleurs sont des instructions de réalisation, jamais des éléments à afficher. Aucun nuancier, échantillon de couleur, code hexadécimal, légende technique ou planche de style ajouté au résultat. Ne pas recopier les annotations techniques autour du sujet des références.",
     buildAiMediaPromptSafetyRules(),
-    "COMPOSITION EXACTE PRISE EN CHARGE PAR iNrCy APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : produire des plans sans texte, chiffre, téléphone, coordonnées ni logo, sans enseigne ni interface lisible ; iNrCy appliquera ensuite uniquement l’habillage validé sans le transmettre au moteur visuel.",
+    "COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : produire des plans sans texte, chiffre, téléphone, coordonnées ni logo, sans enseigne ni interface lisible ; seul l’habillage validé sera ajouté ensuite sans le transmettre au moteur visuel.",
     "CONTRÔLE FINAL VIDÉO — vérifier silencieusement : sujet reconnaissable dès le début ; consigne exécutée ; mode de composition respecté ; chaque critère explicite appliqué sans contrainte inventée ; durée et structure respectées ; identités, produit et décor continus ; références required fidèles sans fallback ; inspirations non copiées ; originalité des aspects laissés libres ; texte conforme au mode sans slogan générique ; mouvements crédibles ; aucun texte ou logo dessiné par le moteur. Produire uniquement la vidéo finale.",
   ]
     .filter(Boolean)
@@ -304,7 +306,7 @@ export function buildAiMediaVideoGenerationPrompt(
     "MOUVEMENT : action crédible, gestes complets, caméra intentionnelle ; aucun morphing, membre incohérent, objet instable ni transition gratuite.",
     "TEXTE VISIBLE :",
     buildCompactVideoTextContract(args),
-    `LOGO — ${request.logoMode} : aucun logo ni pseudo-logo dessiné par le moteur ; iNrCy appliquera localement le logo officiel selon ce mode.`,
+    `LOGO — ${request.logoMode} : aucun logo ni pseudo-logo dessiné par le moteur ; le logo officiel sera ajouté localement selon ce mode.`,
     buildAiMediaVideoPaletteContract(args),
     buildCompactVideoIdentityContract(args),
     "AUDIO ET PAROLE :",
@@ -312,7 +314,7 @@ export function buildAiMediaVideoGenerationPrompt(
     "ANTI-RÉPÉTITION — renouveler uniquement ouverture, rythme, point de vue, lumière et mise en scène laissés libres ; conserver le sujet, le scénario, les identités, objets, lieux, actions, textes exacts et références imposés. Ne réutiliser aucune succession de plans ni structure récente, sauf scénario explicitement imposé.",
     "RÈGLES TECHNIQUES — durée, paramètres, rôles et couleurs sont des instructions, jamais des éléments à afficher. Aucun nuancier, échantillon de couleur, code hexadécimal, légende technique ou planche de style ajouté au résultat. Ne pas recopier les annotations techniques autour du sujet des références.",
     buildAiMediaPromptSafetyRules(),
-    "COMPOSITION EXACTE PRISE EN CHARGE PAR iNrCy APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : plans sans texte, chiffre, téléphone, coordonnée, logo, enseigne ni interface lisible ; iNrCy ajoutera uniquement l’habillage validé.",
+    "COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : plans sans texte, chiffre, téléphone, coordonnée, logo, enseigne ni interface lisible ; seul l’habillage validé sera ajouté.",
     "CONTRÔLE FINAL VIDÉO — sujet, consigne, mode, durée, scènes, format, texte, audio, identité, palette, logo et références conformes ; inspirations non copiées ; mouvements crédibles ; uniquement la vidéo finale.",
   ]
     .filter(Boolean)

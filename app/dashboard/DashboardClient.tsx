@@ -70,6 +70,8 @@ import type { ActusFont, GoogleProduct, GoogleSource} from "./dashboard.types";
 import { normalizeActusAccent, normalizeActusDesign, normalizeActusLayout, normalizeActusTheme } from "./dashboard.types";
 import { DASHBOARD_CHANNEL_KEYS, type DashboardChannelKey } from "@/lib/dashboardChannels";
 import { buildFluxBubbleItems } from "./dashboard.flux-bubbles";
+import { normalizeNativeChannelStates, type NativeChannelSnapshot } from "./_components/native-channel-state";
+import type { NativeChannelStates } from "@/lib/nativeChannelActivation";
 import { collapseDashboardWebsiteChannels, getChannelTone } from "./_components/dashboard-channel-presentation";
 import {
   getDashboardChannelPowerSetup,
@@ -116,7 +118,6 @@ import {
   readCachedBubbleAccessMap,
   readCachedDashboardBoolean,
   readCachedDashboardChannelState,
-  readCachedDashboardOptionalBoolean,
   readCachedDashboardString,
   readCachedGeneratorIsActive,
   readCachedGeneratorPowerPercent,
@@ -297,11 +298,7 @@ export default function DashboardClient({
       : null
   ));
   const [inrBadgeProfile, setInrBadgeProfile] = useState<InrBadgeProfileSummary>(() => readCachedInrBadgeProfile());
-  const [lastKnownInrBadgeProfileReady, setLastKnownInrBadgeProfileReady] = useState<boolean | null>(
-    () => typeof initialDashboardChannelState?.inrBadgeProfileReady === "boolean"
-      ? initialDashboardChannelState.inrBadgeProfileReady
-      : readCachedDashboardOptionalBoolean("inrBadgeProfileReady"),
-  );
+  const [nativeChannelStates, setNativeChannelStates] = useState<NativeChannelStates | null>(() => normalizeNativeChannelStates(initialDashboardChannelState?.nativeChannels));
   const [displayedGeneratorPower, setDisplayedGeneratorPower] = useState<number | null>(
     () => readCachedGeneratorPowerPercent(initialBrowserCacheAccountId)
       ?? readCachedGeneratorPowerSnapshot(initialBrowserCacheAccountId)?.power
@@ -1168,9 +1165,7 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
   if (state.inrBadgeProfile && typeof state.inrBadgeProfile === "object") {
     setInrBadgeProfile(sanitizeCachedInrBadgeProfile(state.inrBadgeProfile));
   }
-  if (typeof state.inrBadgeProfileReady === "boolean") {
-    setLastKnownInrBadgeProfileReady(state.inrBadgeProfileReady);
-  }
+  if (Object.prototype.hasOwnProperty.call(state, "nativeChannels")) setNativeChannelStates(normalizeNativeChannelStates(state.nativeChannels));
 
   setSiteWebSettingsError(null);
   if (options?.markReady) setSiteConnectionsReady(true);
@@ -1242,6 +1237,23 @@ const refreshOfficialChannelStates = useCallback(async () => {
   }
 }, [applyOfficialChannelStates]);
 
+useEffect(() => {
+  const handleNativeUpdate = (event: Event) => {
+    const detail = (event as CustomEvent<NativeChannelSnapshot>).detail;
+    if (!detail || detail.accountId !== getActiveBrowserUserId()) return;
+    const nativeChannels = normalizeNativeChannelStates(detail.states);
+    if (!nativeChannels) return;
+    const patch = { nativeChannels, inrBadgeProfileReady: nativeChannels.inrbadge.published, inrSearchConnected: nativeChannels.inr_search.published, inrSearchDirectoryEnabled: nativeChannels.inr_directory.published,
+      inrSearchUrl: nativeChannels.inr_search.published && detail.searchSlug ? `${window.location.origin}/entreprises/${encodeURIComponent(detail.searchSlug)}` : "" };
+    applyDashboardChannelState(patch);
+    mergeCachedDashboardChannelState(patch);
+    confirmedChannelStateRef.current = { ...(confirmedChannelStateRef.current ?? {}), ...patch };
+    confirmedChannelAccountRef.current = detail.accountId;
+  };
+  window.addEventListener("inrcy:native-channels-settings-updated", handleNativeUpdate);
+  return () => window.removeEventListener("inrcy:native-channels-settings-updated", handleNativeUpdate);
+}, [applyDashboardChannelState]);
+
 const resetAccountScopedDashboardState = useCallback(() => {
   applyDashboardChannelState({
 
@@ -1301,6 +1313,7 @@ const resetAccountScopedDashboardState = useCallback(() => {
   setInrSearchConnected(null);
   setInrSearchUrl("");
   setInrSearchDirectoryEnabled(null);
+  setNativeChannelStates(null);
   setDisplayedSiteBubbleProgress({});
   setChannelBlocks(createEmptyChannelBlocks());
 }, [applyDashboardChannelState]);
@@ -1674,6 +1687,7 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
         ? confirmedChannelStateRef.current
         : null;
       const hydrationState = mergeDashboardHydrationState(cachedChannelState, scopedInitialServerState);
+      setNativeChannelStates(normalizeNativeChannelStates(hydrationState?.nativeChannels));
       const hasDisplaySnapshot = hasCompleteOfficialDashboardChannelState(hydrationState);
       canonicalChannelStatesReadyRef.current = Boolean(scopedInitialServerState);
       setOfficialChannelStatesReady(hasDisplaySnapshot);
@@ -2044,10 +2058,8 @@ const hasSiteWebUrl = !!savedSiteWebUrlMeta;
 
 const canConnectSiteWebGoogle = hasSiteWebUrl;
 
-const inrBadgeProfileCheckReady = profileCheckReady || lastKnownInrBadgeProfileReady !== null;
-const inrBadgeProfileReady = profileCheckReady
-  ? !profileIncomplete
-  : lastKnownInrBadgeProfileReady === true;
+const inrBadgeProfileCheckReady = nativeChannelStates !== null;
+const inrBadgeProfileReady = nativeChannelStates?.inrbadge.published === true;
 
 const siteWebProgressCount = (hasSiteWebUrl ? 1 : 0) + (hasSiteWebUrl && siteWebGa4Connected ? 1 : 0) + (hasSiteWebUrl && siteWebGscConnected ? 1 : 0);
 
@@ -2058,10 +2070,10 @@ const siteWebAllGreen = siteWebProgressCount === 3;
 // reste enregistrée après un retour au pack Standard.
 const channelPowerConnected: Record<DashboardSetupChannelKey, boolean> = {
   inrbadge: inrBadgeProfileReady,
-  inr_directory: Boolean(inrSearchDirectoryEnabled),
+  inr_directory: nativeChannelStates?.inr_directory.published === true,
   site_web: hasSiteWebUrl,
   gmb: Boolean(gmbConnected && gmbConnectionStatus !== "needs_update"),
-  inr_search: Boolean(canAccessInrSearch && inrSearchConnected),
+  inr_search: Boolean(canAccessInrSearch && nativeChannelStates?.inr_search.published),
   facebook: Boolean(facebookPageConnected && facebookConnectionStatus !== "needs_update"),
   instagram: Boolean(instagramConnected && instagramConnectionStatus !== "needs_update"),
   threads: Boolean(metaPilotEnabled && threadsConnected && threadsConnectionStatus !== "needs_update"),
@@ -3789,6 +3801,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       mailAccountsRequireUpdate,
       inrBadgeProfile,
       inrBadgeProfileReady,
+      nativeChannels: nativeChannelStates,
 
       siteWebGa4Connected,
       siteWebGscConnected,
@@ -3799,23 +3812,13 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     writeCachedDashboardChannelState(state);
   });
 
-  useEffect(() => {
-    if (!profileCheckReady) return;
-
-    // La réponse Supabase devient la nouvelle valeur autoritative. Elle est
-    // mémorisée par établissement pour que le prochain affichage commence
-    // directement dans le dernier état connu, sans flash "Synchronisation…".
-    const nextReady = !profileIncomplete;
-    setLastKnownInrBadgeProfileReady(nextReady);
-    mergeCachedDashboardChannelState({ inrBadgeProfileReady: nextReady });
-  }, [profileCheckReady, profileIncomplete]);
-
   const inrBadgePublicUrl = useMemo(() => {
     if (!inrBadgeProfileReady) return "";
     return createInrBadgePublicUrl(inrBadgeProfile);
   }, [inrBadgeProfile, inrBadgeProfileReady]);
 
   const fluxBubbleItems = useMemo(() => buildFluxBubbleItems({
+    nativeChannelStates,
     bubbleAccessMap,
     standardMode: isStandardEdition,
     metaPilotEnabled, threadsConnected, threadsConnectionStatus, threadsUrl,
@@ -3866,6 +3869,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     siteWebSavedUrl,
     copy: dashboardCopy,
   }), [
+    nativeChannelStates,
     bubbleAccessMap,
     bubbleAccessReady,
     metaPilotEnabled, threadsConnected, threadsConnectionStatus, threadsUrl,
@@ -4208,7 +4212,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         channelsOpen={channelConnectionsOpen || isChannelSettingsPanel(panel)}
         onCloseChannels={closeChannelConnections}
         initialSelectedKey={isChannelSettingsPanel(panel) ? panel : undefined}
-        renderSelected={item => <DashboardChannelWorkspace key={completionAccountId + ":" + item.key} item={item} siteWebPanelProps={siteWebPanelProps} gmbPanelProps={gmbPanelProps} facebookPanelProps={facebookPanelProps} instagramPanelProps={instagramPanelProps} linkedinPanelProps={linkedinPanelProps} tiktokPanelProps={tiktokPanelProps} threadsChannel={threadsChannel} inrBadgeSettingsProps={inrBadgeSettingsProps} inrSearchConnected={inrSearchConnected} inrSearchUrl={inrSearchUrl} inrSearchDirectoryEnabled={inrSearchDirectoryEnabled} />}
+        renderSelected={item => <DashboardChannelWorkspace key={completionAccountId + ":" + item.key} item={item} siteWebPanelProps={siteWebPanelProps} gmbPanelProps={gmbPanelProps} facebookPanelProps={facebookPanelProps} instagramPanelProps={instagramPanelProps} linkedinPanelProps={linkedinPanelProps} tiktokPanelProps={tiktokPanelProps} threadsChannel={threadsChannel} inrBadgeSettingsProps={inrBadgeSettingsProps} inrSearchConnected={inrSearchConnected} inrSearchUrl={inrSearchUrl} inrSearchDirectoryEnabled={inrSearchDirectoryEnabled} nativeChannelStates={nativeChannelStates} />}
         goToModule={goToModule}
         openPanel={openPanel}
         onOpenChannelsHelp={() => setHelpCanauxOpen(true)}

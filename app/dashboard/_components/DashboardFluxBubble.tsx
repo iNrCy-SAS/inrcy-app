@@ -62,9 +62,9 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
     finally { actionRef.current = false; if (mounted.current) setPending(false); }
   };
   const viewLabel = item.specialViewLabel || item.viewAction?.label || t("view");
-  const viewHref = item.specialViewHref || item.viewAction?.href;
+  const viewHref = connection?.publicView?.href || item.specialViewHref || item.viewAction?.href;
   const viewCallback = item.onSpecialView || item.viewAction?.onClick;
-  const canView = item.canViewSpecial ?? Boolean(viewCallback || (viewHref && viewHref !== "#"));
+  const canView = connection?.publicView ? true : item.canViewSpecial ?? Boolean(viewCallback || (viewHref && viewHref !== "#"));
   const connectLabel = connection?.connectLabel || (item.bubbleStatus === "reconnect" || connection?.accountConnected ? t("reconnect") : t("connect"));
   const disconnectLabel = connection?.disconnectLabel || t("disconnect");
   const selectionCaption = t(item.key === "gmb" ? "selected" : item.key === "facebook" ? "selectedPage" : item.key === "pinterest" ? "selectedBoard" : item.key === "mails" ? "selectedMailbox" : "selectedAccount");
@@ -124,7 +124,7 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
             </div>{connection?.onCreateResource ? <ChannelBoardCreator onCreate={connection.onCreateResource} disabled={Boolean(busy || disabled || (connection.loading && !connection.accountConnected))} /> : null}</div>}
           </div>}
           <div className={bubbleStyles.iconActions}>
-            {canView ? viewCallback ? <button type="button" className={bubbleStyles.iconAction} title={viewLabel} aria-label={viewLabel} onClick={viewCallback}><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></button> : <a className={bubbleStyles.iconAction} href={viewHref} aria-label={viewLabel} title={viewLabel} target={/^https?:/.test(viewHref || "") ? "_blank" : undefined} rel="noreferrer"><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></a> : null}
+            {canView ? connection?.publicView?.disabled ? <button type="button" className={bubbleStyles.iconAction} title={viewLabel} aria-label={viewLabel} disabled><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></button> : viewCallback ? <button type="button" className={bubbleStyles.iconAction} title={viewLabel} aria-label={viewLabel} onClick={viewCallback}><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></button> : <a className={bubbleStyles.iconAction} href={viewHref} aria-label={viewLabel} title={viewLabel} target={/^https?:/.test(viewHref || "") ? "_blank" : undefined} rel="noreferrer"><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></a> : null}
             {showDisconnect ? <button type="button" className={`${bubbleStyles.iconAction} ${bubbleStyles.disconnectIcon}`} aria-label={`${disconnectLabel} — ${connection?.accountLabel || connection?.resourceLabel || item.name}`} title={disconnectLabel} disabled={Boolean(busy || disabled)} aria-busy={Boolean(busy)} onClick={() => void run(disconnect)}><ChannelBubbleIcon kind="disconnect" /><span className={bubbleStyles.actionText} aria-hidden="true">{disconnectLabel}</span></button> : null}
             {connection?.publicationTypes && hasResource ? <ChannelPublicationTypes name={item.name} settings={connection.publicationTypes} disabled={Boolean(disabled || busy)} /> : null}
             {connection?.extraActions}
@@ -135,6 +135,7 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
         </>}
       </div>
     </article>
+    {connection?.afterContent}
     {feedback ? <div data-channel-feedback="error" className={`${bubbleStyles.channelFeedback} ${bubbleStyles.channelFeedbackError}`} role="alert">
       <svg className={bubbleStyles.channelFeedbackIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v6m0 3v1" /></svg>
       <p>{feedback}</p>

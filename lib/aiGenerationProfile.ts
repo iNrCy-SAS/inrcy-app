@@ -16,6 +16,11 @@ import {
 } from "@/lib/aiContentLength";
 import { normalizeAiMemory, type AiMemory } from "@/lib/aiMemory";
 import { decodeAiInstructionSections } from "@/lib/aiInstructionSections";
+export {
+  resolveAiContentLocation,
+  buildAiContentLocationInstruction,
+  buildAiContentLocationPromptPayload,
+} from "./aiContentLocation.ts";
 import {
   resolveProfessionalCompanyNameFromProfile,
   sanitizeProfessionalIdentityText,

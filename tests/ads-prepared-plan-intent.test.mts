@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import * as prepared from "../lib/adsPreparedPlanIntent.ts";
+import * as contentLocation from "../lib/aiContentLocation.ts";
 import { defaultPreparedDeliverySettings, plannedNativeCalendar } from "../lib/adsPreparedCampaignSettings.ts";
 import { normalizeAdsCampaignPlan, isReviewableAdsCampaignPlan, adsCampaignPlanValidationIssueCodes } from "../lib/adsCampaignPlan.ts";
 import { parseAdsCampaignInput, isAdsChannelId, isAdsDraftAccountChannel } from "../lib/adsValidation.ts";
@@ -166,6 +167,7 @@ test("successful real plan route preserves prepared totals, dates, geography and
       "@/lib/aiGatewayPolicy": { createAiOperationBudget: () => ({}) },
       "@/lib/aiGenerationProfile": { buildNormalizedAiGenerationProfile: () => ({ business: { interventionZones: context.locations, city: "Lille", services: context.services, customerTypologies: ["Entreprises locales"], strengths: [] }, preferences: {} }) },
       "@/lib/aiMemory": { EMPTY_AI_MEMORY: memory, normalizeAiMemory: () => memory }, "@/lib/professionalBusinessIdentity": { resolveProfessionalCompanyNameFromProfile: () => context.companyName },
+      "@/lib/aiContentLocation": contentLocation,
       "@/lib/supabaseAdmin": { supabaseAdmin: database }, "@/lib/channelConnectionState": { getChannelConnectionStates: async () => null },
     });
     const exports = {} as { POST(request: Request): Promise<Response> };

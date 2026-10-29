@@ -77,7 +77,7 @@ test("completion remains informational but does not trigger the once-only introd
   assert.match(hook, /informational \(onboarding and profile-dependent previews\), never an access gate/);
   assert.doesNotMatch(dashboard, /useDashboardSetupAlert|openInitialChannelConnections/);
   assert.match(read("app/api/dashboard/setup-intro/route.ts"), /\.is\("dashboard_setup_intro_seen_at", null\)/);
-  assert.match(dashboard, /const inrBadgeProfileReady = profileCheckReady/);
+  assert.match(dashboard, /const inrBadgeProfileReady = nativeChannelStates\?\.inrbadge\.published === true/);
   assert.match(dashboard, /createInrBadgePublicUrl\(inrBadgeProfile\)/);
 });
 

@@ -70,7 +70,7 @@ function fixture(extra: Props = {}) {
     quota: { accountId: "account-a", creditsReady: true, credits: { remaining: 697 }, videoMaxDurationSeconds: 30 } as { accountId: string; creditsReady: boolean; credits: { remaining: number }; videoMaxDurationSeconds: number } | null,
     quotaLoading: false,
     canRecover: false, recoveryContext: null, result: null,
-    busy: false, progress: 0, loadQuota() {}, reset() {},
+    busy: false, progress: 0, error: "", loadQuota() {}, reset() {},
     generate() { generations++; assert.fail("Editing or inserting a prompt cannot generate media"); },
   };
   const hookModule = { __esModule: true, default: () => hookState, async discardMediaGenerationDraft(mediaId: string, scope: { accountId: string | null; kind: string; isCurrent: () => boolean }) { discards.push({ mediaId, scope }); return discardHandler(); }, MediaGenerationAccountChangedError: Error, MediaGenerationCancelledError: Error };
@@ -108,7 +108,7 @@ function fixture(extra: Props = {}) {
   freeModules.set("./MediaEngineCreditControls", { __esModule: true, default: "engines", isMediaVideoReferenceCompatible: () => true, MediaCreditQuoteSummary: "new-quote", MediaRecoveredCreditSummary: "recorded-cost", MediaGenerationActions: "actions" });
   const panels: ReturnType<typeof runtime>[] = [];
   return {
-    modal, props, hookState, discards,
+    modal, props, hookState, quote, discards,
     setDiscardHandler(handler: () => Promise<boolean>) { discardHandler = handler; },
     render(overrides: Props = {}) { return modal.render({ ...props, ...overrides }); },
     panel(tree: unknown) { return find(find(tree, node => node.type === "activity" && node.props.mode === "visible"), node => node.type === "./MediaFreeGenerator"); },
@@ -129,6 +129,43 @@ function ready(f: ReturnType<typeof fixture>) {
   (f.panel(tree).props.onPendingRecoveryChange as (pending: boolean) => void)(false);
   return f.render();
 }
+
+test("zero and insufficient Studio balances stay in credit controls without unsolicited bottom errors", () => {
+  for (const mediaType of ["image", "video"] as const) {
+    for (const remaining of [0, 2]) {
+      const f = fixture({ initialFreePrompt: "Une création pour mon entreprise", initialMediaType: mediaType });
+      assert.ok(f.hookState.quota);
+      f.hookState.quota.credits.remaining = remaining;
+      f.quote.insufficient = true;
+      f.quote.ready = false;
+      const panel = f.createPanel();
+      const props = f.panel(f.render()).props;
+      let tree = panel.render(props);
+      assert.doesNotMatch(text(tree), /ai_generator_quota_reached|ai_generator_video_credit_insufficient/);
+      const balance = find(tree, (node) => node.type === "./MediaQuotaSummary");
+      assert.equal((balance.props.counter as { remaining: number }).remaining, remaining);
+      assert.equal(balance.props.creditsReady, true);
+      assert.equal(find(tree, (node) => node.type === "new-quote").props.status, f.quote);
+      const primary = find(tree, (node) => node.props["data-media-primary-action"] !== undefined);
+      assert.equal(primary.props.disabled, true, "hiding a balance banner must never authorize generation");
+      click(primary);
+      assert.equal(f.generations, 0);
+
+      f.hookState.error = "Une erreur serveur doit rester visible";
+      tree = panel.render(props);
+      assert.equal(find(tree, (node) => node.type === "preview").props.error, f.hookState.error);
+
+      f.hookState.quota.credits.remaining = 697;
+      f.hookState.error = "";
+      f.quote.insufficient = false;
+      f.quote.ready = true;
+      tree = panel.render(props);
+      assert.equal(find(tree, (node) => node.props["data-media-primary-action"] !== undefined).props.disabled, false, "a funded confirmed quote keeps the existing generation action available");
+      assert.equal(f.generations, 0);
+      f.dispose();
+    }
+  }
+});
 
 test("a shared generation brief follows Image/Video Activities and dictation while their criteria stay separate", () => {
   const f = fixture({ initialFreePrompt: "Brief de départ", initialMediaType: "image" });

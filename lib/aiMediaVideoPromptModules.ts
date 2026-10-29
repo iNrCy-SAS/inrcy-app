@@ -232,14 +232,14 @@ export function buildAiMediaVideoTextContract(args: AiMediaPromptBuilderArgs) {
 
   if (textMode === "exact" && exactVisibleText) {
     return [
-      `TEXTE EXACT — LANGUE ${targetLanguage} : iNrCy superposera localement et exclusivement « ${exactVisibleText} », sans reformulation, traduction, correction, ajout ni omission.`,
+      `TEXTE EXACT — LANGUE ${targetLanguage} : superposer localement et exclusivement « ${exactVisibleText} », sans reformulation, traduction, correction, ajout ni omission.`,
       "Aucun autre titre, slogan, sous-titre, enseigne, légende, CTA, interface, lettre ou chiffre ne doit apparaître.",
       "Le moteur visuel ne dessine aucun texte dans aucun plan ; réserver une zone calme et stable pour le seul habillage exact, loin des visages, du produit et de l’action.",
     ].join("\n");
   }
   if (textMode === "ai" && aiVisibleHeadline) {
     return [
-      `LANGUE DU TEXTE VISIBLE — RÈGLE ABSOLUE : l’habillage local est exclusivement en ${targetLanguage}. TEXTE IA CONTEXTUALISÉ : iNrCy superposera localement et exclusivement l’accroche validée « ${aiVisibleHeadline} ».`,
+      `LANGUE DU TEXTE VISIBLE — RÈGLE ABSOLUE : l’habillage local est exclusivement en ${targetLanguage}. TEXTE IA CONTEXTUALISÉ : superposer localement et exclusivement l’accroche validée « ${aiVisibleHeadline} ».`,
       "Cette accroche doit provenir des faits et du sujet actuels, employer un vocabulaire concret, différer de l’historique récent des accroches et ne reprendre aucune structure récente.",
       `Clichés interdits, notamment : ${AI_MEDIA_GENERIC_HEADLINE_BLACKLIST}.`,
       request.textKeywords.length
@@ -266,7 +266,7 @@ export function buildAiMediaVideoAudioContract(args: AiMediaPromptBuilderArgs) {
   }
   return [
     request.withNarration
-      ? `NARRATION : garder les personnages silencieux et construire des plans laissant respirer la voix off préparée séparément par iNrCy. Voix choisie : ${
+      ? `NARRATION : garder les personnages silencieux et construire des plans laissant respirer la voix off préparée séparément. Voix choisie : ${
           request.narrationVoice === "male" ? "homme" : "femme"
         }${
           request.narrationVoiceVariant

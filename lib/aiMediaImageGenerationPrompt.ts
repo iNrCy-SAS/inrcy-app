@@ -1,6 +1,7 @@
 import { describeAiMediaBrandColors } from "@/lib/aiMediaColorDirection";
 import { AI_MEDIA_FORMAT_SPECS } from "@/lib/aiMediaGenerationContracts";
 import { getAiLanguageLabel } from "@/lib/aiWritingProfile";
+import { buildAiContentLocationInstruction } from "./aiContentLocation.ts";
 import {
   AI_MEDIA_COMPILED_PROMPT_MAX_CHARS,
   AI_MEDIA_PROMPT_VERSION,
@@ -96,7 +97,7 @@ function buildImagePurposeContract(args: AiMediaPromptBuilderArgs) {
         ? "RENDU AFFICHE GRAPHIQUE AUTORITAIRE : formes, aplats, cartes, séparateurs et typographie structurent le visuel ; la photographie éventuelle reste secondaire."
         : "Le rendu choisi complète cette architecture commerciale sans la remplacer.",
       args.deferVisibleElementsToComposer
-        ? "Le fournisseur livre uniquement un arrière-plan commercial propre, sans texte, sans lettre, sans chiffre, sans carte tarifaire, sans tableau, sans bouton et sans panneau vide. iNrCy construit ensuite la grille complète du flyer avec les mots et chiffres exacts."
+        ? "Le fournisseur livre uniquement un arrière-plan commercial propre, sans texte, sans lettre, sans chiffre, sans carte tarifaire, sans tableau, sans bouton et sans panneau vide. La grille complète du flyer sera ensuite composée avec les mots et chiffres exacts."
         : "Composer chaque information lisible dans la zone graphique qui lui est réservée.",
     ].join("\n");
   }
@@ -342,12 +343,12 @@ function buildImageTextContract(args: AiMediaPromptBuilderArgs) {
   if (args.deferVisibleElementsToComposer) {
     const localTextMode =
       textMode === "exact" && exactVisibleText
-        ? "MODE TEXTE EXACT : une copie exacte validée est conservée hors du prompt fournisseur puis composée localement par iNrCy, sans reformulation, traduction, correction, ajout ni omission. Ne jamais tenter de la deviner, de la reproduire ni de réserver des glyphes factices."
+        ? "MODE TEXTE EXACT : une copie exacte validée est conservée hors du prompt fournisseur puis composée localement, sans reformulation, traduction, correction, ajout ni omission. Ne jamais tenter de la deviner, de la reproduire ni de réserver des glyphes factices."
         : textMode === "ai" && aiVisibleHeadline
-        ? `MODE TEXTE IA CONTEXTUALISÉ : une accroche originale validée est conservée hors du prompt fournisseur puis composée localement par iNrCy. Ne jamais tenter de la deviner, de la reproduire ni d’ajouter un slogan générique. Clichés interdits : ${AI_MEDIA_GENERIC_HEADLINE_BLACKLIST}.`
+        ? `MODE TEXTE IA CONTEXTUALISÉ : une accroche originale validée est conservée hors du prompt fournisseur puis composée localement. Ne jamais tenter de la deviner, de la reproduire ni d’ajouter un slogan générique. Clichés interdits : ${AI_MEDIA_GENERIC_HEADLINE_BLACKLIST}.`
         : "MODE SANS TEXTE : aucun habillage lisible ne sera ajouté ; tout mot, lettre, chiffre, slogan, enseigne, sous-titre, légende, CTA ou interface est interdit.";
     return [
-      "COMPOSITION LOCALE DU TEXTE ET DU LOGO : iNrCy posera les éléments lisibles exacts après la génération.",
+      "COMPOSITION LOCALE DU TEXTE ET DU LOGO : les éléments lisibles exacts seront ajoutés après la génération.",
       localTextMode,
       `Le fournisseur crée uniquement le fond dans la langue de contexte ${targetLanguage} : aucun mot, texte, lettre, chiffre, slogan, enseigne, sous-titre, légende, CTA, interface, écran lisible, téléphone, coordonnées, logo, monogramme ni pseudo-logo.`,
       request.imagePurpose === "flyer"
@@ -368,7 +369,7 @@ function buildImageTextContract(args: AiMediaPromptBuilderArgs) {
   if (textMode === "ai" && aiVisibleHeadline) {
     return [
       `LANGUE DU TEXTE VISIBLE — RÈGLE ABSOLUE : le texte destiné au lecteur doit être exclusivement en ${targetLanguage}.`,
-      `TEXTE IA CONTEXTUALISÉ — accroche originale sélectionnée par iNrCy à partir des faits et du sujet actuels, à afficher exactement : « ${aiVisibleHeadline} » avec une hiérarchie typographique professionnelle.`,
+      `TEXTE IA CONTEXTUALISÉ — accroche originale sélectionnée à partir des faits et du sujet actuels, à afficher exactement : « ${aiVisibleHeadline} » avec une hiérarchie typographique professionnelle.`,
       `Cette accroche doit employer un vocabulaire concret, différer de l’historique récent et ne reprendre aucune structure récente. Clichés interdits : ${AI_MEDIA_GENERIC_HEADLINE_BLACKLIST}.`,
       request.textKeywords.length
         ? `Mots-clés ayant guidé l’accroche : ${request.textKeywords
@@ -402,9 +403,9 @@ function buildCompactImageTextContract(args: AiMediaPromptBuilderArgs) {
   const textMode = request.textMode || (request.withText ? "ai" : "none");
   const localMode =
     textMode === "exact"
-      ? "MODE TEXTE EXACT : copie validée conservée hors du prompt fournisseur ; iNrCy la composera localement sans altération."
+      ? "MODE TEXTE EXACT : copie validée conservée hors du prompt fournisseur ; elle sera composée localement sans altération."
       : textMode === "ai"
-        ? "MODE TEXTE IA : accroche validée conservée hors du prompt fournisseur ; iNrCy la composera localement."
+        ? "MODE TEXTE IA : accroche validée conservée hors du prompt fournisseur ; elle sera composée localement."
         : "MODE SANS TEXTE : aucun habillage lisible ne sera ajouté.";
   const safeZone =
     request.imagePurpose === "flyer"
@@ -413,7 +414,7 @@ function buildCompactImageTextContract(args: AiMediaPromptBuilderArgs) {
         ? "Réserver une zone calme en bas et garder le sujet essentiel dans la moitié supérieure."
         : "Réserver une zone calme à gauche et garder le sujet essentiel à droite.";
   return [
-    "COMPOSITION LOCALE DU TEXTE ET DU LOGO : iNrCy pose les éléments lisibles après génération.",
+    "COMPOSITION LOCALE DU TEXTE ET DU LOGO : les éléments lisibles seront ajoutés après génération.",
     localMode,
     `FOND FOURNISSEUR (${targetLanguage}) : aucun mot, lettre, chiffre, slogan, enseigne, sous-titre, légende, CTA, interface, écran lisible, téléphone, coordonnée, logo ni pseudo-logo. Ne jamais deviner le contenu demandé.`,
     safeZone,
@@ -435,8 +436,8 @@ function assembleBudgetedImagePrompt(args: {
   dna: string;
   history: string;
 }) {
-  const dnaMarker = "[… contexte ADN compacté automatiquement par iNrCy …]";
-  const historyMarker = "[… historique compacté automatiquement par iNrCy …]";
+  const dnaMarker = "[… contexte ADN compacté automatiquement …]";
+  const historyMarker = "[… historique compacté automatiquement …]";
   const render = (dna: string, history: string) =>
     [
       ...args.requiredSections,
@@ -514,6 +515,7 @@ export function buildAiMediaImageGenerationPrompt(
     buildImageReferenceContract(args),
     getAiMediaImageIdentityDirection(request),
     args.castingDirection || "",
+    request.subjectSource === "custom" ? "" : buildAiContentLocationInstruction(profile),
     "ADN PROFESSIONNEL AUTORISÉ — utiliser uniquement les éléments pertinents pour le sujet, sans afficher ni recopier ce bloc :",
     buildAiMediaPromptBusinessDna(profile, request),
     "HISTORIQUE RÉCENT À NE PAS COPIER (éviter les répétitions visuelles) :",
@@ -523,7 +525,7 @@ export function buildAiMediaImageGenerationPrompt(
     "Les paramètres techniques et couleurs de marque sont des instructions de réalisation, jamais des éléments à afficher. Aucun nuancier, échantillon de couleur, code hexadécimal, légende technique ou planche de style ajouté au résultat. Ne pas recopier les annotations techniques autour du sujet des références.",
     buildAiMediaPromptSafetyRules(),
     args.deferVisibleElementsToComposer
-      ? "COMPOSITION EXACTE PRISE EN CHARGE PAR iNrCy APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo. La consigne ponctuelle peut demander leur présence, mais le fournisseur ne doit jamais les dessiner : iNrCy appliquera ensuite les valeurs exactes sans les transmettre au moteur."
+      ? "COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo. La consigne ponctuelle peut demander leur présence, mais le fournisseur ne doit jamais les dessiner : les valeurs exactes seront ajoutées ensuite sans les transmettre au moteur."
       : "",
     "CONTRÔLE FINAL IMAGE — vérifier silencieusement : sujet reconnaissable ; consigne exécutée ; références obligatoires fidèles ; inspirations non copiées ; format exact ; texte et identité conformes ; originalité des aspects laissés libres ; aucun slogan générique ; aucun élément parasite. Produire une seule image finale plein cadre, sans explication.",
   ]
@@ -570,7 +572,7 @@ export function buildAiMediaImageGenerationPrompt(
     "RÈGLES TECHNIQUES IMAGE — les paramètres et couleurs sont des instructions, jamais des éléments à afficher. Aucun nuancier, échantillon de couleur, code hexadécimal, légende technique ou planche de style ajouté au résultat. Ne pas recopier les annotations techniques autour du sujet des références.",
     buildAiMediaPromptSafetyRules(),
     args.deferVisibleElementsToComposer
-      ? "COMPOSITION EXACTE PRISE EN CHARGE PAR iNrCy APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo. Les valeurs exactes restent hors du prompt fournisseur et seront posées localement."
+      ? "COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo. Les valeurs exactes restent hors du prompt fournisseur et seront posées localement."
       : "",
     "CONTRÔLE FINAL IMAGE — sujet et consigne respectés ; références obligatoires fidèles ; inspirations non copiées ; format, texte, identité, palette et logo conformes ; une seule image finale sans explication.",
   ]

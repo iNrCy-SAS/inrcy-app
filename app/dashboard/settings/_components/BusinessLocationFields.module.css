@@ -1,0 +1,30 @@
+.card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(56, 189, 248, .22);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(10, 39, 68, .78), rgba(28, 22, 60, .7));
+}
+.heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; }
+.heading h3 { margin: 0; font-size: 15px; font-weight: 800; color: #dbeafe; }
+.heading p { margin: 5px 0 0; font-size: 12px; line-height: 1.5; color: rgba(219, 234, 254, .68); }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+.address { display: grid; grid-template-columns: minmax(110px, .45fr) minmax(0, 1fr); align-content: start; gap: 10px; }
+.address > .hint { grid-column: 1 / -1; }
+.card label:not(.checkbox) { display: grid; gap: 6px; font-size: 12px; font-weight: 700; color: #dbeafe; }
+.card input:not([type="checkbox"]) { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid rgba(147, 197, 253, .26); border-radius: 11px; background: rgba(3, 14, 36, .68); color: #f8fafc; font: inherit; font-size: 13px; }
+.card input:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.card input:disabled { opacity: .6; }
+.target { display: grid; align-content: start; gap: 10px; }
+.checkbox { display: flex; align-items: flex-start; gap: 9px; color: #dbeafe; font-size: 12px; line-height: 1.5; font-weight: 750; cursor: pointer; }
+.checkbox input { width: 17px; height: 17px; flex: 0 0 auto; margin: 1px 0 0; accent-color: #38bdf8; }
+.hint { margin: 0; color: rgba(219, 234, 254, .65); font-size: 11px; line-height: 1.5; }
+.error { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: #fda4af; font-size: 12px; }
+.error button { padding: 5px 9px; color: #dbeafe; border: 1px solid rgba(147, 197, 253, .25); border-radius: 8px; background: rgba(59, 130, 246, .14); cursor: pointer; }
+@media (max-width: 700px) {
+  .card { padding: 14px; }
+  .grid { grid-template-columns: 1fr; gap: 14px; }
+  .address { grid-template-columns: minmax(95px, .4fr) minmax(0, 1fr); }
+}

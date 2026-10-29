@@ -129,7 +129,7 @@ function harness(options: HarnessOptions = {}) {
       usePathname: () => pathname, useSearchParams: () => query,
       useRouter: () => ({ replace: (path: string) => { calls.routes.push(path); } }),
     };
-    if (specifier === "next/image") return { __esModule: true, default: ({ src, alt, width, height, className }: Props) => createElement("img", { src, alt, width, height, className }) };
+    if (specifier === "next/image") return { __esModule: true, default: ({ src, alt, width, height, className, title }: Props) => createElement("img", { src, alt, width, height, className, title }) };
     if (specifier === "next/dynamic") return { __esModule: true, default: () => (props: Props) => createElement("div", { "data-agent-planning": "true", "data-standard-mode": props.standardMode, "data-workspace": props.workspace }) };
     if (specifier.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) };
     if (specifier === "./WorkflowBaseModal") return { __esModule: true, default: (props: Props) => createElement("div", { role: "dialog", "aria-label": props.title, onClose: props.onClose }, props.headerActions as ReactNode, ...(Array.isArray(props.children) ? props.children : [props.children]) as ReactNode[]) };
@@ -187,6 +187,113 @@ function harness(options: HarnessOptions = {}) {
 }
 
 const variants = [{ adapter: true, edition: "standard" as const }, { edition: "premium" as const }, { edition: "founder" as const }];
+const basicVariants = [{ edition: "basic" as const }, { adapter: true, edition: "basic" as const }];
+
+test("Basic dedicates its lower sections to Stats and vertical Studio/Send cards without rendering Premium tools", () => {
+  for (const variant of basicVariants) {
+    const { tree, html } = harness({ ...variant, props: {
+      cockpit: createElement("section", { "data-slot": "cockpit" }, "Cockpit conservé"),
+      generator: createElement("section", { "data-slot": "generator" }, "Générateur conservé"),
+      overview: { leadsWeek: 125, leadsMonth: 689, oppTotal: 286, estimatedValue: 5720 },
+    } }).render();
+    const layout = card(tree, "lowerRow");
+    assert.equal(layout.props["data-dashboard-basic-lower-blocks"], "true");
+    const slots = elements(layout).filter((node) => node.props["data-slot"]);
+    assert.deepEqual(slots.map((node) => node.props["data-slot"]), ["cockpit", "generator"]);
+    const toolNames = ["boosterCard", "statsCard", "studioCard", "sendCard", "adsCard", "campaignCard", "calendarCard", "crmCard"];
+    assert.deepEqual(elements(layout).flatMap((node) => toolNames.filter((name) => hasClass(node, name))), ["boosterCard", "statsCard", "studioCard", "sendCard"]);
+
+    const stats = find(tree, (node) => node.props["data-dashboard-relationship-tools"] === "true");
+    assert.ok(hasClass(stats, "basicStatsGrid"));
+    assert.deepEqual(elements(stats).filter((node) => node.type === "article").map((node) => toolNames.find((name) => hasClass(node, name))), ["statsCard"]);
+    const media = find(tree, (node) => node.props["data-dashboard-basic-media-tools"] === "true");
+    assert.ok(hasClass(media, "basicMediaGrid"));
+    assert.deepEqual(elements(media).filter((node) => node.type === "article").map((node) => toolNames.find((name) => hasClass(node, name))), ["studioCard", "sendCard"]);
+    assert.equal(elements(tree).some((node) => node.props["data-dashboard-premium-tools"] === "true"), false);
+    assert.equal(elements(tree).some((node) => node.props["data-testid"] === "dashboard-premium-unlock"), false);
+    assert.equal(elements(tree).some((node) => node.props.id === "dashboard-premium-title"), false);
+    assert.doesNotMatch(html, /undefined/);
+
+    const overview = card(tree, "statsOverview");
+    assert.ok(elements(card(stats, "statsCard")).includes(overview));
+    assert.deepEqual(elements(overview).filter((node) => node.type === "dd").map(content), ["125", "689", "+286", `${(5720).toLocaleString("fr-FR")} €`]);
+  }
+});
+
+test("Basic keeps publication, Stats, Studio, media library and Send history usable through either renderer", () => {
+  for (const variant of basicVariants) {
+    for (const [name, path] of [["statsCard", "/dashboard/stats"], ["studioCard", "/dashboard/generer-media"], ["sendCard", "/dashboard/mails?folder=publications&boxView=sent"]]) {
+      const view = harness(variant);
+      const tree = view.render().tree;
+      const button = action(tree, name);
+      assert.notEqual(button.props.disabled, true);
+      assert.equal(button.props["data-dashboard-prefetch"], path);
+      click(button);
+      click(button);
+      assert.deepEqual(view.calls.routes, [path], "repeat clicks stay guarded");
+      assert.deepEqual(view.calls.warmups, [path]);
+      assert.deepEqual(view.calls.panels, []);
+      if (name === "sendCard") assert.equal(elements(card(tree, name)).filter((node) => hasClass(node, "settingsButton")).length, 0);
+    }
+    const libraryView = harness(variant);
+    const library = find(card(libraryView.render().tree, "studioCard"), (node) => hasClass(node, "studioLibrary"));
+    click(library);
+    assert.deepEqual(libraryView.calls.routes, ["/dashboard/mediatheque"]);
+    assert.deepEqual(libraryView.calls.warmups, ["/dashboard/mediatheque"]);
+
+    const callbacks: string[] = [];
+    const view = harness({ ...variant, props: {
+      onOpenBoosterPublish: () => { callbacks.push("publish"); },
+      onOpenBoosterStats: () => { callbacks.push("bilan"); },
+      onOpenStats: () => { callbacks.push("stats"); },
+      onOpenGeneratorSettings: () => { callbacks.push("settings"); },
+    } });
+    const tree = view.render().tree;
+    click(find(tree, (node) => String(node.props["data-testid"]).endsWith("booster-publish")));
+    view.release();
+    click(find(tree, (node) => hasClass(node, "boosterStats")));
+    view.release();
+    click(action(tree, "statsCard"));
+    view.release();
+    click(find(tree, (node) => node.props["data-testid"] === "dashboard-stats-settings"));
+    assert.deepEqual(callbacks, ["publish", "bilan", "stats", "settings"]);
+    assert.deepEqual(view.calls.routes, []);
+    assert.deepEqual(view.calls.panels, []);
+  }
+});
+
+test("Basic presents only the two Standard agents with disabled execution and planning controls", () => {
+  for (const variant of basicVariants) {
+    const view = harness(variant);
+    const tree = view.render().tree;
+    const agents = elements(tree).filter((node) => node.props["data-testid"] === "dashboard-agent-logo");
+    assert.deepEqual(agents.map((node) => node.props["data-agent-workspace"]), ["publications", "stats"]);
+    for (const agent of agents) {
+      assert.equal(agent.props.disabled, true);
+      assert.equal(agent.props["aria-disabled"], true);
+      assert.equal(agent.props["data-dashboard-prefetch"], undefined);
+      const availabilityHint = dashboardMessages.signatureTools.standardAgentHint;
+      assert.equal(agent.props.title, availabilityHint);
+      assert.ok(String(agent.props["aria-label"]).includes(availabilityHint));
+    }
+    const planning = elements(tree).filter((node) => node.props["data-agent-planning-workspace"]);
+    assert.deepEqual(planning.map((node) => node.props["data-agent-planning-workspace"]), ["publications", "stats"]);
+    assert.ok(planning.every((node) => node.props.disabled === true));
+    assert.equal(elements(tree).some((node) => hasClass(node, "standardEditionBadge")), false);
+    const contexts = elements(tree).filter((node) => hasClass(node, "contextual"));
+    assert.equal(contexts.length, 2);
+    for (const context of contexts) {
+      assert.equal(context.props.title, dashboardMessages.signatureTools.standardAgentHint);
+      assert.equal(elements(context).filter((node) => node.type === "img")[0].props.title, dashboardMessages.signatureTools.standardAgentHint);
+    }
+    assert.equal(content(tree).includes(dashboardMessages.signatureTools.standardAgentHint), false, "availability stays in accessible labels and tooltips, not visible dashboard copy");
+    assert.equal(elements(tree).some((node) => node.props["data-agent-planning"] === "true"), false);
+    assert.ok(view.calls.enabled.every((enabled) => enabled === false));
+    assert.deepEqual(view.calls.routes, []);
+    assert.deepEqual(view.calls.panels, []);
+    assert.deepEqual(view.calls.warmups, []);
+  }
+});
 
 test("Standard, Premium and Founder render the same signature cards, hierarchy and shared CSS", () => {
   const expected = ["boosterCard", "statsCard", "sendCard", "studioCard", "adsCard", "campaignCard", "calendarCard", "crmCard"];
@@ -258,7 +365,7 @@ test("Stats settings reuse the supplied generator settings action without interc
 });
 
 test("the shared visual copy and Ads channel information are translated in all nine locales", () => {
-  const keys = ["createTitle", "pilotTitle", "premiumTitle", "mailCampaigns", "mailCampaignDescription", "businessSpace", "amplify", "imagine", "automate", "adsDescription", "createCampaign", "comingSoon", "openStudio", "access", "manage", "open", "viewStats", "dnaDescription"].sort();
+  const keys = ["createTitle", "pilotTitle", "basicActivityTitle", "basicMediaTitle", "standardAgentHint", "premiumTitle", "mailCampaigns", "mailCampaignDescription", "businessSpace", "amplify", "imagine", "automate", "adsDescription", "createCampaign", "comingSoon", "openStudio", "access", "manage", "open", "viewStats", "dnaDescription"].sort();
   const adsInfoKeys = ["open", "title", "close", "google", "pinterest", "openai", "meta", "linkedin", "tiktok", "x"].sort();
   for (const locale of ["fr-FR", "en-GB", "de-DE", "es-ES", "it-IT", "nl-NL", "pt-PT", "th-TH", "zh-CN"]) {
     const translated = messagesFor(locale).dashboard.signatureTools as Record<string, string | Record<string, string>>;
@@ -276,6 +383,12 @@ test("the shared visual copy and Ads channel information are translated in all n
         assert.ok(typeof expected === "string" && rendered.includes(expected), `${locale} rendered ${key}`);
       }
     }
+    const basicContent = content(harness({ edition: "basic", locale }).render().tree);
+    for (const key of ["basicActivityTitle", "basicMediaTitle"]) {
+      const expected = translated[key];
+      assert.ok(typeof expected === "string" && basicContent.includes(expected), `${locale} Basic rendered ${key}`);
+    }
+    assert.ok(!basicContent.includes(String(translated.premiumTitle)), `${locale} Basic must not promote Premium`);
   }
 });
 

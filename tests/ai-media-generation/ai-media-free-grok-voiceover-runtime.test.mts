@@ -15,7 +15,8 @@ import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
 import * as spokenScript from "../../lib/aiMediaSpokenScript.ts";
 import * as pronunciation from "../../lib/aiMediaPronunciation.ts";
 import { classifyVeoFailure } from "../../lib/aiVideoReliability.ts";
-import { getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, resolveAiMediaFreeSpeechLanguage } from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import { getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, resolveAiMediaFreeSpeechLanguage, usesAiMediaAutomaticImageLogo } from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import * as localLogoComposition from "../../lib/aiMediaLocalLogoCompositionPrompt.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 
 type Row = Record<string, unknown>;
@@ -53,6 +54,7 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
   const entries: Array<[string, unknown]> = [
     ["./aiMediaSpokenScript.ts", spokenScript],
     ["./aiMediaPronunciation.ts", pronunciation],
+    ["./aiMediaLocalLogoCompositionPrompt.ts", localLogoComposition],
     ["./inrAgentVideoFallback.ts", agentVideoFallback],
     ["./aiMediaGenerationPublicErrors.ts", publicErrors],
     ["server-only", {}], ["./aiMediaCharacterVoices.ts", characterVoices], ["@/lib/aiMediaCharacterVoices", characterVoices], ["sharp", () => ({ png() { return this; }, toBuffer: async () => Buffer.from("transparent-overlay") })],
@@ -66,7 +68,7 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
     ["@/lib/aiMediaCastingVariation", { chooseAiMediaCastingVariation: () => null }],
     ["@/lib/aiMediaFreeGenerationPlan", { buildAiMediaFreeBasePlan: () => plan, prepareAiMediaFreeCreativePlan: async () => plan, writeAiMediaFreeNarration: freeNarration }],
     ["@/lib/aiMediaFreeGenerationPrompt", { AI_MEDIA_FREE_PROMPT_VERSION: "test-free-version", getAiMediaFreeImageSize: () => "1024x1536",
-      getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, resolveAiMediaFreeSpeechLanguage, splitAiMediaFreeNarrationByScene: () => [script],
+      getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, resolveAiMediaFreeSpeechLanguage, usesAiMediaAutomaticImageLogo, splitAiMediaFreeNarrationByScene: () => [script],
       buildAiMediaFreeSceneFramePrompt: () => "One controlled full-frame initial instant, no storyboard.",
       resolveAiMediaFreeDialogueSequence: () => ["Bonjour, je façonne un vase."] }],
     ["@/lib/aiMediaFreeVoiceoverPolicy", { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover: options.nativeVoiceover ? () => false : usesSeparateAiMediaFreeVoiceover }],

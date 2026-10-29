@@ -83,6 +83,8 @@ test("the compact profile save keeps relocated historical columns out of its pat
   for (const historicalColumn of [
     "legal_form",
     "hq_address",
+    "hq_zip",
+    "hq_city",
     "siren",
     "rcs_city",
     "capital_social",

@@ -68,7 +68,7 @@ const BYPASSED_COMPLETION_STATE: DashboardCompletionState = {
 
 // Bump this key whenever the completion contract changes. This snapshot is
 // informational (onboarding and profile-dependent previews), never an access gate.
-const COMPLETION_CACHE_KEY = "inrcy_dashboard_completion_state_v3";
+const COMPLETION_CACHE_KEY = "inrcy_dashboard_completion_state_v4";
 
 function readCachedCompletionState(): DashboardCompletionState | null {
   try {

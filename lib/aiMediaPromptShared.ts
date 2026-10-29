@@ -4,7 +4,7 @@ import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts"
 import type { AiMediaFreeDnaContext } from "./aiMediaFreeDnaContext.ts";
 
 export const AI_MEDIA_PROMPT_VERSION =
-  "inrcy-media-v26-edge-to-edge";
+  "media-v27-neutral-identity";
 export const AI_MEDIA_COMPILED_PROMPT_MAX_CHARS = 11_800;
 
 export type AiMediaPromptRecentPublication = {

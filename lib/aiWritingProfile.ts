@@ -8,6 +8,7 @@ import {
 } from "@/lib/aiGenerationProfile";
 import { buildAiMemoryPromptPayload } from "@/lib/aiMemory";
 import { fitPromptPayloadToJsonBudget } from "./aiPromptBudget.ts";
+import { buildAiContentLocationInstruction } from "./aiContentLocation.ts";
 
 const TONE_LABELS: Record<string, string> = {
   serious: "Sérieux",
@@ -424,6 +425,7 @@ export function buildCompactAiWritingDirective(
     "ARBITRAGE : phrase libre = mission ; médias = preuves/contextes ; Configuration IA = préférences du pro et direction éditoriale visible ; personnalité du moteur = manière d'écrire.",
     "RÈGLES DURES : vérité, langue, canal, format, consigne explicite du pro, pronom, tutoiement/vouvoiement et interdits personnalisés.",
     buildOpeningScheduleAiInstruction(normalized),
+    buildAiContentLocationInstruction(normalized),
     "PRÉFÉRENCES SOUPLES MAIS VISIBLES : ton, style, technicité, humour, intensité commerciale, objectif, emojis, angle, CTA, longueur et exemple aimé doivent influencer concrètement le résultat sans imposer de gabarit ni devenir des motifs de rejet technique.",
     ...visiblePreferenceDirectives.map((directive) => `EXÉCUTION CONFIG IA : ${directive}`),
     "Choisis librement accroche, rythme, narration, ordre des idées et structure. N'imite aucun autre moteur et n'applique pas une recette iNrCy uniforme.",
@@ -470,6 +472,7 @@ export function buildAiWritingProfileRules(
     "- Respecter les éléments à éviter absolument, sauf si cela contredit une obligation de vérité, de conformité ou de sécurité.",
     "- Utiliser la Mémoire IA comme source de personnalisation factuelle et éditoriale. Ne jamais transformer une information absente en fait, preuve, prix, garantie ou promesse.",
     buildOpeningScheduleAiInstruction(normalized),
+    buildAiContentLocationInstruction(normalized),
     "- Ne jamais réécrire un bon texte uniquement pour le faire rentrer dans un gabarit éditorial. La singularité naturelle du moteur est une qualité tant que les règles dures sont respectées.",
   ].join("\n");
 }

@@ -837,7 +837,7 @@ test("la composition locale garde les valeurs de texte hors du prompt fournisseu
   );
   assert.match(
     BRAND_RENDERER_SOURCE,
-    /isStructuredCommercialImagePurpose\(args\.imagePurpose\)[\s\S]*?renderAiMediaStructuredCommercialOverlay\(args\)/,
+    /isStructuredCommercialImagePurpose\(args\.imagePurpose\)[\s\S]*?renderAiMediaStructuredCommercialOverlay\(copyArgs\)/,
   );
   for (const imagePurpose of [
     "flyer",
@@ -923,7 +923,7 @@ test("la compaction ne supprime aucune option Image autoritaire du prompt fourni
   });
 
   assert.ok(prompt.length <= AI_MEDIA_COMPILED_PROMPT_MAX_CHARS);
-  assert.match(prompt, /contexte ADN compacté automatiquement par iNrCy/);
+  assert.match(prompt, /contexte ADN compacté automatiquement/);
   const authoritativeContracts = [
     /MODE IMAGE — INSPIRATIONS/,
     /TYPE DE CRÉATION STRUCTURÉ — FLYER COMMERCIAL/,
@@ -934,7 +934,7 @@ test("la compaction ne supprime aucune option Image autoritaire du prompt fourni
     /RÉFÉRENCE OBLIGATOIRE — PERSONNAGES/,
     /RÉFÉRENCE OBLIGATOIRE — PRODUIT/,
     /INSPIRATION UNIQUEMENT — rôle Décor/,
-    /COMPOSITION EXACTE PRISE EN CHARGE PAR iNrCy APRÈS GÉNÉRATION/,
+    /COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION/,
   ];
   const missing = authoritativeContracts.filter((contract) => !contract.test(prompt));
   assert.deepEqual(
@@ -1053,7 +1053,7 @@ test("les prompts canoniques Image et Vidéo gardent 2 000 + 2 400 caractères e
     );
     assert.ok(prompt.includes(idea), `${kind}: sujet utilisateur tronqué`);
     assert.ok(prompt.includes(instruction), `${kind}: consigne utilisateur tronquée`);
-    assert.match(prompt, /contexte ADN compacté automatiquement par iNrCy/);
+    assert.match(prompt, /contexte ADN compacté automatiquement/);
     assert.match(prompt, /Couleurs de marque[^\n]*vivid blue, vivid red/);
     for (const reference of [
       /#1:character\/required\/personnage-1|Référence 1 — rôle=character, usage=required, personnage 1/,
@@ -1065,7 +1065,7 @@ test("les prompts canoniques Image et Vidéo gardent 2 000 + 2 400 caractères e
       assert.match(prompt, reference, `${kind}: rôle/usage perdu`);
     }
     assert.match(prompt, /ORIGINALITY:/);
-    assert.match(prompt, /COMPOSITION EXACTE PRISE EN CHARGE PAR iNrCy APRÈS GÉNÉRATION/);
+    assert.match(prompt, /COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION/);
     if (kind === "video") {
       assert.ok(prompt.includes(exactText), "video: texte exact tronqué");
       assert.match(prompt, /DURÉE EXACTE : 20 secondes/);
@@ -1171,8 +1171,9 @@ test("le prompt Générer Image compilé traverse inchangé le moteur nominal et
     if (previousGoogleKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = previousGoogleKey;
   }
-  assert.equal(captures.nominal, compiledPrompt);
-  assert.equal(captures.google, compiledPrompt);
+  assert.ok(captures.nominal?.startsWith(`${compiledPrompt}\n\n`));
+  assert.match(captures.nominal || "", /IDENTITÉ DE LA SORTIE/);
+  assert.equal(captures.google, captures.nominal);
 
   const imageBranchStart = GENERATION_SERVER_SOURCE.indexOf(
     'if (providerRequest.kind === "image")',

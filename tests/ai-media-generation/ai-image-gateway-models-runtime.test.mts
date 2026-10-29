@@ -126,6 +126,11 @@ for (const engine of ["flux", "grok", "recraft"] as const) {
       assert.equal(result.model, catalog.getAiMediaImageModel(engine).modelId);
       assert.equal(result.referenceImagesCount, refs.length);
       assert.equal(context.counts.submitted, 1);
+      const submitted = context.inputs[0].prompt as string | { text: string };
+      const text = typeof submitted === "string" ? submitted : submitted.text;
+      assert.ok(text.startsWith(`${request.prompt}\n\n`));
+      assert.match(text, /ne jamais ajouter spontanément de filigrane/);
+      assert.equal(text.split("IDENTITÉ DE LA SORTIE").length - 1, 1);
     });
   });
 }

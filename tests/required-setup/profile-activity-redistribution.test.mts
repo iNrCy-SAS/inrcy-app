@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
-import { evaluateDashboardPreparationCompletion } from "../../lib/dashboardCompletion.ts";
+import { evaluateDashboardPreparationCompletion, evaluateDashboardProfileCompletion } from "../../lib/dashboardCompletion.ts";
 
 const root = process.cwd();
 const read = (relativePath: string) => readFileSync(join(root, relativePath), "utf8");
@@ -14,15 +14,13 @@ const completeProfile = {
   phone: "0612345678",
   contact_email: "bonjour@example.fr",
   company_legal_name: "Entreprise exemple",
-  hq_zip: "62000",
-  hq_city: "Arras",
 };
 
 const completeActivity = {
   sector: "[[SECTOR:communication]] Agence de communication",
 };
 
-test("completion requires coordinates plus sector and profession, but no DNA enrichment", () => {
+test("completion requires identity and contact details plus sector and profession, without the relocated location", () => {
   assert.equal(
     evaluateDashboardPreparationCompletion(completeProfile, completeActivity).completed,
     true,
@@ -63,6 +61,12 @@ test("completion requires coordinates plus sector and profession, but no DNA enr
   );
 });
 
+test("Profile completion does not require the implantation fields now edited in Zones", () => {
+  assert.equal(evaluateDashboardProfileCompletion(completeProfile).completed, true);
+  assert.equal(evaluateDashboardProfileCompletion({ ...completeProfile, hq_zip: "", hq_city: "" }).completed, true);
+  assert.deepEqual(evaluateDashboardProfileCompletion({ ...completeProfile, company_legal_name: "", hq_zip: "62000", hq_city: "Arras" }).missingFields, ["company_legal_name"]);
+});
+
 test("legal and generator-only values do not block required setup", () => {
   const completionSource = read("lib/dashboardCompletion.ts");
   const profileFieldsBlock = completionSource.match(
@@ -74,7 +78,7 @@ test("legal and generator-only values do not block required setup", () => {
   }
   assert.doesNotMatch(
     profileFieldsBlock,
-    /hq_address|hq_country|siren|rcs_city|capital_social|vat_number|avg_basket|lead_conversion_rate/,
+    /hq_address|hq_country|hq_zip|hq_city|siren|rcs_city|capital_social|vat_number|avg_basket|lead_conversion_rate/,
   );
 
   const activityFieldsBlock = completionSource.match(
@@ -93,11 +97,12 @@ test("the browser completion cache is versioned with the redistributed required 
 
   assert.match(
     completionHook,
-    /COMPLETION_CACHE_KEY = "inrcy_dashboard_completion_state_v3"/,
+    /COMPLETION_CACHE_KEY = "inrcy_dashboard_completion_state_v4"/,
   );
   assert.match(browserCache, /"inrcy_dashboard_completion_state_v1"/);
   assert.match(browserCache, /"inrcy_dashboard_completion_state_v2"/);
   assert.match(browserCache, /"inrcy_dashboard_completion_state_v3"/);
+  assert.match(browserCache, /"inrcy_dashboard_completion_state_v4"/);
 });
 
 test("profile save rejects a missing sector or profession before persistence and success", () => {
@@ -119,23 +124,26 @@ test("profile save rejects a missing sector or profession before persistence and
   assert.match(guardSource, /if \(missingRequiredFields\.length > 0\)[\s\S]*return false/);
 });
 
-test("the profile form contains only the public essentials", () => {
+test("the profile form keeps identity while implantation is edited in Business DNA Zones", () => {
   const source = read("app/dashboard/settings/_components/ProfilContent.tsx");
+  const dna = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
+  const location = read("app/dashboard/settings/_components/BusinessLocationFields.tsx");
   assert.match(source, /companyName/);
-  assert.match(source, /hqZip/);
-  assert.match(source, /hqCity/);
+  assert.doesNotMatch(source, /hqZip|hqCity|hq_zip|hq_city/);
   assert.doesNotMatch(source, /avg_basket|lead_conversion_rate|legal_form|hq_address|siren|rcs_city|capital_social|vat_number/);
 
   const companyIndex = source.indexOf('value={form.companyName}');
   const emailIndex = source.indexOf('value={form.contactEmail}');
   const firstNameIndex = source.indexOf('value={form.firstName}');
-  const locationIndex = source.indexOf('value={form.hqZip}');
   const logoIndex = source.indexOf('ref={fileInputRef}');
   assert.ok(companyIndex >= 0);
   assert.ok(companyIndex < emailIndex);
   assert.ok(emailIndex < firstNameIndex);
-  assert.ok(firstNameIndex < locationIndex);
-  assert.ok(locationIndex < logoIndex);
+  assert.ok(firstNameIndex < logoIndex);
+  assert.match(dna, /data-ai-memory-tab="local"[\s\S]*?<BusinessLocationFields/);
+  assert.match(location, /autoComplete="postal-code"/);
+  assert.match(location, /autoComplete="address-level2"/);
+  assert.match(location, /checked=\{value\.useHeadquarters\}/);
 });
 
 test("business enrichment collections live in Business DNA and stay out of the compact profile", () => {

@@ -5,6 +5,7 @@ import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asRecord } from "@/lib/tsSafe";
+import { syncNativeChannelsForAccount } from "@/lib/nativeChannelActivationServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export async function POST() {
     }
 
     const accountId = await resolveActiveInrcyAccountId(supabase, authData.user.id);
+    const nativeChannels = await syncNativeChannelsForAccount(accountId, undefined, { profileSaved: true });
     const { data, error } = await supabaseAdmin
       .from("pro_tools_configs")
       .select("settings")
@@ -40,7 +42,7 @@ export async function POST() {
     if (slug) revalidateInrSearchPublicRoutes(slug);
 
     return NextResponse.json(
-      { ok: true, inrSearchRevalidated: Boolean(slug), slug },
+      { ok: true, inrSearchRevalidated: Boolean(slug), slug, nativeChannels: nativeChannels.states },
       { headers: { "Cache-Control": "no-store, max-age=0" } },
     );
   } catch (error) {

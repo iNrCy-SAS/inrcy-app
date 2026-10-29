@@ -13,6 +13,7 @@ import {
 import { getAiMediaVideoSegmentCount } from "../../lib/aiMediaVideoTimeline.ts";
 import { fitAiMediaSceneDirection } from "../../lib/aiMediaTechnicalText.ts";
 import * as aiMediaTextIntegrity from "../../lib/aiMediaTextIntegrity.ts";
+import * as aiContentLocation from "../../lib/aiContentLocation.ts";
 
 const ROOT = process.cwd();
 
@@ -42,6 +43,7 @@ function loadCreativePlanBuilder() {
     ["@/lib/aiMediaTextIntegrity", aiMediaTextIntegrity],
     ["@/lib/aiMediaVideoTimeline", { getAiMediaVideoSegmentCount }],
     ["./aiMediaTechnicalText.ts", { fitAiMediaSceneDirection }],
+    ["./aiContentLocation.ts", aiContentLocation],
   ]);
   const localRequire = (specifier: string) => {
     if (stubs.has(specifier)) return stubs.get(specifier);

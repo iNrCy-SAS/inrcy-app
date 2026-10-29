@@ -82,6 +82,35 @@ function loadPlan(response: unknown, generate?: (input: AiGenerateJsonOptions) =
   };
 }
 
+test("the creative director has a neutral role while explicit customer brands remain in the brief", async () => {
+  const runtime = loadPlan({ direction: "Une équipe nettoie des bureaux lumineux.", scenes: ["Une personne nettoie une table."] });
+  const brief = "Une équipe nettoie des bureaux. Afficher le nom exact « iNrCy » sur le panneau demandé.";
+  await runtime.prepareAiMediaFreeCreativePlan({
+    accountId: "neutral-director-test", profile,
+    request: request({ kind: "video", videoEngine: "omni", durationSeconds: 8, freePrompt: brief, withNarration: false }),
+  });
+  assert.equal(runtime.calls.length, 1);
+  assert.doesNotMatch(runtime.calls[0].system, /inrcy|inr.?studio/i);
+  assert.equal(JSON.parse(runtime.calls[0].input).brief, brief);
+});
+
+test("Studio free images use the real profile logo by default independently of ADN, with explicit exceptions", () => {
+  for (const useBusinessDna of [false, true]) {
+    assert.equal(freePrompts.usesAiMediaAutomaticImageLogo(request({ freePrompt: "Une équipe nettoie des bureaux lumineux.", useBusinessDna }), "Atelier Test"), true);
+    for (const freePrompt of [
+      "Une photo sans logo.", "Une photo sans notre logo.", "Une photo sans identité de marque.",
+      "Une affiche avec le logo de mon client.", "Une affiche avec le logo de Carrefour.",
+      "Créer un nouveau logo.", "Créer un logo pour ma boutique.",
+    ]) assert.equal(freePrompts.usesAiMediaAutomaticImageLogo(request({ freePrompt, useBusinessDna }), "Atelier Test"), false, freePrompt);
+    assert.equal(freePrompts.usesAiMediaAutomaticImageLogo(request({ freePrompt: "Ne crée pas un nouveau logo, utilise celui du profil.", useBusinessDna }), "Atelier Test"), true);
+  }
+  assert.equal(freePrompts.usesAiMediaAutomaticImageLogo(request({ kind: "video", videoEngine: "omni", durationSeconds: 8 })), false);
+  const image = request();
+  assert.equal(freePrompts.usesAiMediaAutomaticImageLogo({ ...image, operation: "modify" }), false);
+  assert.equal(freePrompts.usesAiMediaAutomaticImageLogo({ ...image, creationMode: "guided", logoMode: "none" }), false);
+  assert.equal(freePrompts.usesAiMediaAutomaticImageLogo({ ...image, source: "booster" }), false);
+});
+
 /** Execute the real Gateway fallback orchestration with in-memory provider responses. */
 function loadDialogueGateway(responses: unknown[]) {
   const calls: Array<{ model: string; deadlineAt: number; timeoutMs: number; input: string; maxOutputTokens: number }> = [];

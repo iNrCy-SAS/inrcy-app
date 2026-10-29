@@ -1,5 +1,6 @@
 import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import { fitPromptPayloadToJsonBudget } from "./aiPromptBudget.ts";
+import { buildAiContentLocationInstruction, buildAiContentLocationPromptPayload, resolveAiContentLocation } from "./aiContentLocation.ts";
 
 interface DnaObject {
   [key: string]: DnaValue;
@@ -97,6 +98,7 @@ export function buildAiMediaBusinessDnaPayload(
   const business = profile.business;
   const memory = profile.memory;
   const preferences = profile.preferences;
+  const contentLocation = resolveAiContentLocation(profile);
 
   const payload = compactRecord({
     activite_et_prestations: {
@@ -119,8 +121,15 @@ export function buildAiMediaBusinessDnaPayload(
       differences: cleanList(memory.differentiators, 10, 140),
     },
     zones_et_horaires: {
-      ville: cleanText(business.city, 100),
-      code_postal: cleanText(business.postalCode, 24),
+      ...(contentLocation ? {
+        lieu_implantation: {
+          ville: cleanText(business.city, 100),
+          code_postal: cleanText(business.postalCode, 24),
+        },
+      } : {
+        ville: cleanText(business.city, 100),
+        code_postal: cleanText(business.postalCode, 24),
+      }),
       zones_intervention: cleanList(business.interventionZones, 15, 140),
       horaires: cleanText(business.openingHours, 1_000),
     },
@@ -197,10 +206,11 @@ export function buildAiMediaBusinessDnaPayload(
     },
     zones_et_horaires: {
       zone_principale: cleanText(
-        business.interventionZones[0] || business.city,
+        contentLocation ? contentLocation.primaryArea : business.interventionZones[0] || business.city,
         100,
       ),
     },
+    localisation_editoriale: buildAiContentLocationPromptPayload(profile),
     identite_valeurs_vocabulaire: {
       vocabulaire_interdit: cleanList(
         memory.forbiddenVocabulary,
@@ -266,8 +276,11 @@ export function buildAiMediaVideoDnaBrief(
   const business = profile.business;
   const memory = profile.memory;
   const preferences = profile.preferences;
+  const contentLocation = resolveAiContentLocation(profile);
   const rows = [
     ["Entreprise", business.companyName],
+    // Keep the selected area and its meaning before optional facts can truncate.
+    ["Localisation éditoriale", buildAiContentLocationInstruction(profile)],
     ["Métier", business.professionLabel || business.sectorLabel],
     ["Prestation", first(business.services, 120)],
     ["Spécialité", first(memory.specialties, 120)],
@@ -275,7 +288,7 @@ export function buildAiMediaVideoDnaBrief(
     ["Public", first(memory.targetAudiences, 120) || first(business.customerTypologies, 120)],
     ["Besoin", first(memory.customerNeeds, 120)],
     ["Différence", first(memory.differentiators, 120) || first(business.strengths, 120)],
-    ["Zone", first(business.interventionZones, 100) || business.city],
+    ["Zone", contentLocation ? contentLocation.primaryArea : first(business.interventionZones, 100) || business.city],
     ["Valeur", first(memory.values, 90)],
     ["Personnalité", first(memory.brandPersonality, 90)],
     ["Engagement", first(memory.commitments, 110)],
@@ -301,7 +314,7 @@ export function buildAiMediaVideoDnaBrief(
   return cleanText(
     rows
       .map(([label, value]) => {
-        const normalized = cleanText(value, 180);
+        const normalized = cleanText(value, label === "Localisation éditoriale" ? 900 : 180);
         return normalized ? `${label}: ${normalized}` : "";
       })
       .filter(Boolean)

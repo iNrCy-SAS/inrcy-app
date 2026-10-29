@@ -766,7 +766,7 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
   const dna = read("lib/aiMediaBusinessDna.ts");
   assert.match(
     source,
-    /AI_MEDIA_PROMPT_VERSION =\s*\n?\s*"inrcy-media-v26-edge-to-edge"/
+    /AI_MEDIA_PROMPT_VERSION =\s*\n?\s*"media-v27-neutral-identity"/
   );
   assert.match(source, /CONTRAT GÉNÉRER IMAGE/);
   assert.match(source, /SUJET CENTRAL OBLIGATOIRE/);
@@ -862,7 +862,8 @@ test("les textes d’image guidée sont composés localement et jamais dessinés
     prompt,
     /produire exclusivement le fond sans texte, chiffre, téléphone/
   );
-  assert.match(renderer, /renderAiMediaVideoOverlay\(args\)/);
+  assert.match(renderer, /renderAiMediaVideoOverlay\(copyArgs\)/);
+  assert.match(renderer, /buildImageBrandOverlays\(\{ \.\.\.args, input: imageWithCopy \}\)/);
   assert.match(
     renderer,
     /\.composite\(\[\{ input: overlay, left: 0, top: 0 \}\]\)/

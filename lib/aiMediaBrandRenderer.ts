@@ -340,7 +340,8 @@ async function prepareLogo(
   width: number,
   height: number,
   logoMode: AiMediaLogoMode,
-  placement?: AiMediaFreeLogoPlacement
+  placement?: AiMediaFreeLogoPlacement,
+  imageOutput = false
 ) {
   if (!logo) return null;
   const visible = logoMode === "visible";
@@ -361,6 +362,13 @@ async function prepareLogo(
       .png({ compressionLevel: 9, adaptiveFiltering: true })
       .toBuffer();
     const transparentLogo = await removeOpaqueNearWhiteEdgeCanvas(orientedLogo);
+    // Image branding is readable at phone size. The video dimensions retain
+    // their existing discreet overlay contract, including no enlargement.
+    const imageSize = placement?.size === "large"
+      ? { width: width * 0.36, height: Math.min(width, height) * 0.3 }
+      : placement?.size === "small"
+      ? { width: width * 0.13, height: Math.min(width, height) * 0.1 }
+      : { width: width * (visible ? 0.27 : 0.23), height: Math.min(width, height) * (visible ? 0.22 : 0.19) };
     const rendered = await sharp(transparentLogo, {
       failOn: "none",
       pages: 1,
@@ -375,10 +383,10 @@ async function prepareLogo(
         threshold: 8,
       })
       .resize({
-        width: Math.round(width * (placement?.size === "large" ? 0.32 : placement?.size === "small" ? 0.09 : visible ? 0.16 : 0.12)),
-        height: Math.round(height * (placement?.size === "large" ? 0.22 : placement?.size === "small" ? 0.04 : visible ? 0.06 : 0.048)),
+        width: imageOutput ? Math.max(1, Math.round(imageSize.width)) : Math.round(width * (placement?.size === "large" ? 0.32 : placement?.size === "small" ? 0.09 : visible ? 0.16 : 0.12)),
+        height: imageOutput ? Math.max(1, Math.round(imageSize.height)) : Math.round(height * (placement?.size === "large" ? 0.22 : placement?.size === "small" ? 0.04 : visible ? 0.06 : 0.048)),
         fit: "inside",
-        withoutEnlargement: true,
+        withoutEnlargement: !imageOutput,
       })
       .png()
       .toBuffer({ resolveWithObject: true });
@@ -390,6 +398,87 @@ async function prepareLogo(
   } catch {
     return null;
   }
+}
+
+type ImageLogoOverlay = { input: Buffer; left: number; top: number };
+
+/**
+ * Choose a quiet, contrasting edge of this image, not a fixed corner. This
+ * bounded pixel analysis detects detail and contrast, not faces or objects;
+ * leaving the centre out of the default candidates protects the usual subject.
+ * User-specified axes and size remain authoritative.
+ */
+async function buildImageBrandOverlays(
+  args: RenderBaseArgs & { input: Buffer; withText: boolean }
+): Promise<ImageLogoOverlay[]> {
+  if (args.logoMode === "none") {
+    if (args.requireLogo) throw new Error("ai_media_required_logo_not_composed");
+    return [];
+  }
+  const logo = await prepareLogo(args.logo, args.width, args.height, args.logoMode, args.logoPlacement, true);
+  if (!logo) {
+    if (args.requireLogo) throw new Error("ai_media_required_logo_not_composed");
+    return [];
+  }
+  const [background, logoSample] = await Promise.all([
+    sharp(args.input).resize({ width: 256, height: 256, fit: "inside", withoutEnlargement: true }).toColourspace("srgb").removeAlpha().raw().toBuffer({ resolveWithObject: true }),
+    sharp(logo.buffer).resize(32, 32, { fit: "fill" }).toColourspace("srgb").ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+  ]);
+  const marginX = Math.min(Math.round(args.width * 0.045), Math.floor((args.width - logo.width) / 2));
+  const marginY = Math.min(Math.round(args.height * 0.045), Math.floor((args.height - logo.height) / 2));
+  const axesX = args.logoPlacement?.horizontal ? [args.logoPlacement.horizontal] : ["left", "right"] as const;
+  const axesY = args.logoPlacement?.vertical ? [args.logoPlacement.vertical] : ["top", "bottom"] as const;
+  const luminance = (red: number, green: number, blue: number) => (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+  const backgroundPixel = (x: number, y: number) => {
+    const sampleX = Math.max(0, Math.min(background.info.width - 1, Math.round(x * background.info.width / args.width)));
+    const sampleY = Math.max(0, Math.min(background.info.height - 1, Math.round(y * background.info.height / args.height)));
+    const offset = (sampleY * background.info.width + sampleX) * background.info.channels;
+    return luminance(background.data[offset], background.data[offset + 1], background.data[offset + 2]);
+  };
+  const candidates = axesY.flatMap(vertical => axesX.map(horizontal => {
+    const left = horizontal === "left" ? marginX : horizontal === "center" ? Math.round((args.width - logo.width) / 2) : args.width - marginX - logo.width;
+    const top = vertical === "top" ? marginY : vertical === "center" ? Math.round((args.height - logo.height) / 2) : args.height - marginY - logo.height;
+    let sum = 0, squared = 0, detail = 0, contrast = 0, opacity = 0, logoLuminance = 0;
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+      const sampleX = left + (x + 0.5) * logo.width / 32;
+      const sampleY = top + (y + 0.5) * logo.height / 32;
+      const value = backgroundPixel(sampleX, sampleY);
+      sum += value; squared += value * value;
+      detail += Math.abs(value - backgroundPixel(sampleX + args.width / background.info.width, sampleY))
+        + Math.abs(value - backgroundPixel(sampleX, sampleY + args.height / background.info.height));
+      const offset = (y * 32 + x) * 4;
+      const alpha = logoSample.data[offset + 3] / 255;
+      const logoValue = luminance(logoSample.data[offset], logoSample.data[offset + 1], logoSample.data[offset + 2]);
+      contrast += Math.abs(value - logoValue) * alpha;
+      logoLuminance += logoValue * alpha; opacity += alpha;
+    }
+    const mean = sum / 1024;
+    const variance = Math.sqrt(Math.max(0, squared / 1024 - mean * mean));
+    const meanContrast = opacity ? contrast / opacity : 0;
+    // Editorial copy is rendered first and also appears in the detail sample.
+    // Prefer its upper counterpart when no vertical position was requested.
+    const copyPenalty = args.withText && !args.logoPlacement?.vertical && vertical === "bottom" ? 0.4 : 0;
+    return { left, top, contrast: meanContrast, logoLuminance: opacity ? logoLuminance / opacity : 0,
+      score: detail / 1024 * 2 + variance * 0.7 + Math.max(0, 0.35 - meanContrast) * 1.5 + copyPenalty };
+  }));
+  const chosen = candidates.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
+  const overlays: ImageLogoOverlay[] = [];
+  if (chosen.contrast < 0.2) {
+    // A small alpha-shaped halo improves separation on an unavoidable matching
+    // background; the actual logo pixels stay unchanged, with no solid badge.
+    const decoded = await sharp(logo.buffer).toColourspace("srgb").ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const shadow = Buffer.from(decoded.data);
+    const tone = chosen.logoLuminance < 0.5 ? 255 : 0;
+    for (let offset = 0; offset < shadow.length; offset += 4) {
+      shadow[offset] = tone; shadow[offset + 1] = tone; shadow[offset + 2] = tone;
+      shadow[offset + 3] = Math.round(shadow[offset + 3] * 0.7);
+    }
+    const padding = Math.max(2, Math.round(Math.min(args.width, args.height) * 0.003));
+    const halo = await sharp(shadow, { raw: { width: decoded.info.width, height: decoded.info.height, channels: 4 } }).extend({ top: padding, bottom: padding, left: padding, right: padding, background: { r: 0, g: 0, b: 0, alpha: 0 } }).blur(Math.max(0.5, padding / 2)).png().toBuffer();
+    overlays.push({ input: halo, left: Math.max(0, chosen.left - padding), top: Math.max(0, chosen.top - padding) });
+  }
+  overlays.push({ input: logo.buffer, left: chosen.left, top: chosen.top });
+  return overlays;
 }
 
 function resolveSceneCopyLayout(
@@ -1151,13 +1240,16 @@ export async function composeAiMediaBrandedImage(
     copy?: AiMediaImageCompositionCopy;
   }
 ) {
+  // Image logos have their own sizing and scene-aware placement. Rendering
+  // copy separately keeps every video overlay and its dimensions unchanged.
+  const copyArgs = { ...args, logo: null, requireLogo: false, logoMode: "none" as const };
   const overlay =
     args.withText && args.exactText?.trim()
-      ? await renderAiMediaVideoOverlay(args)
+      ? await renderAiMediaVideoOverlay(copyArgs)
       : isStructuredCommercialImagePurpose(args.imagePurpose)
-      ? await renderAiMediaStructuredCommercialOverlay(args)
-      : await renderAiMediaVideoOverlay(args);
-  return await sharp(args.input, {
+      ? await renderAiMediaStructuredCommercialOverlay(copyArgs)
+      : await renderAiMediaVideoOverlay(copyArgs);
+  const imageWithCopy = await sharp(args.input, {
     failOn: "error",
     limitInputPixels: 50_000_000,
     pages: 1,
@@ -1169,6 +1261,11 @@ export async function composeAiMediaBrandedImage(
     })
     .composite([{ input: overlay, left: 0, top: 0 }])
     .toColourspace("srgb")
+    .png()
+    .toBuffer();
+  const logos = await buildImageBrandOverlays({ ...args, input: imageWithCopy });
+  return await sharp(imageWithCopy)
+    .composite(logos)
     .jpeg({
       quality: 90,
       mozjpeg: true,

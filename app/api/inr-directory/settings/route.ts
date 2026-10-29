@@ -8,6 +8,7 @@ import { createInrBadgePublicUrl } from "@/lib/inrBadge";
 import { purgeInrSearchDirectoryCache } from "@/lib/inrSearchDirectoryCache";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { resolveProfessionalCompanyNameFromProfile } from "@/lib/professionalBusinessIdentity";
+import { getNativeChannelMissingFields } from "@/lib/nativeChannelActivation";
 
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
@@ -22,7 +23,7 @@ async function saveDirectorySetting(
   let current = initial;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const root = record(current?.settings);
-    const settings = { ...root, inrDirectory: { ...record(root.inrDirectory), enabled, updatedAt: new Date().toISOString() } };
+    const settings = { ...root, inrDirectory: { ...record(root.inrDirectory), enabled, activationVersion: 1, updatedAt: new Date().toISOString() } };
     if (current) {
       // A concurrent profile/channel save must not be overwritten by this toggle.
       let update = supabase.from("pro_tools_configs").update({ settings }).eq("user_id", accountId);
@@ -48,7 +49,7 @@ async function handle(request?: Request) {
   try {
     const [config, profileResult, businessResult, eligibility] = await Promise.all([
       supabase.from("pro_tools_configs").select("settings").eq("user_id", activeUserId).maybeSingle(),
-      supabase.from("profiles").select("company_legal_name,first_name,last_name,hq_city").eq("user_id", activeUserId).maybeSingle(),
+      supabase.from("profiles").select("company_legal_name,first_name,last_name,hq_city,hq_zip").eq("user_id", activeUserId).maybeSingle(),
       supabase.from("business_profiles").select("sector").eq("user_id", activeUserId).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
       getInrDirectoryPublicationEligibility(activeUserId),
     ]);
@@ -60,16 +61,15 @@ async function handle(request?: Request) {
     const trade = resolveDirectoryProfession(String(businessResult.data?.sector || ""));
     const companyName = resolveProfessionalCompanyNameFromProfile(profile.company_legal_name);
     const city = String(profile.hq_city || "").trim();
-    const profileReady = Boolean(companyName && city && trade.profession);
+    const missingFields = getNativeChannelMissingFields(profile, businessResult.data, root).inr_directory;
+    const profileReady = missingFields.length === 0;
     let enabled = isInrDirectoryEnabled(root);
     let warning = "";
     if (request) {
       const body = await request.json().catch(() => null);
       if (typeof body?.enabled !== "boolean") return NextResponse.json({ ok: false, error: "Le choix de visibilité est invalide." }, { status: 400 });
       if (body.accountId !== undefined && body.accountId !== activeUserId) return NextResponse.json({ ok: false, error: "L’établissement actif a changé. Rechargez la bulle avant de réessayer." }, { status: 409 });
-      if (body.enabled && (!eligibility.allowed || !profileReady)) return NextResponse.json({ ok: false, error: !eligibility.allowed
-        ? "L’annuaire n’est pas disponible pour cet établissement. Vérifiez vos accès et votre abonnement."
-        : "Complétez le nom de votre entreprise, votre ville et votre métier avant d’activer l’annuaire." }, { status: 400 });
+      if (body.enabled && !eligibility.allowed) return NextResponse.json({ ok: false, error: "L’annuaire n’est pas disponible pour cet établissement. Vérifiez vos accès et votre abonnement." }, { status: 400 });
       enabled = body.enabled;
       await saveDirectorySetting(supabase, activeUserId, enabled, config.data);
       revalidatePath("/annuaire");
@@ -82,7 +82,7 @@ async function handle(request?: Request) {
     const badgeUrl = companyName ? createInrBadgePublicUrl({ userId: activeUserId, companyLegalName: companyName,
       firstName: String(profile.first_name || ""), lastName: String(profile.last_name || ""), logoUrl: "", phone: "", contactEmail: "" }) : "";
     return NextResponse.json({ ok: true, accountId: activeUserId, enabled, visible: enabled && profileReady && eligibility.allowed,
-      allowed: eligibility.allowed, profileReady, companyName, city, profession: trade.profession, badgeUrl, warning }, { headers: { "Cache-Control": "no-store" } });
+      allowed: eligibility.allowed, profileReady, pending: enabled && !profileReady, missingFields, companyName, city, profession: trade.profession, badgeUrl: profileReady && enabled ? badgeUrl : "", warning }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return NextResponse.json({ ok: false, error: getSimpleFrenchErrorMessage(error, "L’annuaire est momentanément indisponible.") }, { status: 503 });
   }

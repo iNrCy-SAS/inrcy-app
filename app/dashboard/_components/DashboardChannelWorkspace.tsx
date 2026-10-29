@@ -18,7 +18,8 @@ import type { EditableChannelPublicUrlChannel, LinkedinPublicUrlTarget } from "@
 import type { GoogleBusinessLocation } from "@/lib/googleBusinessLocations";
 import SiteWebBubbleControls from "./SiteWebBubbleControls";
 import SiteWebWidgetSettings from "./SiteWebWidgetSettings";
-import { InrBadgeQrButton, InrBadgeDownloadButton, InrBadgeCopyButton } from "./InrBadgeBubbleActions";
+import type { NativeChannelStates } from "@/lib/nativeChannelActivation";
+import NativeChannelSettingsContent from "../settings/_components/NativeChannelSettingsContent";
 
 const ThreadsPublicationSettings = lazy(() => import("./ThreadsPublicationSettings"));
 const InrBadgeSettingsContent = lazy(() => import("../settings/_components/InrBadgeSettingsContent"));
@@ -30,8 +31,6 @@ import XSettingsContent from "../settings/_components/XSettingsContent";
 import YoutubeShortsSettingsContent from "../settings/_components/YoutubeShortsSettingsContent";
 import PinterestSettingsContent from "../settings/_components/PinterestSettingsContent";
 import MailsSettingsContent from "../settings/_components/MailsSettingsContent";
-import InrDirectorySettingsContent from "../settings/_components/InrDirectorySettingsContent";
-import InrSearchSettingsContent from "../settings/_components/InrSearchSettingsContent";
 
 type Props = ReturnType<typeof buildDashboardPanelProps> & {
   item: DashboardFluxBubbleData;
@@ -40,6 +39,7 @@ type Props = ReturnType<typeof buildDashboardPanelProps> & {
   inrSearchConnected: boolean | null;
   inrSearchUrl: string;
   inrSearchDirectoryEnabled: boolean | null;
+  nativeChannelStates?: NativeChannelStates | null;
 };
 
 export default function DashboardChannelWorkspace(props: Props) {
@@ -73,12 +73,11 @@ export default function DashboardChannelWorkspace(props: Props) {
   const [revision, setRevision] = useState(0);
   const [actionFeedback, setActionFeedback] = useState<{ channel: string; error?: string; notice?: string } | null>(null);
   const onActionError = (error: string) => setActionFeedback({ channel: item.key, error });
-  const onActionNotice = (notice: string) => setActionFeedback({ channel: item.key, notice });
   const hasUnsavedChanges = dirty || profileLinkDirty || organizationLinkDirty || widgetDirty || reviewsDirty;
   useInrAssistantScreen({ action: "channels", channel: item.key, pendingChanges: hasUnsavedChanges });
   useUnsavedExitGuard({ active: hasUnsavedChanges, shouldBlock: hasUnsavedChanges, onConfirmExit: () => { setDirty(false); setProfileLinkDirty(false); setOrganizationLinkDirty(false); setWidgetDirty(false); setReviewsDirty(false); setRevision(value => value + 1); } });
   const knownConnection = getKnownChannelConnection(item);
-  const renderBubble: ChannelBubbleRenderer = connection => <DashboardFluxBubble key={revision} item={{ ...item, connection: { ...(connection.loading && knownConnection.accountConnected ? {
+  const renderBubble: ChannelBubbleRenderer = connection => <DashboardFluxBubble key={revision} item={{ ...item, bubbleStatus: connection.status || item.bubbleStatus, bubbleStatusText: connection.statusText || item.bubbleStatusText, connection: { ...(connection.loading && knownConnection.accountConnected ? {
     ...connection,
     accountConnected: connection.accountConnected || knownConnection.accountConnected,
     resourceLabel: connection.resourceLabel || knownConnection.resourceLabel,
@@ -92,8 +91,9 @@ export default function DashboardChannelWorkspace(props: Props) {
     case "youtube_shorts": return <YoutubeShortsSettingsContent key={revision} renderBubble={renderBubble} onUnsavedChange={setDirty} />;
     case "pinterest": return <PinterestSettingsContent key={revision} renderBubble={renderBubble} onUnsavedChange={setDirty} />;
     case "mails": return <MailsSettingsContent key={revision} renderBubble={renderBubble} onUnsavedChange={setDirty} />;
-    case "inr_directory": return <InrDirectorySettingsContent renderBubble={renderBubble} initialEnabled={props.inrSearchDirectoryEnabled} />;
-    case "inr_search": return <InrSearchSettingsContent renderBubble={renderBubble} initialConnected={props.inrSearchConnected} initialPublicUrl={props.inrSearchUrl} initialDirectoryEnabled={props.inrSearchDirectoryEnabled} />;
+    case "inrbadge":
+    case "inr_directory":
+    case "inr_search": return <NativeChannelSettingsContent channelKey={item.key} renderBubble={renderBubble} initialStates={props.nativeChannelStates} companyName={props.inrBadgeSettingsProps.profile.companyLegalName} badgeProfile={props.inrBadgeSettingsProps.profile} badgeParameters={<InrBadgeSettingsContent {...props.inrBadgeSettingsProps} />} />;
   }
 
   let connection: ChannelBubbleConnection;
@@ -200,15 +200,6 @@ export default function DashboardChannelWorkspace(props: Props) {
         notice: site.siteWebUrlNotice || site.siteWebGa4Notice || site.siteWebGscNotice,
         parameters: site.hasSiteWebUrl ? <SiteWebWidgetSettings site={site} onDirtyChange={setWidgetDirty} /> : undefined,
         parametersLabel: t("widget"), parametersIcon: "widget", parametersOwnHeading: true,
-      }; break;
-    case "inrbadge":
-      connection = {
-        accountConnected: props.inrBadgeSettingsProps.profileReady,
-        resourceLabel: props.inrBadgeSettingsProps.profile?.companyLegalName || item.name,
-        resourceContent: <InrBadgeQrButton publicUrl={props.inrBadgeSettingsProps.publicUrl} companyName={props.inrBadgeSettingsProps.profile?.companyLegalName || item.name} />,
-        extraActions: <><InrBadgeDownloadButton publicUrl={props.inrBadgeSettingsProps.publicUrl} profile={props.inrBadgeSettingsProps.profile} /><InrBadgeCopyButton publicUrl={props.inrBadgeSettingsProps.publicUrl} onNotice={onActionNotice} onError={onActionError} /></>,
-        parameters: <InrBadgeSettingsContent {...props.inrBadgeSettingsProps} />,
-        parametersFullScreen: true,
       }; break;
     default: return <DashboardFluxBubble item={item} />;
   }

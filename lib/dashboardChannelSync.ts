@@ -223,6 +223,7 @@ export function buildOfficialDashboardChannelState(payload: unknown): OfficialDa
     inrSearchConnected: Boolean(inrSearch.connected),
     inrSearchUrl: String(inrSearch.profile_url || ""),
     inrSearchDirectoryEnabled: Boolean(inrSearch.directory_enabled),
+    ...(states.native_channels ? { nativeChannels: states.native_channels, inrBadgeProfileReady: Boolean(states.native_channels.inrbadge?.published) } : {}),
     mailAccountsConnectedCount: sanitizeConnectedMailCount(states.mails.connectedCount),
     mailAccountsRequireUpdate: Boolean(states.mails.requiresUpdate),
   };

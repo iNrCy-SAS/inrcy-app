@@ -17,50 +17,48 @@ const dashboardMessages = JSON.parse(
 test("iNrBadge reuses the last account-scoped authoritative state during refresh", () => {
   assert.match(
     dashboardClientSource,
-    /readCachedDashboardOptionalBoolean\("inrBadgeProfileReady"\)/,
+    /normalizeNativeChannelStates\(initialDashboardChannelState\?\.nativeChannels\)/,
   );
   assert.match(
     dashboardClientSource,
-    /profileCheckReady \|\| lastKnownInrBadgeProfileReady !== null/,
+    /setNativeChannelStates\(normalizeNativeChannelStates\(hydrationState\?\.nativeChannels\)\)/,
   );
   assert.match(
     dashboardClientSource,
-    /profileCheckReady[\s\S]*\? !profileIncomplete[\s\S]*: lastKnownInrBadgeProfileReady === true/,
+    /detail\.accountId !== getActiveBrowserUserId\(\)/,
   );
   assert.match(
     dashboardClientSource,
-    /mergeCachedDashboardChannelState\(\{ inrBadgeProfileReady: nextReady \}\)/,
+    /inrBadgeProfileReady: nativeChannels\.inrbadge\.published/,
   );
+  assert.doesNotMatch(dashboardClientSource, /lastKnownInrBadgeProfileReady/);
 });
 
 test("iNrBadge still falls back to synchronization only when no known state exists", () => {
   assert.match(
     fluxBubblesSource,
-    /if \(!inrBadgeProfileCheckReady\) \{[\s\S]*text: copy\.status\.syncing/,
+    /isNative \? \{ status: "available" as ModuleStatus, text: copy\.status\.syncing \}/,
   );
   assert.equal(dashboardMessages.status.syncing, "Synchronisation…");
   assert.match(
     dashboardClientSource,
-    /inrBadgeProfileCheckReady,/,
+    /const inrBadgeProfileCheckReady = nativeChannelStates !== null/,
   );
 });
 
-test("iNrBadge actions stay disabled only while neither cache nor profile check is ready", () => {
-  assert.match(
-    fluxBubblesSource,
-    /\(m\.key === "inrbadge" \? !inrBadgeProfileCheckReady : false\)/,
-  );
-  assert.match(
-    fluxBubblesSource,
-    /if \(m\.key === "inrbadge"\) \{[\s\S]*if \(!inrBadgeProfileCheckReady\) return;/,
-  );
+test("Badge configuration stays accessible before Profile completion while public actions require publication", () => {
+  const native = readFileSync(new URL("../../app/dashboard/settings/_components/NativeChannelSettingsContent.tsx", import.meta.url), "utf8");
+  assert.match(fluxBubblesSource, /configureDisabled: !accessEnabled/);
+  assert.doesNotMatch(fluxBubblesSource, /configureDisabled:[^\n]*inrBadgeProfile/);
+  assert.match(native, /loading \|\| busy \|\| !snapshot \|\| !state\?\.allowed/);
+  assert.match(native, /publicView: \{ href: publicUrl, disabled: !published \|\| !publicUrl \}/);
 });
 
 test("the badge bubble retains the business essentials readiness signal", () => {
   assert.doesNotMatch(dashboardClientSource, /<ChannelConnectionsModal/);
   const workspace = readFileSync(new URL("../../app/dashboard/_components/DashboardChannelWorkspace.tsx", import.meta.url), "utf8");
   assert.match(workspace, /case "inrbadge"/);
-  assert.match(workspace, /accountConnected: props\.inrBadgeSettingsProps\.profileReady/);
-  assert.match(workspace, /resourceLabel: props\.inrBadgeSettingsProps\.profile\?\.companyLegalName/);
+  assert.match(workspace, /<NativeChannelSettingsContent[\s\S]*?initialStates=\{props\.nativeChannelStates\}/);
+  assert.match(workspace, /companyName=\{props\.inrBadgeSettingsProps\.profile\.companyLegalName\}/);
 
 });

@@ -1,4 +1,5 @@
 import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
+import { resolveAiContentLocation } from "./aiContentLocation.ts";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 
 /**
@@ -184,7 +185,7 @@ function extractCommercialTerms(source: string, target: string[]) {
 
 export function collectAiMediaProtectedTerms(args: {
   request: Pick<AiMediaGenerationRequest, "idea" | "aiInstruction" | "textKeywords">;
-  profile: Pick<NormalizedAiGenerationProfile, "business">;
+  profile: Pick<NormalizedAiGenerationProfile, "business"> & Partial<Pick<NormalizedAiGenerationProfile, "memory">>;
 }) {
   const sources = [args.request.idea, args.request.aiInstruction, ...args.request.textKeywords]
     .map((value) => normalizeAiMediaCopy(value))
@@ -201,6 +202,7 @@ export function collectAiMediaProtectedTerms(args: {
   for (const term of [
     args.profile.business.companyName,
     args.profile.business.city,
+    resolveAiContentLocation(args.profile)?.primaryArea || "",
     ...args.profile.business.interventionZones,
   ]) {
     const comparable = comparableCopy(term);

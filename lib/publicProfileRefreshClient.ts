@@ -1,4 +1,5 @@
 "use client";
+import { getActiveBrowserUserId } from "./browserAccountCache";
 
 export const PUBLIC_PROFILE_DATA_SAVED_EVENT = "inrcy:public-profile-data-saved";
 
@@ -12,17 +13,17 @@ export type PublicProfileDataSource = "profile" | "activity";
 export async function refreshPublicProfileDependents(
   source: PublicProfileDataSource,
 ): Promise<boolean> {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(
-      new CustomEvent(PUBLIC_PROFILE_DATA_SAVED_EVENT, { detail: { source } }),
-    );
-  }
+  const accountId = getActiveBrowserUserId();
 
   const response = await fetch("/api/public-profile/refresh", {
     method: "POST",
     cache: "no-store",
     credentials: "include",
   }).catch(() => null);
+
+  if (typeof window !== "undefined" && getActiveBrowserUserId() === accountId) {
+    window.dispatchEvent(new CustomEvent(PUBLIC_PROFILE_DATA_SAVED_EVENT, { detail: { source } }));
+  }
 
   return Boolean(response?.ok);
 }

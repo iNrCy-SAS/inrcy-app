@@ -13,6 +13,8 @@ import { createAiOperationBudget } from "../../lib/aiGatewayPolicy.ts";
 import * as safe from "../../lib/tsSafe.ts";
 import { withoutThreadsData } from "../../lib/stats/metaPilotData.ts";
 import { buildBusinessDnaWorkspaceSavePatch } from "../../lib/businessDnaManualAnalysisJob.ts";
+import * as businessLocationAutofill from "../../lib/businessLocationAutofill.ts";
+import * as professionalBusinessIdentity from "../../lib/professionalBusinessIdentity.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const ACCOUNT = "00000000-0000-4000-8000-000000000011";
@@ -149,6 +151,7 @@ type HarnessOptions = {
   noSources?: boolean; providerFailure?: boolean; completionFailure?: boolean;
   channelCollectionFailure?: boolean; documentCollectionFailure?: boolean;
   readableDocument?: boolean; cacheFailure?: boolean;
+  autofillProfile?: boolean;
 };
 async function harness(options: HarnessOptions = {}) {
   const db = await createDb();
@@ -158,6 +161,11 @@ async function harness(options: HarnessOptions = {}) {
     extractedText: options.readableDocument ? "Entreprise de rénovation. Préparation des surfaces. Travaux de qualité." : "", size: 1024,
   }] });
   let business: Record<string, unknown> = { company_name: "Entreprise test", ai_preferred_engine: "anthropic", services: ["Service initial"] };
+  let profile: Record<string, unknown> = options.autofillProfile
+    ? { company_legal_name: null, phone: null, contact_email: null, hq_zip: null, hq_city: null }
+    : { company_legal_name: "Entreprise test" };
+  const saveEvents: string[] = [];
+  const nativeSyncAccountIds: string[] = [];
   const afterCallbacks: Array<() => Promise<void>> = [];
   let release!: () => void;
   const providerGate = new Promise<void>((resolve) => { release = resolve; });
@@ -177,8 +185,11 @@ async function harness(options: HarnessOptions = {}) {
   };
   const sdk = { rpc, from: (table: string) => {
     const filters: Record<string, unknown> = {};
+    let patch: Record<string, unknown> | null = null;
     const query = {
       select: () => query, eq: (key: string, value: unknown) => { filters[key] = value; return query; },
+      is: (key: string, value: unknown) => { filters[key] = value; return query; },
+      update: (value: Record<string, unknown>) => { patch = value; return query; },
       order: () => query, limit: () => query,
       maybeSingle: async () => {
         if (table === "business_dna_manual_analysis_jobs") {
@@ -186,13 +197,20 @@ async function harness(options: HarnessOptions = {}) {
             filters.id ? [filters.account_id, filters.id] : [filters.account_id]);
           return { data: result.rows[0] || null, error: null };
         }
+        if (table === "profiles" && patch) {
+          assert.equal(filters.user_id, ACCOUNT);
+          const matches = Object.entries(filters).every(([key, value]) => key === "user_id" || (profile[key] ?? null) === value);
+          if (!matches) return { data: null, error: null };
+          profile = { ...profile, ...patch };
+          saveEvents.push("profile-saved");
+        }
         const data = table === "business_ai_memories" ? { memory: structuredClone(memory) }
           : table === "business_profiles" ? structuredClone(business)
-            : table === "profiles" ? { company_legal_name: "Entreprise test" } : { settings: {} };
+            : table === "profiles" ? structuredClone(profile) : { settings: {} };
         return { data, error: null };
       },
       upsert: async (value: Record<string, unknown>) => {
-        if (table === "business_ai_memories") memory = memoryLib.normalizeAiMemory(value.memory);
+        if (table === "business_ai_memories") { memory = memoryLib.normalizeAiMemory(value.memory); saveEvents.push("memory-saved"); }
         else if (table === "business_profiles") business = { ...business, ...value };
         else throw new Error("Unexpected write " + table);
         return { error: null };
@@ -213,6 +231,20 @@ async function harness(options: HarnessOptions = {}) {
   });
   const sources = options.noSources ? [] : [{ key: "website", label: "Site web", status: "analyzed", itemCount: 1,
     recentItemCount: 0, contentChars: 150, content: "Entreprise de rénovation. Travaux de qualité. Service nouveau.", url: null, message: null }];
+  if (options.autofillProfile) sources.push({ key: "google_business", label: "Google Business", status: "analyzed", itemCount: 1,
+    recentItemCount: 0, contentChars: 250, url: null, message: null, content: JSON.stringify({ details: {
+      title: "Entreprise réelle", address: { postalCode: "62440", locality: "Harnes" }, phoneNumbers: { primaryPhone: "06 31 26 08 12" },
+    } }) });
+  const locationService = load<typeof import("../../lib/businessLocationServer.ts")>("lib/businessLocationServer.ts", {
+    "next/cache": { revalidatePath: () => undefined },
+    "@/lib/businessLocationAutofill": businessLocationAutofill,
+    "@/lib/boosterGenerationContext": { invalidateBoosterGenerationContext: async () => undefined },
+    "@/lib/businessDnaChannelAnalysis": { collectBusinessDnaChannelSources: () => { throw new Error("Analysis must reuse collected sources"); } },
+    "@/lib/inrSearchProvisioning": { revalidateInrSearchPublicRoutes: () => undefined },
+    "@/lib/metaChannelRolloutServer": { isMetaChannelPilotEnabledForActorAndAccount: async () => false },
+    "@/lib/professionalBusinessIdentity": { resolveProfessionalCompanyNameFromProfile: () => "Entreprise test" },
+    "@/lib/tsSafe": safe,
+  });
   const route = load<{ POST: (request: Request) => Promise<Response>; GET: () => Promise<Response> }>("app/api/ai-memory/analyze-channels/route.ts", {
     "@/lib/metaChannelRolloutServer": {
       isMetaChannelPilotEnabledForActorAndAccount: async () => false,
@@ -223,6 +255,7 @@ async function harness(options: HarnessOptions = {}) {
       after: (callback: () => Promise<void>) => { afterCallbacks.push(callback); } },
     "@/lib/apiUserFacingErrors": { jsonUserFacingError: (_error: unknown, config: { fallback: string; status: number }) => Response.json({ user_message: config.fallback }, { status: config.status }) },
     "@/lib/aiGatewayClient": { aiGenerateJSON: async (args: Record<string, unknown>) => {
+      if (options.autofillProfile) assert.ok(String(args.input).includes('"companyName":"Entreprise réelle"'), "the first AI call uses the identity recovered in this analysis");
       assert.equal(args.engine, "anthropic"); providerCalls++; providerStarted(); await providerGate;
       if (options.providerFailure || (options.completionFailure && providerCalls > 1)) throw new Error("Provider unavailable");
       return { businessKnowledge: { services: ["Service nouveau"] }, memory: { values: ["Qualité"] } };
@@ -239,6 +272,12 @@ async function harness(options: HarnessOptions = {}) {
         void content; return publicItem;
       }) },
     "@/lib/businessDnaReferenceDocumentSource": documentSources,
+    "@/lib/businessLocationServer": locationService,
+    "@/lib/nativeChannelActivationServer": { syncNativeChannelsForAccount: async (accountId: string) => {
+      assert.equal(accountId, ACCOUNT);
+      assert.ok(memory.values.includes("Qualité"), "native sync waits until the ADN has been persisted");
+      nativeSyncAccountIds.push(accountId); saveEvents.push("native-sync");
+    } },
     "@/lib/businessDnaReferenceDocumentRefresh": { refreshBusinessDnaReferenceDocuments: async (value: unknown) => {
       if (options.documentCollectionFailure) throw new Error("Storage unavailable");
       return value;
@@ -259,14 +298,32 @@ async function harness(options: HarnessOptions = {}) {
     "@/lib/requireUser": { requireUser: async () => ({ supabase: sdk, activeUserId: ACCOUNT, authUserId: ACTOR, errorResponse: null }) },
     "@/lib/supabaseAdmin": { supabaseAdmin: sdk }, "@/lib/tsSafe": safe,
     "@/lib/businessDnaActivityAutofill": { buildBusinessDnaProfessionCatalog: () => "", buildMissingBusinessDnaProfession: () => "", resolveBusinessDnaProfessionSuggestion: () => null },
-    "@/lib/professionalBusinessIdentity": { INTERNAL_PRODUCT_COMPANY_NAMES: [], resolveProfessionalCompanyNameFromProfile: () => "Entreprise test",
-      sanitizeProfessionalIdentityText: (value: unknown) => value, sanitizeProfessionalIdentityValue: (value: unknown) => value },
+    "@/lib/professionalBusinessIdentity": professionalBusinessIdentity,
     "@/lib/businessWeeklySchedule": { decodeBusinessWeeklySchedule: () => undefined, encodeBusinessWeeklySchedule: () => "", formatBusinessWeeklySchedule: () => "" },
     "@/lib/businessDnaRecentNews": { buildBusinessDnaRecentWindow: () => ({ start: "2026-10-01", end: "2026-10-11" }), buildBusinessDnaAnalysisHistoryWindow: () => ({}) },
   });
   return { db, route, afterCallbacks, release, started, providerCalls: () => providerCalls, memory: () => memory,
-    business: () => business, editBusiness: () => { business.services = ["Service initial", "Modification manuelle récente"]; } };
+    business: () => business, profile: () => profile, saveEvents, nativeSyncAccountIds,
+    editBusiness: () => { business.services = ["Service initial", "Modification manuelle récente"]; } };
 }
+
+test("l’analyse remplit le profil depuis les sources collectées puis synchronise les canaux après sauvegarde ADN", async () => {
+  const h = await harness({ autofillProfile: true });
+  try {
+    await h.route.POST(new Request("https://app.example/api/ai-memory/analyze-channels?background=1", { method: "POST" }));
+    const background = h.afterCallbacks[0]();
+    await h.started;
+    assert.deepEqual(h.profile(), { company_legal_name: "Entreprise réelle", phone: "06 31 26 08 12", contact_email: null, hq_zip: "62440", hq_city: "Harnes" });
+    assert.deepEqual(h.nativeSyncAccountIds, []);
+    h.release(); await background;
+    const status = await (await h.route.GET()).json();
+    assert.equal(status.job.status, "succeeded");
+    assert.deepEqual(h.nativeSyncAccountIds, [ACCOUNT]);
+    assert.ok(h.saveEvents.indexOf("profile-saved") < h.saveEvents.indexOf("memory-saved"));
+    assert.ok(h.saveEvents.indexOf("memory-saved") < h.saveEvents.indexOf("native-sync"));
+    assert.equal(status.job.result.sources.find((source: { key: string }) => source.key === "google_business").content, undefined);
+  } finally { await h.db.close(); }
+});
 
 test("le navigateur reçoit 202 avant l'IA ; le serveur finit et enregistre après son départ, malgré un PDF illisible", async () => {
   const h = await harness();

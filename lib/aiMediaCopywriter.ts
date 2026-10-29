@@ -4,6 +4,7 @@ import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
+import { buildAiContentLocationInstruction } from "./aiContentLocation.ts";
 import { isAiMediaTechnicalCopyAllowed } from "./aiMediaTechnicalText.ts";
 import {
   aiMediaDialogueSignature,
@@ -642,7 +643,8 @@ export async function writeAiMediaHeadline(args: {
           process.env.AI_MEDIA_COPY_MODEL || getAiEngineOption("openai").model
         ).trim(),
         system: [
-          "Tu es le directeur éditorial multilingue du studio média iNrCy.",
+          "Tu es le directeur éditorial multilingue de cette création professionnelle.",
+          args.request.subjectSource === "custom" ? "" : buildAiContentLocationInstruction(args.profile),
           buildAiLanguageInstruction(args.profile),
           `Tous les textes réellement visibles dans le média doivent être en ${getAiLanguageLabel(
             args.profile

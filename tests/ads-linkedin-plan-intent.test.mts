@@ -17,6 +17,7 @@ import * as pinterestIntent from "../lib/adsPinterestPlanIntent.ts";
 import * as googleLocations from "../lib/adsGoogleLocations.ts";
 import * as quality from "../lib/adsPlanQuality.ts";
 import * as budgetRecommendation from "../lib/adsBudgetRecommendation.ts";
+import * as contentLocation from "../lib/aiContentLocation.ts";
 import { assertAiJsonMatchesSchema } from "../lib/aiJsonSchemaValidation.ts";
 
 const brief = "Une image pour les visites du site en Hauts-de-France, pour les indépendants seuls et les entreprises de 2 à 10 salariés. Budget total 200 €. CTA En savoir plus.";
@@ -136,6 +137,7 @@ function routeRuntime(fixedNow?: string) {
     ["@/lib/adsCampaignPlan", plans], ["@/lib/adsChannelCapabilities", capabilities], ["@/lib/adsCampaignIntelligence", intelligence], ["@/lib/adsValidation", validation], ["@/lib/adsDestination", destinations], ["@/lib/adsPinterestPlanIntent", pinterestIntent], ["@/lib/adsGooglePlanIntent", googleIntent], ["@/lib/adsGoogleLocations", googleLocations], ["@/lib/adsPlanQuality", quality], ["@/lib/adsLinkedInPlanIntent", intent],
     ["@/lib/adsLinkedInPlanDelivery", delivery], ["@/lib/adsPreparedPlanIntent", preparedIntent], ["@/lib/adsMetaPlanIntent", metaIntent], ["@/lib/adsOpenaiPlanIntent", openaiIntent],
     ["@/lib/adsBudgetRecommendation", budgetRecommendation],
+    ["@/lib/aiContentLocation", contentLocation],
     ["@/lib/aiGatewayClient", { getAiGenerationAttemptTrace: () => null, aiGenerateJSON: async (options: Record<string, unknown>) => {
       requests.push(options);
       const completed = plans.normalizeAdsCampaignPlan(raw, { ...context, intent: "" });

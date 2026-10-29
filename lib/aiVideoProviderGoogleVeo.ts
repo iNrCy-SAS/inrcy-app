@@ -593,11 +593,11 @@ export function buildGoogleVideoTeamSpeechDirection(
   index: number,
 ) {
   if (args.request.teamVideoMode !== "cinematic") {
-    return "AUDIO: natural ambience only; no speech, voice-over, lyrics or music. iNrCy adds final audio. VISUAL SPEECH: No speaking/articulation/lip-sync; natural gestures, gaze and smiles.";
+    return "AUDIO: natural ambience only; no speech, voice-over, lyrics or music. Final audio is added separately. VISUAL SPEECH: No speaking/articulation/lip-sync; natural gestures, gaze and smiles.";
   }
 
   if (args.request.teamVideoSpeechMode !== "characters") {
-    return "VOICE-OVER: people stay silent with closed mouths; no native speech, lip-sync, vocalisation, lyrics or music; ambience only. iNrCy adds narration.";
+    return "VOICE-OVER: people stay silent with closed mouths; no native speech, lip-sync, vocalisation, lyrics or music; ambience only. Narration is added separately.";
   }
 
   const language = String(args.contentLanguage || "fr").toLowerCase();
@@ -870,7 +870,7 @@ export function buildGoogleVideoScenePrompt(
       : "Animate from 0.0s throughout; no still/freeze/slideshow/pan-zoom/reset/cut."}`,
     "NO VISUAL TEXT: blank surfaces; no text/pseudo-text/numbers/UI/logos/watermarks/swatches/color charts/hex codes/technical annotations, even from refs. Never draw PARAMS.",
     compactGeneratedDirections && !nativeDialogueRequested
-      ? `${args.request.teamVideoMode === "cinematic" ? "VOICE-OVER" : "AUDIO"}: ambience only; no native speech/vocals/lyrics/music; no speaking/articulation/lip-sync. Natural gestures/gaze/smiles; iNrCy adds final audio.`
+      ? `${args.request.teamVideoMode === "cinematic" ? "VOICE-OVER" : "AUDIO"}: ambience only; no native speech/vocals/lyrics/music; no speaking/articulation/lip-sync. Natural gestures/gaze/smiles; final audio is added separately.`
       : speechDirection,
     `PARAMS: ${selectedParameters}.`,
     compactGeneratedDirections

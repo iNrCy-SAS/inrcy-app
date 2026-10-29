@@ -73,13 +73,15 @@ function pickAuthUserId(accountId: string, rows: MembershipRow[]) {
   return clean(candidates[0]?.auth_user_id) || accountId;
 }
 
-type PublicPresenceBubble = "inr_search" | "inr_directory";
+type PublicPresenceBubble = "inr_search" | "inr_directory" | "inrbadge";
+type NativePublicationAccess = Record<PublicPresenceBubble, boolean>;
+export type NativeChannelPublicationEligibility = Record<PublicPresenceBubble, InrSearchPublicationEligibility>;
 
-async function loadEligibilityInputs(accountIds: string[], bubbleKey: PublicPresenceBubble = "inr_search") {
+async function loadEligibilityInputs(accountIds: string[]) {
   const uniqueAccountIds = Array.from(new Set(accountIds.map((value) => clean(value)).filter(Boolean)));
   if (!uniqueAccountIds.length) {
     return {
-      accessByAccount: new Map<string, boolean>(),
+      accessByAccount: new Map<string, NativePublicationAccess>(),
       authUserByAccount: new Map<string, string>(),
       subscriptionByAuthUser: new Map<string, SubscriptionRow>(),
       adminAuthUsers: new Set<string>(),
@@ -91,7 +93,7 @@ async function loadEligibilityInputs(accountIds: string[], bubbleKey: PublicPres
       .from("app_bubble_access")
       .select("user_id,bubble_key,enabled")
       .in("user_id", uniqueAccountIds)
-      .in("bubble_key", bubbleKey === "inr_directory" ? ["inr_directory", "inrbadge"] : [bubbleKey]),
+      .in("bubble_key", ["inrbadge", "inr_search", "inr_directory"]),
     supabaseAdmin
       .from("inrcy_account_members")
       .select("account_id,auth_user_id,is_default,created_at")
@@ -105,13 +107,17 @@ async function loadEligibilityInputs(accountIds: string[], bubbleKey: PublicPres
     ? membershipsRes.data as MembershipRow[]
     : [];
 
-  const accessByAccount = new Map<string, boolean>();
+  const accessByAccount = new Map<string, NativePublicationAccess>();
   for (const accountId of uniqueAccountIds) {
     const rows = accessRows
       .filter((row: any) => clean(row?.user_id) === accountId)
       .map((row: any) => ({ bubble_key: row?.bubble_key, enabled: row?.enabled })) as AppBubbleAccessRow[];
     const access = buildBubbleAccessMap(rows);
-    accessByAccount.set(accountId, access[bubbleKey] && (bubbleKey !== "inr_directory" || access.inrbadge));
+    accessByAccount.set(accountId, {
+      inrbadge: access.inrbadge,
+      inr_search: access.inr_search,
+      inr_directory: access.inr_directory && access.inrbadge,
+    });
   }
 
   const authUserByAccount = new Map<string, string>();
@@ -154,36 +160,57 @@ async function loadEligibilityInputs(accountIds: string[], bubbleKey: PublicPres
   return { accessByAccount, authUserByAccount, subscriptionByAuthUser, adminAuthUsers };
 }
 
-export async function getInrSearchPublicationEligibility(
-  accountIdValue: unknown,
-  bubbleKey: PublicPresenceBubble = "inr_search",
-): Promise<InrSearchPublicationEligibility> {
-  const accountId = clean(accountIdValue);
-  const inputs = await loadEligibilityInputs(accountId ? [accountId] : [], bubbleKey);
+function resolvePublicationEligibility(
+  accountId: string,
+  inputs: Awaited<ReturnType<typeof loadEligibilityInputs>>,
+  bubbleKey: PublicPresenceBubble,
+  nowMs = Date.now(),
+): InrSearchPublicationEligibility {
   const authUserId = inputs.authUserByAccount.get(accountId) || accountId;
   const subscription = inputs.subscriptionByAuthUser.get(authUserId)
     || inputs.subscriptionByAuthUser.get(accountId)
     || null;
   const subscriptionStatus = normalizeStatus(subscription?.status);
 
-  if (!accountId || inputs.accessByAccount.get(accountId) !== true) {
+  if (!accountId || inputs.accessByAccount.get(accountId)?.[bubbleKey] !== true) {
     return { allowed: false, reason: "bubble_disabled", accountId, authUserId, subscriptionStatus };
   }
 
-  if (!inputs.adminAuthUsers.has(authUserId) && !inputs.adminAuthUsers.has(accountId) && !hasActiveInrSearchSubscription(subscription)) {
+  if (!inputs.adminAuthUsers.has(authUserId) && !inputs.adminAuthUsers.has(accountId) && !hasActiveInrSearchSubscription(subscription, nowMs)) {
     return { allowed: false, reason: "subscription_inactive", accountId, authUserId, subscriptionStatus };
   }
 
   return { allowed: true, reason: "published", accountId, authUserId, subscriptionStatus };
 }
 
+export async function getInrSearchPublicationEligibility(
+  accountIdValue: unknown,
+  bubbleKey: PublicPresenceBubble = "inr_search",
+): Promise<InrSearchPublicationEligibility> {
+  const accountId = clean(accountIdValue);
+  const inputs = await loadEligibilityInputs(accountId ? [accountId] : []);
+  return resolvePublicationEligibility(accountId, inputs, bubbleKey);
+}
+
+/** One batch of four queries supplies the same three native channel decisions. */
+export async function getNativeChannelPublicationEligibility(accountIdValue: unknown): Promise<NativeChannelPublicationEligibility> {
+  const accountId = clean(accountIdValue);
+  const inputs = await loadEligibilityInputs(accountId ? [accountId] : []);
+  const nowMs = Date.now();
+  return {
+    inrbadge: resolvePublicationEligibility(accountId, inputs, "inrbadge", nowMs),
+    inr_search: resolvePublicationEligibility(accountId, inputs, "inr_search", nowMs),
+    inr_directory: resolvePublicationEligibility(accountId, inputs, "inr_directory", nowMs),
+  };
+}
+
 export async function filterEligibleInrSearchAccountIds(accountIds: string[], bubbleKey: PublicPresenceBubble = "inr_search") {
   const uniqueAccountIds = Array.from(new Set(accountIds.map((value) => clean(value)).filter(Boolean)));
-  const inputs = await loadEligibilityInputs(uniqueAccountIds, bubbleKey);
+  const inputs = await loadEligibilityInputs(uniqueAccountIds);
   const eligible = new Set<string>();
 
   for (const accountId of uniqueAccountIds) {
-    if (inputs.accessByAccount.get(accountId) !== true) continue;
+    if (inputs.accessByAccount.get(accountId)?.[bubbleKey] !== true) continue;
     const authUserId = inputs.authUserByAccount.get(accountId) || accountId;
     const subscription = inputs.subscriptionByAuthUser.get(authUserId)
       || inputs.subscriptionByAuthUser.get(accountId)

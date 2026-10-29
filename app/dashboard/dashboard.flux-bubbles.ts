@@ -1,4 +1,5 @@
 import { getInrDirectoryUrl } from "@/lib/inrDirectorySettings";
+import type { NativeChannelStates } from "@/lib/nativeChannelActivation";
 import type { DashboardFluxBubbleData } from "./_components/DashboardFluxBubble";
 import { fluxModules, MODULE_ICONS } from "./dashboard.constants";
 import { statusLabel } from "./dashboard.utils";
@@ -16,6 +17,7 @@ import {
 import { DASHBOARD_CHANNEL_CREATE_HREF_BY_KEY } from "./dashboard.channel-setup";
 
 type BuildFluxBubbleItemsArgs = {
+  nativeChannelStates?: NativeChannelStates | null;
   bubbleAccessMap: AppBubbleAccessMap;
   standardMode?: boolean;
   metaPilotEnabled?: boolean;
@@ -69,6 +71,7 @@ type BuildFluxBubbleItemsArgs = {
 
 export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardFluxBubbleData[] {
   const {
+    nativeChannelStates,
     bubbleAccessMap,
     standardMode = false,
     metaPilotEnabled = false,
@@ -174,7 +177,12 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
               : viewActionRaw,
     );
 
-    const resolvedBubbleProgressRaw = (m.key === "site_web")
+    const isNative = m.key === "inrbadge" || m.key === "inr_search" || m.key === "inr_directory";
+    const nativeState = isNative ? nativeChannelStates?.[m.key as keyof NativeChannelStates] : undefined;
+    const resolvedBubbleProgressRaw = nativeState
+      ? { status: nativeState.published ? "connected" as ModuleStatus : "available" as ModuleStatus, text: nativeState.published ? copy.nativeChannels.published : nativeState.pending ? copy.nativeChannels.pending : copy.nativeChannels.inactive }
+      : isNative ? { status: "available" as ModuleStatus, text: copy.status.syncing }
+      : (m.key === "site_web")
         ? getSiteBubbleProgress("site_web")
         : officialConnection && !officialChannelStatesReady
           ? { status: "available" as ModuleStatus, text: copy.status.syncing }
@@ -255,7 +263,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
         ? moduleCopy?.view || viewAction?.label
         : undefined;
 
-    const canViewSpecial = m.key === "inr_directory" ? true : m.key === "inrbadge"
+    const canViewSpecial = nativeState ? nativeState.published && Boolean(specialViewHref && specialViewHref !== "#") : m.key === "inr_directory" ? false : m.key === "inrbadge"
       ? inrBadgeProfileReady && Boolean(inrBadgePublicUrl)
       : m.key === "threads" ? Boolean(threadsUrl) : m.key === "site_web"
           ? Boolean(blockDrivenViewHref || savedSiteWebUrlMeta)
@@ -292,7 +300,6 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       }
       if (!accessEnabled) return;
       if (m.key === "inr_directory") { openPanel("inr_directory"); return; }
-      if (m.key === "inr_directory") { openPanel("inr_directory"); return; }
 
       if (m.key === "tiktok") {
         openPanel("tiktok");
@@ -319,7 +326,6 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
         return;
       }
       if (m.key === "inrbadge") {
-        if (!inrBadgeProfileCheckReady) return;
         openPanel("inrbadge");
         return;
       }
@@ -353,20 +359,15 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       // strictement leurs actions existantes.
       onCreate: undefined,
       createLabel: copy.bubble.create,
-      createDisabled: !accessEnabled || (m.key === "inrbadge" && !inrBadgeProfileCheckReady),
+      createDisabled: !accessEnabled,
       onConfigure,
       configureDestination,
-      configureDisabled:
-        !accessEnabled ||
-        (false) ||
-        (m.key === "inrbadge" ? !inrBadgeProfileCheckReady : false),
+      configureDisabled: !accessEnabled,
       configureTitle: !accessEnabled
         ? mailPremiumLocked
           ? copy.status.premiumPlan
           : copy.bubble.disabled
-        : m.key === "inrbadge" && !inrBadgeProfileCheckReady
-            ? copy.status.profileChecking
-            : undefined,
+        : undefined,
       // Toutes les bulles ouvrent leur panneau de configuration avec le même
       // libellé. La connexion réelle se fait ensuite dans le panneau dédié.
       configureLabel: m.key === "inr_agent"

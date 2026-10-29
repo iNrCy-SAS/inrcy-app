@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import { normalizeNativeChannelStates } from "../../app/dashboard/_components/native-channel-state.ts";
 import {
   buildOfficialDashboardChannelState,
   createLatestChannelResponseGate,
@@ -88,6 +89,7 @@ function harness() {
     buildOfficialDashboardChannelState,
     hasCompleteOfficialDashboardChannelState,
     mergeDashboardHydrationState,
+    normalizeNativeChannelStates,
     isConnectionStatus: (value: unknown) => ["connected", "disconnected", "needs_update"].includes(String(value)),
     getActiveBrowserUserId: () => account,
     readCachedDashboardChannelState: () => cache,

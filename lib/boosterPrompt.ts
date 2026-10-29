@@ -16,6 +16,7 @@ import {
   type BoosterChannelKey,
 } from "@/lib/boosterChannelRules";
 import { buildAiMemoryPromptPayload } from "@/lib/aiMemory";
+import { buildAiContentLocationPromptPayload } from "./aiContentLocation.ts";
 
 export type BoosterChannels = BoosterChannelKey;
 
@@ -339,10 +340,19 @@ function compactLongPromptContext(value: unknown, maxChars = 5_000) {
 
 function buildCompactBusinessPayload(profile: NormalizedAiGenerationProfile) {
   const business = profile.business;
+  const contentLocation = buildAiContentLocationPromptPayload(profile);
   return compactRecord({
     entreprise: cleanText(business.companyName, 100),
-    ville: cleanText(business.city, 80),
-    code_postal: cleanText(business.postalCode, 20),
+    ...(contentLocation ? {
+      lieu_implantation: compactRecord({
+        ville: cleanText(business.city, 80),
+        code_postal: cleanText(business.postalCode, 20),
+      }),
+      localisation_editoriale: contentLocation,
+    } : {
+      ville: cleanText(business.city, 80),
+      code_postal: cleanText(business.postalCode, 20),
+    }),
     secteur: cleanText(business.sectorLabel, 90),
     metier: cleanText(business.professionLabel, 120),
     description: cleanText(business.description, 520),

@@ -14,10 +14,11 @@ type Props = {
   busy?: boolean;
   workspace?: InrAgentWorkspace;
   locked?: boolean;
+  availabilityHint?: string;
   onClick: () => void;
 };
 
-export default function DashboardAgentLogoButton({ className, enabled = true, busy = false, workspace, locked = false, onClick }: Props) {
+export default function DashboardAgentLogoButton({ className, enabled = true, busy = false, workspace, locked = false, availabilityHint, onClick }: Props) {
   const t = useDashboardI18n();
   const workspaceT = useTranslations("agent.workspaces");
   // The global counter remains on its existing global entry point.
@@ -34,15 +35,15 @@ export default function DashboardAgentLogoButton({ className, enabled = true, bu
 
   if (workspace && definition) {
     return (
-      <div className={`${styles.contextual} ${className ?? ""}`}>
-        <Image className={styles.contextualRobot} src={definition.icon} alt="" width={56} height={56} draggable={false} />
+      <div className={`${styles.contextual} ${className ?? ""}`} title={availabilityHint}>
+        <Image className={styles.contextualRobot} src={definition.icon} alt="" title={availabilityHint} width={56} height={56} draggable={false} />
         <div className={styles.contextualCopy}>
           <span className={styles.agentName}>Agent {workspaceT(`${workspace}.name`)}</span>
         <button type="button" className={`${toolStyles.toolButton} ${styles.openAgent}`}
           data-agent-workspace={workspace} data-testid="dashboard-agent-logo"
           data-dashboard-prefetch={enabled && !locked ? definition.href : undefined}
           onClick={onClick} disabled={!enabled || busy} aria-disabled={!enabled || busy}
-          aria-busy={busy || undefined} aria-label={locked ? `${actionLabel} — ${t.modules.campaignsPremiumLabel}` : actionLabel} title={actionLabel}>
+          aria-busy={busy || undefined} aria-label={availabilityHint ? `${actionLabel} — ${availabilityHint}` : locked ? `${actionLabel} — ${t.modules.campaignsPremiumLabel}` : actionLabel} title={availabilityHint ?? actionLabel}>
           {locked ? t.modules.campaignsPremiumLabel : workspace === "publications" ? workspaceT("publications.automate") : t.modules.agentCta}<span aria-hidden="true">{locked ? "🔒" : "→"}</span>
         </button>
         </div>

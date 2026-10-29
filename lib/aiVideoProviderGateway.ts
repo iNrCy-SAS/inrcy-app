@@ -71,7 +71,7 @@ export function buildWanFlashVideoPrompt(args: AiVideoProviderGenerationArgs, va
       ? compactSilence
         ? `Fill frame. No split/panels/collage unless asked. Subtitles ${args.request.withSubtitles ? "ON: faithful, same language as speech" : "OFF: no speech captions"}. Other requested visual text allowed.`
         : buildAiMediaFreeVideoPresentationContract(args.request)
-      : "No visual text, numbers, UI, logos or technical annotations; iNrCy adds overlays.",
+      : "No visual text, numbers, UI, logos or technical annotations; overlays are added separately.",
   ].filter(Boolean).join("\n");
   if (prompt.length > 1500) throw new Error(`ai_video_instruction_contract_too_long:${prompt.length}:1500`);
   return prompt;

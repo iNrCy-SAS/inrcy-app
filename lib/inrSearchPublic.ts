@@ -2,6 +2,7 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { getActivitySectorLabel, decodeBusinessSector } from "@/lib/activitySectors";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
+import { getNativeChannelMissingFields } from "@/lib/nativeChannelActivation";
 import { filterEligibleInrSearchAccountIds, getInrSearchPublicationEligibility } from "@/lib/inrSearchEligibility";
 import { LOGO_BUCKET, resolveProfileLogoUrl } from "@/lib/profileLogo";
 import { createSafeStorageSignedUrl, probeStorageObject } from "@/lib/safeStorageSignedUrl";
@@ -1086,7 +1087,7 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
   const rootSettings = asRecord(configRow.settings);
   const config = asRecord(rootSettings.inrSearch);
   const normalizedSlug = normalizeInrSearchDirectorySlug(config.slug);
-  if (!normalizedSlug || config.enabled !== true) return null;
+  if (!normalizedSlug || config.enabled !== true || (config.activationVersion === 1 && config.activationRequested !== true)) return null;
 
   const profileOwnerIds = Array.from(new Set([userId, eligibility.authUserId].filter(Boolean)));
   const [
@@ -1146,6 +1147,7 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
 
   const profile = selectedProfile;
   const business = asRecord(businessRes.data);
+  if (config.activationVersion === 1 && getNativeChannelMissingFields(accountProfile, business, rootSettings).inr_search.length) return null;
   const deliveredPublicationIds = Array.from(
     new Set(
       (Array.isArray(inrSearchDeliveriesRes.data)
@@ -1358,7 +1360,7 @@ export async function getInrSearchPublicStatus(slugValue: unknown): Promise<InrS
 
   const accountId = clean(configRow.user_id, 120);
   const config = asRecord(asRecord(configRow.settings).inrSearch);
-  if (config.enabled !== true) return { ...base, accountId, published: false, reason: "page_disabled" };
+  if (config.enabled !== true || (config.activationVersion === 1 && config.activationRequested !== true)) return { ...base, accountId, published: false, reason: "page_disabled" };
 
   const eligibility = await getInrSearchPublicationEligibility(accountId);
   if (!eligibility.allowed) {
@@ -1399,7 +1401,7 @@ async function listPublishedInrSearchCompaniesUncached(): Promise<PublishedInrSe
       const directoryEnabled = typeof config.directoryEnabled === "boolean"
         ? config.directoryEnabled
         : config.enabled === true;
-      if (config.enabled !== true || !directoryEnabled || !slug) return null;
+      if (config.enabled !== true || !directoryEnabled || !slug || (config.activationVersion === 1 && (config.activationRequested !== true || config.publicationReady === false))) return null;
       return { userId: row.user_id, slug, config };
     })
     .filter((item): item is { userId: string; slug: string; config: Record<string, unknown> } => Boolean(item));

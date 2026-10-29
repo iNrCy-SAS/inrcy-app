@@ -31,6 +31,8 @@ function ownedDocumentPath(accountId: string, path: string) {
 
 function resetMemoryForTab(memory: AiMemory, tab: string): AiMemory {
   switch (tab) {
+    case "local":
+      return normalizeAiMemory({ ...memory, contentLocation: undefined }, { includePremium: true });
     case "activity":
       return normalizeAiMemory({
         ...memory,

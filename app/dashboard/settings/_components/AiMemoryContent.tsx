@@ -55,6 +55,7 @@ import BusinessScheduleEditor from "./BusinessScheduleEditor";
 import EditableTags from "./EditableTags";
 import ActivityContent, { type ActivityContentHandle } from "./ActivityContent";
 import ProfilContent, { type ProfilContentHandle } from "./ProfilContent";
+import BusinessLocationFields, { type BusinessLocationFieldsHandle } from "./BusinessLocationFields";
 
 export type AiMemoryWorkspaceTab =
   | "analysis"
@@ -66,7 +67,7 @@ export type AiMemoryWorkspaceTab =
   | "identity"
   | "news"
   | "strategy";
-type EmbeddedWorkspaceTab = Extract<AiMemoryWorkspaceTab, "profile" | "activity">;
+type EmbeddedWorkspaceTab = Extract<AiMemoryWorkspaceTab, "profile" | "activity" | "local">;
 type VoiceTarget =
   | "detailedDescription"
   | "mission"
@@ -233,11 +234,12 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const [activeTab, setActiveTab] = useState<AiMemoryWorkspaceTab>(initialTab);
   const [mountedEmbeddedTabs, setMountedEmbeddedTabs] = useState<Set<EmbeddedWorkspaceTab>>(
     () => new Set(
-      initialTab === "profile" || initialTab === "activity" ? [initialTab] : [],
+      initialTab === "profile" || initialTab === "activity" || initialTab === "local" ? [initialTab] : [],
     ),
   );
   const [profileDirty, setProfileDirty] = useState(false);
   const [activityDirty, setActivityDirty] = useState(false);
+  const [locationDirty, setLocationDirty] = useState(false);
   const [memory, setMemory] = useState<AiMemory>(EMPTY_AI_MEMORY);
   const [businessKnowledge, setBusinessKnowledge] = useState<AiBusinessKnowledge>(
     EMPTY_AI_BUSINESS_KNOWLEDGE,
@@ -254,6 +256,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const [workspaceError, setWorkspaceError] = useState("");
   const [profileDraftSignature, setProfileDraftSignature] = useState("");
   const [activityDraftSignature, setActivityDraftSignature] = useState("");
+  const [locationDraftSignature, setLocationDraftSignature] = useState("");
   const [autoSaveState, setAutoSaveState] = useState<"idle" | "scheduled" | "saving" | "failed">("idle");
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisJob, setAnalysisJob] = useState<BusinessDnaManualAnalysisJob | null>(null);
@@ -282,6 +285,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const voiceTargetRef = useRef<VoiceTarget | null>(null);
   const profileContentRef = useRef<ProfilContentHandle | null>(null);
   const activityContentRef = useRef<ActivityContentHandle | null>(null);
+  const businessLocationRef = useRef<BusinessLocationFieldsHandle | null>(null);
   const [activityContentRevision, setActivityContentRevision] = useState(0);
   const autoSaveTimerRef = useRef<number | null>(null);
   const failedAutoSaveSignatureRef = useRef<string | null>(null);
@@ -328,14 +332,15 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         ? t("documentsStorageNear")
         : t("documentsStorageAvailable");
   const memoryDirty = !loading && loaded && signature !== savedSignatureRef.current;
-  const hasWorkspaceChanges = memoryDirty || profileDirty || activityDirty;
+  const hasWorkspaceChanges = memoryDirty || profileDirty || activityDirty || locationDirty;
   const workspaceDraftSignature = useMemo(
     () => [
       signature,
       profileDirty ? profileDraftSignature : "",
       activityDirty ? activityDraftSignature : "",
+      locationDirty ? locationDraftSignature : "",
     ].join("::"),
-    [activityDirty, activityDraftSignature, profileDirty, profileDraftSignature, signature],
+    [activityDirty, activityDraftSignature, locationDirty, locationDraftSignature, profileDirty, profileDraftSignature, signature],
   );
   const voiceBusy = voiceTarget !== null;
   const voiceOperationsLocked = saving || analyzing || loading || !loaded;
@@ -373,8 +378,17 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     [markWorkspaceDraftUpdated],
   );
 
+  const handleLocationUnsavedChange = useCallback(
+    (dirty: boolean, draftSignature = "") => {
+      setLocationDirty(dirty);
+      setLocationDraftSignature(draftSignature);
+      if (dirty) markWorkspaceDraftUpdated();
+    },
+    [markWorkspaceDraftUpdated],
+  );
+
   const changeTab = useCallback((tab: AiMemoryWorkspaceTab) => {
-    if (tab === "profile" || tab === "activity") {
+    if (tab === "profile" || tab === "activity" || tab === "local") {
       setMountedEmbeddedTabs((current) => {
         if (current.has(tab)) return current;
         const next = new Set(current);
@@ -396,7 +410,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
 
   useEffect(() => {
     setActiveTab(initialTab);
-    if (initialTab === "profile" || initialTab === "activity") {
+    if (initialTab === "profile" || initialTab === "activity" || initialTab === "local") {
       setMountedEmbeddedTabs((current) => {
         if (current.has(initialTab)) return current;
         const next = new Set(current);
@@ -957,9 +971,11 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     const saveReason = options.reason || "manual";
     const shouldSaveProfile = profileDirty;
     const shouldSaveActivity = activityDirty;
+    const backgroundSave = saveReason === "auto" || saveReason === "tab-change";
+    const shouldSaveLocation = locationDirty && (!backgroundSave || businessLocationRef.current?.canAutoSave() === true);
     const shouldSaveAiMemory = Boolean(options.aiMemoryDraft) || memoryDirty || shouldSaveActivity;
 
-    if (!shouldSaveProfile && !shouldSaveActivity && !shouldSaveAiMemory) {
+    if (!shouldSaveProfile && !shouldSaveActivity && !shouldSaveLocation && !shouldSaveAiMemory) {
       setAutoSaveState("idle");
       return true;
     }
@@ -985,6 +1001,17 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
           }
           setProfileDirty(false);
           setProfileDraftSignature("");
+        }
+
+        if (shouldSaveLocation) {
+          const location = businessLocationRef.current;
+          if (!location?.isReady() || !(await location.save())) {
+            setWorkspaceError(t("locationSaveError"));
+            if (shouldSurfaceFailure) changeTab("local");
+            return false;
+          }
+          setLocationDirty(false);
+          setLocationDraftSignature("");
         }
 
         let nextMemory = options.aiMemoryDraft?.memory ?? memoryRef.current;
@@ -1047,8 +1074,9 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         setActivityDraftSignature("");
         setWorkspaceError("");
         setAutoSaveState("idle");
-        setSaved(true);
-        onUnsavedChange?.(false);
+        const locationStillPending = locationDirty && !shouldSaveLocation;
+        setSaved(!locationStillPending);
+        onUnsavedChange?.(locationStillPending);
         return true;
       } finally {
         setWorkspaceSaving(false);
@@ -1082,6 +1110,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   }, [
     activityDirty,
     loaded,
+    locationDirty,
     memoryDirty,
     mountedEmbeddedTabs,
     onUnsavedChange,
@@ -1098,12 +1127,15 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     }
     profileContentRef.current?.cancelChanges();
     activityContentRef.current?.cancelChanges();
+    businessLocationRef.current?.cancelChanges();
     restoreAiMemoryDraft();
     failedAutoSaveSignatureRef.current = null;
     setProfileDirty(false);
     setActivityDirty(false);
+    setLocationDirty(false);
     setProfileDraftSignature("");
     setActivityDraftSignature("");
+    setLocationDraftSignature("");
     setWorkspaceError("");
     setAutoSaveState("idle");
     onUnsavedChange?.(false);
@@ -1120,6 +1152,11 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       setActivityDirty(false);
       setActivityDraftSignature("");
     } else {
+      if (activeTab === "local") {
+        businessLocationRef.current?.cancelChanges();
+        setLocationDirty(false);
+        setLocationDraftSignature("");
+      }
       restoreAiMemoryDraft();
     }
     failedAutoSaveSignatureRef.current = null;
@@ -1145,6 +1182,13 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       return;
     }
 
+    // Keep an unfinished implantation draft local until it is complete or the
+    // professional explicitly saves it. Navigating to another tab keeps it mounted.
+    if (locationDirty && !memoryDirty && !profileDirty && !activityDirty && !businessLocationRef.current?.canAutoSave()) {
+      setAutoSaveState("idle");
+      return;
+    }
+
     if (failedAutoSaveSignatureRef.current === workspaceDraftSignature) {
       setAutoSaveState("failed");
       return;
@@ -1166,6 +1210,10 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     analyzing,
     hasWorkspaceChanges,
     loaded,
+    locationDirty,
+    memoryDirty,
+    profileDirty,
+    activityDirty,
     saveWorkspace,
     saving,
     voiceBusy,
@@ -1778,8 +1826,16 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
               </div>
             ) : null}
 
-            {activeTab === "local" ? (
-              <section data-ai-memory-tab="local" style={localTabStyle}>
+            {mountedEmbeddedTabs.has("local") ? (
+              <section data-ai-memory-tab="local" hidden={activeTab !== "local"}
+                style={activeTab === "local" ? localTabStyle : hiddenWorkspaceTabStyle}>
+                <BusinessLocationFields
+                  ref={businessLocationRef}
+                  value={memory.contentLocation ?? { useHeadquarters: true, primaryArea: "" }}
+                  onChange={(value) => setField("contentLocation", value)}
+                  disabled={voiceBusy || saving || workspaceSaving || analyzing}
+                  onUnsavedChange={handleLocationUnsavedChange}
+                />
                 <div data-local-presence-grid style={localPresenceGridStyle}>
                   <div style={localZonesCardStyle}>
                     <span style={labelStyle}>{settingsT("zones_d_intervention_a4999f61")}</span>
@@ -2274,12 +2330,12 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
           style={{
             ...actionsStyle,
             gridTemplateColumns:
-              activeTabRequiresAiMemory && !profileDirty && !activityDirty
+              activeTabRequiresAiMemory && !profileDirty && !activityDirty && !locationDirty
                 ? actionsStyle.gridTemplateColumns
                 : "minmax(135px, 175px) minmax(220px, 310px)",
           }}
         >
-          {activeTabRequiresAiMemory && !profileDirty && !activityDirty ? (
+          {activeTabRequiresAiMemory && !profileDirty && !activityDirty && !locationDirty ? (
             <button
               type="button"
               disabled={saving || voiceBusy || workspaceSaving}
@@ -2738,7 +2794,7 @@ const voiceTextareaInputStyle: CSSProperties = { ...identityTextareaStyle, minHe
 const identityVocabularySectionStyle: CSSProperties = { display: "grid", gap: 14, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.09)" };
 const identityVocabularyHeadingStyle: CSSProperties = { display: "grid", gap: 3 };
 const identityVocabularyTitleStyle: CSSProperties = { color: "white", fontSize: 14.5, lineHeight: 1.3 };
-const localTabStyle: CSSProperties = { minHeight: "clamp(500px, calc(100svh - 305px), 650px)", display: "grid", alignItems: "stretch" };
+const localTabStyle: CSSProperties = { minHeight: "clamp(500px, calc(100svh - 305px), 650px)", display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", gap: 12, alignItems: "stretch" };
 const localPresenceGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(240px, .30fr) minmax(0, .70fr)", alignItems: "stretch", gap: 12 };
 const localZonesCardStyle: CSSProperties = { display: "grid", alignContent: "start", gap: 12, padding: 16, borderRadius: 18, border: "1px solid rgba(56,189,248,0.18)", background: "linear-gradient(145deg, rgba(10,39,68,.72), rgba(20,21,56,.62))", boxShadow: "0 16px 44px rgba(0,0,0,.16)" };
 const localScheduleCardStyle: CSSProperties = { display: "grid", alignContent: "start", gap: 9, padding: 14, borderRadius: 18, border: "1px solid rgba(167,139,250,0.18)", background: "linear-gradient(145deg, rgba(18,27,62,.72), rgba(42,22,72,.62))", boxShadow: "0 16px 44px rgba(0,0,0,.16)" };

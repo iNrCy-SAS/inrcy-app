@@ -85,7 +85,9 @@ test("le cockpit validé conserve Booster distinct, les outils quotidiens et les
   assert.deepEqual(signatureNames, ["sendCard", "studioCard", "statsCard", "calendarCard", "crmCard", "adsCard", "campaignCard"]);
   assert.match(signatureDefinitions, /path: standardMode \? "\/dashboard\/mails\?folder=publications&boxView=sent" : "\/dashboard\/mails"/);
   assert.deepEqual([...signatureDefinitions.matchAll(/\{ path: "(\/dashboard[^\"]+)"/g)].map((match) => match[1]), ["/dashboard/stats", "/dashboard/agenda", "/dashboard/crm", "/dashboard/ads", "/dashboard?action=campaigns"]);
-  assert.match(source, /className=\{signatureStyles\.signatureGrid\}/);
+  assert.match(source, /className=\{`\$\{signatureStyles\.signatureGrid\}\$\{basicMode \? ` \$\{signatureStyles\.basicStatsGrid\}` : ""\}`\}/);
+  assert.match(source, /const basicMode = dashboardEdition === "basic"/);
+  assert.match(source, /\{basicMode \? \([\s\S]*?aria-labelledby="dashboard-basic-media-title"[\s\S]*?signatureStyles\.basicMediaGrid[\s\S]*?basicMediaTools\.map\(renderSignatureTool\)[\s\S]*?\) : \([\s\S]*?aria-labelledby="dashboard-premium-title"/);
   assert.doesNotMatch(signatureDefinitions, /tone: "reputationCard"/);
   assert.match(source, /const premiumTools = \["adsCard", "campaignCard", "calendarCard", "crmCard"\]/);
   assert.match(styles, /\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/);

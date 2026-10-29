@@ -17,6 +17,7 @@ test("iNrSearch remains provisionable before the profile or iNrADN are filled", 
   assert.doesNotMatch(provisioning, /const canPublish = Boolean\(companyName && slug\);/);
   assert.match(settingsRoute, /ensureSystemManagedInrSearch\(supabase, activeUserId\)/);
   assert.doesNotMatch(settingsRoute, /profil est incomplet/);
-  assert.match(workspace, /case "inr_search": return <InrSearchSettingsContent/);
+  assert.match(workspace, /NativeChannelSettingsContent/);
+  assert.match(settingsRoute, /syncNativeChannelsForAccount\(activeUserId, \{ key: "inr_search", enabled: action === "connect" \}\)/);
   assert.doesNotMatch(workspace, /if \(!props\.inrBadgeSettingsProps\.profileReady\)/);
 });

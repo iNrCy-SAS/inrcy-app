@@ -120,7 +120,9 @@ export async function notifyInrSearchIndexing(slug = "") {
 export async function ensureSystemManagedInrSearch(
   supabase: any,
   activeUserId: string,
+  conflictAttempt = 0,
 ) {
+  if (conflictAttempt >= 4) throw new Error("L’établissement est en cours d’actualisation. Réessayez dans un instant.");
   const membershipRes = await supabase
     .from("inrcy_account_members")
     .select("auth_user_id,is_default,created_at")
@@ -163,6 +165,8 @@ export async function ensureSystemManagedInrSearch(
     || null;
   const profile = asRecord(selectedProfile);
   const business = asRecord(businessRes.data);
+  const previousSettings = asRecord(configData).settings;
+  const settingsFingerprint = previousSettings == null ? null : JSON.stringify(previousSettings);
   const root = asRecord(asRecord(configData).settings);
   // Capture the old opt-in before normalizing Search; reading Search must not change directory consent.
   if (typeof asRecord(root.inrDirectory).enabled !== "boolean") root.inrDirectory = { ...asRecord(root.inrDirectory), enabled: isInrDirectoryEnabled(root) };
@@ -242,9 +246,18 @@ export async function ensureSystemManagedInrSearch(
   if (changed) {
     next.updatedAt = now;
     if (pageEnabled) next.indexingRequestedAt = now;
-    await supabaseAdmin
-      .from("pro_tools_configs")
-      .upsert({ user_id: activeUserId, settings: { ...root, inrSearch: next } }, { onConflict: "user_id" });
+    const settings = { ...root, inrSearch: next };
+    if (configData) {
+      let update = supabaseAdmin.from("pro_tools_configs").update({ settings }).eq("user_id", activeUserId);
+      update = settingsFingerprint === null ? update.is("settings", null) : update.eq("settings", settingsFingerprint);
+      const saved = await update.select("user_id");
+      if (saved.error) throw saved.error;
+      if (!saved.data?.length) return ensureSystemManagedInrSearch(supabase, activeUserId, conflictAttempt + 1);
+    } else {
+      const saved = await supabaseAdmin.from("pro_tools_configs").insert({ user_id: activeUserId, settings });
+      if (saved.error?.code === "23505") return ensureSystemManagedInrSearch(supabase, activeUserId, conflictAttempt + 1);
+      if (saved.error) throw saved.error;
+    }
 
     revalidateInrSearchPublicRoutes(slug);
     if (pageEnabled) {

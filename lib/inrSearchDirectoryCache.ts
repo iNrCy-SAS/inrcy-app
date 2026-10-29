@@ -11,6 +11,7 @@ export type InrSearchDirectoryPurgeReason =
   | "disconnect"
   | "directory_enabled"
   | "directory_disabled"
+  | "profile_updated"
   | "admin_access_changed";
 
 export type InrSearchDirectoryPurgeResult = {

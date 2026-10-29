@@ -1370,16 +1370,9 @@ export default function MediaFreeGenerator({
           </div>
         </MediaGenerationActions>
       </div>
-      {!canRecover && !busy && (exhausted || creditInsufficient || durationUnavailable) ? (
+      {!canRecover && !busy && durationUnavailable ? (
         <p className={styles.error} role="status">
-          {t(
-            exhausted
-              ? "ai_generator_quota_reached"
-              : creditInsufficient
-              ? "ai_generator_video_credit_insufficient"
-              : "ai_generator_model_duration_unavailable",
-            { seconds: duration }
-          )}
+          {t("ai_generator_model_duration_unavailable", { seconds: duration })}
         </p>
       ) : null}
       {!quota && !quotaLoading ? (

@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import * as reviewerAccess from "../../lib/reviewerAccess.ts";
 import * as editionPolicy from "../../lib/dashboardEdition.ts";
 import * as directorySettings from "../../lib/inrDirectorySettings.ts";
+import * as activityCatalog from "../../lib/activityCatalog.ts";
+import * as activitySectors from "../../lib/activitySectors.ts";
+import * as businessIdentity from "../../lib/professionalBusinessIdentity.ts";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import * as crypto from "node:crypto";
@@ -21,6 +24,9 @@ function load<T = Record<string, any>>(file: string, dependencies: Record<string
   return exports as T;
 }
 const graph = load("lib/metaGraphApi.ts");
+const directoryCatalog = load("lib/inrDirectoryCatalog.ts", { "./activityCatalog": activityCatalog, "./activitySectors": activitySectors });
+const nativeActivation = load("lib/nativeChannelActivation.ts", { "./inrDirectoryCatalog.ts": directoryCatalog,
+  "./professionalBusinessIdentity.ts": businessIdentity, "./inrDirectorySettings.ts": directorySettings });
 const instagramAuth = load("lib/instagramAuthMode.ts", { "@/lib/metaGraphApi": graph });
 const threadsGraph = load("lib/threadsGraphApi.ts");
 const threads = load("lib/threadsInsights.ts", { "@/lib/threadsGraphApi": threadsGraph });
@@ -201,6 +207,11 @@ test("Threads public URL accepts a profile on official domains and rejects posts
 test("Canonical state retains legacy Instagram and blocks expired direct tokens and USER pilot identities", async () => {
   const safe = load("lib/tsSafe.ts");
   const stateModule = (enabled: boolean) => load("lib/channelConnectionState.ts", {
+    "@/lib/nativeChannelActivation": nativeActivation,
+    "@/lib/inrSearchEligibility": { getNativeChannelPublicationEligibility: async (accountId: string) => {
+      assert.equal(accountId, "account");
+      return { inrbadge: { allowed: true }, inr_search: { allowed: true }, inr_directory: { allowed: true } };
+    } },
     "@/lib/inrDirectorySettings": directorySettings,
     "@/lib/tsSafe": safe,
     "@/lib/connectionVersions": { getConnectionDisplayStatus: (connected: boolean, _kind: string, meta: any) => meta?.needs_reconnect ? "needs_update" : connected ? "connected" : "disconnected", mailConnectionKind: () => "mail" },
@@ -216,22 +227,29 @@ test("Canonical state retains legacy Instagram and blocks expired direct tokens 
     "@/lib/metaChannelRolloutServer": { isMetaChannelPilotEnabledForAccount: async () => enabled },
   });
   const expired = new Date(Date.now() - 3600000).toISOString();
+  const nativeDb = { from(table: string) {
+    assert.ok(["profiles", "business_profiles"].includes(table));
+    const query = { select: () => query, eq: (column: string, accountId: string) => {
+      assert.equal(column, "user_id"); assert.equal(accountId, "account"); return query;
+    }, order: () => query, limit: () => query, maybeSingle: async () => ({ data: null, error: null }) };
+    return query;
+  } };
   const ig = { provider: "instagram", source: "instagram", product: "instagram", resource_id: "ig-17", resource_label: "brand", access_token_enc: "encrypted-fixture", status: "connected", expires_at: expired };
-  const legacy = await stateModule(false).getChannelConnectionStates({}, "account", { proToolsConfig: {}, integrations: [ig] });
+  const legacy = await stateModule(false).getChannelConnectionStates(nativeDb, "account", { proToolsConfig: {}, integrations: [ig] });
   assert.equal(legacy.instagram.connected, true, "Legacy selected-profile semantics remain compatible");
-  const direct = await stateModule(true).getChannelConnectionStates({}, "account", { proToolsConfig: {}, integrations: [{ ...ig, meta: { auth_mode: "instagram_login" } }] });
+  const direct = await stateModule(true).getChannelConnectionStates(nativeDb, "account", { proToolsConfig: {}, integrations: [{ ...ig, meta: { auth_mode: "instagram_login" } }] });
   assert.equal(direct.instagram.connected, false);
   assert.equal(direct.instagram.requiresUpdate, true);
   const thread = { provider: "threads", source: "threads", product: "threads", resource_id: "thread-17", resource_label: "private-user", access_token_enc: "encrypted-fixture", status: "connected" };
-  const admin = await stateModule(true).getChannelConnectionStates({}, "account", { proToolsConfig: {}, integrations: [thread] });
+  const admin = await stateModule(true).getChannelConnectionStates(nativeDb, "account", { proToolsConfig: {}, integrations: [thread] });
   assert.equal(admin.threads.connected, true);
   assert.equal(admin.threads.profile_url, "https://www.threads.com/@private-user");
-  const user = await stateModule(false).getChannelConnectionStates({}, "account", { proToolsConfig: {}, integrations: [thread] });
+  const user = await stateModule(false).getChannelConnectionStates(nativeDb, "account", { proToolsConfig: {}, integrations: [thread] });
   assert.equal(user.threads.connected, false);
   assert.equal(user.threads.resource_id, null);
   assert.equal(user.threads.username, null);
   assert.equal(user.threads.profile_url, null);
-  const forbiddenActor = await stateModule(true).getChannelConnectionStates({}, "account", { proToolsConfig: {}, integrations: [thread] }, { metaPilotEnabled: false });
+  const forbiddenActor = await stateModule(true).getChannelConnectionStates(nativeDb, "account", { proToolsConfig: {}, integrations: [thread] }, { metaPilotEnabled: false });
   assert.equal(forbiddenActor.threads.connected, false);
 });
 

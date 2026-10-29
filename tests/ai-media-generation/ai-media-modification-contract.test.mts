@@ -227,6 +227,42 @@ const SOURCE_IMAGE = {
   role: "inspiration",
 } as const;
 
+test("each terminal image provider forbids unsolicited signatures without replacing the brief or source logos", async () => {
+  const gatewayKey = process.env.AI_GATEWAY_API_KEY;
+  const googleKey = process.env.GEMINI_API_KEY;
+  process.env.AI_GATEWAY_API_KEY = "synthetic-boundary-test";
+  process.env.GEMINI_API_KEY = "synthetic-boundary-test";
+  try {
+    for (const operation of ["generate", "modify"] as const) {
+      for (const withReference of [false, true]) {
+        if (operation === "modify" && !withReference) continue;
+        const { runtime, captures } = loadImageGatewayBoundaryRuntime();
+        const prompt = operation === "modify"
+          ? "Éclaircis uniquement le mur ; conserve le logo de mon entreprise."
+          : "Crée un logo pour mon entreprise iNrStudio, avec ce nom exact.";
+        const source = Buffer.from("exact-source-reference");
+        const args = { accountId: "signature-regression", prompt, operation, identityMode: "auto" as const,
+          ...(withReference ? { identityReferences: [source] } : {}) };
+        await runtime.generateAiMediaImage(args);
+        await runtime.generateAiMediaImageWithGoogle(args);
+        assert.equal(captures.nominal?.text, captures.google?.text);
+        const submitted = captures.nominal!.text;
+        assert.ok(submitted.startsWith(`${prompt}\n\n`), "the user's explicit brand and wording stay intact");
+        assert.equal(submitted.split("IDENTITÉ DE LA SORTIE").length - 1, 1);
+        assert.match(submitted, /ne jamais ajouter spontanément de filigrane/);
+        assert.match(submitted, /marques et logos explicitement demandés restent autorisés/);
+        assert.match(submitted, /logos déjà présents dans l’image source hors des zones visées/);
+        assert.doesNotMatch(submitted.slice(prompt.length), /iNrStudio|iNrCy|OpenAI|Gemini/);
+        assert.equal(captures.nominal!.images.length, withReference ? 1 : 0);
+        if (withReference) assert.equal(captures.nominal!.images[0], source);
+      }
+    }
+  } finally {
+    if (gatewayKey === undefined) delete process.env.AI_GATEWAY_API_KEY; else process.env.AI_GATEWAY_API_KEY = gatewayKey;
+    if (googleKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = googleKey;
+  }
+});
+
 function modificationRequest(
   overrides: Record<string, unknown> = {}
 ): Record<string, unknown> {

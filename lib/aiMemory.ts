@@ -74,6 +74,7 @@ export function getAiMemoryReferenceDocumentStorage(
 
 export type AiMemory = {
   schemaVersion: typeof AI_MEMORY_SCHEMA_VERSION;
+  contentLocation?: { useHeadquarters: boolean; primaryArea: string };
   detailedDescription: string;
   mission: string;
   specialties: string[];
@@ -286,6 +287,12 @@ export function normalizeAiMemory(
 
   return {
     schemaVersion: AI_MEMORY_SCHEMA_VERSION,
+    ...(source.contentLocation && typeof source.contentLocation === "object" && !Array.isArray(source.contentLocation)
+      ? { contentLocation: {
+          useHeadquarters: asRecord(source.contentLocation).useHeadquarters !== false,
+          primaryArea: cleanText(asRecord(source.contentLocation).primaryArea, 140).replace(/\s+/g, " "),
+        } }
+      : {}),
     detailedDescription: normalizeBusinessDnaPlainText(rawDetailedDescription, 5_000),
     mission: cleanText(source.mission ?? source.purpose ?? source.raison_d_etre, 800),
     specialties: cleanList(source.specialties),
@@ -396,6 +403,7 @@ export function mergeAiMemoryUpdate(
   const update = asRecord(updateValue);
   const merged: Record<string, unknown> = { ...current };
   const fields: Array<[keyof AiMemory, readonly string[]]> = [
+    ["contentLocation", ["contentLocation"]],
     ["detailedDescription", ["detailedDescription", "detailed_description"]],
     ["mission", ["mission", "purpose", "raison_d_etre"]],
     ["specialties", ["specialties"]],

@@ -69,7 +69,7 @@ const accountId = "11111111-1111-4111-8111-111111111111";
 
 type ToolSettings = Record<string, Record<string, unknown>>;
 type ConfigRow = { settings: ToolSettings };
-type ProfileRow = { company_legal_name: string; hq_city: string; first_name?: string; last_name?: string };
+type ProfileRow = { company_legal_name: string; hq_city: string; hq_zip?: string; first_name?: string; last_name?: string };
 type WritePayload = ConfigRow & { user_id?: string };
 type FixtureOptions = { missingConfig?: boolean; settings?: ToolSettings; profile?: ProfileRow; allowed?: boolean; unauthorized?: boolean; concurrent?: boolean };
 type SettingsResult = { data: ConfigRow | ProfileRow | { sector: string } | { user_id: string }[] | null; error: { code: string } | null };
@@ -94,7 +94,7 @@ function settingsFixture(options: FixtureOptions = {}) {
     writes: WritePayload[]; queries: { table: string; target: string; mode: string }[]; purges: unknown[]; concurrent: boolean;
   } = {
     config: options.missingConfig ? null : { settings: options.settings || { site_web: { url: "https://example.test" }, inrSearch: { enabled: false }, inrDirectory: { enabled: false, preference: "keep" } } },
-    profile: options.profile || { company_legal_name: "Atelier Bleu", first_name: "Jean", last_name: "Test", hq_city: "Arras" },
+    profile: options.profile || { company_legal_name: "Atelier Bleu", first_name: "Jean", last_name: "Test", hq_city: "Arras", hq_zip: "62000" },
     business: { sector: "[[SECTOR:artisan_btp]] Maçon" }, allowed: options.allowed ?? true,
     writes: [], queries: [], purges: [], concurrent: options.concurrent ?? false,
   };
@@ -177,14 +177,24 @@ test("invalid payloads and stale active-account hints never mutate a different a
   assert.equal(fixture.state.writes.length, 0);
 });
 
-test("incomplete profile or unavailable access prevents inclusion but always permits withdrawal", async () => {
+test("incomplete ADN records activation pending publication; unavailable access prevents activation but permits withdrawal", async () => {
   const unavailable = settingsFixture({ allowed: false, settings: { inrDirectory: { enabled: true } } });
   assert.equal((await unavailable.post(true)).status, 400);
   assert.equal((await unavailable.post(false)).status, 200);
   assert.equal(unavailable.state.config!.settings.inrDirectory.enabled, false);
   const incomplete = settingsFixture({ profile: { company_legal_name: "Atelier Bleu", hq_city: "" } });
-  assert.equal((await incomplete.post(true)).status, 400);
-  assert.equal(incomplete.state.writes.length, 0);
+  const pending = await incomplete.post(true);
+  assert.equal(pending.status, 200);
+  const pendingBody = await pending.json();
+  assert.equal(pendingBody.enabled, true);
+  assert.equal(pendingBody.visible, false);
+  assert.equal(pendingBody.pending, true);
+  assert.equal(pendingBody.badgeUrl, "");
+  assert.deepEqual(pendingBody.missingFields, ["city", "postalCode"]);
+  incomplete.state.profile.hq_city = "Arras";
+  incomplete.state.profile.hq_zip = "62000";
+  const completed = await (await incomplete.api.GET()).json();
+  assert.equal(completed.visible, true, "ADN completion publishes without a second activation");
 });
 
 test("unauthenticated settings calls never read or write account data", async () => {

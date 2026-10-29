@@ -1,4 +1,5 @@
-import { isInrDirectoryEnabled } from "@/lib/inrDirectorySettings";
+import { resolveNativeChannelStates, type NativeChannelStates } from "@/lib/nativeChannelActivation";
+import { getNativeChannelPublicationEligibility } from "@/lib/inrSearchEligibility";
 import { asRecord, asString } from "@/lib/tsSafe";
 import { getConnectionDisplayStatus, mailConnectionKind, type ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -35,6 +36,7 @@ type IntegrationLite = {
 };
 
 export type ChannelStates = {
+  native_channels?: NativeChannelStates;
   site_web: {
     connected: boolean;
     expired: false;
@@ -264,6 +266,14 @@ export async function getChannelConnectionStates(
 
   const proCfg = asRecord((proCfgRes as { data?: unknown }).data);
   const settings = asRecord(proCfg.settings);
+  const [nativeProfile, nativeBusiness, nativeAccess] = await Promise.all([
+    supabase.from("profiles").select("company_legal_name,first_name,last_name,phone,contact_email,hq_zip,hq_city").eq("user_id", userId).maybeSingle(),
+    supabase.from("business_profiles").select("sector").eq("user_id", userId).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+    getNativeChannelPublicationEligibility(userId),
+  ]);
+  if (nativeProfile.error || nativeBusiness.error) throw new Error("Les informations des canaux iNrCy sont indisponibles.");
+  const nativeChannels = resolveNativeChannelStates({ profile: nativeProfile.data, business: nativeBusiness.data, settings,
+    allowed: { inrbadge: nativeAccess.inrbadge.allowed, inr_search: nativeAccess.inr_search.allowed, inr_directory: nativeAccess.inr_directory.allowed } });
   const pinterestSettings = asRecord(settings.pinterest);
   const rowsRaw = (integrationsRes as { data?: unknown }).data;
   const rows = Array.isArray(rowsRaw) ? (rowsRaw as IntegrationLite[]) : [];
@@ -498,11 +508,11 @@ export async function getChannelConnectionStates(
   // iNr'Search est une page publique gérée par iNrCy, pas une connexion OAuth tierce.
   const inrSearchSettings = asRecord(settings.inrSearch);
   const inrSearchSlug = asString(inrSearchSettings.slug);
-  const inrSearchEnabled = Boolean(inrSearchSettings.enabled && inrSearchSlug);
+  const inrSearchEnabled = Boolean(nativeChannels.inr_search.published && inrSearchSlug);
   const inrSearchOrigin = ((process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, "") === "https://inrcy.com" ? "https://app.inrcy.com" : (process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, ""));
   const inrSearchProfileUrl = inrSearchEnabled ? `${inrSearchOrigin}/entreprises/${inrSearchSlug}` : null;
   const inrSearchBusinessName = asString(inrSearchSettings.pageTitle) || null;
-  const inrSearchDirectoryEnabled = isInrDirectoryEnabled(settings);
+  const inrSearchDirectoryEnabled = nativeChannels.inr_directory.published;
 
   const gmb = latestIntegration(rows, "google", "gmb", "gmb");
   const gmbSettings = asRecord(settings.gmb);
@@ -666,5 +676,6 @@ export async function getChannelConnectionStates(
       review_invite_url: null,
       directory_enabled: inrSearchDirectoryEnabled,
     },
+    native_channels: nativeChannels,
   };
 }

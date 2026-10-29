@@ -6,6 +6,7 @@ function record(value: unknown): Record<string, unknown> {
 export function isInrDirectoryEnabled(settings: unknown): boolean {
   const root = record(settings);
   const directory = record(root.inrDirectory);
+  if (directory.activationVersion === 1) return directory.enabled === true;
   if (typeof directory.enabled === "boolean") return directory.enabled;
   const legacy = record(root.inrSearch);
   return legacy.enabled === true && Boolean(legacy.slug)

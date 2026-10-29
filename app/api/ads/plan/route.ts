@@ -34,6 +34,7 @@ import { ADS_PLAN_EDITORIAL_INSTRUCTIONS, ADS_PLAN_STRATEGY_INSTRUCTIONS, adsPla
 import { aiGenerateJSON, getAiGenerationAttemptTrace } from "@/lib/aiGatewayClient";
 import { createAiOperationBudget } from "@/lib/aiGatewayPolicy";
 import { buildNormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
+import { buildAiContentLocationPromptPayload } from "@/lib/aiContentLocation";
 import { EMPTY_AI_MEMORY, normalizeAiMemory } from "@/lib/aiMemory";
 import { reserveAiCredits, commitAiCredits, rollbackAiCredits, type AiCreditReservation } from "@/lib/aiUsageQuota";
 import { resolveProfessionalCompanyNameFromProfile } from "@/lib/professionalBusinessIdentity";
@@ -424,6 +425,9 @@ export async function POST(request: Request) {
     editorialStrategy: clean(memory.editorialStrategy, 1_000),
     campaignCalendar: clean(memory.campaignCalendar, 800),
     communicationPreferences: {
+      ...(buildAiContentLocationPromptPayload(profile)
+        ? { editorialLocation: buildAiContentLocationPromptPayload(profile) }
+        : {}),
       language: profile.preferences.language,
       tone: profile.preferences.tone,
       style: profile.preferences.communicationStyle,

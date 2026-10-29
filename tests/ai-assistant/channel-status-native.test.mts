@@ -9,6 +9,9 @@ import * as edition from "../../lib/dashboardEdition.ts";
 import * as completion from "../../lib/dashboardCompletion.ts";
 import * as directory from "../../lib/inrDirectorySettings.ts";
 import * as safe from "../../lib/tsSafe.ts";
+import * as catalog from "../../lib/activityCatalog.ts";
+import * as sectors from "../../lib/activitySectors.ts";
+import * as identity from "../../lib/professionalBusinessIdentity.ts";
 
 type Row = Record<string, unknown>;
 type ChannelResult = Row & { disconnected: string[]; unknown: string[]; channels: Array<Row & { missingPrerequisites: string[] }> };
@@ -17,6 +20,7 @@ function harness(options: { pilot?: boolean; edition?: edition.DashboardEdition;
   const calls: { table: string; account: string }[] = [];
   const rows: Record<string, unknown> = {
     profiles: { first_name: "Camille", last_name: "Pro", phone: "private-phone", contact_email: "private@example.test", company_legal_name: "Atelier", hq_zip: "75001", hq_city: "Paris" },
+    business_profiles: { sector: "Graphiste" },
     pro_tools_configs: { settings: { site_web: { url: "https://atelier.example" }, inrSearch: { enabled: true, slug: "atelier" }, inrDirectory: { enabled: false }, pinterest: options.accountConnectedPinterest ? {} : { defaultBoardId: "private-board" } } },
     app_bubble_access: [],
     integrations: [...["gmb", "facebook", "instagram", "threads", "linkedin", "tiktok", "youtube_shorts", "pinterest"].map(key => ({ provider: key === "gmb" ? "google" : key === "youtube_shorts" ? "youtube" : key, source: key, product: key, status: "connected", resource_id: "private-resource", access_token_enc: "PRIVATE_TOKEN", refresh_token_enc: "PRIVATE_REFRESH", meta: key === "gmb" ? { account: "private-account" } : {} })), { category: "mail", provider: "gmail", status: "connected", settings: {}, account_email: "private-mail@example.test" }],
@@ -24,13 +28,19 @@ function harness(options: { pilot?: boolean; edition?: edition.DashboardEdition;
   const db = { from(table: string) {
     let account = "";
     const finish = () => { calls.push({ table, account }); assert.equal(account, "active"); return { data: rows[table], error: options.failed === table ? { message: "PRIVATE outage" } : null }; };
-    const query = { select() { return query; }, eq(_key: string, value: string) { account = value; return query; }, maybeSingle: async () => finish(), then(resolve: (value: unknown) => unknown) { return Promise.resolve(finish()).then(resolve); } };
+    const query = { select() { return query; }, eq(_key: string, value: string) { account = value; return query; }, order() { return query; }, limit() { return query; }, maybeSingle: async () => finish(), then(resolve: (value: unknown) => unknown) { return Promise.resolve(finish()).then(resolve); } };
     return query;
   } };
   const deps: Record<string, unknown> = {
     "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (value: unknown) => value },
     "@/lib/inrDirectorySettings": directory, "@/lib/tsSafe": safe,
     "@/lib/supabaseAdmin": { supabaseAdmin: db },
+    "@/lib/inrSearchEligibility": { getNativeChannelPublicationEligibility: async (accountId: string) => {
+      assert.equal(accountId, "active");
+      if (options.failed === "app_bubble_access") throw new Error("PRIVATE outage");
+      const enabled = access.buildBubbleAccessMap(rows.app_bubble_access as access.AppBubbleAccessRow[]);
+      return Object.fromEntries(nativeActivation.NATIVE_CHANNEL_KEYS.map(key => [key, { allowed: enabled[key] && (key !== "inr_directory" || enabled.inrbadge) }]));
+    } },
     "@/lib/tiktokSettings": { normalizeTiktokSettings: () => ({}) },
     "@/lib/tiktokOAuth": { buildTiktokProfileUrl: () => null },
     "@/lib/youtubeShortsOAuth": { applyYoutubeShortsIntegrationState: (_settings: unknown, row: Row) => ({ connected: Boolean(row.access_token_enc && row.resource_id) }) },
@@ -44,6 +54,8 @@ function harness(options: { pilot?: boolean; edition?: edition.DashboardEdition;
     "./bubbleAccess.ts": access, "./dashboardEdition.ts": edition, "./dashboardCompletion.ts": completion,
     "../app/dashboard/dashboard.channel-setup.ts": setup,
     "./requireUser": { requireUser: async () => ({ activeUserId: options.foreign ? "other" : "active", errorResponse: null }) },
+    "./activityCatalog": catalog, "./activitySectors": sectors,
+    "./professionalBusinessIdentity.ts": identity, "./inrDirectorySettings.ts": directory,
   };
   function load<T = Row>(file: string): T {
     const compiled = ts.transpileModule(readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -53,6 +65,9 @@ function harness(options: { pilot?: boolean; edition?: edition.DashboardEdition;
     );
     return moduleRecord.exports as T;
   }
+  deps["./inrDirectoryCatalog.ts"] = load("lib/inrDirectoryCatalog.ts");
+  const nativeActivation = load<typeof import("../../lib/nativeChannelActivation.ts")>("lib/nativeChannelActivation.ts");
+  deps["@/lib/nativeChannelActivation"] = nativeActivation;
   deps["@/lib/connectionVersions"] = load("lib/connectionVersions.ts");
   deps["./channelConnectionState"] = load("lib/channelConnectionState.ts");
   const runtime = load<ChannelRuntime>("lib/inrAssistantChannelTools.ts");
@@ -80,17 +95,38 @@ test("recorded account access, reconnection and profile prerequisites remain dis
   const h = harness();
   h.rows.app_bubble_access = [{ bubble_key: "facebook", enabled: false }];
   (h.rows.profiles as Row).phone = "";
+  (h.rows.profiles as Row).contact_email = "";
+  const settings = (h.rows.pro_tools_configs as { settings: Row }).settings;
+  settings.inrBadge = { enabled: true, activationVersion: 1 };
+  settings.site_web = { url: "" };
   (h.rows.integrations as Row[]).find(row => row.source === "linkedin")!.meta = { needs_reconnect: true };
   const result = await h.read();
   assert.equal(result.channels.find((channel: Row) => channel.key === "facebook")!.cause, "account_access_disabled");
   assert.equal(result.channels.find((channel: Row) => channel.key === "linkedin")!.status, "needs_update");
-  assert.deepEqual([...result.channels.find((channel: Row) => channel.key === "inrbadge")!.missingPrerequisites], ["phone"]);
+  const badge = result.channels.find((channel: Row) => channel.key === "inrbadge")!;
+  assert.equal(badge.status, "needs_update");
+  assert.equal(badge.cause, "dna_incomplete");
+  assert.deepEqual([...badge.missingPrerequisites], ["Au moins un lien ou moyen de contact"]);
+  assert.deepEqual(JSON.parse(JSON.stringify(badge.nextAction)), { label: "Continuer les connexions", href: "/dashboard?action=channels" });
 });
 
 test("canonical Pinterest account without a selected board does not falsely count connected", async () => {
   const result = await harness({ accountConnectedPinterest: true }).read();
   assert.equal(result.connectedCount, 11);
   assert.equal(result.channels.find((channel: Row) => channel.key === "pinterest")!.cause, "resource_selection_required");
+});
+
+test("native Badge readiness uses any saved public contact instead of requiring every profile field", async () => {
+  const h = harness();
+  const profile = h.rows.profiles as Row;
+  profile.phone = ""; profile.first_name = ""; profile.hq_city = ""; profile.hq_zip = "";
+  const settings = (h.rows.pro_tools_configs as { settings: Row }).settings;
+  settings.inrBadge = { enabled: true, activationVersion: 1 };
+  const result = await h.read();
+  const badge = result.channels.find((channel: Row) => channel.key === "inrbadge")!;
+  assert.equal(badge.status, "connected");
+  assert.equal(badge.cause, "public_profile_published");
+  assert.deepEqual([...badge.missingPrerequisites], []);
 });
 
 test("an unavailable source yields unknowns and no exact count instead of false disconnections", async () => {

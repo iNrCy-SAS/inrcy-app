@@ -785,8 +785,9 @@ test("Google Business exposes profile editing and reviews while Facebook and Ins
     assert.equal(model.publicationTypes.onChange, save);
     assert.equal(model.publicationTypes.value.storiesEnabled, false);
   }
-  const badge = connectionOf(h.render("default", { item: { ...item, key: "inrbadge" }, inrBadgeSettingsProps: { profileReady: true, profile: { companyLegalName: "iNrCy" } } }));
-  assert.equal(badge.parametersFullScreen, true);
+  const badge = h.render("default", { item: { ...item, key: "inrbadge" }, inrBadgeSettingsProps: { profileReady: true, profile: { companyLegalName: "iNrCy" } } });
+  assert.equal(badge.props.channelKey, "inrbadge");
+  assert.ok(badge.props.badgeParameters, "The shared native controller retains Badge parameters");
 });
 
 test("publication types open a non-modal checklist and autosave one exact change without a save button", async () => {
@@ -953,23 +954,16 @@ for (const enteredUrl of ["inrcy.com", "https://inrcy.com", "https://inrcy.com/"
   });
 }
 
-test("iNrBadge moves QR, downloads and copying into the bubble while retaining the full settings form", () => {
+test("iNrBadge delegates activation and public actions to the native controller while retaining the full settings form", () => {
   const h = runtime("app/dashboard/_components/DashboardChannelWorkspace.tsx");
   const badge = { publicUrl: "https://example.com/badge/fixture", profileReady: true, profile: { companyLegalName: "Fixture" } };
   const tree = h.render("default", { item: { ...item, key: "inrbadge" }, inrBadgeSettingsProps: badge });
-  const model = nodes(tree).find(node => node.props.item?.connection)!.props.item.connection;
-  assert.equal(model.resourceContent.props.publicUrl, badge.publicUrl);
-  assert.equal(nodes(model.extraActions).filter(node => node.props.publicUrl === badge.publicUrl).length, 2);
-  assert.equal(model.parameters.props.profile, badge.profile);
+  assert.equal(tree.props.channelKey, "inrbadge");
+  assert.equal(tree.props.badgeProfile, badge.profile);
+  assert.equal(tree.props.badgeParameters.props.profile, badge.profile);
   assert.doesNotMatch(read("app/dashboard/settings/_components/InrBadgeSettingsContent.tsx"), /hideQrControls|downloadMenuOpen|toggleDownloadMenu/);
-  assert.equal(model.parametersFullScreen, true);
-  const bubble = runtime("app/dashboard/_components/DashboardFluxBubble.tsx");
-  const view = bubble.render("default", { item: { ...item, key: "inrbadge", connection: model, specialViewHref: badge.publicUrl } });
-  const actions = nodes(view).find(node => node.props.className === "iconActions")!;
-  const actionChildren = React.Children.toArray(actions.props.children) as React.ReactElement<Props>[];
-  assert.equal(actionChildren[0].type, "a");
-  assert.equal(actionChildren[1].type, React.Fragment);
-  assert.equal(actionChildren[2].props["aria-label"], "Paramètres — Google Business");
+  const sharedSource = read("app/dashboard/settings/_components/NativeChannelSettingsContent.tsx");
+  assert.match(sharedSource, /InrBadgeQrButton[\s\S]*InrBadgeDownloadButton[\s\S]*InrBadgeCopyButton/);
 });
 
 test("iNrBadge displays the QR for the same tracked badge URL used by its existing exports", () => {
@@ -1008,7 +1002,7 @@ test("iNrBadge PNG and PDF buttons call the original export with the same profil
 test("switching channels mounts their complete controllers without an incomplete Suspense bubble", () => {
   const source = read("app/dashboard/_components/DashboardChannelWorkspace.tsx");
   assert.doesNotMatch(source, /Suspense|fallback=/);
-  for (const name of ["XSettingsContent", "YoutubeShortsSettingsContent", "PinterestSettingsContent", "MailsSettingsContent", "InrSearchSettingsContent"]) {
+  for (const name of ["XSettingsContent", "YoutubeShortsSettingsContent", "PinterestSettingsContent", "MailsSettingsContent", "NativeChannelSettingsContent"]) {
     assert.ok(source.includes(`import ${name} from`));
   }
 });

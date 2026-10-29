@@ -6,8 +6,6 @@ export const DASHBOARD_PROFILE_COMPLETION_FIELDS = [
   "phone",
   "contact_email",
   "company_legal_name",
-  "hq_zip",
-  "hq_city",
 ] as const;
 
 // Le parcours obligatoire reste volontairement court : secteur et métier.

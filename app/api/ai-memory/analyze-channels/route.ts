@@ -25,6 +25,8 @@ import {
   type BusinessDnaSourceResult,
 } from "@/lib/businessDnaChannelAnalysis";
 import { buildBusinessDnaReferenceDocumentSources } from "@/lib/businessDnaReferenceDocumentSource";
+import { autofillBusinessIdentityFromSources, autofillBusinessLocationFromSources } from "@/lib/businessLocationServer";
+import { syncNativeChannelsForAccount } from "@/lib/nativeChannelActivationServer";
 import { refreshBusinessDnaReferenceDocuments } from "@/lib/businessDnaReferenceDocumentRefresh";
 import {
   assertBusinessDnaManualAnalysisJobRunning,
@@ -419,7 +421,7 @@ async function analyzeBusinessDna({ supabase, activeUserId, authUserId, automati
         .maybeSingle(),
       supabase
         .from("profiles")
-        .select("company_legal_name,first_name,last_name")
+        .select("company_legal_name,first_name,last_name,phone,contact_email,hq_zip,hq_city")
         .eq("user_id", activeUserId)
         .maybeSingle(),
       supabase
@@ -444,7 +446,7 @@ async function analyzeBusinessDna({ supabase, activeUserId, authUserId, automati
 
     const business = asRecord(businessResult.data);
     const profile = asRecord(profileResult.data);
-    const companyName = resolveProfessionalCompanyNameFromProfile(
+    let companyName = resolveProfessionalCompanyNameFromProfile(
       profile.company_legal_name,
       business.company_legal_name,
       business.company_name,
@@ -498,6 +500,24 @@ async function analyzeBusinessDna({ supabase, activeUserId, authUserId, automati
         itemCount: 0, recentItemCount: 0, contentChars: 0, content: "",
         message: "Les canaux sont momentanément indisponibles. Les autres sources ont été conservées.",
       }];
+    // Persist only explicit physical address evidence, before writing the ADN.
+    // This does not consume an AI call and never replaces a manual location.
+    try {
+      await autofillBusinessLocationFromSources({ supabase, accountId: activeUserId, sources: channelSources,
+        expectedLocation: { postalCode: profile.hq_zip, city: profile.hq_city } });
+      const identitySaved = await autofillBusinessIdentityFromSources({ supabase, accountId: activeUserId,
+        sources: channelSources, expectedProfile: profile });
+      if (identitySaved.changed) {
+        const refreshed = await supabase.from("profiles").select("company_legal_name")
+          .eq("user_id", activeUserId).maybeSingle();
+        if (refreshed.error) throw refreshed.error;
+        companyName = resolveProfessionalCompanyNameFromProfile(
+          refreshed.data?.company_legal_name, business.company_legal_name, business.company_name, business.business_name,
+        );
+      }
+    } catch {
+      console.warn("[business-dna] location autofill unavailable", { accountId: activeUserId });
+    }
     const analysisDocuments = documentCollection.status === "fulfilled"
       ? documentCollection.value : storedMemory.referenceDocuments;
     if (channelCollection.status === "rejected" || documentCollection.status === "rejected") {
@@ -840,6 +860,9 @@ Réponds uniquement selon le schéma JSON demandé.`;
 
       await invalidateBoosterGenerationContext(activeUserId, "professional").catch(() => {
         console.warn("[business-dna] context refresh deferred after saved analysis");
+      });
+      await syncNativeChannelsForAccount(activeUserId, undefined, { profileSaved: true }).catch(() => {
+        console.warn("[business-dna] native channel refresh deferred after saved analysis");
       });
       return NextResponse.json(
         {

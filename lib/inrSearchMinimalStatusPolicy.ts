@@ -79,6 +79,10 @@ export function resolveInrSearchMinimalStatus(params: {
   if (!accountId) {
     return { ...base, published: false, reason: "config_missing" };
   }
+  if (config.activationVersion === 1 && config.activationRequested !== true) return { ...base, published: false, reason: "page_disabled" };
+  if (config.activationVersion === 1 && config.activationRequested === true && config.publicationReady === false) {
+    return { ...base, published: false, reason: "profile_missing" };
+  }
   if (config.enabled !== true) {
     return { ...base, published: false, reason: "page_disabled" };
   }

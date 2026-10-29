@@ -2,14 +2,11 @@ import { isInrDirectoryEnabled } from "@/lib/inrDirectorySettings";
 import { POST as updateDirectorySettings } from "@/app/api/inr-directory/settings/route";
 import { NextResponse } from "next/server";
 
-import { purgeInrSearchDirectoryCache } from "@/lib/inrSearchDirectoryCache";
-import { getInrSearchPublicationEligibility } from "@/lib/inrSearchEligibility";
+import { syncNativeChannelsForAccount } from "@/lib/nativeChannelActivationServer";
 import { getInrSearchMinimalPublicStatus } from "@/lib/inrSearchMinimalStatus";
 import { ensureSystemManagedInrSearch } from "@/lib/inrSearchProvisioning";
-import { revalidateInrSearchPublicRoutes } from "@/lib/inrSearchProvisioning";
 import { requireUser } from "@/lib/requireUser";
 import { clearAllToolCaches } from "@/lib/statsCache";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 
 type DirectoryCacheSync = {
@@ -65,64 +62,10 @@ async function applyAction(request: Request) {
   }
 
   try {
-    const provisioned = await ensureSystemManagedInrSearch(supabase, activeUserId);
-    const current = provisioned.inrSearch as Record<string, unknown>;
-    const slug = typeof current.slug === "string" ? current.slug : "";
-    // Une page provisoire reçoit systématiquement un slug dès l'ouverture du
-    // compte. Ce garde-fou ne concerne donc plus le profil : il ne peut être
-    // atteint qu'en cas de souci technique de provisionnement.
-    if (!slug) throw new Error("La page iNr'Search n'a pas pu être initialisée. Réessayez dans un instant.");
-
-    if (action === "connect") {
-      const eligibility = await getInrSearchPublicationEligibility(activeUserId);
-      if (!eligibility.allowed) {
-        throw new Error("La page iNr'Search ne peut pas être connectée pour le moment.");
-      }
-    }
-
-    const now = new Date().toISOString();
-    const next = {
-      ...current,
-      enabled: action === "connect"
-        ? true
-        : action === "disconnect"
-          ? false
-          : Boolean(current.enabled),
-      directoryEnabled: Boolean(current.directoryEnabled),
-      updatedAt: now,
-      publishedAt: action === "connect" ? String(current.publishedAt || now) : current.publishedAt || null,
-      indexingRequestedAt: action === "connect" ? now : current.indexingRequestedAt || null,
-    };
-
-    const update = await supabaseAdmin
-      .from("pro_tools_configs")
-      .upsert({ user_id: activeUserId, settings: { ...provisioned.root, inrDirectory: { ...((provisioned.root.inrDirectory || {}) as Record<string, unknown>), enabled: isInrDirectoryEnabled(provisioned.root) }, inrSearch: next } }, { onConflict: "user_id" });
-    if (update.error) throw update.error;
-
-    revalidateInrSearchPublicRoutes(slug);
+    if (body.accountId !== undefined && body.accountId !== activeUserId) return NextResponse.json({ ok: false, error: "L’établissement actif a changé." }, { status: 409 });
+    await syncNativeChannelsForAccount(activeUserId, { key: "inr_search", enabled: action === "connect" });
     await clearAllToolCaches(supabase, activeUserId);
-    let directoryCache: DirectoryCacheSync;
-    try {
-      const purge = await purgeInrSearchDirectoryCache({
-        reason: action,
-        slug,
-      });
-      directoryCache = {
-        ok: true,
-        cacheVersion: purge.cacheVersion,
-      };
-    } catch (error) {
-      console.error("[inr-search] WordPress directory cache purge failed", {
-        action,
-        activeUserId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      directoryCache = {
-        ok: false,
-        warning: "Le réglage est enregistré, mais l’annuaire public n’a pas pu être actualisé immédiatement.",
-      };
-    }
-    return syncSystemManagedPage(directoryCache);
+    return syncSystemManagedPage();
   } catch (error) {
     const message = getSimpleFrenchErrorMessage(error, "Mise à jour de la page iNr'Search impossible.");
     return NextResponse.json({ ok: false, error: message }, { status: 400, headers: { "Cache-Control": "no-store" } });

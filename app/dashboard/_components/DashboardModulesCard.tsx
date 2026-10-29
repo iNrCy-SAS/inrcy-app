@@ -111,6 +111,31 @@ function PremiumCardAccent({ tone }: { tone: string }) {
   </svg>;
 }
 
+function ToolCardDecor({ tone }: { tone: string }) {
+  const id = `tool-decor-${useId().replace(/:/g, "")}`;
+  return (
+    <svg className={signatureStyles.toolCardDecor} viewBox="0 0 400 420" preserveAspectRatio="none" fill="none" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id={id} x1="0" y1="420" x2="400" y2="50" gradientUnits="userSpaceOnUse"><stop stopColor="#62cfff" /><stop offset=".55" stopColor="currentColor" /><stop offset="1" stopColor="#d5a6ff" /></linearGradient>
+      </defs>
+      <g stroke={`url(#${id})`}>
+        <circle cx="375" cy="35" r="103" opacity=".2" /><circle cx="375" cy="35" r="127" opacity=".1" />
+        {tone === "statsCard" ? (
+          <><path d="M-40 395C65 300 105 425 225 358S360 290 440 325" opacity=".2" /><path d="M-40 408C65 313 105 438 225 371S360 303 440 338" opacity=".1" /></>
+        ) : (
+          <>
+            <path d="M-60 318C45 208 104 369 225 267S350 227 450 171" opacity=".32" />
+            <path d="M-60 328C45 218 104 379 225 277S350 237 450 181" opacity=".16" />
+            <path d="M-60 338C45 228 104 389 225 287S350 247 450 191" opacity=".08" />
+            {tone === "sendCard" ? <path d="M45 235c-30-52 60-78 75-39s-48 41-44 2 78-38 114-66" strokeDasharray="3 7" strokeLinecap="round" opacity=".25" /> : <rect x="34" y="170" width="58" height="44" rx="8" transform="rotate(-17 63 192)" opacity=".12" />}
+          </>
+        )}
+      </g>
+      <g fill="currentColor"><circle cx="42" cy="75" r="2" opacity=".4" /><circle cx="346" cy="249" r="2.5" opacity=".45" /><circle cx="64" cy="337" r="2" opacity=".35" /><path d="m335 136 1.8 5.2 5.2 1.8-5.2 1.8-1.8 5.2-1.8-5.2-5.2-1.8 5.2-1.8 1.8-5.2Z" opacity=".4" /><path d="m94 266 1.3 3.7 3.7 1.3-3.7 1.3-1.3 3.7-1.3-3.7-3.7-1.3 3.7-1.3 1.3-3.7Z" opacity=".28" /></g>
+    </svg>
+  );
+}
+
 export default function DashboardModulesCard({ cockpit, generator, overview, goToModule, openPanel, onOpenStats, onOpenGeneratorSettings, onOpenBoosterPublish, onOpenBoosterStats, adsPilotEnabled = false, inrAgentEnabled = true, standardMode: standardModeOverride = false }: DashboardModulesCardProps) {
   const i18nT = useTranslations("shell");
   const standardT = useTranslations("dashboard.standard");
@@ -124,6 +149,7 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
   const dashboardEdition = useDashboardEdition();
   const studioEdition = useDashboardSubscriptionEdition();
   const standardMode = standardModeOverride || isStandardDashboardEdition(dashboardEdition);
+  const basicMode = dashboardEdition === "basic";
   const accountingEnabled = !standardMode && hasAccountingDashboardAccess(dashboardEdition);
   const [cashModalOpen, setCashModalOpen] = useState(false);
   const [campaignModalOpen, setCampaignModalOpen] = useState(false);
@@ -270,8 +296,9 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
     const definition = INR_AGENT_WORKSPACES[workspace];
     const locked = dashboardEdition === "basic" || (workspace === "campaigns" && standardMode);
     return (
-      <div className={`${signatureStyles.agentControls} ${className}`}>
+      <div className={`${signatureStyles.agentControls} ${className}${basicMode ? ` ${signatureStyles.standardAgentPreview}` : ""}`}>
         <DashboardAgentLogoButton workspace={workspace} enabled={inrAgentEnabled && !locked}
+          availabilityHint={basicMode ? signatureT("standardAgentHint") : undefined}
           busy={isModuleLoadingVisible(definition.href)}
           onClick={() => locked ? startPanelOpening("abonnement") : startModuleNavigation(definition.href)} />
       </div>
@@ -292,11 +319,13 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
   };
   const pilotTools = [
     ...signatureTools.filter((tool) => tool.tone === "statsCard"),
-    ...signatureTools.filter((tool) => tool.tone === "sendCard" || tool.tone === "studioCard"),
+    ...signatureTools.filter((tool) => !basicMode && (tool.tone === "sendCard" || tool.tone === "studioCard")),
   ];
   const premiumTools = ["adsCard", "campaignCard", "calendarCard", "crmCard"].map(tone => signatureTools.find(tool => tool.tone === tone)!);
+  const basicMediaTools = ["studioCard", "sendCard"].map(tone => signatureTools.find(tool => tool.tone === tone)!);
   const renderSignatureTool = (tool: (typeof signatureTools)[number]) => (
     <article className={`${signatureStyles.signatureCard} ${signatureStyles[tool.tone]}`} key={tool.path}>
+      {tool.tone === "statsCard" || tool.tone === "studioCard" || tool.tone === "sendCard" ? <ToolCardDecor tone={tool.tone} /> : null}
       {tool.premiumOnly ? <PremiumCardAccent tone={tool.tone} /> : null}
       <span className={signatureStyles.signatureLogo} aria-hidden="true">{tool.logo ? <Image src={tool.logo} alt="" width={52} height={52} /> : <ToolGlyph kind={tool.glyph} />}</span>
       <div className={signatureStyles.signatureCopy}><h4>{tool.title}{tool.tone === "studioCard" ? <span className={signatureStyles.studioEdition} data-studio-edition={studioEdition} role="img" aria-label={`iNr’Studio — ${studioEdition === "basic" ? "Basique" : studioEdition === "standard" ? "Standard" : studioEdition === "founder" ? "Founder" : "Premium"}`} title={`iNr’Studio — ${studioEdition === "basic" ? "Basique" : studioEdition === "standard" ? "Standard" : studioEdition === "founder" ? "Founder" : "Premium"}`}>
@@ -361,7 +390,7 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
   );
   return (
     <>
-        <div className={signatureStyles.lowerRow} data-dashboard-standard-lower-blocks={standardMode ? "true" : undefined} data-dashboard-premium-lower-blocks={!standardMode ? "true" : undefined}>
+        <div className={signatureStyles.lowerRow} data-dashboard-basic-lower-blocks={basicMode ? "true" : undefined} data-dashboard-standard-lower-blocks={standardMode ? "true" : undefined} data-dashboard-premium-lower-blocks={!standardMode ? "true" : undefined}>
           {cockpit}
             <article className={signatureStyles.boosterCard}>
               <BoosterWave />
@@ -401,13 +430,23 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
           {generator}
           <section className={`${signatureStyles.panel} ${signatureStyles.creationPanel}`} aria-labelledby="dashboard-pilot-title" id={DASHBOARD_GEARBOX_ANCHOR_ID}>
             <header className={signatureStyles.panelHeader}>
-              <h3 id="dashboard-pilot-title"><span className={signatureStyles.headingIcon} aria-hidden="true"><ToolGlyph kind="stats" /></span>{copy.pilotTitle}</h3>
+              <h3 id="dashboard-pilot-title"><span className={signatureStyles.headingIcon} aria-hidden="true"><ToolGlyph kind="stats" /></span>{basicMode ? signatureT("basicActivityTitle") : copy.pilotTitle}</h3>
             </header>
-            <div className={signatureStyles.signatureGrid} data-dashboard-relationship-tools="true" data-dashboard-standard-secondary-tools={standardMode ? "true" : undefined} data-dashboard-premium-secondary-tools={!standardMode ? "true" : undefined}>
+            <div className={`${signatureStyles.signatureGrid}${basicMode ? ` ${signatureStyles.basicStatsGrid}` : ""}`} data-dashboard-relationship-tools="true" data-dashboard-standard-secondary-tools={standardMode ? "true" : undefined} data-dashboard-premium-secondary-tools={!standardMode ? "true" : undefined}>
               {pilotTools.map(renderSignatureTool)}
             </div>
           </section>
 
+          {basicMode ? (
+          <section className={`${signatureStyles.panel} ${signatureStyles.pilotPanel} ${signatureStyles.basicMediaPanel}`} aria-labelledby="dashboard-basic-media-title">
+            <header className={signatureStyles.panelHeader}>
+              <h3 id="dashboard-basic-media-title"><span className={signatureStyles.headingIcon} aria-hidden="true"><ToolGlyph kind="image" /></span>{signatureT("basicMediaTitle")}</h3>
+            </header>
+            <div className={`${signatureStyles.signatureGrid} ${signatureStyles.basicMediaGrid}`} data-dashboard-basic-media-tools="true">
+              {basicMediaTools.map(renderSignatureTool)}
+            </div>
+          </section>
+          ) : (
           <section className={`${signatureStyles.panel} ${signatureStyles.pilotPanel}`} aria-labelledby="dashboard-premium-title">
             <header className={signatureStyles.panelHeader}>
               <h3 id="dashboard-premium-title">
@@ -420,6 +459,7 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
               {premiumTools.map(renderSignatureTool)}
             </fieldset>
           </section>
+          )}
         </div>
 
         {!standardMode && campaignModalOpen ? (

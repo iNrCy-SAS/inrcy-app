@@ -2656,19 +2656,11 @@ export default function MediaGenerator({
           </div>
         ) : null}
 
-        {!canRecover && !generationBusy ? (videoCreditInsufficient ? (
-          <div className={styles.warning} role="status">
-            {t("ai_generator_video_credit_insufficient")}
-          </div>
-        ) : videoDurationUnavailable ? (
+        {!canRecover && !generationBusy && videoDurationUnavailable ? (
           <div className={styles.warning} role="status">
             {t("ai_generator_model_duration_unavailable", { seconds: durationSeconds })}
           </div>
-        ) : exhausted ? (
-          <div className={styles.warning} role="status">
-            {t("ai_generator_quota_reached")}
-          </div>
-        ) : null) : null}
+        ) : null}
         {actionError || error ? (
           <div className={styles.error} role="alert">
             {actionError || error}

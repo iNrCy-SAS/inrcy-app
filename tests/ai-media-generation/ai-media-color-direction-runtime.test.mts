@@ -297,7 +297,7 @@ test("un ADN et un brief longs ne peuvent supprimer la garde anti-nuancier du pr
     assert.ok(prompt.includes(INSTRUCTION));
     assert.ok(prompt.includes(ANTI_SWATCH_RULE), `${kind}: la garde finale doit rester complète`);
     assert.match(prompt, /Ne pas recopier les annotations techniques autour du sujet des références/);
-    assert.match(prompt, /COMPOSITION EXACTE PRISE EN CHARGE PAR iNrCy APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE/);
+    assert.match(prompt, /COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE/);
     assert.doesNotMatch(prompt, HEX_CODE);
   }
 });

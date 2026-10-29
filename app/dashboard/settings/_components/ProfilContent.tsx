@@ -49,8 +49,6 @@ type ProfileForm = {
   lastName: string;
   phone: string;
   companyName: string;
-  hqZip: string;
-  hqCity: string;
   logoPreview: string;
   logoFile: File | null;
   logoPath: string;
@@ -87,8 +85,6 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
       lastName: "",
       phone: "",
       companyName: "",
-      hqZip: "",
-      hqCity: "",
       logoPreview: "",
       logoFile: null,
       logoPath: "",
@@ -121,7 +117,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
         const authenticatedEmail = user.email?.trim() || "";
         const { data, error } = await supabase
           .from("profiles")
-          .select("contact_email,first_name,last_name,phone,company_legal_name,hq_zip,hq_city,logo_path,logo_url")
+          .select("contact_email,first_name,last_name,phone,company_legal_name,logo_path,logo_url")
           .eq("user_id", resolveActiveBrowserUserId(user.id))
           .maybeSingle();
         if (error) throw error;
@@ -140,8 +136,6 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
           lastName: data?.last_name ?? "",
           phone: data?.phone ?? "",
           companyName: data?.company_legal_name ?? "",
-          hqZip: data?.hq_zip ?? "",
-          hqCity: data?.hq_city ?? "",
           logoPreview: resolvedLogo.logoUrl,
           logoFile: null,
           logoPath: resolvedLogo.logoPath,
@@ -200,8 +194,6 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
     if (!form.companyName.trim()) {
       next.companyName = i18nT("company_name_required");
     }
-    if (!form.hqZip.trim()) next.hqZip = i18nT("postal_code_required");
-    if (!form.hqCity.trim()) next.hqCity = i18nT("city_required");
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -213,8 +205,6 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
       form.phone,
       form.contactEmail,
       form.companyName,
-      form.hqZip,
-      form.hqCity,
     ];
     return (
       required.every((value) => value.trim().length > 0) &&
@@ -307,8 +297,6 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
           // Le nom public reste sur la colonne historique afin que tous les
           // outils et les comptes existants continuent de fonctionner.
           company_legal_name: form.companyName.trim(),
-          hq_zip: form.hqZip.trim(),
-          hq_city: form.hqCity.trim(),
           logo_path: logoPath || null,
           logo_url: logoPath
             ? logoUrl || getProfileLogoDisplayUrl(logoPath)
@@ -515,32 +503,6 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
               {errors.phone ? <span style={errorStyle}>{errors.phone}</span> : null}
             </label>
 
-            <div data-profile-grid="location" style={locationGridStyle}>
-              <label style={labelStyle}>
-                <span style={labelTextStyle}>{i18nT("code_postal_71f695db")}</span>
-                <input
-                  inputMode="text"
-                  autoComplete="postal-code"
-                  value={form.hqZip}
-                  onChange={(event) => update("hqZip", event.target.value.slice(0, 12))}
-                  placeholder="62000"
-                  style={fieldStyle("hqZip")}
-                />
-                {errors.hqZip ? <span style={errorStyle}>{errors.hqZip}</span> : null}
-              </label>
-              <label style={labelStyle}>
-                <span style={labelTextStyle}>{i18nT("ville_e23c3241")}</span>
-                <input
-                  autoComplete="address-level2"
-                  value={form.hqCity}
-                  onChange={(event) => update("hqCity", event.target.value)}
-                  placeholder={i18nT("arras_14599ac1")}
-                  style={fieldStyle("hqCity")}
-                />
-                {errors.hqCity ? <span style={errorStyle}>{errors.hqCity}</span> : null}
-              </label>
-            </div>
-
             <div style={{ display: "grid", gap: 8 }}>
               <span style={labelTextStyle}>{i18nT("logo_de_l_entreprise_a1d7bdb9")}{" "}<em style={optionalStyle}>{i18nT("optional_label")}</em></span>
               <input
@@ -730,11 +692,6 @@ const optionalStyle: React.CSSProperties = {
 const gridTwoStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: 10,
-};
-const locationGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "130px minmax(0, 1fr)",
   gap: 10,
 };
 const logoRowStyle: React.CSSProperties = {

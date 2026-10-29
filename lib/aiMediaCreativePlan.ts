@@ -19,6 +19,7 @@ import {
 } from "@/lib/aiMediaTextIntegrity";
 import { getAiMediaVideoSegmentCount } from "@/lib/aiMediaVideoTimeline";
 import { fitAiMediaSceneDirection } from "./aiMediaTechnicalText.ts";
+import { buildAiContentLocationInstruction, resolveAiContentLocation } from "./aiContentLocation.ts";
 
 type RecentPublication = {
   title?: string | null;
@@ -470,6 +471,8 @@ export function buildAiMediaCreativePlan(args: {
 }): AiMediaCreativePlan {
   const { request, profile } = args;
   const business = profile.business;
+  const contentLocation = resolveAiContentLocation(profile);
+  const editorialArea = contentLocation ? contentLocation.primaryArea : business.city;
   const language = profile.preferences.language;
   const localized = getAiMediaLanguageCopy(language);
   const history = historyText(args.recentPublications || []);
@@ -481,7 +484,7 @@ export function buildAiMediaCreativePlan(args: {
     history,
     variant + 2
   );
-  const zone = chooseFresh(business.interventionZones, history, variant + 3);
+  const zone = contentLocation ? contentLocation.primaryArea : chooseFresh(business.interventionZones, history, variant + 3);
   const profession = business.professionLabel || business.sectorLabel;
   const companyName = business.companyName || localized.professionalFallback;
   const typology = safeTypology(request);
@@ -498,12 +501,14 @@ export function buildAiMediaCreativePlan(args: {
   const instructionDirection = oneShotInstruction
     ? ` CONSIGNE PRIORITAIRE : ${oneShotInstruction}. L'appliquer entièrement sans l'afficher ni la réciter.`
     : "";
+  const locationDirection = buildAiContentLocationInstruction(profile);
 
   const exactIdeaDirection = (idea: string) =>
     [
       `SUJET IMMUTABLE : ${cleanStructuredText(idea, 2_000)}.`,
       "Conserver ce même sujet, ses personnages ou objets, son action et son objectif dans chaque acte ; ne jamais le remplacer par une prestation générique de l'ADN.",
       instructionDirection,
+      locationDirection,
     ]
       .filter(Boolean)
       .join(" ");
@@ -536,7 +541,7 @@ export function buildAiMediaCreativePlan(args: {
       scene(
         companyName,
         options.cta,
-        business.city,
+        editorialArea,
         "cta",
         `ACTE FINAL : achever exactement la même action, montrer son résultat concret puis une prochaine étape naturelle, sans introduire une autre prestation. ${contract}`
       ),
@@ -561,7 +566,7 @@ export function buildAiMediaCreativePlan(args: {
         strength ||
         business.description ||
         zone ||
-        business.city,
+        editorialArea,
       145
     );
     const cta = ctaLabel(profile);
@@ -581,7 +586,7 @@ export function buildAiMediaCreativePlan(args: {
             supportingEyebrow: companyName,
             supportingTitle:
               strength || business.services[1] || service || profession,
-            supportingBody: zone || business.city || subline,
+            supportingBody: zone || editorialArea || subline,
           }),
           targetCount,
           language,
@@ -590,20 +595,20 @@ export function buildAiMediaCreativePlan(args: {
     }
     const ideaDirection =
       `Représenter concrètement l'activité ${profession || companyName}.` +
-      instructionDirection;
+      instructionDirection + (locationDirection ? ` ${locationDirection}` : "");
     const localizedScenes = [
       scene(companyName, headline, subline, "hero", ideaDirection),
       scene(
         companyName,
         strength || business.services[1] || service || profession || headline,
-        zone || business.city || subline,
+        zone || editorialArea || subline,
         "editorial",
         `${ideaDirection} Montrer une action professionnelle crédible, sans texte généré dans le décor.`
       ),
       scene(
         companyName,
         cta,
-        business.city,
+        editorialArea,
         "cta",
         `Conclure la même histoire sur un résultat clair et rassurant. ${ideaDirection}`
       ),
@@ -639,7 +644,7 @@ export function buildAiMediaCreativePlan(args: {
   const subline = clean(
     commercialDetails?.subline ||
       business.description ||
-      [profession, business.city].filter(Boolean).join(" à "),
+      [profession, editorialArea].filter(Boolean).join(" à "),
     145
   );
   const cta = commercialDetails ? "Comparer les offres" : ctaLabel(profile);
@@ -667,7 +672,7 @@ export function buildAiMediaCreativePlan(args: {
   }
   const ideaDirection =
     `Representer concretement l'activite ${profession || companyName}.` +
-    instructionDirection;
+    instructionDirection + (locationDirection ? ` ${locationDirection}` : "");
 
   const candidates = [
     scene(companyName, headline, subline, "hero", ideaDirection),
@@ -707,14 +712,14 @@ export function buildAiMediaCreativePlan(args: {
           `${ideaDirection} Mettre en scene la clientele ${audience} dans une situation naturelle.`
         )
       : null,
-    zone || business.city
+    zone || editorialArea
       ? scene(
           companyName,
-          zone || business.city,
-          [profession, business.city].filter(Boolean).join(" · "),
+          zone || editorialArea,
+          [profession, editorialArea].filter(Boolean).join(" · "),
           "statement",
           `${ideaDirection} Ancrer la scene de facon credible a ${
-            zone || business.city
+            zone || editorialArea
           }.`
         )
       : null,
@@ -737,7 +742,7 @@ export function buildAiMediaCreativePlan(args: {
     scene(
       companyName,
       cta,
-      business.city,
+      editorialArea,
       "cta",
       `Conclure la même histoire en montrant le résultat concret obtenu et une prochaine étape naturelle. ${ideaDirection}`
     ),
@@ -753,13 +758,13 @@ export function buildAiMediaCreativePlan(args: {
     scene(
       companyName,
       strength || service || profession || companyName,
-      zone || business.city,
+      zone || editorialArea,
       "editorial"
     ),
     scene(
       companyName,
       cta,
-      business.city,
+      editorialArea,
       "cta",
       `Conclure la même histoire en montrant le résultat concret obtenu et une prochaine étape naturelle. ${ideaDirection}`
     ),

@@ -2,6 +2,7 @@ import "server-only";
 
 import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import { fitPromptPayloadToJsonBudget } from "./aiPromptBudget.ts";
+import { buildAiContentLocationPromptPayload } from "./aiContentLocation.ts";
 
 export {
   getAiProfessionalGenerationContext,
@@ -58,5 +59,8 @@ export function buildAiProfessionalBusinessPromptPayload(
       Array.isArray(value) ? value.length > 0 : Boolean(value),
     ),
   );
-  return fitPromptPayloadToJsonBudget(payload, 3_600);
+  const contentLocation = buildAiContentLocationPromptPayload(profile);
+  if (!contentLocation) return fitPromptPayloadToJsonBudget(payload, 3_600);
+  const reserved = { localisation_editoriale: contentLocation };
+  return { ...fitPromptPayloadToJsonBudget(payload, 3_600 - JSON.stringify(reserved).length - 2), ...reserved };
 }

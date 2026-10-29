@@ -7,6 +7,7 @@ import { createInrBadgeSlug, getInrBadgeBaseUrl, createInrBadgeQrTrackingUrl } f
 import { directorySlug, resolveDirectoryProfession } from "@/lib/inrDirectoryCatalog";
 import { resolveFrenchGeography } from "@/lib/frenchGeography";
 import { resolveProfessionalCompanyNameFromProfile } from "@/lib/professionalBusinessIdentity";
+import { getNativeChannelMissingFields } from "@/lib/nativeChannelActivation";
 
 export type InrDirectoryCompany = {
   slug: string; url: string; qrUrl: string; companyName: string; pageTitle: string; pageDescription: string;
@@ -45,6 +46,10 @@ export const listInrDirectoryCompanies = cache(async (): Promise<InrDirectoryCom
       const city = clean(profile.hq_city, 120);
       const trade = resolveDirectoryProfession(clean(business?.sector, 300));
       if (!companyName || !city || !trade.profession) continue;
+      const config = optedIn.find(row => row.user_id === profile.user_id);
+      const settings = (config?.settings || {}) as Record<string, unknown>;
+      const directory = (settings.inrDirectory || {}) as Record<string, unknown>;
+      if (directory.activationVersion === 1 && getNativeChannelMissingFields(profile, business, settings).inr_directory.length) continue;
       const geography = resolveFrenchGeography(profile.hq_zip, city);
       const department = geography?.department || "";
       const region = geography?.region || "";

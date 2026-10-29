@@ -1,11 +1,13 @@
 import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import sharp from "sharp";
 import * as catalog from "../../lib/aiMediaModelCatalog.ts";
 import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
@@ -17,6 +19,7 @@ import * as agentVideoFallback from "../../lib/inrAgentVideoFallback.ts";
 import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
 import * as spokenScript from "../../lib/aiMediaSpokenScript.ts";
 import * as pronunciation from "../../lib/aiMediaPronunciation.ts";
+import * as localLogoComposition from "../../lib/aiMediaLocalLogoCompositionPrompt.ts";
 
 type RecordValue = Record<string, unknown>;
 function compile(file: string, modules: Map<string, unknown>, quiet = false) {
@@ -40,15 +43,16 @@ function realCapabilityGate() {
   ])).assertAiMediaGatewayImageInputs;
 }
 
-function serverHarness(providerFailure: boolean | Error = false, options: { logo?: Buffer | null; composerFailure?: boolean } = {}) {
+function serverHarness(providerFailure: boolean | Error = false, options: { logo?: Buffer | null; composerFailure?: boolean; phone?: string; normalizedCanvas?: { width: number; height: number } } = {}) {
   const counts = { creative: 0, headline: 0, provider: 0, fallback: 0, branded: 0, saved: 0 };
   const providerCalls: RecordValue[] = [];
   const composerCalls: RecordValue[] = [];
+  const contactCalls: RecordValue[] = [];
   const saved: RecordValue[] = [];
   const promptCalls: RecordValue[] = [];
   const plan = { companyName: "Atelier Test", headline: "Une création soignée", subline: "Objet original", cta: "",
     scenes: [{ eyebrow: "Atelier Test", title: "Une création soignée", body: "Objet original", visualBrief: "Objet sur une table", layout: "editorial" }] };
-  const profile = { business: { companyName: "Atelier Test", phone: "" } };
+  const profile = { business: { companyName: "Atelier Test", phone: options.phone || "" } };
   const logo = options.logo === undefined ? Buffer.from("synthetic-official-logo") : options.logo;
   const unused = ["@/lib/aiMediaBusinessDna", "@/lib/aiMediaImageContactComposer", "@/lib/aiMediaGeneratedVideo", "@/lib/aiMediaVideoLayout",
     "@/lib/aiMediaVideoProviderContract", "@/lib/aiMediaVideoLocalQa", "@/lib/aiMediaReferenceTeam", "@/lib/aiMediaNarration", "@/lib/aiMediaNarrationAudio",
@@ -68,6 +72,7 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
   const overrides: Array<[string, unknown]> = [
     ["./aiMediaSpokenScript.ts", spokenScript],
     ["./aiMediaPronunciation.ts", pronunciation],
+    ["./aiMediaLocalLogoCompositionPrompt.ts", localLogoComposition],
     ["./inrAgentVideoFallback.ts", agentVideoFallback],
     ["./aiMediaGenerationPublicErrors.ts", publicErrors],
     ["server-only", {}], ["./aiMediaCharacterVoices.ts", characterVoices], ["@/lib/aiMediaCharacterVoices", characterVoices], ["sharp", {}],
@@ -75,6 +80,7 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
     ["@/lib/aiMediaBrandKit", { loadAiMediaBrandKit: async () => ({ colors: ["#112233", "#445566", "#778899"], hasOfficialPalette: true, logo, logoVersion: "test" }) }],
     ["@/lib/aiMediaFreeDnaContextServer", { loadAiMediaFreeDnaContext: async () => ({ coordonnees: { telephone: "01 23 45 67 89" }, liens: { site_web: "https://atelier.example/" }, informations_demandees: [] }) }],
     ["@/lib/aiMediaBrandRenderer", { composeAiMediaBrandedImage: async (args: RecordValue) => { counts.branded += 1; composerCalls.push(args); if (options.composerFailure) throw new Error("ai_media_required_logo_not_composed"); return Buffer.from("locally-branded-output"); } }],
+    ["@/lib/aiMediaImageContactComposer", { composeAiMediaContactImage: async (args: RecordValue) => { contactCalls.push(args); return Buffer.from("locally-contacted-output"); } }],
     ["@/lib/aiMediaCreativePlan", { buildAiMediaCreativePlan: () => plan }],
     ["@/lib/aiMediaCastingVariation", { chooseAiMediaCastingVariation: () => null }],
     ["@/lib/aiMediaCopywriter", { writeAiMediaHeadline: async () => { counts.headline += 1; return plan; } }],
@@ -93,14 +99,14 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
     ["./aiMediaImageProviderGateway.ts", { assertAiMediaGatewayImageInputs: realCapabilityGate() }],
     ["@/lib/aiMediaIdentityReferences", { AiMediaIdentityReferenceValidationError: class extends Error {}, prepareAiMediaIdentityReferences: async (images: contracts.AiMediaInspirationImage[]) => ({ providerImages: images, buffers: images.map(() => Buffer.from("sanitized-image")) }) }],
     ["@/lib/aiMediaGenerationPrompt", { AI_MEDIA_PROMPT_VERSION: "test-version", buildAiMediaPrompt: (args: RecordValue) => { promptCalls.push(args); return "Compiled requested image prompt"; }, getAiMediaPromptOutputSpec: () => ({ kind: "image" }) }],
-    ["@/lib/aiMediaNormalizer", { normalizeGeneratedAiImage: async (buffer: Buffer, options: { width: number; height: number }) => ({ kind: "image", buffer, mimeType: "image/jpeg", extension: "jpg", width: options.width, height: options.height, durationSeconds: null }) }],
+    ["@/lib/aiMediaNormalizer", { normalizeGeneratedAiImage: async (buffer: Buffer, canvas: { width: number; height: number }) => ({ kind: "image", buffer, mimeType: "image/jpeg", extension: "jpg", width: options.normalizedCanvas?.width || canvas.width, height: options.normalizedCanvas?.height || canvas.height, durationSeconds: null }) }],
     ["@/lib/aiMediaSensitiveText", sensitive],
-    ["@/lib/aiMediaVisibleContact", { isAiMediaProfilePhoneDisplayRequested: () => false, cleanAiMediaProfilePhone: () => "" }],
+    ["@/lib/aiMediaVisibleContact", { isAiMediaProfilePhoneDisplayRequested: () => Boolean(options.phone), cleanAiMediaProfilePhone: () => options.phone || "" }],
     ["@/lib/aiMediaCreditQuoteServer", { quoteAiMediaRequest: (_account: string, request: contracts.AiMediaGenerationRequest) => pricing.quoteAiMediaCredits({ ...request, inspirationImagesCount: request.inspirationImages.length }) }],
   ];
   for (const [id, moduleValue] of overrides) modules.set(id, moduleValue);
   const runtime = compile("lib/aiMediaGenerationServer.ts", modules, true) as unknown as { generateAndSaveAiMedia: (args: RecordValue) => Promise<unknown> };
-  return { counts, providerCalls, composerCalls, promptCalls, saved, logo, generate: (request: contracts.AiMediaGenerationRequest, execution: RecordValue = {}) => runtime.generateAndSaveAiMedia({ accountId: "test-account", authUserId: "test-actor", jobId: "test-job", supabase: {}, request, ...execution }) };
+  return { counts, providerCalls, composerCalls, contactCalls, promptCalls, saved, logo, generate: (request: contracts.AiMediaGenerationRequest, execution: RecordValue = {}) => runtime.generateAndSaveAiMedia({ accountId: "test-account", authUserId: "test-actor", jobId: "test-job", supabase: {}, request, ...execution }) };
 }
 
 function request(engine: catalog.AiMediaImageEngine, options: RecordValue = {}) {
@@ -234,6 +240,54 @@ test("the saved profile logo is composed from its real bytes, with or without th
   });
 });
 
+test("guided phone images compose exact phone copy then the real adaptive logo once on the actual canvas", async () => {
+  const officialFile = await sharp({ create: { width: 120, height: 40, channels: 4, background: "#ed1f8a" } }).png().toBuffer();
+  await withCredentials(async () => {
+    for (const engine of ["openai", "gemini", "flux", "grok", "recraft"] as const) {
+      const h = serverHarness(false, { phone: "06 31 26 08 12", logo: officialFile, normalizedCanvas: { width: 840, height: 1200 } });
+      await h.generate(request(engine, { format: "portrait", withText: true, textMode: "ai", aiInstruction: "Ajoute mon téléphone et mon logo en bas à droite." }));
+      assert.equal(h.providerCalls[0].officialLogo, null, engine);
+      assert.equal(h.contactCalls.length, 1, engine);
+      assert.equal(h.contactCalls[0].phone, "06 31 26 08 12");
+      assert.equal(h.contactCalls[0].officialLogo, null, "the phone compositor must not add a second logo or a plate");
+      assert.equal(h.contactCalls[0].requireLogo, false);
+      assert.equal(h.contactCalls[0].logoMode, "none");
+      assert.equal(h.contactCalls[0].width, 840); assert.equal(h.contactCalls[0].height, 1200);
+      assert.equal(h.composerCalls.length, 1, engine);
+      assert.deepEqual(h.composerCalls[0].input, Buffer.from("locally-contacted-output"), "logo composition retains the exact phone copy");
+      assert.equal(h.composerCalls[0].logo, officialFile);
+      assert.equal(h.composerCalls[0].requireLogo, true);
+      assert.equal(h.composerCalls[0].withText, false, "phone/headline copy must not be drawn twice");
+      assert.equal(h.composerCalls[0].width, 840); assert.equal(h.composerCalls[0].height, 1200);
+      assert.deepEqual(h.composerCalls[0].logoPlacement, { horizontal: "right", vertical: "bottom" });
+      const metadata = h.saved[0].metadata as { provenance: RecordValue; gateway: RecordValue };
+      assert.equal(metadata.provenance.exact_contact_composition_applied, true);
+      assert.equal(metadata.provenance.exact_logo_applied, true);
+      assert.equal(metadata.provenance.official_logo_source, "account_profile");
+      assert.equal(metadata.provenance.official_logo_sha256, createHash("sha256").update(officialFile).digest("hex"));
+      assert.equal(metadata.gateway.local_logo_composition_applied, true);
+      assert.equal(metadata.gateway.profile_phone_applied, true);
+      assert.deepEqual((h.saved[0].media as RecordValue).buffer, Buffer.from("locally-branded-output"));
+    }
+  });
+});
+
+test("phone branding honors no-logo requests and cannot save success when required logo composition fails", async () => {
+  await withCredentials(async () => {
+    const excluded = serverHarness(false, { phone: "06 31 26 08 12" });
+    await excluded.generate(request("gemini", { logoMode: "none", aiInstruction: "Ajoute mon téléphone sans logo." }));
+    assert.equal(excluded.contactCalls.length, 1);
+    assert.equal(excluded.composerCalls.length, 0);
+    const metadata = excluded.saved[0].metadata as { provenance: RecordValue };
+    assert.equal(metadata.provenance.exact_contact_composition_applied, true);
+    assert.equal(metadata.provenance.exact_logo_applied, false);
+    const failed = serverHarness(false, { phone: "06 31 26 08 12", composerFailure: true });
+    await assert.rejects(failed.generate(request("gemini", { aiInstruction: "Ajoute mon téléphone et mon logo." })), /ai_image_exact_contact_composition_failed/);
+    assert.equal(failed.contactCalls.length, 1);
+    assert.equal(failed.counts.saved, 0);
+  });
+});
+
 test("Modify replaces a fake logo with the profile asset while retaining the source canvas and reference", async () => {
   await withCredentials(async () => {
     for (const engine of ["openai", "gemini", "flux", "grok"] as const) {
@@ -249,7 +303,7 @@ test("Modify replaces a fake logo with the profile asset while retaining the sou
       assert.equal(h.composerCalls[0].width, 840);
       assert.equal(h.composerCalls[0].height, 1200);
       assert.equal(h.composerCalls[0].withText, false);
-      assert.equal(h.composerCalls[0].logoMode, "discreet");
+      assert.equal(h.composerCalls[0].logoMode, "visible");
       assert.deepEqual(h.composerCalls[0].logoPlacement, { horizontal: "center", vertical: "top" });
       const metadata = h.saved[0].metadata as { provenance: RecordValue };
       assert.equal(metadata.provenance.exact_logo_applied, true);
@@ -272,6 +326,38 @@ test("Modify does not insert account branding for unrelated edits, exclusions, p
   });
 });
 
+test("Studio free images compose the actual profile logo even when ADN enrichment is unchecked", async () => {
+  await withCredentials(async () => {
+    for (const engine of ["openai", "gemini", "flux", "grok", "recraft"] as const) {
+      const h = serverHarness();
+      await h.generate(request(engine, { creationMode: "free", useBusinessDna: false,
+        freePrompt: "Une équipe de nettoyage au travail dans un bureau lumineux." }));
+      assert.equal(h.counts.provider, 1, engine);
+      assert.equal(h.providerCalls[0].officialLogo, null, "the model must not redraw the profile logo");
+      assert.equal(h.composerCalls.length, 1, engine);
+      assert.equal(h.composerCalls[0].logo, h.logo);
+      assert.equal(h.composerCalls[0].requireLogo, true);
+      assert.equal(h.composerCalls[0].logoMode, "visible");
+      assert.equal(h.composerCalls[0].logoPlacement, undefined, "no forced upper-right placement");
+      const provenance = (h.saved[0].metadata as { provenance: RecordValue }).provenance;
+      assert.equal(provenance.exact_logo_applied, true);
+      assert.equal(provenance.effective_logo_mode, "visible");
+      assert.equal(provenance.official_logo_source, "account_profile");
+    }
+  });
+});
+
+test("an image without a saved logo does not fabricate a replacement", async () => {
+  await withCredentials(async () => {
+    const h = serverHarness(false, { logo: null });
+    await h.generate(request("gemini", { creationMode: "free", useBusinessDna: false,
+      freePrompt: "Une photographie d’un jardin fleuri." }));
+    assert.equal(h.composerCalls.length, 0);
+    assert.equal(h.providerCalls[0].officialLogo, null);
+    assert.match(String(h.providerCalls[0].prompt), /Aucun fichier de logo officiel.*ne pas en inventer/);
+  });
+});
+
 test("guided copy honors an explicit profile logo even when the inherited logo control is off", async () => {
   await withCredentials(async () => {
     const h = serverHarness();
@@ -279,7 +365,7 @@ test("guided copy honors an explicit profile logo even when the inherited logo c
     assert.equal(h.composerCalls.length, 1);
     assert.equal(h.composerCalls[0].logo, h.logo);
     assert.equal(h.composerCalls[0].requireLogo, true);
-    assert.equal(h.composerCalls[0].logoMode, "discreet");
+    assert.equal(h.composerCalls[0].logoMode, "visible");
     assert.deepEqual(h.composerCalls[0].logoPlacement, { horizontal: "left", vertical: "top" });
     assert.equal(h.counts.saved, 1);
   });

@@ -24,7 +24,7 @@ function useBadgePopover(width: number) {
   return { id, trigger, menu, position, place };
 }
 
-export function InrBadgeQrButton({ publicUrl, companyName }: { publicUrl: string; companyName?: string }) {
+export function InrBadgeQrButton({ publicUrl, companyName, compact = false }: { publicUrl: string; companyName?: string; compact?: boolean }) {
   const t = useTranslations("settings");
   const bubble = useTranslations("dashboard.channelBubble");
   const { id, trigger, menu, position, place } = useBadgePopover(380);
@@ -34,8 +34,8 @@ export function InrBadgeQrButton({ publicUrl, companyName }: { publicUrl: string
     catch { return []; }
   }, [publicUrl]);
   const size = matrix.length + 8;
-  return <div className={styles.resourceGroup}>
-    <button ref={trigger} type="button" className={`${styles.resourcePill} ${styles.badgeQrTrigger}`} disabled={!matrix.length} popoverTarget={id}><BadgeActionIcon kind="qr" />{t("qr_code_44742187")}</button>
+  return <div className={compact ? styles.badgeCopyAction : styles.resourceGroup}>
+    <button ref={trigger} type="button" className={compact ? styles.iconAction : `${styles.resourcePill} ${styles.badgeQrTrigger}`} aria-label={t("qr_code_44742187")} title={t("qr_code_44742187")} disabled={!matrix.length} popoverTarget={id}><BadgeActionIcon kind="qr" />{compact ? null : t("qr_code_44742187")}</button>
     <div ref={menu} id={id} popover="auto" role="group" aria-label={t("qr_code_44742187")} className={`${styles.typesMenu} ${styles.badgeQrFrame}`} style={position} onBeforeToggle={place} onToggle={place}>
       <header className={`${styles.popoverHeader} ${styles.badgeQrHeader}`}><strong>{t("qr_code_44742187")}</strong><span className={styles.badgeQrCompany} title={companyName}>{companyName}</span><button type="button" popoverTarget={id} popoverTargetAction="hide" aria-label={bubble("close")}>×</button></header>
       <figure className={styles.badgeQrPaper}><svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${t("qr_code_44742187")} — ${companyName || "iNrCy"}`} className={styles.badgeQrCode} shapeRendering="crispEdges"><rect width={size} height={size} fill="white" /><path fill="#111827" d={matrix.flatMap((row, y) => row.flatMap((dark, x) => dark ? [`M${x + 4} ${y + 4}h1v1h-1z`] : [])).join("")} /></svg></figure>

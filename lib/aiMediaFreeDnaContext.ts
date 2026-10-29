@@ -1,10 +1,12 @@
 import type { NormalizedAiGenerationProfile } from "./aiGenerationProfile.ts";
+import { buildAiContentLocationPromptPayload } from "./aiContentLocation.ts";
 
 /** Public business facts only, assembled on the server for the active account. */
 export type AiMediaFreeDnaContext = {
   coordonnees: Record<string, string>;
   liens: Record<string, string>;
   informations_demandees: string[];
+  localisation_editoriale?: Record<string, string>;
 };
 
 export const AI_MEDIA_FREE_DNA_MAX_CHARS = 4_800;
@@ -97,7 +99,9 @@ export function buildAiMediaFreeDnaContext(args: {
     ville: text(source.hq_city || args.profile.business.city, 120),
     pays: text(source.hq_country, 80),
   };
+  const contentLocation = buildAiContentLocationPromptPayload(args.profile);
   return {
+    ...(contentLocation ? { localisation_editoriale: contentLocation } : {}),
     coordonnees: Object.fromEntries(Object.entries(contacts).filter(([, value]) => value)),
     liens: Object.fromEntries(Object.entries(args.publicLinks).map(([key, value]) => [key, normalizeAiMediaBusinessUrl(value)]).filter(([, value]) => value)),
     informations_demandees: selectAiMediaFreeDnaEvidence(args.profile, args.prompt, args.serviceDetails),

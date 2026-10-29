@@ -206,6 +206,10 @@ function buildImageReferenceRoleRules(args: {
   creationMode?: AiMediaCreationMode;
   input: AiMediaImageProviderInput;
 }) {
+  // Technical production roles never become artwork branding. Keep this at
+  // the provider boundary so free/guided images, edits and film seed frames
+  // receive it, including requests with no reference image.
+  const outputIdentityContract = "IDENTITÉ DE LA SORTIE : ne jamais ajouter spontanément de filigrane, signature, crédit de création, nom ni logo du logiciel, du studio de création ou du fournisseur. Les consignes techniques et métadonnées ne sont pas des éléments à dessiner. Les marques et logos explicitement demandés restent autorisés, y compris une création de logo. Préserver les marques des références obligatoires et les logos déjà présents dans l’image source hors des zones visées par une retouche. Ne pas redessiner un logo annoncé comme ajouté au montage.";
   const {
     providedReferences,
     providedReferenceRoles,
@@ -213,9 +217,10 @@ function buildImageReferenceRoleRules(args: {
     officialLogoIncluded,
     referenceImagesCount,
   } = args.input;
-  if (!referenceImagesCount) return "";
+  if (!referenceImagesCount) return outputIdentityContract;
   if (args.operation === "modify") {
     return [
+      outputIdentityContract,
       "CONTRAT DES IMAGES FOURNIES — MODE MODIFICATION :",
       "- Image 1 est l’image source exacte à modifier. Elle n’est ni une inspiration, ni un simple guide, ni un élément à intégrer dans une nouvelle scène.",
       "- Partir de cette image comme canvas. Appliquer strictement la consigne utilisateur aux seules zones nécessaires et conserver tous les pixels, sujets, identités, objets, cadrages et détails non concernés aussi fidèlement que possible.",
@@ -228,6 +233,7 @@ function buildImageReferenceRoleRules(args: {
         reference.role === "product" && reference.usage === "required"
     ).length;
     return [
+      outputIdentityContract,
       "RÉFÉRENCES DU MODE LIBRE : la forme de composition et le style restent ceux de la demande.",
       ...providedReferences.map((_, index) => {
         const reference = providedReferenceRoles[index];
@@ -243,6 +249,7 @@ function buildImageReferenceRoleRules(args: {
     ].filter(Boolean).join("\n");
   }
   return [
+    outputIdentityContract,
     "ORDRE DES IMAGES DE RÉFÉRENCE FOURNIES AU MODÈLE :",
     ...providedReferences.map((_, index) => {
       const reference = providedReferenceRoles[index];
@@ -439,7 +446,7 @@ export async function generateAiMediaImage(args: {
               text: `${args.prompt}\n\n${referenceRoleRules}`,
               images: referenceImages,
             }
-          : args.prompt,
+          : `${args.prompt}\n\n${referenceRoleRules}`,
         n: 1,
         maxImagesPerCall: 1,
         size: args.size || "1024x1024",

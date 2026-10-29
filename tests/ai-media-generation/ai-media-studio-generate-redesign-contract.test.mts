@@ -851,7 +851,7 @@ test("Flyer comparatif reste un contrat graphique structuré jusqu’au moteur",
     /sans dessiner de cartes, de colonnes, de tarifs/,
     /RENDU AFFICHE GRAPHIQUE AUTORITAIRE/,
     /uniquement un arrière-plan commercial propre/,
-    /iNrCy construit ensuite la grille complète du flyer/,
+    /La grille complète du flyer sera ensuite composée avec les mots et chiffres exacts/,
     /16:9/,
     /DIRECTION VISUELLE STRUCTURÉE — BOLD/,
   ]) {

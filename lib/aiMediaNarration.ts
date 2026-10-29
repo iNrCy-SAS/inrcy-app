@@ -6,6 +6,7 @@ import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
+import { buildAiContentLocationInstruction, resolveAiContentLocation } from "./aiContentLocation.ts";
 import { isAiMediaTechnicalCopyAllowed } from "./aiMediaTechnicalText.ts";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
 import { getAiEngineOption } from "@/lib/aiEnginePreference";
@@ -341,7 +342,7 @@ function safeFallback(args: {
     ...business.services,
     ...business.strengths,
     business.professionLabel,
-    business.city || business.interventionZones[0],
+    resolveAiContentLocation(args.profile)?.primaryArea ?? (business.city || business.interventionZones[0]),
   ];
   const facts = Array.from(
     new Set(
@@ -516,7 +517,8 @@ export async function writeAiMediaNarration(args: {
           process.env.AI_MEDIA_COPY_MODEL || getAiEngineOption("openai").model
         ).trim(),
         system: [
-          "Tu es le concepteur-rédacteur et scénariste voix off du studio iNrCy.",
+          "Tu es le concepteur-rédacteur et scénariste voix off de cette création professionnelle.",
+          args.request.subjectSource === "custom" ? "" : buildAiContentLocationInstruction(args.profile),
           `Rédige uniquement le texte oral d'une vidéo professionnelle de ${duration} secondes, en ${language}.`,
           `Vise exactement ${target.target} mots et reste impérativement entre ${target.min} et ${target.max} mots.`,
           `Structure obligatoire : ${sentenceContract}.`,

@@ -55,6 +55,14 @@ export async function readInrAssistantChannelStatus(options: {
     const nextAction = { label: `Ouvrir ${LABELS[key]}`, href: key === "inr_directory" ? "/dashboard?action=channels" : `/dashboard?panel=${key}` };
     if (key === "mails" && isStandardDashboardEdition(edition)) { status = "disabled"; cause = "premium_required"; missingPrerequisites = ["Une offre incluant la messagerie"]; nextAction.href = "/dashboard?panel=abonnement"; }
     else if (access && !isBubbleEnabled(access, key)) { status = "disabled"; cause = "account_access_disabled"; missingPrerequisites = ["Activation de ce canal pour cet établissement"]; }
+    else if (access && states && ["inrbadge", "inr_search", "inr_directory"].includes(key) && record(record(states.native_channels)[key]).published !== undefined) {
+      const native = record(record(states.native_channels)[key]);
+      status = native.allowed === false ? "disabled" : native.published === true ? "connected" : native.pending === true ? "needs_update" : "disconnected";
+      cause = native.published === true ? "public_profile_published" : native.pending === true ? "dna_incomplete" : "activation_required";
+      const labels: Record<string, string> = { company: "Nom de l’entreprise", contact: "Au moins un lien ou moyen de contact", profession: "Métier", city: "Ville d’implantation", postalCode: "Code postal d’implantation" };
+      missingPrerequisites = native.pending === true && Array.isArray(native.missingFields) ? native.missingFields.map(field => labels[String(field)]).filter(Boolean) : [];
+      if (native.pending === true) { nextAction.label = "Continuer les connexions"; nextAction.href = "/dashboard?action=channels"; }
+    }
     else if (access && key === "inrbadge" && profileCompletion) {
       status = profileCompletion.completed ? "connected" : "disconnected"; cause = profileCompletion.completed ? "profile_complete" : "profile_incomplete";
       missingPrerequisites = [...profileCompletion.missingFields]; if (!profileCompletion.completed) nextAction.href = "/dashboard?panel=compte";

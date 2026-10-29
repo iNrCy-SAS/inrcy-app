@@ -35,7 +35,7 @@ type VisionFactsResponse = {
   uncertainties?: unknown;
 };
 
-const VISION_FACTS_PROMPT_VERSION = "v1";
+const VISION_FACTS_PROMPT_VERSION = "v2-neutral-identity";
 
 const VISION_FACTS_SCHEMA: AiJsonResponseSchema = {
   name: "inrcy_media_facts",
@@ -79,7 +79,7 @@ function cleanList(value: unknown, maxItems: number, maxItemLength: number) {
 function compactContext(value: unknown, maxChars = 5_000) {
   const text = String(value || "").replace(/\u0000/g, "").trim();
   if (!text || text.length <= maxChars) return text;
-  const marker = "\n[… contexte compacté par iNrCy …]\n";
+  const marker = "\n[… contexte compacté automatiquement …]\n";
   const room = Math.max(0, maxChars - marker.length);
   const head = Math.ceil(room * 0.72);
   return `${text.slice(0, head)}${marker}${text.slice(-(room - head))}`;
@@ -215,7 +215,7 @@ ${cachedAnalysis.factsContext}`,
       model: visionModel,
       responseSchema: VISION_FACTS_SCHEMA,
       system: [
-        "Tu es le module de compréhension visuelle factuelle d'iNrCy.",
+        "Tu es un analyste visuel factuel.",
         "Ta mission s'arrête à l'observation : tu ne rédiges jamais la publication finale.",
         "Décris uniquement ce qui est raisonnablement visible dans les images.",
         "N'identifie pas une personne, un lieu, une marque, une matière, une date, un prix, un résultat, un avant/après ou une relation client sans preuve visuelle claire.",

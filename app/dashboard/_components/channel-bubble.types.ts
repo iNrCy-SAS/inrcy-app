@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { ModuleStatus } from "../dashboard.types";
 
 export type ChannelMailboxSlot = {
   number: number;
@@ -14,6 +15,10 @@ export type ChannelMailboxSlot = {
 };
 
 export type ChannelBubbleConnection = {
+  status?: ModuleStatus;
+  statusText?: string;
+  publicView?: { href: string; disabled: boolean };
+  afterContent?: ReactNode;
   accountConnected?: boolean;
   accountLabel?: string;
   resourceLabel: string;

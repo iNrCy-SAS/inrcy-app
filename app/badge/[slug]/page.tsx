@@ -300,7 +300,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
       .maybeSingle(),
     supabaseAdmin
       .from("business_profiles")
-      .select("business_description")
+      .select("business_description,sector")
       .eq("user_id", userId)
       .order("updated_at", { ascending: false })
       .limit(1)
@@ -324,12 +324,13 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
     getDashboardEditionForAccountId(userId),
   ]);
 
-  if (profileRes.error || !profileRes.data) notFound();
+  if (profileRes.error || !profileRes.data || toolsRes.error) notFound();
 
   const profile = profileRes.data as Record<string, unknown>;
   const business = (businessRes.data ?? {}) as Record<string, unknown>;
   const badgeLanguageRow = (badgeLanguageRes.data ?? {}) as Record<string, unknown>;
   const toolSettings = safeObj((toolsRes.data as { settings?: unknown } | null)?.settings);
+  const activation = safeObj(toolSettings.inrBadge);
   const storedShareSettings = normalizeInrBadgeShareSettings(toolSettings.inrBadgeShareSettings);
   const shareSettings = effectiveInrBadgeShareSettings(storedShareSettings, dashboardEdition);
   const badgeTheme = normalizeInrBadgeThemeSettings(toolSettings.inrBadgeTheme);
@@ -343,6 +344,11 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
     proToolsConfig: toolsRes.data,
     integrations: Array.isArray(integrationsRes.data) ? integrationsRes.data : [],
   });
+  if (activation.activationVersion === 1) {
+    const native = channelStates.native_channels;
+    // The directory also uses this public landing page, with its own publication access.
+    if (!native || (!native.inrbadge.published && !native.inr_directory.published)) notFound();
+  }
 
   const firstName = trim(profile.first_name);
   const lastName = trim(profile.last_name);
