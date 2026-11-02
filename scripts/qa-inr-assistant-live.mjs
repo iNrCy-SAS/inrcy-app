@@ -9,11 +9,14 @@ import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import vm from 'node:vm';
 import ts from 'typescript';
 import * as sdk from 'ai';
 
 const root = resolve(import.meta.dirname, '..');
+const sourceHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim();
+const startedAt = new Date().toISOString();
 const arg = name => process.argv.find(value => value.startsWith(`--${name}=`))?.slice(name.length + 3);
 const live = process.argv.includes('--live');
 const reportPath = resolve(arg('report') || 'test-results/inr-assistant-live.json');
@@ -52,7 +55,7 @@ const tokenPrices = {
   'anthropic/claude-haiku-5.5': { input: 0.10, output: 0.50 },
 };
 let apiCalls = 0, costEstimate = 0, activeCase;
-const providerUsage = [], providerErrors = [], results = [];
+const providerUsage = [], providerErrors = [], providerTrace = [], results = [];
 const realGateway = live ? sdk.createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN,
   fetch: async (input, init) => {
     const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url);
@@ -118,8 +121,14 @@ function loadHarness() {
           const upperBound = (32_000 * rate.input + 6_000 * rate.output) / 1_000_000;
           assert.ok(apiCalls < maxCalls && costEstimate + upperBound <= maxUsd, 'Evaluation budget reached');
           apiCalls++;
+          const callStarted = Date.now();
+          const trace = { caseId: activeCase.test.id, modelId,
+            availableTools: (params.tools || []).map(item => item.name),
+            priorToolResults: params.prompt.filter(item => item.role === 'tool').flatMap(item => item.content),
+          };
+          providerTrace.push(trace);
           let response;
-          try { response = await model.doGenerate({ ...params, abortSignal: AbortSignal.timeout(35_000) }); }
+          try { response = await model.doGenerate({ ...params, abortSignal: AbortSignal.any([...(params.abortSignal ? [params.abortSignal] : []), AbortSignal.timeout(35_000)]) }); }
           catch (error) {
             costEstimate += upperBound;
             let message = String(error?.message || 'Provider call failed').slice(0, 700);
@@ -128,6 +137,8 @@ function loadHarness() {
             throw error;
           }
           const inputTokens = response.usage?.inputTokens?.total, outputTokens = response.usage?.outputTokens?.total;
+          trace.durationMs = Date.now() - callStarted;
+          trace.toolCalls = response.content.filter(item => item.type === 'tool-call');
           const estimatedUsd = typeof inputTokens === 'number' && typeof outputTokens === 'number' ? (inputTokens * rate.input + outputTokens * rate.output) / 1_000_000 : upperBound;
           costEstimate += estimatedUsd;
           providerUsage.push({ caseId: activeCase.test.id, modelId, inputTokens, outputTokens, estimatedUsd });
@@ -146,6 +157,7 @@ function loadHarness() {
 const harness = loadHarness();
 if (live && !process.env.AI_GATEWAY_API_KEY && !process.env.VERCEL_OIDC_TOKEN) throw new Error('An existing AI Gateway credential is required; never put it in the report.');
 for (const testCase of selectedCases) {
+  assert.equal(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim(), sourceHead, 'Source revision changed during evaluation');
   activeCase = { test: testCase, calls: [] };
   const h = harness();
   let reply, failure;
@@ -173,10 +185,10 @@ for (const testCase of selectedCases) {
   const inventedRecipients = contacts.flatMap(call => Object.values(call.input.fields || {}).filter(value => typeof value === 'string' && value.includes('@') && !testCase.prompt.includes(value)));
   const passed = !failure && (!live || !missing.length && !forbidden.length && !excessiveMutations.length && !oneOfMissing && !orderViolation && !missingContacts.length && !inventedRecipients.length);
   results.push({ id: testCase.id, prompt: testCase.prompt, passed, counts, missing, forbidden, excessiveMutations, missingContacts, inventedRecipients, orderViolation, oneOfMissing: Boolean(oneOfMissing), calls: activeCase.calls, reply, failure });
-  const report = { mode: live ? 'real_models_synthetic_effects' : 'offline_schema_validation', source: 'current working tree', tests: results.length, passed: results.filter(item => item.passed).length,
+  const report = { mode: live ? 'real_models_synthetic_effects' : 'offline_schema_validation', source: 'current working tree', sourceHead, startedAt, observedAt: new Date().toISOString(), tests: results.length, passed: results.filter(item => item.passed).length,
     realCustomerOperations: 0, realDatabaseCalls: 0, apiCalls, estimatedUsd: costEstimate, limits: { maxCalls, maxUsd },
     modelOverride: modelOverride || null,
-    limitations: ['Real model choice and Gateway orchestration with real tool schemas; business executors are replaced by fixtures.', 'This is not delivery, OAuth, native-executor authorization, or customer-browser end-to-end certification.', 'Cost is an estimate from reported usage and configured rates, not an invoice; failures reserve their upper bound.'], providerUsage, providerErrors, cases: results };
+    limitations: ['Real model choice and Gateway orchestration with real tool schemas; business executors are replaced by fixtures.', 'This is not delivery, OAuth, native-executor authorization, or customer-browser end-to-end certification.', 'Cost is an estimate from reported usage and configured rates, not an invoice; failures reserve their upper bound.'], providerUsage, providerErrors, providerTrace, cases: results };
   mkdirSync(dirname(reportPath), { recursive: true });
   writeFileSync(reportPath, JSON.stringify(report, null, 2));
   console.log(JSON.stringify({ case: testCase.id, passed, counts, missing, forbidden, failure, apiCalls, estimatedUsd: costEstimate }));
