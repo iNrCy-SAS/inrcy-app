@@ -227,7 +227,7 @@ test("Retoucher distingue un travail non enregistré d'une opération réellemen
     /onEditingChange\?\.\(saving \|\| Boolean\(initialSourceLoading && !source\)\)/,
   );
   assert.match(videoRetoucher, /onDirtyChange\?\.\(Boolean\(source\) && !saved\)/);
-  assert.match(videoRetoucher, /finally \{\s*setSaving\(false\);\s*\}/);
+  assert.match(videoRetoucher, /finally \{\s*saveLock\.current = false;\s*if \(saveState\.current\.mounted\) setSaving\(false\);\s*\}/);
   assert.match(modal, /const \[retoucherDirty, setRetoucherDirty\] = useState\(false\)/);
   assert.match(modal, /const hasPendingWork = hasResult \|\| retoucherDirty/);
   assert.equal((modal.match(/onDirtyChange=\{setRetoucherDirty\}/g) || []).length, 2);

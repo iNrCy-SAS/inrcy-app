@@ -29,6 +29,8 @@ import MediaRetoucher, {
 import MediaVideoRetoucher, {
   type MediaVideoRetoucherInitialContext,
   type MediaVideoRetoucherSavedValue,
+  type MediaVideoRetoucherSaveOptions,
+  type MediaVideoRetoucherSaveReceipt,
 } from "./MediaVideoRetoucher";
 import {
   canSwitchInrStudioMediaType,
@@ -62,8 +64,8 @@ type MediaGeneratorModalProps = {
   onAccepted: (result: MediaGenerationResult) => void | Promise<void>;
   onRetouched?: (value: MediaRetoucherSavedValue) => void | Promise<void>;
   onVideoRetouched?: (
-    value: MediaVideoRetoucherSavedValue
-  ) => void | Promise<void>;
+    value: MediaVideoRetoucherSavedValue, options?: MediaVideoRetoucherSaveOptions
+  ) => void | MediaVideoRetoucherSaveReceipt | Promise<void | MediaVideoRetoucherSaveReceipt>;
   onWorkspaceStateChange?: (state: { busy: boolean; hasDraft: boolean }) => void;
   /** Reuse the native reset confirmation before replacing a Studio brief. */
   registerDraftReplacementRequest?: (request: (() => Promise<boolean>) | null) => void;

@@ -3,7 +3,7 @@
 import { useInrAssistantNativeDraft } from "../_hooks/useInrAssistantNativeDraft";
 
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type DragEvent } from "react";
 
 import MediaLibraryPickerModal, {
   type MediaLibraryPickerItem,
@@ -64,6 +64,9 @@ export type MediaVideoRetoucherSavedValue = {
   mediaRecord: Record<string, unknown> | null;
 };
 
+export type MediaVideoRetoucherSaveOptions = { isCurrent: () => boolean; keepOpen?: boolean };
+export type MediaVideoRetoucherSaveReceipt = { mediaId: string };
+
 type MediaVideoRetoucherProps = {
   initialSource?: File | null;
   initialPreview?: {
@@ -76,7 +79,7 @@ type MediaVideoRetoucherProps = {
   initialContext?: MediaVideoRetoucherInitialContext | null;
   onEditingChange?: (editing: boolean) => void;
   onDirtyChange?: (dirty: boolean) => void;
-  onSaved?: (value: MediaVideoRetoucherSavedValue) => void | Promise<void>;
+  onSaved?: (value: MediaVideoRetoucherSavedValue, options?: MediaVideoRetoucherSaveOptions) => void | MediaVideoRetoucherSaveReceipt | Promise<void | MediaVideoRetoucherSaveReceipt>;
   acceptMode?: "library" | "insert";
 };
 
@@ -223,6 +226,10 @@ export default function MediaVideoRetoucher({
   const [error, setError] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const channel: ChannelKey = initialContext?.channel || "site_web";
+  const saveLock = useRef(false);
+  const saveState = useRef({ source, format, adaptationMode, channel, mounted: true });
+  useLayoutEffect(() => { saveState.current = { source, format, adaptationMode, channel, mounted: true }; });
+  useEffect(() => () => { saveState.current.mounted = false; }, []);
 
   useInrAssistantNativeDraft({
     command: "configure_video_retouch", kind: "media", id: source?.libraryItem?.id,
@@ -395,12 +402,16 @@ export default function MediaVideoRetoucher({
     setError("");
   };
 
-  const save = async () => {
-    if (!source || saving) return;
+  const save = async (options?: { keepOpen?: boolean; isCurrent?: () => boolean }) => {
+    if (!source || saving || saveLock.current || !onSaved) return false;
+    const isCurrent = () => saveState.current.mounted && saveState.current.source === source
+      && saveState.current.format === format && saveState.current.adaptationMode === adaptationMode
+      && saveState.current.channel === channel && options?.isCurrent?.() !== false;
+    saveLock.current = true;
     setSaving(true);
     setError("");
     try {
-      await onSaved?.({
+      const receipt = await onSaved({
         source,
         channel,
         format,
@@ -409,16 +420,21 @@ export default function MediaVideoRetoucher({
         deferTechnicalPreparationUntilPublish:
           initialContext?.deferTechnicalPreparationUntilPublish === true,
         mediaRecord: initialContext?.mediaRecord || null,
-      });
+      }, { isCurrent, keepOpen: options?.keepOpen });
+      if (!isCurrent() || acceptMode === "library" && !receipt?.mediaId) return false;
       setSaved(true);
+      return true;
     } catch (caught) {
+      if (!isCurrent()) return false;
       setError(
         caught instanceof Error
           ? caught.message
           : "Impossible d’enregistrer cette retouche vidéo."
       );
+      return false;
     } finally {
-      setSaving(false);
+      saveLock.current = false;
+      if (saveState.current.mounted) setSaving(false);
     }
   };
 

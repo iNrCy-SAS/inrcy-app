@@ -1,4 +1,5 @@
 "use client";
+import { persistStudioVideoRetouch } from "@/lib/studioVideoRetouchPersistence";
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -18,6 +19,7 @@ import type {
 import type {
   MediaVideoRetoucherInitialContext,
   MediaVideoRetoucherSavedValue,
+  MediaVideoRetoucherSaveOptions,
 } from "@/app/dashboard/_components/MediaVideoRetoucher";
 import type { MediaGenerationResult } from "@/app/dashboard/_hooks/useMediaGeneration";
 import {
@@ -376,8 +378,12 @@ export default function MediaGeneratorStudioClient({
   );
 
   const saveRetouchedVideo = useCallback(
-    async (value: MediaVideoRetoucherSavedValue) => {
-      let sourceFile = value.source.file;
+    async (value: MediaVideoRetoucherSavedValue, options?: MediaVideoRetoucherSaveOptions) => {
+      const scope = scopeRef.current;
+      const isCurrent = () => scopeRef.current === scope && scope.mounted && options?.isCurrent?.() !== false;
+      const assertCurrent = () => { if (!isCurrent()) throw new Error("La vidéo ou le compte a changé. Enregistrement interrompu."); };
+      assertCurrent();
+      const sourceFile = value.source.file;
       let storagePath = value.source.storagePath;
       let publicUrl = String(value.source.url || "").trim();
       let libraryItem: Record<string, unknown> | null = value.source.libraryItem
@@ -400,6 +406,7 @@ export default function MediaGeneratorStudioClient({
             channel: value.channel,
           },
         });
+        assertCurrent();
         storagePath = String(
           uploaded.storage_path || uploaded.storagePath || ""
         ).trim();
@@ -413,6 +420,7 @@ export default function MediaGeneratorStudioClient({
       }
 
       let transformedVariants = value.transformedVariants;
+      let preparedVariants: BoosterVideoTransformedVariant[] = [];
       if (!value.deferTechnicalPreparationUntilPublish) {
         const response = await requestBoosterVideoTransforms({
           source: {
@@ -433,6 +441,7 @@ export default function MediaGeneratorStudioClient({
             },
           ],
         });
+        assertCurrent();
         const generated = Array.isArray(response.variants)
           ? response.variants
           : [];
@@ -443,6 +452,7 @@ export default function MediaGeneratorStudioClient({
               "La retouche vidéo n’a pas pu être préparée."
           );
         }
+        preparedVariants = generated;
         transformedVariants = mergeVideoVariants(
           transformedVariants,
           generated
@@ -477,37 +487,17 @@ export default function MediaGeneratorStudioClient({
       };
 
       if (!handoff) {
-        if (!sourceFile && publicUrl) {
-          const response = await fetch(publicUrl, { cache: "force-cache" });
-          if (response.ok) {
-            const blob = await response.blob();
-            sourceFile = new File([blob], value.source.name, {
-              type: blob.type || value.source.mimeType || "video/mp4",
-              lastModified: Date.now(),
-            });
-          }
-        }
-        if (sourceFile && !libraryItem) {
-          await uploadFileToMediaLibrary(sourceFile, {
-            title: sourceFile.name.replace(/\.[^.]+$/, ""),
-            source: "studio_video_retouch",
-            width: value.source.sourceMetadata?.width || null,
-            height: value.source.sourceMetadata?.height || null,
-            durationSeconds: value.source.durationSeconds,
-            tags: ["inrstudio", "retouche-video"],
-            metadata: {
-              studio_action: "retouch_video",
-              channel: value.channel,
-              format: value.format,
-              adaptation_mode: value.adaptationMode,
-              transformed_variants: transformedVariants,
-            },
-          });
-        }
-        router.replace("/dashboard/mediatheque");
-        return;
+        const persisted = await persistStudioVideoRetouch({
+          sourceName: value.source.name, sourceMediaId: value.source.libraryItem?.id,
+          channel: value.channel, format: value.format, adaptationMode: value.adaptationMode,
+          variants: preparedVariants, isCurrent,
+        }, { fetch, upload: uploadFileToMediaLibrary });
+        assertCurrent();
+        if (!options?.keepOpen) router.replace("/dashboard/mediatheque");
+        return { mediaId: persisted.id };
       }
 
+      assertCurrent();
       await deliverReturnedMedia(returnedItem, "retouch");
     },
     [deliverReturnedMedia, handoff, router]
