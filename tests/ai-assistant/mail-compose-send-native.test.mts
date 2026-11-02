@@ -76,9 +76,9 @@ test("verified native draft save acknowledges without awaiting history refresh",
     to: "alice@example.test", subject: "Exact", text: "Bonjour", html: "", composeType: "mail", composeRecipientHints: [],
     normalizeComposeRecipientHints: () => [], normalizeRichMailHtmlForSend: () => "<p>Bonjour</p>",
     composeSourceDocSaveId: null, composeSourceDocType: null, composeSourceDocNumber: null, composeTemplateKey: null,
-    serializeComposeAttachments: () => [], composeAttachments: [], draftId: null, lastSavedComposeSnapshot: null,
-    persistInrAssistantMailDraft: async (input: { payload: Row }) => { assert.equal(input.payload.user_id, "owned"); saved = true; return "verified-draft"; },
-    setDraftId: (id: string) => assert.equal(id, "verified-draft"), setComposeSavedSnapshotFromCurrent() {}, setToast() {}, i18nT: (key: string) => key,
+    serializeComposeAttachments: () => [], composeAttachments: [], draftId: null, draftServerVersion: null, lastSavedComposeSnapshot: null,
+    persistInrAssistantMailDraft: async (input: { payload: Row }) => { assert.equal(input.payload.user_id, "owned"); saved = true; return { id: "verified-draft", updatedAt: "2026-11-02T20:30:00.000Z" }; },
+    setDraftId: (id: string) => assert.equal(id, "verified-draft"), setDraftServerVersion(value: Row) { assert.equal(value.id, "verified-draft"); assert.equal(value.accountId, "owned"); assert.equal(value.updatedAt, "2026-11-02T20:30:00.000Z"); }, setComposeSavedSnapshotFromCurrent() {}, setToast() {}, i18nT: (key: string) => key,
     loadHistory: async () => { refreshed = true; await new Promise(() => {}); },
   };
   const source = ts.transpileModule(sourceNode("app/dashboard/mails/MailboxClient.tsx", "saveDraft"), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
