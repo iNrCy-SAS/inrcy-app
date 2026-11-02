@@ -1,4 +1,5 @@
 import * as mailLifecycle from "../../lib/inrAssistantMailLifecycle.ts";
+import * as adsCommands from "../../lib/inrAssistantAdsUiCommands.ts";
 import * as mediaCommands from "../../lib/inrAssistantMediaUiCommands.ts";
 import * as mailAttachments from "../../lib/inrAssistantMailAttachments.ts";
 import assert from "node:assert/strict";
@@ -32,7 +33,7 @@ function harness(options: { message?: string; auth?: boolean; account?: string; 
     "./dashboardEditionServer": { getDashboardEditionForAccountId: async () => options.edition ?? "founder" },
     "./accountSubscriptionAccess": { getActiveSubscriptionAccountIds: async () => new Set(options.subscription === false ? [] : ["account-A"]) },
     "./inrAssistantUiCommands.ts": commands, "./inrAssistantDocumentUiCommands.ts": documentCommands, "./inrAssistantActionClause.ts": clauses,
-    "./inrAssistantMailLifecycle.ts": mailLifecycle, "./inrAssistantMediaUiCommands.ts": mediaCommands, "./inrAssistantMailAttachments.ts": mailAttachments,
+    "./inrAssistantAdsUiCommands.ts": adsCommands, "./inrAssistantMailLifecycle.ts": mailLifecycle, "./inrAssistantMediaUiCommands.ts": mediaCommands, "./inrAssistantMailAttachments.ts": mailAttachments,
   };
   function load<T>(name: string): T {
     const source = ts.transpileModule(readFileSync(new URL(`../../lib/${name}.ts`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -41,6 +42,7 @@ function harness(options: { message?: string; auth?: boolean; account?: string; 
   }
   deps["./inrAssistantDocumentMailTools"] = load<typeof MailRuntime>("inrAssistantDocumentMailTools");
   deps["./inrAssistantMediaUiTools.ts"] = load("inrAssistantMediaUiTools");
+  deps["./inrAssistantAdsUiTools.ts"] = load("inrAssistantAdsUiTools");
   const screen = { pathname: "/dashboard/factures/new", tool: "Factures", selection: { kind: "invoice", id: ID }, pendingChanges: false, revision: "preview_1", documentVersion: VERSION, availableCommands: ["prepare_document_mail"], ...options.screen };
   const tools = load<typeof UiRuntime>("inrAssistantUiTools").createInrAssistantUiTools({ accountId: "account-A", supabase: db,
     currentUserMessage: options.message ?? message, clientContext: parseInrAssistantClientContext({ screen }),
