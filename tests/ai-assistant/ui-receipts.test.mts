@@ -1,3 +1,4 @@
+import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import crypto from "node:crypto";
@@ -25,7 +26,7 @@ function harness() {
     },
     async download(path: string) { return files.has(path) ? { data: new Blob([new Uint8Array(files.get(path)!)]), error: null } : { data: null, error: { statusCode: 404, message: "Object not found" } }; },
   };
-  const deps: Record<string, unknown> = { "server-only": {}, "node:crypto": crypto,
+  const deps: Record<string, unknown> = { "server-only": {}, "node:crypto": crypto, "./inrAssistantRequestClauses.ts": requestClauses,
     "./supabaseAdmin": { supabaseAdmin: { storage: { from(bucket: string) { assert.equal(bucket, "inrcy-assistant-attachments"); return storage; } } } },
     "./inrAssistantAttachments.ts": { ASSISTANT_ATTACHMENT_BUCKET: "inrcy-assistant-attachments", ASSISTANT_ATTACHMENT_UUID: /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i },
     "./inrAssistantUiActions.ts": actions,

@@ -1,3 +1,4 @@
+import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -24,7 +25,7 @@ function harness() {
   const record = (id: string) => ({ id, user_id: ACCOUNT, bucket_name: "inrcy-pro-media", storage_path: `users/${ACCOUNT}/image/${id}.png`, source: "mediatheque", title: `Photo ${id}`, updated_at: "2026-10-30T10:00:00Z", media_type: "image", original_file_name: "photo.png" });
   records.set(MEDIA, record(MEDIA)); records.set(MEDIA2, record(MEDIA2));
   const calls: Array<{ method: string; path: string; body: Row }> = [], uploads: Buffer[] = [], previews = new Map<string, string>();
-  const helper = load<typeof import("../../lib/inrAssistantActionPreview.ts")>("../../lib/inrAssistantActionPreview.ts", { "server-only": {}, "node:crypto": crypto }, { process: { env: { INRCY_ASSISTANT_APPROVAL_SECRET: "test-media-preview-signing-secret-1234567890" } } });
+  const helper = load<typeof import("../../lib/inrAssistantActionPreview.ts")>("../../lib/inrAssistantActionPreview.ts", { "server-only": {}, "node:crypto": crypto, "./inrAssistantRequestClauses.ts": requestClauses }, { process: { env: { INRCY_ASSISTANT_APPROVAL_SECRET: "test-media-preview-signing-secret-1234567890" } } });
   const db = { from(table: string) {
     assert.equal(table, "pro_media_library"); const filters: Row = {}; let ids: string[] | null = null, limit = 100;
     const q = { select() { return q; }, eq(key: string, value: unknown) { filters[key] = value; return q; }, in(key: string, values: string[]) { assert.equal(key, "id"); ids = values; return q; }, limit(count: number) { limit = count; return q; }, then(resolve: (value: unknown) => unknown) {
@@ -59,7 +60,7 @@ function harness() {
   const attachment = { id: ATTACHMENT, name: "photo.png", kind: "image", size: bytes.length };
   let attachments = [attachment];
   const runtime = load<Runtime>("../../lib/inrAssistantMediaLibraryTools.ts", {
-    "server-only": {}, "node:crypto": crypto, ai: { jsonSchema, tool },
+    "server-only": {}, "node:crypto": crypto, "./inrAssistantRequestClauses.ts": requestClauses, ai: { jsonSchema, tool },
     "./requireUser": { requireUser: async () => ({ activeUserId: activeAccount, authUserId: activeActor }) },
     "@/lib/supabaseAdmin": { supabaseAdmin: { storage: { from(bucket: string) { assert.equal(bucket, "inrcy-pro-media"); return { uploadToSignedUrl: async (path: string, token: string, file: Buffer) => { assert.ok(preparedFiles.has(path)); assert.equal(token, "private-upload-token"); uploads.push(file); return { error: null }; } }; } } } },
     "./inrAssistantActionPreview.ts": helper,

@@ -1,3 +1,4 @@
+import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -21,7 +22,7 @@ function load<T>(path: string, dependencies: Row, globals: Row = {}): T {
 function harness() {
   let now = Date.now(), actor = ACTOR, account = ACCOUNT, nativeRace = false, uncertain = false;
   class Clock extends Date { constructor(value?: string | number) { super(value ?? now); } static now() { return now; } }
-  const preview = load<typeof import("../../lib/inrAssistantActionPreview.ts")>("../../lib/inrAssistantActionPreview.ts", { "server-only": {}, "node:crypto": crypto }, { Date: Clock, process: { env: { INRCY_ASSISTANT_APPROVAL_SECRET: "test-secret-only-not-a-real-secret-1234567890" } } });
+  const preview = load<typeof import("../../lib/inrAssistantActionPreview.ts")>("../../lib/inrAssistantActionPreview.ts", { "server-only": {}, "node:crypto": crypto, "./inrAssistantRequestClauses.ts": requestClauses }, { Date: Clock, process: { env: { INRCY_ASSISTANT_APPROVAL_SECRET: "test-secret-only-not-a-real-secret-1234567890" } } });
   let row: CalendarRow | null = { id: EVENT, user_id: ACCOUNT, title: "Consultation Alice", description: "Diagnostic", location: "Atelier", start_at: "2026-12-01T09:00:00.000Z", end_at: "2026-12-01T10:00:00.000Z", all_day: false, meta: { source: "manual", status: "draft", contact: { email: "alice@example.test" }, guests: [{ email: "invite@example.test" }], reminders: { enabled: true, emailMinutesBefore: 1440 } } };
   const calls: Row[] = [];
   const db = { from(table: string) { assert.equal(table, "agenda_events"); const filters: Row = {}; const query = { select() { return query; }, eq(key: string, value: unknown) { filters[key] = value; return query; }, async maybeSingle() { assert.equal(filters.user_id, ACCOUNT); return { data: row && filters.id === row.id && filters.user_id === row.user_id ? copy(row) : null, error: null }; } }; return query; } };

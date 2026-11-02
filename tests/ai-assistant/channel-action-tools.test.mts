@@ -1,3 +1,4 @@
+import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -24,7 +25,7 @@ function harness() {
   const profile: google.GoogleBusinessProfile = { title: "Atelier", primaryPhone: "+33123456789", websiteUri: "https://atelier.example", description: "Description", storefrontAddress: { regionCode: "FR", administrativeArea: "IDF", locality: "Paris", postalCode: "75001", addressLines: ["1 rue exemple"], languageCode: "fr" }, regularHours: { periods: [{ openDay: "MONDAY", closeDay: "MONDAY", openTime: { hours: 9, minutes: 0 }, closeTime: { hours: 18, minutes: 0 } }] }, specialHours: { specialHourPeriods: [] } };
   profile.categories = { primaryCategory: { name: "categories/gcid:plumber", displayName: "Plombier" }, additionalCategories: [{ name: "categories/gcid:heating_contractor", displayName: "Chauffagiste" }] };
   class Clock extends Date { constructor(value?: string | number) { super(value ?? now); } static now() { return now; } }
-  const previews = load<typeof import("../../lib/inrAssistantActionPreview.ts")>("../../lib/inrAssistantActionPreview.ts", { "server-only": {}, "node:crypto": crypto }, { Date: Clock, process: { env: { INRCY_ASSISTANT_APPROVAL_SECRET: "test-only-approval-secret-1234567890123456" } } });
+  const previews = load<typeof import("../../lib/inrAssistantActionPreview.ts")>("../../lib/inrAssistantActionPreview.ts", { "server-only": {}, "node:crypto": crypto, "./inrAssistantRequestClauses.ts": requestClauses }, { Date: Clock, process: { env: { INRCY_ASSISTANT_APPROVAL_SECRET: "test-only-approval-secret-1234567890123456" } } });
   const native = async (request: Request) => {
     assert.equal(request.headers.get("cookie"), "session"); assert.equal(request.headers.get("x-account-id"), null);
     const body = await request.json() as Row; calls.push({ path: new URL(request.url).pathname, body });

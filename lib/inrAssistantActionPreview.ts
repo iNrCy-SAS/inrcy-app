@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { inrAssistantMaskQuotedText } from "./inrAssistantRequestClauses.ts";
 
 type RecordValue = Record<string, unknown>;
 export type AssistantActionPreview = {
@@ -44,7 +45,7 @@ export function verifyAssistantActionPreview(token: string, scope: { accountId: 
 export function hasAssistantActionApproval(message: string, quote: string, reference: string): boolean {
   if (!quote || !message.includes(quote) || !quote.includes(reference)) return false;
   // Data quoted by the pro must not turn into an instruction to execute it.
-  const unquoted = message.replace(/```[\s\S]*?(?:```|$)|`[^`]*`|«[^»]*»|“[^”]*”|"[^"]*"|^>.*$/gm, " ");
+  const unquoted = inrAssistantMaskQuotedText(message);
   if (!unquoted.includes(quote)) return false;
   const normalized = unquoted.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   // A negation remains a veto even after an auxiliary request to read/explain.

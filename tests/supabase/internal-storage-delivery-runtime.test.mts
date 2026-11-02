@@ -1,3 +1,4 @@
+import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -107,8 +108,8 @@ test("attachment download scopes the actual permitted buckets to the active acco
 });
 
 function scheduledRoute(file: string) {
-  const actionPreview = load("lib/inrAssistantActionPreview.ts", { "node:crypto": nativeRequire("node:crypto") });
-  const soundtrackCatalog = load("lib/aiMediaSoundtrackCatalog.ts", { "node:crypto": nativeRequire("node:crypto") });
+  const actionPreview = load("lib/inrAssistantActionPreview.ts", { "node:crypto": nativeRequire("node:crypto"), "./inrAssistantRequestClauses.ts": requestClauses });
+  const soundtrackCatalog = load("lib/aiMediaSoundtrackCatalog.ts", { "node:crypto": nativeRequire("node:crypto"), "./inrAssistantRequestClauses.ts": requestClauses });
   const soundtrackSelection = load("lib/boosterSoundtracks.ts", { "@/lib/aiMediaSoundtrackCatalog": soundtrackCatalog });
   const writes: AnyRecord[] = []; const minted: string[] = [];
   const filters: Array<[string, unknown]> = []; let row: AnyRecord = {};

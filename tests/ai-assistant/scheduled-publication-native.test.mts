@@ -1,3 +1,4 @@
+import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -7,7 +8,7 @@ import ts from "typescript";
 type Row = Record<string, unknown>;
 const ACCOUNT = "10000000-0000-4000-8000-000000000001", ID = "30000000-0000-4000-8000-000000000003";
 function load<T>(path: string, deps: Row, globals: Row = {}): T { const source = ts.transpileModule(readFileSync(new URL(path, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText; const loadedModule = { exports: {} }; vm.runInNewContext(`(function(require,module,exports){${source}\n})`, { Date, Intl, Buffer, Request, Response, URL, Headers, console, ...globals })((key: string) => { assert.ok(Object.hasOwn(deps, key), key); return deps[key]; }, loadedModule, loadedModule.exports); return loadedModule.exports as T; }
-const helper = load<typeof import("../../lib/inrAssistantActionPreview.ts")>("../../lib/inrAssistantActionPreview.ts", { "server-only": {}, "node:crypto": crypto }, { process: { env: {} } });
+const helper = load<typeof import("../../lib/inrAssistantActionPreview.ts")>("../../lib/inrAssistantActionPreview.ts", { "server-only": {}, "node:crypto": crypto, "./inrAssistantRequestClauses.ts": requestClauses }, { process: { env: {} } });
 function harness(options: { race?: boolean; status?: string } = {}) {
   let row: Row = { id: ID, user_id: ACCOUNT, action_type: "publication", target_tool: "booster", title: "Atelier", summary: "Résumé", status: options.status ?? "scheduled", scheduled_at: new Date(Date.now() + 86400_000).toISOString(), timezone: "Europe/Paris", channels: ["facebook"], attempt_count: options.status === "failed" ? 1 : 0, executed_at: null, updated_at: new Date().toISOString(), payload: { publishPayload: { idempotencyKey: "stable-native-key" } } };
   const writes: Array<{ patch: Row; filters: Array<[string, string, unknown]> }> = [];

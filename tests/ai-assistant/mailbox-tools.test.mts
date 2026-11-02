@@ -1,3 +1,4 @@
+import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -22,7 +23,7 @@ function load<T>(file: string, dependencies: Row, globals: Row = {}): T {
 function harness(provider = "gmail") {
   let now = Date.now(), active = ACCOUNT, actor = ACTOR, mode = "ok", edition = "premium", completeFails = false, lockUnavailable = false;
   class Clock extends Date { constructor(value?: number | string) { super(value ?? now); } static now() { return now; } }
-  const previews = load<typeof import("../../lib/inrAssistantActionPreview.ts")>("../../lib/inrAssistantActionPreview.ts", { "server-only": {}, "node:crypto": crypto }, { Date: Clock, process: { env: { INRCY_ASSISTANT_APPROVAL_SECRET: "fixture-only-secret-at-least-thirty-two-characters" } } });
+  const previews = load<typeof import("../../lib/inrAssistantActionPreview.ts")>("../../lib/inrAssistantActionPreview.ts", { "server-only": {}, "node:crypto": crypto, "./inrAssistantRequestClauses.ts": requestClauses }, { Date: Clock, process: { env: { INRCY_ASSISTANT_APPROVAL_SECRET: "fixture-only-secret-at-least-thirty-two-characters" } } });
   const mailbox: Row & { settings: { connectionVersion: number } } = { id: MAILBOX, user_id: ACCOUNT, category: "mail", provider, account_email: FROM, status: "connected", settings: { connectionVersion: 1 } };
   let rows: Row[] = [mailbox];
   const calls: NativeCall[] = [], queries: Row[] = [], locks = new Map<string, Lock>(), saved = new Map<string, string>();

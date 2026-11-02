@@ -1,3 +1,4 @@
+import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -14,7 +15,7 @@ function load<T>(path: string, deps: Row, globals: Row = {}): T { const source =
 function harness() {
   const account = ACCOUNT;
   let actor = ACTOR, race = false, uncertain = false;
-  const helper = load<typeof import("../../lib/inrAssistantActionPreview.ts")>("../../lib/inrAssistantActionPreview.ts", { "server-only": {}, "node:crypto": crypto }, { process: { env: { INRCY_ASSISTANT_APPROVAL_SECRET: "unit-test-signing-key-for-previews-only-12345" } } });
+  const helper = load<typeof import("../../lib/inrAssistantActionPreview.ts")>("../../lib/inrAssistantActionPreview.ts", { "server-only": {}, "node:crypto": crypto, "./inrAssistantRequestClauses.ts": requestClauses }, { process: { env: { INRCY_ASSISTANT_APPROVAL_SECRET: "unit-test-signing-key-for-previews-only-12345" } } });
   const row: ScheduledRow = { id: ID, user_id: ACCOUNT, action_type: "publication", target_tool: "booster", title: "Atelier", summary: "Résumé", status: "scheduled", scheduled_at: new Date(Date.now() + 86400_000).toISOString(), timezone: "Europe/Paris", channels: ["facebook"], attempt_count: 0, executed_at: null, updated_at: new Date().toISOString(), payload: { publishPayload: { postByChannel: { facebook: { content: "Notre atelier" } }, idempotencyKey: "stable-native-key" } } };
   const rows = [row], deliveries: Row[] = [], calls: Array<{ body: Row; method: string }> = [], saved = new Map<string, string>();
   const db = { from(table: string) { assert.ok(["inr_agent_scheduled_actions", "publication_deliveries"].includes(table)); const filters: Row = {}; let from = 0, to = 999; const result = () => { assert.equal(filters.user_id, ACCOUNT); return (table === "publication_deliveries" ? deliveries : rows).filter(item => Object.entries(filters).every(([key, val]) => item[key] === val)).slice(from, to + 1).map(item => JSON.parse(JSON.stringify(item))); }; const q = { select() { return q; }, eq(key: string, value: unknown) { filters[key] = value; return q; }, order() { return q; }, range(a: number, b: number) { from = a; to = b; return q; }, limit(n: number) { to = n - 1; return q; }, async maybeSingle() { return { data: result()[0] ?? null, error: null }; }, then(resolve: (v: unknown) => unknown) { return Promise.resolve({ data: result(), error: null }).then(resolve); } }; return q; } };

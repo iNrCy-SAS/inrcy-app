@@ -1,3 +1,4 @@
+import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -13,7 +14,7 @@ const ACCOUNT = "10000000-0000-4000-8000-000000000001", EVENT = "60000000-0000-4
 const object = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
 const previewModule = { exports: {} as { calendarEventFingerprint: (row: Row) => string } };
 const previewSource = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantActionPreview.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-vm.runInNewContext(`(function(require,module,exports){${previewSource}\n})`, { Date, Buffer, process: { env: {} } })((name: string) => { assert.ok(["server-only", "node:crypto"].includes(name)); return name === "node:crypto" ? crypto : {}; }, previewModule, previewModule.exports);
+vm.runInNewContext(`(function(require,module,exports){${previewSource}\n})`, { Date, Buffer, process: { env: {} } })((name: string) => { assert.ok(["server-only", "node:crypto", "./inrAssistantRequestClauses.ts"].includes(name)); return name === "node:crypto" ? crypto : name === "./inrAssistantRequestClauses.ts" ? requestClauses : {}; }, previewModule, previewModule.exports);
 
 /** Execute the actual calendar PATCH, including its draft CAS and mail branches. */
 function harness(options: { initialStatus?: string; confirmedAfterRead?: boolean; changedAfterRead?: boolean; updateError?: boolean } = {}) {
