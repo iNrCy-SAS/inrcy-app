@@ -10,8 +10,9 @@ import type { InrAssistantMediaResult } from "./inrAssistantMediaTools.ts";
 import type { InrAssistantStudioDraft } from "./inrAssistantStudioDraft.ts";
 import type { InrAssistantTaskState, InrAssistantTaskOutcome } from "./inrAssistantTaskPolicy.ts";
 import type { InrAssistantNavigation, InrAssistantUiCommand } from "./inrAssistantUiCommands.ts";
+import type { InrAssistantUiAction } from "./inrAssistantUiActions.ts";
 
-export type InrAssistantReply = { message: string; needsHuman?: boolean; handoffSummary?: string; media?: InrAssistantMediaResult; studioDraft?: InrAssistantStudioDraft; insertStudioDraft?: boolean; outcome?: InrAssistantTaskOutcome; taskState?: InrAssistantTaskState; navigation?: InrAssistantNavigation; uiCommand?:InrAssistantUiCommand; taskProgress?: { outcome:InrAssistantTaskOutcome; completed:string[]; remaining:string[] } };
+export type InrAssistantReply = { message: string; needsHuman?: boolean; handoffSummary?: string; media?: InrAssistantMediaResult; studioDraft?: InrAssistantStudioDraft; insertStudioDraft?: boolean; outcome?: InrAssistantTaskOutcome; taskState?: InrAssistantTaskState; navigation?: InrAssistantNavigation; uiCommand?:InrAssistantUiCommand; uiActions?: InrAssistantUiAction[]; taskProgress?: { outcome:InrAssistantTaskOutcome; completed:string[]; remaining:string[] } };
 
 /** Server-resolved request scope shared by the gateway and its tool registry. */
 export type InrAssistantGatewayArgs = {
