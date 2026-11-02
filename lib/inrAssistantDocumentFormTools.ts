@@ -6,8 +6,8 @@ import type { InrAssistantClientContext } from "./inrAssistantClientContext.ts";
 import { requireUser } from "./requireUser";
 import { getDashboardEditionForAccountId } from "./dashboardEditionServer";
 import { getActiveSubscriptionAccountIds } from "./accountSubscriptionAccess";
-import { matchesInrAssistantActionClause, inrAssistantMaskQuotedText } from "./inrAssistantActionClause.ts";
-import { getInrAssistantDocumentPrefillNavigation, parseInrAssistantDocumentPrefill, type InrAssistantDocumentPrefill } from "./inrAssistantDocumentUiCommands.ts";
+import { matchesInrAssistantActionClause } from "./inrAssistantActionClause.ts";
+import { getInrAssistantDocumentPrefillNavigation, isInrAssistantDocumentPrefillInstruction, parseInrAssistantDocumentPrefill, type InrAssistantDocumentPrefill } from "./inrAssistantDocumentUiCommands.ts";
 
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 const row = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -57,12 +57,8 @@ export function createInrAssistantDocumentFormTools(options: {
         if (!await allowed()) return fail("blocked", "L’accès actif à la gestion commerciale doit être vérifié.");
         const source = parseInrAssistantDocumentPrefill(input);
         if (!source || !text(input.reference) || input.reference.length > 180 || !text(input.instructionQuote) || input.instructionQuote.length > 1600) return fail("needs_details", "Relisez la source et sa version exacte.");
-        const direct = matchesInrAssistantActionClause(options.currentUserMessage, input.instructionQuote, (message, quote) => [message, quote].every(value => {
-          const intent = normalize(inrAssistantMaskQuotedText(value));
-          if (/\b(?:comment|pourquoi|explique\w*|imagine|si|quand|lorsque|demain|later|tomorrow|if|when|why|how)\b|\b(?:ne|pas|jamais|sans|not|never)\b|\bn'|\bapres.{0,35}(?:confirmation|accord)\b/.test(intent)) return false;
-          return source.operation === "convert_quote" ? /\b(?:converti\w*|transforme\w*|convert|transform)\b/.test(intent) && /\b(?:devis|quote)\b/.test(intent) && /\b(?:facture|invoice)\b/.test(intent)
-            : /\b(?:appliqu\w*|utilis\w*|charg\w*|prerempli\w*|apply|use)\b/.test(intent) && /\b(?:modele|template)\b/.test(intent);
-        }));
+        const direct = matchesInrAssistantActionClause(options.currentUserMessage, input.instructionQuote,
+          (message, quote) => [message, quote].every(value => isInrAssistantDocumentPrefillInstruction(value, source.operation)));
         if (!direct) return fail("needs_instruction", "Demandez explicitement cette conversion ou l’application du modèle. Rien n’a été modifié.");
         const kind = source.operation === "convert_quote" || source.kind === "quote" ? "devis" : "facture";
         const { data, error } = await options.supabase.from("doc_saves").select("id,user_id,type,name,payload,updated_at").eq("user_id", options.accountId).eq("type", kind).eq("id", source.sourceId).maybeSingle();

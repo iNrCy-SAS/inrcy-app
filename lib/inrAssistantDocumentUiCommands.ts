@@ -1,3 +1,13 @@
+import { inrAssistantMaskQuotedText } from "./inrAssistantActionClause.ts";
+
+/** Intent only; callers still verify the source, current clause, account and version. */
+export function isInrAssistantDocumentPrefillInstruction(value: string, operation: "convert_quote" | "apply_template") {
+  const intent = inrAssistantMaskQuotedText(value).normalize("NFD").replace(/\p{M}/gu, "").replace(/’/g, "'").toLowerCase();
+  if (/\b(?:comment|pourquoi|explique\w*|imagine|si|quand|lorsque|demain|later|tomorrow|if|when|why|how)\b|\b(?:ne|pas|jamais|sans|not|never)\b|\bn'|\bapres.{0,35}(?:confirmation|accord)\b/.test(intent)) return false;
+  return operation === "convert_quote" ? /\b(?:converti\w*|transforme\w*|convert|transform)\b/.test(intent) && /\b(?:devis|quote)\b/.test(intent) && /\b(?:facture|invoice)\b/.test(intent)
+    : /\b(?:appliqu\w*|utilis\w*|charg\w*|prerempli\w*|apply|use)\b/.test(intent) && /\b(?:modele|template)\b/.test(intent);
+}
+
 export type InrAssistantDocumentMailCommand = {
   command: "prepare_document_mail";
   selection: { kind: "quote" | "invoice"; id: string };
