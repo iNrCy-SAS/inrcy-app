@@ -68,7 +68,7 @@ export async function inspectAssistantTaskState(scope: AssistantAttachmentScope,
     if (task.receipts.some((receipt: Record<string,unknown>) =>
       receipt.approvalToken !== undefined && (typeof receipt.approvalToken !== "string" || receipt.approvalToken.length > 24_000) ||
       receipt.approvalReference !== undefined && (typeof receipt.approvalReference !== "string" || !/^IA-[a-f0-9]{12}$/i.test(receipt.approvalReference)) ||
-      receipt.approvalKind !== undefined && !["calendar", "scheduled_publication", "google_business_profile", "media_delete", "publication_lifecycle"].includes(String(receipt.approvalKind)))) return { status: "invalid" };
+      receipt.approvalKind !== undefined && !["calendar", "scheduled_publication", "google_business_profile", "media_delete", "publication_lifecycle", "individual_mail"].includes(String(receipt.approvalKind)))) return { status: "invalid" };
     if (task.requiredCalls !== undefined && (!task.requiredCalls || typeof task.requiredCalls !== "object" || Array.isArray(task.requiredCalls) || Object.keys(task.requiredCalls).length > 20 ||
       Object.entries(task.requiredCalls).some(([name,count])=>!task.requiredTools.includes(name) || !Number.isSafeInteger(count) || Number(count) < 1 || Number(count) > 1_000_000))) return { status: "invalid" };
     if (!validMediaImportSource(task.mediaImportSource)) return { status: "invalid" };
