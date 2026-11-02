@@ -116,12 +116,12 @@ export function isInrAssistantNavigationRequest(message: string): boolean {
 export function isInrAssistantScreenCommandRequest(message: string, command?: "export_document_pdf" | InrAssistantNativeCommand["command"] | InrAssistantMediaUiCommand["command"]): boolean {
   const text = navigationRequestText(message);
   if (isInrAssistantMediaUiCommandName(command)) return isInrAssistantMediaUiCommandText(text, command);
-  if (/^(?:comment|pourquoi|explique|how|why|si |imagine)\b|\b(?:ne |n['’]|sans |do not |don't ).{0,35}(?:telecharg|export|gener|prepar|download|modifi|chang|regl|appli|rempl|config|recadr|adapt|pass|met|renomm)/.test(text) || /\b(?:si|if|quand|when|apres confirmation|after approval|demain|tomorrow)\b/.test(text)) return false;
+  if (/^(?:comment|pourquoi|explique|how|why|si |imagine)\b|\b(?:ne |n['’]|sans |do not |don't ).{0,35}(?:telecharg|export|gener|prepar|download|modifi|chang|regl|appli|rempl|config|recadr|adapt|pass|met|renomm|joins|joign|ajout|attach|redig|ecri)/.test(text) || /\b(?:si|if|quand|when|apres confirmation|after approval|demain|tomorrow)\b/.test(text)) return false;
   const pdf = /\bpdf\b/.test(text) && !/\b(?:stats|statistiques|bilan|rapport)\b/.test(text) && /\b(?:telecharge\w*|exporte\w*|gener\w*|prepare\w*|download|export|generate)\b/.test(text);
   const edit = /\b(?:modifi\w*|chang\w*|regl\w*|appli\w*|rempl\w*|configur\w*|recadr\w*|adapt\w*|passe\w*|mets|mettre|renomm\w*|set|change|edit|apply|fill)\b/.test(text);
   const ads = edit && /\b(?:pub|publicite|publicitaire|campagne|annonce|ads|advert|brouillon)\b/.test(text);
   const video = edit && /\b(?:video|cadrage|format|recadrage)\b/.test(text);
-  const mail = (edit || /\b(?:redig\w*|ecris|prepare\w*)\b/.test(text)) && /\b(?:mail|email|courriel|message|composeur)\b/.test(text) && !/\b(?:campagne|newsletter|publicitaire)\b/.test(text);
+  const mail = (edit || /\b(?:redig\w*|ecris|prepare\w*|joins|joignez|ajoute\w*|attache\w*)\b/.test(text)) && /\b(?:mail|email|courriel|message|composeur)\b/.test(text) && !/\b(?:campagne|newsletter|publicitaire)\b/.test(text);
   return command === "export_document_pdf" ? pdf : command === "configure_ads_draft" ? ads : command === "configure_video_retouch" ? video : command === "configure_mail_draft" ? mail : pdf || ads || video || mail || isInrAssistantMediaUiCommandText(text);
 }
 
@@ -130,7 +130,8 @@ export function inrAssistantMailPatchRequested(message: string, patch: InrAssist
   const draft = /\b(?:redig\w*|ecris|prepare\w*)\b.{0,45}\b(?:mail|email|courriel|message)\b/.test(text);
   return inrAssistantMailRecipientRequested(message, patch.recipient)
     && (patch.subject === undefined || draft || /\b(?:objet|sujet|subject)\b/.test(text))
-    && (patch.bodyText === undefined || draft || /\b(?:texte|corps|contenu|body)\b/.test(text));
+    && (patch.bodyText === undefined || draft || /\b(?:texte|corps|contenu|body)\b/.test(text))
+    && (patch.attachments === undefined || /\b(?:joins|joignez|ajoute\w*|attache\w*|pieces? jointes?|pj)\b/.test(text));
 }
 
 const DIRECT_DESTINATION_ALIASES: ReadonlyArray<readonly [keyof typeof INR_ASSISTANT_NAVIGATION, RegExp]> = [

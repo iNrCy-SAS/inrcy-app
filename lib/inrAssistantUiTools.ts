@@ -5,6 +5,7 @@ import { jsonSchema, tool } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireUser } from "./requireUser";
 import type { InrAssistantClientContext } from "./inrAssistantClientContext.ts";
+import { resolveInrAssistantMailAttachments } from "./inrAssistantMailAttachments.ts";
 import { parseInrAssistantUiCommand, isInrAssistantScreenCommandRequest, INR_ASSISTANT_ADS_STEPS, inrAssistantMailPatchRequested } from "./inrAssistantUiCommands.ts";
 import { getInrAssistantNavigation, INR_ASSISTANT_NAVIGATION_DESTINATIONS, isInrAssistantNavigationRequest } from "./inrAssistantUiCommands.ts";
 
@@ -41,7 +42,7 @@ export function createInrAssistantUiTools(options: { accountId: string; currentU
     }),
     runScreenCommand: tool({
       strict: true,
-      description: "Actions médias actives : select_video_source sélectionne patch.mediaId réel de Mes médias dans le retoucheur ouvert ; save_video_retouch sauvegarde une copie durable de la vidéo courante ; optimize_media prépare une copie optimisée du média sélectionné (patch.targetBytes 5 à 75 Mo). Originaux conservés. Pour les commandes configure_ suivantes : Configurer le formulaire actuellement monté avec configure_ads_draft (nom/texte/étape) configure_video_retouch (format/cadrage) ou configure_mail_draft (recipient exact, subject, bodyText). Pour mail, seul le composeur déjà ouvert est modifié : aucun envoi ni ajout de pièce jointe. Uniquement si la capacité correspondante est déclarée : aucune sauvegarde, dépense, génération ou publication. patch contient seulement les champs demandés, les autres null. Pour ces modifications, documentId/documentKind null. Télécharger le PDF natif. Pour l’aperçu actuellement ouvert, documentId/documentKind null ; il doit déclarer export_document_pdf. Pour un document nommé ou un autre document, lire son ID réel avec readCommercialDocuments puis fournir documentId et documentKind. Le navigateur ouvre cette cible vérifiée, attend son montage, puis exporte ce document exact ; toute navigation refusée arrête l’export. Ne finalise, ne sauvegarde et n’envoie rien. Un téléchargement lancé n’est pas la preuve d’un fichier reçu.",
+      description: "Exécuter uniquement une capacité déclarée du formulaire courant. configure_ads_draft : nom/texte/étape ; configure_video_retouch : format/cadrage ; configure_mail_draft : recipient explicite, subject, bodyText, attachmentIds de searchMedia (5 médias du compte, total 10 Mo, conserver les PJ existantes). Ces configure_* ne sauvegardent, ne publient et n’envoient rien. select_video_source : patch.mediaId réel ; save_video_retouch : sauvegarder une copie de la retouche courante ; optimize_media : copie optimisée avec patch.targetBytes optionnel (5–75 Mo). Originaux conservés. Autres champs patch et documentId/documentKind null. export_document_pdf : aperçu courant avec IDs null, ou document exact lu via readCommercialDocuments et IDs explicites ; ouverture de la cible puis export, sans sauvegarde/finalisation/envoi. Révision et compte revérifiés au navigateur ; téléchargement transmis ne prouve pas fichier reçu.",
       inputSchema: jsonSchema<{ command: "export_document_pdf" | "configure_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | InrAssistantMediaUiCommandName; instructionQuote: string; documentId?: string | null; documentKind?: "quote" | "invoice" | null; patch?: Record<string, unknown> | null }>({ type: "object", properties: {
         command: { type: "string", enum: ["export_document_pdf", "configure_ads_draft", "configure_video_retouch", "configure_mail_draft", ...INR_ASSISTANT_MEDIA_UI_COMMANDS] }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 },
         documentId: { type: ["string", "null"], format: "uuid" }, documentKind: { type: ["string", "null"], enum: ["quote", "invoice", null] },
@@ -52,14 +53,28 @@ export function createInrAssistantUiTools(options: { accountId: string; currentU
           format: { type: ["string", "null"], enum: ["original", "9_16", "1_1", "16_9", null] },
           adaptationMode: { type: ["string", "null"], enum: ["safe_frame", "cover_crop", null] },
           recipient: { type: ["string", "null"], maxLength: 254 }, subject: { type: ["string", "null"], maxLength: 220 }, bodyText: { type: ["string", "null"], maxLength: 6000 },
-        }, required: ["name", "primaryText", "step", "format", "adaptationMode", "recipient", "subject", "bodyText", "mediaId", "targetBytes"], additionalProperties: false },
+          attachmentIds: { type: ["array", "null"], maxItems: 5, minItems: 1, items: { type: "string", format: "uuid" }, uniqueItems: true },
+        }, required: ["name", "primaryText", "step", "format", "adaptationMode", "recipient", "subject", "bodyText", "attachmentIds", "mediaId", "targetBytes"], additionalProperties: false },
       }, required: ["command", "instructionQuote", "documentId", "documentKind", "patch"], additionalProperties: false }),
       execute: async input => {
         const mediaAction = await prepareInrAssistantMediaUiAction(input, { ...options, isRequest: isInrAssistantScreenCommandRequest });
         if (mediaAction) return mediaAction;
         const screen = options.clientContext?.screen;
         if (input.command === "configure_ads_draft" || input.command === "configure_video_retouch" || input.command === "configure_mail_draft") {
-          const command = parseInrAssistantUiCommand({ command: input.command, selection: screen?.selection, revision: screen?.revision, patch: input.patch });
+          let patch = input.patch;
+          if (input.command === "configure_mail_draft" && patch) {
+            if (Object.hasOwn(patch, "attachments")) return { ok: false, status: "blocked", message: "Les pièces jointes doivent être identifiées dans Mes médias." };
+            const { attachmentIds, ...fields } = patch;
+            patch = fields;
+            if (attachmentIds !== null && attachmentIds !== undefined) {
+              const auth = await requireUser();
+              if (auth.errorResponse || auth.activeUserId !== options.accountId || !options.supabase) return { ok: false, status: "blocked", message: "Le compte actif doit être vérifié." };
+              const attachments = await resolveInrAssistantMailAttachments(options.supabase, options.accountId, attachmentIds);
+              if (!attachments) return { ok: false, status: "needs_details", message: "Choisissez au plus cinq médias actifs du compte, dans la limite totale de 10 Mo. Aucune pièce jointe ajoutée." };
+              patch = { ...fields, attachments };
+            }
+          }
+          const command = parseInrAssistantUiCommand({ command: input.command, selection: screen?.selection, revision: screen?.revision, patch });
           const expectedPath = input.command === "configure_ads_draft" ? "/dashboard/ads" : input.command === "configure_mail_draft" ? "/dashboard/mails" : "/dashboard/generer-media";
           if (!command || command.command !== input.command || input.documentId || input.documentKind || screen?.pathname !== expectedPath || !screen.availableCommands?.includes(input.command)) return { ok: false, status: "needs_details", message: "Ouvrez le formulaire ou la vidéo à modifier et précisez les réglages. Aucun changement n’a été appliqué." };
           if (options.canStartWork?.() === false || !input.instructionQuote?.trim() || !options.currentUserMessage.includes(input.instructionQuote)

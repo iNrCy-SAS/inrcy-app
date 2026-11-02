@@ -2,6 +2,7 @@
 
 import { useMailboxHistory } from "./_hooks/useMailboxHistory";
 import { useInrAssistantNativeDraft } from "../_hooks/useInrAssistantNativeDraft";
+import { mergeInrAssistantMailAttachments } from "@/lib/inrAssistantMailAttachments";
 import { useMailboxCrmRecipients } from "./_hooks/useMailboxCrmRecipients";
 import { useMailboxPublicationMedia } from "./_hooks/useMailboxPublicationMedia";
 
@@ -509,14 +510,18 @@ export default function MailboxClient({
     apply: command => {
       if (command.command !== "configure_mail_draft") return false;
       const patch = command.patch;
+      const attachments = patch.attachments ? mergeInrAssistantMailAttachments(composeAttachments, patch.attachments) : null;
+      if (patch.attachments && !attachments) return false;
       if (patch.recipient !== undefined) setTo(patch.recipient);
       if (patch.subject !== undefined) setSubject(patch.subject);
       if (patch.bodyText !== undefined) { setText(patch.bodyText); setHtml(""); }
+      if (attachments) setComposeAttachments(attachments);
       return true;
     },
     isApplied: command => command.command === "configure_mail_draft"
       && (command.patch.recipient === undefined || to === command.patch.recipient)
       && (command.patch.subject === undefined || subject === command.patch.subject)
+      && (!command.patch.attachments || command.patch.attachments.every(item => composeAttachments.some(existing => existing.bucket === item.bucket && existing.path === item.path)))
       && (command.patch.bodyText === undefined || text === command.patch.bodyText && html === ""),
   });
 

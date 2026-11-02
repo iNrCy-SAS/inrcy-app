@@ -5,15 +5,18 @@ import vm from "node:vm";
 import ts from "typescript";
 import * as mediaCommands from "../../lib/inrAssistantMediaUiCommands.ts";
 import * as commands from "../../lib/inrAssistantUiCommands.ts";
+import * as mailAttachments from "../../lib/inrAssistantMailAttachments.ts";
 import type { InrAssistantClientScreen } from "../../lib/inrAssistantClientContext.ts";
 import type * as Runtime from "../../lib/inrAssistantUiTools.ts";
 
-function harness(message: string, options: { foreign?: boolean; available?: boolean; expired?: boolean; documentOwner?: string; preview?: boolean; screen?: InrAssistantClientScreen } = {}) {
+function harness(message: string, options: { foreign?: boolean; available?: boolean; expired?: boolean; documentOwner?: string; preview?: boolean; screen?: InrAssistantClientScreen; accountId?: string; mediaRows?: Record<string, unknown>[] } = {}) {
+  const activeId = options.accountId ?? "active";
   const deps: Record<string, unknown> = {
     "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (value: unknown) => value },
-    "./requireUser": { requireUser: async () => ({ activeUserId: options.foreign ? "other" : "active" }) },
+    "./requireUser": { requireUser: async () => ({ activeUserId: options.foreign ? "other" : activeId }) },
     "./inrAssistantUiCommands.ts": commands,
     "./inrAssistantMediaUiCommands.ts": mediaCommands,
+    "./inrAssistantMailAttachments.ts": mailAttachments,
   };
   const mediaModule = { exports: {} };
   const mediaSource = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantMediaUiTools.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -25,14 +28,32 @@ function harness(message: string, options: { foreign?: boolean; available?: bool
   vm.runInNewContext(`(function(require,module,exports){${source}\n})`, {})(
     (name: string) => { assert.ok(name in deps, name); return deps[name]; }, moduleRecord, moduleRecord.exports);
   const db = { from(table: string) {
+    if (table === "pro_media_library") {
+      const filters: Record<string, unknown> = {};
+      const query = { select() { return query; }, eq(key: string, value: unknown) { filters[key] = value; return query; }, in(key: string, value: unknown) { filters[key] = value; return query; }, limit() { return query; }, async abortSignal() { assert.equal(filters.user_id, activeId); assert.equal(filters.is_active, true); return { data: options.mediaRows, error: null }; } };
+      return query;
+    }
     assert.equal(table, "doc_saves"); const filters: Record<string, unknown> = {};
     const query = { select() { return query; }, eq(key: string, value: unknown) { filters[key] = value; return query; }, async maybeSingle() { assert.equal(filters.user_id, "active"); assert.equal(filters.type, "devis"); return { error: null, data: { id: filters.id, type: "devis", user_id: options.documentOwner } }; } };
     return query;
   } } as unknown as Parameters<typeof Runtime.createInrAssistantUiTools>[0]["supabase"];
-  return moduleRecord.exports.createInrAssistantUiTools({ accountId: "active", currentUserMessage: message, canStartWork: () => !options.expired, ...(options.documentOwner ? { supabase: db } : {}),
+  return moduleRecord.exports.createInrAssistantUiTools({ accountId: activeId, currentUserMessage: message, canStartWork: () => !options.expired, ...(options.documentOwner || options.mediaRows ? { supabase: db } : {}),
     clientContext: { source: "untrusted_client", screen: options.screen ?? { pathname: "/dashboard/devis/new", tool: "Créer un devis", selection: { kind: "quote", id: options.preview ? "preview_local" : "quote-123" }, ...(options.preview ? { revision: "preview_local_2", pendingChanges: true } : {}), ...(options.available === false ? {} : { availableCommands: ["export_document_pdf"] }) } } });
 }
 const execution = { toolCallId: "test", messages: [] };
+test("mail attachment tool accepts owned library IDs and never model-supplied paths", async () => {
+  const accountId = "11111111-1111-4111-8111-111111111111", id = "22222222-2222-4222-8222-222222222222";
+  const request = "Joins la photo Toiture à ce mail";
+  const screen: InrAssistantClientScreen = { pathname: "/dashboard/mails", tool: "iNrSend", selection: { kind: "mail", id: "local" }, revision: "r1", availableCommands: ["configure_mail_draft"] };
+  const row = { id, user_id: accountId, is_active: true, bucket_name: "inrcy-pro-media", storage_path: `users/${accountId}/photo.jpg`, original_file_name: "Photo.jpg", mime_type: "image/jpeg", size_bytes: 400 };
+  const input = { command: "configure_mail_draft" as const, instructionQuote: request, patch: { attachmentIds: [id] } };
+  const options = { accountId, screen, mediaRows: [row] };
+  const result = await harness(request, options).runScreenCommand.execute!(input, execution) as { ok: boolean; uiCommand: unknown };
+  assert.equal(result.ok, true);
+  assert.deepEqual(commands.parseInrAssistantUiCommand(result.uiCommand), { command: "configure_mail_draft", selection: screen.selection, revision: "r1", patch: { attachments: [{ bucket: "inrcy-pro-media", path: row.storage_path, name: "Photo.jpg", type: "image/jpeg", size: 400 }] } });
+  for (const invalid of [{ ...options, foreign: true }, { ...options, mediaRows: [{ ...row, user_id: id }] }, { ...options, mediaRows: [] }]) assert.equal((await harness(request, invalid).runScreenCommand.execute!(input, execution) as { ok: boolean }).ok, false);
+  assert.equal((await harness(request, options).runScreenCommand.execute!({ ...input, patch: { attachments: [{ bucket: "private", path: "secret" }] } }, execution) as { ok: boolean }).ok, false);
+});
 test("mail compose is a revision-bound local edit with an explicit recipient, never a send", async () => {
   const request = "Modifie ce mail pour alice@example.invalid, objet Bonjour et texte Bonjour Alice";
   const screen: InrAssistantClientScreen = { pathname: "/dashboard/mails", tool: "iNrSend", selection: { kind: "mail", id: "draft_local" }, revision: "rev_2", availableCommands: ["configure_mail_draft"] };

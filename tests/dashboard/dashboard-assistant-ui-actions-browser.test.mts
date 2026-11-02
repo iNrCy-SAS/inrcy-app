@@ -18,6 +18,7 @@ type UiFixture = Window & {
   editNative: (name: string) => void; nativeState: { name: string; primaryText: string; confirmedSpend: boolean; format: string; adaptationMode: string; saved: boolean; step: number; sourceId: string };
   videoLoads: string[]; videoSaves: number; deferVideoLoad: boolean; deferVideoSave: boolean; releaseVideoLoad: () => void; releaseVideoSave: () => void; replaceNativeSource: (id: string) => void;
   authCallback: (event: string, session: null) => void; releasePdf: () => void;
+  mailAttachments: Array<{ bucket: string; path: string; name: string; type: string; size: number }>;
 };
 
 const require = createRequire(import.meta.url);
@@ -46,7 +47,7 @@ const sources = {
   "native": compile("app/dashboard/_hooks/useInrAssistantNativeDraft.ts"),
   "video-native": compile("app/dashboard/_hooks/useInrAssistantVideoCommands.ts"),
   "preview": compile("app/dashboard/_hooks/useInrAssistantDocumentPreview.ts"),
-  ...Object.fromEntries(["inrAssistantMediaUiCommands", "inrAssistantMailCompose", "inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
+  ...Object.fromEntries(["inrAssistantMailAttachments", "inrAssistantMediaUiCommands", "inrAssistantMailCompose", "inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
 };
 const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
 const fixture = `
@@ -112,11 +113,13 @@ function VideoDraft(){
 }
 function MailDraft(){
  const [to,setTo]=React.useState('original@example.invalid'),[subject,setSubject]=React.useState('Original'),[text,setText]=React.useState('Original text'),[html,setHtml]=React.useState('<p>Original text</p>');
+ const [composeAttachments,setComposeAttachments]=React.useState([{bucket:'inrbox_attachments',path:'existing.pdf',size:400,name:'Facture.pdf',type:'application/pdf'}]);
+ const {mergeInrAssistantMailAttachments}=require('@/lib/inrAssistantMailAttachments');
  const draftId=window.fixtureScope.documentId,composeOpen=true,sendBusy=Boolean(window.fixtureScope.blocked),scheduleBusy=false,attachBusy=false,scheduledMailEditSaving=false,scheduledMailEdit=null;
- const currentComposeSnapshot=JSON.stringify({to,subject,text,html}),lastSavedComposeSnapshot=null;
+ const currentComposeSnapshot=JSON.stringify({to,subject,text,html,composeAttachments}),lastSavedComposeSnapshot=null;
  const useInrAssistantNativeDraft=require('native').useInrAssistantNativeDraft;
  ${mailBridge.call}
- window.editNative=value=>setSubject(value);window.nativeState={to,subject,text,html};
+ window.editNative=value=>setSubject(value);window.nativeState={to,subject,text,html};window.mailAttachments=composeAttachments;
  return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
 }
 function Fixture(){const[,render]=React.useState(0);window.renderFixture=()=>render(n=>n+1);return React.createElement(require('provider').default,null,React.createElement(window.fixtureScope.pathname==='/dashboard/mails'?MailDraft:window.fixtureScope.pathname==='/dashboard/ads'?AdsDraft:window.fixtureScope.pathname==='/dashboard/generer-media'?VideoDraft:window.fixtureScope.pathname==='/dashboard/mediatheque'?Library:Document))}
@@ -192,6 +195,29 @@ test("native mail pending edit is refused if account or form becomes busy before
       assert.deepEqual(await page.evaluate(() => (window as unknown as UiFixture).requests), []);
       await page.close();
     }
+  } finally { await browser.close(); }
+});
+
+test("native mail attachment addition keeps existing PDF and rejects oversize patch atomically", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, false, "mails");
+    const sendPatch = async (patch: unknown) => {
+      const current = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+      const actions = inrAssistantUiActionsFromToolResult("mail-attach", { ok: true, uiCommand: { command: "configure_mail_draft", selection: { kind: "mail", id: current.selection.id }, revision: current.revision, patch } });
+      await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), actions);
+      await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      return page.evaluate(() => (window as unknown as UiFixture).result[0].status);
+    };
+    const photo = { bucket: "inrcy-pro-media", path: `users/${A}/photo.jpg`, name: "Photo.jpg", type: "image/jpeg", size: 500 };
+    assert.equal(await sendPatch({ attachments: [photo] }), "applied");
+    assert.equal(await sendPatch({ attachments: [photo] }), "applied");
+    const attachments = await page.evaluate(() => (window as unknown as UiFixture).mailAttachments);
+    assert.equal(attachments.length, 2); assert.equal(attachments[0].path, "existing.pdf"); assert.deepEqual(attachments[1], photo);
+    assert.equal(await sendPatch({ attachments: [{ ...photo, path: `users/${A}/huge.jpg`, size: 10 * 1024 * 1024 }], subject: "Must not apply" }), "failed");
+    assert.deepEqual(await page.evaluate(() => (window as unknown as UiFixture).mailAttachments), attachments);
+    assert.deepEqual(await page.evaluate(() => (window as unknown as UiFixture).nativeState), { to: "original@example.invalid", subject: "Original", text: "Original text", html: "<p>Original text</p>" });
+    assert.deepEqual(await page.evaluate(() => (window as unknown as UiFixture).requests), []);
   } finally { await browser.close(); }
 });
 
