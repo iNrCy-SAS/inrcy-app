@@ -7,11 +7,15 @@ export { inrAssistantMaskQuotedText } from "./inrAssistantRequestClauses.ts";
 export function matchesInrAssistantActionClause(message: string, quote: string, validate: (message: string, quote: string) => boolean): boolean {
     if (!quote.trim() || !message.includes(quote.trim()))
         return false;
+    const unquoted = inrAssistantUnquotedRequest(message);
+    // A condition is not the current instruction to execute. Check this before
+    // the native fast path, including when a condition precedes the action.
+    if (/^(?:si|quand|lorsque|if|when|unless)\b|\b(?:si|quand|lorsque|if|when|unless)\s+(?:je|j'|tu|vous|nous|on|il|elle|le|la|les|un|une|the|i|you|we|they)\b/.test(unquoted))
+        return false;
     if (validate(message, quote))
         return true;
     if (message.length > 4000)
         return false;
-    const unquoted = inrAssistantUnquotedRequest(message);
     if (/\b(?:ne|pas|jamais|sans|not|never|don't|do not|si|if|unless|quand|lorsque)\b|\bn'/.test(unquoted))
         return false;
     // Mask quoted data without changing UTF-16 indices used to take original text.

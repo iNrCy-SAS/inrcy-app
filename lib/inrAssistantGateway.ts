@@ -5,7 +5,7 @@ import type { InrAssistantGatewayArgs, InrAssistantReply } from "./inrAssistantG
 import type { InrAssistantMediaResult } from "./inrAssistantMediaTools.ts";
 import type { InrAssistantPublicationResult } from "./inrAssistantPublicationTools.ts";
 
-import { asSchema, createGateway, generateText, jsonSchema, stepCountIs, tool, wrapLanguageModel } from "ai";
+import { asSchema, createGateway, generateText, InvalidToolInputError, jsonSchema, tool, wrapLanguageModel } from "ai";
 import { assistantToolsForEdition } from "./inrAssistantEditionPolicy.ts";
 import { getAiGatewayCredential } from "@/lib/aiGatewayConfig";
 import {
@@ -31,9 +31,9 @@ import { getInrAssistantAppKnowledge, createInrAssistantAppGuideTool, getVerifie
 import { selectInrAssistantToolFamilies, inrAssistantSelectionToolHints, inrAssistantRoutingText, inrAssistantRequiredTools, inrAssistantTaskOutcome, verifiedInrAssistantCapabilityLimit } from "./inrAssistantToolRouting.ts";
 import type { InrAssistantTaskState, InrAssistantTaskOutcome, InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
 import { inrAssistantRequiredCalls, inrAssistantGoalCompleted, inrAssistantTaskTrackingLimit, compactInrAssistantTaskReceipts, inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantTaskPolicy.ts";
-import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsAction, inrAssistantObjectiveFamily, inrAssistantObjectiveLabel, createInrAssistantReadBudget } from "./inrAssistantObjectives.ts";
+import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsAction, inrAssistantPlanAllowsRead, inrAssistantObjectiveFamily, inrAssistantObjectiveLabel, createInrAssistantReadBudget } from "./inrAssistantObjectives.ts";
 import { inrAssistantUiActionsFromToolResult, INR_ASSISTANT_MAX_UI_ACTIONS, type InrAssistantUiAction } from "./inrAssistantUiActions.ts";
-import { discoverInrAssistantActionCoverage } from "./inrAssistantActionCoverage.ts";
+import { discoverInrAssistantActionCoverage, INR_ASSISTANT_COVERAGE_FAMILIES } from "./inrAssistantActionCoverage.ts";
 import { deriveInrAssistantStudioDraft, isInrAssistantStudioDraftRequest, parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "./inrAssistantStudioDraft.ts";
 import { withInrAssistantToolActivities } from "./inrAssistantActivity.ts";
 import { classifyInrAssistantGatewayFailure, projectInrAssistantGatewayDiagnostic, recordInrAssistantGatewayDiagnostic,
@@ -229,7 +229,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   }
   const trackingLimit = inrAssistantTaskTrackingLimit(requiredTools, requiredCalls);
   if (trackingLimit) return {message:trackingLimit,outcome:"blocked"};
-  const maxCalls = complexity === "complex" || requiredTools.length > 1 || Object.values(requiredCalls).some(count=>count > 1) ? 12 : requiredTools.length ? 7 : 4;
+  let maxCalls = complexity === "complex" || requiredTools.length > 1 || Object.values(requiredCalls).some(count=>count > 1) ? 12 : requiredTools.length ? 7 : 4;
   const gateway = createGateway({ apiKey: credential });
   const maxOutputTokens = complexity === "complex" ? 6_000 : 1_800;
   const started = Date.now();
@@ -422,7 +422,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
           query: string;
           domain: string | null;
           offset: number;
-      }>({ type: "object", additionalProperties: false, properties: { query: { type: "string", maxLength: 200 }, domain: { type: ["string", "null"], maxLength: 60 }, offset: { type: "integer", minimum: 0, maximum: 1000 } }, required: ["query", "domain", "offset"] }),
+      }>({ type: "object", additionalProperties: false, properties: { query: { type: "string", maxLength: 200 }, domain: { type: ["string", "null"], enum: [...Object.keys(INR_ASSISTANT_COVERAGE_FAMILIES), null], description: "Domaine exact du catalogue ; null si inconnu. Le carnet d’adresses appartient à crm." }, offset: { type: "integer", minimum: 0, maximum: 1000 } }, required: ["query", "domain", "offset"] }),
       execute: async (input): Promise<Record<string, unknown>> => {
           const catalogue = discoverInrAssistantActionCoverage({ query: input.query, domain: input.domain ?? undefined, offset: input.offset, limit: 4, edition: args.edition });
           if (!input.query.trim() && !input.domain)
@@ -438,6 +438,9 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
           // AI SDK reads the same ToolSet again for each step. Added definitions use
           // exactly the same execution wrappers, budget and native authorization.
           Object.assign(tools, withInrAssistantToolActivities(serializeMutations(boundReads(bounded)), { requestId: args.requestId, onActivity: args.onActivity }));
+          // A discovered native workflow gets the same seven-call ceiling as
+          // an initially recognized action, within the unchanged time/cost caps.
+          if (canExecute && Object.keys(bounded).length && maxCalls === 4) maxCalls = 7;
           return { ...catalogue, enabledTools: [...names].filter(name => Boolean(tools[name as keyof typeof tools])), activationLimitReached: discoveredNames.size >= 8 };
       },
   });
@@ -456,6 +459,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     return [name, {
       ...definition,
       execute: async (...input: unknown[]) => {
+        if (!inrAssistantPlanAllowsRead(objectives, name, receipts)) return { ok: false, status: "deferred", message: "Cette lecture est demandée après une action encore incomplète. Terminez cette action avant la lecture." };
         const eligibleObjective = objectives.find((objective, index) => objective.kind === "read" && objective.tool === name &&
           !inrAssistantObjectiveCompleted(objectives, index, receipts) && inrAssistantObjectiveReady(objectives, index, receipts));
         const attempt = readBudget.start(name, input[0], eligibleObjective?.exhaustive ? eligibleObjective.id : undefined);
@@ -538,6 +542,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
       if (navigation) system += `\nL’ouverture du module ${navigation.label} est déjà demandée au navigateur. Effectue aussi toutes les lectures et autres tâches demandées. N’annonce pas son ouverture avant le retour du navigateur.`;
     }
     for (const attempt of chain) {
+      let toolInputRepairAttempt: typeof attempt | undefined;
       if (args.signal?.aborted) noteFailure("request_aborted", { model: attempt.model, callCount: llmCalls });
       args.signal?.throwIfAborted();
       const remaining = deadline - Date.now();
@@ -640,8 +645,11 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
         const model = guardedModel(attempt);
         const result = await generateText({
           model, system, messages, maxOutputTokens, tools,
-          stopWhen: [stepCountIs(maxCalls), () => checkpointFailed || llmCalls >= maxCalls || Boolean(studioDraftState.value) || Boolean(mediaState.result) && !followupAfterMedia],
-          onStepFinish: async ({ toolResults }) => {
+          stopWhen: [({ steps }) => steps.length >= maxCalls, () => checkpointFailed || llmCalls >= maxCalls || Boolean(studioDraftState.value) || Boolean(mediaState.result) && !followupAfterMedia],
+          onStepFinish: async ({ toolResults, toolCalls }) => {
+            if (!toolInputRepairAttempt && attempt.model === INR_ASSISTANT_MODELS.qwen && toolCalls.some(call => call.invalid && InvalidToolInputError.isInstance(call.error))) {
+              toolInputRepairAttempt = chain.find(candidate => candidate.model === INR_ASSISTANT_MODELS.luna);
+            }
             let changed=false;
             for(const result of toolResults) if(result && recordToolResult(result)) changed=true;
             if(changed && requiredTools.length) {try {await checkpoint();} catch {/* stopWhen prevents further calls. */}}
@@ -651,22 +659,23 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
             // business goals. Opening its module must not suppress those reads.
             const goalsDone = requiredTools.some(name=>!["navigateApplication","runScreenCommand"].includes(name)) && requiredTools.every(name=>inrAssistantGoalCompleted(name,receipts,requiredCalls)) && objectives.every((_,index)=>inrAssistantObjectiveCompleted(objectives,index,receipts)) && (!statusOnly || [...readCounts.keys()].some(name=>requiredTools.some(goal=>INR_ASSISTANT_COMMANDS[goal]?.statusReader===name)));
             const answerOnly = goalsDone || stepNumber >= maxCalls-1 || llmCalls >= maxCalls-1;
-            if (stepNumber === 0 && !answerOnly && !args.taskContext && !navigation) return;
+            const activeTools = answerOnly ? [] : Object.keys(tools).filter(name => !(name === "navigateApplication" && navigation) && readBudget.available(name) && inrAssistantPlanAllowsAction(objectives,name,receipts) && inrAssistantPlanAllowsRead(objectives,name,receipts) && !(args.taskContext && inrAssistantGoalCompleted(name,args.taskContext.receipts,requiredCalls))) as Array<keyof typeof tools>;
+            if (stepNumber === 0 && !answerOnly && !args.taskContext && !navigation) return { activeTools };
             // Keep call/result pairs intact and discard only earlier chat text.
             // After a guide or DNA lookup, creation remains possible in step 2;
             // the last step only answers and never repeats reads or actions.
             let latestUser = 0;
             stepMessages.forEach((message, index) => { if (message.role === "user") latestUser = index; });
             // Some Qwen tool-call responses ignore toolChoice:none. Do not spend
-            // the fourth and final call on another tool loop: reserve it for the
+            // the final allowed call on another tool loop: reserve it for the
             // existing economical fallback, with its own real cost accounting.
             const answerAttempt = answerOnly && attempt.model === INR_ASSISTANT_MODELS.qwen
               ? chain.find(candidate => candidate.model === INR_ASSISTANT_MODELS.luna) ?? attempt
               : attempt;
             return {
-              ...(answerOnly ? { model: guardedModel(answerAttempt) } : {}),
+              ...(toolInputRepairAttempt || answerOnly ? { model: guardedModel(toolInputRepairAttempt ?? answerAttempt) } : {}),
               messages: compactInrAssistantGuideContext(stepMessages.slice(latestUser)),
-              activeTools: answerOnly ? [] : Object.keys(tools).filter(name => !(name === "navigateApplication" && navigation) && readBudget.available(name) && inrAssistantPlanAllowsAction(objectives,name,receipts) && !(args.taskContext && inrAssistantGoalCompleted(name,args.taskContext.receipts,requiredCalls))) as Array<keyof typeof tools>,
+              activeTools,
               ...(answerOnly ? { toolChoice: "none" as const } : {}),
               system: buildInrAssistantSystemPrompt(args.displayName, undefined, readCounts.has("readAppGuide") ? undefined : getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext, Boolean(args.fileContexts?.length), true)
                 + continuityContext + draftGuidance + (operationGuidance ? `\n${operationGuidance}` : "")

@@ -168,6 +168,11 @@ test("a separate explicit CRM order after advice reaches the real native route, 
     `Lis ce texte : '${createMessage}'`,
     `Résume ce texte : ‘${createMessage}’`,
     `Résume ce texte : \`\`\`\n${createMessage}\n\`\`\``,
+    `Si je confirme, ${createMessage}`,
+    `Quand le client aura confirmé, ${createMessage}`,
+    `${createMessage} si je confirme.`,
+    `${createMessage} seulement si je confirme.`,
+    `${createMessage} quand le client aura confirmé.`,
   ]){
     const denied=harness();const reply=await denied.tools(content).manageCrmContact.execute({...input,instructionQuote:content});
     assert.equal(reply.ok,false,content);assert.equal(denied.nativeCalls.length,0,content);

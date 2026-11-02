@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, createInrAssistantReadBudget } from "../../lib/inrAssistantObjectives.ts";
+import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsRead, createInrAssistantReadBudget } from "../../lib/inrAssistantObjectives.ts";
 import { inrAssistantRequiredTools, inrAssistantRequiredCalls } from "../../lib/inrAssistantTaskPolicy.ts";
 import { matchesInrAssistantActionClause } from "../../lib/inrAssistantActionClause.ts";
 import { inrAssistantSelectionToolHints } from "../../lib/inrAssistantToolRouting.ts";
@@ -36,6 +36,28 @@ test("ordered objectives preserve repeated actions and the position of later rea
   assert.equal(inrAssistantObjectiveReady(plan,1,receipts),true);
   assert.equal(inrAssistantObjectiveReady(plan,2,receipts),false);
   assert.equal(inrAssistantObjectiveCompleted(plan,2,receipts),false);
+});
+
+test("a requested statistics report targets the paginated report reader rather than a current snapshot", () => {
+  const plan = inrAssistantObjectives("Liste tous mes rapports de statistiques.");
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].tool, "readStatsReports");
+  assert.equal(plan[0].exhaustive, true);
+  assert.equal(inrAssistantObjectives("Consulte mes statistiques.")[0].tool, "readStatsSnapshots");
+});
+
+test("deferring later reads retains a CRM reference lookup without marking its later objective done", () => {
+  const plan = inrAssistantObjectives("Crée un contact CRM Alice, puis recherche les contacts CRM.");
+  assert.equal(inrAssistantPlanAllowsRead(plan, "searchCrmContacts", []), true);
+  assert.equal(inrAssistantObjectiveReady(plan, 1, []), false);
+  const ordered = inrAssistantObjectives("Crée un contact CRM Alice, puis consulte les dernières publications.");
+  assert.equal(inrAssistantPlanAllowsRead(ordered, "getRecentPublications", []), false);
+  assert.equal(inrAssistantPlanAllowsRead(ordered, "getRecentPublications", [{ tool: "manageCrmContact", ok: true, status: "created", id: "alice", message: "Fait" }]), true);
+  for (const [action, reader] of [["modifyMedia", "searchMedia"], ["updateMediaMetadata", "searchMedia"], ["applyMediaDeletion", "searchMedia"], ["sendIndividualMail", "listIndividualMailboxes"], ["replyToGoogleReview", "readGoogleReviews"]]) {
+    const scopedPlan = [{ id: "objective_0", kind: "action" as const, tool: action, instruction: "action", count: 1 }, { id: "objective_1", kind: "read" as const, tool: reader, instruction: "then read", count: 1 }];
+    assert.equal(inrAssistantPlanAllowsRead(scopedPlan, reader, []), true, `${action} retains its native reference reader`);
+    assert.equal(inrAssistantObjectiveReady(scopedPlan, 1, []), false, `${reader} does not complete the later read before mutation`);
+  }
 });
 
 test("infinitives remain inside a question while an independent imperative is tracked",()=>{

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
-import { asSchema, generateText, jsonSchema, stepCountIs, tool, wrapLanguageModel } from "ai";
+import { asSchema, generateText, InvalidToolInputError, jsonSchema, stepCountIs, tool, wrapLanguageModel } from "ai";
 import type { LanguageModelV3, LanguageModelV3CallOptions } from "@ai-sdk/provider";
 import * as policy from "../../lib/inrAssistantPolicy.ts";
 import * as editionPolicy from "../../lib/inrAssistantEditionPolicy.ts";
@@ -61,6 +61,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   mediaLibraryFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   channelActionFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   statsFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
+  mailboxFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   accountRead?: (name:string,input:unknown)=>unknown;
   cta?: { definition: ReturnType<typeof createCtaToolFixture>["definition"]; input: { target: "phone" | "website"; instructionQuote: string; channels: string[] | null } } } = {}) {
   const generations: { model: string; params: LanguageModelV3CallOptions }[] = [];
@@ -81,7 +82,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   let mediaExecutions = 0;
   const stubs: Record<string, unknown> = {
     "server-only": {}, "./dashboardEdition.ts": {},
-    ai: { asSchema, generateText, jsonSchema, stepCountIs, tool, wrapLanguageModel,
+    ai: { asSchema, generateText, InvalidToolInputError, jsonSchema, stepCountIs, tool, wrapLanguageModel,
       createGateway: () => (id: string): LanguageModelV3 => ({
         specificationVersion: "v3", provider: "test", modelId: id, supportedUrls: {},
         doGenerate: async (params) => {
@@ -142,7 +143,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantUiTools.ts": { createInrAssistantUiTools: () => options.extraTools??{} },
     "./inrAssistantChannelTools.ts": { createInrAssistantChannelTools: () => ({}) },
     "./inrAssistantCampaignTools.ts": { createInrAssistantCampaignTools: () => ({}) },
-    "./inrAssistantMailboxTools.ts": { createInrAssistantMailboxTools: () => ({}) },
+    "./inrAssistantMailboxTools.ts": { createInrAssistantMailboxTools: (args:Record<string,unknown>) => options.mailboxFactory?.(args) ?? {} },
     "./inrAssistantDocumentTools.ts": { createInrAssistantDocumentTools: () => ({}) },
     "./inrAssistantCalendarTools.ts": { createInrAssistantCalendarTools: (args:Record<string,unknown>) => options.calendarFactory?.(args)??{} },
     "./inrAssistantScheduledPublicationTools.ts": { createInrAssistantScheduledPublicationTools: () => ({}) },
@@ -215,7 +216,11 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     } },
     "./inrAssistantAppGuides.ts": { getInrAssistantAppKnowledge: () => "Documentation officielle : /dashboard?action=publish", getVerifiedInrAssistantNavigation: () => options.verifiedNavigation ?? null, createInrAssistantAppGuideTool: () => tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ found: true }) }) },
     "./inrAssistantAccountTools.ts": { createInrAssistantAccountTools: () => Object.fromEntries(["getBusinessDna", "searchMedia", "getRecentPublications"].map(name => [name,
-      tool({ inputSchema: jsonSchema({ type: "object", properties: {offset:{type:"integer"},query:{type:"string"},limit:{type:"integer"}} }), execute: async input => options.accountRead?.(name,input) ?? { available: true } }),
+      tool({ inputSchema: jsonSchema<Record<string, unknown>>({ type: "object", properties: {offset:{type:"integer"},query:{type:"string"},limit:{type:"integer"}} }, { validate: value => {
+        const input = value as Record<string, unknown>;
+        return input && typeof input === "object" && ["offset", "limit"].every(key => input[key] === undefined || Number.isInteger(input[key]))
+          ? { success: true, value: input } : { success: false, error: new Error("Expected integer pagination values") };
+      } }), execute: async input => options.accountRead?.(name,input) ?? { available: true } }),
     ])) },
     "./inrAssistantMemoryTools.ts": memoryToolsRuntime,
     "./inrAssistantDiagnosticsTools.ts": { createInrAssistantDiagnosticsTools: (args: {accountId: string; edition: string}) => {
@@ -419,13 +424,18 @@ const contactPlan = ["Alice", "Bob"].map(reference => ({ tool: "manageCrmContact
 const contactIds = ["10000000-0000-4000-8000-000000000001", "20000000-0000-4000-8000-000000000002"];
 
 test("capability discovery exposes callable native tools beyond the initial keywords without inventing account scope",async()=>{
-  const instruction="Ajoute une fiche pour Alice avec alice@example.invalid.";
+  for (const scenario of [
+    { instruction: "Ajoute une fiche pour Alice avec alice@example.invalid.", query: "contact", domain: "crm" },
+    { instruction: "Enregistre Alice Martin, alice@example.invalid, dans mon carnet d’adresses.", query: "carnet d’adresses", domain: null },
+  ]) {
+  const instruction=scenario.instruction;
   const create={...contactPlan[0],input:{...contactPlan[0].input,instructionQuote:instruction}};
-  const h=harness({crmIds:contactIds,plan:[{tool:"discoverCapabilities",input:{query:"contact",domain:"crm",offset:0}},{tool:"searchCrmContacts"},create]});
+  const h=harness({crmIds:contactIds,plan:[{tool:"discoverCapabilities",input:{query:scenario.query,domain:scenario.domain,offset:0}},{tool:"searchCrmContacts"},create]});
   const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
   assert.equal(toolNames(h.generations[0].params).includes("manageCrmContact"),false);
   assert.ok(toolNames(h.generations[1].params).includes("manageCrmContact"));
   assert.equal(h.crmExecutions.length,1);assert.equal(reply.outcome,"completed");assert.ok(h.generations.length<=4);
+  }
 });
 
 test("discovery in an advice-only turn activates readers and never upgrades it to permission to write",async()=>{
@@ -433,6 +443,24 @@ test("discovery in an advice-only turn activates readers and never upgrades it t
   await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:"Explique comment fonctionne la fiche client."}]});
   assert.ok(toolNames(h.generations[1].params).includes("searchCrmContacts"));
   assert.equal(toolNames(h.generations[1].params).includes("manageCrmContact"),false);assert.equal(h.crmExecutions.length,0);
+});
+
+test("a discovered native workflow retains a bounded chance to execute after one failed discovery", async () => {
+  const instruction = "Enregistre Alice Martin, alice@example.invalid, dans mon carnet d’adresses.";
+  const create = { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } };
+  const h = harness({ crmIds: contactIds, plan: [
+    { tool: "discoverCapabilities", input: { query: "carnet", domain: "contact", offset: 0 } },
+    { tool: "discoverCapabilities", input: { query: "carnet", domain: "crm", offset: 0 } },
+    { tool: "searchCrmContacts" }, create,
+  ] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, messages: [{ role: "user", content: instruction }] });
+  assert.equal(h.crmExecutions.length, 1);
+  assert.equal(reply.outcome, "completed");
+  assert.equal(h.generations.length, 5);
+  assert.ok(h.generations.length <= 7);
+  const discovery = h.generations[0].params.tools?.find(item => item.type === "function" && item.name === "discoverCapabilities");
+  assert.ok(discovery && discovery.type === "function");
+  assert.match(JSON.stringify(discovery.inputSchema), /"enum":\[.*"crm".*null\]/);
 });
 
 test("two separate contact clauses remain active until both distinct receipts exist", async()=>{
@@ -462,6 +490,23 @@ test("an explicitly requested read after a mutation remains in the plan and cann
   assert.equal(done.outcome,"completed");assert.equal(resumed.crmExecutions.length,0);
 });
 
+test("invalid Qwen tool arguments switch to the bounded fallback before executing the read without replaying a saved mutation", async () => {
+  const instruction = "Crée un contact CRM nommé Alice, puis consulte les dernières publications Facebook.";
+  const reads: unknown[] = [];
+  const h = harness({ crmIds: contactIds, plan: [
+    { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } },
+    { tool: "getRecentPublications", input: { limit: "8" } },
+    { tool: "getRecentPublications", input: { limit: 8 } },
+  ], accountRead: (_name, input) => { reads.push(input); return { ok: true, items: [] }; } });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, messages: [{ role: "user", content: instruction }] });
+  assert.equal(h.generations[1].model, policy.INR_ASSISTANT_MODELS.qwen);
+  assert.equal(h.generations[2].model, policy.INR_ASSISTANT_MODELS.luna);
+  assert.deepEqual(reads, [{ limit: 8 }], "The invalid string never reaches or gets coerced by the native executor");
+  assert.equal(h.crmExecutions.length, 1);
+  assert.equal(reply.outcome, "completed");
+  assert.ok(h.generations.length <= 7);
+});
+
 test("media pagination follows a progressing cursor past two reads without allowing an unchanged loop",async()=>{
   const offsets:number[]=[];
   const options={accountRead:(name:string,input:unknown)=>{assert.equal(name,"searchMedia");const offset=(input as {offset:number}).offset;offsets.push(offset);return {ok:true,items:[{id:`media-${offset}`}],nextOffset:offset<16?offset+8:null};}};
@@ -488,21 +533,19 @@ test("an exhaustive media search cannot skip its first page or jump over a retur
   }
 });
 
-test("a parallel read started before the preceding mutation cannot satisfy a later read objective", async () => {
+test("a parallel premature read is deferred without native execution and becomes available after the preceding mutation", async () => {
   const instruction = "Crée un contact CRM nommé Alice, puis consulte les dernières publications Facebook.";
-  let releaseRead: ((value: unknown) => void) | undefined;
-  const pendingRead = new Promise(resolve => { releaseRead = resolve; });
+  let readCount = 0;
   const h = harness({ crmIds: contactIds, parallelPlan: [
     { tool: "getRecentPublications" },
     { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } },
-  ], accountRead: () => pendingRead });
-  const result = h.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, messages: [{ role: "user", content: instruction }] });
-  for (let turn = 0; turn < 20 && !h.crmExecutions.length; turn++) await new Promise(resolve => setImmediate(resolve));
-  assert.equal(h.crmExecutions.length, 1, "The mutation completed while the earlier read was still pending");
-  releaseRead!({ ok: true, items: [{ snapshot: "before-mutation" }] });
-  const reply = await result;
-  assert.equal(reply.outcome, "partial");
-  assert.ok(!reply.taskState?.receipts.some(receipt => receipt.tool === "getRecentPublications" && receipt.status === "read"));
+  ], plan: [{ tool: "getRecentPublications" }, { tool: "getRecentPublications" }], accountRead: () => { readCount++; assert.equal(h.crmExecutions.length, 1); return { ok: true, items: [] }; } });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, messages: [{ role: "user", content: instruction }] });
+  assert.equal(h.crmExecutions.length, 1);
+  assert.equal(readCount, 1, "Only the requested read after mutation executes");
+  assert.equal(toolNames(h.generations[0].params).includes("getRecentPublications"), false);
+  assert.equal(toolNames(h.generations[1].params).includes("getRecentPublications"), true);
+  assert.equal(reply.outcome, "completed");
 });
 
 test("a native truncated result without a next cursor never completes an exhaustive request", async () => {
@@ -510,6 +553,31 @@ test("a native truncated result without a next cursor never completes an exhaust
   const reply = await h.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, messages: [{ role: "user", content: "Retrouve toutes mes photos de toiture." }] });
   assert.notEqual(reply.outcome, "completed");
   assert.ok(reply.taskState?.receipts.some(receipt => receipt.tool === "searchMedia" && receipt.status === "partial"));
+});
+
+test("native media reference lookup remains possible before editing while the later explicit listing still runs", async () => {
+  const instruction = "Renomme l’image Atelier en Atelier rénové, puis liste mes images.";
+  const observed: number[] = [];
+  const h = harness({ mediaMetadata: true, plan: [{ tool: "searchMedia" }, { tool: "updateMediaMetadata", input: { ...metadataInput, instructionQuote: instruction } }, { tool: "searchMedia" }],
+    accountRead: () => { observed.push(h.metadataExecutions.length); return { ok: true, items: [{ id: metadataInput.mediaId }] }; } });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, messages: [{ role: "user", content: instruction }] });
+  assert.deepEqual(observed, [0, 1]);
+  assert.equal(h.metadataExecutions.length, 1);
+  assert.equal(reply.outcome, "completed");
+});
+
+test("a sender lookup before accepted individual mail does not replace the explicit mailbox listing afterwards", async () => {
+  let accepted = 0;
+  const observed: number[] = [];
+  const h = harness({ plan: [{ tool: "listIndividualMailboxes" }, { tool: "sendIndividualMail" }, { tool: "listIndividualMailboxes" }], mailboxFactory: () => ({
+    listIndividualMailboxes: tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => { observed.push(accepted); return { ok: true, items: [{ id: "sender" }], nextOffset: null }; } }),
+    sendIndividualMail: tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => { accepted++; return { ok: true, status: "accepted", id: "ia-123456789abc", deliveryVerified: false, message: "Demande d’envoi acceptée ; livraison non confirmée." }; } }),
+  }) });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, actorUserId: "actor-a", edition: "premium", supabase: {} as never, messages: [{ role: "user", content: "Envoie un mail individuel à alice@example.invalid, puis liste mes boîtes expéditrices." }] });
+  assert.deepEqual(observed, [0, 1]);
+  assert.equal(accepted, 1);
+  assert.equal(reply.outcome, "completed");
+  assert.equal(reply.taskState?.receipts.find(receipt => receipt.tool === "sendIndividualMail")?.status, "accepted");
 });
 
 test("mixed advice and an explicit media action retain only the requested action while advice alone stays read-only",async()=>{

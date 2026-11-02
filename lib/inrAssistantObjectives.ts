@@ -27,6 +27,7 @@ const readers: Array<{
     { tool: "searchCrmContacts", family: "commercial", label: "retrouver les contacts demandés", matches: /\bcrm\b|contact|client|prospect/ },
     { tool: "getBusinessDna", family: "business", label: "lire l’ADN de l’entreprise", matches: /\badn\b|\bdna\b|mission|prestations|services de (?:mon|notre) entreprise/ },
     { tool: "searchMedia", family: "media", label: "rechercher les médias demandés", matches: /mediatheque|medias?|images?|photos?|videos?|visuels?|flyers?|logos?/ },
+    { tool: "readStatsReports", family: "workspace", label: "consulter les rapports de statistiques", matches: /(?:rapports?|bilans?).{0,60}(?:stats|statistiq)|(?:stats|statistiq).{0,60}(?:rapports?|bilans?)/ },
     { tool: "readStatsSnapshots", family: "workspace", label: "consulter les statistiques", matches: /stats|statistiq|resultats?|performances?|impressions?/ },
     { tool: "readGoogleReviews", family: "workspace", label: "consulter les avis", matches: /\bavis\b|reputation|reviews?/ },
     { tool: "readChannelStatus", family: "business", label: "vérifier les connexions des canaux", matches: /canaux|canal|connexion|connecte|cockpit/ },
@@ -70,6 +71,43 @@ export function inrAssistantObjectiveReady(plan: InrAssistantObjective[], index:
 export function inrAssistantPlanAllowsAction(plan: InrAssistantObjective[], tool: string, receipts: InrAssistantActionReceipt[]): boolean {
     const index = plan.findIndex((objective, i) => objective.kind === "action" && objective.tool === tool && !inrAssistantObjectiveCompleted(plan, i, receipts));
     return index < 0 || inrAssistantObjectiveReady(plan, index, receipts);
+}
+
+const prerequisiteReaders: Record<string, string[]> = {
+    manageCrmContact: ["searchCrmContacts", "readCrmContact"],
+    prepareCommercialDocument: ["searchCrmContacts", "readCrmContact", "readCommercialDocuments"],
+    updateCommercialDocument: ["readCommercialDocuments"],
+    finalizeCommercialDocument: ["readCommercialDocuments"],
+    manageAdvertisingCampaign: ["readAdvertisingCampaigns"],
+    editPreparedPublication: ["readPublicationWorkspace"],
+    updateScheduledPublication: ["readScheduledPublications"],
+    cancelScheduledPublication: ["readScheduledPublications"],
+    retryScheduledPublication: ["readScheduledPublications"],
+    modifyMedia: ["searchMedia"],
+    updateMediaMetadata: ["searchMedia"],
+    applyMediaDeletion: ["searchMedia"],
+    prepareMediaDownload: ["searchMedia"],
+    replyToGoogleReview: ["readGoogleReviews"],
+    sendIndividualMail: ["listIndividualMailboxes"],
+    sendStatsReport: ["readStatsReports"],
+    prepareStatsReportDownload: ["readStatsReports"],
+    updateCalendarAppointment: ["readCommunicationRecords"],
+    cancelCalendarAppointment: ["readCommunicationRecords"],
+    dispatchCampaignDraft: ["readCommunicationRecords", "listCampaignMailboxes"],
+    dispatchCampaignAudience: ["readCommunicationRecords", "listCampaignMailboxes", "searchCrmContacts"],
+    selectCampaignMailbox: ["listCampaignMailboxes"],
+    applyGoogleBusinessProfileUpdate: ["readGoogleBusinessProfile", "searchGoogleBusinessCategories"],
+    managePublicationIdeas: ["readPublicationIdeas"],
+    applyPublicationLifecycleAction: ["readPublicationWorkspace"],
+};
+
+/** Defer a later requested read while retaining native reference lookups needed
+ * by an earlier mutation. Such prerequisite reads never complete the later goal. */
+export function inrAssistantPlanAllowsRead(plan: InrAssistantObjective[], tool: string, receipts: InrAssistantActionReceipt[]): boolean {
+    const index = plan.findIndex((objective, position) => objective.kind === "read" && objective.tool === tool && !inrAssistantObjectiveCompleted(plan, position, receipts));
+    if (index < 0 || inrAssistantObjectiveReady(plan, index, receipts)) return true;
+    return plan.slice(0, index).some((objective, position) => objective.kind === "action" &&
+        !inrAssistantObjectiveCompleted(plan, position, receipts) && prerequisiteReaders[objective.tool]?.includes(tool));
 }
 type ReadAttempt = {
     input: Record<string, unknown>;
