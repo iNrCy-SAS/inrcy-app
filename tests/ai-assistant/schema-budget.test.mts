@@ -48,6 +48,8 @@ function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: 
     "./inrAssistantQuota.ts": { reserveInrAssistantRequest: async () => ({ solReserved: false }), finalizeInrAssistantRequest: async () => {} },
     "./inrAssistantBudget.ts": { reserveInrAssistantBudget: async () => ({}), finalizeInrAssistantBudget: async () => {} },
     "@/lib/supabaseAdmin": { supabaseAdmin: { from: untouched, storage: { from: untouched } } },
+    "./supabaseAdmin": { supabaseAdmin: { from: untouched, storage: { from: untouched } } },
+    "./executionIdempotency": { acquireExecutionIdempotencyLock: untouched, completeExecutionIdempotencyLockOrThrow: untouched },
     "./aiMemory.ts": { normalizeAiMemory }, "./aiPromptBudget.ts": { fitPromptPayloadToJsonBudget },
     "./aiMediaGenerationContracts.ts": { normalizeAiMediaGenerationRequest: untouched },
     "./aiMediaModelCatalog.ts": { getAiMediaImageModel: untouched, getAiMediaVideoModel: untouched, isAiMediaVideoEngineAvailable: untouched },
@@ -148,7 +150,7 @@ function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: 
       assert.fail(`Unexpected schema dependency ${id}`);
     };
     vm.runInNewContext(`(function(require,module,exports){${output}\n})`, {
-      Date, Intl, URL, Request, Response, Headers, TextEncoder, AbortSignal, setTimeout, clearTimeout, console,
+      Date, Intl, URL, URLSearchParams, Request, Response, Headers, TextEncoder, AbortSignal, setTimeout, clearTimeout, console,
       process: { env: { NODE_ENV: "test" } }, fetch: untouched,
     })(dependency, moduleRecord, moduleRecord.exports);
     for (const [name, factory] of Object.entries(moduleRecord.exports)) if (/^createInrAssistant.*Tools$|^createInrAssistantAppGuideTool$/.test(name) && typeof factory === "function") {

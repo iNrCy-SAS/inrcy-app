@@ -11,6 +11,7 @@ type Command = {
   batchObject?: string;
 };
 export const INR_ASSISTANT_COMMANDS: Record<string, Command> = {
+  sendIndividualMail: {family:"workspace",label:"envoyer le mail individuel après confirmation",clarification:/destinataire|expediteur|objet|message|adresse/},
   managePublicationIdeas: { family:"management", label:"mettre à jour les idées de l’agent" },
   setNativeChannelActivation: { family:"business", label:"modifier l’activation du canal" },
   updateChannelPublicUrl: { family:"business", label:"enregistrer le lien public du canal" },

@@ -1,4 +1,5 @@
 import "server-only";
+import { matchesInrAssistantActionClause, inrAssistantMaskQuotedText } from "./inrAssistantActionClause.ts";
 
 import { createHash } from "node:crypto";
 import { jsonSchema, tool } from "ai";
@@ -93,7 +94,10 @@ const idSchema = { type: "string", pattern: UUID.source };
 
 /** A strict current-message guard; quoted/history instructions grant no action. */
 export function permitsInrAssistantPublicationAction(message: string, action: "prepare" | "publish" | "schedule" | "edit", channels: readonly Channel[] = []): boolean {
-  const value = normalized(message.slice(0, 4_000).replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm, " "));
+  return matchesInrAssistantActionClause(message,message,(clause)=>permitsPublicationClause(clause,action,channels));
+}
+function permitsPublicationClause(message: string, action: "prepare" | "publish" | "schedule" | "edit", channels: readonly Channel[]): boolean {
+  const value = normalized(inrAssistantMaskQuotedText(message.slice(0, 4_000)));
   if (/^(?:comment|pourquoi|ou\b|explique|montre|what|how|como|wie|warum)\b|(?:savoir|comprendre).*comment|(?:est.ce que (?:je|on)|(?:puis|dois|peux).je|(?:je|on) (?:peux|peut|pourrais|pourrait)|can i|should i).*(?:publ|post|programm)/.test(value.trim())) return false;
   // A polite prefix does not turn a request for instructions into permission to
   // execute the action mentioned in that question.

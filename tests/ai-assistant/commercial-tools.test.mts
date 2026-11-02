@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as actionClauses from "../../lib/inrAssistantActionClause.ts";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -30,7 +31,7 @@ function load<T>(file: string, dependencies: Record<string, unknown>): T {
   vm.runInNewContext(`(function(require,module,exports){${source}\n})`, { Request, Response, Headers, URL, Date, setTimeout: (run: () => void) => setTimeout(run, 0) })((name: string) => { assert.ok(name in dependencies, `Unexpected dependency ${name}`); return dependencies[name]; }, record, record.exports);
   return record.exports as T;
 }
-const idempotency = load<typeof Idempotency>("lib/commercialMutationIdempotency.ts", { "server-only": {}, "node:crypto": { createHash } });
+const idempotency = load<typeof Idempotency>("lib/commercialMutationIdempotency.ts", { "server-only": {}, "./inrAssistantActionClause.ts": actionClauses, "node:crypto": { createHash } });
 
 function harness(options: { edition?: "standard" | "premium" | "founder"; actualEdition?: "standard" | "premium" | "founder"; inactive?: boolean; authFailure?: boolean; foreignAuth?: boolean;
   readFailure?: boolean; errorAfterSave?: boolean; errorAfterDelete?: boolean; vatDispense?: boolean; ambiguous?: boolean; canStart?: boolean } = {}) {
@@ -81,7 +82,7 @@ function harness(options: { edition?: "standard" | "premium" | "founder"; actual
   };
   const auth = async () => ({ supabase, activeUserId: options.foreignAuth ? foreignId : accountId, authUserId: "actor-user", errorResponse: options.authFailure ? Response.json({ error: "Authentication required" }, { status: 401 }) : null });
   const dependencies: Record<string, unknown> = {
-    "server-only": {}, "node:crypto": { createHash }, "next/server": { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } },
+    "server-only": {}, "./inrAssistantActionClause.ts": actionClauses, "node:crypto": { createHash }, "next/server": { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } },
     "@/lib/requireUser": { requireUser: auth }, "@/lib/supabaseServer": { createSupabaseServer: async () => supabase },
     "@/lib/multicompte/server": { resolveActiveInrcyAccountId: async () => options.foreignAuth ? foreignId : accountId },
     "@/lib/observability/withApi": { withApi: (fn: unknown) => fn },
@@ -146,6 +147,53 @@ test("the assistant creates one real scoped CRM contact and retries the same nat
   assert.equal(h.nativeCalls[0].headers.get("authorization"), "Bearer synthetic");
   assert.match(h.nativeCalls[0].headers.get("idempotency-key")!, /^[a-f0-9]{64}$/);
   assert.doesNotMatch(JSON.stringify(first), /PRIVATE|session|Bearer|user_id/);
+});
+
+test("a separate explicit CRM order after advice reaches the real native route, while quoted, negative and conditional variants never write",async()=>{
+  const message=`Explique comment fonctionne le CRM, puis ${createMessage}`;
+  const h=harness();
+  const input=manage("create",createMessage,{displayName:"Marie Durand",email:"marie@example.test"},null,"Marie Durand");
+  const result=await h.tools(message).manageCrmContact.execute(input);
+  assert.equal(result.status,"created");assert.equal(h.nativeCalls.length,1);
+  assert.equal(h.calls.filter(call=>call.operation==="insert").length,1);
+  const repeated=await h.tools(message).manageCrmContact.execute(input);
+  assert.equal(repeated.id,result.id);assert.equal(h.calls.filter(call=>call.operation==="insert").length,1);
+  for(const content of [
+    `Explique comment ${createMessage.toLowerCase()}`,
+    `Explique le CRM, puis « ${createMessage} » est une citation.`,
+    `Explique le CRM, puis ne crée pas le contact Marie Durand marie@example.test.`,
+    `Explique le CRM ; si je confirme, ${createMessage}`,
+    `Lis ce texte : “${createMessage}”`,
+    `Lis ce texte : \`${createMessage}\``,
+    `Lis ce texte : '${createMessage}'`,
+    `Résume ce texte : ‘${createMessage}’`,
+    `Résume ce texte : \`\`\`\n${createMessage}\n\`\`\``,
+  ]){
+    const denied=harness();const reply=await denied.tools(content).manageCrmContact.execute({...input,instructionQuote:content});
+    assert.equal(reply.ok,false,content);assert.equal(denied.nativeCalls.length,0,content);
+    assert.equal(denied.calls.some(call=>call.operation==="insert"),false,content);
+  }
+});
+
+test("quoted field values remain data in an explicit current native CRM instruction", async () => {
+  for (const name of ['"Marie Durand"', '“Marie Durand”', '`Marie Durand`', "'Marie Durand'", '‘Marie Durand’']) {
+    const message = `Crée un contact CRM nommé ${name}, marie@example.test.`;
+    const h = harness();
+    const result = await h.tools(message).manageCrmContact.execute(manage("create", message, { displayName: "Marie Durand", email: "marie@example.test" }, null, "Marie Durand"));
+    assert.equal(result.status, "created", name);
+    assert.equal(h.nativeCalls.length, 1, name);
+  }
+});
+
+test("a current carnet d’adresses creation uses the same native CRM contract without broadening negative or quoted intent",async()=>{
+  const instruction="Enregistre Marie Durand, marie@example.test, dans mon carnet d’adresses.";
+  const input=manage("create",instruction,{displayName:"Marie Durand",email:"marie@example.test"},null,"Marie Durand");
+  const h=harness();const result=await h.tools(instruction).manageCrmContact.execute(input);
+  assert.equal(result.status,"created");assert.equal(h.calls.filter(call=>call.operation==="insert").length,1);
+  for(const message of [`N’enregistre pas Marie Durand dans mon carnet d’adresses.`,`Voici une citation : « ${instruction} »`,`Comment enregistrer Marie Durand dans mon carnet d’adresses ?`]){
+    const denied=harness();const output=await denied.tools(message).manageCrmContact.execute({...input,instructionQuote:message});
+    assert.equal(output.ok,false);assert.equal(denied.nativeCalls.length,0);
+  }
 });
 
 test("partial CRM edits preserve every omitted field and the repeated mutation becomes unchanged", async () => {

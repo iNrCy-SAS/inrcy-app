@@ -3,6 +3,7 @@ import type { DashboardEdition } from "./dashboardEdition.ts";
 // Basic can execute its included manual tools. Agents and Premium operations
 // remain absent; native executors independently enforce the account's edition.
 const BASIC_SUPPORT_TOOLS = new Set([
+  "discoverCapabilities",
   "proposeHumanSupport", "readAppGuide", "getBusinessDna", "searchMedia", "getRecentPublications",
   "getAccountDiagnostics", "readWorkspaceSection", "recallPastDiscussions", "guideChannelConnection",
   "readToolSettings", "readChannelStatus", "readAttachedDocument", "navigateApplication", "getPublicationStatus", "getBusinessDnaAnalysis", "prepareStudioPrompt",

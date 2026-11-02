@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as actionClauses from "../../lib/inrAssistantActionClause.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -74,7 +75,7 @@ function harness(options: {
     return builder;
   } };
   const stubs: Record<string, unknown> = {
-    "server-only": {}, "node:crypto": { createHash },
+    "server-only": {}, "./inrAssistantActionClause.ts": actionClauses, "node:crypto": { createHash },
     ai: { tool: (definition: unknown) => definition, jsonSchema: (schema: unknown, config: Row) => ({ schema, ...config }) },
     "./boosterPublicationPolicy.ts": channelPolicy, "./boosterChannelRules.ts": channelRules, "./boosterPublicationOutcome.ts": outcomes,
     "@/lib/requireUser": { requireUser: async () => { calls.push({ action: "auth" }); return { errorResponse: null, activeUserId: options.wrongScope ? FOREIGN : ACCOUNT, authUserId: "authenticated-actor", supabase }; } },

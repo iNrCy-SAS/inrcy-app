@@ -1,4 +1,5 @@
 import "server-only";
+import { matchesInrAssistantActionClause, inrAssistantMaskQuotedText } from "./inrAssistantActionClause.ts";
 
 import { createHash } from "node:crypto";
 import { jsonSchema, tool } from "ai";
@@ -77,8 +78,11 @@ function parseAppointment(value: unknown): AppointmentInput {
   return { instructionQuote: quote(input), title: text(input.title, 180), description: nullableText(input.description, 3000), location: nullableText(input.location, 300), start, end, operationKey: operationKey(input.operationKey) };
 }
 function currentInstruction(message: string, instructionQuote: string, kind: "media" | "mail" | "calendar"): boolean {
+  return matchesInrAssistantActionClause(message,instructionQuote,(clause,exact)=>currentInstructionClause(clause,exact,kind));
+}
+function currentInstructionClause(message: string, instructionQuote: string, kind: "media" | "mail" | "calendar"): boolean {
   if (!instructionQuote || !message.includes(instructionQuote)) return false;
-  const current = normalize(message.slice(0, 4000).replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm, " "));
+  const current = normalize(inrAssistantMaskQuotedText(message.slice(0, 4000)));
   const instruction = normalize(instructionQuote);
   if (/^(?:comment|pourquoi|explique|how|why|what|which)\b|(?:expli\w*|montre\w*|show|savoir|comprendre).{0,45}(?:comment|how|ou\b|where)\b/.test(current.trim()) || /\b(?:ne |n'|n’|sans |do not |don't ).{0,30}(?:modif|chang|cre|prepar|ajout|enregistr|masqu|renomm|write|create|update)/.test(current)) return false;
   const action = kind === "media" ? /\b(?:modifi\w*|renomm\w*|corrig\w*|chang\w*|remplac\w*|ajout\w*|masqu\w*|reactiv\w*|affich\w*|cache\w*|update|rename|hide|show)\b/ : /\b(?:prepar\w*|redig\w*|ecri\w*|cree\w*|creer|crea\w*|enregistr\w*|ajout\w*|brouillon|draft|write|create|prepare)\b/;

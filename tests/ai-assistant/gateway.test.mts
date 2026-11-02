@@ -18,6 +18,9 @@ import * as promptContext from "../../lib/inrAssistantPromptContext.ts";
 import * as mediaIntent from "../../lib/inrAssistantMediaIntent.ts";
 import * as studioDraft from "../../lib/inrAssistantStudioDraft.ts";
 import * as taskPolicy from "../../lib/inrAssistantTaskPolicy.ts";
+import * as objectives from "../../lib/inrAssistantObjectives.ts";
+import * as uiActions from "../../lib/inrAssistantUiActions.ts";
+import * as actionCoverage from "../../lib/inrAssistantActionCoverage.ts";
 import * as commandRegistry from "../../lib/inrAssistantCommandRegistry.ts";
 import * as uiCommands from "../../lib/inrAssistantUiCommands.ts";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
@@ -58,6 +61,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   mediaLibraryFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   channelActionFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   statsFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
+  accountRead?: (name:string,input:unknown)=>unknown;
   cta?: { definition: ReturnType<typeof createCtaToolFixture>["definition"]; input: { target: "phone" | "website"; instructionQuote: string; channels: string[] | null } } } = {}) {
   const generations: { model: string; params: LanguageModelV3CallOptions }[] = [];
   const reservations: { feature: string; reservedOutputTokens: number; estimatedInputTokens: number }[] = [];
@@ -130,11 +134,15 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantMediaIntent.ts": mediaIntent,
     "./inrAssistantStudioDraft.ts": studioDraft,
     "./inrAssistantTaskPolicy.ts": taskPolicy,
+    "./inrAssistantObjectives.ts": objectives,
+    "./inrAssistantUiActions.ts": uiActions,
+    "./inrAssistantActionCoverage.ts": actionCoverage,
     "./inrAssistantCommandRegistry.ts": commandRegistry,
     "./inrAssistantUiCommands.ts": uiCommands,
     "./inrAssistantUiTools.ts": { createInrAssistantUiTools: () => options.extraTools??{} },
     "./inrAssistantChannelTools.ts": { createInrAssistantChannelTools: () => ({}) },
     "./inrAssistantCampaignTools.ts": { createInrAssistantCampaignTools: () => ({}) },
+    "./inrAssistantMailboxTools.ts": { createInrAssistantMailboxTools: () => ({}) },
     "./inrAssistantDocumentTools.ts": { createInrAssistantDocumentTools: () => ({}) },
     "./inrAssistantCalendarTools.ts": { createInrAssistantCalendarTools: (args:Record<string,unknown>) => options.calendarFactory?.(args)??{} },
     "./inrAssistantScheduledPublicationTools.ts": { createInrAssistantScheduledPublicationTools: () => ({}) },
@@ -207,7 +215,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     } },
     "./inrAssistantAppGuides.ts": { getInrAssistantAppKnowledge: () => "Documentation officielle : /dashboard?action=publish", getVerifiedInrAssistantNavigation: () => options.verifiedNavigation ?? null, createInrAssistantAppGuideTool: () => tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ found: true }) }) },
     "./inrAssistantAccountTools.ts": { createInrAssistantAccountTools: () => Object.fromEntries(["getBusinessDna", "searchMedia", "getRecentPublications"].map(name => [name,
-      tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ available: true }) }),
+      tool({ inputSchema: jsonSchema({ type: "object", properties: {offset:{type:"integer"},query:{type:"string"},limit:{type:"integer"}} }), execute: async input => options.accountRead?.(name,input) ?? { available: true } }),
     ])) },
     "./inrAssistantMemoryTools.ts": memoryToolsRuntime,
     "./inrAssistantDiagnosticsTools.ts": { createInrAssistantDiagnosticsTools: (args: {accountId: string; edition: string}) => {
@@ -262,7 +270,7 @@ for (const edition of ["basic", "standard", "premium"] as const) test(`${edition
   assert.equal(h.generations.length, 1);
   const available = toolNames(h.generations[0].params);
   assert.ok(available.includes("readAppGuide"));
-  assert.ok(available.every(name => name === "prepareStudioPrompt" || /^(?:read|get|search|recall|guide)/.test(name)), JSON.stringify(available));
+  assert.ok(available.every(name => ["prepareStudioPrompt","discoverCapabilities"].includes(name) || /^(?:read|get|search|recall|guide)/.test(name)), JSON.stringify(available));
   assert.equal(available.includes("generateMedia"), false);
   assert.equal(available.includes("proposeHumanSupport"), false);
   assert.equal(h.mediaExecutions, 0);
@@ -409,6 +417,112 @@ const twoContactRequest = "Ajoute deux contacts CRM : Alice avec alice@example.i
 const contactFields = { displayName: null, companyName: null, email: null, phone: null, address: null, billingAddress: null, deliveryAddress: null, postalCode: null, city: null, siret: null, vatNumber: null, category: null, contactType: null, notes: null, important: null };
 const contactPlan = ["Alice", "Bob"].map(reference => ({ tool: "manageCrmContact", input: { action: "create", instructionQuote: twoContactRequest, reference, contactId: null, fields: { ...contactFields, displayName: reference, email: `${reference.toLowerCase()}@example.invalid` } } }));
 const contactIds = ["10000000-0000-4000-8000-000000000001", "20000000-0000-4000-8000-000000000002"];
+
+test("capability discovery exposes callable native tools beyond the initial keywords without inventing account scope",async()=>{
+  const instruction="Ajoute une fiche pour Alice avec alice@example.invalid.";
+  const create={...contactPlan[0],input:{...contactPlan[0].input,instructionQuote:instruction}};
+  const h=harness({crmIds:contactIds,plan:[{tool:"discoverCapabilities",input:{query:"contact",domain:"crm",offset:0}},{tool:"searchCrmContacts"},create]});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(toolNames(h.generations[0].params).includes("manageCrmContact"),false);
+  assert.ok(toolNames(h.generations[1].params).includes("manageCrmContact"));
+  assert.equal(h.crmExecutions.length,1);assert.equal(reply.outcome,"completed");assert.ok(h.generations.length<=4);
+});
+
+test("discovery in an advice-only turn activates readers and never upgrades it to permission to write",async()=>{
+  const h=harness({crmIds:contactIds,plan:[{tool:"discoverCapabilities",input:{query:"contact",domain:"crm",offset:0}},{tool:"searchCrmContacts"}]});
+  await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:"Explique comment fonctionne la fiche client."}]});
+  assert.ok(toolNames(h.generations[1].params).includes("searchCrmContacts"));
+  assert.equal(toolNames(h.generations[1].params).includes("manageCrmContact"),false);assert.equal(h.crmExecutions.length,0);
+});
+
+test("two separate contact clauses remain active until both distinct receipts exist", async()=>{
+  const instruction="Crée un contact CRM nommé Alice et crée un contact CRM nommé Bob.";
+  const plan=contactPlan.map(call=>({...call,input:{...call.input,instructionQuote:instruction}}));
+  const h=harness({crmIds:contactIds,plan});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(h.crmExecutions.length,2);assert.equal(reply.outcome,"completed");
+  assert.equal(reply.taskState?.requiredCalls?.manageCrmContact,2);
+  assert.ok(toolNames(h.generations[1].params).includes("manageCrmContact"));
+});
+
+test("an explicitly requested read after a mutation remains in the plan and cannot be reported completed early", async()=>{
+  const instruction="Crée un contact CRM nommé Alice, puis consulte les dernières publications Facebook.";
+  const reads:string[]=[];
+  const options={crmIds:contactIds,accountRead:(name:string)=>{reads.push(name);return {ok:true,items:[]};}};
+  const create={...contactPlan[0],input:{...contactPlan[0].input,instructionQuote:instruction}};
+  const h=harness({...options,plan:[create,{tool:"getRecentPublications"}]});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.deepEqual(reads,["getRecentPublications"]);assert.equal(h.crmExecutions.length,1);assert.equal(reply.outcome,"completed");
+  assert.ok(toolNames(h.generations[1].params).includes("getRecentPublications"));
+  const partial=harness({...options,plan:[create]});
+  const unfinished=await partial.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(unfinished.outcome,"partial");assert.match(unfinished.taskProgress?.remaining.join(" ")??"",/publications/);
+  const resumed=harness({...options,plan:[{tool:"getRecentPublications"}]});
+  const done=await resumed.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,taskContext:unfinished.taskState,actionInstruction:instruction,messages:[{role:"user",content:"Continue"}]});
+  assert.equal(done.outcome,"completed");assert.equal(resumed.crmExecutions.length,0);
+});
+
+test("media pagination follows a progressing cursor past two reads without allowing an unchanged loop",async()=>{
+  const offsets:number[]=[];
+  const options={accountRead:(name:string,input:unknown)=>{assert.equal(name,"searchMedia");const offset=(input as {offset:number}).offset;offsets.push(offset);return {ok:true,items:[{id:`media-${offset}`}],nextOffset:offset<16?offset+8:null};}};
+  const h=harness({...options,plan:[0,8,16].map(offset=>({tool:"searchMedia",input:{query:"toiture",offset,limit:8}}))});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,supabase:{} as never,messages:[{role:"user",content:"Retrouve toutes mes photos de toiture."}]});
+  assert.deepEqual(offsets,[0,8,16]);assert.ok(toolNames(h.generations[2].params).includes("searchMedia"));assert.equal(reply.outcome,"completed");
+  offsets.length=0;
+  const stalled=harness({...options,plan:[0,0,0,0].map(offset=>({tool:"searchMedia",input:{query:"toiture",offset,limit:8}}))});
+  const failed=await stalled.runtime.generateInrAssistantReply({...basic,supabase:{} as never,messages:[{role:"user",content:"Retrouve toutes mes photos de toiture."}]});
+  assert.deepEqual(offsets,[0]);assert.notEqual(failed.outcome,"completed");assert.ok(stalled.generations.length<=7);
+});
+
+test("an exhaustive media search cannot skip its first page or jump over a returned cursor", async () => {
+  for (const requestedOffsets of [[80], [0, 80]]) {
+    const actual: number[] = [];
+    const h = harness({ plan: requestedOffsets.map(offset => ({ tool: "searchMedia", input: { query: "toiture", offset, limit: 8 } })), accountRead: (_name, input) => {
+      const offset = (input as { offset: number }).offset;
+      actual.push(offset);
+      return { ok: true, items: [], nextOffset: offset === 0 ? 8 : null };
+    } });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, messages: [{ role: "user", content: "Retrouve toutes mes photos de toiture." }] });
+    assert.deepEqual(actual, requestedOffsets[0] === 0 ? [0] : []);
+    assert.notEqual(reply.outcome, "completed");
+  }
+});
+
+test("a parallel read started before the preceding mutation cannot satisfy a later read objective", async () => {
+  const instruction = "Crée un contact CRM nommé Alice, puis consulte les dernières publications Facebook.";
+  let releaseRead: ((value: unknown) => void) | undefined;
+  const pendingRead = new Promise(resolve => { releaseRead = resolve; });
+  const h = harness({ crmIds: contactIds, parallelPlan: [
+    { tool: "getRecentPublications" },
+    { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } },
+  ], accountRead: () => pendingRead });
+  const result = h.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, messages: [{ role: "user", content: instruction }] });
+  for (let turn = 0; turn < 20 && !h.crmExecutions.length; turn++) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.crmExecutions.length, 1, "The mutation completed while the earlier read was still pending");
+  releaseRead!({ ok: true, items: [{ snapshot: "before-mutation" }] });
+  const reply = await result;
+  assert.equal(reply.outcome, "partial");
+  assert.ok(!reply.taskState?.receipts.some(receipt => receipt.tool === "getRecentPublications" && receipt.status === "read"));
+});
+
+test("a native truncated result without a next cursor never completes an exhaustive request", async () => {
+  const h = harness({ plan: [{ tool: "searchMedia", input: { query: "toiture", offset: 0, limit: 8 } }], accountRead: () => ({ ok: true, items: [], truncated: true, nextOffset: null }) });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, messages: [{ role: "user", content: "Retrouve toutes mes photos de toiture." }] });
+  assert.notEqual(reply.outcome, "completed");
+  assert.ok(reply.taskState?.receipts.some(receipt => receipt.tool === "searchMedia" && receipt.status === "partial"));
+});
+
+test("mixed advice and an explicit media action retain only the requested action while advice alone stays read-only",async()=>{
+  const instruction="Explique comment fonctionne Studio, puis crée une image de notre atelier.";
+  const h=harness({media:true,plan:[{tool:"generateMedia",input:{prompt:"Notre atelier"}}]});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(h.mediaExecutions,1);assert.equal(reply.outcome,"completed");
+  for(const content of ["Explique comment créer une image de notre atelier.","Explique Studio, puis ne crée pas d’image."]){
+    const guidance=harness({plan:[{tool:"generateMedia",input:{prompt:"Notre atelier"}}]});
+    await guidance.runtime.generateInrAssistantReply({...basic,supabase:{} as never,messages:[{role:"user",content}]});
+    assert.equal(guidance.mediaExecutions,0);assert.equal(toolNames(guidance.generations[0].params).includes("generateMedia"),false);
+  }
+});
 
 test("oversized contact batches are blocked before model reservations or native tool construction",async()=>{
   const h=harness({crmIds:contactIds,plan:contactPlan});
@@ -587,7 +701,7 @@ test("Basique support questions expose requested reads without CTA, DNA or revie
   assert.equal(h.mediaExecutions, 0);
   assert.equal(h.publicationExecutions.length, 0);
   assert.ok(h.generations[0].params.tools?.some(definition => definition.type === "function" && definition.name === "getBusinessDna"));
-  assert.ok(h.generations[0].params.tools?.every(definition => definition.type !== "function" || /^(?:read|get|search|recall|guide)/.test(definition.name) || definition.name === "proposeHumanSupport"), JSON.stringify(toolNames(h.generations[0].params)));
+  assert.ok(h.generations[0].params.tools?.every(definition => definition.type !== "function" || /^(?:read|get|search|recall|guide)/.test(definition.name) || ["proposeHumanSupport","discoverCapabilities"].includes(definition.name)), JSON.stringify(toolNames(h.generations[0].params)));
 });
 
 test("a reviewed navigation answer is delivered without any provider call or economic reservation", async () => {

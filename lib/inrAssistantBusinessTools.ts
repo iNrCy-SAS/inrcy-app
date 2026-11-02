@@ -1,4 +1,5 @@
 import "server-only";
+import { matchesInrAssistantActionClause, inrAssistantMaskQuotedText } from "./inrAssistantActionClause.ts";
 
 import { jsonSchema, tool } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -37,8 +38,11 @@ const appendText = (previous: unknown, next: string) => typeof previous !== "str
 
 /** Authorization comes only from the fresh user turn, never a recalled instruction or model assertion. */
 function authorized(message: string, quote: string, kind: "dna" | "configuration") {
+  return matchesInrAssistantActionClause(message,quote,(clause,exact)=>authorizedClause(clause,exact,kind));
+}
+function authorizedClause(message: string, quote: string, kind: "dna" | "configuration") {
   if (message.length > 4000 || !quote.trim() || quote.length > 1200 || !message.includes(quote.trim())) return false;
-  const current = normalized(message.trim().replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm, " "));
+  const current = normalized(inrAssistantMaskQuotedText(message.trim()));
   const instruction = normalized(quote.trim());
   if (/^(?:comment|pourquoi|explique|dis.moi comment|que |quel(?:le)?s? |c['’]est quoi|how |why |what |which |explain|hoe |wie |warum |como |por que |come |perche |ne |n['’]|sans |don.t |do not |no cambies|non modificare|如何|怎么|为什么|ทำอย่างไร)/.test(current)) return false;
   if (/\b(?:expli\w*|explain|montre\w*|show|dis.moi|tell me).{0,45}\b(?:comment|how|pourquoi|why|ou|where)\b/.test(current)) return false;

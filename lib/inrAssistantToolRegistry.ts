@@ -23,6 +23,7 @@ import { createInrAssistantCommunicationTools } from "./inrAssistantCommunicatio
 import { createInrAssistantAdvertisingTools } from "./inrAssistantAdvertisingTools.ts";
 import { createInrAssistantSettingsTools } from "./inrAssistantSettingsTools.ts";
 import { createInrAssistantCampaignTools } from "./inrAssistantCampaignTools.ts";
+import { createInrAssistantMailboxTools } from "./inrAssistantMailboxTools.ts";
 import { createInrAssistantAgentTools } from "./inrAssistantAgentTools.ts";
 import { createInrAssistantChannelActionTools } from "./inrAssistantChannelActionTools.ts";
 import { createInrAssistantMediaLibraryTools } from "./inrAssistantMediaLibraryTools.ts";
@@ -39,6 +40,8 @@ export type InrAssistantToolRegistryContext = {
   spokenRequest: string;
   families: Set<InrAssistantToolFamily>;
   requiredTools: string[];
+  /** Server catalogue labels used only to select schemas, never as executor instructions. */
+  discoveryTopics?: string[];
   canExecute: boolean;
   draftOnly: boolean;
   statusOnly: boolean;
@@ -61,7 +64,7 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
     draftOnly, statusOnly, navigationRequested, screenCommandRequested,
     remainingTimeMs, onMediaStarted, onMediaResult, onPublicationResult, resolvePreview } = context;
   const uiTools = navigationRequested || screenCommandRequested ? createInrAssistantUiTools({accountId:args.accountId,currentUserMessage:latestRequest,clientContext:args.clientContext,supabase:args.supabase,canStartWork:()=>remainingTimeMs()>1000}) : {};
-  const mediaTools = canExecute && families.has("media") ? createInrAssistantMediaTools({
+  const mediaTools = families.has("media") ? createInrAssistantMediaTools({
     request: args.request, requestId: args.actionRequestId ?? args.requestId,
     currentUserMessage: latestRequest,
     statusReadOnly: statusOnly && args.taskIntent !== "continue",
@@ -78,27 +81,28 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
       ...(families.has("publication") ? { getRecentPublications: available.getRecentPublications } : {}),
     };
   })();
-  const diagnosticTools = args.supabase && /(?:erreur|error|bloqu|impossible|echec|failed|bug|ne fonctionne|probleme|diagnosti|日志|错误)/i.test(latestRequest) ? createInrAssistantDiagnosticsTools({ supabase: args.supabase, accountId: args.accountId, edition: args.edition }) : {};
-  const channelTools = args.supabase && (!requiredTools.length || /connect|etat|manquant|cockpit|total|blocage/i.test(latestRequest)) && /canaux|canal|channel|cockpit|connect|connexion|manquant|\b\d{1,2}\s*(?:\/|sur)\s*14\b/i.test(latestRequest)
+  const diagnosticTools = args.supabase && (requiredTools.includes("getAccountDiagnostics") || /(?:erreur|error|bloqu|impossible|echec|failed|bug|ne fonctionne|probleme|diagnosti|日志|错误)/i.test(latestRequest)) ? createInrAssistantDiagnosticsTools({ supabase: args.supabase, accountId: args.accountId, edition: args.edition }) : {};
+  const channelTools = args.supabase && (requiredTools.includes("readChannelStatus") || (!requiredTools.length || /connect|etat|manquant|cockpit|total|blocage/i.test(latestRequest)) && /canaux|canal|channel|cockpit|connect|connexion|manquant|\b\d{1,2}\s*(?:\/|sur)\s*14\b/i.test(latestRequest))
     ? createInrAssistantChannelTools({supabase:args.supabase,accountId:args.accountId,edition:args.edition,signal:args.signal}) : {};
   const workspaceTools = args.supabase ? createInrAssistantWorkspaceTools({ supabase: args.supabase, accountId: args.accountId, edition: args.edition, request: args.request }) : {};
   const memoryTools = args.memory ? createInrAssistantMemoryTools({ memory: args.memory, excludeTurnId: args.turnId }) : {};
   const attachmentTools=args.fileContexts?.some(file=>file.text)?createInrAssistantAttachmentTools(args.fileContexts):{};
-  const topic = inrAssistantRoutingText(statusOnly ? args.taskContext!.instruction : latestRequest);
-  const routingTopic = inrAssistantRoutingText([latestRequest,args.taskContext?.instruction??"",...args.messages.filter(m=>m.role === "user").slice(-3,-1).map(m=>m.content)].join(" "));
+  const discoveryTopic=(context.discoveryTopics??[]).join(" ");
+  const topic = inrAssistantRoutingText(`${statusOnly ? args.taskContext!.instruction : latestRequest} ${discoveryTopic}`);
+  const routingTopic = inrAssistantRoutingText([latestRequest,discoveryTopic,args.taskContext?.instruction??"",...args.messages.filter(m=>m.role === "user").slice(-3,-1).map(m=>m.content)].join(" "));
   const businessTools = (() => {
-    if (!canExecute || !args.supabase || !families.has("business")) return {};
+    if (!args.supabase || !families.has("business")) return {};
     const available = createInrAssistantBusinessTools({ request: args.request, accountId: args.accountId, actorUserId: args.actorUserId, supabase: args.supabase, edition: args.edition, currentUserMessage: latestRequest, canStartWork: () => remainingTimeMs() > 15_000 });
     return {
-      ...(/(?:\badn\b|\bdna\b|entreprise|business|horaires|prestations|services|mission|valeurs)/.test(topic) && /(?:ajout|rempli|complet|modifi|chang|mets|mettez|remplac|enrich|enregistr|sauvegard|update|fill|save)/.test(topic) ? { updateBusinessDna: available.updateBusinessDna } : {}),
-      ...(/(?:configuration|reglages|\bia\b|\bai\b|emoji|consignes|\bton\b|tutoiement|vouvoiement)/.test(topic) ? { updateAiConfiguration: available.updateAiConfiguration } : {}),
+      ...(canExecute && /(?:\badn\b|\bdna\b|entreprise|business|horaires|prestations|services|mission|valeurs)/.test(topic) && /(?:ajout|rempli|complet|modifi|chang|mets|mettez|remplac|enrich|enregistr|sauvegard|update|fill|save)/.test(topic) ? { updateBusinessDna: available.updateBusinessDna } : {}),
+      ...(canExecute && /(?:configuration|reglages|\bia\b|\bai\b|emoji|consignes|\bton\b|tutoiement|vouvoiement)/.test(topic) ? { updateAiConfiguration: available.updateAiConfiguration } : {}),
       ...(/(?:connect|connexion)/.test(topic) ? { guideChannelConnection: available.guideChannelConnection } : {}),
     };
   })();
   const ctaTools = canExecute && args.supabase && /(?:\bctas?\b|appels? a l.action|\bbouton\b.{0,70}(?:appeler|telephone|facebook|site)|(?:telephone|numero|site|website|lien).{0,70}(?:partout|tous|toutes|contenus|publications|canaux|bouton)|(?:tous|toutes).{0,70}(?:telephone|site|website|lien))/.test(routingTopic)
     ? createInrAssistantCtaTools({ request: args.request, accountId: args.accountId, supabase: args.supabase,
       currentUserMessage: latestRequest, canStartWork: () => remainingTimeMs() > 15_000 }) : {};
-  const dnaAnalysisTools = canExecute && args.supabase && /\b(?:adn|dna)\b/.test(topic) && /(?:analys|complet|rempli|enrich|suivi|etat|resultat|termine)/.test(topic)
+  const dnaAnalysisTools = args.supabase && /\b(?:adn|dna)\b/.test(topic) && /(?:analys|complet|rempli|enrich|suivi|etat|resultat|termine)/.test(topic)
     ? createInrAssistantDnaAnalysisTools({ request: args.request, accountId: args.accountId, supabase: args.supabase,
       currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
       actionStartedAt: args.actionStartedAt,
@@ -113,26 +117,26 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
     };
   })();
   const publicationTools = (() => {
-    if (!canExecute || !args.supabase || !families.has("publication")) return {};
+    if (!args.supabase || !families.has("publication")) return {};
     const available = createInrAssistantPublicationTools({ request: args.request, accountId: args.accountId, supabase: args.supabase,
       currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
       statusReadOnly:statusOnly,
       canStartWork: () => remainingTimeMs() > 15_000, onResult: onPublicationResult });
     return {
-      ...(requiredTools.some(name=>["preparePublication","executePublication"].includes(name)) ? {preparePublication: available.preparePublication} : {}),
-      ...(requiredTools.includes("executePublication") ? { executePublication: available.executePublication } : {}),
-      ...(requiredTools.includes("editPublication") ? { editPublication: available.editPublication } : {}),
+      ...(canExecute && requiredTools.some(name=>["preparePublication","executePublication"].includes(name)) ? {preparePublication: available.preparePublication} : {}),
+      ...(canExecute && requiredTools.includes("executePublication") ? { executePublication: available.executePublication } : {}),
+      ...(canExecute && requiredTools.includes("editPublication") ? { editPublication: available.editPublication } : {}),
       ...(statusOnly || /(?:statut|status|etat|deja|suivi|verifi|resultat|en cours)/.test(topic) ? { getPublicationStatus: available.getPublicationStatus } : {}),
     };
   })();
   const workspaceActionTools = (() => {
-    if (!canExecute || !args.supabase || !families.has("workspace") && !families.has("media")) return {};
+    if (!args.supabase || !families.has("workspace") && !families.has("media") && !families.has("commercial")) return {};
     const available = createInrAssistantWorkspaceActionTools({ request: args.request, accountId: args.accountId, supabase: args.supabase, edition: args.edition,
       currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId, canStartWork: () => remainingTimeMs() > 15_000 });
     return {
-      ...(requiredTools.includes("updateMediaMetadata") ? { updateMediaMetadata: available.updateMediaMetadata } : {}),
-      ...(requiredTools.includes("prepareCampaignEmail") ? { prepareCampaignEmail: available.prepareCampaignEmail } : {}),
-      ...(requiredTools.includes("prepareCalendarAppointment") ? { prepareCalendarAppointment: available.prepareCalendarAppointment } : {}),
+      ...(canExecute && requiredTools.includes("updateMediaMetadata") ? { updateMediaMetadata: available.updateMediaMetadata } : {}),
+      ...(canExecute && requiredTools.includes("prepareCampaignEmail") ? { prepareCampaignEmail: available.prepareCampaignEmail } : {}),
+      ...(canExecute && requiredTools.includes("prepareCalendarAppointment") ? { prepareCalendarAppointment: available.prepareCalendarAppointment } : {}),
       ...(/(?:\bcrm\b|client|prospect|contact)/.test(topic) ? { searchCrmContacts: available.searchCrmContacts, readCrmContact: available.readCrmContact } : {}),
     };
   })();
@@ -162,11 +166,11 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
     ? (()=>{const available=createInrAssistantCalendarTools({request:args.request,accountId:args.accountId,actorUserId:args.actorUserId!,supabase:args.supabase!,edition:args.edition,currentUserMessage:latestRequest,currentApprovalMessage:spokenRequest,canStartWork:()=>remainingTimeMs()>15000,resolvePreview});
       return {previewCalendarAction:available.previewCalendarAction,...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?{applyCalendarAction:available.applyCalendarAction}:{})};})() : {};
   const scheduledLifecycle=requiredTools.some(name=>["updateScheduledPublication","cancelScheduledPublication","retryScheduledPublication"].includes(name));
-  const scheduledTools=canExecute && args.supabase && args.actorUserId && families.has("publication") && (scheduledLifecycle || /programm|planifi|echec|echou/.test(topic))
+  const scheduledTools=args.supabase && args.actorUserId && families.has("publication") && (scheduledLifecycle || /programm|planifi|echec|echou/.test(topic))
     ? (()=>{const available=createInrAssistantScheduledPublicationTools({request:args.request,accountId:args.accountId,actorUserId:args.actorUserId!,supabase:args.supabase!,edition:args.edition,currentUserMessage:latestRequest,currentApprovalMessage:spokenRequest,canStartWork:()=>remainingTimeMs()>15000,resolvePreview});
-      return {readScheduledPublications:available.readScheduledPublications,...(scheduledLifecycle?{previewScheduledPublicationAction:available.previewScheduledPublicationAction}:{}),...(scheduledLifecycle && /\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?{applyScheduledPublicationAction:available.applyScheduledPublicationAction}:{})};})() : {};
+      return {readScheduledPublications:available.readScheduledPublications,...(canExecute && scheduledLifecycle?{previewScheduledPublicationAction:available.previewScheduledPublicationAction}:{}),...(canExecute && scheduledLifecycle && /\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?{applyScheduledPublicationAction:available.applyScheduledPublicationAction}:{})};})() : {};
   const communicationTools = (() => {
-    if (!canExecute || args.edition === "basic" || !args.supabase || !families.has("workspace")) return {};
+    if (args.edition === "basic" || !args.supabase || !families.has("workspace")) return {};
     const available = createInrAssistantCommunicationTools({ request: args.request, accountId: args.accountId, actorUserId: args.actorUserId,
       supabase: args.supabase, edition: args.edition, currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
       canStartWork: () => remainingTimeMs() > 15_000 });
@@ -174,31 +178,35 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
     const calendar = /(?:agenda|calendar|rendez.vous|\brdv\b)/.test(routingTopic);
     return {
       ...((mail || calendar) && (calendarLifecycle || /(?:retrouv|recherch|consulte|lis\b|lire|liste|voir|verifi|dernier|existant|modifi|corrig|chang|deplac|envo|programm)/.test(topic)) ? { readCommunicationRecords: available.readCommunicationRecords } : {}),
-      ...(mail && requiredTools.includes("updateCampaignDraft") ? { updateCampaignDraft: available.updateCampaignDraft } : {}),
-      ...(mail && requiredTools.includes("dispatchCampaignDraft") && !families.has("advertising") ? { dispatchCampaignDraft: available.dispatchCampaignDraft } : {}),
+      ...(canExecute && mail && requiredTools.includes("updateCampaignDraft") ? { updateCampaignDraft: available.updateCampaignDraft } : {}),
+      ...(canExecute && mail && requiredTools.includes("dispatchCampaignDraft") && !families.has("advertising") ? { dispatchCampaignDraft: available.dispatchCampaignDraft } : {}),
     };
   })();
   const advertisingTools = (() => {
-    if (!canExecute || args.edition === "basic" || !families.has("advertising")) return {};
+    if (args.edition === "basic" || !families.has("advertising")) return {};
     const available = createInrAssistantAdvertisingTools({ request: args.request, accountId: args.accountId, edition: args.edition,
       currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
       canStartWork: () => remainingTimeMs() > 15_000 });
     return {
       readAdvertisingCampaigns: available.readAdvertisingCampaigns,
-      ...(/(?:cre|prepar|brouillon|draft)/.test(topic) ? { prepareAdvertisingCampaign: available.prepareAdvertisingCampaign } : {}),
-      ...(/(?:pause|arret|suspend|repren|repri|reactiv|modifi|corrig|chang|budget|supprim|effac|update)/.test(topic) ? { manageAdvertisingCampaign: available.manageAdvertisingCampaign } : {}),
+      ...(canExecute && /(?:cre|prepar|brouillon|draft)/.test(topic) ? { prepareAdvertisingCampaign: available.prepareAdvertisingCampaign } : {}),
+      ...(canExecute && /(?:pause|arret|suspend|repren|repri|reactiv|modifi|corrig|chang|budget|supprim|effac|update)/.test(topic) ? { manageAdvertisingCampaign: available.manageAdvertisingCampaign } : {}),
     };
   })();
   const settingsTools = families.has("settings") ? createInrAssistantSettingsTools({ request: args.request, accountId: args.accountId,
     actorUserId: args.actorUserId, edition: args.edition, currentUserMessage: latestRequest, canStartWork: () => remainingTimeMs() > 15_000 }) : {};
-  const campaignTools = canExecute && args.supabase && args.actorUserId && families.has("workspace") && (requiredTools.some(name=>["dispatchCampaignAudience","selectCampaignMailbox"].includes(name)) || statusOnly && requiredTools.includes("dispatchCampaignDraft") || /audience|segment|expediteur|mailbox|boite|\bap-[a-f0-9]{12}\b/.test(routingTopic))
+  const campaignTools = args.supabase && args.actorUserId && families.has("workspace") && (requiredTools.some(name=>["dispatchCampaignAudience","selectCampaignMailbox","listCampaignMailboxes","readCampaignDeliveryStatus"].includes(name)) || statusOnly && requiredTools.includes("dispatchCampaignDraft") || /audience|segment|expediteur|mailbox|boite|\bap-[a-f0-9]{12}\b/.test(routingTopic))
     ? (()=>{ const available=createInrAssistantCampaignTools({request:args.request,accountId:args.accountId,actorUserId:args.actorUserId!,edition:args.edition,supabase:args.supabase!,currentUserMessage:latestRequest,actionRequestId:args.actionRequestId??args.requestId,canStartWork:()=>remainingTimeMs()>15_000});
       return { listCampaignMailboxes:available.listCampaignMailboxes,
-        ...(statusOnly?{readCampaignDeliveryStatus:available.readCampaignDeliveryStatus}:{}),
-        ...(/expediteur|boite|adresse d.envoi|mailbox|sender/.test(topic)?{selectCampaignMailbox:available.selectCampaignMailbox}:{}),
-        ...(/audience|segment|clients|prospects|contacts|destinataires|apercu|envoi|envoie/.test(topic)?{previewCampaignAudience:available.previewCampaignAudience}:{}),
-        ...(/\bap-[a-f0-9]{12}\b/.test(topic)?{dispatchCampaignAudience:available.dispatchCampaignAudience}:{}) };
+        ...(statusOnly || requiredTools.includes("readCampaignDeliveryStatus")?{readCampaignDeliveryStatus:available.readCampaignDeliveryStatus}:{}),
+        ...(canExecute && /expediteur|boite|adresse d.envoi|mailbox|sender/.test(topic)?{selectCampaignMailbox:available.selectCampaignMailbox}:{}),
+        ...(canExecute && /audience|segment|clients|prospects|contacts|destinataires|apercu|envoi|envoie/.test(topic)?{previewCampaignAudience:available.previewCampaignAudience}:{}),
+        ...(canExecute && /\bap-[a-f0-9]{12}\b/.test(topic)?{dispatchCampaignAudience:available.dispatchCampaignAudience}:{}) };
     })() : {};
+  const individualMailboxRequested = requiredTools.some(name => ["listIndividualMailboxes", "readIndividualMailHistory", "previewIndividualMail", "sendIndividualMail"].includes(name)) ||
+    /mail|courriel|boite|expediteur/.test(routingTopic) && !/campagne|newsletter|audience|segment/.test(routingTopic);
+  const mailboxTools=args.supabase && args.actorUserId && families.has("workspace") && individualMailboxRequested
+    ? createInrAssistantMailboxTools({request:args.request,accountId:args.accountId,actorUserId:args.actorUserId,supabase:args.supabase,edition:args.edition,currentUserMessage:latestRequest,currentApprovalMessage:spokenRequest,resolvePreview,canStartWork:()=>remainingTimeMs()>15000}) : {};
   const additionalTools = (() => {
     if (!args.supabase || !args.actorUserId || draftOnly) return {};
     const scope = { request: args.request, accountId: args.accountId, actorUserId: args.actorUserId, supabase: args.supabase, edition: args.edition,
@@ -224,5 +232,5 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
     }
     return selected;
   })();
-  return { uiTools, mediaTools, accountTools, diagnosticTools, channelTools, workspaceTools, memoryTools, attachmentTools, businessTools, ctaTools, dnaAnalysisTools, managementTools, publicationTools, workspaceActionTools, insightsTools, commercialTools, documentTools, calendarTools, scheduledTools, communicationTools, advertisingTools, settingsTools, campaignTools, additionalTools };
+  return { uiTools, mediaTools, accountTools, diagnosticTools, channelTools, workspaceTools, memoryTools, attachmentTools, businessTools, ctaTools, dnaAnalysisTools, managementTools, publicationTools, workspaceActionTools, insightsTools, commercialTools, documentTools, calendarTools, scheduledTools, communicationTools, advertisingTools, settingsTools, campaignTools, mailboxTools, additionalTools };
 }

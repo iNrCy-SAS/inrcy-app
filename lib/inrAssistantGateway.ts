@@ -28,9 +28,12 @@ import { reserveInrAssistantRequest, finalizeInrAssistantRequest } from "./inrAs
 import { reserveInrAssistantBudget, finalizeInrAssistantBudget } from "./inrAssistantBudget.ts";
 import { buildInrAssistantSystemPrompt, InrAssistantInputError } from "./inrAssistantConversation.ts";
 import { getInrAssistantAppKnowledge, createInrAssistantAppGuideTool, getVerifiedInrAssistantNavigation } from "./inrAssistantAppGuides.ts";
-import { selectInrAssistantToolFamilies, inrAssistantRoutingText, inrAssistantRequiredTools, inrAssistantTaskOutcome, verifiedInrAssistantCapabilityLimit } from "./inrAssistantToolRouting.ts";
+import { selectInrAssistantToolFamilies, inrAssistantSelectionToolHints, inrAssistantRoutingText, inrAssistantRequiredTools, inrAssistantTaskOutcome, verifiedInrAssistantCapabilityLimit } from "./inrAssistantToolRouting.ts";
 import type { InrAssistantTaskState, InrAssistantTaskOutcome, InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
-import { inrAssistantRequiredCalls, inrAssistantGoalCompleted, inrAssistantTaskTrackingLimit, compactInrAssistantTaskReceipts } from "./inrAssistantTaskPolicy.ts";
+import { inrAssistantRequiredCalls, inrAssistantGoalCompleted, inrAssistantTaskTrackingLimit, compactInrAssistantTaskReceipts, inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantTaskPolicy.ts";
+import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsAction, inrAssistantObjectiveFamily, inrAssistantObjectiveLabel, createInrAssistantReadBudget } from "./inrAssistantObjectives.ts";
+import { inrAssistantUiActionsFromToolResult, INR_ASSISTANT_MAX_UI_ACTIONS, type InrAssistantUiAction } from "./inrAssistantUiActions.ts";
+import { discoverInrAssistantActionCoverage } from "./inrAssistantActionCoverage.ts";
 import { deriveInrAssistantStudioDraft, isInrAssistantStudioDraftRequest, parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "./inrAssistantStudioDraft.ts";
 import { withInrAssistantToolActivities } from "./inrAssistantActivity.ts";
 import { classifyInrAssistantGatewayFailure, projectInrAssistantGatewayDiagnostic, recordInrAssistantGatewayDiagnostic,
@@ -38,7 +41,7 @@ import { classifyInrAssistantGatewayFailure, projectInrAssistantGatewayDiagnosti
 import { assistantModelInputBudget } from "./inrAssistantAttachments.ts";
 import { assistantMessagesWithFiles } from "./inrAssistantAttachmentPrompt.ts";
 import { compactInrAssistantGuideContext } from "./inrAssistantPromptContext.ts";
-import { INR_ASSISTANT_COMMANDS, INR_ASSISTANT_PENDING_STATUSES, INR_ASSISTANT_UNCERTAIN_STATUSES, inrAssistantCommandLabel } from "./inrAssistantCommandRegistry.ts";
+import { INR_ASSISTANT_COMMANDS, INR_ASSISTANT_PENDING_STATUSES, INR_ASSISTANT_UNCERTAIN_STATUSES } from "./inrAssistantCommandRegistry.ts";
 import { createInrAssistantUiTools } from "./inrAssistantUiTools.ts";
 import { getDirectInrAssistantNavigationRequest, getPureInrAssistantNavigationRequest, parseInrAssistantNavigation, isInrAssistantNavigationRequest, isInrAssistantScreenCommandRequest, parseInrAssistantUiCommand, type InrAssistantNavigation, type InrAssistantUiCommand } from "./inrAssistantUiCommands.ts";
 
@@ -165,7 +168,9 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     }
   }
   const families = selectInrAssistantToolFamilies(latestRequest, args.messages.filter(message => message.role === "user").slice(0, -1).map(message => message.content));
-  const adviceOnly = /^(?:comment|pourquoi|explique|how|why|what|wie|como)\b|\b(?:explique|explain|me dire)\b.{0,60}\b(?:comment|how|pourquoi|why)\b/.test(inrAssistantRoutingText(spokenRequest).trim());
+  const objectives = draftOnly ? [] : inrAssistantObjectives(args.taskContext && args.actionInstruction ? args.taskContext.instruction : latestRequest);
+  for (const objective of objectives) { const family=inrAssistantObjectiveFamily(objective.tool);if(family) families.add(family); }
+  const adviceOnly = inrAssistantRequestClauses(latestRequest).some(inrAssistantClauseIsAdvice) && !inrAssistantRequiredTools(latestRequest).length;
   const canExecute = !draftOnly && !adviceOnly;
   const humanSupportRequested = requestedHumanSupport(spokenRequest);
   const studioDraftState: {value?: InrAssistantStudioDraft} = {};
@@ -199,9 +204,20 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   // A resolved continuation may fill slots or approve a preview. Its wording
   // must never add a second goal to the server-owned authorization scope.
   const requiredTools = canExecute ? [...new Set(args.taskContext && args.actionInstruction ? args.taskContext.requiredTools : inrAssistantRequiredTools(latestRequest))] : [];
+  if (canExecute && !args.taskContext) {
+    for (const name of inrAssistantSelectionToolHints(latestRequest, args.clientContext?.screen)) {
+      if (!requiredTools.includes(name)) requiredTools.push(name);
+      families.add("media");
+    }
+  }
+  for(const objective of objectives) if(objective.kind==="read" && !requiredTools.includes(objective.tool)) requiredTools.push(objective.tool);
   if (navigationRequested) requiredTools.push("navigateApplication");
   if (screenCommandRequested) requiredTools.push("runScreenCommand");
   const requiredCalls = { ...inrAssistantRequiredCalls(latestRequest), ...args.taskContext?.requiredCalls };
+  for(const name of new Set(objectives.filter(objective=>objective.kind==="read").map(objective=>objective.tool))) {
+    const count=objectives.filter(objective=>objective.kind==="read" && objective.tool===name).length;
+    if(count>1) requiredCalls[name]=Math.max(requiredCalls[name]??1,count);
+  }
   if (!args.taskContext && requiredTools.includes("importMediaAttachment")) {
     const attachments = args.mediaAttachments ?? [];
     const named = attachments.filter(file => latestRequest.toLowerCase().includes(file.name.toLowerCase())).length;
@@ -226,22 +242,31 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const receipts: InrAssistantActionReceipt[] = [...(args.taskContext?.receipts ?? [])];
   let verifiedHandoffMessage: string | undefined;
   const readCounts = new Map<string,number>();
-  const previewActionNames = new Set(["previewCalendarAction","previewScheduledPublicationAction","previewGoogleBusinessProfileUpdate","previewMediaDeletion","previewPublicationLifecycleAction"]);
+  const readBudget = createInrAssistantReadBudget();
+  const readObjectiveAtStart = new Map<string, string>();
+  const previewActionNames = new Set(["previewCalendarAction","previewScheduledPublicationAction","previewGoogleBusinessProfileUpdate","previewMediaDeletion","previewPublicationLifecycleAction","previewIndividualMail"]);
   const observedActionNames = new Set([...Object.keys(INR_ASSISTANT_COMMANDS),"navigateApplication","runScreenCommand","previewCampaignAudience",...previewActionNames,"applyCalendarAction","applyScheduledPublicationAction"]);
   const privateApprovals=new Map(receipts.flatMap(receipt=>receipt.approvalReference && receipt.approvalToken && receipt.approvalKind?[[receipt.approvalReference,{token:receipt.approvalToken,kind:receipt.approvalKind}] as const]:[]));
   const resolvePreview=(reference:string)=>privateApprovals.get(reference)?.token??null;
   let navigation: InrAssistantNavigation | undefined;
   let uiCommand: InrAssistantUiCommand | undefined;
+  const uiActions: InrAssistantUiAction[] = [];
   const savedActionReply = () => [...actionFacts.values()].map(fact => `${fact.message}${fact.href ? `\n\n[${fact.label ?? "Ouvrir l’outil"}](${fact.href})` : ""}`).join("\n\n");
   const followupAfterMedia = requiredTools.some(name=>!['generateMedia','modifyMedia'].includes(name)) || families.has("publication") || families.has("business") && /\b(?:adn|dna|configuration|reglages)\b/i.test(latestRequest);
-  const { uiTools, mediaTools, accountTools, diagnosticTools, channelTools, workspaceTools, memoryTools, attachmentTools, businessTools, ctaTools, dnaAnalysisTools, managementTools, publicationTools, workspaceActionTools, insightsTools, commercialTools, documentTools, calendarTools, scheduledTools, communicationTools, advertisingTools, settingsTools, campaignTools, additionalTools } = createInrAssistantToolRegistry({
-    args, latestRequest, spokenRequest, families, requiredTools, canExecute,
-    draftOnly, statusOnly, navigationRequested, screenCommandRequested, resolvePreview,
-    remainingTimeMs: () => deadline - Date.now(),
-    onMediaStarted: (requestId) => { mediaState.requestId = requestId; deadline = started + 780_000; },
-    onMediaResult: (result) => { mediaState.result = result; },
-    onPublicationResult: (result) => { publicationResults.push(result); },
+  const buildRegistry = (discovery?: {
+      families: typeof families;
+      requiredTools: string[];
+      discoveryTopics: string[];
+  }) => createInrAssistantToolRegistry({
+      args, latestRequest, spokenRequest, families, requiredTools, canExecute,
+      draftOnly, statusOnly, navigationRequested, screenCommandRequested, resolvePreview,
+      remainingTimeMs: () => deadline - Date.now(),
+      onMediaStarted: (requestId) => { mediaState.requestId = requestId; deadline = started + 780_000; },
+      onMediaResult: (result) => { mediaState.result = result; },
+      onPublicationResult: (result) => { publicationResults.push(result); },
+      ...discovery,
   });
+  const { uiTools, mediaTools, accountTools, diagnosticTools, channelTools, workspaceTools, memoryTools, attachmentTools, businessTools, ctaTools, dnaAnalysisTools, managementTools, publicationTools, workspaceActionTools, insightsTools, commercialTools, documentTools, calendarTools, scheduledTools, communicationTools, advertisingTools, settingsTools, campaignTools, mailboxTools, additionalTools } = buildRegistry();
   const operationGuidance = [
     Object.keys(additionalTools).length ? "Actions des outils inclus : lire les références réelles avant mutation. Toute suppression ou modification de fiche Google passe par un aperçu signé puis sa référence IA exacte confirmée actuellement. Les aperçus ne sont jamais des actions achevées. Pour les médias, importer uniquement les pièces jointes du tour courant ; téléchargement demandé au navigateur, jamais annoncé terminé sans retour. Les réglages/activations Basic sont permis ; les agents restent Standard. L’envoi d’un bilan exige un ordre explicite d’envoi, un PDF consulté ne l’autorise pas." : "",
     Object.keys(commercialTools).length ? "CRM : retrouve les IDs avec searchCrmContacts ; manageCrmContact ne change que la fiche demandée. prepareCommercialDocument enregistre seulement un brouillon : quantité, prix HT et TVA explicites, renseignements manquants signalés, jamais de numéro officiel, finalisation ou envoi. Documents commerciaux distincts des factures d’abonnement." : "",
@@ -281,6 +306,14 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
               }
               if(result.toolName === "readCampaignDeliveryStatus" && typeof output.campaignId === "string") output={...output,recordId:output.campaignId};
               if (!observedActionNames.has(result.toolName)) {
+                const index=objectives.findIndex(objective=>objective.kind==="read" && objective.tool===result.toolName && objective.id===readObjectiveAtStart.get(result.toolCallId));
+                if(index>=0) {
+                  const objective=objectives[index];
+                  const verified=(output.ok===true || output.available===true || output.found===true) && output.ok!==false && output.available!==false;
+                  const more=typeof output.nextOffset==="number" || typeof output.nextPage==="number" || output.truncated===true;
+                  receipts.push({tool:result.toolName,recordId:objective.id,ok:verified,status:verified && !(objective.exhaustive && more)?"read":"partial",message:verified?`${inrAssistantObjectiveLabel(result.toolName)}${objective.exhaustive && more?" : recherche encore partielle.":" : lecture effectuée."}`:"La lecture demandée n’a pas pu être vérifiée."});
+                  receiptsChanged=true;
+                }
                 if (statusOnly && typeof output.status === "string" && typeof output.message === "string") {
                   const pending=receipts.filter(receipt=>INR_ASSISTANT_COMMANDS[receipt.tool]?.statusReader===result.toolName && INR_ASSISTANT_PENDING_STATUSES.has(receipt.status));
                   const ids=["id","draftId","requestId","publicationId","scheduledActionId","recordId","eventId"] as const;
@@ -298,6 +331,9 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
                 return;
               }
               if(["runScreenCommand","prepareMediaDownload","prepareStatsReportDownload"].includes(result.toolName) && output.ok === true) uiCommand=parseInrAssistantUiCommand(output.uiCommand)??undefined;
+              const queuedActions=inrAssistantUiActionsFromToolResult(result.toolCallId,output);
+              if(uiActions.length+queuedActions.length>INR_ASSISTANT_MAX_UI_ACTIONS) throw new InrAssistantInputError("La limite d’actions à transmettre au navigateur est atteinte. Les actions restantes n’ont pas été transmises.");
+              uiActions.push(...queuedActions);
               if (result.toolName === "navigateApplication" && output.ok === true && output.navigation && typeof output.navigation === "object") {
                 const target=parseInrAssistantNavigation(output.navigation);
                 if(target) navigation=target;
@@ -346,6 +382,8 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     return [name, { ...definition, execute: (...input: unknown[]) => {
       const next = mutationTail.then(async () => {
         if(checkpointFailed) throw new InrAssistantInputError("La tâche doit être vérifiée avant de poursuivre.");
+        if(!inrAssistantPlanAllowsAction(objectives,name,receipts)) return {ok:false,status:"blocked",message:"Une étape explicitement demandée doit être terminée avant cette action."};
+        if(["navigateApplication","runScreenCommand","prepareMediaDownload","prepareStatsReportDownload"].includes(name) && uiActions.length>INR_ASSISTANT_MAX_UI_ACTIONS-2) return {ok:false,status:"blocked",message:"La limite d’actions du navigateur est atteinte. Cette action n’a pas été transmise."};
         const options=input[1] && typeof input[1] === "object"?input[1] as {toolCallId?:string}:{};
         const toolCallId=options.toolCallId??name+'-'+receipts.length;
         // Persist before business side effects, then after the verified result.
@@ -362,7 +400,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
         if(output && typeof output === "object") {
           const raw=output as Record<string,unknown>;
           if(previewActionNames.has(name) && typeof raw.token === "string") {
-            if(raw.token.length<=24000 && typeof raw.reference === "string" && /^IA-[A-F0-9]{12}$/.test(raw.reference) && ["calendar","scheduled_publication","google_business_profile","media_delete","publication_lifecycle"].includes(String(raw.approvalKind))) privateApprovals.set(raw.reference,{token:raw.token,kind:raw.approvalKind as NonNullable<InrAssistantActionReceipt["approvalKind"]>});
+            if(raw.token.length<=24000 && typeof raw.reference === "string" && /^IA-[A-F0-9]{12}$/.test(raw.reference) && ["calendar","scheduled_publication","google_business_profile","media_delete","publication_lifecycle","individual_mail"].includes(String(raw.approvalKind))) privateApprovals.set(raw.reference,{token:raw.token,kind:raw.approvalKind as NonNullable<InrAssistantActionReceipt["approvalKind"]>});
             const {token:_privateToken,...safe}=raw; output=safe;
           }
         }
@@ -377,16 +415,60 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
       mutationTail = next.catch(() => undefined); return next;
     } }];
   })) as T;
-  const allTools = assistantToolsForEdition({ ...(humanSupportRequested ? {proposeHumanSupport: supportTool} : {}), ...(draftOnly ? {prepareStudioPrompt} : {}), readAppGuide: createInrAssistantAppGuideTool(), ...mediaTools, ...accountTools, ...diagnosticTools,
+  const discoveredNames = new Set<string>();
+  const discoverCapabilities = tool({
+      description: "Découvrir les capacités réelles de l’application lorsque les outils nécessaires ne sont pas proposés. Chercher le domaine ou l’action avec des mots métier (par exemple contact, agenda, publication, mail). Les résultats distinguent lecture, préparation, exécution, validation humaine et fonction absente. Une recherche précise expose au prochain pas les outils natifs inclus ; jamais une autorisation, aucun effet métier. Les outils conservent leurs contrôles d’ordre actuel, compte, forfait et confirmation.",
+      inputSchema: jsonSchema<{
+          query: string;
+          domain: string | null;
+          offset: number;
+      }>({ type: "object", additionalProperties: false, properties: { query: { type: "string", maxLength: 200 }, domain: { type: ["string", "null"], maxLength: 60 }, offset: { type: "integer", minimum: 0, maximum: 1000 } }, required: ["query", "domain", "offset"] }),
+      execute: async (input): Promise<Record<string, unknown>> => {
+          const catalogue = discoverInrAssistantActionCoverage({ query: input.query, domain: input.domain ?? undefined, offset: input.offset, limit: 4, edition: args.edition });
+          if (!input.query.trim() && !input.domain)
+              return { ...catalogue, enabledTools: [] };
+          const entries = catalogue.items.filter(item => item.availability === "implemented" && item.includedInEdition);
+          const names = new Set(entries.flatMap(item => item.tools));
+          const registry = buildRegistry({ families: new Set([...families, ...entries.map(item => item.family)]), requiredTools: [...new Set([...requiredTools, ...names])], discoveryTopics: entries.map(item => item.label) });
+          const available = Object.assign({}, ...Object.values(registry)) as Record<string, unknown>;
+          const selected = Object.fromEntries(Object.entries(assistantToolsForEdition(available, args.edition)).filter(([name, definition]) => names.has(name) && !tools[name as keyof typeof tools] && discoveredNames.size < 8 && allowedDefinition(name, definition)));
+          const bounded = Object.fromEntries(Object.entries(selected).slice(0, Math.max(0, 8 - discoveredNames.size)));
+          for (const name of Object.keys(bounded))
+              discoveredNames.add(name);
+          // AI SDK reads the same ToolSet again for each step. Added definitions use
+          // exactly the same execution wrappers, budget and native authorization.
+          Object.assign(tools, withInrAssistantToolActivities(serializeMutations(boundReads(bounded)), { requestId: args.requestId, onActivity: args.onActivity }));
+          return { ...catalogue, enabledTools: [...names].filter(name => Boolean(tools[name as keyof typeof tools])), activationLimitReached: discoveredNames.size >= 8 };
+      },
+  });
+  const allTools = assistantToolsForEdition({discoverCapabilities, ...(humanSupportRequested ? {proposeHumanSupport: supportTool} : {}), ...(draftOnly ? {prepareStudioPrompt} : {}), readAppGuide: createInrAssistantAppGuideTool(), ...mediaTools, ...accountTools, ...diagnosticTools,
     ...workspaceTools, ...memoryTools, ...attachmentTools, ...businessTools, ...ctaTools, ...dnaAnalysisTools, ...managementTools, ...publicationTools, ...workspaceActionTools, ...insightsTools,
-    ...commercialTools, ...communicationTools, ...advertisingTools, ...settingsTools, ...campaignTools, ...channelTools, ...documentTools, ...calendarTools, ...scheduledTools, ...additionalTools }, draftOnly ? "basic" : args.edition);
+    ...commercialTools, ...communicationTools, ...advertisingTools, ...settingsTools, ...campaignTools, ...mailboxTools, ...channelTools, ...documentTools, ...calendarTools, ...scheduledTools, ...additionalTools }, draftOnly ? "basic" : args.edition);
   // No executor is exposed during a status-only continuation. In particular a
   // queued publication can never be re-dispatched merely to obtain its status.
-  const selectedTools = Object.fromEntries(Object.entries(assistantToolsForEdition({...allTools,...uiTools},args.edition)).filter(([name,definition])=>
-    Boolean(definition) && !((statusOnly || draftOnly || adviceOnly) && observedActionNames.has(name)) &&
-    !(["generateMedia","modifyMedia","cancelMediaGeneration"].includes(name) && !requiredTools.includes(name)) &&
-    !(requiredTools.includes("updateToolSettings") && !requiredTools.some(tool=>["generateMedia","modifyMedia"].includes(tool)) && ["generateMedia","modifyMedia"].includes(name)))) as typeof allTools & typeof uiTools;
-  const tools = withInrAssistantToolActivities(serializeMutations(selectedTools),
+  const allowedDefinition = (name: string, definition: unknown) => Boolean(definition) && !((statusOnly || draftOnly || adviceOnly) && observedActionNames.has(name)) &&
+      !(["generateMedia", "modifyMedia", "cancelMediaGeneration"].includes(name) && !requiredTools.includes(name)) &&
+      !(requiredTools.includes("updateToolSettings") && !requiredTools.some(tool => ["generateMedia", "modifyMedia"].includes(tool)) && ["generateMedia", "modifyMedia"].includes(name));
+  const selectedTools = Object.fromEntries(Object.entries(assistantToolsForEdition({...allTools,...uiTools},args.edition)).filter(([name,definition])=>allowedDefinition(name,definition))) as typeof allTools & typeof uiTools;
+  const boundReads = <T extends Record<string, unknown>>(available: T): T => Object.fromEntries(Object.entries(available).map(([name, definition]) => {
+    if (observedActionNames.has(name) || !definition || typeof definition !== "object" || !("execute" in definition) || typeof definition.execute !== "function") return [name, definition];
+    const execute = definition.execute;
+    return [name, {
+      ...definition,
+      execute: async (...input: unknown[]) => {
+        const eligibleObjective = objectives.find((objective, index) => objective.kind === "read" && objective.tool === name &&
+          !inrAssistantObjectiveCompleted(objectives, index, receipts) && inrAssistantObjectiveReady(objectives, index, receipts));
+        const attempt = readBudget.start(name, input[0], eligibleObjective?.exhaustive ? eligibleObjective.id : undefined);
+        if (!attempt) return { ok: false, status: "blocked", message: "Cette lecture se répète sans progression vérifiable. Précisez la recherche avant de continuer." };
+        const executionOptions = input[1] as { toolCallId?: string } | undefined;
+        if (eligibleObjective && executionOptions?.toolCallId) readObjectiveAtStart.set(executionOptions.toolCallId, eligibleObjective.id);
+        const output = await Reflect.apply(execute, definition, input);
+        readBudget.finish(attempt, output);
+        return output;
+      },
+    }];
+  })) as T;
+  const tools = withInrAssistantToolActivities(serializeMutations(boundReads(selectedTools)),
   { requestId: args.requestId, onActivity: args.onActivity });
   const schemas = await Promise.all(Object.entries(tools).map(async ([name, definition]) => ({
     type: "function", name, description: definition.description,
@@ -429,17 +511,17 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     }
     if (mediaState.result && !receipts.some(r=>r.tool === "generateMedia" || r.tool === "modifyMedia")) receipts.push({tool:requiredTools.includes("modifyMedia")?"modifyMedia":"generateMedia",ok:mediaState.result.ok,status:mediaState.result.status,message:mediaState.result.message,requestId:mediaState.result.requestId,...(mediaState.result.media?.id?{id:mediaState.result.media.id}:{})});
     const businessRequired=requiredTools.filter(name=>!["navigateApplication","runScreenCommand"].includes(name));
-    if(!businessRequired.length && (navigationRequested || screenCommandRequested)) return {...reply,...(navigation?{navigation}:{}),...(uiCommand?{uiCommand}:{}),outcome:navigation || uiCommand?"processing":"needs_input"};
+    if(!businessRequired.length && (navigationRequested || screenCommandRequested)) return {...reply,...(navigation?{navigation}:{}),...(uiCommand?{uiCommand}:{}),...(uiActions.length?{uiActions}:{}),outcome:navigation || uiCommand?"processing":"needs_input"};
     const outcome = inrAssistantTaskOutcome(businessRequired,receipts.filter(receipt=>!["navigateApplication","runScreenCommand"].includes(receipt.tool)),reply.message,requiredCalls);
     success = outcome === "completed";
     if (!requiredTools.length) return verifiedHandoffMessage ? {...reply,needsHuman:true,handoffSummary:verifiedHandoffMessage,outcome:"blocked"} : reply;
-    const label=(name:string)=>name==="navigateApplication"?"ouvrir l’outil demandé":name==="runScreenCommand"?"exporter le PDF demandé":inrAssistantCommandLabel(name);
+    const label=(name:string)=>name==="navigateApplication"?"ouvrir l’outil demandé":name==="runScreenCommand"?"exporter le PDF demandé":inrAssistantObjectiveLabel(name);
     const remaining = businessRequired.filter(name=>!inrAssistantGoalCompleted(name,receipts,requiredCalls));
     const completed = businessRequired.filter(name=>inrAssistantGoalCompleted(name,receipts,requiredCalls) && !receipts.some(receipt=>receipt.tool===name && INR_ASSISTANT_PENDING_STATUSES.has(receipt.status)));
     const unfinished=businessRequired.filter(name=>!completed.includes(name));
     const factual = [...new Set(receipts.filter(r=>r.ok).map(r=>r.message))].join("\n\n");
     const message = outcome === "partial" ? `${factual || savedActionReply() || reply.message}\n\nIl reste à ${remaining.map(label).join(", ")}. Vous pouvez me demander de continuer ; les étapes déjà réalisées seront conservées.` : reply.message;
-    return {...reply,...(navigation?{navigation}:{}),...(uiCommand?{uiCommand}:{}),...(verifiedHandoffMessage && outcome !== "completed" ? {needsHuman:true,handoffSummary:verifiedHandoffMessage}:{}),message,outcome,taskProgress:{outcome,completed:completed.map(label),remaining:unfinished.map(label)},taskState:taskState(outcome,message)};
+    return {...reply,...(navigation?{navigation}:{}),...(uiCommand?{uiCommand}:{}),...(uiActions.length?{uiActions}:{}),...(verifiedHandoffMessage && outcome !== "completed" ? {needsHuman:true,handoffSummary:verifiedHandoffMessage}:{}),message,outcome,taskProgress:{outcome,completed:completed.map(label),remaining:unfinished.map(label)},taskState:taskState(outcome,message)};
   };
   try {
     if (args.signal?.aborted) {
@@ -567,7 +649,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
           prepareStep: ({ stepNumber, messages: stepMessages }) => {
             // A UI-only request can also contain reads that are not durable
             // business goals. Opening its module must not suppress those reads.
-            const goalsDone = requiredTools.some(name=>!["navigateApplication","runScreenCommand"].includes(name)) && requiredTools.every(name=>inrAssistantGoalCompleted(name,receipts,requiredCalls)) && (!statusOnly || [...readCounts.keys()].some(name=>requiredTools.some(goal=>INR_ASSISTANT_COMMANDS[goal]?.statusReader===name)));
+            const goalsDone = requiredTools.some(name=>!["navigateApplication","runScreenCommand"].includes(name)) && requiredTools.every(name=>inrAssistantGoalCompleted(name,receipts,requiredCalls)) && objectives.every((_,index)=>inrAssistantObjectiveCompleted(objectives,index,receipts)) && (!statusOnly || [...readCounts.keys()].some(name=>requiredTools.some(goal=>INR_ASSISTANT_COMMANDS[goal]?.statusReader===name)));
             const answerOnly = goalsDone || stepNumber >= maxCalls-1 || llmCalls >= maxCalls-1;
             if (stepNumber === 0 && !answerOnly && !args.taskContext && !navigation) return;
             // Keep call/result pairs intact and discard only earlier chat text.
@@ -584,7 +666,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
             return {
               ...(answerOnly ? { model: guardedModel(answerAttempt) } : {}),
               messages: compactInrAssistantGuideContext(stepMessages.slice(latestUser)),
-              activeTools: answerOnly ? [] : Object.keys(tools).filter(name => !(name === "navigateApplication" && navigation) && (readCounts.get(name)??0) < 2 && !(args.taskContext && inrAssistantGoalCompleted(name,args.taskContext.receipts,requiredCalls))) as Array<keyof typeof tools>,
+              activeTools: answerOnly ? [] : Object.keys(tools).filter(name => !(name === "navigateApplication" && navigation) && readBudget.available(name) && inrAssistantPlanAllowsAction(objectives,name,receipts) && !(args.taskContext && inrAssistantGoalCompleted(name,args.taskContext.receipts,requiredCalls))) as Array<keyof typeof tools>,
               ...(answerOnly ? { toolChoice: "none" as const } : {}),
               system: buildInrAssistantSystemPrompt(args.displayName, undefined, readCounts.has("readAppGuide") ? undefined : getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext, Boolean(args.fileContexts?.length), true)
                 + continuityContext + draftGuidance + (operationGuidance ? `\n${operationGuidance}` : "")

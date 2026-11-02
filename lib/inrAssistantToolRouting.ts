@@ -1,8 +1,30 @@
-import { inrAssistantRoutingText, inrAssistantRequiredTools } from "./inrAssistantTaskPolicy.ts";
+import { inrAssistantRoutingText, inrAssistantRequiredTools, inrAssistantRequestClauses } from "./inrAssistantTaskPolicy.ts";
 import { INR_ASSISTANT_COMMANDS, inrAssistantSettingTargets, type InrAssistantCommandFamily } from "./inrAssistantCommandRegistry.ts";
 export { inrAssistantRoutingText, inrAssistantRequiredTools, inrAssistantTaskOutcome } from "./inrAssistantTaskPolicy.ts";
 export { verifiedInrAssistantCapabilityLimit } from "./inrAssistantCapabilities.ts";
 export type InrAssistantToolFamily = InrAssistantCommandFamily;
+
+/** Select schemas for an explicit reference to the current media selection.
+ * Client IDs remain untrusted: native tools and the UI protocol verify ownership
+ * and the exact selection again before producing any browser command. */
+export function inrAssistantSelectionToolHints(message: string, screen?: {
+  pathname: string;
+  selectedMediaIds?: string[];
+  selectionOverflow?: boolean;
+}): string[] {
+  if (screen?.pathname !== "/dashboard/mediatheque" || screen.selectionOverflow ||
+      !screen.selectedMediaIds?.length || screen.selectedMediaIds.length > 25 ||
+      new Set(screen.selectedMediaIds).size !== screen.selectedMediaIds.length ||
+      screen.selectedMediaIds.some(id => !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id))) return [];
+  const hints = new Set<string>();
+  if (/\b(?:ne|pas|sans|jamais|si|not|never|if)\b/.test(inrAssistantRoutingText(message))) return [];
+  for (const clause of inrAssistantRequestClauses(message)) {
+    if (/\b(?:ne|pas|sans|jamais|si|not|never|if)\b/.test(clause)) continue;
+    if (/^telecharge(?:z|r)?\b.{0,60}\bselection\b/.test(clause)) hints.add("prepareMediaDownload");
+    if (/^supprime(?:z|r)?\b.{0,60}\bselection\b/.test(clause)) hints.add("applyMediaDeletion");
+  }
+  return [...hints];
+}
 
 /** This only limits schema cost. It never grants a right or authorizes an action. */
 export function selectInrAssistantToolFamilies(latest: string, recentUserMessages: string[] = []): Set<InrAssistantToolFamily> {

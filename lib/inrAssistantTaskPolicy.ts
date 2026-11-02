@@ -2,9 +2,11 @@ import { hasInrAssistantMediaSubject, permitsInrAssistantMediaAction } from "./i
 import { isInrAssistantStudioDraftRequest } from "./inrAssistantStudioDraft.ts";
 import { inrAssistantStandardCommands } from "./inrAssistantStandardRouting.ts";
 import { INR_ASSISTANT_COMMANDS, INR_ASSISTANT_PENDING_STATUSES, INR_ASSISTANT_UNCERTAIN_STATUSES, isInrAssistantAcceptedReceipt, inrAssistantSettingTargets, requestsInrAssistantSettingsChange } from "./inrAssistantCommandRegistry.ts";
+import { inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantRequestClauses.ts";
+export { inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantRequestClauses.ts";
 
 export type InrAssistantTaskOutcome = "completed" | "partial" | "needs_input" | "processing" | "blocked" | "failed";
-export type InrAssistantActionReceipt = { tool: string; ok: boolean; status: string; message: string; id?: string; draftId?: string; requestId?: string; scheduledActionId?: string; eventId?: string; recordId?: string; publicationId?: string; toolUrl?: string; /** Private capability, never sent to the model or client. */ approvalToken?: string; approvalReference?: string; approvalKind?: "calendar" | "scheduled_publication" | "google_business_profile" | "media_delete" | "publication_lifecycle" };
+export type InrAssistantActionReceipt = { tool: string; ok: boolean; status: string; message: string; id?: string; draftId?: string; requestId?: string; scheduledActionId?: string; eventId?: string; recordId?: string; publicationId?: string; toolUrl?: string; /** Private capability, never sent to the model or client. */ approvalToken?: string; approvalReference?: string; approvalKind?: "calendar" | "scheduled_publication" | "google_business_profile" | "media_delete" | "publication_lifecycle" | "individual_mail" };
 export type InrAssistantTaskState = {
   version: 1; instruction: string; actionRequestId: string; startedAt: string; expiresAt: string;
   outcome: InrAssistantTaskOutcome; requiredTools: string[]; requiredCalls?: Record<string, number>; receipts: InrAssistantActionReceipt[]; question: string;
@@ -28,13 +30,14 @@ export function inrAssistantRoutingText(text: string): string {
 }
 /** Business goals, distinct from their prerequisite reads. */
 export function inrAssistantRequiredTools(message: string): string[] {
+  return [...new Set(inrAssistantActionObjectives(message).map(objective => objective.tool))];
+}
+export type InrAssistantActionObjective = { kind: "action"; tool: string; instruction: string };
+export function inrAssistantActionObjectives(message: string): InrAssistantActionObjective[] {
   if (isInrAssistantStudioDraftRequest(message)) return [];
-  const normalized = inrAssistantRoutingText(message.replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm," ")).trim();
-  if (/^(?:comment|pourquoi|explique|how|why|what|wie|como)\b/.test(normalized) || /\b(?:explique|explain|me dire)\b.{0,60}\b(?:comment|how|pourquoi|why)\b/.test(normalized)) return [];
-  const clauseStart = "(?:(?:ne|not|never|do not)\\s+|n['’]|don't\\s+)?(?:actualis\\w*|rafraich\\w*|synchronis\\w*|telecharg\\w*|import\\w*|export\\w*|restaur\\w*|refus\\w*|reordonn\\w*|download|refresh|import|export|ajout\\w*|cree\\w*|creer|gener\\w*|modifi\\w*|retouch\\w*|prepar\\w*|redig\\w*|publie\\w*|poste\\w*|envoi\\w*|configur\\w*|activ\\w*|desactiv\\w*|coup\\w*|regl\\w*|chang\\w*|repond\\w*|annul\\w*|supprim\\w*|deplac\\w*|mets|renomm\\w*|archive\\w*|retrouv\\w*|recherch\\w*|consulte\\w*|verifi\\w*|create|generate|prepare|add|edit|publish|send|find|read|disable|enable|reply)\\b";
-  const clauses = normalized.split(new RegExp(`(?:\\s+(?:et\\s+(?:puis\\s+)?|puis\\s+|ensuite\\s+|and\\s+(?:then\\s+)?|then\\s+)|[,;.!?]\\s+)(?=${clauseStart})`, "i"));
+  const clauses = inrAssistantRequestClauses(message).map(inrAssistantRoutingText);
   const mediaContext = hasInrAssistantMediaSubject(message, "image") || hasInrAssistantMediaSubject(message, "video");
-  const required: string[] = [];
+  const required: InrAssistantActionObjective[] = [];
   let previousWasMail = false;
   for (const clause of clauses) {
     // Only an explicit object pronoun can inherit the immediately preceding
@@ -42,15 +45,16 @@ export function inrAssistantRequiredTools(message: string): string[] {
     // original request and independently verify its instruction and recipients.
     const mailPronoun = /^(?:envoi\w*|diffuse\w*|modifi\w*|corrig\w*|change\w*)(?:-(?:le|la|les)\b|\s+(?:le|la|les)(?=\s+(?:a|au|aux|pour|demain|maintenant)\b|[.!?;,:]|$))|^(?:send|edit|update)\s+(?:it|them)\b/.test(clause.trim());
     const inferredMail: boolean = previousWasMail && mailPronoun;
-    required.push(...requiredToolsForClause(inferredMail ? `${clause} — campagne mail` : clause, mediaContext));
+    required.push(...requiredToolsForClause(inferredMail ? `${clause} — campagne mail` : clause, mediaContext).map(tool => ({ kind: "action" as const, tool, instruction: clause })));
     const target = clause.match(/\b(?:campagnes?|e-?mails?|newsletters?|images?|photos?|videos?|visuels?|logos?|flyers?|affiches?|publications?|posts?|crm|contacts?|clients?|prospects?|devis|factures?|agenda|rendez.vous|rdv)\b/);
     previousWasMail = target ? /^(?:campagnes?|e-?mails?|newsletters?)$/.test(target[0]) && !/publicit|\bads\b/.test(clause) : inferredMail;
   }
-  return [...new Set(required)];
+  return required;
 }
 function requiredToolsForClause(message: string, mediaContext: boolean): string[] {
   const t = inrAssistantRoutingText(message), result: string[] = [];
-  if (/^(?:comment|pourquoi|explique|how|why|what|wie|como)\b/.test(t) || /\b(?:explique|explain|me dire)\b.{0,60}\b(?:comment|how|pourquoi|why)\b/.test(t)) return result;
+  if (inrAssistantClauseIsAdvice(t)) return result;
+  if (/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|cherche\w*|recherch\w*|retrouv\w*|liste\w*|regarde\w*|montre\w*|affiche\w*|ouvre\w*|indique\w*|quels?|quelles?|combien)\b/.test(t)) return result;
   if (/^(?:ne\b|n['’]|not\b|never\b|don't\b|do not\b)/.test(t.trim()) || /\b(?:ne|sans|not|never)\b.{0,20}\b(?:modifi|cre|gener|publ|envoi)/.test(t)) return result;
   // Settings are a distinct object, even if their defaults mention images,
   // emails or appointments. Do not borrow those nouns for a creation goal.
@@ -82,7 +86,9 @@ function requiredToolsForClause(message: string, mediaContext: boolean): string[
   const crmTarget = /\b(?:crm|contacts?|clients?|prospects?)\b/.exec(t);
   const otherObject = /\b(?:images?|photos?|videos?|visuels?|logos?|flyers?|affiches?|publications?|posts?|campagnes?|e-?mails?|newsletters?|devis|factures?|agenda|rendez.vous|rdv)\b/.exec(t);
   if (crmTarget && (!otherObject || crmTarget.index < otherObject.index) && /\b(?:ajout\w*|cree|modifi\w*|supprim\w*|retire|fusionn\w*|add|update|merge|delete)\b/.test(t)) result.push(/fusionn|merge/.test(t)?"mergeCrmContacts":"manageCrmContact");
-  if (/\b(?:mail|email|campagne|newsletter)\b/.test(t) && !/publicit|\bads\b/.test(t) && !inrAssistantSettingTargets(message).includes("notifications")) {
+  const individualMail=/\b(?:mail|email|courriel)\b/.test(t) && !/campagne|newsletter|audience|segment/.test(t) && (/individuel/.test(t) || /@/.test(t));
+  if(individualMail && /\b(?:envoi\w*|prepar\w*|redig\w*|ecris)\b/.test(t)) result.push("sendIndividualMail");
+  if (!individualMail && /\b(?:mail|email|campagne|newsletter)\b/.test(t) && !/publicit|\bads\b/.test(t) && !inrAssistantSettingTargets(message).includes("notifications")) {
     if (/\b(?:envoie|envoyer|diffuse|send|programme|schedule)\b/.test(t)) result.push(/\bap-[a-f0-9]{12}\b|(?:tous|mes|segment|audience).{0,35}(?:clients|prospects|contacts)|audience|segment/.test(t)?"dispatchCampaignAudience":"dispatchCampaignDraft");
     else if (/\b(?:modifi\w*|corrig\w*|change\w*)\b/.test(t)) result.push("updateCampaignDraft");
     else if (/\b(?:prepare\w*|cree|redige|ecris)\b/.test(t)) result.push("prepareCampaignEmail");
@@ -165,19 +171,19 @@ export function isInrAssistantAffirmation(value: string): boolean {
   return /^(?:oui|oui[, ]+(?:vas.y|lance(?:.la|.le)?|cree(?:.la|.le)?|confirme|d.accord)|ok|d.accord|vas.y|yes|yes[, ]+(?:please|go ahead)|si|ja)[.!\s]*$/.test(normalize(value.trim()));
 }
 export function inrAssistantRequiredCalls(message: string): Record<string, number> {
-  const text = inrAssistantRoutingText(message);
   const numbers: Record<string, number> = {deux:2,trois:3,quatre:4,cinq:5,six:6,sept:7,huit:8,neuf:9,dix:10,two:2,three:3,four:4,five:5};
   const counts: Record<string,number>={};
   const settingsTargets=new Set(message.split(/\s+(?:puis|ensuite|et|and|then)\s+(?=(?:modifi|chang|mets|coup|desactiv|activ|regl|configure|publie|cree|envoie|disable|enable|set|publish|send)\w*\b)|[;\n]/i).filter(clause=>requestsInrAssistantSettingsChange(clause)).flatMap(clause=>inrAssistantSettingTargets(clause)));
   if(settingsTargets.size>1) counts.updateToolSettings=settingsTargets.size;
-  for (const name of inrAssistantRequiredTools(message)) {
+  for (const objective of inrAssistantActionObjectives(message)) {
+    const name = objective.tool;
     const object=INR_ASSISTANT_COMMANDS[name]?.batchObject;
     if (!object) continue;
-    const match=text.match(new RegExp(`\\b(\\d{1,6}|${Object.keys(numbers).join("|")})\\s+(?:(?:nouveaux?|nouvelles?)\\s+)?(?:${object})\\b`));
+    const match=objective.instruction.match(new RegExp(`\\b(\\d{1,6}|${Object.keys(numbers).join("|")})\\s+(?:(?:nouveaux?|nouvelles?)\\s+)?(?:${object})\\b`));
     const count=match ? numbers[match[1]] ?? Number(match[1]) : 1;
-    if (count>1) counts[name]=count;
+    counts[name]=(counts[name]??0)+count;
   }
-  return counts;
+  return Object.fromEntries(Object.entries(counts).filter(([,count])=>count>1));
 }
 /** Refuse oversized work before exposing a mutating tool, including on resume. */
 export function inrAssistantTaskTrackingLimit(requiredTools: string[], requiredCalls: Record<string, number> = {}): string | null {

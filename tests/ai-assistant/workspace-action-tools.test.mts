@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as actionClauses from "../../lib/inrAssistantActionClause.ts";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -54,7 +55,7 @@ function harness(options: { edition?: "standard" | "premium" | "founder"; foreig
   } };
   const record = { exports: {} };
   const stubs: Record<string, unknown> = {
-    "server-only": {}, "node:crypto": { createHash }, ai: { tool: (value: unknown) => value, jsonSchema: (definition: unknown, config: object) => ({ definition, ...config }) },
+    "server-only": {}, "./inrAssistantActionClause.ts": actionClauses, "node:crypto": { createHash }, ai: { tool: (value: unknown) => value, jsonSchema: (definition: unknown, config: object) => ({ definition, ...config }) },
     "./requireUser": { requireUser: async () => ({ activeUserId: options.foreignAuth ? foreignId : accountId, errorResponse: null }) },
     "@/app/api/media-library/items/route": { PATCH: async (request: Request) => {
       const body: Row = await request.json(); calls.push({ stage: "media-patch", body, request });

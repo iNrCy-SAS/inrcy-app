@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as actionClauses from "../../lib/inrAssistantActionClause.ts";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
@@ -45,7 +46,7 @@ function harness(options: { instruction?: string; edition?: "basic" | "standard"
   } };
   const stubs: Record<string, unknown> = {
     "./requireUser": { requireUser: async () => ({ activeUserId: options.foreignScope ? "other" : accountId, authUserId: options.foreignActor ? "other" : "actor" }) },
-    "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (schema: unknown, config: object) => ({ schema, ...config }) },
+    "server-only": {}, "./inrAssistantActionClause.ts": actionClauses, ai: { tool: (value: unknown) => value, jsonSchema: (schema: unknown, config: object) => ({ schema, ...config }) },
     "./aiContentLength.ts": { enforceAiContentLengthForEdition },
     "./aiInstructionSections.ts": { decodeAiInstructionSections, encodeAiInstructionSections },
     "./inrAssistantGuidesAccount.ts": { INR_ASSISTANT_ACCOUNT_GUIDES: [{ id: "channel-facebook", content: "Ouvrez Mes canaux puis Facebook et Connecter. Autorisez le parcours officiel." }, { id: "channel-google-business", content: "Choisissez votre fiche Google Business." }] },

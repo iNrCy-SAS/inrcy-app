@@ -5,6 +5,8 @@ import { hasInrAssistantMediaSubject, permitsInrAssistantMediaAction } from "../
 test("ordinary current French and English creative requests include wishes, logos, flyers and polite orders", () => {
   for (const message of [
     "Je voudrais une image pour mon atelier.", "J’aimerais un logo pour mon entreprise.", "J’ai besoin d’un flyer pour mon offre.",
+    "Je voudrais créer un flyer pour notre atelier.", "Je souhaite générer une image de notre atelier.", "J’aimerais créer une affiche.",
+    "Explique comment fonctionne Studio, puis crée une image de notre atelier.",
     "Je voudrais une belle photo de notre atelier.", "Je souhaite des images pour ma boutique.",
     "Peux-tu créer une photo de mon atelier ?", "Pourriez-vous me créer une image ?", "Je voudrais que vous créiez une affiche.",
     "Non je voudrais que tu me génères une publication pour chaque canal avec 1 image et que tu publies sur tous les canaux via booster",

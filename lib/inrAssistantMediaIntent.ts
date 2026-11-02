@@ -1,5 +1,6 @@
 /** Pure current-message intent shared by task tracking and media executors.
  * This is not an account, subscription, quota or source-media access check. */
+import { inrAssistantMergeAdviceClauses } from "./inrAssistantRequestClauses.ts";
 export type InrAssistantMediaAction = "generate" | "modify";
 export type InrAssistantMediaType = "image" | "video";
 
@@ -40,8 +41,8 @@ function mediaActionClauses(value: string): string[] {
   // Split coordination only when another directive follows. "Image et logo"
   // remains one output request; "image puis ajoute un contact" has two objects.
   const nextAction = `(?:(?:ne|do not|don't|no|nicht)\\s+)?(?:(?:tu|vous|you)\\s+)?(?:${GENERATE_VERBS}|${MODIFY_VERBS}|prepar\\w*|redig\\w*|ecri\\w*|envoi\\w*|publi\\w*|planifi\\w*|prepare|write|send|publish|update|schedule)`;
-  return value.split(new RegExp(`(?:[;.!?]\\s*|\\b(?:puis|ensuite|then|luego|despues|dann)\\b\\s*|\\b(?:et|and|y|und|mais|but|pero|aber)\\s+(?=${nextAction}\\b))`, "g"))
-    .map(clause => clause.trim()).filter(Boolean);
+  return inrAssistantMergeAdviceClauses(value.split(new RegExp(`(?:[;.!?]\\s*|\\b(?:puis|ensuite|then|luego|despues|dann)\\b\\s*|\\b(?:et|and|y|und|mais|but|pero|aber)\\s+(?=${nextAction}\\b))`, "g"))
+    .map(clause => clause.trim()).filter(Boolean));
 }
 
 function hasNonMediaEditObject(value: string): boolean {
@@ -78,7 +79,10 @@ export function hasInrAssistantMediaSubject(message: string, mediaType: InrAssis
  * A bare confirmation or text quoted by the user never becomes an instruction. */
 export function permitsInrAssistantMediaAction(message: string, action: InrAssistantMediaAction, mediaType: InrAssistantMediaType = "image"): boolean {
   if (typeof message !== "string" || !["generate", "modify"].includes(action) || !["image", "video"].includes(mediaType) || action === "modify" && mediaType === "video" || /^(?:assistant|system|systeme|user|utilisateur)\s*:/im.test(message.slice(0, 4_000))) return false;
-  const value = currentText(message);
+  return mediaActionClauses(currentText(message)).some(value => permitsRequestedMediaClause(value, action, mediaType));
+}
+
+function permitsRequestedMediaClause(value: string, action: InrAssistantMediaAction, mediaType: InrAssistantMediaType): boolean {
   if (!value || /^(?:comment|pourquoi|ou|how|where|what|wie|warum|wo|was|como|por que|donde|cual)\b/.test(value) ||
     /\b(?:expliqu\w*|comprendr\w*|savoir|explain|teach|erklar\w*|versteh\w*|wissen|explic\w*|ensen\w*|saber|aprender)\b/.test(value) ||
     /\b(?:montr\w*|show|zeig\w*|mostr\w*|muestr\w*|dis|dire|tell|decir\w*|dime)\b.{0,60}\b(?:comment|how|wie|como|si|ob|whether|if)\b/.test(value) ||
@@ -88,7 +92,7 @@ export function permitsInrAssistantMediaAction(message: string, action: InrAssis
     /^(?:le bouton|the button|der button|die schaltflache|el boton|message d.erreur|error message|fehlermeldung|mensaje de error)\b/.test(value) ||
     /^(?:voici\b.{0,35}\b(?:texte|citation|exemple|historique)|here is\b.{0,35}\b(?:quote|example|transcript)|historique|transcript|conversation history)\b/.test(value)) return false;
 
-  return mediaActionClauses(value).some(clause => permitsMediaClause(clause, action, mediaType));
+  return permitsMediaClause(value, action, mediaType);
 }
 
 function permitsMediaClause(value: string, action: InrAssistantMediaAction, mediaType: InrAssistantMediaType): boolean {
@@ -107,6 +111,7 @@ function permitsMediaClause(value: string, action: InrAssistantMediaAction, medi
     /\b(?:je ne (?:veux|souhaite|voudrais)|i (?:do not|don't) (?:want|need)|no (?:quiero|necesito))\b/.test(value)) return false;
 
   const direct = new RegExp(`(?:^|[.!?;,:]\\s*|\\b(?:et|puis|ensuite|please|stp|y|luego|despues|bitte|und|dann)\\s+)\\s*${verbs}\\b|\\b(?:(?:peux|pourrais|voudrais)[- ]tu|(?:pouvez|pourriez|voudriez)[- ]vous|tu (?:peux|pourrais)|vous (?:pouvez|pourriez)|je (?:veux|souhaite|voudrais) que (?:tu|vous)|j.aimerais que (?:tu|vous)|j.ai besoin que (?:tu|vous)|(?:can|could|would) you|i want you to|i would like you to|(?:puedes|podrias)(?: tu)?|(?:quiero|me gustaria|necesito) que)\\s+(?:(?:me|nous|please|por favor)\\s+)?${verbs}\\b`).test(value)
+    || new RegExp(`^(?:je (?:veux|souhaite|voudrais)|j'aimerais)\\s+${verbs}\\b`).test(value)
     || new RegExp(`\\b(?:(?:kannst|konntest|wurdest) du|(?:konnen|konnten|wurden) sie)\\b.{0,120}\\b${verbs}\\b`).test(value);
   if (action === "modify") return (direct || editingProduct) && !hasNonMediaEditObject(value) && !isWholeMediaRemoval(value);
 

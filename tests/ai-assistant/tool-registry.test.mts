@@ -56,6 +56,18 @@ test("registry construction retains the server scope and never executes a handle
   assert.deepEqual(h.executions, []);
 });
 
+test("campaign advice retains scoped readers and never proposes a write", () => {
+  const h = harness();
+  const registry = h.build({ latestRequest: "Explique les boîtes expéditrices de campagne", canExecute: false, families: new Set(["workspace"]), requiredTools: ["readCampaignDeliveryStatus"] });
+  assert.ok("listCampaignMailboxes" in registry.campaignTools);
+  assert.ok("readCampaignDeliveryStatus" in registry.campaignTools);
+  for (const name of ["selectCampaignMailbox", "previewCampaignAudience", "dispatchCampaignAudience"])
+    assert.ok(!(name in registry.campaignTools));
+  assert.deepEqual(h.executions, []);
+  const campaignOnly = h.build({ latestRequest: "Prépare une campagne mail pour mes contacts CRM", families: new Set(["workspace"]), requiredTools: ["prepareCampaignEmail"] });
+  assert.equal(Object.keys(campaignOnly.mailboxTools).length, 0, "Individual mail schemas do not consume a campaign request’s input budget");
+});
+
 test("media and publication callbacks preserve live deadlines, continuation flags and action identity", () => {
   const h = harness();
   h.context.args.taskContext = { version: 1, instruction: "Crée une image puis publie", actionRequestId: "server-action",
@@ -112,7 +124,7 @@ test("a new registry cannot retain another account or its signed approval resolv
   assert.deepEqual(h.executions, []);
 });
 
-test("the registry keeps existing construction gates for unavailable write scopes", () => {
+test("the registry keeps write gates while allowing scoped reader construction", () => {
   for (const changes of [
     { canExecute: false },
     { args: { ...harness().context.args, supabase: undefined } },
@@ -120,6 +132,19 @@ test("the registry keeps existing construction gates for unavailable write scope
     const h = harness();
     const registry = h.build({ families: new Set(["publication"]), requiredTools: ["executePublication"], ...changes });
     assert.equal(Object.keys(registry.publicationTools).length, 0);
-    assert.ok(!h.calls.some(call => call.factory === "createInrAssistantPublicationTools"));
+    if(changes.args) assert.ok(!h.calls.some(call => call.factory === "createInrAssistantPublicationTools"));
   }
+});
+
+test("advice can inspect CRM, campaign, scheduled publication and advertising readers without exposing their writes",()=>{
+  const h=harness();
+  const r=h.build({canExecute:false,families:new Set(["workspace","commercial","publication","advertising"]),latestRequest:"Pourquoi ma campagne mail ne fonctionne pas ? Vérifie mon CRM et mes publications programmées ainsi que mes ADS.",requiredTools:[]});
+  assert.ok(r.workspaceActionTools.searchCrmContacts);
+  assert.ok(r.communicationTools.readCommunicationRecords);
+  assert.ok("readScheduledPublications" in r.scheduledTools);
+  assert.ok("readAdvertisingCampaigns" in r.advertisingTools);
+  assert.equal("manageCrmContact" in r.commercialTools,false);
+  assert.equal("dispatchCampaignDraft" in r.communicationTools,false);
+  assert.equal("manageAdvertisingCampaign" in r.advertisingTools,false);
+  assert.deepEqual(h.executions,[]);
 });

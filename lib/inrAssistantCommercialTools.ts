@@ -1,4 +1,5 @@
 import "server-only";
+import { matchesInrAssistantActionClause, inrAssistantMaskQuotedText } from "./inrAssistantActionClause.ts";
 
 import { createHash } from "node:crypto";
 import { jsonSchema, tool } from "ai";
@@ -52,11 +53,14 @@ function parseDraft(value: unknown): DraftInput {
   return { instructionQuote: string(input.instructionQuote, 600, 8), clientReference: string(input.clientReference, 180, 2), draft: parseCommercialDocumentDraft(input.draft) };
 }
 function currentInstruction(message: string, quote: string, action: "create" | "update" | "delete" | "devis" | "facture", reference: string): boolean {
+  return matchesInrAssistantActionClause(message,quote,(clause,exact)=>currentInstructionClause(clause,exact,action,reference));
+}
+function currentInstructionClause(message: string, quote: string, action: "create" | "update" | "delete" | "devis" | "facture", reference: string): boolean {
   if (!message.includes(quote)) return false;
-  const current = normalize(message.slice(0, 4000).replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm, " "));
+  const current = normalize(inrAssistantMaskQuotedText(message.slice(0, 4000)));
   if (!normalize(message).includes(normalize(reference)) || /^(?:comment|pourquoi|explique|how|why|what|where|ou)\b|(?:expli\w*|montr\w*|show|savoir|comprendre).{0,50}(?:comment|how|ou\b|where)\b/.test(current) || /\b(?:ne |n'|n’|sans |do not |don't ).{0,40}(?:supprim|effac|modif|chang|cre|prepar|ajout|enregistr|delete|create|update)/.test(current) || /\b(?:le|ce|un|du) bouton\b|\b(?:erreur|bug|message d.erreur)\b.{0,100}(?:ne marche|ne fonctionne|bloqu|impossible|echec)|\b(?:hier|precedemment|la derniere fois|tu as deja)\b/.test(current)) return false;
   const verbs = action === "delete" ? /\b(?:supprim\w*|effac\w*|retir\w*|delete|remove)\b/ : action === "update" ? /\b(?:modifi\w*|corrig\w*|chang\w*|remplac\w*|mets|mettez|ajout\w*|effac\w*|retir\w*|update|change|edit)\b/ : /\b(?:cree\w*|creer|crea\w*|ajout\w*|enregistr\w*|prepar\w*|redig\w*|fais|faites|create|prepare|draft)\b/;
-  const subject = action === "devis" ? /\b(?:devis|quote)\b/ : action === "facture" ? /\b(?:facture|invoice)\b/ : /\b(?:contact|fiche|client|prospect|fournisseur|partenaire|crm)\b/;
+  const subject = action === "devis" ? /\b(?:devis|quote)\b/ : action === "facture" ? /\b(?:facture|invoice)\b/ : /\b(?:contact|fiche|client|prospect|fournisseur|partenaire|crm)\b|\bcarnet (?:d['’]adresses|de clients|clients)\b/;
   return verbs.test(current) && verbs.test(normalize(quote)) && subject.test(current);
 }
 function fieldsFromCurrentMessage(fields: ContactFields, message: string): boolean {
@@ -120,10 +124,11 @@ export function createInrAssistantCommercialTools(options: {
   const fieldProperties: Record<string, JSONSchema7> = Object.fromEntries(Object.keys(FIELDS).map(field => [field, field === "important" ? { type: ["boolean", "null"] } : { type: ["string", "null"], maxLength: field === "notes" ? 2000 : field.toLowerCase().includes("address") ? 500 : 254 }]));
   fieldProperties.category = { type: ["string", "null"], enum: ["particulier", "professionnel", "collectivite_publique", null] };
   fieldProperties.contactType = { type: ["string", "null"], enum: ["client", "prospect", "fournisseur", "partenaire", "autre", null] };
+  for(const field of Object.values(fieldProperties)) field.description="Valeur facultative : null si le professionnel ne l’a pas fournie. La présence de la clé est obligatoire pour le schéma, pas celle d’une valeur. Ne pas demander ce champ uniquement pour compléter le schéma.";
   const schema = <T>(definition: JSONSchema7, parse: (value: unknown) => T) => jsonSchema<T>(definition, { validate: input => { try { return { success: true, value: parse(input) }; } catch (error) { return { success: false, error: error as Error }; } } });
   return {
     manageCrmContact: tool({ strict: true,
-      description: "Créer, modifier ou supprimer UNE fiche iNr’CRM explicitement demandée maintenant (Premium). Rechercher d’abord une fiche existante via searchCrmContacts ; contactId doit être sa vraie référence et reference son nom cité maintenant. fields=null laisse un champ intact ; chaîne vide efface seulement sur demande explicite. Ne jamais inventer identité, coordonnées, notes ou catégorie. create utilise contactId=null. delete exige tous les champs null et une demande explicite de suppression ; aucun mail/campagne n’est envoyé.",
+      description: "Créer, modifier ou supprimer UNE fiche iNr’CRM explicitement demandée maintenant (Premium). Rechercher d’abord une fiche existante via searchCrmContacts. Pour create, contactId=null ; le nom fourni suffit, tous les autres champs non fournis sont null. Entreprise, téléphone, adresse et catégorie ne sont PAS obligatoires. Chaque clé fields est requise par le schéma mais sa valeur est facultative : null conserve le champ, chaîne vide efface seulement sur demande explicite. Pour update/delete, contactId est une vraie référence lue et reference son nom cité maintenant. Ne jamais inventer identité, coordonnées, notes ou catégorie. delete exige tous les champs null et une demande explicite de suppression ; aucun mail/campagne n’est envoyé.",
       inputSchema: schema<ContactInput>({ type: "object", additionalProperties: false, properties: { action: { type: "string", enum: ["create", "update", "delete"] }, instructionQuote: { type: "string", minLength: 8, maxLength: 600 }, reference: { type: "string", minLength: 2, maxLength: 180 }, contactId: { type: ["string", "null"], pattern: COMMERCIAL_UUID.source }, fields: { type: "object", additionalProperties: false, properties: fieldProperties, required: Object.keys(FIELDS) } }, required: ["action", "instructionQuote", "reference", "contactId", "fields"] }, parseContact),
       execute: async raw => {
         const input = parseContact(raw);
