@@ -60,6 +60,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   plan?: Array<{tool:string;input?:Record<string,unknown>}>;
   parallelPlan?:Array<{tool:string;input?:Record<string,unknown>}>;
   extraTools?:Record<string,unknown>;
+  diagnosticRead?: () => Record<string, unknown>;
   settingsTools?:Record<string,unknown>;
   calendarFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   documentNativeFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
@@ -237,7 +238,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantMemoryTools.ts": memoryToolsRuntime,
     "./inrAssistantDiagnosticsTools.ts": { createInrAssistantDiagnosticsTools: (args: {accountId: string; edition: string}) => {
       toolScopes.push({ tool: "diagnostics", accountId: args.accountId, edition: args.edition });
-      return { getAccountDiagnostics: tool({ inputSchema: jsonSchema({ type: "object", properties: { area: { type: "string" } } }), execute: async () => ({ sources: [{ status: "available" }], message: "Une tentative récente a rencontré une limite temporaire." }) }) };
+      return { getAccountDiagnostics: tool({ inputSchema: jsonSchema({ type: "object", properties: { area: { type: "string" } } }), execute: async () => options.diagnosticRead?.() ?? ({ sources: [{ status: "available" }], message: "Une tentative récente a rencontré une limite temporaire." }) }) };
     } },
     "./inrAssistantWorkspaceTools.ts": { createInrAssistantWorkspaceTools: (args: {accountId: string; edition: string}) => {
       toolScopes.push({ tool: "workspace", accountId: args.accountId, edition: args.edition });
@@ -1504,4 +1505,27 @@ test("document mail preparation stays an acknowledged UI handoff without phantom
   assert.deepEqual(reply.taskState?.uiSteps?.map(step => step.command), ["prepare_document_mail"]);
   assert.ok(!reply.taskState?.requiredTools.some(name => ["sendIndividualMail", "previewIndividualMail", "prepareMediaDownload"].includes(name)));
   assert.equal(reply.taskState?.receipts.length, 0, "a queued browser command is not a saved or sent mail");
+});
+
+
+test("recovery stays unfinished after an ordinary status read and requires verified scoped diagnostics", async () => {
+  const instruction = "Ma publication semble bloquée. Vérifie ce qui se passe sans la republier ni créer un nouveau contenu.";
+  for (const mode of ["status_only", "complete", "incomplete", "unavailable"] as const) {
+    let diagnostics = 0;
+    const diagnosticRead = () => {
+      diagnostics++; return { ok: mode !== "unavailable", complete: mode === "complete", sources: [{ status: mode === "complete" ? "available" : "unavailable" }], items: [], liveVerified: false };
+    };
+    const plan = [{ tool: "getRecentPublications", input: { query: "", limit: 8 } }, ...(mode === "status_only" ? [] : [{ tool: "getAccountDiagnostics", input: { area: "publications" } }])];
+    const h = harness({ diagnosticRead, plan });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, messages: [{ role: "user", content: instruction }] });
+    if (mode === "complete") assert.equal(reply.outcome, "completed");
+    else {
+      assert.notEqual(reply.outcome, "completed", mode);
+      assert.ok(reply.taskProgress?.remaining.includes("vérifier les signaux du problème signalé"), mode);
+    }
+    assert.equal(diagnostics, mode === "status_only" ? 0 : 1);
+    assert.deepEqual(Array.from(reply.taskState?.requiredTools ?? []), ["getAccountDiagnostics"]);
+    assert.equal(reply.taskState?.receipts.some(receipt => receipt.tool === "getAccountDiagnostics" && receipt.status === "read"), mode === "complete");
+    assert.equal(h.crmExecutions.length, 0); assert.equal(h.mediaExecutions, 0); assert.equal(h.publicationExecutions.length, 0);
+  }
 });

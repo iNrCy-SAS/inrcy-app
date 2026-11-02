@@ -10,12 +10,17 @@ export type InrAssistantObjective = {
     count: number;
     exhaustive?: boolean;
 };
+const diagnosticReader = {
+    tool: "getAccountDiagnostics", family: "business" as const, label: "vérifier les signaux du problème signalé",
+    matches: /\b(?:diagnosti\w*|erreurs?|echecs?|problemes?|bugs?|pannes?|bloqu\w*|impossible)\b|\bne fonctionne/,
+};
 const readers: Array<{
     tool: string;
     family: InrAssistantCommandFamily;
     label: string;
     matches: RegExp;
 }> = [
+    diagnosticReader,
     { tool: "readToolSettings", family: "settings", label: "lire les réglages demandés", matches: /reglage|parametre|configuration|preference|notification/ },
     { tool: "readAdvertisingCampaigns", family: "advertising", label: "consulter la campagne publicitaire", matches: /publicit|\bads\b|sponsoris/ },
     { tool: "readScheduledPublications", family: "publication", label: "consulter les publications programmées", matches: /(?:publication|post).{0,50}(?:programm|planifi)|(?:programm|planifi).{0,50}(?:publication|post)/ },
@@ -39,7 +44,8 @@ export function inrAssistantReadObjectives(message: string): InrAssistantObjecti
 export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiStep[] = []): InrAssistantObjective[] {
     const actions = inrAssistantActionObjectives(message);
     const plan: InrAssistantObjective[] = [];
-    for (const clause of inrAssistantRequestClauses(message)) {
+    const clauses = inrAssistantRequestClauses(message);
+    for (const [clauseIndex, clause] of clauses.entries()) {
         const screenStep = uiSteps.find(step => step.instruction === clause);
         if (screenStep) {
             plan.push({ id: screenStep.id, kind: "ui", tool: screenStep.command === "navigateApplication" ? "navigateApplication" : "runScreenCommand", instruction: clause, count: 1 });
@@ -50,9 +56,18 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
             plan.push({ id: `objective_${plan.length}`, kind: "action", tool: action.tool, instruction: clause, count: inrAssistantRequiredCalls(clause)[action.tool] ?? 1 });
         if (mutations.length || inrAssistantClauseIsAdvice(clause) || /^(?:ne\b|n['’]|not\b|never\b|si\b|imagine\b|suppose\b)/.test(clause))
             continue;
-        if (!/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|recherch\w*|cherche\w*|retrouv\w*|liste\w*|verifi\w*|regarde\w*|montre\w*|affiche\w*|analyse\w*|compare\w*|quels?|quelles?|combien|read|find|search|list|show|check)\b/.test(clause))
+        if (!/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|recherch\w*|cherche\w*|retrouv\w*|liste\w*|verifi\w*|regarde\w*|montre\w*|affiche\w*|analyse\w*|diagnostiqu\w*|compare\w*|quels?|quelles?|combien|read|find|search|list|show|check)\b/.test(clause))
             continue;
-        const reader = readers.find(reader => reader.matches.test(clause));
+        const previous = clauses[clauseIndex - 1] ?? "";
+        // Resolve a short diagnostic follow-up only against the immediately
+        // preceding unquoted problem statement, never an arbitrary past topic.
+        const diagnosticFollowup = /\b(?:verifi\w*|analyse\w*|regarde\w*)\b/.test(clause)
+            && /\b(?:ce qui se passe|ce probleme|cet incident|la cause|le blocage)\b/.test(clause)
+            && diagnosticReader.matches.test(previous) && !inrAssistantClauseIsAdvice(previous)
+            && !/^(?:ne\b|n['’]|not\b|never\b|si\b|imagine\b|suppose\b)/.test(previous);
+        const reader = diagnosticFollowup ? diagnosticReader : readers.find(reader => reader.matches.test(clause));
+        if (reader?.tool === "getAccountDiagnostics" && /^(?:si|quand|lorsque|if|when|unless)\b|\b(?:si|quand|lorsque|if|when|unless)\s+(?:je|j'|tu|vous|nous|on|il|elle|le|la|les|un|une|the|i|you|we|they)\b/.test(clauses.join(" ")))
+            continue;
         if (reader)
             plan.push({ id: `objective_${plan.length}`, kind: "read", tool: reader.tool, instruction: clause, count: 1, exhaustive: /\b(?:tous|toutes|chaque|complet\w*|integralite|all|every)\b/.test(clause) });
     }

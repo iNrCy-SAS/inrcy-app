@@ -245,6 +245,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
 }
 
 const scenarios = [
+  { name: "standard-recovery", edition: "standard", prompt: "Ma publication semble bloquée. Vérifie ce qui se passe sans la republier ni créer un nouveau contenu.", required: ["getAccountDiagnostics"], forbidden: ["generateMedia", "executePublication"] },
   { name: "routine", prompt: "Que dois-je faire maintenant pour commencer dans mon compte ?", required: ["readWorkspaceSection"] },
   { name: "crm-write", prompt: "Ajoute un contact CRM : Claire, claire@example.invalid, téléphone 0102030405.", required: ["manageCrmContact", "searchCrmContacts"] },
   { name: "commercial-draft", prompt: "Prépare un devis de rénovation pour mon client avec une ligne à 300 euros HT et TVA 20 %.", required: ["prepareCommercialDocument"] },

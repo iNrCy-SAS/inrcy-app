@@ -106,3 +106,19 @@ test("mixed authorization checks retain exact original fields and never unwrap q
   for(const message of ['Explique ceci : « Crée un contact Alice ».','Explique le CRM, puis si je confirme Crée un contact Alice.','Explique le CRM, puis ne crée pas de contact.'])
     assert.equal(matchesInrAssistantActionClause(message,message,check),false);
 });
+
+
+test("an explicit recovery follow-up tracks diagnostics without confusing a publication status with an investigation", () => {
+  for (const message of [
+    "Ma publication semble bloquée. Vérifie ce qui se passe sans la republier ni créer un nouveau contenu.",
+    "La génération rencontre une erreur. Analyse la cause sans relancer.",
+    "Vérifie mes publications bloquées.", "Diagnostique ce problème de publication."
+  ]) assert.equal(inrAssistantObjectives(message).find(item => item.kind === "read")?.tool, "getAccountDiagnostics", message);
+  for (const message of [
+    "Explique comment vérifier une publication bloquée.", "Ne vérifie pas la publication bloquée.",
+    "Si je confirme, vérifie ce problème.", "Lis ce texte : 'Ma publication est bloquée. Vérifie ce qui se passe.'",
+    "Explique la publication bloquée. Vérifie ce qui se passe.", "La publication est bloquée. Consulte les contacts CRM, puis vérifie ce qui se passe."
+  ]) assert.ok(!inrAssistantObjectives(message).some(item => item.tool === "getAccountDiagnostics"), message);
+  const ordinary = inrAssistantObjectives("Consulte mes dernières publications.");
+  assert.equal(ordinary[0].tool, "getRecentPublications");
+});
