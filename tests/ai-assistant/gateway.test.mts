@@ -1,3 +1,4 @@
+import * as uiTask from "../../lib/inrAssistantUiTask.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -57,6 +58,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   plan?: Array<{tool:string;input?:Record<string,unknown>}>;
   parallelPlan?:Array<{tool:string;input?:Record<string,unknown>}>;
   extraTools?:Record<string,unknown>;
+  settingsTools?:Record<string,unknown>;
   calendarFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   mediaLibraryFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   channelActionFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
@@ -139,6 +141,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantTaskPolicy.ts": taskPolicy,
     "./inrAssistantObjectives.ts": objectives,
     "./inrAssistantUiActions.ts": uiActions,
+    "./inrAssistantUiTask.ts": uiTask,
     "./inrAssistantActionCoverage.ts": actionCoverage,
     "./inrAssistantCommandRegistry.ts": commandRegistry,
     "./inrAssistantUiCommands.ts": uiCommands,
@@ -192,7 +195,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     } : {} },
     "./inrAssistantCommunicationTools.ts": { createInrAssistantCommunicationTools: () => ({}) },
     "./inrAssistantAdvertisingTools.ts": { createInrAssistantAdvertisingTools: () => ({}) },
-    "./inrAssistantSettingsTools.ts": { createInrAssistantSettingsTools: () => ({}) },
+    "./inrAssistantSettingsTools.ts": { createInrAssistantSettingsTools: () => options.settingsTools ?? {} },
     "./inrAssistantPublicationTools.ts": { createInrAssistantPublicationTools: (args: { onResult?: (result: InrAssistantPublicationResult) => void }) => Object.fromEntries(["preparePublication", "executePublication"].map(name => [name,
       tool({ inputSchema: jsonSchema({ type: "object", properties: { draftId: { type: "string" }, mode: { type: "string" } }, required: ["draftId", "mode"] }), execute: async () => {
         publicationExecutions.push(name);
@@ -272,6 +275,65 @@ const studioPromptRequest = "Écris un prompt pour créer une image de flyer pr�
 const studioPrompt = "Crée un flyer professionnel pour mon entreprise, dans un style moderne bleu et violet, avec un titre lisible et une présentation claire de mes services.";
 const studioPromptReply = `Voici le prompt préparé :\n\n> ${studioPrompt}\n\nFormat recommandé : landscape.\n\nVous pouvez l’insérer dans Studio puis vérifier les critères avant de générer.`;
 const toolNames = (params: LanguageModelV3CallOptions) => (params.tools ?? []).filter(tool => tool.type === "function").map(tool => tool.name);
+
+const uiBarrierScreen = { pathname: "/dashboard/ads", tool: "Ads", selection: { kind: "campaign" as const, id: "draft_1" }, revision: "rev_1", availableCommands: ["configure_ads_draft" as const] };
+const uiBarrierClause = "Renomme cette campagne publicitaire en Promotion été";
+const uiBarrierCommand = { command: "configure_ads_draft" as const, selection: uiBarrierScreen.selection, revision: uiBarrierScreen.revision, patch: { name: "Promotion été" } };
+function uiBarrierFixture(onExecute = () => {}) {
+  return { runScreenCommand: tool({ inputSchema: jsonSchema<{ command: string; instructionQuote: string }>({ type: "object", properties: { command: { type: "string" }, instructionQuote: { type: "string" } }, required: ["command", "instructionQuote"] }), execute: async () => { onExecute(); return { ok: true, status: "ui_action_requested", message: "Modification du formulaire demandée.", uiCommand: uiBarrierCommand }; } }) };
+}
+const uiBarrierCall = { tool: "runScreenCommand", input: { command: "configure_ads_draft", instructionQuote: uiBarrierClause } };
+
+test("mounted form modification has no phantom campaign mutation and waits for browser confirmation", async () => {
+  const h = harness({ extraTools: uiBarrierFixture(), plan: [uiBarrierCall] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, messages: [{ role: "user", content: uiBarrierClause }] });
+  assert.equal(reply.outcome, "partial");
+  assert.deepEqual(JSON.parse(JSON.stringify(reply.taskState?.requiredTools)), []);
+  assert.equal(reply.uiActions?.length, 1);
+  assert.equal(reply.taskState?.uiSteps?.[0].actions?.length, 1);
+  assert.equal(reply.taskState?.receipts.length, 0);
+  assert.match(reply.message, /confirmation du navigateur/);
+});
+
+test("UI then business mutation waits for scoped browser results and Continue without replaying UI", async () => {
+  const instruction = `${uiBarrierClause}, puis crée un contact CRM nommé Alice.`;
+  const create = { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } };
+  let uiExecutions = 0;
+  const h = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => uiExecutions++), parallelPlan: [uiBarrierCall, create] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, messages: [{ role: "user", content: instruction }] });
+  assert.equal(uiExecutions, 1);
+  assert.equal(h.crmExecutions.length, 0);
+  assert.equal(reply.outcome, "partial");
+  const state = structuredClone(reply.taskState!);
+  state.uiSteps = uiTask.bindInrAssistantUiSteps(state.uiSteps!, reply.uiActions!, { turnId: randomUUID(), createdAt: new Date().toISOString() });
+  assert.equal(taskPolicy.continueInrAssistantTask("Continuer", state, Date.now(), "continue"), instruction);
+  for (const status of [undefined, "pending", "failed", "cancelled", "applied"] as const) {
+    const resumed = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => uiExecutions++), parallelPlan: [uiBarrierCall, create] });
+    const result = await resumed.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, taskContext: state, actionInstruction: instruction, taskIntent: "continue", ...(status ? { browserStepResults: [{ stepId: state.uiSteps![0].id, status }] } : {}), messages: [{ role: "user", content: "Continuer" }] });
+    assert.equal(resumed.crmExecutions.length, status === "applied" ? 1 : 0, String(status));
+    assert.equal(result.outcome, status === "applied" ? "completed" : status === "failed" || status === "cancelled" ? "blocked" : "partial");
+    assert.equal(result.uiActions, undefined);
+    assert.equal(result.taskState?.instruction, instruction);
+  }
+  assert.equal(uiExecutions, 1, "a delivered screen step is never replayed, including on refusal");
+  const unbound = structuredClone(state); delete unbound.uiSteps![0].source;
+  const reclaimed = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => uiExecutions++), parallelPlan: [uiBarrierCall, create] });
+  await reclaimed.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, taskContext: unbound, actionInstruction: instruction, browserStepResults: [{ stepId: unbound.uiSteps![0].id, status: "applied" }], messages: [{ role: "user", content: "Continuer" }] });
+  assert.equal(reclaimed.crmExecutions.length, 0, "unbound checkpoint is not a browser acknowledgement");
+  assert.equal(uiExecutions, 1);
+});
+
+test("business before UI must complete before its command can be queued", async () => {
+  const instruction = `Crée un contact CRM nommé Alice, puis ${uiBarrierClause.toLowerCase()}.`;
+  const create = { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } };
+  const observations: number[] = [];
+  const h = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => observations.push(h.crmExecutions.length)), parallelPlan: [uiBarrierCall, create], plan: [{ tool: "readAppGuide" }, uiBarrierCall] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, messages: [{ role: "user", content: instruction }] });
+  assert.deepEqual(observations, [1]);
+  assert.equal(reply.uiActions?.length, 1);
+  assert.equal(reply.outcome, "partial");
+  assert.equal(reply.taskState?.receipts.filter(receipt => receipt.tool === "manageCrmContact" && receipt.ok).length, 1);
+});
 
 for (const edition of ["basic", "standard", "premium"] as const) test(`${edition}: a requested prompt is a free Studio draft with read-only tools, never an executed generation`, async () => {
   const h = harness({ textReply: studioPromptReply });
@@ -858,7 +920,8 @@ test("workspace and diagnostic tools execute using only the authenticated factor
     const result = await h.runtime.generateInrAssistantReply({ ...basic, supabase: { from: () => { throw new Error("Unexpected database access"); } } as never,
       messages: [{ role: "user", content: lookup === "diagnostics" ? "J’ai une erreur de connexion à Facebook" : "Affiche mes statistiques" }],
       clientContext: { source: "untrusted_client", screen: { pathname: "/dashboard/mediatheque", tool: "Mes médias" } } });
-    assert.equal(result.message, "Voici la prochaine étape.");
+    if (lookup === "diagnostics") assert.equal(result.message, "Voici la prochaine étape.");
+    else { assert.equal(result.outcome, "partial"); assert.match(result.message, /n’a pas été transmise/); }
     assert.deepEqual(h.toolScopes, [...(lookup === "diagnostics" ? [{ tool: "diagnostics", accountId: "account-a", edition: "standard" }] : []), { tool: "workspace", accountId: "account-a", edition: "standard" } ]);
     assert.equal(h.generations.length, 2);
     const prompt = JSON.stringify(h.generations[1].params.prompt);
@@ -1203,20 +1266,25 @@ test("an aborted pure navigation does not execute its native route or call a pro
   assert.equal(opens, 0); assert.equal(h.generations.length, 0); assert.equal(h.finalized.length, 0);
 });
 
-test("opening a module plus reading settings performs both even when the model omits navigation",async()=>{
+test("opening a module precedes the requested read, which resumes after its browser acknowledgement",async()=>{
  const target=uiCommands.getInrAssistantNavigation("preferences")!;
+ const instruction="Ouvre les préférences de l’application et indique mes réglages de notifications actuellement enregistrés. Lis-les sans rien modifier.";
  let opens=0,reads=0;
- const h=harness({plan:[{tool:"readToolSettings"}],extraTools:{
+ const extraTools={
   navigateApplication:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>{opens++;return {ok:true,status:"navigation_requested",navigation:target,message:"Ouverture des préférences demandée."};}}),
   readToolSettings:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>{reads++;return {ok:true,notifications:{emailEnabled:false}};}}),
- }});
- const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:"Ouvre les préférences de l’application et indique mes réglages de notifications actuellement enregistrés. Lis-les sans rien modifier."}]});
- assert.equal(opens,1);assert.equal(reads,1);assert.equal(reply.navigation?.destination,"preferences");
- assert.ok(h.generations.length > 0,"The navigation shortcut must not skip the requested read");
- assert.equal(reply.taskState,undefined);
- assert.ok(h.generations.every(call=>!(call.params.tools??[]).some(tool=>tool.type==="function"&&tool.name==="navigateApplication")));
+ };
+ const h=harness({plan:[{tool:"readToolSettings"}],extraTools,settingsTools:{readToolSettings:extraTools.readToolSettings}});
+ const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+ assert.equal(opens,1);assert.equal(reads,0);assert.equal(reply.navigation?.destination,"preferences");
+ assert.equal(reply.outcome,"partial");
+ const state=structuredClone(reply.taskState!);
+ state.uiSteps=uiTask.bindInrAssistantUiSteps(state.uiSteps!,reply.uiActions!,{turnId:randomUUID(),createdAt:new Date().toISOString()});
+ const resumed=harness({plan:[{tool:"readToolSettings"}],extraTools,settingsTools:{readToolSettings:extraTools.readToolSettings}});
+ await resumed.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,taskContext:state,actionInstruction:instruction,taskIntent:"continue",browserStepResults:[{stepId:state.uiSteps![0].id,status:"applied"}],messages:[{role:"user",content:"Continuer"}]});
+ assert.equal(opens,1);assert.equal(reads,1);
+ assert.ok(resumed.generations.every(call=>!(call.params.tools??[]).some(tool=>tool.type==="function"&&tool.name==="navigateApplication")));
 });
-
 
 test("an uncertain resolved mutation stops a second parallel SDK action and cannot be resumed blindly",async()=>{
  const message="Crée deux contacts CRM : Alice et Bob.";

@@ -17,6 +17,8 @@ import { assistantRefreshTopics, parseInrAssistantRefresh } from "@/lib/inrAssis
 import { INR_ASSISTANT_UNCERTAIN_STATUSES } from "@/lib/inrAssistantCommandRegistry";
 import { bindInrAssistantUiActionsToScreen, inrAssistantUiActionsFromToolResult, parseInrAssistantUiActions } from "@/lib/inrAssistantUiActions";
 import { createInrAssistantUiReceiptToken, loadInrAssistantUiResults } from "@/lib/inrAssistantUiReceipts";
+import { bindInrAssistantUiSteps } from "@/lib/inrAssistantUiTask";
+import { resolveInrAssistantUiTaskResults } from "@/lib/inrAssistantUiTaskContinuation";
 
 export const runtime = "nodejs";
 export const maxDuration = 800;
@@ -210,6 +212,11 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
       }
     }
     const clientContext = parseInrAssistantClientContext((body as { clientContext?: unknown }).clientContext);
+    const browserStepResults = continuation?.task.uiSteps?.length ? await resolveInrAssistantUiTaskResults(
+      continuation.task.uiSteps,
+      source => loadAssistantReplyReplay(attachmentScope, source),
+      (source, actions) => loadInrAssistantUiResults(attachmentScope, source, actions),
+    ).catch(() => { throw Object.assign(new Error("Le résultat du parcours d’écran ne peut pas être vérifié. Aucune action suivante n’a été lancée."), { code: "assistant_task_state_unavailable" }); }) : undefined;
     if (continuation?.task.receipts.some(receipt => INR_ASSISTANT_UNCERTAIN_STATUSES.has(receipt.status))) {
       throw Object.assign(new Error("Une action précédente a été interrompue sans résultat vérifiable. Consultez l’outil concerné avant une nouvelle demande."), { code: "assistant_task_state_unavailable" });
     }
@@ -256,6 +263,7 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
       resolveMediaAttachment: async id => { const file = importAttachments.find(item => item.id === id); return file ? loadAssistantMediaAttachmentOriginal(attachmentScope, file) : null; },
       claimMediaAttachmentImport: async id => { const file = importAttachments.find(item => item.id === id); return file ? claimAssistantMediaAttachmentImport(attachmentScope, file) : false; },
       ...(continuation ? { actionInstruction: continuation.instruction, taskContext: continuation.task } : {}),
+      ...(browserStepResults ? { browserStepResults } : {}),
       ...(taskIntent ? { taskIntent } : {}),
       onTaskCheckpoint: async state => {
         const saved = await saveAssistantTaskState(attachmentScope, { turnId, createdAt: begun.turn!.createdAt }, bindMediaImportSource(state));
@@ -274,6 +282,7 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     const unboundUiActions = parseInrAssistantUiActions(replyData.uiActions) ?? inrAssistantUiActionsFromToolResult("legacy", { ok: true, navigation: replyData.navigation, uiCommand: replyData.uiCommand });
     const uiActions = bindInrAssistantUiActionsToScreen(unboundUiActions, clientContext, messages.at(-1)!.content);
     if (!uiActions) throw Object.assign(new InrAssistantInputError("La sélection de médias ne peut pas être confirmée. Sélectionnez au maximum 25 médias puis renouvelez la demande."), { code: "assistant_ui_selection_changed" });
+    if (taskState?.uiSteps) taskState.uiSteps = bindInrAssistantUiSteps(taskState.uiSteps, uiActions, { turnId, createdAt: begun.turn!.createdAt });
     const uiReceiptToken = uiActions.length ? createInrAssistantUiReceiptToken(attachmentScope, begun.turn!, uiActions) : undefined;
     const refresh = parseInrAssistantRefresh({ accountId: auth.activeUserId, turnId, topics: assistantRefreshTopics(taskState?.receipts ?? []) });
     const publicReply = { ...replyData, ...(uiActions.length ? { uiActions, uiReceiptToken } : {}), ...(refresh ? { refresh } : {}) };

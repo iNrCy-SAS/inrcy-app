@@ -1,3 +1,4 @@
+import * as uiTask from "../../lib/inrAssistantUiTask.ts";
 import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -45,6 +46,7 @@ function harness(options: { readFailure?: boolean } = {}) {
     "./inrAssistantMemory.ts": { inrAssistantMemoryCutoff: () => cutoff.toISOString(), sanitizeInrAssistantMemoryText:(value:unknown,max:number)=>String(value).slice(0,max) },
     "./inrAssistantAttachments.ts": policy, "./aiOfficeDocumentText.ts": office, "./pdfTextExtraction.ts": pdf,
     "./inrAssistantTaskPolicy.ts": taskPolicy,
+    "./inrAssistantUiTask.ts": uiTask,
     "./inrAssistantReplyReplay.ts": replyReplay,
     "./mediaImageNormalizer.ts": { normalizeImageAiPreviewBuffer: async ({ buffer }: { buffer: Buffer }) => ({ aiPreview: { buffer } }) },
     sharp: { default: sharp },
@@ -103,6 +105,21 @@ test("execution journal distinguishes absent, unavailable, invalid and expired p
   saved.task.expiresAt = task.expiresAt; saved.actorUserId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"; h.objects.set(key, Buffer.from(JSON.stringify(saved)));
   assert.equal((await h.api.inspectAssistantTaskState(scope, turn)).status, "invalid");
   h.objects.set(key, Buffer.from("{broken")); assert.equal((await h.api.inspectAssistantTaskState(scope, turn)).status, "invalid");
+});
+
+test("UI steps stay private and reject malformed or oversized persisted continuation plans", async () => {
+  const h = harness();
+  const uiSteps = uiTask.inrAssistantUiSteps("Modifie cette campagne publicitaire.", { source: "untrusted_client", screen: { pathname: "/dashboard/ads", tool: "Ads", selection: { kind: "campaign", id: "draft_1" }, revision: "rev_1", availableCommands: ["configure_ads_draft"] } });
+  const task: taskPolicy.InrAssistantTaskState = { version: 1, instruction: "Modifie cette campagne publicitaire.", question: "Continuer", actionRequestId: "action_browser_001", startedAt: now.toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(), outcome: "partial", requiredTools: [], receipts: [], uiSteps };
+  assert.equal(await h.api.saveAssistantTaskState(scope, turn, task), true);
+  assert.deepEqual(JSON.parse(JSON.stringify((await h.api.loadAssistantTaskState(scope, turn))?.uiSteps)), uiSteps);
+  const key = [...h.objects.keys()].find(path => path.endsWith(".task.json"))!;
+  const saved = JSON.parse(h.objects.get(key)!.toString());
+  for (const invalid of [[{ ...uiSteps[0], command: "executePayment" }], Array.from({ length: 25 }, () => uiSteps[0]), [{ ...uiSteps[0], source: { turnId: "../foreign", createdAt: now.toISOString() } }]]) {
+    saved.task.uiSteps = invalid; h.objects.set(key, Buffer.from(JSON.stringify(saved)));
+    assert.equal((await h.api.inspectAssistantTaskState(scope, turn)).status, "invalid");
+    assert.equal(await h.api.saveAssistantTaskState(scope, turn, { ...task, uiSteps: invalid } as taskPolicy.InrAssistantTaskState), false);
+  }
 });
 
 test("private import sources survive journal saves and reject malformed or expanded source capabilities", async () => {

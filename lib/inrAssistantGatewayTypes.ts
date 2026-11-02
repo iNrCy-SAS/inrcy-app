@@ -11,6 +11,7 @@ import type { InrAssistantStudioDraft } from "./inrAssistantStudioDraft.ts";
 import type { InrAssistantTaskState, InrAssistantTaskOutcome } from "./inrAssistantTaskPolicy.ts";
 import type { InrAssistantNavigation, InrAssistantUiCommand } from "./inrAssistantUiCommands.ts";
 import type { InrAssistantUiAction } from "./inrAssistantUiActions.ts";
+import type { InrAssistantUiStepResult } from "./inrAssistantUiTask.ts";
 
 export type InrAssistantReply = { message: string; needsHuman?: boolean; handoffSummary?: string; media?: InrAssistantMediaResult; studioDraft?: InrAssistantStudioDraft; insertStudioDraft?: boolean; outcome?: InrAssistantTaskOutcome; taskState?: InrAssistantTaskState; navigation?: InrAssistantNavigation; uiCommand?:InrAssistantUiCommand; uiActions?: InrAssistantUiAction[]; taskProgress?: { outcome:InrAssistantTaskOutcome; completed:string[]; remaining:string[] } };
 
@@ -39,6 +40,8 @@ export type InrAssistantGatewayArgs = {
   /** Server-resolved pending task only, never an HTTP body field. */
   actionInstruction?: string;
   taskContext?: InrAssistantTaskState;
+  /** Loaded from immutable scoped browser records by the chat route only. */
+  browserStepResults?: InrAssistantUiStepResult[];
   taskIntent?: "continue" | "check_status";
   onTaskCheckpoint?: (state: InrAssistantTaskState) => Promise<void>;
 };

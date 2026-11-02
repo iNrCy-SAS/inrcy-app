@@ -1,3 +1,5 @@
+import * as uiTaskContinuation from "../../lib/inrAssistantUiTaskContinuation.ts";
+import * as uiTask from "../../lib/inrAssistantUiTask.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -35,6 +37,7 @@ type GatewayArguments = {
   request: Request; signal: AbortSignal; supabase: unknown; turnId: string; memory: unknown;
   actionInstruction?: string;
   taskContext?: taskPolicy.InrAssistantTaskState;
+  browserStepResults?: uiTask.InrAssistantUiStepResult[];
   taskIntent?: "continue" | "check_status";
   onTaskCheckpoint?: (state: taskPolicy.InrAssistantTaskState) => Promise<void>;
   mediaAttachments: Array<Pick<attachmentPolicy.AssistantAttachment, "id" | "name" | "kind" | "size">>;
@@ -63,6 +66,7 @@ function harness(options: {
   taskSaveFailureAfter?: number;
   taskReadState?: "missing" | "invalid" | "unavailable" | "expired";
   replySaveUnavailable?: boolean;
+  browserResults?: uiActions.InrAssistantUiResult[];
 } = {}) {
   const gatewayCalls: GatewayArguments[] = [];
   const editionScopes: string[] = [];
@@ -215,13 +219,18 @@ function harness(options: {
     "@/lib/inrAssistantStudioDraft": studioDraft,
     "@/lib/inrAssistantClientContext": clientContext,
     "@/lib/inrAssistantUiActions": uiActions,
+    "@/lib/inrAssistantUiTask": uiTask,
+    "@/lib/inrAssistantUiTaskContinuation": uiTaskContinuation,
     "@/lib/inrAssistantUiReceipts": {
       createInrAssistantUiReceiptToken: (scope: MemoryScope, turn: { turnId: string }, actions: uiActions.InrAssistantUiAction[]) => {
         assert.equal(scope.accountId, activeScope.accountId); assert.equal(scope.actorUserId, activeScope.actorUserId);
         assert.ok(turn.turnId); assert.ok(uiActions.parseInrAssistantUiActions(actions)?.length);
         return "fixture-signed-browser-plan";
       },
-      loadInrAssistantUiResults: async () => [],
+      loadInrAssistantUiResults: async (scope: MemoryScope) => {
+        assert.equal(scope.accountId, activeScope.accountId); assert.equal(scope.actorUserId, activeScope.actorUserId);
+        return options.browserResults ?? [];
+      },
     },
     "@/lib/inrAssistantActivity": activity,
     "@/lib/inrAssistantMemory": { InrAssistantMemoryConflictError: MemoryConflictError, InrAssistantMemoryInputError: MemoryInputError,
@@ -263,6 +272,36 @@ function request(body: unknown = { messages: [{ role: "user", content: "Aide-moi
     method: "POST", headers: incomingHeaders, body: JSON.stringify(body),
   });
 }
+
+test("UI continuation binds its original turn, ignores browser-forged acknowledgements and preserves account scope", async () => {
+  const screen = { pathname: "/dashboard/ads", tool: "Ads", selection: { kind: "campaign" as const, id: "draft_1" }, revision: "rev_1", availableCommands: ["configure_ads_draft" as const] };
+  const instruction = "Renomme cette campagne publicitaire en Offre été, puis crée un contact CRM Alice.";
+  const actions = uiActions.inrAssistantUiActionsFromToolResult("screen-test", { ok: true, uiCommand: { command: "configure_ads_draft", selection: screen.selection, revision: screen.revision, patch: { name: "Offre été" } } });
+  for (const reported of [false, true]) {
+    const browserResults: uiActions.InrAssistantUiResult[] = reported ? [{ actionId: actions[0].id, source: "browser_reported", status: "applied" }] : [];
+    const h = harness({ storedTurnCreatedAt: new Date().toISOString(), browserResults, gatewayReply: args => {
+      if (args.messages.at(-1)?.content !== instruction) return { message: "Continuation contrôlée." };
+      return { message: "Le formulaire attend le navigateur.", outcome: "partial", uiActions: actions, taskState: {
+        version: 1, instruction, actionRequestId: args.actionRequestId, startedAt: args.actionStartedAt!, expiresAt: new Date(Date.now() + 60_000).toISOString(), outcome: "partial", requiredTools: ["manageCrmContact"], receipts: [], question: "Continuer après confirmation du navigateur.",
+        uiSteps: uiTask.inrAssistantUiSteps(instruction, { source: "untrusted_client", screen }).map(step => ({ ...step, actions })),
+      } };
+    } });
+    const originalTurn = randomUUID();
+    const response = await h.post(request({ conversationId, turnId: originalTurn, messages: [{ role: "user", content: instruction }], clientContext: { source: "untrusted_client", screen } }));
+    assert.equal(response.status, 200);
+    const saved = h.taskSaves.at(-1)!.task;
+    assert.equal(saved.uiSteps?.[0].source?.turnId, originalTurn);
+    assert.deepEqual(saved.receipts, [], "browser work is never a native business receipt");
+    const continued = await h.post(request({ conversationId, turnId: randomUUID(), taskIntent: "continue", messages: [{ role: "user", content: "Continuer" }], browserStepResults: [{ stepId: "ui_0", status: "applied" }], uiResults: [{ actionId: actions[0].id, status: "applied" }] }));
+    assert.equal(continued.status, 200);
+    assert.equal(h.gatewayCalls.at(-1)!.actionInstruction, instruction);
+    assert.deepEqual(h.gatewayCalls.at(-1)!.browserStepResults, [{ stepId: "ui_0", status: reported ? "applied" : "pending" }]);
+    h.setScope({ accountId: otherAccountId });
+    assert.equal((await h.post(request({ conversationId, turnId: randomUUID(), taskIntent: "continue", messages: [{ role: "user", content: "Continuer" }], browserStepResults: [{ stepId: "ui_0", status: "applied" }] }))).status, 200);
+    assert.equal(h.gatewayCalls.at(-1)!.actionInstruction, undefined);
+    assert.equal(h.gatewayCalls.at(-1)!.browserStepResults, undefined);
+  }
+});
 
 test("only server-stored pending work binds a short clarification; browser task fields never grant execution",async()=>{
  const priorTurn={conversationId:conversationId.toLowerCase(),turnId:"ffffffff-ffff-4fff-8fff-ffffffffffff",userText:"Configure mes CTA partout.",assistantText:"Quel appel à l’action : site ou téléphone ?",status:"completed" as const,createdAt:new Date(Date.now()-1000).toISOString()};

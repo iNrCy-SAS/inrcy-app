@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { inrAssistantMemoryCutoff, sanitizeInrAssistantMemoryText } from "./inrAssistantMemory.ts";
 import { compactInrAssistantTaskReceipts, inrAssistantTaskTrackingLimit, type InrAssistantTaskState, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
+import { parseInrAssistantUiSteps } from "./inrAssistantUiTask.ts";
 import { ASSISTANT_ATTACHMENT_BUCKET as BUCKET, ASSISTANT_ATTACHMENT_UUID as UUID, ASSISTANT_ATTACHMENT_TEXT_MAX_CHARS, AssistantAttachmentError, assistantAttachmentFile, parseAssistantAttachments, type AssistantAttachment } from "./inrAssistantAttachments.ts";
 import { parseInrAssistantReplyReplay, type InrAssistantReplyReplay } from "./inrAssistantReplyReplay.ts";
 
@@ -72,6 +73,11 @@ export async function inspectAssistantTaskState(scope: AssistantAttachmentScope,
     if (task.requiredCalls !== undefined && (!task.requiredCalls || typeof task.requiredCalls !== "object" || Array.isArray(task.requiredCalls) || Object.keys(task.requiredCalls).length > 20 ||
       Object.entries(task.requiredCalls).some(([name,count])=>!task.requiredTools.includes(name) || !Number.isSafeInteger(count) || Number(count) < 1 || Number(count) > 1_000_000))) return { status: "invalid" };
     if (!validMediaImportSource(task.mediaImportSource)) return { status: "invalid" };
+    if (task.uiSteps !== undefined) {
+      const uiSteps = parseInrAssistantUiSteps(task.uiSteps);
+      if (!uiSteps) return { status: "invalid" };
+      task.uiSteps = uiSteps;
+    }
     return { status: Date.parse(task.expiresAt) <= Date.now() ? "expired" : "available", task };
   } catch { return { status: "unavailable" }; }
 }
@@ -84,6 +90,7 @@ export async function saveAssistantTaskState(scope: AssistantAttachmentScope, tu
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     if (!validMediaImportSource(task.mediaImportSource)) return false;
+    if (task.uiSteps !== undefined && !parseInrAssistantUiSteps(task.uiSteps)) return false;
     if (inrAssistantTaskTrackingLimit(task.requiredTools, task.requiredCalls)) return false;
     const receipts = compactInrAssistantTaskReceipts(task.receipts, task.requiredTools, task.requiredCalls);
     if (receipts.length > 32) return false;

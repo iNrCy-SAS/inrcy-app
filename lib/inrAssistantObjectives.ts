@@ -1,9 +1,10 @@
 import { inrAssistantActionObjectives, inrAssistantRequiredCalls, inrAssistantRequestClauses, inrAssistantRoutingText, inrAssistantClauseIsAdvice, inrAssistantGoalCompleted, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
 import { INR_ASSISTANT_COMMANDS, type InrAssistantCommandFamily } from "./inrAssistantCommandRegistry.ts";
+import type { InrAssistantUiStep } from "./inrAssistantUiTask.ts";
 /** A plan is bookkeeping, never authority to execute a native command. */
 export type InrAssistantObjective = {
     id: string;
-    kind: "read" | "action";
+    kind: "read" | "action" | "ui";
     tool: string;
     instruction: string;
     count: number;
@@ -35,10 +36,15 @@ const readers: Array<{
 export function inrAssistantReadObjectives(message: string): InrAssistantObjective[] {
     return inrAssistantObjectives(message).filter(objective => objective.kind === "read");
 }
-export function inrAssistantObjectives(message: string): InrAssistantObjective[] {
+export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiStep[] = []): InrAssistantObjective[] {
     const actions = inrAssistantActionObjectives(message);
     const plan: InrAssistantObjective[] = [];
     for (const clause of inrAssistantRequestClauses(message)) {
+        const screenStep = uiSteps.find(step => step.instruction === clause);
+        if (screenStep) {
+            plan.push({ id: screenStep.id, kind: "ui", tool: screenStep.command === "navigateApplication" ? "navigateApplication" : "runScreenCommand", instruction: clause, count: 1 });
+            continue;
+        }
         const mutations = actions.filter(action => action.instruction === inrAssistantRoutingText(clause));
         for (const action of mutations)
             plan.push({ id: `objective_${plan.length}`, kind: "action", tool: action.tool, instruction: clause, count: inrAssistantRequiredCalls(clause)[action.tool] ?? 1 });
@@ -76,19 +82,23 @@ export function inrAssistantReadMatchesObjective(objective: InrAssistantObjectiv
 function mayReadObjective(objective: InrAssistantObjective, tool: string): boolean {
     return objective.tool === tool || objective.tool === "getRecentPublications" && tool === "readPublicationWorkspace";
 }
-export function inrAssistantObjectiveCompleted(plan: InrAssistantObjective[], index: number, receipts: InrAssistantActionReceipt[]): boolean {
+export function inrAssistantObjectiveCompleted(plan: InrAssistantObjective[], index: number, receipts: InrAssistantActionReceipt[], appliedUi: ReadonlySet<string> = new Set()): boolean {
     const objective = plan[index];
+    if (objective.kind === "ui") return appliedUi.has(objective.id);
     if (objective.kind === "read")
         return receipts.some(receipt => receipt.tool === objective.tool && receipt.recordId === objective.id && receipt.ok && receipt.status === "read");
     const count = plan.slice(0, index + 1).filter(item => item.kind === "action" && item.tool === objective.tool).reduce((sum, item) => sum + item.count, 0);
     return inrAssistantGoalCompleted(objective.tool, receipts, { [objective.tool]: count });
 }
-export function inrAssistantObjectiveReady(plan: InrAssistantObjective[], index: number, receipts: InrAssistantActionReceipt[]): boolean {
-    return plan.slice(0, index).every((_, previous) => inrAssistantObjectiveCompleted(plan, previous, receipts));
+export function inrAssistantObjectiveReady(plan: InrAssistantObjective[], index: number, receipts: InrAssistantActionReceipt[], appliedUi: ReadonlySet<string> = new Set()): boolean {
+    return plan.slice(0, index).every((_, previous) => inrAssistantObjectiveCompleted(plan, previous, receipts, appliedUi));
 }
-export function inrAssistantPlanAllowsAction(plan: InrAssistantObjective[], tool: string, receipts: InrAssistantActionReceipt[]): boolean {
-    const index = plan.findIndex((objective, i) => objective.kind === "action" && objective.tool === tool && !inrAssistantObjectiveCompleted(plan, i, receipts));
-    return index < 0 || inrAssistantObjectiveReady(plan, index, receipts);
+export function inrAssistantPlanAllowsAction(plan: InrAssistantObjective[], tool: string, receipts: InrAssistantActionReceipt[], appliedUi: ReadonlySet<string> = new Set()): boolean {
+    const index = plan.findIndex((objective, i) => objective.kind === "action" && objective.tool === tool && !inrAssistantObjectiveCompleted(plan, i, receipts, appliedUi));
+    // Discovery cannot bypass a pending browser step merely because a tool was
+    // absent from the initial lexical plan.
+    if (index < 0) return tool === "runScreenCommand" || tool === "navigateApplication" || !INR_ASSISTANT_COMMANDS[tool] || !plan.some((objective, i) => objective.kind === "ui" && !inrAssistantObjectiveCompleted(plan, i, receipts, appliedUi));
+    return inrAssistantObjectiveReady(plan, index, receipts, appliedUi);
 }
 
 const prerequisiteReaders: Record<string, string[]> = {
@@ -121,11 +131,11 @@ const prerequisiteReaders: Record<string, string[]> = {
 
 /** Defer a later requested read while retaining native reference lookups needed
  * by an earlier mutation. Such prerequisite reads never complete the later goal. */
-export function inrAssistantPlanAllowsRead(plan: InrAssistantObjective[], tool: string, receipts: InrAssistantActionReceipt[]): boolean {
+export function inrAssistantPlanAllowsRead(plan: InrAssistantObjective[], tool: string, receipts: InrAssistantActionReceipt[], appliedUi: ReadonlySet<string> = new Set()): boolean {
     const index = plan.findIndex((objective, position) => objective.kind === "read" && mayReadObjective(objective, tool) && !inrAssistantObjectiveCompleted(plan, position, receipts));
-    if (index < 0 || inrAssistantObjectiveReady(plan, index, receipts)) return true;
+    if (index < 0 || inrAssistantObjectiveReady(plan, index, receipts, appliedUi)) return true;
     return plan.slice(0, index).some((objective, position) => objective.kind === "action" &&
-        !inrAssistantObjectiveCompleted(plan, position, receipts) && prerequisiteReaders[objective.tool]?.includes(tool));
+        inrAssistantObjectiveReady(plan, position, receipts, appliedUi) && !inrAssistantObjectiveCompleted(plan, position, receipts, appliedUi) && prerequisiteReaders[objective.tool]?.includes(tool));
 }
 type ReadAttempt = {
     input: Record<string, unknown>;

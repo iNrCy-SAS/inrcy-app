@@ -3,6 +3,7 @@ import { isInrAssistantStudioDraftRequest } from "./inrAssistantStudioDraft.ts";
 import { inrAssistantStandardCommands } from "./inrAssistantStandardRouting.ts";
 import { INR_ASSISTANT_COMMANDS, INR_ASSISTANT_PENDING_STATUSES, INR_ASSISTANT_UNCERTAIN_STATUSES, isInrAssistantAcceptedReceipt, inrAssistantSettingTargets, requestsInrAssistantSettingsChange } from "./inrAssistantCommandRegistry.ts";
 import { inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantRequestClauses.ts";
+import type { InrAssistantUiStep } from "./inrAssistantUiTask.ts";
 export { inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantRequestClauses.ts";
 
 export type InrAssistantTaskOutcome = "completed" | "partial" | "needs_input" | "processing" | "blocked" | "failed";
@@ -12,6 +13,8 @@ export type InrAssistantTaskState = {
   outcome: InrAssistantTaskOutcome; requiredTools: string[]; requiredCalls?: Record<string, number>; receipts: InrAssistantActionReceipt[]; question: string;
   /** Private server binding to the original attachments; never a browser grant. */
   mediaImportSource?: { turnId: string; createdAt: string };
+  /** Browser handoffs, distinct from native business confirmations. */
+  uiSteps?: InrAssistantUiStep[];
 };
 export const INR_ASSISTANT_MAX_TRACKED_ACTIONS = 24;
 const normalize = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
@@ -111,6 +114,7 @@ export function continueInrAssistantTask(current: string, task: InrAssistantTask
   const answer = current.trim(), t = normalize(answer);
   if (!answer || /```|^>|[«»]|\b(?:annule|stop|arrete|oublie|ignore|autre|different|ne|pas|jamais|not|never|cancel)\b|mot de passe|password|token|cle api|api.?key/.test(t)) return null;
   const approvedReference=t.match(/\bia-[a-f0-9]{12}\b/i)?.[0];
+  if (task.uiSteps?.length && (intent === "continue" || intent === "check_status" || /^(?:continuer?|reprends|termine|poursuis)[.!\s]*$/.test(t))) return task.instruction;
   if(approvedReference && /^(?:confirme|valide|applique|confirm|approve)\b/.test(t) && task.receipts.some(receipt=>receipt.approvalToken && receipt.approvalReference?.toLowerCase()===approvedReference)) {
     return `${task.instruction}\nValidation actuelle de cet aperçu uniquement : ${answer}`.slice(0,4000);
   }
