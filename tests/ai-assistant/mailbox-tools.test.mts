@@ -6,6 +6,8 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import { jsonSchema, tool } from "ai";
+import { continueInrAssistantTask, type InrAssistantTaskState } from "../../lib/inrAssistantTaskPolicy.ts";
+import { inrAssistantUiSteps } from "../../lib/inrAssistantUiTask.ts";
 
 type Row = Record<string, unknown>;
 type Result = Row & { reference?: string; token?: string; proposal?: Row; mailboxes?: Row[]; items?: Row[] };
@@ -129,6 +131,23 @@ test("unsupported attachments copies schedules and inbox replies are not silentl
     assert.equal(h.calls.length, 0);
   }
   const h = harness(); assert.equal((await h.propose(`${h.instruction} Avec une pièce jointe.`, { instructionQuote: h.instruction })).status, "needs_native_confirmation");
+});
+
+test("a committed local composer edit and Continue never authorize an implicit send or discard its attachments", async () => {
+  const h = harness(), preview = await h.propose();
+  assert.ok(preview.reference); assert.ok(preview.token);
+  h.saved.set(preview.reference, preview.token);
+  const instruction = `Modifie le texte du mail ouvert en Nouveau message, puis envoie ce mail à ${TO} avec ses pièces jointes.`;
+  const uiSteps = inrAssistantUiSteps(instruction, { source: "untrusted_client", screen: { pathname: "/dashboard/mails", tool: "Mails", selection: { kind: "mail", id: "compose_1" }, revision: "compose_1_rev_0", availableCommands: ["configure_mail_draft"] } });
+  assert.equal(uiSteps.length, 1);
+  const now = new Date().toISOString();
+  const state: InrAssistantTaskState = { version: 1, instruction, actionRequestId: "composer_followup_1", startedAt: now, expiresAt: new Date(Date.now() + 60_000).toISOString(), outcome: "partial", requiredTools: ["sendIndividualMail"], receipts: [], question: "Continuer", uiSteps };
+  const resumed = continueInrAssistantTask("Continuer", state, Date.now(), "continue");
+  assert.equal(resumed, instruction);
+  const result = await h.create(resumed!, "Continuer").sendIndividualMail.execute({ reference: preview.reference, instructionQuote: "Continuer" });
+  assert.equal(result.status, "confirmation_required");
+  assert.equal((await h.propose(instruction)).status, "needs_native_confirmation");
+  assert.equal(h.calls.length, 0, "neither a local ACK nor old signed content replaces confirmation of the exact outgoing message");
 });
 
 test("common attachment abbreviations and file commands cannot disappear from the quoted mail clause", async () => {

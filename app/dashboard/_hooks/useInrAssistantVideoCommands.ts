@@ -42,7 +42,7 @@ export function useInrAssistantVideoCommands(options: Options) {
       const target = { selection: { kind: "media" as const, id }, revision };
       const placeholder: Command = name === "configure_video_retouch" ? { ...target, command: name, patch: {} }
         : name === "select_video_source" ? { ...target, command: name, mediaId: "00000000-0000-4000-8000-000000000000" } : { ...target, command: name };
-      register(`${instance}:${name}`, { ...placeholder, pathname, run: async (stillCurrent, incoming, scopeCurrent) => {
+      register(`${instance}:${name}`, { ...placeholder, pathname, getCommittedScreen: () => ({ pathname, selection: { kind: "media", id }, revision: current.current.revision }), run: async (stillCurrent, incoming, scopeCurrent) => {
         if (incoming.command !== name || pending.current || !stillCurrent() || !current.current.options.enabled || current.current.revision !== incoming.revision) return false;
         const command = incoming as Command;
         const state = current.current;

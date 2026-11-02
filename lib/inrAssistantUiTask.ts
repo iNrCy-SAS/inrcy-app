@@ -3,6 +3,7 @@ import { getDirectInrAssistantNavigationRequest, isInrAssistantScreenCommandRequ
 import { parseInrAssistantUiActions, inrAssistantUiSuccessStatus, type InrAssistantUiAction, type InrAssistantUiResult } from "./inrAssistantUiActions.ts";
 import { inrAssistantRequestClauses } from "./inrAssistantRequestClauses.ts";
 import { matchesInrAssistantActionClause } from "./inrAssistantActionClause.ts";
+import { inrAssistantUiPostScreenMatchesAction, type InrAssistantUiPostScreen } from "./inrAssistantUiPostScreen.ts";
 
 /** Private plan bookkeeping. Browser reports never become business receipts. */
 export type InrAssistantUiStep = {
@@ -13,7 +14,11 @@ export type InrAssistantUiStep = {
   actions?: InrAssistantUiAction[];
   source?: { turnId: string; createdAt: string };
 };
-export type InrAssistantUiStepResult = { stepId: string; status: "applied" | "pending" | "failed" | "cancelled" };
+export type InrAssistantUiStepResult = { stepId: string; status: "applied" | "pending" | "failed" | "cancelled"; postScreen?: InrAssistantUiPostScreen };
+const followupCapabilities: Partial<Record<InrAssistantUiStep["command"], Array<Exclude<InrAssistantUiStep["command"], "navigateApplication">>>> = {
+  select_video_source: ["configure_video_retouch", "save_video_retouch"],
+  configure_video_retouch: ["save_video_retouch"],
+};
 
 /** Capabilities are parsed before matching; adding a native form command to the
  * context/parser and its detector also makes it eligible for ordered tracking. */
@@ -29,7 +34,10 @@ export function inrAssistantUiSteps(message: string, context?: InrAssistantClien
       return navigation && matchesInrAssistantActionClause(message, message, () => true)
         ? [{ id: `ui_${index}`, instruction, command: "navigateApplication" }] : [];
     }
-    return [{ id: `ui_${index}`, instruction, command, ...(command !== "export_document_pdf" && screen ? { screen } : {}) }];
+    // A future native capability is planning only. It cannot execute until its
+    // prerequisite is acknowledged and the mounted form actually advertises it.
+    for (const following of followupCapabilities[command] ?? []) commands.add(following);
+    return [{ id: `ui_${index}`, instruction, command, ...(command !== "export_document_pdf" && screen ? { screen: { ...screen, availableCommands: [command] } } : {}) }];
   });
 }
 
@@ -54,7 +62,27 @@ export function parseInrAssistantUiSteps(value: unknown): InrAssistantUiStep[] |
 export function inrAssistantUiStepResult(step: InrAssistantUiStep, results: InrAssistantUiResult[]): InrAssistantUiStepResult {
   const failed = step.actions?.map(action => results.find(result => result.actionId === action.id)).find(result => result?.status === "failed" || result?.status === "cancelled");
   const complete = step.actions?.length && step.actions.every(action => results.some(result => result.actionId === action.id && result.status === inrAssistantUiSuccessStatus(action)));
-  return { stepId: step.id, status: failed?.status === "cancelled" ? "cancelled" : failed ? "failed" : complete ? "applied" : "pending" };
+  const lastAction = step.actions?.at(-1);
+  const postScreen = complete && lastAction ? results.find(result => result.actionId === lastAction.id)?.postScreen : undefined;
+  return { stepId: step.id, status: failed?.status === "cancelled" ? "cancelled" : failed ? "failed" : complete ? "applied" : "pending",
+    ...(postScreen && lastAction && inrAssistantUiPostScreenMatchesAction(lastAction, postScreen) ? { postScreen } : {}) };
+}
+
+/** Continue may rebind only the next untouched form step to the exact revision
+ * acknowledged by its preceding command. A manual intervening edit fails closed. */
+export function rebindInrAssistantUiStep(steps: InrAssistantUiStep[], results: InrAssistantUiStepResult[], context?: InrAssistantClientContext | null): InrAssistantUiStep[] {
+  const current = parseInrAssistantClientContext(context)?.screen;
+  const nextIndex = steps.findIndex(step => !step.actions?.length);
+  const next = steps[nextIndex];
+  if (!next?.screen || !current?.revision || !current.selection || !current.availableCommands?.some(command => command === next.command)) return steps;
+  const previous = steps.slice(0, nextIndex).reverse().find(step => step.screen?.pathname === next.screen!.pathname
+    && step.screen.selection?.kind === next.screen!.selection?.kind && step.screen.selection?.id === next.screen!.selection?.id);
+  if (!previous?.source) return steps;
+  const result = results.find(result => result.stepId === previous.id && result.status === "applied");
+  const acknowledged = result?.postScreen;
+  if (!acknowledged || current.pathname !== acknowledged.pathname || current.revision !== acknowledged.revision
+    || current.selection.kind !== acknowledged.selection.kind || current.selection.id !== acknowledged.selection.id) return steps;
+  return steps.map((step, index) => index === nextIndex ? { ...step, screen: { ...current, availableCommands: [step.command as NonNullable<InrAssistantClientScreen["availableCommands"]>[number]] } } : step);
 }
 
 /** Bind only newly emitted steps. An old unbound checkpoint is uncertain and

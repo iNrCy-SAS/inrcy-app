@@ -49,7 +49,7 @@ const sources = {
   "library-optimization": compile("app/dashboard/_hooks/useInrAssistantLibraryOptimization.ts"),
   "video-native": compile("app/dashboard/_hooks/useInrAssistantVideoCommands.ts"),
   "preview": compile("app/dashboard/_hooks/useInrAssistantDocumentPreview.ts"),
-  ...Object.fromEntries(["inrAssistantDocumentUiCommands", "inrAssistantNativeMediaOptimization", "mediaLibraryOptimizationPolicy", "mediaRules", "inrAssistantMailAttachments", "inrAssistantMailCompose", "inrAssistantMediaUiCommands", "inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
+  ...Object.fromEntries(["inrAssistantUiPostScreen", "inrAssistantDocumentUiCommands", "inrAssistantNativeMediaOptimization", "mediaLibraryOptimizationPolicy", "mediaRules", "inrAssistantMailAttachments", "inrAssistantMailCompose", "inrAssistantMediaUiCommands", "inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
 };
 const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
 const fixture = `
@@ -337,14 +337,21 @@ for (const kind of ["ads", "generer-media"] as const) {
       await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), request);
       await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
       assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
+      const committed = await page.evaluate(() => (window as unknown as UiFixture).result[0].postScreen);
+      assert.ok(committed, "the native bridge reports its committed revision, not the pre-action screen snapshot");
+      assert.equal(committed.pathname, `/dashboard/${kind}`);
+      assert.equal(committed.selection.id, initial.selection.id);
+      assert.notEqual(committed.revision, initial.revision);
       const state = await page.evaluate(() => (window as unknown as UiFixture).nativeState);
       if (kind === "ads") { assert.equal(state.name, "Edited campaign"); assert.equal(state.primaryText, "Requested copy"); assert.equal(state.confirmedSpend, false, "Native edit revokes paid-launch consent"); assert.equal(state.step, 1); }
       else { assert.equal(state.format, "9_16"); assert.equal(state.adaptationMode, "cover_crop"); assert.equal(state.saved, false, "Retouch remains unsaved"); }
       assert.equal(await page.evaluate(() => (window as unknown as UiFixture).requests.length), 0);
       assert.equal(await page.evaluate(() => (window as unknown as UiFixture).exports.length), 0);
       await page.evaluate(kind => (window as unknown as UiFixture).editNative(kind === "ads" ? "User later edit" : "16_9"), kind);
-      await page.waitForFunction(revision => (window as unknown as UiFixture).assistantProps.screen.revision !== revision, initial.revision);
-      await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), request);
+      await page.waitForFunction(revision => (window as unknown as UiFixture).assistantProps.screen.revision !== revision, committed.revision);
+      const afterCommitRequest = structuredClone(request);
+      if (afterCommitRequest[0].type === "command" && "revision" in afterCommitRequest[0].command) afterCommitRequest[0].command.revision = committed.revision;
+      await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), afterCommitRequest);
       await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
       assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "failed");
       assert.equal(await page.evaluate(kind => kind === "ads" ? (window as unknown as UiFixture).nativeState.name : (window as unknown as UiFixture).nativeState.format, kind), kind === "ads" ? "User later edit" : "16_9");
@@ -431,6 +438,9 @@ test("video source selection waits for the real editor commit and preserves its 
     assert.equal(state.sourceId, B); assert.equal(state.format, "9_16"); assert.equal(state.adaptationMode, "safe_frame");
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen.selection.id), screen.selection.id, "editor identity remains stable while its source changes");
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
+    const committed = await page.evaluate(() => (window as unknown as UiFixture).result[0].postScreen);
+    assert.equal(committed?.selection.id, screen.selection.id);
+    assert.notEqual(committed?.revision, screen.revision);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabaseClient";
 import { getInrAssistantClientScreen, selectInrAssistantClientScreen, parseInrAssistantClientContext, type InrAssistantClientScreen } from "@/lib/inrAssistantClientContext";
 import type { InrAssistantNavigation, InrAssistantUiCommand } from "@/lib/inrAssistantUiCommands";
 import { runInrAssistantUiActions, type InrAssistantUiAction, type InrAssistantUiResult } from "@/lib/inrAssistantUiActions";
+import type { InrAssistantUiPostScreen } from "@/lib/inrAssistantUiPostScreen";
 import type { InrAssistantStudioDraft } from "@/lib/inrAssistantStudioDraft";
 import { clearInrAssistantStudioDraft, inrAssistantStudioDraftHref, requestInrAssistantStudioDraft, stageInrAssistantStudioDraft, waitForInrAssistantStudioDraft } from "@/lib/inrAssistantStudioHandoff";
 import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
@@ -128,7 +129,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     });
   }, [requestNavigation, router, actorUserId, activeAccountId, revealNavigationDestination]);
   const openMediaLibrary = useCallback(() => navigateInternally("/dashboard/mediatheque"), [navigateInternally]);
-  const executeScreenCommand = useCallback(async (command: InrAssistantUiCommand) => {
+  const executeScreenCommand = useCallback(async (command: InrAssistantUiCommand, onCommittedScreen?: (screen: InrAssistantUiPostScreen) => void) => {
     if (command.command === "download_media" || command.command === "download_stats_report") {
       const stillCurrent = () => {
         const scope = navigationScopeRef.current, current = screenRef.current;
@@ -174,7 +175,14 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
         && current.pathname === entry.handler.pathname && current.screen?.selection?.kind === command.selection.kind
         && current.screen.selection.id === command.selection.id;
     };
-    try { return await entry.handler.run(stillCurrent, command, scopeCurrent); } catch { return false; }
+    try {
+      const applied = await entry.handler.run(stillCurrent, command, scopeCurrent);
+      if (applied && scopeCurrent()) {
+        const committed = entry.handler.getCommittedScreen?.();
+        if (committed) onCommittedScreen?.(committed);
+      }
+      return applied && scopeCurrent();
+    } catch { return false; }
   }, [actorUserId, activeAccountId]);
   const executeUiActions = useCallback(async (actions: InrAssistantUiAction[], onResult?: (result: InrAssistantUiResult) => Promise<void>, beforeAction?: (action: InrAssistantUiAction) => Promise<boolean>) => {
     const execution = uiExecution.current;
@@ -182,6 +190,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     execution.busy = true;
     const epoch = execution.epoch;
     const mountedRevisions = new Map<string, string>();
+    const committedScreens = new Map<InrAssistantUiCommand, InrAssistantUiPostScreen>();
     const rememberDocumentRevision = (navigation: InrAssistantNavigation) => {
       const revision = screenRef.current.screen?.revision;
       if (navigation.documentId && revision) mountedRevisions.set(`${navigation.destination === "quotes" ? "quote" : "invoice"}:${navigation.documentId}`, revision);
@@ -231,9 +240,10 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     };
     const command = (value: InrAssistantUiCommand) => {
       const revision = value.command === "export_document_pdf" ? value.revision ?? mountedRevisions.get(`${value.selection.kind}:${value.selection.id}`) : undefined;
-      return executeScreenCommand(value.command === "export_document_pdf" && revision ? { ...value, revision } : value);
+      return executeScreenCommand(value.command === "export_document_pdf" && revision ? { ...value, revision } : value, screen => committedScreens.set(value, screen));
     };
-    try { return await runInrAssistantUiActions(actions, { isCurrent, navigate, command, onResult, beforeAction }); }
+    try { return await runInrAssistantUiActions(actions, { isCurrent, navigate, command, onResult, beforeAction,
+      postScreen: action => action.type === "command" ? committedScreens.get(action.command) : undefined }); }
     finally { execution.busy = false; }
   }, [actorUserId, activeAccountId, requestNavigation, router, revealNavigationDestination, executeScreenCommand]);
   const insertStudioDraft = useCallback(async (value: InrAssistantStudioDraft) => {

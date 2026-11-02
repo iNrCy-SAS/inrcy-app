@@ -2,8 +2,9 @@
 import { createContext, useContext, useEffect, useId, useRef } from "react";
 import { usePathname } from "next/navigation";
 import type { InrAssistantUiCommand } from "@/lib/inrAssistantUiCommands";
+import type { InrAssistantUiPostScreen } from "@/lib/inrAssistantUiPostScreen";
 
-export type InrAssistantScreenHandler = InrAssistantUiCommand & { pathname: string; run: (stillCurrent: () => boolean, command: InrAssistantUiCommand, scopeCurrent: () => boolean) => Promise<boolean> };
+export type InrAssistantScreenHandler = InrAssistantUiCommand & { pathname: string; run: (stillCurrent: () => boolean, command: InrAssistantUiCommand, scopeCurrent: () => boolean) => Promise<boolean>; getCommittedScreen?: () => InrAssistantUiPostScreen };
 export const DashboardAssistantCommandContext = createContext<(key: string, handler: InrAssistantScreenHandler | null) => void>(() => {});
 
 /** Reuse the document's native renderer; never click arbitrary DOM nodes or export another selection. */

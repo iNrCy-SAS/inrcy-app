@@ -280,65 +280,6 @@ const studioPrompt = "Crée un flyer professionnel pour mon entreprise, dans un 
 const studioPromptReply = `Voici le prompt préparé :\n\n> ${studioPrompt}\n\nFormat recommandé : landscape.\n\nVous pouvez l’insérer dans Studio puis vérifier les critères avant de générer.`;
 const toolNames = (params: LanguageModelV3CallOptions) => (params.tools ?? []).filter(tool => tool.type === "function").map(tool => tool.name);
 
-const uiBarrierScreen = { pathname: "/dashboard/ads", tool: "Ads", selection: { kind: "campaign" as const, id: "draft_1" }, revision: "rev_1", availableCommands: ["configure_ads_draft" as const] };
-const uiBarrierClause = "Renomme cette campagne publicitaire en Promotion été";
-const uiBarrierCommand = { command: "configure_ads_draft" as const, selection: uiBarrierScreen.selection, revision: uiBarrierScreen.revision, patch: { name: "Promotion été" } };
-function uiBarrierFixture(onExecute = () => {}) {
-  return { runScreenCommand: tool({ inputSchema: jsonSchema<{ command: string; instructionQuote: string }>({ type: "object", properties: { command: { type: "string" }, instructionQuote: { type: "string" } }, required: ["command", "instructionQuote"] }), execute: async () => { onExecute(); return { ok: true, status: "ui_action_requested", message: "Modification du formulaire demandée.", uiCommand: uiBarrierCommand }; } }) };
-}
-const uiBarrierCall = { tool: "runScreenCommand", input: { command: "configure_ads_draft", instructionQuote: uiBarrierClause } };
-
-test("mounted form modification has no phantom campaign mutation and waits for browser confirmation", async () => {
-  const h = harness({ extraTools: uiBarrierFixture(), plan: [uiBarrierCall] });
-  const reply = await h.runtime.generateInrAssistantReply({ ...basic, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, messages: [{ role: "user", content: uiBarrierClause }] });
-  assert.equal(reply.outcome, "partial");
-  assert.deepEqual(JSON.parse(JSON.stringify(reply.taskState?.requiredTools)), []);
-  assert.equal(reply.uiActions?.length, 1);
-  assert.equal(reply.taskState?.uiSteps?.[0].actions?.length, 1);
-  assert.equal(reply.taskState?.receipts.length, 0);
-  assert.match(reply.message, /confirmation du navigateur/);
-});
-
-test("UI then business mutation waits for scoped browser results and Continue without replaying UI", async () => {
-  const instruction = `${uiBarrierClause}, puis crée un contact CRM nommé Alice.`;
-  const create = { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } };
-  let uiExecutions = 0;
-  const h = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => uiExecutions++), parallelPlan: [uiBarrierCall, create] });
-  const reply = await h.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, messages: [{ role: "user", content: instruction }] });
-  assert.equal(uiExecutions, 1);
-  assert.equal(h.crmExecutions.length, 0);
-  assert.equal(reply.outcome, "partial");
-  const state = structuredClone(reply.taskState!);
-  state.uiSteps = uiTask.bindInrAssistantUiSteps(state.uiSteps!, reply.uiActions!, { turnId: randomUUID(), createdAt: new Date().toISOString() });
-  assert.equal(taskPolicy.continueInrAssistantTask("Continuer", state, Date.now(), "continue"), instruction);
-  for (const status of [undefined, "pending", "failed", "cancelled", "applied"] as const) {
-    const resumed = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => uiExecutions++), parallelPlan: [uiBarrierCall, create] });
-    const result = await resumed.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, taskContext: state, actionInstruction: instruction, taskIntent: "continue", ...(status ? { browserStepResults: [{ stepId: state.uiSteps![0].id, status }] } : {}), messages: [{ role: "user", content: "Continuer" }] });
-    assert.equal(resumed.crmExecutions.length, status === "applied" ? 1 : 0, String(status));
-    assert.equal(result.outcome, status === "applied" ? "completed" : status === "failed" || status === "cancelled" ? "blocked" : "partial");
-    assert.equal(result.uiActions, undefined);
-    assert.equal(result.taskState?.instruction, instruction);
-  }
-  assert.equal(uiExecutions, 1, "a delivered screen step is never replayed, including on refusal");
-  const unbound = structuredClone(state); delete unbound.uiSteps![0].source;
-  const reclaimed = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => uiExecutions++), parallelPlan: [uiBarrierCall, create] });
-  await reclaimed.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, taskContext: unbound, actionInstruction: instruction, browserStepResults: [{ stepId: unbound.uiSteps![0].id, status: "applied" }], messages: [{ role: "user", content: "Continuer" }] });
-  assert.equal(reclaimed.crmExecutions.length, 0, "unbound checkpoint is not a browser acknowledgement");
-  assert.equal(uiExecutions, 1);
-});
-
-test("business before UI must complete before its command can be queued", async () => {
-  const instruction = `Crée un contact CRM nommé Alice, puis ${uiBarrierClause.toLowerCase()}.`;
-  const create = { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } };
-  const observations: number[] = [];
-  const h = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => observations.push(h.crmExecutions.length)), parallelPlan: [uiBarrierCall, create], plan: [{ tool: "readAppGuide" }, uiBarrierCall] });
-  const reply = await h.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, messages: [{ role: "user", content: instruction }] });
-  assert.deepEqual(observations, [1]);
-  assert.equal(reply.uiActions?.length, 1);
-  assert.equal(reply.outcome, "partial");
-  assert.equal(reply.taskState?.receipts.filter(receipt => receipt.tool === "manageCrmContact" && receipt.ok).length, 1);
-});
-
 for (const edition of ["basic", "standard", "premium"] as const) test(`${edition}: a requested prompt is a free Studio draft with read-only tools, never an executed generation`, async () => {
   const h = harness({ textReply: studioPromptReply });
   const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition, supabase: {} as never, messages: [{ role: "user", content: studioPromptRequest }] });
@@ -1446,3 +1387,91 @@ test("a compound statistics refresh then PDF download retains and executes both 
   assert.equal(result.outcome, "processing", "requesting a download is not proof of its reception");
   assert.deepEqual([...(result.taskState?.requiredTools ?? [])], ["refreshStatsSources", "prepareStatsReportDownload"]);
 });
+
+const uiBarrierScreen = { pathname: "/dashboard/ads", tool: "Ads", selection: { kind: "campaign" as const, id: "draft_1" }, revision: "rev_1", availableCommands: ["configure_ads_draft" as const] };
+const uiBarrierClause = "Renomme cette campagne publicitaire en Promotion été";
+const uiBarrierCommand = { command: "configure_ads_draft" as const, selection: uiBarrierScreen.selection, revision: uiBarrierScreen.revision, patch: { name: "Promotion été" } };
+function uiBarrierFixture(onExecute = () => {}) {
+  return { runScreenCommand: tool({ inputSchema: jsonSchema<{ command: string; instructionQuote: string }>({ type: "object", properties: { command: { type: "string" }, instructionQuote: { type: "string" } }, required: ["command", "instructionQuote"] }), execute: async () => { onExecute(); return { ok: true, status: "ui_action_requested", message: "Modification du formulaire demandée.", uiCommand: uiBarrierCommand }; } }) };
+}
+const uiBarrierCall = { tool: "runScreenCommand", input: { command: "configure_ads_draft", instructionQuote: uiBarrierClause } };
+
+test("mounted form modification has no phantom campaign mutation and waits for browser confirmation", async () => {
+  const h = harness({ extraTools: uiBarrierFixture(), plan: [uiBarrierCall] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, messages: [{ role: "user", content: uiBarrierClause }] });
+  assert.equal(reply.outcome, "partial");
+  assert.deepEqual(JSON.parse(JSON.stringify(reply.taskState?.requiredTools)), []);
+  assert.equal(reply.uiActions?.length, 1);
+  assert.equal(reply.taskState?.uiSteps?.[0].actions?.length, 1);
+  assert.equal(reply.taskState?.receipts.length, 0);
+  assert.match(reply.message, /confirmation du navigateur/);
+});
+
+test("UI then business mutation waits for scoped browser results and Continue without replaying UI", async () => {
+  const instruction = `${uiBarrierClause}, puis crée un contact CRM nommé Alice.`;
+  const create = { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } };
+  let uiExecutions = 0;
+  const h = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => uiExecutions++), parallelPlan: [uiBarrierCall, create] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, messages: [{ role: "user", content: instruction }] });
+  assert.equal(uiExecutions, 1);
+  assert.equal(h.crmExecutions.length, 0);
+  assert.equal(reply.outcome, "partial");
+  const state = structuredClone(reply.taskState!);
+  state.uiSteps = uiTask.bindInrAssistantUiSteps(state.uiSteps!, reply.uiActions!, { turnId: randomUUID(), createdAt: new Date().toISOString() });
+  assert.equal(taskPolicy.continueInrAssistantTask("Continuer", state, Date.now(), "continue"), instruction);
+  for (const status of [undefined, "pending", "failed", "cancelled", "applied"] as const) {
+    const resumed = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => uiExecutions++), parallelPlan: [uiBarrierCall, create] });
+    const result = await resumed.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, taskContext: state, actionInstruction: instruction, taskIntent: "continue", ...(status ? { browserStepResults: [{ stepId: state.uiSteps![0].id, status }] } : {}), messages: [{ role: "user", content: "Continuer" }] });
+    assert.equal(resumed.crmExecutions.length, status === "applied" ? 1 : 0, String(status));
+    assert.equal(result.outcome, status === "applied" ? "completed" : status === "failed" || status === "cancelled" ? "blocked" : "partial");
+    assert.equal(result.uiActions, undefined);
+    assert.equal(result.taskState?.instruction, instruction);
+  }
+  assert.equal(uiExecutions, 1, "a delivered screen step is never replayed, including on refusal");
+  const unbound = structuredClone(state); delete unbound.uiSteps![0].source;
+  const reclaimed = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => uiExecutions++), parallelPlan: [uiBarrierCall, create] });
+  await reclaimed.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, taskContext: unbound, actionInstruction: instruction, browserStepResults: [{ stepId: unbound.uiSteps![0].id, status: "applied" }], messages: [{ role: "user", content: "Continuer" }] });
+  assert.equal(reclaimed.crmExecutions.length, 0, "unbound checkpoint is not a browser acknowledgement");
+  const sameTurn = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => uiExecutions++), parallelPlan: [uiBarrierCall, create] });
+  await sameTurn.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, taskContext: state, actionInstruction: instruction, browserStepResults: [{ stepId: state.uiSteps![0].id, status: "applied" }], messages: [{ role: "user", content: instruction }] });
+  assert.equal(sameTurn.crmExecutions.length, 0, "a reclaimed original turn cannot use an acknowledgement as an explicit Continue");
+  assert.equal(uiExecutions, 1);
+});
+
+test("business before UI must complete before its command can be queued", async () => {
+  const instruction = `Crée un contact CRM nommé Alice, puis ${uiBarrierClause.toLowerCase()}.`;
+  const create = { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } };
+  const observations: number[] = [];
+  const h = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => observations.push(h.crmExecutions.length)), parallelPlan: [uiBarrierCall, create], plan: [{ tool: "readAppGuide" }, uiBarrierCall] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, messages: [{ role: "user", content: instruction }] });
+  assert.deepEqual(observations, [1]);
+  assert.equal(reply.uiActions?.length, 1);
+  assert.equal(reply.outcome, "partial");
+  assert.equal(reply.taskState?.receipts.filter(receipt => receipt.tool === "manageCrmContact" && receipt.ok).length, 1);
+});
+
+test("two edits of one form wait for separate commits and reject manual edits after the first browser receipt", async () => {
+  const secondClause = "Modifie le texte de cette campagne publicitaire en Bonjour";
+  const instruction = `${uiBarrierClause}, puis ${secondClause.toLowerCase()}.`;
+  const secondCall = { tool: "runScreenCommand", input: { command: "configure_ads_draft", instructionQuote: secondClause } };
+  let executed = 0;
+  const makeTools = (revision: string) => ({ runScreenCommand: tool({ inputSchema: jsonSchema<{ command: string; instructionQuote: string }>({ type: "object", properties: { command: { type: "string" }, instructionQuote: { type: "string" } }, required: ["command", "instructionQuote"] }), execute: async () => {
+    executed++; return { ok: true, status: "ui_action_requested", message: "Modification d’écran demandée.", uiCommand: { ...uiBarrierCommand, revision } };
+  } }) });
+  const h = harness({ extraTools: makeTools("rev_1"), parallelPlan: [uiBarrierCall, secondCall] });
+  const initial = await h.runtime.generateInrAssistantReply({ ...basic, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, messages: [{ role: "user", content: instruction }] });
+  assert.equal(executed, 1); assert.equal(initial.uiActions?.length, 1);
+  assert.equal(initial.taskState?.uiSteps?.length, 2);
+  const state = structuredClone(initial.taskState!);
+  state.uiSteps = uiTask.bindInrAssistantUiSteps(state.uiSteps!, initial.uiActions!, { turnId: randomUUID(), createdAt: new Date().toISOString() });
+  const postScreen = { pathname: uiBarrierScreen.pathname, selection: uiBarrierScreen.selection, revision: "rev_2" };
+  for (const revision of ["manual_edit_rev_3", "rev_2"]) {
+    const before: number = executed;
+    const next = harness({ extraTools: makeTools(revision), plan: [secondCall] });
+    const reply = await next.runtime.generateInrAssistantReply({ ...basic, clientContext: { source: "untrusted_client", screen: { ...uiBarrierScreen, revision } }, taskContext: state, actionInstruction: instruction, taskIntent: "continue", browserStepResults: [{ stepId: state.uiSteps![0].id, status: "applied", postScreen }], messages: [{ role: "user", content: "Continuer" }] });
+    assert.equal(executed - before, revision === "rev_2" ? 1 : 0);
+    assert.equal(reply.uiActions?.length ?? 0, revision === "rev_2" ? 1 : 0);
+    if (revision === "rev_2") assert.equal(reply.taskState?.uiSteps?.[1].screen?.revision, "rev_2");
+  }
+});
+

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { inrAssistantUiSteps, parseInrAssistantUiSteps, bindInrAssistantUiSteps } from "../../lib/inrAssistantUiTask.ts";
+import { inrAssistantUiSteps, parseInrAssistantUiSteps, bindInrAssistantUiSteps, rebindInrAssistantUiStep } from "../../lib/inrAssistantUiTask.ts";
 import { resolveInrAssistantUiTaskResults } from "../../lib/inrAssistantUiTaskContinuation.ts";
 import { inrAssistantUiActionsFromToolResult, type InrAssistantUiResult } from "../../lib/inrAssistantUiActions.ts";
 
@@ -35,4 +35,27 @@ test("continuation uses the complete original replay fingerprint, exact action b
   await assert.rejects(resolveInrAssistantUiTaskResults(bound, async () => ({ uiActions: changed }), async () => []), /changed/);
   const unbound = [{ ...steps[0], actions }];
   assert.deepEqual(await resolveInrAssistantUiTaskResults(unbound, async () => { assert.fail("An unbound checkpoint must not guess a turn"); }, async () => []), [{ stepId: steps[0].id, status: "pending" }]);
+});
+
+test("next local edit rebinds only to the exact acknowledged post-commit revision, never a later manual edit", () => {
+  const planned = inrAssistantUiSteps("Renomme cette campagne publicitaire en Été, puis modifie le texte de cette campagne publicitaire.", { source: "untrusted_client", screen });
+  assert.equal(planned.length, 2);
+  const state = bindInrAssistantUiSteps([{ ...planned[0], actions }, planned[1]], actions, source);
+  const postScreen = { pathname: screen.pathname, selection: screen.selection, revision: "rev_2" };
+  const results = [{ stepId: state[0].id, status: "applied" as const, postScreen }];
+  const current = { source: "untrusted_client" as const, screen: { ...screen, revision: "rev_2" } };
+  assert.equal(rebindInrAssistantUiStep(state, results, current)[1].screen?.revision, "rev_2");
+  for (const changed of [{ ...screen, revision: "user_edit_rev_3" }, { ...screen, revision: "rev_2", selection: { ...screen.selection, id: "other" } }, { ...screen, revision: "rev_2", availableCommands: [] }]) {
+    assert.equal(rebindInrAssistantUiStep(state, results, { source: "untrusted_client", screen: changed })[1].screen?.revision, "rev_1");
+  }
+  assert.equal(rebindInrAssistantUiStep(state, [{ stepId: state[0].id, status: "applied" }], current)[1].screen?.revision, "rev_1");
+});
+
+test("video source then format then save is a bounded pending plan, not prematurely enabled execution", () => {
+  const video = { pathname: "/dashboard/generer-media", tool: "Studio", selection: { kind: "media" as const, id: "video_editor" }, revision: "video_0", availableCommands: ["select_video_source" as const] };
+  const plan = inrAssistantUiSteps("Sélectionne cette vidéo source, puis modifie le format de la vidéo en vertical, puis enregistre la vidéo.", { source: "untrusted_client", screen: video });
+  assert.deepEqual(plan.map(step => step.command), ["select_video_source", "configure_video_retouch", "save_video_retouch"]);
+  assert.ok(parseInrAssistantUiSteps(plan));
+  assert.equal(video.availableCommands.length, 1, "planning never advertises a nonexistent mounted capability");
+  assert.equal(inrAssistantUiSteps("Enregistre la vidéo.", { source: "untrusted_client", screen: video }).length, 0, "a save cannot be borrowed without its preceding source/retouch step");
 });

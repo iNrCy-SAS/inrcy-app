@@ -3,6 +3,7 @@ import { supabaseAdmin } from "./supabaseAdmin";
 import { assistantActionFingerprint, createAssistantActionPreview, verifyAssistantActionPreview } from "./inrAssistantActionPreview.ts";
 import { ASSISTANT_ATTACHMENT_BUCKET, ASSISTANT_ATTACHMENT_UUID } from "./inrAssistantAttachments.ts";
 import { inrAssistantUiSuccessStatus, parseInrAssistantUiActions, parseInrAssistantUiResult, type InrAssistantUiAction, type InrAssistantUiResult } from "./inrAssistantUiActions.ts";
+import { inrAssistantUiPostScreenMatchesAction } from "./inrAssistantUiPostScreen.ts";
 
 type Scope = { accountId: string; actorUserId: string; conversationId: string };
 type Turn = { turnId: string; createdAt: string };
@@ -72,6 +73,7 @@ export async function saveInrAssistantUiResult(plan: UiPlan, raw: unknown): Prom
   const result = parseInrAssistantUiResult(raw);
   const action = result && plan.actions.find(action => action.id === result.actionId);
   if (!result || !action || ["applied", "handed_to_browser"].includes(result.status) && result.status !== inrAssistantUiSuccessStatus(action)) return null;
+  if (result.postScreen && !inrAssistantUiPostScreenMatchesAction(action, result.postScreen)) return null;
   if (!await readRecord(plan, result.actionId, "claim")) return null;
   const response = await writeRecord(plan, result.actionId, "result", { result });
   if (!response.error) return result;

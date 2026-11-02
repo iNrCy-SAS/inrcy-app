@@ -1,3 +1,4 @@
+import * as postScreen from "../../lib/inrAssistantUiPostScreen.ts";
 import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -30,6 +31,7 @@ function harness() {
     "./supabaseAdmin": { supabaseAdmin: { storage: { from(bucket: string) { assert.equal(bucket, "inrcy-assistant-attachments"); return storage; } } } },
     "./inrAssistantAttachments.ts": { ASSISTANT_ATTACHMENT_BUCKET: "inrcy-assistant-attachments", ASSISTANT_ATTACHMENT_UUID: /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i },
     "./inrAssistantUiActions.ts": actions,
+    "./inrAssistantUiPostScreen.ts": postScreen,
   };
   const load = (file: string) => {
     const source = ts.transpileModule(readFileSync(new URL(`../../lib/${file}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -109,6 +111,22 @@ test("persisted browser results are bounded reports and never stored task/busine
   assert.deepEqual(Object.keys(rows[0]).sort(), ["actionId", "source", "status"]);
   assert.ok([...files.keys()].every(path => path.endsWith(".claim.json") || path.endsWith(".result.json")));
   assert.ok([...files.values()].every(bytes => !bytes.toString().includes("paymentConfirmed")));
+});
+
+test("post-commit revision is bounded, immutable and restricted to the command's signed form", async () => {
+  const { api } = harness();
+  const actionsForForm = actions.inrAssistantUiActionsFromToolResult("ads", { ok: true, uiCommand: { command: "configure_ads_draft", selection: { kind: "campaign", id: "draft_1" }, revision: "rev_1", patch: { name: "Summer" } } });
+  const token = api.createInrAssistantUiReceiptToken(scope, turn, actionsForForm);
+  const plan = api.verifyInrAssistantUiReceiptToken(token, scope)!;
+  await api.claimInrAssistantUiAction(plan, actionsForForm[0].id);
+  const screen = { pathname: "/dashboard/ads", selection: { kind: "campaign", id: "draft_1" }, revision: "rev_2" };
+  const raw = { actionId: actionsForForm[0].id, source: "browser_reported", status: "applied", postScreen: screen };
+  for (const invalid of [{ ...screen, revision: "x".repeat(101) }, { ...screen, selection: { ...screen.selection, id: "other" } }, { ...screen, pathname: "/dashboard/crm" }]) assert.equal(await api.saveInrAssistantUiResult(plan, { ...raw, postScreen: invalid }), null);
+  assert.ok(await api.saveInrAssistantUiResult(plan, raw));
+  assert.equal((await api.saveInrAssistantUiResult(plan, { ...raw, postScreen: { ...screen, revision: "rev_3" } }))?.postScreen?.revision, "rev_2");
+  const rows = await api.loadInrAssistantUiResults(scope, turn, actionsForForm);
+  assert.equal(rows[0].postScreen?.revision, "rev_2");
+  assert.equal(api.verifyInrAssistantUiReceiptToken(token, { ...scope, accountId: "99999999-9999-4999-8999-999999999999" }), null);
 });
 
 test("HTTP receipt endpoint binds authenticated actor and account, validates origin and bounds bytes", async () => {

@@ -33,7 +33,7 @@ import type { InrAssistantTaskState, InrAssistantTaskOutcome, InrAssistantAction
 import { inrAssistantRequiredCalls, inrAssistantGoalCompleted, inrAssistantTaskTrackingLimit, compactInrAssistantTaskReceipts, inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantTaskPolicy.ts";
 import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsAction, inrAssistantPlanAllowsRead, inrAssistantReadMatchesObjective, inrAssistantObjectiveFamily, inrAssistantObjectiveLabel, createInrAssistantReadBudget } from "./inrAssistantObjectives.ts";
 import { inrAssistantUiActionsFromToolResult, INR_ASSISTANT_MAX_UI_ACTIONS, type InrAssistantUiAction } from "./inrAssistantUiActions.ts";
-import { inrAssistantUiSteps, type InrAssistantUiStep } from "./inrAssistantUiTask.ts";
+import { inrAssistantUiSteps, rebindInrAssistantUiStep, type InrAssistantUiStep } from "./inrAssistantUiTask.ts";
 import { compactInrAssistantRejectedToolContext } from "./inrAssistantRejectedToolContext.ts";
 import { discoverInrAssistantActionCoverage, INR_ASSISTANT_COVERAGE_FAMILIES } from "./inrAssistantActionCoverage.ts";
 import { deriveInrAssistantStudioDraft, isInrAssistantStudioDraftRequest, parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "./inrAssistantStudioDraft.ts";
@@ -139,8 +139,13 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const spokenRequest = args.messages.at(-1)?.content ?? "";
   const latestRequest = args.actionInstruction ?? spokenRequest;
   if(args.taskContext?.receipts.some(receipt=>INR_ASSISTANT_UNCERTAIN_STATUSES.has(receipt.status))) return {outcome:"blocked",message:"Une opération précédente a un résultat incertain. Vérifiez son état dans l’outil concerné avant de demander une nouvelle action."};
-  const uiSteps: InrAssistantUiStep[] = (args.taskContext?.uiSteps ?? inrAssistantUiSteps(latestRequest, args.clientContext)).map(step => ({ ...step }));
-  const appliedUi = new Set((args.browserStepResults ?? []).filter(result => result.status === "applied" && uiSteps.some(step => step.id === result.stepId && step.source)).map(result => result.stepId));
+  const savedUiSteps = args.taskContext?.uiSteps;
+  const uiResumeRequested = Boolean(args.taskContext && args.actionInstruction && (args.taskIntent === "continue"
+    || spokenRequest !== latestRequest && /^(?:oui[, ]+)?(?:continuer?|reprends|termine|poursuis)\b/.test(inrAssistantRoutingText(spokenRequest))));
+  const uiSteps: InrAssistantUiStep[] = (savedUiSteps && uiResumeRequested
+    ? rebindInrAssistantUiStep(savedUiSteps, args.browserStepResults ?? [], args.clientContext)
+    : savedUiSteps ?? inrAssistantUiSteps(latestRequest, args.clientContext)).map(step => ({ ...step }));
+  const appliedUi = new Set((uiResumeRequested || args.taskIntent === "check_status" ? args.browserStepResults ?? [] : []).filter(result => result.status === "applied" && uiSteps.some(step => step.id === result.stepId && step.source)).map(result => result.stepId));
   const statusOnly = Boolean(args.taskContext && args.actionInstruction && (args.taskIntent === "check_status" || args.taskContext.outcome === "processing" && !uiSteps.length));
   const navigationRequested = isInrAssistantNavigationRequest(args.taskContext ? spokenRequest : latestRequest);
   const screenCommandRequested = uiSteps.some(step => step.command !== "navigateApplication" && !step.actions?.length && !appliedUi.has(step.id));
@@ -268,7 +273,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const uiReady = (step: InrAssistantUiStep) => {
     const index = objectives.findIndex(objective => objective.id === step.id);
     return index >= 0 && objectives.slice(0, index).every((objective, position) => objective.kind === "ui"
-      ? appliedUi.has(objective.id) || uiSteps.some(previous => previous.id === objective.id && previous.actions?.length && uiActions.some(action => previous.actions?.some(queued => queued.id === action.id)))
+      ? appliedUi.has(objective.id) || step.command === "export_document_pdf" && uiSteps.some(previous => previous.id === objective.id && previous.command === "navigateApplication" && previous.actions?.length && uiActions.some(action => previous.actions?.some(queued => queued.id === action.id)))
       : inrAssistantObjectiveCompleted(objectives, position, receipts, appliedUi));
   };
   const savedActionReply = () => [...actionFacts.values()].map(fact => `${fact.message}${fact.href ? `\n\n[${fact.label ?? "Ouvrir l’outil"}](${fact.href})` : ""}`).join("\n\n");
@@ -416,7 +421,8 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
           const command = name === "navigateApplication" ? name : data.command;
           const step = uiSteps.find(candidate => candidate.command === command && !candidate.actions?.length && !appliedUi.has(candidate.id) && quotedClauses.includes(clauseKey(candidate.instruction)));
           if (!step || !uiReady(step)) return { ok: false, status: "deferred", message: "Cette étape d’écran est déjà transmise ou attend une étape précédente. Aucune nouvelle commande n’a été envoyée." };
-          if (step.screen && (step.screen.pathname !== args.clientContext?.screen?.pathname || step.screen.revision !== args.clientContext.screen.revision || JSON.stringify(step.screen.selection) !== JSON.stringify(args.clientContext.screen.selection))) return { ok: false, status: "blocked", message: "Le formulaire a changé depuis la demande initiale. Renouvelez votre demande sur le formulaire actuel." };
+          if (step.screen && (step.screen.pathname !== args.clientContext?.screen?.pathname || step.screen.revision !== args.clientContext.screen.revision || JSON.stringify(step.screen.selection) !== JSON.stringify(args.clientContext.screen.selection)
+            || !args.clientContext.screen.availableCommands?.some(command => command === step.command))) return { ok: false, status: "blocked", message: "Le formulaire a changé depuis la demande initiale. Renouvelez votre demande sur le formulaire actuel." };
           uiStepCalls.set(toolCallId, step);
         }
         // Persist before business side effects, then after the verified result.

@@ -63,8 +63,8 @@ export function useInrAssistantNativeDraft(options: NativeDraftOptions) {
       ? { command: options.command, selection: { kind: "campaign" as const, id }, revision, patch: {} }
       : options.command === "configure_mail_draft" ? { command: options.command, selection: { kind: "mail" as const, id }, revision, patch: {} }
       : { command: options.command, selection: { kind: "media" as const, id }, revision, patch: {} };
-    register(instance, { ...handler, pathname, run: (stillCurrent, incoming, scopeCurrent) =>
+    register(instance, { ...handler, pathname, getCommittedScreen: () => ({ pathname, selection: { kind: options.kind, id }, revision: current.current.revision }), run: (stillCurrent, incoming, scopeCurrent) =>
       incoming.command === "configure_ads_draft" || incoming.command === "configure_video_retouch" || incoming.command === "configure_mail_draft" ? run(stillCurrent, incoming, scopeCurrent) : Promise.resolve(false) });
     return () => register(instance, null);
-  }, [id, instance, options.command, enabled, pathname, register, revision]);
+  }, [id, instance, options.command, options.kind, enabled, pathname, register, revision]);
 }

@@ -1,5 +1,6 @@
 import { parseInrAssistantNavigation, parseInrAssistantUiCommand, type InrAssistantNavigation, type InrAssistantUiCommand, type InrAssistantTaskProgress } from "./inrAssistantUiCommands.ts";
 import type { InrAssistantClientContext } from "./inrAssistantClientContext.ts";
+import { parseInrAssistantUiPostScreen, inrAssistantUiPostScreenMatchesAction, type InrAssistantUiPostScreen } from "./inrAssistantUiPostScreen.ts";
 
 /** Ordered effects of one server response. This is not a business authorization. */
 export type InrAssistantUiAction =
@@ -9,6 +10,7 @@ export type InrAssistantUiResult = {
   actionId: string;
   source: "browser_reported";
   status: "applied" | "handed_to_browser" | "failed" | "cancelled";
+  postScreen?: InrAssistantUiPostScreen;
 };
 export const INR_ASSISTANT_MAX_UI_ACTIONS = 24;
 export function inrAssistantUiSuccessStatus(action: InrAssistantUiAction): "applied" | "handed_to_browser" {
@@ -71,7 +73,9 @@ export function parseInrAssistantUiResult(value: unknown): InrAssistantUiResult 
   const row = value as Record<string, unknown>;
   if (typeof row.actionId !== "string" || !ID.test(row.actionId) || row.source !== "browser_reported" ||
     !["applied", "handed_to_browser", "failed", "cancelled"].includes(String(row.status))) return null;
-  return { actionId: row.actionId, source: "browser_reported", status: row.status as InrAssistantUiResult["status"] };
+  const postScreen = row.postScreen === undefined ? undefined : parseInrAssistantUiPostScreen(row.postScreen);
+  if (row.postScreen !== undefined && (!postScreen || row.status !== "applied")) return null;
+  return { actionId: row.actionId, source: "browser_reported", status: row.status as InrAssistantUiResult["status"], ...(postScreen ? { postScreen } : {}) };
 }
 
 /** Display projection only: browser handoffs leave the server-business progress list.
@@ -96,6 +100,7 @@ export async function runInrAssistantUiActions(actions: InrAssistantUiAction[], 
   command: (command: InrAssistantUiCommand) => Promise<boolean>;
   beforeAction?: (action: InrAssistantUiAction) => Promise<boolean>;
   onResult?: (result: InrAssistantUiResult) => Promise<void> | void;
+  postScreen?: (action: InrAssistantUiAction) => InrAssistantUiPostScreen | undefined;
 }): Promise<InrAssistantUiResult[]> {
   const results: InrAssistantUiResult[] = [];
   let stopped = false;
@@ -109,7 +114,9 @@ export async function runInrAssistantUiActions(actions: InrAssistantUiAction[], 
       } catch { status = ports.isCurrent() ? "failed" : "cancelled"; }
     }
     if (status === "failed" || status === "cancelled") stopped = true;
-    const result: InrAssistantUiResult = { actionId: action.id, source: "browser_reported", status };
+    const postScreen = status === "applied" ? ports.postScreen?.(action) : undefined;
+    const result: InrAssistantUiResult = { actionId: action.id, source: "browser_reported", status,
+      ...(postScreen && inrAssistantUiPostScreenMatchesAction(action, postScreen) ? { postScreen } : {}) };
     results.push(result);
     // A failed receipt transport must not repeat the already executed action.
     try { await ports.onResult?.(result); } catch { /* The caller retains the local result. */ }
