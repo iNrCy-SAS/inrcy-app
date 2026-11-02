@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import { normalizeNativeChannelStates } from "../../app/dashboard/_components/native-channel-state.ts";
+import { normalizeDashboardConnectionPatch, projectDashboardConnectionCachePatch, projectDashboardConnectionBlock } from "../../app/dashboard/dashboard.connection-projection.ts";
 import {
   buildOfficialDashboardChannelState,
   createLatestChannelResponseGate,
@@ -90,6 +91,9 @@ function harness() {
     hasCompleteOfficialDashboardChannelState,
     mergeDashboardHydrationState,
     normalizeNativeChannelStates,
+    normalizeDashboardConnectionPatch,
+    projectDashboardConnectionCachePatch,
+    projectDashboardConnectionBlock,
     isConnectionStatus: (value: unknown) => ["connected", "disconnected", "needs_update"].includes(String(value)),
     getActiveBrowserUserId: () => account,
     readCachedDashboardChannelState: () => cache,

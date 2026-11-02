@@ -407,10 +407,19 @@ async function transcodeCanonical(params: {
     minVideoKbps: 96,
     maxVideoKbps: 8_000,
   });
+  // Phone videos can average 30 fps while advertising a 120 fps container
+  // timebase. FFmpeg's implicit CFR selection can otherwise duplicate frames
+  // to 120 fps and make our own H.264 fallback fail its publication check.
+  const outputFrameRate = Number.isFinite(params.source.frameRate) &&
+    params.source.frameRate > 0
+    ? Math.min(params.source.frameRate, 60)
+    : 30;
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const filters = [buildScaleFilter(VIDEO_CANONICAL_MAX_SIDE)];
-    if (params.source.frameRate > 60) filters.push("fps=60");
+    const filters = [
+      buildScaleFilter(VIDEO_CANONICAL_MAX_SIDE),
+      `fps=${outputFrameRate}`,
+    ];
     const args = [
       "-y",
       "-hide_banner",
@@ -426,6 +435,8 @@ async function transcodeCanonical(params: {
     args.push(
       "-vf",
       filters.join(","),
+      "-fps_mode",
+      "cfr",
       "-c:v",
       "libx264",
       "-preset",

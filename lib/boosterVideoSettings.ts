@@ -198,6 +198,12 @@ export function normalizeChannelVideoSettings(
   fallbackFormat?: unknown,
   fallbackAdaptationMode?: unknown,
   sourceMetadata?: VideoSourceMetadataLike,
+): ChannelVideoSettings;
+export function normalizeChannelVideoSettings(
+  channel: BoosterVideoChannelKey,
+  value: unknown,
+  fallbackFormat?: unknown,
+  fallbackAdaptationMode?: unknown,
 ): ChannelVideoSettings {
   const node = readChannelSettingNode(value);
   return {

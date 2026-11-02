@@ -28,7 +28,8 @@ function cleanTags(value: unknown) {
     .slice(0, 30);
 }
 
-function jsonError(message: string, status = 500, detail?: unknown) {
+function jsonError(message: string, status?: number, detail?: unknown): NextResponse<{ ok: boolean; error: string }>;
+function jsonError(message: string, status = 500) {
   return NextResponse.json(
     {
       ok: false,
@@ -261,7 +262,7 @@ async function findProtectedMediaUsages(
 }
 
 export async function GET(request: NextRequest) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const url = new URL(request.url);
@@ -348,7 +349,9 @@ export async function GET(request: NextRequest) {
   const withUrls = rows.map((row: any) => {
     const metadata = normalizeTransferredMediaMetadata(row);
     const recovery = getMediaImageRecoverySummary(row.media_metadata);
-    const contentUrl = buildMediaLibraryContentUrl(String(row.id || ""));
+    // The content endpoint refuses inactive records. Hidden-library views must
+    // keep their metadata without advertising preview URLs that always fail.
+    const contentUrl = row.is_active === false ? null : buildMediaLibraryContentUrl(String(row.id || ""));
     return {
       ...row,
       ...recovery,
@@ -378,7 +381,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const body = await request.json().catch(() => ({}));
@@ -439,7 +442,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const url = new URL(request.url);

@@ -1,6 +1,6 @@
 import { filterInrAgentPublicationChannels, pendingInrAgentPublicationChannels, unvalidatedInrAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelection";
 import { readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
-import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { NextResponse } from "next/server";
 import { normalizeBoosterSoundtrackByChannel, normalizeBoosterSoundtrackId } from "@/lib/boosterSoundtracks";

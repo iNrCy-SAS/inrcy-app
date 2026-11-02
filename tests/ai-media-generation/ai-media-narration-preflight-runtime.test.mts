@@ -159,11 +159,16 @@ test("le serveur valide et réécrit la voix avant de lancer le moteur vidéo", 
     "utf8",
   );
 
-  assert.match(server, /prepareAiMediaNarrationAudioForVideo\(\{/);
-  assert.match(server, /error instanceof AiMediaNarrationTooLongError/);
-  assert.match(server, /maximumSpeechUnits = maximumSpeechUnits/);
+  const preparation = readFileSync(
+    new URL("../../lib/aiMediaNarrationPreparation.ts", import.meta.url), "utf8",
+  );
+  assert.match(preparation, /prepareAiMediaNarrationAudioForVideo\(\{/);
+  assert.match(preparation, /error instanceof AiMediaNarrationTooLongError/);
+  assert.match(preparation, /maximumSpeechUnits = maximumSpeechUnits/);
+  assert.match(server, /\) => prepareAiMediaNarration\(\{/);
   assert.ok(
-    server.indexOf("prepareAiMediaNarrationAudioForVideo({") <
+    server.indexOf("const preparedNarration = await narrationTask;") >= 0 &&
+    server.indexOf("const preparedNarration = await narrationTask;") <
       server.indexOf("const videoGatewayTask = generateVideoGateway();"),
   );
   assert.match(

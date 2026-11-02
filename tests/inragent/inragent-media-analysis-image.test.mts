@@ -1,19 +1,19 @@
+import { readAgentPublicationPreparationSource } from "./prepare-publication-sources.mjs";
 import assert from "node:assert/strict";
 import { createHash, randomFillSync } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
 import sharp from "sharp";
 import ts from "typescript";
 
-const source = ts.createSourceFile("route.ts", readFileSync(new URL("../../app/api/agent/actions/prepare-publish/route.ts", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
+const source = ts.createSourceFile("route.ts", readAgentPublicationPreparationSource(), ts.ScriptTarget.Latest, true);
 const require = createRequire(import.meta.url);
 function declaration(name: string) {
   const node = source.statements.find((entry) => ts.isFunctionDeclaration(entry) && entry.name?.text === name);
-  assert.ok(node); return node.getText(source);
+  assert.ok(node); return node.getText(source).replace(/^export\s+/, "");
 }
 const constants = source.statements.filter((node) => ts.isVariableStatement(node)
-  && node.declarationList.declarations.some((entry) => /^AGENT_AI_IMAGE_/.test(entry.name.getText(source)))).map((node) => node.getText(source)).join("\n");
+  && node.declarationList.declarations.some((entry) => /^AGENT_AI_IMAGE_/.test(entry.name.getText(source)))).map((node) => node.getText(source).replace(/^export\s+/, "")).join("\n");
 const compiled = ts.transpileModule(`${constants}\n${declaration("cleanText")}\n${declaration("prepareAgentSelectedImageForAI")}\nreturn prepareAgentSelectedImageForAI;`, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, esModuleInterop: true },
 }).outputText;

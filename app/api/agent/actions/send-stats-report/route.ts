@@ -10,6 +10,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTxMail } from "@/lib/txMailer";
 import { getInrcyBrandInlineAttachments } from "@/lib/txEmailAssets";
 import { aiGenerateJSON, hasAiGenerationCredentials } from "@/lib/aiGatewayClient";
+import { getAiFeaturePolicy } from "@/lib/aiGatewayPolicy";
 import {
   buildNormalizedAiGenerationProfile,
   type NormalizedAiGenerationProfile,
@@ -162,7 +163,6 @@ const channelLabels: Record<string, string> = {
 };
 
 const REPORTS_BUCKET = "inr-agent-reports";
-const MAX_STORED_REPORTS = 5;
 
 
 function asRecord(value: unknown): JsonRecord {
@@ -536,7 +536,7 @@ async function generateAiInsights(
       feature: "agent.stats-report",
       accountId,
       engine: preferredEngine,
-      maxOutputTokens: 1300,
+      maxOutputTokens: getAiFeaturePolicy("agent.stats-report").maxOutputTokens,
       temperature: getAiEngineTemperature(generationProfile, preferredEngine, "factual"),
       system:
         `Tu es iNr’Agent. Tu rédiges des bilans statistiques courts, utiles et honnêtes pour des professionnels. Tu ne dois jamais inventer des chiffres. Réponds uniquement en JSON.
@@ -737,20 +737,6 @@ function drawSectionTitle(doc: jsPDF, title: string, subtitle: string, x: number
   }
 }
 
-function drawKpiCard(doc: jsPDF, label: string, value: string, x: number, y: number, w: number, h: number, accent: Rgb) {
-  drawGlassCard(doc, x, y, w, h, { fill: [255, 255, 255], border: [219, 234, 254], radius: 5, accent });
-  setFill(doc, accent);
-  doc.circle(x + 9, y + 9, 3.2, "F");
-  setText(doc, PDF.muted);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.4);
-  doc.text(label.toUpperCase(), x + 5, y + 19);
-  setText(doc, PDF.slate);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(value.length > 10 ? 13 : 16);
-  doc.text(value, x + 5, y + 30, { maxWidth: w - 10 });
-}
-
 function drawDarkKpiCard(doc: jsPDF, label: string, value: string, x: number, y: number, w: number, h: number, accent: Rgb) {
   drawGlassCard(doc, x, y, w, h, { fill: [12, 28, 64], border: [38, 66, 116], radius: 6, accent });
   setText(doc, [191, 219, 254]);
@@ -767,12 +753,6 @@ function normalizeInsightList(items: unknown, fallback: string[]): string[] {
   if (!Array.isArray(items)) return fallback;
   const cleaned = items.map((item) => cleanText(item, 4000)).filter(Boolean);
   return cleaned.length ? cleaned : fallback;
-}
-
-function addWrappedText(doc: jsPDF, text: unknown, x: number, y: number, width: number, lineHeight = 4.8) {
-  const lines = splitText(doc, text, width);
-  doc.text(lines, x, y);
-  return y + lines.length * lineHeight;
 }
 
 function getChannelHealth(channel: ChannelReportLine) {
@@ -1245,18 +1225,6 @@ type StoredReportDocument = {
   createdAt: string;
 };
 
-function extractStoredReportDocument(value: unknown): StoredReportDocument | null {
-  const record = asRecord(value);
-  const bucket = cleanText(record.bucket, 120);
-  const storagePath = cleanText(record.storagePath || record.storage_path || record.path, 260);
-  const filename = cleanText(record.filename, 180);
-  const mimeType = cleanText(record.mimeType || record.mime_type, 120) || "application/pdf";
-  const bytes = Math.max(0, Math.round(safeNumber(record.bytes)));
-  const createdAt = cleanText(record.createdAt || record.created_at, 80);
-  if (!bucket || !storagePath || !filename) return null;
-  return { bucket, storagePath, filename, mimeType, bytes, createdAt };
-}
-
 async function ensureReportsBucket(bucket: string) {
   const exists = await supabaseAdmin.storage.getBucket(bucket).catch(() => null);
   if (exists?.data) return;
@@ -1293,97 +1261,6 @@ async function uploadStoredReport(args: { userId: string; now: string; filename:
     bytes: args.pdfBuffer.byteLength,
     createdAt: args.now,
   } satisfies StoredReportDocument;
-}
-
-function normalizeActionPayload(value: unknown) {
-  return asRecord(value);
-}
-
-function normalizeActionRow(value: unknown) {
-  return asRecord(value);
-}
-
-function normalizeTimestampForSort(...values: unknown[]) {
-  for (const value of values) {
-    const text = cleanText(value, 80);
-    if (text) return text;
-  }
-  return "";
-}
-
-function reportRunModeFromPayload(payload: JsonRecord) {
-  const mode = cleanText(payload.runMode || payload.reportRunMode || payload.executionMode, 40).toLowerCase();
-  return mode === "manual" ? "manual" : "automatic";
-}
-
-async function pruneStoredReports(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from("inr_agent_actions")
-    .select("id, payload, completed_at, created_at")
-    .eq("user_id", userId)
-    .eq("automation_key", "stats")
-    .eq("action_type", "stats_report")
-    .eq("status", "completed")
-    .order("completed_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false })
-    .limit(40);
-
-  if (error || !Array.isArray(data)) return;
-
-  const withReport = data
-    .map((row) => {
-      const payload = normalizeActionPayload((row as Record<string, unknown>).payload);
-      const reportDocument = extractStoredReportDocument(payload.reportDocument);
-      return {
-        id: String((row as Record<string, unknown>).id || ""),
-        payload,
-        reportDocument,
-        runMode: reportRunModeFromPayload(payload),
-        sortAt: normalizeTimestampForSort((row as Record<string, unknown>).completed_at, (row as Record<string, unknown>).created_at),
-      };
-    })
-    .filter((row) => row.id && row.reportDocument)
-    .sort((a, b) => String(b.sortAt).localeCompare(String(a.sortAt)));
-
-  const automaticReports = withReport.filter((row) => row.runMode !== "manual");
-  const manualReports = withReport.filter((row) => row.runMode === "manual");
-
-  const toPrune = [
-    ...automaticReports.slice(MAX_STORED_REPORTS),
-    ...manualReports.slice(1),
-  ];
-
-  if (!toPrune.length) return;
-
-  const grouped = new Map<string, string[]>();
-  for (const row of toPrune) {
-    const doc = row.reportDocument;
-    if (!doc) continue;
-    const existing = grouped.get(doc.bucket) || [];
-    existing.push(doc.storagePath);
-    grouped.set(doc.bucket, existing);
-  }
-
-  for (const [bucket, paths] of grouped.entries()) {
-    if (paths.length) {
-      await supabaseAdmin.storage.from(bucket).remove(paths).catch(() => null);
-    }
-  }
-
-  await Promise.all(
-    toPrune.map((row) => {
-      const nextPayload = {
-        ...row.payload,
-        reportDocument: null,
-        reportDocumentPrunedAt: new Date().toISOString(),
-      };
-      return supabaseAdmin
-        .from("inr_agent_actions")
-        .update({ payload: nextPayload, updated_at: new Date().toISOString() })
-        .eq("id", row.id)
-        .eq("user_id", userId);
-    }),
-  );
 }
 
 function normalizeFrequency(value: unknown): InrAgentAutomationSettings["frequency"] {

@@ -23,7 +23,16 @@ assert.notEqual(quotaStart, -1);
 // return/finally. Authentication/context helpers have already resolved above
 // this boundary; only network/provider/DB dependencies are replaced below.
 const body = post.body.statements.slice(quotaStart).map((node) => node.getText(route)).join("\n");
-const compiled = ts.transpileModule(`async function run(){${body}}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+const services = [
+  ["lib/inrAgentPublicationMediaSelection.ts", "selectInrAgentPublicationMedia"],
+  ["lib/inrAgentPublicationMediaAnalysis.ts", "prepareInrAgentSelectedMediaAnalysis"],
+].map(([file, name]) => {
+  const source = ts.createSourceFile(file, readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
+  const declaration = source.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === name);
+  assert.ok(declaration);
+  return declaration.getText(source).replace(/^export\s+/, "");
+}).join("\n");
+const compiled = ts.transpileModule(`${services}\nasync function run(){${body}}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 
 function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCredits?: boolean; failedSnapshot?: boolean; failedPart?: number; mediaFailureOutcome?: string; failedText?: boolean; failedPersistence?: boolean; existingAssets?: Media[]; imageCount?: 1 | 3; imageReadFailure?: boolean } = {}) {
   const events: string[] = [];
@@ -75,6 +84,7 @@ function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCr
     const scope: Record<string, unknown> = {
       createHash, randomUUID, normalizeAiMediaGeneratorPreferences, MEDIA_FIRST_PUBLICATION_IDEA, blocksInrAgentReferenceFallback,
       getAiMediaGenerationPublicError,
+      preparationContext: { accountId: "account", actorAuthUserId: "actor", isCron: true },
       supabase, supabaseAdmin: supabase, userId: "account", quotaAccountId: "account", actorUserId: "actor",
       isAdmin: false, isCron: true, ghostOnlyPublication: options.ghostOnly === true, threadsPublicationSettings: options.ghostOnly || options.ghostMixed ? { mode: "ghost" } : null, automaticMediaKind: options.existingAssets?.[0]?.mediaType || "image", requestedImageCount: options.ghostOnly || options.existingAssets?.[0]?.mediaType === "video" ? 0 : options.imageCount || 3, videoDurationSeconds: undefined,
       automation: { useImageBank: fallbackAssets.length > 0, preferredMediaSource: fallbackAssets.length ? "media_library" : "ai_generation", studioMediaPreferencePercent: 100, planningHorizonDays: 15, validationMode: "manual", frequency: "weekly", imageRequired: true },

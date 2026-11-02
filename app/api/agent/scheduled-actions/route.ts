@@ -112,7 +112,7 @@ function scheduledActionForResponse(
 }
 
 export async function GET(request: Request) {
-  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
+  const { errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
   const standardMode =
     (await getDashboardEditionForAuthUser(authUserId)) === "standard";
@@ -222,7 +222,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
+  const { errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
   const standardMode =
     (await getDashboardEditionForAuthUser(authUserId)) === "standard";

@@ -1,79 +1,50 @@
+import { createPublicationSubmission } from "./publicationSubmission";
+import { loadPublicationDraft, savePublicationDraft } from "./publicationDraftSession";
+import { useBoosterGeneration } from "./useBoosterGeneration";
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import { useInrAssistantScreen } from "../../_components/DashboardAssistantScreenContext";
 import { useTranslations } from "next-intl";
 import PublishWizardFrame, { PublishWizardScreen } from "./components/PublishWizardFrame";
-import { canOpenPublishWizardStep, getPublishWizardSteps, getRestoredPublishWizardStep, type PublishWizardStep } from "./components/publishWizard";
+import { canOpenPublishWizardStep, getPublishWizardSteps, type PublishWizardStep } from "./components/publishWizard";
 import wizardStyles from "./components/publishWizard.module.css";
 import intentStyles from "./components/PublishIntentPanel.module.css";
-import PublishContentAdjustmentModal, { type PublishContentAdjustmentInput } from "./components/PublishContentAdjustmentModal";
-import { mergeBoosterContentAdjustment, normalizeBoosterContentAdjustment } from "@/lib/boosterContentAdjustment";
+import PublishContentAdjustmentModal from "./components/PublishContentAdjustmentModal";
+
 import { getActionablePublicationWarningCodes, getPublicationMediaPoolDefaults } from "./publicationMediaPool";
 import { setImageKeysForChannel } from "./imageChannelAssignment";
 import TiktokReviewCheckbox from "./components/TiktokReviewCheckbox";
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
   type MutableRefObject,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
-import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
+
 import { mergeBoosterChannelDetails, readBoosterChannelIdentitySeed, readBoosterConnectionSnapshot, writeBoosterConnectionSnapshot, type BoosterChannelIdentitySeed } from "./publishConnectionSnapshot";
 import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import PublishExecutionResultModal, { PublishExecutionResultActions, type PublishExecutionSummary } from "../../_components/PublishExecutionResultModal";
-import { getPublicationDestinationStatus, type PublicationProgressDestination } from "../../_components/PublishExecutionProgress";
-import { mergePreflightFailuresIntoPublicationSummary } from "@/lib/boosterPublicationOutcome";
-import { buildStorySequenceResumeByChannel, isRetryablePublicationEntry, publicationStorySequenceResumeRef, publicationStorySequenceCounts } from "@/lib/publicationStorySequenceRetry";
-import { normalizeMediaSoundtrackByChannel, type MediaSoundtrackByChannel } from "@/lib/mediaSoundtrackSelection";
+import { type PublicationProgressDestination } from "../../_components/PublishExecutionProgress";
+
+import { publicationStorySequenceResumeRef } from "@/lib/publicationStorySequenceRetry";
+import { type MediaSoundtrackByChannel } from "@/lib/mediaSoundtrackSelection";
 import MediaSoundtrackSelector from "@/app/dashboard/_components/MediaSoundtrackSelector";
 import { subscribeToChannelConnectionUpdates } from "@/lib/channelConnectionUpdates";
 import { createClient } from "@/lib/supabaseClient";
 import { prewarmBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
-import { buildBoosterGenerationRequest } from "@/lib/boosterGenerationTransportClient";
-import { getBoosterDocumentMimeType, validateBoosterDocumentSelection, type BoosterDocumentAttachmentRef } from "@/lib/boosterDocumentAttachmentPolicy";
-import {
-  BOOSTER_PDF_STORAGE_BUCKET,
-  BOOSTER_PDF_STORAGE_FOLDER,
-  type BoosterPdfAttachmentRef,
-} from "@/lib/boosterPdfAttachmentPolicy";
-import {
-  createBoosterGenerationRequestId,
-  isBoosterGenerationTransportLoss,
-  recoverBoosterGenerationResult,
-  reportBoosterGenerationResponseLoss,
-} from "@/lib/boosterGenerationRecoveryClient";
-import { postBoosterScheduledAction } from "@/lib/boosterScheduleClient";
-import {
-  getBoosterGenerationSpecialErrorMessage,
-  isAutomaticBoosterGenerationRetryEligible,
-} from "@/lib/boosterGenerationErrorPolicy";
+
+import { validateBoosterDocumentSelection } from "@/lib/boosterDocumentAttachmentPolicy";
+
+
 import { getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
-import {
-  GENERATION_PROGRESS_PHASES,
-  PUBLICATION_PROGRESS_PHASES,
-  PUBLICATION_PROGRESS_STAGES,
-  getProgressPhase,
-  getProgressPhaseIndex,
-  getPublicationProgressStage,
-  getPublicationProgressStageForValue,
-  mapProgressRange,
-  resolvePublicationBilanProgress,
-  type GenerationProgressPhaseKey,
-  type PublicationProgressPhaseKey,
-} from "@/lib/boosterProgressPhases";
-import type { BoosterPublishProgressUpdate } from "@/lib/boosterPublishClient";
-import { isBoosterPublicationPendingStatus } from "@/lib/boosterPublicationStatus";
-import {
-  DEFAULT_AI_PREFERRED_ENGINE,
-  getAiEngineOption,
-  getAutomaticAiRetryEngine,
-  normalizeAiPreferredEngine,
-  type AiPreferredEngine,
-} from "@/lib/aiEnginePreference";
+import { GENERATION_PROGRESS_PHASES, PUBLICATION_PROGRESS_PHASES, PUBLICATION_PROGRESS_STAGES, getProgressPhase, getProgressPhaseIndex, getPublicationProgressStage, getPublicationProgressStageForValue, type PublicationProgressPhaseKey } from "@/lib/boosterProgressPhases";
+
+
+import { DEFAULT_AI_PREFERRED_ENGINE, normalizeAiPreferredEngine, type AiPreferredEngine } from "@/lib/aiEnginePreference";
 import {
   readPinterestBoardUiCache,
   writePinterestBoardUiCache,
@@ -83,11 +54,7 @@ import {
   getVideoPublicationProfileForChannel,
 } from "@/lib/boosterVideoTransforms";
 import { readSanitizedElementHtml } from "@/lib/sanitizeHtml";
-import {
-  normalizeVideoAiContextReference,
-  videoAiContextReferenceAliases,
-  type VideoAiContextReference,
-} from "@/lib/videoAiContextReference";
+import { type VideoAiContextReference } from "@/lib/videoAiContextReference";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { INR_SEARCH_CONTENT_MAX_LENGTH } from "@/lib/boosterChannelRules";
 import {
@@ -110,97 +77,12 @@ import {
   stripSiteTextFormattingPreserveLayout,
 } from "@/lib/boosterFormatting";
 import stylesDash from "../../dashboard.module.css";
-import {
-  BOOSTER_IMAGE_ACCEPT,
-  BOOSTER_MAX_IMAGE_COUNT,
-  BOOSTER_MAX_IMAGE_BYTES,
-  BOOSTER_MAX_VIDEO_BYTES,
-  BOOSTER_VIDEO_ACCEPT,
-  BOOSTER_VIDEO_FORMATS_LABEL,
-  CHANNEL_LABELS,
-  CHANNEL_PRESETS,
-  buildPreferredCtaPatch,
-  buildBoosterVideoGenerationContext,
-  buildVideoSettingsByChannel,
-  channelSupportsImages,
-  channelSupportsTextOnly,
-  clampPercent,
-  getChannelDefaultCtaLabel,
-  getChannelPublicationRequirements,
-  getLocalizedChannelPublicationRequirement,
-  getLocalizedChannelLabel,
-  getAutomaticVideoSettingsForPublication,
-  normalizeBoosterPreferredCta,
-  getWebsiteUrlForChannel,
-  getOptimizedTransform,
-  getBoosterMaxImageCountForChannel,
-  getLocalizedVideoAdaptationModeLabel,
-  getLocalizedVideoFormatLabel,
-  VIDEO_FORMAT_ASPECT_RATIOS,
-  extractVideoFramesForAI,
-  fileToBoosterAiImagePayload,
-  makeImageKey,
-  isBoosterVideoFile,
-  isSiteDisplayKey,
-  normalizeBoosterAiLanguage,
-  normalizePost,
-  normalizePublicationMediaType,
-  normalizeVideoAdaptationMode,
-  normalizeVideoFormat,
-  parseInstagramHashtagsInput,
-  uploadPreparedImages,
-  type BoosterAiImagePayload,
-  type BoosterCtaDefaults,
-  type BoosterPreferredCta,
-  type ChannelImageEditorState,
-  type ChannelImagePayload,
-  type ChannelImageSettingsPayload,
-  type ChannelKey,
-  type ChannelMediaMode,
-  type ChannelPost,
-  type VideoAdaptationMode,
-  type VideoFormat,
-  type DisplayKey,
-  type ImageMeta,
-  type ImagePayload,
-  type PublicationMediaType,
-  type StyleKey,
-  type ThemeKey,
-  type BoosterVideoSourceMetadata,
-  type VideoPayload,
-} from "./publishModal.shared";
-import {
-  AI_CONFIGURATION_STORAGE_KEY,
-  CHANNEL_KEYS as ALL_CHANNEL_KEYS,
-  EMPTY_CHANNEL_DETAILS,
-  buildVideoFileName,
-  buildVideoOrientation,
-  buildVideoRatioLabel,
-  getVideoOrientationLabel,
-  isChannelKey,
-  isStyleKey,
-  isThemeKey,
-  makeVideoTranscriptCacheKey,
-  normalizeExternalHref,
-  prefillConfiguredChannelCtas,
-  sanitizePatchForEditor,
-  sanitizePostForEditor,
-  sanitizePostsForEditor,
-  simplifyChannelDetail,
-  truncateText,
-  type ChannelConnectionDetail,
-  type PendingImmediatePublishAfterSchedule,
-  type PinterestBoardOption,
-  type VideoFramesForAI,
-  type VideoFramesPreparationCache,
-} from "./publishModal.foundations";
+import { BOOSTER_IMAGE_ACCEPT, BOOSTER_MAX_IMAGE_COUNT, BOOSTER_MAX_IMAGE_BYTES, BOOSTER_MAX_VIDEO_BYTES, BOOSTER_VIDEO_ACCEPT, BOOSTER_VIDEO_FORMATS_LABEL, CHANNEL_LABELS, CHANNEL_PRESETS, buildPreferredCtaPatch, channelSupportsImages, channelSupportsTextOnly, getChannelPublicationRequirements, getLocalizedChannelPublicationRequirement, getLocalizedChannelLabel, normalizeBoosterPreferredCta, getWebsiteUrlForChannel, getOptimizedTransform, getBoosterMaxImageCountForChannel, getLocalizedVideoAdaptationModeLabel, getLocalizedVideoFormatLabel, VIDEO_FORMAT_ASPECT_RATIOS, extractVideoFramesForAI, fileToBoosterAiImagePayload, makeImageKey, isBoosterVideoFile, isSiteDisplayKey, normalizeBoosterAiLanguage, normalizePost, normalizeVideoAdaptationMode, normalizeVideoFormat, parseInstagramHashtagsInput, type BoosterAiImagePayload, type BoosterCtaDefaults, type BoosterPreferredCta, type ChannelImageEditorState, type ChannelKey, type ChannelMediaMode, type ChannelPost, type VideoAdaptationMode, type VideoFormat, type DisplayKey, type ImageMeta, type PublicationMediaType, type StyleKey, type ThemeKey, type BoosterVideoSourceMetadata, type VideoPayload } from "./publishModal.shared";
+import { AI_CONFIGURATION_STORAGE_KEY, CHANNEL_KEYS as ALL_CHANNEL_KEYS, EMPTY_CHANNEL_DETAILS, buildVideoFileName, buildVideoOrientation, buildVideoRatioLabel, getVideoOrientationLabel, isChannelKey, makeVideoTranscriptCacheKey, normalizeExternalHref, prefillConfiguredChannelCtas, sanitizePatchForEditor, sanitizePostForEditor, simplifyChannelDetail, truncateText, type ChannelConnectionDetail, type PendingImmediatePublishAfterSchedule, type PinterestBoardOption, type VideoFramesPreparationCache } from "./publishModal.foundations";
 import {
   preloadPreparedImagePreview,
   readVideoSourceMetadata,
 } from "./publishModal.videoAiRuntime";
-import {
-  settleOptionalMediaEnrichment,
-} from "./publishModal.clientResilience";
 
 import PublishAiConfigurationDrawer from "./components/PublishAiConfigurationDrawer";
 import PublishChannelSelector from "./components/PublishChannelSelector";
@@ -239,13 +121,7 @@ import {
   normalizeTransferredMediaMetadata,
   type TransferableMediaMetadata,
 } from "@/lib/mediaMetadataTransfer";
-import {
-  getBoosterCreationWorkflow,
-  getBoosterPublicationWorkflowSteps,
-  inferBoosterCreationMode,
-  shouldPrepareBoosterMediaForAi,
-  type BoosterCreationMode,
-} from "@/lib/boosterCreationMode";
+import { getBoosterCreationWorkflow, getBoosterPublicationWorkflowSteps, type BoosterCreationMode } from "@/lib/boosterCreationMode";
 import {
   normalizeYoutubeLongUploadsStatus,
   type YoutubeLongUploadsStatus,
@@ -255,13 +131,7 @@ import {
   isVideoPreparationReady,
   shouldRetryVideoVariantGeneration,
 } from "@/lib/boosterVideoPreparationRecovery";
-import {
-  CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES,
-  normalizeThreadsPublicationPreferences,
-  normalizeThreadsPublicationMode,
-  type ThreadsPublicationMode,
-  type ThreadsPublicationPreferences,
-} from "@/lib/threadsPublicationPreferences";
+import { CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES, normalizeThreadsPublicationPreferences, type ThreadsPublicationMode, type ThreadsPublicationPreferences } from "@/lib/threadsPublicationPreferences";
 import { getEffectiveThreadsMediaMode, getThreadsPublicationModeIssue } from "./threadsPublicationUi";
 import {
   CLASSIC_ONLY_INSTAGRAM_PUBLICATION_PREFERENCES,
@@ -279,29 +149,18 @@ import {
   stripMetaStoryOnlyPostContent,
   type MetaPrimaryPublicationPlacement,
 } from "@/lib/metaPublicationTargets";
-import {
-  buildWorkspaceMediaClientKey,
-  loadMediaPublicationWorkspace,
-  type MediaWorkspaceMediaSummary,
-} from "@/lib/mediaWorkspaceClient";
+import { buildWorkspaceMediaClientKey, type MediaWorkspaceMediaSummary } from "@/lib/mediaWorkspaceClient";
 import {
   MEDIA_WORKSPACE_READINESS_TIMEOUT_MS,
   withMediaWorkspaceDeadline,
 } from "@/lib/mediaWorkspaceTimeout";
-import usePublishVideoController, {
-  normalizeRestoredVideoVariants,
-  type VideoVariantPreparationState,
-} from "./usePublishVideoController";
+import usePublishVideoController, { normalizeRestoredVideoVariants } from "./usePublishVideoController";
 import { assignVideoSourceToChannel } from "./videoChannelAssignment";
 import {
   getGenerationMediaSelectionError,
   getGenerationMediaSelectionPolicy,
 } from "./generationMediaSelection";
-import {
-  isCompleteMediaLibraryDownload,
-  remapRestoredChannelImageEditors,
-  resolvePublishImagePreparation,
-} from "./publishImageRecovery";
+import { isCompleteMediaLibraryDownload, resolvePublishImagePreparation } from "./publishImageRecovery";
 
 import InrcyCameraCaptureModal from "@/app/dashboard/_components/InrcyCameraCaptureModal";
 import MediaLibraryPickerModal, {
@@ -317,18 +176,6 @@ import {
   getMediaLibraryOptimizationRequirements,
 } from "@/lib/mediaLibraryOptimizationPolicy";
 
-// 30 s reste la cible UX. La marge couvre un basculement fournisseur sans
-// transformer une première tentative lente en faux échec nécessitant 2 clics.
-const BOOSTER_GENERATION_TARGET_MS = 30_000;
-const BOOSTER_GENERATION_SAFETY_BUDGET_MS = 105_000;
-// Le préchauffage démarre dès l'insertion. Au clic, cette courte fenêtre absorbe
-// la fin éventuelle des captures sans rogner le budget de l'IA.
-const BOOSTER_VIDEO_AI_PREPARATION_GRACE_MS = 12_000;
-// Le fallback navigateur reste un bonus court : aucun FileReader, canvas ou
-// décodeur vidéo ne peut retenir la rédaction IA au-delà.
-const BOOSTER_LOCAL_MEDIA_ENRICHMENT_BUDGET_MS = 2_500;
-const BOOSTER_PUBLISH_VISIBLE_CAP_MS = 60_000;
-const BOOSTER_PUBLISH_WITH_MEDIA_FINALIZATION_VISIBLE_CAP_MS = 90_000;
 
 type BoosterMediaInsertionDestination =
   | { kind: "generation" }
@@ -342,30 +189,6 @@ type BoosterMediaOptimizerRequest = {
   mediaType: "image" | "video";
   destination: BoosterMediaInsertionDestination;
 };
-
-function normalizeRestoredTiktokPublicationSettings(
-  value: unknown,
-): TiktokPublicationSettings | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const raw = value as Record<string, unknown>;
-  const privacyLevel = String(raw.privacyLevel || "").trim();
-  if (!privacyLevel) return null;
-  const commercialContent = ["none", "self", "branded", "both"].includes(
-    String(raw.commercialContent || ""),
-  )
-    ? (String(raw.commercialContent) as TiktokPublicationSettings["commercialContent"])
-    : "none";
-  return {
-    privacyLevel,
-    allowComments: Boolean(raw.allowComments),
-    allowDuo: Boolean(raw.allowDuo),
-    allowStitch: Boolean(raw.allowStitch),
-    commercialContent,
-    aiContent: Boolean(raw.aiContent),
-    photoAutoMusic: Boolean(raw.photoAutoMusic),
-    musicUsageConfirmed: Boolean(raw.musicUsageConfirmed),
-  };
-}
 
 function buildTransferredBoosterVideoMetadata(
   file: Pick<File, "size" | "type">,
@@ -420,79 +243,6 @@ function getBoosterMediaOptimizerRequirements(
     mimeType: sourceFile?.type || sourceItem?.mime_type,
   });
 }
-
-function mergeRetriedPublicationSummary(
-  previous: PublishExecutionSummary | undefined,
-  next: PublishExecutionSummary | ReturnType<typeof mergePreflightFailuresIntoPublicationSummary>,
-  publicationId: string | null,
-  retriedChannels: readonly string[],
-): PublishExecutionSummary & { total: number; allSucceeded: boolean; failedChannels: string[] } {
-  const entriesByChannel = new Map(
-    (previous?.entries || []).map((entry) => [entry.channel, {
-      ...entry,
-      publicationId: entry.publicationId || previous?.publicationId || previous?.publication_id || null,
-    }]),
-  );
-  const retried = new Set(retriedChannels);
-  for (const entry of next.entries || []) {
-    const channel = String(entry.channel || "").trim();
-    if (!channel || (previous && !retried.has(channel))) continue;
-    const storyCounts = publicationStorySequenceCounts(entry);
-    entriesByChannel.set(channel, {
-      channel,
-      label: String(entry.label || channel),
-      publicationId,
-      ok: typeof entry.ok === "boolean" ? entry.ok : undefined,
-      status: typeof entry.status === "string" ? entry.status : undefined,
-      technicalStatus: typeof entry.technicalStatus === "string" ? entry.technicalStatus : undefined,
-      code: typeof entry.code === "string" ? entry.code : undefined,
-      retryable: typeof entry.retryable === "boolean" ? entry.retryable : undefined,
-      story_sequence_resume_ref: publicationStorySequenceResumeRef(entry.story_sequence_resume_ref),
-      published_image_count: storyCounts?.confirmed,
-      expected_image_count: storyCounts?.expected,
-      error: typeof entry.error === "string" ? entry.error : undefined,
-      warning: typeof entry.warning === "string" ? entry.warning : undefined,
-      warning_kind: typeof entry.warning_kind === "string" ? entry.warning_kind : undefined,
-      warning_message: typeof entry.warning_message === "string" ? entry.warning_message : undefined,
-      blockers: Array.isArray(entry.blockers) ? entry.blockers.filter((blocker): blocker is string => typeof blocker === "string") : undefined,
-    });
-  }
-  const entries = [...entriesByChannel.values()];
-  const statuses = entries.map(getPublicationDestinationStatus);
-  const pendingCount = statuses.filter((status) => status === "pending").length;
-  const successCount = statuses.filter((status) => ["published", "warning", "pending"].includes(status)).length;
-  const failureCount = statuses.filter((status) => status === "failed").length;
-  return {
-    ...previous,
-    ...next,
-    publicationId,
-    entries,
-    successCount,
-    failureCount,
-    retryableFailureCount: entries.filter(isRetryablePublicationEntry).length,
-    pendingCount,
-    skippedCount: statuses.filter((status) => status === "skipped").length,
-    warningCount: statuses.filter((status) => status === "warning").length,
-    mediaWarningCount: entries.filter((entry) => entry.warning_kind === "media_degraded").length,
-    total: entries.length,
-    allSucceeded: entries.length > 0 && statuses.every((status) => status === "published" || status === "warning"),
-    failedChannels: entries.filter((entry) => ["failed", "skipped"].includes(getPublicationDestinationStatus(entry))).map((entry) => entry.channel),
-    allFailed: entries.length > 0 && successCount === 0 && failureCount > 0,
-  };
-}
-
-const GENERATION_PHASE_MESSAGE_KEYS: Record<GenerationProgressPhaseKey, string> = {
-  initialization: "generation_phase_initialization",
-  media_security: "generation_phase_media_security",
-  media_analysis: "generation_phase_media_analysis",
-  request_understanding: "generation_phase_request_understanding",
-  ai_writing: "generation_phase_ai_writing",
-  channel_adaptation: "generation_phase_channel_adaptation",
-  quality_control: "generation_phase_quality_control",
-  editor_preparation: "generation_phase_editor_preparation",
-  final_wait: "generation_phase_final_wait",
-  complete: "generation_phase_complete",
-};
 
 const PUBLICATION_PHASE_MESSAGE_KEYS: Record<PublicationProgressPhaseKey, string> = {
   verification: "publication_request_received",
@@ -594,7 +344,18 @@ export default function PublishModal({
   const [idea, setIdea] = useState("");
   const [publicationInstruction, setPublicationInstruction] = useState("");
   const [contentAdjustmentSession, setContentAdjustmentSession] = useState<{ idea: string; instruction: string; channels: ChannelKey[] } | null>(null);
-  const generationInFlightRef = useRef(false);
+  const { onGenerate, generating, generationInFlightRef, generationProgress,
+    generationPhaseIndex, generationPhaseLabel, generationStage, genError,
+    generationNotice, generationMediaWarning, setGenError, setGenerationNotice,
+    setGenerationMediaWarning, resetGenerationProgress, setGenerationProgressPhase } = useBoosterGeneration({
+    i18nT, runtimeT,
+    readContext: () => ({
+      intent: { creationMode, idea, publicationInstruction, selectedForGeneration, selectedChannels, selectedAiPreferredEngine, hasWrittenChannelContent, theme, contentStyle },
+      media: { videoFile, videoPreviewUrl, videoDurationSeconds, videoStorageContext, images, useImagesForAI, documentFiles, videoAiContextRef, getOrPrepareAiImagePayload, getOrPrepareVideoFramesForAI },
+      workspace: { unifiedMediaConsumptionClientAvailable, mediaWorkspaceId, waitForPersistentWorkspaceReadiness, persistentMediaWorkspaceEnabled, startPersistentAiMediaPreparation, mediaPipelineCutoverEnabled, ensurePersistentMediaWorkspace },
+      editor: { publicationActorScopeRef, currentPostsRef, getDisplayPost, getLiveInstagramHashtags, xHashtagsInput, ctaDefaults, setImgError, setDuplicateFeedback, setPostsByChannel, setIdea, setPublicationInstruction, setXHashtagsInput, setContentAdjustmentSession, setDocumentFiles, setPdfAttachmentError, pdfInputRef, setContentWorkspaceOpen, setSynchronizedActiveChannel, scrollToContentWorkspace },
+    }),
+  });
   const [documentFiles, setDocumentFiles] = useState<File[]>([]);
   const pdfFile = documentFiles[0] || null;
   const [pdfAttachmentError, setPdfAttachmentError] = useState("");
@@ -603,14 +364,7 @@ export default function PublishModal({
   const [creationMode, setCreationMode] =
     useState<BoosterCreationMode | null>(null);
   const [creationModeError, setCreationModeError] = useState("");
-  const [generating, setGenerating] = useState(false);
-  const [generationProgress, setGenerationProgress] = useState(0);
-  const [generationPhaseIndex, setGenerationPhaseIndex] = useState(0);
-  const [generationPhaseLabel, setGenerationPhaseLabel] = useState("");
-  const [generationStage, setGenerationStage] = useState("");
-  const generationProgressTargetRef = useRef(0);
-  const generationPhaseIndexRef = useRef(0);
-  const generationRequestPhaseTimerRef = useRef<number | null>(null);
+
   const videoFramesForAiCacheRef = useRef<VideoFramesPreparationCache | null>(
     null,
   );
@@ -637,9 +391,6 @@ export default function PublishModal({
     return preparationPromise;
   }, []);
 
-  const [genError, setGenError] = useState("");
-  const [generationNotice, setGenerationNotice] = useState("");
-  const [generationMediaWarning, setGenerationMediaWarning] = useState("");
   const [publishError, setPublishError] = useState("");
   const [draftSaving, setDraftSaving] = useState(false);
   const [contentVoiceBusy, setContentVoiceBusy] = useState(false);
@@ -796,31 +547,6 @@ export default function PublishModal({
 
   useEffect(() => {
     let cancelled = false;
-    threadsPublicationPreferencesRef.current = CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES;
-    setThreadsPublicationPreferences(CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES);
-    setThreadsPreferencesLoading(true);
-    setThreadsPreferencesFailed(false);
-    if (!metaPilotEnabled) { setThreadsPublicationMode("classic"); return; }
-    const loadThreadsPreferences = async () => {
-      try {
-        const response = await fetch("/api/integrations/threads/publication-preferences", { cache: "no-store", credentials: "include" });
-        const payload = await response.json().catch(() => null);
-        if (cancelled) return;
-        if (!response.ok || !payload?.preferences) throw new Error("preferences_unavailable");
-        const preferences = normalizeThreadsPublicationPreferences(payload.preferences);
-        threadsPublicationPreferencesRef.current = preferences;
-        setThreadsPublicationPreferences(preferences);
-        setThreadsPreferencesAccountId(activeAccountId);
-        if (!publicationDraftIdParam && !threadsModeTouchedRef.current) setThreadsPublicationMode(preferences.defaultMode);
-      } catch { if (!cancelled) { setThreadsPreferencesFailed(true); setThreadsPreferencesAccountId(activeAccountId); } }
-      finally { if (!cancelled) setThreadsPreferencesLoading(false); }
-    };
-    void loadThreadsPreferences();
-    return () => { cancelled = true; };
-  }, [activeAccountId, metaPilotEnabled, publicationDraftIdParam]);
-
-  useEffect(() => {
-    let cancelled = false;
     const loadInstagramPreferences = async () => {
       try {
         const response = await fetch(
@@ -968,7 +694,10 @@ export default function PublishModal({
     );
   });
   const [pinterestBoardsLoading, setPinterestBoardsLoading] = useState(false);
-  const [pinterestBoardsError, setPinterestBoardsError] = useState("");
+  const [pinterestBoardsFailure, setPinterestBoardsFailure] = useState<unknown>(null);
+  const pinterestBoardsError = pinterestBoardsFailure === null
+    ? ""
+    : getSimpleFrenchErrorMessage(pinterestBoardsFailure, i18nT("pinterest_boards_load_failed"));
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
@@ -1168,9 +897,8 @@ export default function PublishModal({
   }, [getOrPrepareAiImagePayload, images, useImagesForAI]);
 
   useEffect(() => {
-    return () => {
-      aiImagePayloadCacheRef.current.clear();
-    };
+    const cache = aiImagePayloadCacheRef.current;
+    return () => cache.clear();
   }, []);
 
   const [showPublicationPreview, setShowPublicationPreview] = useState(false);
@@ -1191,7 +919,7 @@ export default function PublishModal({
     const accountId = getActiveBrowserUserId() || activeAccountId || null;
     return { accountId, snapshot: readBoosterConnectionSnapshot(actorUserId, accountId, CHANNEL_KEYS) };
   });
-  const getInitialConnectedChannels = (): Record<ChannelKey, boolean> => initialConnectionBootstrap.snapshot?.channels ?? ({
+  const getInitialConnectedChannels = useCallback((): Record<ChannelKey, boolean> => initialConnectionBootstrap.snapshot?.channels ?? ({
 
     site_web: !!initialConnectedChannels?.site_web,
     gmb: !!initialConnectedChannels?.gmb,
@@ -1207,7 +935,7 @@ export default function PublishModal({
     // still exists. Pinterest is enabled by the authoritative
     // /api/booster/connected-channels refresh immediately after opening.
     pinterest: false,
-  });
+  }), [initialConnectionBootstrap.snapshot, initialConnectedChannels, metaPilotEnabled]);
 
   const [channels, setChannels] = useState<Record<ChannelKey, boolean>>(() =>
     getInitialConnectedChannels(),
@@ -1232,6 +960,39 @@ export default function PublishModal({
   const connectedChannelsScopeRef = useRef<string | null | undefined>(initialConnectionBootstrap.accountId);
   const connectedChannelsActorRef = useRef(actorUserId);
   const authoritativeChannelsRef = useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    threadsPublicationPreferencesRef.current = CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES;
+    setThreadsPublicationPreferences(CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES);
+    setThreadsPreferencesLoading(true);
+    setThreadsPreferencesFailed(false);
+    if (!metaPilotEnabled || (connectedChannelsLoadState === "ready" && !connected.threads)) {
+      if (!metaPilotEnabled) setThreadsPublicationMode("classic");
+      setThreadsPreferencesAccountId(activeAccountId);
+      setThreadsPreferencesLoading(false);
+      return;
+    }
+    if (connectedChannelsLoadState !== "ready" || !authoritativeChannelsRef.current || connectedChannelsScopeRef.current !== (getActiveBrowserUserId() || activeAccountId || null)) {
+      if (connectedChannelsLoadState === "error") { setThreadsPreferencesFailed(true); setThreadsPreferencesAccountId(activeAccountId); setThreadsPreferencesLoading(false); }
+      return;
+    }
+    const loadThreadsPreferences = async () => {
+      try {
+        const response = await fetch("/api/integrations/threads/publication-preferences", { cache: "no-store", credentials: "include" });
+        const payload = await response.json().catch(() => null);
+        if (cancelled) return;
+        if (!response.ok || !payload?.preferences) throw new Error("preferences_unavailable");
+        const preferences = normalizeThreadsPublicationPreferences(payload.preferences);
+        threadsPublicationPreferencesRef.current = preferences;
+        setThreadsPublicationPreferences(preferences);
+        setThreadsPreferencesAccountId(activeAccountId);
+        if (!publicationDraftIdParam && !threadsModeTouchedRef.current) setThreadsPublicationMode(preferences.defaultMode);
+      } catch { if (!cancelled) { setThreadsPreferencesFailed(true); setThreadsPreferencesAccountId(activeAccountId); } }
+      finally { if (!cancelled) setThreadsPreferencesLoading(false); }
+    };
+    void loadThreadsPreferences();
+    return () => { cancelled = true; };
+  }, [activeAccountId, metaPilotEnabled, publicationDraftIdParam, connected.threads, connectedChannelsLoadState]);
   const [channelInfoOpen, setChannelInfoOpen] = useState<ChannelKey | null>(
     null,
   );
@@ -1269,74 +1030,8 @@ export default function PublishModal({
         ),
       );
     },
-    [],
+    [CHANNEL_KEYS],
   );
-
-  const clearGenerationTimers = () => {
-    if (generationRequestPhaseTimerRef.current) {
-      window.clearInterval(generationRequestPhaseTimerRef.current);
-      generationRequestPhaseTimerRef.current = null;
-    }
-  };
-
-  const resetGenerationProgress = useCallback(() => {
-    clearGenerationTimers();
-    generationProgressTargetRef.current = 0;
-    generationPhaseIndexRef.current = 0;
-    setGenerationProgress(0);
-    setGenerationPhaseIndex(0);
-    setGenerationPhaseLabel("");
-    setGenerationStage("");
-  }, []);
-
-  const setGenerationProgressPhase = useCallback(
-    (
-      key: GenerationProgressPhaseKey,
-      detail: string,
-      target?: number,
-    ) => {
-      const phase = getProgressPhase(GENERATION_PROGRESS_PHASES, key);
-      const phaseLabel = runtimeT(GENERATION_PHASE_MESSAGE_KEYS[key]);
-      const phaseIndex = getProgressPhaseIndex(
-        GENERATION_PROGRESS_PHASES,
-        key,
-      );
-      if (phaseIndex < generationPhaseIndexRef.current) return;
-
-      if (phaseIndex > generationPhaseIndexRef.current) {
-        generationPhaseIndexRef.current = phaseIndex;
-        setGenerationPhaseIndex(phaseIndex);
-        setGenerationPhaseLabel(phaseLabel);
-        setGenerationProgress((current) => Math.max(current, phase.start));
-      }
-
-      const nextTarget = Math.min(
-        phase.cap,
-        Math.max(phase.start, target ?? Math.max(phase.start, phase.cap - 1)),
-      );
-      generationProgressTargetRef.current = Math.max(
-        generationProgressTargetRef.current,
-        nextTarget,
-      );
-      setGenerationStage(detail || phaseLabel);
-    },
-    [runtimeT],
-  );
-
-  const completeGenerationProgress = useCallback((detail: string) => {
-    const phase = getProgressPhase(GENERATION_PROGRESS_PHASES, "complete");
-    const phaseLabel = runtimeT(GENERATION_PHASE_MESSAGE_KEYS.complete);
-    const phaseIndex = getProgressPhaseIndex(
-      GENERATION_PROGRESS_PHASES,
-      "complete",
-    );
-    generationPhaseIndexRef.current = phaseIndex;
-    generationProgressTargetRef.current = 100;
-    setGenerationPhaseIndex(phaseIndex);
-    setGenerationPhaseLabel(phaseLabel);
-    setGenerationStage(detail || phaseLabel);
-    setGenerationProgress(100);
-  }, [runtimeT]);
 
   const resetPublicationProgressPhases = useCallback(() => {
     phasedPublicationProgressRef.current = false;
@@ -1386,7 +1081,6 @@ export default function PublishModal({
   );
 
   const completePublicationProgress = useCallback((detail: string) => {
-    const phase = getProgressPhase(PUBLICATION_PROGRESS_PHASES, "complete");
     const phaseLabel = runtimeT(PUBLICATION_PHASE_MESSAGE_KEYS.complete);
     const phaseIndex = getProgressPhaseIndex(
       PUBLICATION_PROGRESS_PHASES,
@@ -1440,20 +1134,6 @@ export default function PublishModal({
 
   useEffect(() => {
     if (!generating) return;
-    const timerId = window.setInterval(() => {
-      setGenerationProgress((current) => {
-        const target = generationProgressTargetRef.current;
-        if (current >= target) return current;
-        const distance = target - current;
-        const step = distance > 18 ? 2 : 1;
-        return Math.min(target, current + step);
-      });
-    }, 180);
-    return () => window.clearInterval(timerId);
-  }, [generating]);
-
-  useEffect(() => {
-    if (!generating) return;
     const timerId = window.setTimeout(() => {
       if (contentAdjustmentSession || wizardStep !== "intention") return;
       generationProgressRef.current?.scrollIntoView({
@@ -1489,23 +1169,13 @@ export default function PublishModal({
   }, [publishProgress, runtimeT, saving]);
 
   useEffect(() => {
-    return () => {
-      clearGenerationTimers();
-    };
-  }, []);
-
-  useEffect(() => {
     void prewarmBoosterGenerationContextClient();
   }, []);
 
+  const instagramPostHashtags = (normalizePost(postsByChannel.instagram).hashtags || []).join(" ");
   useEffect(() => {
-    const nextValue = (
-      normalizePost(postsByChannel.instagram).hashtags || []
-    ).join(" ");
-    setInstagramHashtagsInput((prev) =>
-      prev === nextValue ? prev : nextValue,
-    );
-  }, [postsByChannel.instagram?.hashtags?.join("|") ?? ""]);
+    setInstagramHashtagsInput((prev) => prev === instagramPostHashtags ? prev : instagramPostHashtags);
+  }, [instagramPostHashtags]);
 
   useEffect(() => {
     onOverlayOpenChange?.(aiConfigurationOpen || Boolean(contentAdjustmentSession));
@@ -1699,13 +1369,13 @@ export default function PublishModal({
       window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, onFocus);
       unsubscribeConnectionUpdates();
     };
-  }, [applyConnectedChannels, activeAccountId, actorUserId]);
+  }, [applyConnectedChannels, activeAccountId, actorUserId, CHANNEL_KEYS]);
 
   useEffect(() => {
     const scope = connectedChannelsScopeRef.current;
     if (connectedChannelsLoadState !== "ready" || !authoritativeChannelsRef.current || scope !== (getActiveBrowserUserId() || activeAccountId || null)) return;
     writeBoosterConnectionSnapshot(actorUserId, scope ?? null, CHANNEL_KEYS, connected, channelDetails);
-  }, [actorUserId, activeAccountId, connected, channelDetails, connectedChannelsLoadState]);
+  }, [actorUserId, activeAccountId, connected, channelDetails, connectedChannelsLoadState, CHANNEL_KEYS]);
 
   useEffect(() => {
     if (!initialConnectedChannels) return;
@@ -1746,17 +1416,17 @@ export default function PublishModal({
       });
       return nextSelection;
     });
-  }, [initialConnectedChannels]);
+  }, [initialConnectedChannels, getInitialConnectedChannels, hasKnownChannelConnections, CHANNEL_KEYS]);
 
   const loadPinterestBoardsForPublish = useCallback(async () => {
     if (!connected.pinterest) {
       setPinterestBoards([]);
-      setPinterestBoardsError("");
+      setPinterestBoardsFailure(null);
       return;
     }
 
     setPinterestBoardsLoading(true);
-    setPinterestBoardsError("");
+    setPinterestBoardsFailure(null);
     try {
       const response = await fetch("/api/integrations/pinterest/boards", {
         cache: "no-store" as any,
@@ -1807,9 +1477,7 @@ export default function PublishModal({
         return nextId;
       });
     } catch (error) {
-      setPinterestBoardsError(
-        getSimpleFrenchErrorMessage(error, i18nT("pinterest_boards_load_failed")),
-      );
+      setPinterestBoardsFailure(error);
     } finally {
       setPinterestBoardsLoading(false);
     }
@@ -1828,7 +1496,7 @@ export default function PublishModal({
       );
       setPinterestBoardId(cleanId);
       setPinterestBoardName(selectedBoard?.name || "");
-      setPinterestBoardsError("");
+      setPinterestBoardsFailure(null);
     },
     [pinterestBoards],
   );
@@ -2186,7 +1854,7 @@ export default function PublishModal({
         return next;
       });
     },
-    [generating, images, setGenerationProgressPhase],
+    [generating, images, setGenerationProgressPhase, i18nT],
   );
 
   const {
@@ -2225,8 +1893,7 @@ export default function PublishModal({
     isLegacyMediaTransportCutoverClientEnabled();
   const unifiedMediaConsumptionClientAvailable =
     persistentMediaWorkspaceEnabled && isUnifiedMediaConsumptionClientEnabled();
-  const unifiedMediaConsumptionEnabled =
-    unifiedMediaConsumptionClientAvailable && Boolean(mediaWorkspaceId);
+
   const mediaPipelineCutoverEnabled = legacyMediaCutoverClientAvailable;
 
   const {
@@ -2528,6 +2195,7 @@ export default function PublishModal({
       );
     },
     [
+      i18nT,
       ensurePersistentMediaWorkspace,
       images.length,
       mediaWorkspaceId,
@@ -2735,14 +2403,10 @@ export default function PublishModal({
   );
 
   const {
-    imageAdapterChannels,
-    getImageAdapterLabel,
     imageKeys,
     previewByKey,
-    previewAspectRatio,
     clearImagesMedia,
     onPickImagesClick,
-    onPickImagesForChannel,
     addImageFiles,
     replaceImageFile,
     onImagesChange,
@@ -2754,10 +2418,7 @@ export default function PublishModal({
     uploadPublicationDraftImages,
     restorePublicationDraftImages,
     toggleChannelImage,
-    resetChannelImage,
-    moveChannelImage,
     moveChannelImageTo,
-    applyChannelImageOrderToSelectedChannels,
     uploadOriginalImagesForPublication,
     buildChannelImagesPayload,
     buildChannelImageSettingsPayload,
@@ -2892,13 +2553,14 @@ export default function PublishModal({
     setActiveImageChannel(channel);
   };
 
+  const hasVideoForChannelModes = Boolean(videoFile || videoPreviewUrl);
   useEffect(() => {
     setChannelMediaModes((prev) => {
       const next: Partial<Record<ChannelKey, ChannelMediaMode>> = { ...prev };
       let changed = false;
       for (const channel of selectedChannels) {
         const current = next[channel];
-        const hasVideo = Boolean(videoFile || videoPreviewUrl);
+        const hasVideo = hasVideoForChannelModes;
         const hasImages = images.length > 0;
         const valid =
           current === "none" ||
@@ -2933,8 +2595,8 @@ export default function PublishModal({
       return changed ? next : prev;
     });
   }, [
-    selectedChannels.join("|"),
-    Boolean(videoFile || videoPreviewUrl),
+    selectedChannels,
+    hasVideoForChannelModes,
     images.length,
   ]);
 
@@ -3030,11 +2692,6 @@ export default function PublishModal({
     const hasLiveHashtags = !!instagramHashtagsInput.trim();
     return hasText || hasGeneratedContent || hasMedia || hasLiveHashtags;
   }, [
-    publicationMediaType,
-    channelMediaModes,
-    videoFormatByChannel,
-    videoAdaptationModeByChannel,
-    videoSettingsByChannel,
     idea,
     publicationInstruction,
     theme,
@@ -3044,7 +2701,6 @@ export default function PublishModal({
     imagePreviews.length,
     videoFile,
     videoPreviewUrl,
-    videoSourceMetadata,
     channelImageEditors,
     instagramHashtagsInput,
   ]);
@@ -3139,79 +2795,81 @@ export default function PublishModal({
     channelImageEditors,
   ]);
 
-  async function restorePublicationDraftVideo(videoDraft: any): Promise<{
-    file: File | null;
-    previewUrl: string;
-    duration: number | null;
-    sourceMetadata: BoosterVideoSourceMetadata | null;
-    storage: Pick<VideoPayload, "storagePath" | "publicUrl" | "url"> | null;
-    transformedVariants: NonNullable<VideoPayload["transformedVariants"]>;
-  }> {
-    const source = String(
-      videoDraft?.publicUrl || videoDraft?.url || "",
-    ).trim();
-    if (!source)
-      return {
-        file: null as File | null,
-        previewUrl: "",
-        duration: null as number | null,
-        sourceMetadata: null as BoosterVideoSourceMetadata | null,
-        storage: null as Pick<
-          VideoPayload,
-          "storagePath" | "publicUrl" | "url"
-        > | null,
-        transformedVariants: [],
-      };
-
-    try {
-      const response = await fetch(source);
-      if (!response.ok) throw new Error("Vidéo indisponible.");
-      const blob = await response.blob();
-      const name = String(videoDraft?.name || "video-inrcy.mp4");
-      const type = String(videoDraft?.type || blob.type || "video/mp4");
-      const lastModified = Number(videoDraft?.lastModified || Date.now());
-      const file = new File([blob], name, { type, lastModified });
-      const rawDuration = Number(videoDraft?.duration || 0);
-      const duration =
-        Number.isFinite(rawDuration) && rawDuration > 0 ? rawDuration : null;
-      const sourceMetadata =
-        videoDraft?.sourceMetadata &&
-        typeof videoDraft.sourceMetadata === "object"
-          ? (videoDraft.sourceMetadata as BoosterVideoSourceMetadata)
-          : await readVideoSourceMetadata(file);
-      const transformedVariants = normalizeRestoredVideoVariants(
-        (videoDraft as any)?.transformedVariants,
-      );
-      return {
-        file,
-        previewUrl: URL.createObjectURL(file),
-        duration: sourceMetadata?.duration ?? duration,
-        sourceMetadata,
-        storage: {
-          storagePath: String(
-            videoDraft?.storagePath || videoDraft?.path || "",
-          ),
-          publicUrl: source,
-          url: source,
-        },
-        transformedVariants,
-      };
-    } catch {
-      return {
-        file: null as File | null,
-        previewUrl: "",
-        duration: null as number | null,
-        sourceMetadata: null as BoosterVideoSourceMetadata | null,
-        storage: null as Pick<
-          VideoPayload,
-          "storagePath" | "publicUrl" | "url"
-        > | null,
-        transformedVariants: normalizeRestoredVideoVariants(
-          (videoDraft as any)?.transformedVariants,
-        ),
-      };
-    }
-  }
+  // A draft request captures the current editor context once. Editing or locale
+  // changes must not cancel and reload the same draft over the user's work.
+  const onPublicationDraftRequested = useEffectEvent((
+    request: Pick<Parameters<typeof loadPublicationDraft>[0], "publicationDraftIdParam" | "ctaDefaults" | "legacyMediaCutoverClientAvailable" | "onUnsavedChange">,
+    isCancelled: () => boolean,
+  ) => {
+    return loadPublicationDraft({
+      setDraftMessage,
+      i18nT,
+      setPublishError,
+      metaPilotEnabled,
+      adoptMediaWorkspace,
+      CHANNEL_KEYS,
+      channels,
+      restorePublicationDraftImages,
+      defaultAiPreferredEngine,
+      instagramPublicationPreferencesRef,
+      facebookPublicationPreferencesRef,
+      setDocumentFiles,
+      setPdfAttachmentError,
+      setIdea,
+      setPublicationInstruction,
+      setTheme,
+      setContentStyle,
+      setCreationMode,
+      setWizardStep,
+      aiEngineRestoredFromDraftRef,
+      setSelectedAiPreferredEngine,
+      setCreationModeError,
+      setContentWorkspaceOpen,
+      setActiveCard,
+      draftChannelsRestoredRef,
+      setChannels,
+      manuallyEditedCtaChannelsRef,
+      setPostsByChannel,
+      setInstagramHashtagsInput,
+      setXHashtagsInput,
+      threadsModeTouchedRef,
+      setThreadsPublicationMode,
+      instagramPlacementTouchedRef,
+      setInstagramPublicationPlacement,
+      setInstagramStoryEnabled,
+      facebookPlacementTouchedRef,
+      setFacebookPublicationPlacement,
+      setFacebookStoryEnabled,
+      setSoundtrackByChannel,
+      setPinterestBoardId,
+      setPinterestBoardName,
+      setTiktokPublicationSettings,
+      setShowPublicationPreview,
+      setPublicationMediaType,
+      setChannelMediaModes,
+      setVideoFormatByChannel,
+      setVideoAdaptationModeByChannel,
+      setImages,
+      setImagePreviews,
+      setRestoredClientMediaKeysByImageKey,
+      setRecoveredPreviewErrors,
+      setVideoFile,
+      setVideoAiContextRef,
+      setVideoPreviewUrl,
+      setVideoDurationSeconds,
+      setVideoSourceMetadata,
+      setVideoStorageContext,
+      setVideoTransformedVariants,
+      setVideoVariantPreparationByChannel,
+      buildVideoPreparationStateFromVariants,
+      setUseImagesForAI,
+      setImageMetaByKey,
+      setChannelImageEditors,
+      setLoadedPublicationDraftId,
+      setLastPublicationDraftSnapshot,
+      ...request,
+    }, isCancelled);
+  });
 
   useEffect(() => {
     if (
@@ -3221,455 +2879,7 @@ export default function PublishModal({
       return;
     let cancelled = false;
 
-    const loadPublicationDraft = async () => {
-      setDraftMessage(i18nT("chargement_du_brouillon_4c123bfd"));
-      setPublishError("");
-      try {
-        const response = await fetch(
-          `/api/booster/events?draftId=${encodeURIComponent(publicationDraftIdParam)}`,
-          {
-            cache: "no-store" as any,
-          },
-        );
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok)
-          throw new Error(
-            String(result?.error || "Brouillon publication introuvable."),
-          );
-        const payload = filterMetaPilotPayload(normalizeSiteWebPublicationPayload((result?.payload || {}) as any), metaPilotEnabled);
-        adoptMediaWorkspace(
-          payload.mediaWorkspaceId,
-          payload.mediaWorkspaceClientKey,
-        );
-
-        const rawChannels = Array.isArray(payload.channels)
-          ? payload.channels
-          : [];
-        const savedChannels = rawChannels
-          .map((value: unknown) => String(value || ""))
-          .filter(isChannelKey).filter((key: ChannelKey) => key !== "threads" || metaPilotEnabled);
-        const nextChannels = CHANNEL_KEYS.reduce(
-          (acc, key) => {
-            acc[key] = savedChannels.length
-              ? savedChannels.includes(key)
-              : Boolean(channels[key]);
-            return acc;
-          },
-          {} as Record<ChannelKey, boolean>,
-        );
-
-        const nextTheme = isThemeKey(payload.theme) ? payload.theme : "";
-        const nextContentStyle = isStyleKey(payload.contentStyle)
-          ? payload.contentStyle
-          : "equilibre";
-        const nextPostsByChannel = sanitizePostsForEditor(
-          payload.postByChannel && typeof payload.postByChannel === "object"
-            ? payload.postByChannel
-            : {},
-          ctaDefaults,
-        );
-        const nextEditors =
-          payload.imageSettingsByChannel &&
-          typeof payload.imageSettingsByChannel === "object"
-            ? payload.imageSettingsByChannel
-            : {};
-        // Images in Idée guide generation automatically, including restored drafts.
-        const nextUseImagesForAI = true;
-        let imageDrafts = Array.isArray(payload.imageDrafts)
-          ? payload.imageDrafts
-          : [];
-        let videoDraft =
-          payload.videoDraft && typeof payload.videoDraft === "object"
-            ? payload.videoDraft
-            : null;
-
-        const linkedWorkspaceId = String(payload.mediaWorkspaceId || "").trim();
-        if (
-          legacyMediaCutoverClientAvailable &&
-          linkedWorkspaceId &&
-          !imageDrafts.length &&
-          !videoDraft
-        ) {
-          const snapshot = await loadMediaPublicationWorkspace({
-            workspaceId: linkedWorkspaceId,
-          });
-          const workspaceImages = snapshot.media.filter(
-            (media) => media.mediaType === "image" && Boolean(media.publicUrl),
-          );
-          const workspaceVideo = snapshot.media.find(
-            (media) => media.mediaType === "video" && Boolean(media.publicUrl),
-          );
-          imageDrafts = workspaceImages.map((media) => {
-            const keyParts = String(media.clientMediaKey || "").split(":");
-            const lastModified = Number(keyParts[keyParts.length - 1] || 0);
-            return {
-              name: media.fileName,
-              type: media.mimeType,
-              size: media.sizeBytes,
-              clientMediaKey: media.clientMediaKey,
-              requiresCanonical: media.requiresCanonical === true,
-              lastModified:
-                Number.isFinite(lastModified) && lastModified > 0
-                  ? lastModified
-                  : Date.now(),
-              storagePath: media.storagePath,
-              publicUrl: media.publicUrl,
-            };
-          });
-          if (workspaceVideo) {
-            const keyParts = String(workspaceVideo.clientMediaKey || "").split(":");
-            const lastModified = Number(keyParts[keyParts.length - 1] || 0);
-            videoDraft = {
-              name: workspaceVideo.fileName,
-              type: workspaceVideo.mimeType,
-              size: workspaceVideo.sizeBytes,
-              lastModified:
-                Number.isFinite(lastModified) && lastModified > 0
-                  ? lastModified
-                  : Date.now(),
-              duration: workspaceVideo.durationSeconds,
-              storagePath: workspaceVideo.storagePath,
-              publicUrl: workspaceVideo.publicUrl,
-              url: workspaceVideo.publicUrl,
-              sourceMetadata: {
-                width: workspaceVideo.width,
-                height: workspaceVideo.height,
-                duration: workspaceVideo.durationSeconds,
-              },
-            };
-          }
-        }
-        const nextVideoAiContextRef =
-          normalizeVideoAiContextReference(payload.videoAiContextRef) ||
-          normalizeVideoAiContextReference(videoDraft?.videoAiContextRef);
-        const nextMediaType = normalizePublicationMediaType(payload.mediaType);
-        const nextChannelMediaModes =
-          payload.channelMediaModes &&
-          typeof payload.channelMediaModes === "object"
-            ? (payload.channelMediaModes as Partial<
-                Record<ChannelKey, ChannelMediaMode>
-              >)
-            : {};
-        const nextVideoFormatByChannel =
-          payload.videoFormatByChannel &&
-          typeof payload.videoFormatByChannel === "object"
-            ? (Object.fromEntries(
-                Object.entries(
-                  payload.videoFormatByChannel as Record<string, unknown>,
-                )
-                  .filter(([channel]) => isChannelKey(channel))
-                  .map(([channel, value]) => [
-                    channel,
-                    normalizeVideoFormat(channel as ChannelKey, value),
-                  ]),
-              ) as Partial<Record<ChannelKey, VideoFormat>>)
-            : {};
-        const rawVideoSettingsByChannel =
-          payload.videoSettingsByChannel &&
-          typeof payload.videoSettingsByChannel === "object"
-            ? payload.videoSettingsByChannel
-            : null;
-        const nextVideoAdaptationModeByChannel =
-          payload.videoAdaptationModeByChannel &&
-          typeof payload.videoAdaptationModeByChannel === "object"
-            ? (Object.fromEntries(
-                Object.entries(
-                  payload.videoAdaptationModeByChannel as Record<
-                    string,
-                    unknown
-                  >,
-                )
-                  .filter(([channel]) => isChannelKey(channel))
-                  .map(([channel, value]) => [
-                    channel,
-                    normalizeVideoAdaptationMode(value),
-                  ]),
-              ) as Partial<Record<ChannelKey, VideoAdaptationMode>>)
-            : {};
-        const nextCanonicalVideoSettingsByChannel = buildVideoSettingsByChannel(
-          {
-            channels: CHANNEL_KEYS,
-            videoSettingsByChannel: rawVideoSettingsByChannel,
-            videoFormatByChannel: nextVideoFormatByChannel,
-            videoAdaptationModeByChannel: nextVideoAdaptationModeByChannel,
-          },
-        );
-        const nextCanonicalVideoFormatByChannel = Object.fromEntries(
-          Object.entries(nextCanonicalVideoSettingsByChannel).map(
-            ([channel, settings]) => [channel, settings?.format],
-          ),
-        ) as Partial<Record<ChannelKey, VideoFormat>>;
-        const nextCanonicalVideoAdaptationModeByChannel = Object.fromEntries(
-          Object.entries(nextCanonicalVideoSettingsByChannel).map(
-            ([channel, settings]) => [channel, settings?.adaptationMode],
-          ),
-        ) as Partial<Record<ChannelKey, VideoAdaptationMode>>;
-        const {
-          restoredFiles,
-          restoredPreviews,
-          restoredMeta,
-          restoredClientMediaKeysByImageKey,
-          restoredImageKeyRemap,
-        } =
-          await restorePublicationDraftImages(imageDrafts, payload.imageInteractionsByKey);
-        const restoredEditors = remapRestoredChannelImageEditors(
-          nextEditors,
-          restoredImageKeyRemap,
-        );
-        const restoredVideo = videoDraft
-          ? await restorePublicationDraftVideo(videoDraft)
-          : {
-              file: null as File | null,
-              previewUrl: "",
-              duration: null as number | null,
-              sourceMetadata: null as BoosterVideoSourceMetadata | null,
-              storage: null as Pick<
-                VideoPayload,
-                "storagePath" | "publicUrl" | "url"
-              > | null,
-              transformedVariants: [] as NonNullable<
-                VideoPayload["transformedVariants"]
-              >,
-            };
-
-        if (cancelled) return;
-
-        const nextIdea = String(payload.idea || "");
-        const nextPublicationInstruction = String(
-          payload.publicationInstruction || "",
-        );
-        const nextInstagramHashtags =
-          String(payload.instagramHashtagsInput || "") ||
-          (Array.isArray((nextPostsByChannel as any)?.instagram?.hashtags)
-            ? (nextPostsByChannel as any).instagram.hashtags.join(" ")
-            : "");
-        const nextXHashtags = String(payload.xHashtagsInput || "");
-        const hasDraftAiEngine = Boolean(
-          String(payload.aiPreferredEngine || "").trim(),
-        );
-        const nextAiPreferredEngine = hasDraftAiEngine
-          ? normalizeAiPreferredEngine(payload.aiPreferredEngine)
-          : defaultAiPreferredEngine;
-        const nextTiktokPublicationSettings =
-          normalizeRestoredTiktokPublicationSettings(
-            payload.tiktokPublicationSettings,
-          );
-        const nextActiveCard = isChannelKey(payload.activeCard) && CHANNEL_KEYS.includes(payload.activeCard)
-          ? payload.activeCard
-          : "site_web";
-        const nextThreadsPublicationMode = normalizeThreadsPublicationMode(payload.threadsPublicationSettings?.mode);
-        const restoredInstagramSelection = normalizeMetaPublicationSelection(
-          payload.instagramPublicationSettings || {
-            placement: payload.instagramPublicationPlacement,
-            includeStory: payload.instagramStoryEnabled,
-          },
-        );
-        const nextInstagramPublicationPlacement: MetaPrimaryPublicationPlacement =
-          restoredInstagramSelection.primaryPlacement === "reel" &&
-          instagramPublicationPreferencesRef.current.reelsEnabled
-            ? "reel"
-            : restoredInstagramSelection.primaryPlacement === "story" &&
-                instagramPublicationPreferencesRef.current.storiesEnabled
-              ? "story"
-              : "classic";
-        const nextInstagramStoryEnabled =
-          restoredInstagramSelection.primaryPlacement !== "story" &&
-          restoredInstagramSelection.includeStory &&
-          instagramPublicationPreferencesRef.current.storiesEnabled;
-        const restoredFacebookSelection = normalizeMetaPublicationSelection(
-          payload.facebookPublicationSettings || {
-            placement: payload.facebookPublicationPlacement,
-            includeStory: payload.facebookStoryEnabled,
-          },
-        );
-        const nextFacebookPublicationPlacement: MetaPrimaryPublicationPlacement =
-          restoredFacebookSelection.primaryPlacement === "reel" &&
-          facebookPublicationPreferencesRef.current.reelsEnabled
-            ? "reel"
-            : restoredFacebookSelection.primaryPlacement === "story" &&
-                facebookPublicationPreferencesRef.current.storiesEnabled
-              ? "story"
-              : "classic";
-        const nextFacebookStoryEnabled =
-          restoredFacebookSelection.primaryPlacement !== "story" &&
-          restoredFacebookSelection.includeStory &&
-          facebookPublicationPreferencesRef.current.storiesEnabled;
-        const nextSoundtrackByChannel = normalizeMediaSoundtrackByChannel(payload.soundtrackByChannel, payload.soundtrackId);
-        const nextPinterestBoardId = String(
-          payload.pinterestBoardId || "",
-        ).trim();
-        const nextPinterestBoardName = String(
-          payload.pinterestBoardName || "",
-        ).trim();
-        const nextCreationMode = inferBoosterCreationMode({
-          explicitMode: payload.creationMode,
-          idea: nextIdea,
-          publicationInstruction: nextPublicationInstruction,
-          theme: nextTheme,
-          contentStyle: nextContentStyle,
-          postsByChannel: nextPostsByChannel,
-        });
-
-        // Le PDF sert uniquement de contexte à la génération courante. Il n'est
-        // jamais sérialisé dans un brouillon ni réutilisé entre deux brouillons.
-        setDocumentFiles([]);
-        setPdfAttachmentError("");
-        setIdea(nextIdea);
-        setPublicationInstruction(nextPublicationInstruction);
-        setTheme(nextTheme);
-        setContentStyle(nextContentStyle);
-        setCreationMode(nextCreationMode);
-        setWizardStep(getRestoredPublishWizardStep(nextCreationMode, Object.values(nextPostsByChannel).some((post) => {
-          const normalized = normalizePost(post);
-          return Boolean(normalized.title.trim() || normalized.content.trim());
-        })));
-        aiEngineRestoredFromDraftRef.current = hasDraftAiEngine;
-        setSelectedAiPreferredEngine(nextAiPreferredEngine);
-        setCreationModeError("");
-        setContentWorkspaceOpen(
-          typeof payload.contentWorkspaceOpen === "boolean"
-            ? payload.contentWorkspaceOpen
-            : nextCreationMode === "manual" ||
-                Object.values(nextPostsByChannel).some((post) => {
-                  const normalized = normalizePost(post);
-                  return Boolean(
-                    normalized.title.trim() || normalized.content.trim(),
-                  );
-                }),
-        );
-        setActiveCard(nextActiveCard);
-        draftChannelsRestoredRef.current = true;
-        setChannels(nextChannels);
-        for (const key of CHANNEL_KEYS) {
-          if (nextPostsByChannel[key]?.ctaMode === "none") {
-            manuallyEditedCtaChannelsRef.current.add(key);
-          }
-        }
-        setPostsByChannel(nextPostsByChannel);
-        setInstagramHashtagsInput(nextInstagramHashtags);
-        setXHashtagsInput(nextXHashtags);
-        threadsModeTouchedRef.current = true;
-        setThreadsPublicationMode(nextThreadsPublicationMode);
-        instagramPlacementTouchedRef.current = true;
-        setInstagramPublicationPlacement(nextInstagramPublicationPlacement);
-        setInstagramStoryEnabled(nextInstagramStoryEnabled);
-        facebookPlacementTouchedRef.current = true;
-        setFacebookPublicationPlacement(nextFacebookPublicationPlacement);
-        setFacebookStoryEnabled(nextFacebookStoryEnabled);
-        setSoundtrackByChannel(nextSoundtrackByChannel);
-        setPinterestBoardId(nextPinterestBoardId);
-        setPinterestBoardName(nextPinterestBoardName);
-        setTiktokPublicationSettings(nextTiktokPublicationSettings);
-        setShowPublicationPreview(Boolean(payload.showPublicationPreview));
-        const effectiveMediaType = restoredVideo.file ? "video" : nextMediaType;
-        setPublicationMediaType(effectiveMediaType);
-        setChannelMediaModes(nextChannelMediaModes);
-        setVideoFormatByChannel(nextCanonicalVideoFormatByChannel);
-        setVideoAdaptationModeByChannel(
-          nextCanonicalVideoAdaptationModeByChannel,
-        );
-        setImages(restoredFiles);
-        setImagePreviews(restoredPreviews);
-        setRestoredClientMediaKeysByImageKey(restoredClientMediaKeysByImageKey);
-        setRecoveredPreviewErrors({});
-        setVideoFile(restoredVideo.file);
-        setVideoAiContextRef(restoredVideo.file ? nextVideoAiContextRef : null);
-        setVideoPreviewUrl(restoredVideo.previewUrl);
-        setVideoDurationSeconds(restoredVideo.duration);
-        setVideoSourceMetadata(restoredVideo.sourceMetadata || null);
-        setVideoStorageContext(restoredVideo.storage);
-        setVideoTransformedVariants(restoredVideo.transformedVariants);
-        const selectedDraftChannels = Object.entries(nextChannels)
-          .filter(([, enabled]) => enabled)
-          .map(([key]) => key as ChannelKey);
-        setVideoVariantPreparationByChannel(
-          buildVideoPreparationStateFromVariants({
-            channels: selectedDraftChannels,
-            mediaModeByChannel: nextChannelMediaModes,
-            variants: restoredVideo.transformedVariants,
-            settingsByChannel: nextCanonicalVideoSettingsByChannel,
-          }),
-        );
-        setUseImagesForAI(nextUseImagesForAI);
-        setImageMetaByKey(restoredMeta);
-        setChannelImageEditors(restoredEditors);
-        setLoadedPublicationDraftId(publicationDraftIdParam);
-        setDraftMessage(i18nT("brouillon_charge_f9b9174c"));
-
-        const imageNames = restoredFiles.map((file) => ({
-          name: file.name,
-          type: file.type,
-          size: file.size,
-        }));
-        const videoName = restoredVideo.file
-          ? {
-              name: restoredVideo.file.name,
-              type: restoredVideo.file.type,
-              size: restoredVideo.file.size,
-              duration: restoredVideo.duration,
-              sourceMetadata: restoredVideo.sourceMetadata || null,
-            }
-          : null;
-        setLastPublicationDraftSnapshot(
-          JSON.stringify({
-            creationMode: nextCreationMode,
-            mediaType: effectiveMediaType,
-            channelMediaModes: nextChannelMediaModes,
-            videoFormatByChannel: nextCanonicalVideoFormatByChannel,
-            videoAdaptationModeByChannel:
-              nextCanonicalVideoAdaptationModeByChannel,
-            videoSettingsByChannel: nextCanonicalVideoSettingsByChannel,
-            idea: nextIdea.trim(),
-            publicationInstruction: nextPublicationInstruction.trim(),
-            theme: nextTheme,
-            contentStyle: nextContentStyle,
-            channels: selectedDraftChannels,
-            postsByChannel: nextPostsByChannel,
-            aiPreferredEngine: nextAiPreferredEngine,
-            activeCard: nextActiveCard,
-            contentWorkspaceOpen:
-              typeof payload.contentWorkspaceOpen === "boolean"
-                ? payload.contentWorkspaceOpen
-                : nextCreationMode === "manual" ||
-                  Object.values(nextPostsByChannel).some((post) => {
-                    const normalized = normalizePost(post);
-                    return Boolean(
-                      normalized.title.trim() || normalized.content.trim(),
-                    );
-                  }),
-            instagramHashtagsInput: nextInstagramHashtags,
-            xHashtagsInput: nextXHashtags,
-            threadsPublicationSettings: { mode: nextThreadsPublicationMode },
-            instagramPublicationPlacement:
-              nextInstagramPublicationPlacement,
-            instagramStoryEnabled: nextInstagramStoryEnabled,
-            facebookPublicationPlacement:
-              nextFacebookPublicationPlacement,
-            facebookStoryEnabled: nextFacebookStoryEnabled,
-            soundtrackByChannel: nextSoundtrackByChannel,
-            pinterestBoardId: nextPinterestBoardId,
-            pinterestBoardName: nextPinterestBoardName,
-            tiktokPublicationSettings: nextTiktokPublicationSettings,
-            showPublicationPreview: Boolean(payload.showPublicationPreview),
-            imageNames,
-            videoName,
-            videoTransformedVariants: restoredVideo.transformedVariants,
-            videoAiContextRef: nextVideoAiContextRef,
-            useImagesForAI: nextUseImagesForAI,
-            imageSettingsByChannel: restoredEditors,
-          }),
-        );
-        onUnsavedChange?.(false);
-      } catch (error) {
-        if (cancelled) return;
-        setPublishError(
-          getSimpleFrenchErrorMessage(error, i18nT("publication_draft_load_failed")),
-        );
-        setDraftMessage("");
-      }
-    };
-
-    void loadPublicationDraft();
+    void onPublicationDraftRequested({ publicationDraftIdParam, ctaDefaults, legacyMediaCutoverClientAvailable, onUnsavedChange }, () => cancelled);
     return () => {
       cancelled = true;
     };
@@ -3789,9 +2999,6 @@ export default function PublishModal({
     };
   };
 
-  const onThemeChange = (next: ThemeKey) => {
-    setTheme(next);
-  };
 
   const clearVideoMedia = (options?: {
     cleanupStorage?: boolean;
@@ -3962,674 +3169,6 @@ export default function PublishModal({
     if (pdfInputRef.current) pdfInputRef.current.value = "";
   };
 
-  const onGenerate = async (adjustmentInput?: PublishContentAdjustmentInput & { previousIdea: string; previousInstruction: string }) => {
-    if (generating || generationInFlightRef.current) return;
-    setGenError("");
-    setImgError("");
-    setGenerationNotice("");
-    setGenerationMediaWarning("");
-
-    if (creationMode !== "ai") {
-      setGenError(
-        i18nT("selectionnez_creer_avec_inrcy_avant_de_c810a640"),
-      );
-      return;
-    }
-
-    const trimmed = (adjustmentInput?.idea ?? idea).trim();
-    const generationInstruction = (adjustmentInput?.instruction ?? publicationInstruction).trim();
-    const generationChannels = adjustmentInput ? selectedForGeneration.filter(channel => adjustmentInput.channels.includes(channel)) : selectedForGeneration;
-    if (!generationChannels.length) {
-      setGenError(i18nT("veuillez_selectionner_au_moins_1_canal_0e52243b"));
-      return;
-    }
-    const generationScope = { ...publicationActorScopeRef.current };
-    const generationIsCurrent = () => publicationActorScopeRef.current.actorUserId === generationScope.actorUserId && publicationActorScopeRef.current.accountId === generationScope.accountId && (!getActiveBrowserUserId() || getActiveBrowserUserId() === generationScope.accountId);
-    const baselinePosts = currentPostsRef.current;
-    let contentAdjustment;
-    if (adjustmentInput) {
-      try {
-        contentAdjustment = normalizeBoosterContentAdjustment({ previousIdea: adjustmentInput.previousIdea, previousInstruction: adjustmentInput.previousInstruction,
-          versions: Object.fromEntries(generationChannels.map(channel => [channel, { ...getDisplayPost(channel), ...(channel === "instagram" ? { hashtags: getLiveInstagramHashtags() } : channel === "x" ? { hashtags: parseInstagramHashtagsInput(xHashtagsInput) } : {}) }])) }, generationChannels);
-      } catch (error) { setGenError(error instanceof Error ? error.message : i18nT("generation_failed_retry")); return; }
-    }
-    if (!selectedChannels.length) {
-      setGenError(i18nT("veuillez_selectionner_au_moins_1_canal_0e52243b"));
-      return;
-    }
-    if (!trimmed) {
-      setGenError(i18nT("ecrivez_une_phrase_ex_chantier_termine_b7125e40"));
-      return;
-    }
-
-    const selectedAiEngineOption = getAiEngineOption(selectedAiPreferredEngine);
-    if (hasWrittenChannelContent && !contentAdjustment) {
-      const confirmed = await confirmInrcy({
-        eyebrow: i18nT("contenus_deja_presents_37541640"),
-        title: i18nT("generer_de_nouveaux_contenus_8a601a4e"),
-        message:
-          i18nT("les_textes_deja_saisis_ou_generes_b4ecf4a5"),
-        cancelLabel: i18nT("conserver_mes_textes_60ea7d68"),
-        confirmLabel: i18nT("generer_et_remplacer_808c9d9f"),
-        variant: "warning",
-      });
-      if (!confirmed) return;
-    }
-
-    const videoGenerationContext = buildBoosterVideoGenerationContext({
-      mediaType: videoFile || videoPreviewUrl ? "video" : "images",
-      videoFile,
-      duration: videoDurationSeconds,
-      storage: videoStorageContext,
-    });
-    const hasVideoForGeneration = !!videoGenerationContext?.enabled;
-    const shouldUseImagesForAI =
-      images.length > 0 && useImagesForAI;
-    const shouldPrepareMediaForAi = shouldPrepareBoosterMediaForAi({
-      mode: creationMode,
-      mediaType: hasVideoForGeneration ? "video" : "images",
-      hasImages: images.length > 0,
-      hasVideo: hasVideoForGeneration,
-      useImagesForAI,
-    });
-    const shouldUsePersistentMediaWorkspaceForAi =
-      shouldPrepareMediaForAi && unifiedMediaConsumptionClientAvailable;
-    let temporaryPdfReference: BoosterPdfAttachmentRef | null = null;
-    const temporaryDocumentReferences: BoosterDocumentAttachmentRef[] = [];
-    resetGenerationProgress();
-    generationInFlightRef.current = true;
-    setGenerating(true);
-    setGenerationProgressPhase(
-      "initialization",
-      i18nT("generation_preparing_with_engine", { value0: selectedAiEngineOption.shortLabel }),
-      6,
-    );
-    setDuplicateFeedback(null);
-
-    try {
-      if (documentFiles.length) {
-        const selectionError = validateBoosterDocumentSelection(documentFiles);
-        if (selectionError) throw new Error(selectionError);
-        setGenerationProgressPhase("media_security", i18nT("progress_media_preparation"), 10);
-        const pdfSupabase = createClient();
-        const { data: authData, error: authError } = await pdfSupabase.auth.getUser();
-        const storageUserId = authData?.user?.id ? resolveActiveBrowserUserId(authData.user.id) : "";
-        if (authError || !storageUserId) throw new Error("Reconnectez-vous pour préparer les documents.");
-        for (const file of documentFiles) {
-          const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 120);
-          const uniqueId = typeof globalThis.crypto?.randomUUID === "function" ? globalThis.crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2, 10);
-          const storagePath = storageUserId + "/" + BOOSTER_PDF_STORAGE_FOLDER + "/" + uniqueId + "-" + safeName;
-          const type = getBoosterDocumentMimeType(file.name);
-          const { error: uploadError } = await pdfSupabase.storage.from(BOOSTER_PDF_STORAGE_BUCKET).upload(storagePath, file, { cacheControl: "3600", upsert: false, contentType: type });
-          if (uploadError) throw new Error("Impossible de préparer le document « " + file.name + " » pour l’IA.");
-          temporaryDocumentReferences.push({ bucket: BOOSTER_PDF_STORAGE_BUCKET, path: storagePath, name: file.name, type, size: file.size });
-        }
-        temporaryPdfReference = temporaryDocumentReferences[0] || null;
-      }
-
-      // Les documents explicitement demandés sont déjà sécurisés ci-dessus. Les médias
-      // visuels restent des enrichissements optionnels : une seule enveloppe de
-      // 12 s couvre la dernière course upload + captures, puis la rédaction part
-      // sans attendre davantage leur préparation.
-      const mediaPreparationDeadlineAt =
-        Date.now() + BOOSTER_VIDEO_AI_PREPARATION_GRACE_MS;
-      let mediaFallbackNotice = "";
-      let readyMediaWorkspaceId = shouldUsePersistentMediaWorkspaceForAi
-        ? null
-        : mediaWorkspaceId;
-
-      if (shouldUsePersistentMediaWorkspaceForAi) {
-        try {
-          readyMediaWorkspaceId = await waitForPersistentWorkspaceReadiness(
-            "generate",
-            (progress) => {
-              if (progress <= 24) {
-                setGenerationProgressPhase(
-                  "media_security",
-                  progress < 12 ? i18nT("media_workspace_opening") : i18nT("media_secure_upload_progress"),
-                  mapProgressRange(progress, 6, 24, 8, 21),
-                );
-                return;
-              }
-              setGenerationProgressPhase(
-                "media_analysis",
-                i18nT("progress_media_preparation"),
-                mapProgressRange(progress, 25, 42, 23, 39),
-              );
-            },
-            [...(shouldUseImagesForAI ? ["image" as const] : []), ...(hasVideoForGeneration ? ["video" as const] : [])],
-            Math.max(1_000, mediaPreparationDeadlineAt - Date.now()),
-          );
-        } catch (workspaceError) {
-          console.warn(
-            "[booster-generate] media workspace unavailable, text fallback",
-            workspaceError,
-          );
-          mediaFallbackNotice =
-            "Analyse du média indisponible : contenus générés à partir de votre phrase et de votre profil.";
-          setImgError("");
-          setGenerationMediaWarning(mediaFallbackNotice);
-          readyMediaWorkspaceId = null;
-        }
-        if (!readyMediaWorkspaceId && !mediaFallbackNotice) {
-          mediaFallbackNotice =
-            "Analyse du média indisponible : contenus générés à partir de votre phrase et de votre profil.";
-          setImgError("");
-          setGenerationMediaWarning(mediaFallbackNotice);
-        }
-      }
-
-      let videoAiPreparationReady = false;
-      if (
-        hasVideoForGeneration &&
-        readyMediaWorkspaceId &&
-        persistentMediaWorkspaceEnabled
-      ) {
-        setGenerationProgressPhase(
-          "media_analysis",
-          i18nT("progress_media_preparation"),
-          34,
-        );
-        // La mission est dédupliquée par le hook et travaille directement
-        // depuis la source Supabase : aucun second upload ni transcodage. On lui
-        // laisse une courte avance, puis on continue
-        // avec les captures déjà prêtes ou le contexte métadonnées/phrase.
-        let graceTimeoutId: number | null = null;
-        const preparation = startPersistentAiMediaPreparation()
-          .then(async (result) => {
-            if (result.status === "ready") return true;
-            if (result.status === "failed") return false;
-            // Si l'ACK indique qu'un worker possède déjà le job, on ne le
-            // ré-enfile pas en boucle. On lui laisse simplement le reste de la
-            // fenêtre ; le resolver relira ensuite les variantes une seule fois.
-            const remainingMs = mediaPreparationDeadlineAt - Date.now();
-            if (remainingMs > 0) {
-              await new Promise<void>((resolve) =>
-                window.setTimeout(resolve, remainingMs),
-              );
-            }
-            return false;
-          })
-          .catch((error) => {
-            console.warn(
-              "[booster-generate] video AI preparation deferred",
-              error,
-            );
-            return false;
-          });
-        videoAiPreparationReady = await Promise.race([
-          preparation,
-          new Promise<boolean>((resolve) => {
-            graceTimeoutId = window.setTimeout(
-              () => resolve(false),
-              Math.max(0, mediaPreparationDeadlineAt - Date.now()),
-            );
-          }),
-        ]);
-        if (graceTimeoutId !== null) window.clearTimeout(graceTimeoutId);
-      }
-
-      if (shouldPrepareMediaForAi) {
-        setGenerationProgressPhase(
-          "media_analysis",
-          hasVideoForGeneration ? videoAiPreparationReady ? i18nT("generation_video_captures_ready") : i18nT("generation_video_ready_captures_background") : shouldUseImagesForAI ? i18nT("generation_visuals_ready_analysis") : i18nT("generation_media_ready_analysis"),
-          39,
-        );
-      }
-
-      if (shouldUseImagesForAI && !mediaPipelineCutoverEnabled) {
-        setGenerationProgressPhase(
-          "media_analysis",
-          images.length > 1 ? i18nT("generation_images_preparing_visual_analysis") : i18nT("generation_image_preparing_visual_analysis"),
-          39,
-        );
-      }
-      const imagePreparationResults =
-        shouldUseImagesForAI && !mediaPipelineCutoverEnabled
-          ? await Promise.all(
-              images.map((file) =>
-                settleOptionalMediaEnrichment(
-                  () => getOrPrepareAiImagePayload(file),
-                  BOOSTER_LOCAL_MEDIA_ENRICHMENT_BUDGET_MS,
-                ),
-              ),
-            )
-          : [];
-      const imagesForAI = imagePreparationResults.flatMap((result) =>
-        result.ok ? [result.value] : [],
-      );
-      if (
-        shouldUseImagesForAI &&
-        !mediaPipelineCutoverEnabled &&
-        imagesForAI.length < images.length
-      ) {
-        const imagePreparationTimedOut = imagePreparationResults.some(
-          (result) => !result.ok && result.reason === "timeout",
-        );
-        mediaFallbackNotice =
-          imagePreparationTimedOut
-            ? "Analyse visuelle non terminée à temps : contenus générés à partir de votre phrase, de votre profil et des visuels déjà exploitables."
-            : "Analyse visuelle partiellement indisponible : contenus générés à partir de votre phrase, de votre profil et des visuels exploitables.";
-      }
-      let videoFramesForAI: VideoFramesForAI = [];
-      const videoAudioTranscript = "";
-      const videoRawAudioTranscript = "";
-      let videoAudioTranscriptStatus: "pending" | "ready" | "unavailable" =
-        "pending";
-      if (
-        hasVideoForGeneration &&
-        videoFile &&
-        !videoAiContextRef
-      ) {
-        setGenerationProgressPhase(
-          "media_analysis",
-          i18nT("generation_video_audio_visual_analysis"),
-          39,
-        );
-
-        // La transcription audio est un bonus et ne doit jamais retenir le clic
-        // Générer. Les trois captures locales partent immédiatement ; le serveur
-        // peut encore exploiter une piste audio déjà prête dans le workspace,
-        // avec son propre budget court et partagé.
-        const framesResult = await settleOptionalMediaEnrichment(
-          () => getOrPrepareVideoFramesForAI(videoFile),
-          BOOSTER_LOCAL_MEDIA_ENRICHMENT_BUDGET_MS,
-        );
-        videoFramesForAI = framesResult.ok ? framesResult.value : [];
-        videoAudioTranscriptStatus = "unavailable";
-        if (!videoFramesForAI.length) {
-          mediaFallbackNotice =
-            !framesResult.ok && framesResult.reason === "timeout"
-              ? "Captures vidéo non terminées à temps : contenus générés à partir de votre phrase et de votre profil."
-              : "Analyse visuelle indisponible : contenus générés à partir de votre phrase et de votre profil.";
-        }
-
-        setGenerationProgressPhase(
-          "media_analysis",
-          videoFramesForAI.length > 0 && videoAudioTranscript ? i18nT("generation_video_audio_images_analysis") : videoFramesForAI.length > 0 ? i18nT("generation_video_images_analysis") : videoAudioTranscript ? i18nT("generation_video_audio_analysis") : i18nT("generation_video_analysis_limited"),
-          39,
-        );
-      } else if (
-        hasVideoForGeneration &&
-        videoAiContextRef
-      ) {
-        setGenerationProgressPhase(
-          "media_analysis",
-          i18nT("generation_video_analysis_reused"),
-          39,
-        );
-      }
-
-      setGenerationProgressPhase(
-        "request_understanding",
-        publicationInstruction.trim() ? i18nT("generation_intent_instructions_analysis") : i18nT("generation_intent_analysis"),
-        47,
-      );
-
-      // Un workspace vide sert aussi de reçu durable pour une génération sans
-      // média. Sa création reste un filet de sécurité best effort : si elle
-      // échoue, le moteur IA normal continue exactement comme auparavant.
-      let generationWorkspaceId = unifiedMediaConsumptionClientAvailable
-        ? readyMediaWorkspaceId || mediaWorkspaceId || undefined
-        : undefined;
-      if (unifiedMediaConsumptionClientAvailable && !generationWorkspaceId) {
-        try {
-          const recoveryWorkspace = await ensurePersistentMediaWorkspace();
-          generationWorkspaceId = recoveryWorkspace?.workspaceId || undefined;
-        } catch (workspaceError) {
-          console.warn(
-            "[booster-generate] recovery receipt workspace unavailable",
-            workspaceError,
-          );
-        }
-      }
-
-      // Uploading and verifying the workspace is media preparation, not AI
-      // generation. Start the generation safety window only once the request is
-      // ready to leave; otherwise a slow batch of images can consume the whole
-      // deadline before the AI is even called.
-      const generationDeadlineAt =
-        Date.now() + BOOSTER_GENERATION_SAFETY_BUDGET_MS;
-      const generationRequestId = createBoosterGenerationRequestId();
-      const generationPayload = {
-        creationMode: "ai" as const,
-        generationRequestId,
-        generationDeadlineAt,
-        mediaWorkspaceId: generationWorkspaceId,
-        mediaPipelineCutoverV1: mediaPipelineCutoverEnabled,
-        useWorkspaceMediaForAI:
-          unifiedMediaConsumptionClientAvailable &&
-          Boolean(readyMediaWorkspaceId) &&
-          shouldUsePersistentMediaWorkspaceForAi,
-        mediaWorkspaceExpected:
-          shouldUsePersistentMediaWorkspaceForAi &&
-          Boolean(readyMediaWorkspaceId),
-        idea: trimmed,
-        publicationInstruction: generationInstruction,
-        ...(contentAdjustment ? { contentAdjustment } : {}),
-        documentForAI: temporaryPdfReference,
-        documentsForAI: temporaryDocumentReferences,
-        theme,
-        style: contentStyle,
-        aiPreferredEngine: selectedAiPreferredEngine,
-        channels: generationChannels,
-        mediaType: hasVideoForGeneration ? "video" : "images",
-        useImagesForAI: shouldUseImagesForAI,
-        imageCount: mediaPipelineCutoverEnabled ? 0 : imagesForAI.length,
-        imagesForAI: mediaPipelineCutoverEnabled ? [] : imagesForAI,
-        videoForAI:
-          hasVideoForGeneration &&
-          videoGenerationContext
-            ? {
-                ...videoGenerationContext,
-                contextRef: videoAiContextRef,
-                visualFrames: videoFramesForAI,
-                audioTranscript: videoAudioTranscript,
-                rawAudioTranscript: videoRawAudioTranscript,
-                analysisPlan: {
-                  ...videoGenerationContext.analysisPlan,
-                  visualFrames:
-                    videoFramesForAI.length > 0 ? "ready" : "pending",
-                  audioTranscript: videoAudioTranscriptStatus,
-                },
-              }
-            : null,
-      };
-      const executeGenerationRequest = async (engine: AiPreferredEngine) => {
-        const request = buildBoosterGenerationRequest({
-          ...generationPayload,
-          aiPreferredEngine: engine,
-        });
-        const remainingMs = generationDeadlineAt - Date.now();
-        if (remainingMs <= 1_000) {
-          throw new Error(
-            "La génération a dépassé le délai de sécurité. Merci de relancer.",
-          );
-        }
-        const controller = new AbortController();
-        const timeoutId = window.setTimeout(
-          () => controller.abort(),
-          remainingMs,
-        );
-        try {
-          const response = await fetch("/api/booster/generate", {
-            method: "POST",
-            ...(request.headers ? { headers: request.headers } : {}),
-            body: request.body,
-            signal: controller.signal,
-          });
-          const responseJson = await response.json().catch(() => ({}));
-          return { response, responseJson };
-        } catch (error) {
-          if (controller.signal.aborted) {
-            throw new Error(
-              "La génération a dépassé le délai de sécurité. Merci de relancer.",
-            );
-          }
-          throw error;
-        } finally {
-          window.clearTimeout(timeoutId);
-        }
-      };
-      let generationRecoveredAfterTransportLoss = false;
-      const executeGenerationRequestWithRecovery = async (
-        engine: AiPreferredEngine,
-      ) => {
-        try {
-          return await executeGenerationRequest(engine);
-        } catch (requestError) {
-          if (
-            !generationWorkspaceId ||
-            !isBoosterGenerationTransportLoss(requestError)
-          ) {
-            throw requestError;
-          }
-
-          clearGenerationTimers();
-          setGenerationProgressPhase(
-            "final_wait",
-            i18nT("generation_connection_recovering"),
-            99,
-          );
-          const recovery = await recoverBoosterGenerationResult({
-            workspaceId: generationWorkspaceId,
-            requestId: generationRequestId,
-            maxWaitMs: Math.max(
-              20_000,
-              Math.min(70_000, generationDeadlineAt - Date.now() + 8_000),
-            ),
-          });
-          const recovered = recovery.status === "ready";
-          reportBoosterGenerationResponseLoss({
-            error: requestError,
-            recovered,
-            attempts: recovery.attempts,
-            elapsedMs: recovery.elapsedMs,
-            channelCount: generationChannels.length,
-            mediaType: hasVideoForGeneration ? "video" : "images",
-            engine,
-          });
-
-          if (!recovered) {
-            throw new Error(
-              "La connexion a été interrompue avant la réception du résultat. Aucun nouvel appel IA n’a été lancé. Vérifiez votre connexion puis réessayez.",
-            );
-          }
-
-          generationRecoveredAfterTransportLoss = true;
-          return {
-            response: null,
-            responseJson: recovery.payload,
-          };
-        }
-      };
-
-      setGenerationProgressPhase(
-        "ai_writing",
-        hasVideoForGeneration ? i18nT("generation_writing_from_video", { value0: selectedAiEngineOption.shortLabel }) : i18nT("generation_writing", { value0: selectedAiEngineOption.shortLabel }),
-        67,
-      );
-      let generationRequestVisualPhase:
-        | "ai_writing"
-        | "channel_adaptation"
-        | "quality_control"
-        | "final_wait" = "ai_writing";
-      let lastGenerationRequestVisualChangeAt = Date.now();
-      clearGenerationTimers();
-      generationRequestPhaseTimerRef.current = window.setInterval(() => {
-        if (Date.now() - lastGenerationRequestVisualChangeAt < 2_800) return;
-        lastGenerationRequestVisualChangeAt = Date.now();
-        if (generationRequestVisualPhase === "ai_writing") {
-          generationRequestVisualPhase = "channel_adaptation";
-          setGenerationProgressPhase(
-            "channel_adaptation",
-            i18nT("generation_channel_adaptation_progress", { value0: generationChannels.length, value1: generationChannels.length > 1 ? "canaux" : "canal" }),
-            81,
-          );
-          return;
-        }
-        if (generationRequestVisualPhase === "channel_adaptation") {
-          generationRequestVisualPhase = "quality_control";
-          setGenerationProgressPhase(
-            "quality_control",
-            i18nT("generation_quality_check"),
-            91,
-          );
-          return;
-        }
-        if (generationRequestVisualPhase === "quality_control") {
-          generationRequestVisualPhase = "final_wait";
-          setGenerationProgressPhase(
-            "final_wait",
-            i18nT("generation_finalizing_content"),
-            99,
-          );
-          clearGenerationTimers();
-        }
-      }, 500);
-
-      let { response: res, responseJson: json } =
-        await executeGenerationRequestWithRecovery(selectedAiPreferredEngine);
-      clearGenerationTimers();
-      let automaticRetry:
-        | { primaryEngine: AiPreferredEngine; finalEngine: AiPreferredEngine }
-        | null = null;
-
-      if (
-        res &&
-        !res.ok &&
-        isAutomaticBoosterGenerationRetryEligible(res.status, json)
-      ) {
-        const retryEngine = getAutomaticAiRetryEngine(
-          selectedAiPreferredEngine,
-        );
-        const primaryLabel = getAiEngineOption(
-          selectedAiPreferredEngine,
-        ).shortLabel;
-        const retryLabel = getAiEngineOption(retryEngine).shortLabel;
-
-        automaticRetry = {
-          primaryEngine: selectedAiPreferredEngine,
-          finalEngine: retryEngine,
-        };
-        setGenerationProgressPhase(
-          "quality_control",
-          i18nT("generation_engine_retry", { value0: primaryLabel, value1: retryLabel }),
-          91,
-        );
-
-        ({ response: res, responseJson: json } =
-          await executeGenerationRequestWithRecovery(retryEngine));
-      }
-
-      if (res && !res.ok) {
-        const specialMessage = getBoosterGenerationSpecialErrorMessage({
-          status: res.status,
-          payload: json,
-          retryAfterHeader: res.headers.get("Retry-After"),
-        });
-        setGenError(
-          specialMessage || getSimpleFrenchErrorMessage(json?.user_message || json?.error, i18nT("generation_failed_retry")),
-        );
-        return;
-      }
-
-      if (generationPhaseIndexRef.current < 9) {
-        setGenerationProgressPhase(
-          "editor_preparation",
-          i18nT("generation_installing_editor"),
-          95,
-        );
-      }
-      const versions = json?.versions || {};
-      if (!generationIsCurrent()) return;
-      const sanitizedVersions = sanitizePostsForEditor(versions, ctaDefaults);
-      if (contentAdjustment) {
-        if (generationChannels.some(channel => JSON.stringify(currentPostsRef.current[channel]) !== JSON.stringify(baselinePosts[channel]))) throw new Error(i18nT("adjust_conflict"));
-        const revised = mergeBoosterContentAdjustment(currentPostsRef.current, sanitizedVersions, generationChannels);
-        setPostsByChannel(revised);
-        setIdea(trimmed);
-        setPublicationInstruction(generationInstruction);
-        if (generationChannels.includes("x")) setXHashtagsInput((revised.x?.hashtags || []).join(" "));
-        setContentAdjustmentSession(null);
-      } else {
-        setPostsByChannel(sanitizedVersions);
-      }
-      // Le document source a été consommé par cette génération. On libère le
-      // File local pour qu'un brouillon enregistré ensuite soit réellement net.
-      setDocumentFiles([]);
-      setPdfAttachmentError("");
-      if (pdfInputRef.current) pdfInputRef.current.value = "";
-      setContentWorkspaceOpen(true);
-      if (generationChannels.length) {
-        setSynchronizedActiveChannel(generationChannels[0]);
-      }
-      scrollToContentWorkspace();
-      const mediaAnalysisFallback = json?.mediaAnalysisFallback;
-      const serverMediaFallbackNotice = String(
-        mediaAnalysisFallback?.message || "",
-      )
-        .trim()
-        .slice(0, 320);
-      setGenerationMediaWarning(
-        serverMediaFallbackNotice || mediaFallbackNotice,
-      );
-      const aiFallback = json?.aiFallback;
-      if (generationRecoveredAfterTransportLoss) {
-        setGenerationNotice(
-          i18nT("la_connexion_a_ete_interrompue_mais_a4f2c2e4"),
-        );
-      } else if (aiFallback?.used) {
-        const primaryLabel = String(
-          aiFallback.primaryEngineLabel || "Le moteur sélectionné",
-        ).trim();
-        const finalLabel = String(
-          aiFallback.finalEngineLabel || "ChatGPT",
-        ).trim();
-        const transportLabel =
-          aiFallback.transport === "openai_direct"
-            ? "via la connexion OpenAI de secours"
-            : "via le moteur de secours";
-        setGenerationNotice(
-          i18nT("value_etait_temporairement_indisponible_le_conte_e64e687d", { value0: primaryLabel, value1: finalLabel, value2: transportLabel }),
-        );
-      } else if (automaticRetry) {
-        const primaryLabel = getAiEngineOption(
-          automaticRetry.primaryEngine,
-        ).shortLabel;
-        const finalLabel = getAiEngineOption(
-          automaticRetry.finalEngine,
-        ).shortLabel;
-        setGenerationNotice(
-          i18nT("value_n_a_pas_repondu_au_e653b7e3", { value0: primaryLabel, value1: finalLabel }),
-        );
-      }
-      setGenerationProgressPhase(
-        "final_wait",
-        i18nT("generation_finalizing_content"),
-        99,
-      );
-      await new Promise((resolve) => window.setTimeout(resolve, 540));
-      completeGenerationProgress(i18nT("generation_content_ready_review"));
-      await new Promise((resolve) => window.setTimeout(resolve, 320));
-    } catch (error) {
-      // Toute analyse média optionnelle a déjà été isolée ci-dessus. Une
-      // erreur rouge correspond donc uniquement à l'échec de la génération.
-      const fallback =
-        "La génération n'a pas pu aboutir pour le moment. Merci de réessayer.";
-      setGenError(
-        getSimpleFrenchErrorMessage(
-          error instanceof Error ? error.message : error,
-          fallback,
-        ),
-      );
-    } finally {
-      if (temporaryDocumentReferences.length) {
-        try {
-          const cleanupSupabase = createClient();
-          const { error: cleanupError } = await cleanupSupabase.storage
-            .from(BOOSTER_PDF_STORAGE_BUCKET)
-            .remove(temporaryDocumentReferences.map(reference => reference.path));
-          if (cleanupError) {
-            console.warn(
-              "[booster-generate] temporary PDF cleanup skipped",
-              cleanupError,
-            );
-          }
-        } catch (cleanupError) {
-          console.warn(
-            "[booster-generate] temporary PDF cleanup failed",
-            cleanupError,
-          );
-        }
-      }
-      clearGenerationTimers();
-      generationInFlightRef.current = false;
-      setGenerating(false);
-      resetGenerationProgress();
-    }
-  };
-
   const onDuplicateContentToAllChannels = async () => {
     const source = getDisplayPost(activeCard);
     const hasSourceContent = Boolean(
@@ -4695,12 +3234,6 @@ export default function PublishModal({
     videoInputRef.current?.click();
   };
 
-  const onPickVideoForChannel = (channel: ChannelKey) => {
-    pendingDirectMediaDestinationRef.current = { kind: "channel", channel };
-    videoPickerTargetChannelRef.current = channel;
-    setImgError("");
-    videoInputRef.current?.click();
-  };
 
   const removeVideo = () => {
     setImgError("");
@@ -5042,7 +3575,7 @@ export default function PublishModal({
     setPendingStudioReturn(result);
   }, [router, searchParams, studioReturnKey]);
 
-  useEffect(() => {
+  const onStudioReturnReady = useEffectEvent((pendingStudioReturn: InrStudioReturnedMedia | null, loadedPublicationDraftId: string | null, completeReturn: () => void) => {
     if (!pendingStudioReturn?.item) return;
     const expectedDraftId = String(
       pendingStudioReturn.context.draftId || "",
@@ -5278,6 +3811,9 @@ export default function PublishModal({
       studioReturnApplyingKeyRef.current = "";
       completeReturn();
     });
+  });
+  useEffect(() => {
+    onStudioReturnReady(pendingStudioReturn, loadedPublicationDraftId, completeReturn);
   }, [completeReturn, loadedPublicationDraftId, pendingStudioReturn]);
 
   const applyOptimizedMediaToBooster = async (item: MediaOptimizerItem) => {
@@ -5471,12 +4007,6 @@ export default function PublishModal({
     );
   };
 
-  const getPreparedDisplayPost = (
-    key: DisplayKey,
-    preparedPosts: Partial<Record<ChannelKey, ChannelPost>>,
-  ): ChannelPost => {
-    return normalizePost(preparedPosts[key]);
-  };
 
   const displayKeyForImageChannel = (channel: ChannelKey): DisplayKey =>
     channel;
@@ -5698,1193 +4228,171 @@ export default function PublishModal({
     });
   };
 
-  const runPublish = async (options?: {
-    skipEmptyContentWarnings?: boolean;
-    preparedPostsByChannel?: Partial<Record<ChannelKey, ChannelPost>>;
-    tiktokPublicationSettings?: TiktokPublicationSettings | null;
-    channels?: ChannelKey[];
-    closeOnSuccess?: boolean;
-    suppressPublishSuccess?: boolean;
-    throwOnError?: boolean;
-    retryPreviousSummary?: PublishExecutionSummary;
-  }) => {
-    if (
-      saving ||
-      draftSaving ||
-      voiceInputBusy ||
-      publishStartGuardRef.current
-    ) return;
-    if (!authoritativeChannelsRef.current || connectedChannelsScopeRef.current !== (getActiveBrowserUserId() || activeAccountId || null)) {
-      setPublishError(i18nT("connections_loading"));
-      return;
-    }
-    const publishAccountId = getActiveBrowserUserId() || activeAccountId || null;
-    const isCurrentPublishScope = () => publicationActorScopeRef.current.actorUserId === actorUserId && publicationActorScopeRef.current.accountId === publishAccountId &&
-      (getActiveBrowserUserId() || activeAccountId || null) === publishAccountId;
-    if (!isCurrentPublishScope()) return;
-    if (!options?.retryPreviousSummary) latestPublicationSummaryRef.current = null;
-    const publishStartedAt = Date.now();
-    const preparedPostsByChannel =
-      options?.preparedPostsByChannel || buildPreparedPostsByChannel();
-    const publishTargetChannels = Array.from(
-      new Set(
-        options?.channels !== undefined ? options.channels : selectedChannels,
-      ),
-    ).filter((channel): channel is ChannelKey => Boolean(channel));
-
-    setPublishError("");
-    setDraftMessage("");
-    setImgError("");
-    setPublishProgress(0);
-    setPublishProgressLabel("");
-    resetPublicationProgressPhases();
-    scrollToPublishArea("smooth");
-
-    if (!publishTargetChannels.length) {
-      setPublishError(i18nT("selectionnez_au_moins_1_canal_ccf98c0c"));
-      return;
-    }
-    const imagePreparationIssue = getImagePreparationIssue(publishTargetChannels);
-    if (imagePreparationIssue) {
-      setPublishError(imagePreparationIssue);
-      return;
-    }
-
-    publishStartGuardRef.current = true;
-    phasedPublicationProgressRef.current = true;
-    setPublicationDestinations((current) => {
-      const destinations = options?.retryPreviousSummary && current.length
-        ? current
-        : publishTargetChannels.map((key) => ({ key, label: CHANNEL_LABELS[key] }));
-      return destinations.map<PublicationProgressDestination>((destination) => {
-        if (publishTargetChannels.includes(destination.key as ChannelKey)) return { ...destination, status: "pending", details: undefined, href: undefined };
-        const previousEntry = options?.retryPreviousSummary?.entries?.find((entry) => entry.channel === destination.key);
-        return previousEntry ? { ...destination, status: getPublicationDestinationStatus(previousEntry) } : destination;
-      });
-    });
-    setSaving(true);
-    setPublicationProgressPhase(
-      "verification",
-      i18nT("publication_request_received"),
-      5,
-    );
-    let publishDispatchStarted = false;
-    let publicationFinalWaitTimeoutId: number | null = null;
-
-    try {
-      setPublicationProgressPhase(
-        "channel_verification",
-        i18nT("publication_checking_channels"),
-        11,
-      );
-      const requestedWorkspaceMediaTypes = [
-        ...(publishTargetChannels.some(
-          (channel) => resolveChannelMediaMode(channel) === "images",
-        )
-          ? (["image"] as const)
-          : []),
-        ...(publishTargetChannels.some(
-          (channel) => resolveChannelMediaMode(channel) === "video",
-        )
-          ? (["video"] as const)
-          : []),
-      ];
-      const settledWorkspaceStates = persistentMediaWorkspaceEnabled
-        ? await waitForPersistentWorkspaceIdle(
-            (progress, label) => {
-              setPublicationProgressPhase(
-                "media_verification",
-                label || i18nT("publication_checking_media"),
-                mapProgressRange(progress, 0, 100, 13, 21),
-              );
-            },
-            {
-              mediaTypes: requestedWorkspaceMediaTypes,
-              tolerateFailures: true,
-            },
-          )
-        : undefined;
-      const reviewItems = buildFinalReviewItems(
-        preparedPostsByChannel,
-        publishTargetChannels,
-        settledWorkspaceStates,
-      );
-      setPublicationProgressPhase(
-        "media_verification",
-        i18nT("publication_channels_media_verified"),
-        21,
-      );
-    const preflightFailedChannels = reviewItems
-      .filter((item) => item.blockers.length > 0)
-      .map((item) => ({
-        channel: item.channel,
-        label: item.label,
-        blockers: item.blockers,
-        code: item.blockerCodes?.[0] || "prepublish_validation_failed",
-      }));
-
-    const publishableChannels = reviewItems
-      .filter((item) => item.blockers.length === 0)
-      .map((item) => item.channel);
-
-    if (!publishableChannels.length) {
-      setPublishError(
-        i18nT("aucun_canal_n_est_pret_corrigez_89c1e7f2"),
-      );
-      return;
-    }
-
-    const clientPreflightFailuresByChannel = Object.fromEntries(
-      preflightFailedChannels.map((failure) => [
-        failure.channel,
-        {
-          code: String(failure.code || "prepublish_validation_failed").slice(
-            0,
-            100,
-          ),
-          error: String(
-            failure.blockers?.[0] || "Ce canal n'est pas prêt à publier.",
-          ).slice(0, 600),
-          retryable: false,
-        },
-      ]),
-    );
-    const publishTargetMediaModeByChannel = Object.fromEntries(
-      publishTargetChannels.map((channel) => [
-        channel,
-        resolveChannelMediaMode(channel),
-      ]),
-    ) as Partial<Record<ChannelKey, ChannelMediaMode>>;
-    const publishMediaModeByChannel = Object.fromEntries(
-      publishableChannels.map((channel) => [
-        channel,
-        resolveChannelMediaMode(channel),
-      ]),
-    ) as Partial<Record<ChannelKey, ChannelMediaMode>>;
-    const hasAnyVideoPublish = publishableChannels.some(
-      (channel) => publishMediaModeByChannel[channel] === "video",
-    );
-    const hasAnyImagePublish = publishableChannels.some(
-      (channel) => publishMediaModeByChannel[channel] === "images",
-    );
-    const pendingMediaPreparationLabel = "Préparation des médias";
-    const requiredPublishMediaTypes = [
-      ...(hasAnyImagePublish ? (["image"] as const) : []),
-      ...(hasAnyVideoPublish ? (["video"] as const) : []),
-    ];
-    const publishWorkspaceReadinessTimeoutMs =
-      MEDIA_WORKSPACE_READINESS_TIMEOUT_MS;
-    // Les deux familles coexistent dans le workspace. Leur présence réelle,
-    // et non le dernier onglet média activé, décide si un fallback est requis.
-    const workspaceCarriesImagesForPublish =
-      mediaPipelineCutoverEnabled && images.length > 0;
-    const workspaceCarriesVideoForPublish =
-      mediaPipelineCutoverEnabled && Boolean(videoFile);
-    const shouldBuildImageFallbackPayload =
-      hasAnyImagePublish && !workspaceCarriesImagesForPublish;
-    const shouldBuildVideoFallbackPayload =
-      hasAnyVideoPublish && !workspaceCarriesVideoForPublish;
-    const publishTargetVideoSettingsByChannel = Object.fromEntries(
-      publishTargetChannels.map((channel) => [
-        channel,
-        getAutomaticVideoSettingsForPublication({
-          channel,
-          settings: videoSettingsByChannel[channel],
-          durationSeconds:
-            videoDurationSeconds ?? videoSourceMetadata?.duration ?? null,
-        }),
-      ]),
-    ) as Partial<
-      Record<
-        ChannelKey,
-        { format: VideoFormat; adaptationMode: VideoAdaptationMode }
-      >
-    >;
-    const publishVideoSettingsByChannel = buildChannelRecord(
-      publishTargetVideoSettingsByChannel,
-      publishableChannels,
-    );
-    const mediaFinalizationExpected =
-      persistentMediaSynchronizing ||
-      shouldBuildImageFallbackPayload ||
-      shouldBuildVideoFallbackPayload ||
-      Object.values(persistentMediaStates).some(
-        (media) =>
-          media.status === "queued" || media.status === "uploading",
-      ) ||
-      publishableChannels.some(
-        (channel) =>
-          publishMediaModeByChannel[channel] === "video" &&
-          publishVideoSettingsByChannel[channel]?.format !== "original" &&
-          videoVariantPreparationByChannel[channel]?.status !== "ready",
-      );
-    const visiblePublicationCapMs = mediaFinalizationExpected
-      ? BOOSTER_PUBLISH_WITH_MEDIA_FINALIZATION_VISIBLE_CAP_MS
-      : BOOSTER_PUBLISH_VISIBLE_CAP_MS;
-
-    if (hasAnyVideoPublish && !videoFile) {
-      setImgError(
-        i18nT("ajoutez_une_video_avant_de_publier_74e6e32f"),
-      );
-      return;
-    }
-
-    const missingContentChannels = publishableChannels.filter(
-      (ch) => !String(preparedPostsByChannel[ch]?.content || "").trim(),
-    );
-    if (missingContentChannels.length && !options?.skipEmptyContentWarnings) {
-      setPostsByChannel(preparedPostsByChannel);
-      setPendingPublishPosts(preparedPostsByChannel);
-      setEmptyContentWarningChannels(missingContentChannels);
-      setEmptyContentWarningIndex(0);
-      return;
-    }
-
-    closeEmptyContentWarnings();
-    setPendingPublishPosts(null);
-    setPostsByChannel(preparedPostsByChannel);
-
-    if (publishableChannels.includes("instagram")) {
-      const instagramMode = publishMediaModeByChannel.instagram || "none";
-      const instagramImages = channelImageEditors.instagram?.imageKeys || [];
-      if (instagramMode === "none") {
-        setImgError(i18nT("instagram_necessite_une_video_ou_au_dc42bf8d"));
-        return;
-      }
-      if (instagramMode === "images" && !instagramImages.length) {
-        setImgError(
-          i18nT("veuillez_ajouter_au_moins_1_image_2804ca41"),
-        );
-        return;
-      }
-      if (instagramMode === "video" && !videoFile) {
-        setImgError(i18nT("veuillez_ajouter_une_video_pour_publier_9e530780"));
-        return;
-      }
-    }
-
-    if (
-      publishableChannels.includes("facebook") &&
-      ((facebookPublicationPlacement === "reel" || facebookStoryEnabled) ||
-        facebookPublicationPlacement === "story")
-    ) {
-      const facebookMode = publishMediaModeByChannel.facebook || "none";
-      const facebookImages = channelImageEditors.facebook?.imageKeys || [];
-      if (facebookMode === "none") {
-        setImgError(i18nT("instagram_necessite_une_video_ou_au_dc42bf8d"));
-        return;
-      }
-      if (facebookMode === "images" && !facebookImages.length) {
-        setImgError(i18nT("veuillez_ajouter_au_moins_1_image_2804ca41"));
-        return;
-      }
-      if (facebookMode === "video" && !videoFile) {
-        setImgError(i18nT("veuillez_ajouter_une_video_pour_publier_9e530780"));
-        return;
-      }
-    }
-
-    if (publishableChannels.includes("pinterest")) {
-      if (!pinterestBoardId) {
-        setPublishError(i18nT("choisissez_un_tableau_pinterest_avant_de_60a6ce70"));
-        return;
-      }
-      const pinterestMode = publishMediaModeByChannel.pinterest || "none";
-      const pinterestImages = channelImageEditors.pinterest?.imageKeys || [];
-      if (pinterestMode === "none") {
-        setImgError(i18nT("pinterest_necessite_une_image_ou_une_e2a7f196"));
-        return;
-      }
-      if (pinterestMode === "images" && !pinterestImages.length) {
-        setImgError(
-          i18nT("veuillez_ajouter_au_moins_1_image_b3487d4c"),
-        );
-        return;
-      }
-      if (pinterestMode === "video" && !videoFile) {
-        setImgError(i18nT("veuillez_ajouter_une_video_pour_publier_392ad3f1"));
-        return;
-      }
-    }
-
-    const preflightFailureChannels = new Set(
-      preflightFailedChannels.map((failure) => failure.channel),
-    );
-    let dispatchPreparationShown = false;
-    let publicationDispatchShown = false;
-    let mediaPreparationProgressUpdates = 0;
-    const videoChannelsUseOriginal = publishableChannels
-      .filter((channel) => publishMediaModeByChannel[channel] === "video")
-      .every(
-        (channel) =>
-          (publishVideoSettingsByChannel[channel]?.format || "original") ===
-          "original",
-      );
-    const armPublicationFinalWait = () => {
-      if (publicationFinalWaitTimeoutId !== null) return;
-      publicationFinalWaitTimeoutId = window.setTimeout(() => {
-        publicationFinalWaitTimeoutId = null;
-        setPublicationProgressPhase(
-          "final_wait",
-          i18nT("publication_finalizing"),
-          99,
-        );
-      }, 8_000);
-    };
-
-    const onPublicationProgress = (update: BoosterPublishProgressUpdate) => {
-      const payload =
-        update.payload && typeof update.payload === "object"
-          ? update.payload
-          : {};
-      const summary =
-        payload.summary && typeof payload.summary === "object"
-          ? (payload.summary as Record<string, any>)
-          : {};
-      const mediaPreparation =
-        payload.mediaPreparation && typeof payload.mediaPreparation === "object"
-          ? (payload.mediaPreparation as Record<string, any>)
-          : null;
-      const mediaPreparationProgress = mediaPreparation
-        ? Math.min(
-            100,
-            Math.max(0, Number(mediaPreparation.progress || 0)),
-          )
-        : null;
-      const mediaPreparationLabelProgress = mediaPreparationProgress;
-      const entries = Array.isArray(summary.entries)
-        ? (summary.entries.filter(
-            (entry): entry is Record<string, any> =>
-              Boolean(entry && typeof entry === "object"),
-          ) as Record<string, any>[])
-        : [];
-      const terminalChannels = new Set<string>(preflightFailureChannels);
-      // Reuse the existing server snapshots for display only; accepted jobs remain pending.
-      setPublicationDestinations((current) => current.map((destination) => {
-        if (!publishTargetChannels.includes(destination.key as ChannelKey)) return destination;
-        const entry = entries.find((item) => item.channel === destination.key);
-        if (!entry) return preflightFailureChannels.has(destination.key as ChannelKey)
-          ? { ...destination, status: "skipped" }
-          : destination;
-        return { ...destination, status: getPublicationDestinationStatus(entry) };
-      }));
-      let preparingCount = 0;
-      entries.forEach((entry) => {
-        const channel = String(entry.channel || "");
-        const status = String(
-          entry.technicalStatus || entry.status || "",
-        ).toLowerCase();
-        const terminal =
-          typeof entry.ok === "boolean" ||
-          [
-            "failed",
-            "error",
-            "published",
-            "published_with_warning",
-            "completed",
-            "success",
-            "succeeded",
-          ].includes(status);
-        if (terminal) terminalChannels.add(channel);
-        if (status === "preparing") preparingCount += 1;
-      });
-
-      const totalCount = Math.max(1, publishTargetChannels.length);
-      const terminalCount = Math.min(totalCount, terminalChannels.size);
-      const mediaPreparationInProgress =
-        preparingCount > 0 ||
-        String(payload.status || "").toLowerCase() === "preparing" ||
-        (mediaPreparationProgress !== null && mediaPreparationProgress < 100);
-      if (mediaPreparationInProgress) {
-        mediaPreparationProgressUpdates += 1;
-        const progress = mediaPreparationProgress ?? 0;
-        const preparationLabel =
-          hasAnyVideoPublish &&
-          videoChannelsUseOriginal &&
-          mediaPreparationProgressUpdates === 1
-            ? "Vérification de la vidéo"
-            : "Préparation des médias";
-        const label = `${preparationLabel}${
-          mediaPreparationLabelProgress === null
-            ? ""
-            : ` · ${Math.round(mediaPreparationLabelProgress)} %`
-        }`;
-        setPublicationProgressPhase(
-          "media_preparation",
-          label,
-          mapProgressRange(progress, 0, 100, 23, 39),
-        );
-        return;
-      }
-      if (update.stage === "request_accepted") {
-        setPublicationProgressPhase(
-          "file_preparation",
-          i18nT("publication_preparing_sends"),
-          49,
-        );
-        dispatchPreparationShown = true;
-        return;
-      }
-      if (update.stage === "released_to_background") {
-        setPublicationProgressPhase(
-          "status_collection",
-          i18nT("publication_pending_channels_confirmation", { value0: Math.max(0, totalCount - terminalCount), value1: totalCount - terminalCount > 1 ? "canaux finalisent" : "canal finalise" }),
-          93,
-        );
-        return;
-      }
-      if (update.stage === "completed") {
-        setPublicationProgressPhase(
-          "inrsend_recording",
-          i18nT("publication_recording_inrsend"),
-          96,
-        );
-        return;
-      }
-      if (terminalCount >= totalCount) {
-        setPublicationProgressPhase(
-          "status_collection",
-          i18nT("publication_platform_confirmation_count", { value0: totalCount, value1: totalCount }),
-          93,
-        );
-      } else if (terminalCount > 0) {
-        if (!dispatchPreparationShown) {
-          setPublicationProgressPhase(
-            "file_preparation",
-            i18nT("publication_preparing_sends"),
-            49,
-          );
-          dispatchPreparationShown = true;
-          return;
-        }
-        armPublicationFinalWait();
-        const nextChannel = publishTargetChannels.find(
-          (channel) => !terminalChannels.has(channel),
-        );
-        const nextChannelLabel = nextChannel
-          ? CHANNEL_LABELS[nextChannel] || nextChannel
-          : "le prochain canal";
-        setPublicationProgressPhase(
-          "publication_finalization",
-          i18nT("publication_channel_progress", { value0: Math.min(totalCount, terminalCount + 1), value1: totalCount, value2: nextChannelLabel }),
-          mapProgressRange(terminalCount, 0, totalCount, 67, 81),
-        );
-        publicationDispatchShown = true;
-      } else {
-        if (!dispatchPreparationShown) {
-          setPublicationProgressPhase(
-            "file_preparation",
-            i18nT("publication_preparing_sends"),
-            49,
-          );
-          dispatchPreparationShown = true;
-          return;
-        }
-        armPublicationFinalWait();
-        const firstChannel = publishTargetChannels[0];
-        const firstChannelLabel = firstChannel
-          ? CHANNEL_LABELS[firstChannel] || firstChannel
-          : "le canal sélectionné";
-        setPublicationProgressPhase(
-          "channel_dispatch",
-          i18nT("publication_first_channel_progress", { value0: totalCount, value1: firstChannelLabel }),
-          mapProgressRange(update.pollAttempt, 0, 12, 51, 65),
-        );
-        publicationDispatchShown = true;
-      }
-    };
-
-      const readyMediaWorkspaceId =
-        await waitForPersistentWorkspaceReadiness(
-          "publish",
-          (progress) => {
-            setPublicationProgressPhase(
-              "media_preparation",
-              progress > 24 ? pendingMediaPreparationLabel : i18nT("publication_verifying_preparing_media"),
-              progress <= 24
-                ? mapProgressRange(progress, 6, 24, 23, 34)
-                : 35,
-            );
-          },
-          requiredPublishMediaTypes,
-          publishWorkspaceReadinessTimeoutMs,
-        );
-
-      setPublicationProgressPhase(
-        "media_preparation",
-        pendingMediaPreparationLabel,
-        37,
-      );
-
-      // Les formats originaux sont déjà validés dans le bloc Médias. Une
-      // adaptation explicite doit, elle, être prête avant d'arriver ici.
-      setPublicationProgressPhase(
-        "media_preparation",
-        pendingMediaPreparationLabel,
-        38,
-      );
-
-      const emptyChannelImages = {} as ChannelImagePayload;
-      const emptyChannelSettings = {} as ChannelImageSettingsPayload;
-      const { channelImages, channelSettings } = !hasAnyImagePublish
-        ? {
-            channelImages: emptyChannelImages,
-            channelSettings: emptyChannelSettings,
-          }
-        : workspaceCarriesImagesForPublish
-          ? {
-              channelImages: emptyChannelImages,
-              channelSettings: buildChannelImageSettingsPayload(),
-            }
-          : await buildChannelImagesPayload((current, total) => {
-            if (!total) {
-              setPublicationProgressPhase(
-                "media_preparation",
-                i18nT("progress_media_preparation"),
-                38,
-              );
-              return;
-            }
-            const ratio = current / total;
-            setPublicationProgressPhase(
-              "media_preparation",
-              i18nT("publication_media_progress", { value0: clampPercent(ratio * 100) }),
-              mapProgressRange(ratio, 0, 1, 35, 38),
-            );
-          }, publishableChannels.filter(channel => resolveChannelMediaMode(channel) === "images"));
-
-      const originalImageByKey: Record<string, ImagePayload> =
-        !shouldBuildImageFallbackPayload
-          ? {}
-          : await (async () => {
-              setPublicationProgressPhase(
-                "media_preparation",
-                i18nT("progress_media_preparation"),
-                38,
-              );
-              return await uploadOriginalImagesForPublication(
-                (current, total) => {
-                  if (!total) return;
-                  const ratio = current / total;
-                  setPublicationProgressPhase(
-                    "media_preparation",
-                    i18nT("publication_media_progress", { value0: clampPercent(ratio * 100) }),
-                    mapProgressRange(ratio, 0, 1, 36, 39),
-                  );
-                },
-              );
-            })();
-
-      if (hasAnyImagePublish) {
-        setPublicationProgressPhase(
-          "media_preparation",
-          i18nT("progress_media_preparation"),
-          39,
-        );
-      }
-
-      const uploadedChannelImages = {} as ChannelImagePayload;
-      const uploadTargets = !hasAnyImagePublish
-        ? 0
-        : publishableChannels.reduce(
-            (sum, channel) =>
-              sum +
-              (channelImages[channel] || []).filter((image) => !!image?.dataUrl)
-                .length,
-            0,
-          );
-      let uploadedCount = 0;
-      if (shouldBuildImageFallbackPayload) {
-        await Promise.all(
-          publishableChannels.map(async (channel) => {
-            if (publishMediaModeByChannel[channel] !== "images") return;
-            const uploadedImages = await uploadPreparedImages(
-              channelImages[channel] || [],
-              (current, total) => {
-                if (!total) return;
-                uploadedCount += 1;
-                const ratio = uploadTargets ? uploadedCount / uploadTargets : 1;
-                setPublicationProgressPhase(
-                  "media_preparation",
-                  i18nT("publication_media_progress", { value0: clampPercent(ratio * 100) }),
-                  mapProgressRange(ratio, 0, 1, 37, 39),
-                );
-              },
-            );
-            const imageKeysForChannel =
-              channelSettings[channel]?.imageKeys || [];
-            uploadedChannelImages[channel] = uploadedImages.map(
-              (image, index) => {
-                const imageKey = imageKeysForChannel[index] || "";
-                const original = imageKey
-                  ? originalImageByKey[imageKey]
-                  : undefined;
-                const originalUrl = String(
-                  original?.publicUrl ||
-                    original?.originalPublicUrl ||
-                    original?.originalUrl ||
-                    "",
-                ).trim();
-                return {
-                  ...image,
-                  renderedUrl: image.publicUrl || image.renderedUrl || "",
-                  imageKey,
-                  originalUrl,
-                  originalPublicUrl: originalUrl,
-                  originalStoragePath:
-                    original?.storagePath || original?.originalStoragePath || "",
-                  originalName: original?.name || image.name,
-                  originalType: original?.type || image.type,
-                  transform: imageKey
-                    ? channelSettings[channel]?.transforms?.[imageKey]
-                    : undefined,
-                  imageMeta:
-                    image.imageMeta ||
-                    (imageKey ? imageMetaByKey[imageKey] : undefined),
-                };
-              },
-            );
-          }),
-        );
-      }
-
-      let publicationVideo: any = null;
-      if (shouldBuildVideoFallbackPayload) {
-        setPublicationProgressPhase(
-          "media_preparation",
-          i18nT("progress_media_preparation"),
-          39,
-        );
-        publicationVideo = await uploadPublicationVideoForPublish();
-        if (!publicationVideo?.publicUrl && !publicationVideo?.url) {
-          throw new Error(
-            "La vidéo n’a pas pu être préparée pour la publication.",
-          );
-        }
-        publicationVideo = await preparePublicationVideoVariants(
-          publicationVideo,
-          publishableChannels,
-          publishMediaModeByChannel,
-          { settingsByChannel: publishVideoSettingsByChannel },
-        );
-      }
-
-      publishDispatchStarted = true;
-      if (!isCurrentPublishScope()) throw new Error(i18nT("connections_loading"));
-      const result = await trackEvent("publish", {
-        _onPublicationProgress: onPublicationProgress,
-        _clientVisibleWaitMs: Math.max(
-          0,
-          visiblePublicationCapMs - (Date.now() - publishStartedAt),
-        ),
+  const { runPublish, performSchedulePublication, publishImmediateChannelsAfterSchedule } =
+    createPublicationSubmission(() => ({
+      state: {
+        saving,
+        draftSaving,
+        voiceInputBusy,
+        publishStartGuardRef,
+        authoritativeChannelsRef,
+        connectedChannelsScopeRef,
+        activeAccountId,
+        i18nT,
+        publicationActorScopeRef,
+        actorUserId,
+        latestPublicationSummaryRef,
+        selectedChannels,
+        phasedPublicationProgressRef,
+        facebookPublicationPlacement,
+        facebookStoryEnabled,
+        pinterestBoardId,
         creationMode,
-        soundtrackByChannel: getPublicationSoundtracks(publishTargetChannels),
-        mediaWorkspaceId:
-          unifiedMediaConsumptionClientAvailable && readyMediaWorkspaceId
-            ? readyMediaWorkspaceId
-            : undefined,
-        mediaWorkspaceClientKey:
-          unifiedMediaConsumptionClientAvailable && readyMediaWorkspaceId
-            ? mediaWorkspaceClientKey
-            : undefined,
-        mediaPipelineCutoverV1: mediaPipelineCutoverEnabled,
-        mediaType: hasAnyVideoPublish ? "video" : "images",
-        mediaModeByChannel: buildChannelRecord(
-          publishTargetMediaModeByChannel,
-          publishTargetChannels,
-        ),
-        videoFormatByChannel: buildChannelRecord(
-          videoFormatByChannel,
-          publishTargetChannels,
-        ),
-        videoAdaptationModeByChannel: buildChannelRecord(
-          videoAdaptationModeByChannel,
-          publishTargetChannels,
-        ),
-        videoSettingsByChannel: buildChannelRecord(
-          publishTargetVideoSettingsByChannel,
-          publishTargetChannels,
-        ),
-        video: publicationVideo,
-        idea: idea.trim(),
+        idea,
         theme,
-        channels: publishTargetChannels,
-        storySequenceResumeByChannel: options?.retryPreviousSummary
-          ? buildStorySequenceResumeByChannel(options.retryPreviousSummary, publishTargetChannels)
-          : undefined,
-        clientPreflightFailuresByChannel,
-        postByChannel: filterPostsForSelectedChannels(
-          preparedPostsByChannel,
-          publishTargetChannels,
-        ),
-        // Avoid sending the same images twice (base images + channel images),
-        // which can make the JSON body too large and trigger HTTP 413.
-        // The API now rebuilds the fallback/base image set from channel images.
-        images: [],
-        imagesByChannel: buildChannelRecord(
-          uploadedChannelImages,
-          publishableChannels.filter(channel => resolveChannelMediaMode(channel) === "images"),
-        ),
-        imageSettingsByChannel: buildChannelRecord(
-          channelSettings,
-          publishTargetChannels.filter(channel => resolveChannelMediaMode(channel) === "images"),
-        ),
-        tiktokPublicationSettings: publishTargetChannels.includes("tiktok")
-          ? options?.tiktokPublicationSettings || tiktokPublicationSettings
-          : null,
-        threadsPublicationSettings: publishTargetChannels.includes("threads") ? { mode: threadsPublicationMode } : null,
-        instagramPublicationSettings: publishTargetChannels.includes(
-          "instagram",
-        )
-          ? buildMetaPublicationSelection(
-              instagramPublicationPlacement,
-              instagramStoryEnabled,
-            )
-          : null,
-        facebookPublicationSettings: publishTargetChannels.includes(
-          "facebook",
-        )
-          ? buildMetaPublicationSelection(
-              facebookPublicationPlacement,
-              facebookStoryEnabled,
-            )
-          : null,
-        pinterestPublicationSettings: publishTargetChannels.includes("pinterest")
-          ? { boardId: pinterestBoardId, boardName: pinterestBoardName }
-          : null,
-      });
-
-      if (!dispatchPreparationShown) {
-        setPublicationProgressPhase(
-          "file_preparation",
-          i18nT("publication_preparing_sends"),
-          49,
-        );
-        dispatchPreparationShown = true;
-        await new Promise((resolve) => window.setTimeout(resolve, 180));
-      }
-      if (!publicationDispatchShown) {
-        setPublicationProgressPhase(
-          "publication_finalization",
-          i18nT("publication_publishing_channels"),
-          81,
-        );
-        publicationDispatchShown = true;
-        armPublicationFinalWait();
-        await new Promise((resolve) => window.setTimeout(resolve, 240));
-      }
-
-      // trackEvent attend jusqu’au premier des deux événements : tous les
-      // canaux sont terminés, ou la fenêtre visible est écoulée. Dans ce
-      // second cas, le bilan s’ouvre avec les canaux encore en traitement et
-      // les workers durables poursuivent l’envoi sans dépendre du navigateur.
-      const resultEntries = Array.isArray(result?.summary?.entries)
-        ? result.summary.entries
-        : [];
-      const retryFailedChannels = resultEntries
-        .filter(
-          (entry: any) =>
-            isRetryablePublicationEntry(entry) &&
-            publishableChannels.includes(entry?.channel as ChannelKey),
-        )
-        .map((entry: any) => entry.channel as ChannelKey);
-      const failureCount = Math.max(
-        0,
-        Number(result?.summary?.failureCount || retryFailedChannels.length),
-      );
-      const pendingCount = Math.max(
-        0,
-        Number(
-          result?.summary?.pendingCount ||
-            resultEntries.filter((entry: any) => {
-              const status = String(entry?.status || "").trim().toLowerCase();
-              const technicalStatus = String(entry?.technicalStatus || "")
-                .trim()
-                .toLowerCase();
-              return (
-                isBoosterPublicationPendingStatus(status) ||
-                isBoosterPublicationPendingStatus(technicalStatus)
-              );
-            }).length,
-        ),
-      );
-      const warningCount = Math.max(
-        0,
-        Number(
-          result?.summary?.warningCount ||
-            resultEntries.filter(
-              (entry: any) => entry?.status === "published_with_warning",
-            ).length,
-        ),
-      );
-      const publicationAccepted =
-        result?.summary?.allFailed !== true &&
-        (Number(result?.summary?.successCount || 0) > 0 || pendingCount > 0);
-      const publicationComplete = publicationAccepted && pendingCount === 0;
-      const bilanProgress = resolvePublicationBilanProgress(pendingCount);
-
-      setPublicationProgressPhase(
-        "status_collection",
-        pendingCount > 0 ? pendingCount > 1 ? i18nT("publication_pending_multiple", { value0: pendingCount }) : i18nT("publication_pending_one") : i18nT("publication_platform_confirmation_count", { value0: publishableChannels.length, value1: publishableChannels.length }),
-        93,
-      );
-      await new Promise((resolve) => window.setTimeout(resolve, 220));
-      setPublicationProgressPhase(
-        "inrsend_recording",
-        i18nT("publication_recording_inrsend"),
-        96,
-      );
-      await new Promise((resolve) => window.setTimeout(resolve, 220));
-
-      if (publicationFinalWaitTimeoutId !== null) {
-        window.clearTimeout(publicationFinalWaitTimeoutId);
-        publicationFinalWaitTimeoutId = null;
-      }
-      setPublicationProgressPhase(
-        "final_wait",
-        i18nT("publication_finalizing_report"),
-        99,
-      );
-      await new Promise((resolve) => window.setTimeout(resolve, 540));
-
-      completePublicationProgress(
-        bilanProgress.backgroundFinalization ? bilanProgress.pendingCount > 1 ? i18nT("publication_report_pending_multiple", { value0: bilanProgress.pendingCount }) : i18nT("publication_report_pending_one") : result?.summary?.allFailed ? i18nT("publication_report_all_failed") : failureCount > 0 ? i18nT("publication_report_failures", { value0: failureCount, value1: failureCount > 1 ? "s" : "" }) : warningCount > 0 ? i18nT("publication_report_warning") : i18nT("publication_report_complete"),
-      );
-      await new Promise((resolve) => window.setTimeout(resolve, 320));
-      if (publicationAccepted) {
-        onUnsavedChange?.(false);
-      }
-      let recoveredPinterestHref = "";
-      if (
-        publishableChannels.includes("pinterest") &&
-        !normalizeExternalHref(channelDetails.pinterest?.href)
-      ) {
-        try {
-          const pinterestResponse = await fetch(
-            "/api/integrations/pinterest/status?live=1",
-            { cache: "no-store" as any },
-          );
-          const pinterestStatus = pinterestResponse.ok
-            ? await pinterestResponse.json().catch(() => null)
-            : null;
-          const username = String(pinterestStatus?.username || "")
-            .replace(/^@+/, "")
-            .trim();
-          recoveredPinterestHref = normalizeExternalHref(
-            pinterestStatus?.profileUrl ||
-              pinterestStatus?.publicProfileUrl ||
-              (username
-                ? `https://www.pinterest.fr/${encodeURIComponent(username)}/`
-                : ""),
-          );
-          if (recoveredPinterestHref) {
-            const accountLabel = String(
-              pinterestStatus?.accountName || username || recoveredPinterestHref,
-            ).trim();
-            setChannelDetails((current) => ({
-              ...current,
-              pinterest: {
-                ...(current.pinterest || EMPTY_CHANNEL_DETAILS.pinterest),
-                type: "account",
-                label: accountLabel || "Compte Pinterest connecté",
-                href: recoveredPinterestHref,
-              },
-            }));
-          }
-        } catch {
-          recoveredPinterestHref = "";
-        }
-      }
-      const channelLinks = { ...options?.retryPreviousSummary?.channelLinks, ...Object.fromEntries(
-        publishableChannels.map((channel) => [
-          channel,
-          channel === "pinterest"
-            ? normalizeExternalHref(channelDetails[channel]?.href) ||
-              recoveredPinterestHref
-            : normalizeExternalHref(channelDetails[channel]?.href),
-        ]),
-      ) };
-      if (publicationComplete) {
-        void archivePersistentMediaWorkspace().catch((error) => {
-          console.warn("[media-pipeline] workspace archive skipped", error);
-        });
-      }
-
-      const completedSummary = mergeRetriedPublicationSummary(
-        options?.retryPreviousSummary,
-        mergePreflightFailuresIntoPublicationSummary(result?.summary, preflightFailedChannels),
-        String(result?.publication_id || result?.publicationId || "").trim() || null,
-        publishTargetChannels,
-      );
-      completedSummary.channelLinks = channelLinks;
-      latestPublicationSummaryRef.current = completedSummary;
-      const remainingRetryChannels = (completedSummary.entries || [])
-        .filter(isRetryablePublicationEntry)
-        .map((entry) => entry.channel as ChannelKey);
-      const retryFailed = remainingRetryChannels.length || completedSummary.pendingCount
-        ? async () => {
-            if (!isCurrentPublishScope()) return;
-            const retryPreviousSummary = latestPublicationSummaryRef.current || completedSummary;
-            const channels = (retryPreviousSummary.entries || [])
-              .filter(isRetryablePublicationEntry)
-              .map((entry) => entry.channel as ChannelKey);
-            if (!channels.length) return;
-            await runPublish({
-              channels,
-              retryPreviousSummary,
-              preparedPostsByChannel,
-              tiktokPublicationSettings:
-                options?.tiktokPublicationSettings ||
-                tiktokPublicationSettings,
-              closeOnSuccess: true,
-              suppressPublishSuccess: false,
-              throwOnError: true,
-            });
-          }
-        : undefined;
-
-      if (!options?.suppressPublishSuccess) {
-        onPublishSuccess?.({
-          ...result,
-          summary: completedSummary,
-          channelLinks,
-          preflightFailedChannels,
-          retryFailedChannels: remainingRetryChannels,
-          retryFailed,
-        });
-      }
-      // The acknowledged result stays in this wizard, beneath the same header.
-      // Standalone callers without a result handler retain their close behavior.
-      if (options?.closeOnSuccess !== false && publicationAccepted && (!onPublishSuccess || options?.suppressPublishSuccess)) {
-        onClose();
-      }
-    } catch (e) {
-      if (publicationFinalWaitTimeoutId !== null) {
-        window.clearTimeout(publicationFinalWaitTimeoutId);
-        publicationFinalWaitTimeoutId = null;
-      }
-      setPublishProgress(0);
-      setPublishProgressLabel("");
-      resetPublicationProgressPhases();
-      const baseMessage = getSimpleFrenchErrorMessage(
-        e,
-        "La publication n'a pas pu être envoyée. Merci de réessayer.",
-      );
-      const networkLike = /connexion au serveur impossible|connexion interrompue|failed to fetch|networkerror|network request failed/i.test(
-        `${e instanceof Error ? e.message : String(e || "")} ${baseMessage}`,
-      );
-      const message = networkLike
-        ? publishDispatchStarted
-          ? "Connexion interrompue pendant la publication. L’envoi peut encore être en cours : vérifiez iNr’Send avant de relancer."
-          : "Connexion interrompue pendant la préparation des médias. Aucun envoi n’a été confirmé : réessayez dans quelques instants."
-        : baseMessage;
-      setPublishError(message);
-      if (options?.throwOnError) {
-        throw new Error(message);
-      }
-    } finally {
-      if (publicationFinalWaitTimeoutId !== null) {
-        window.clearTimeout(publicationFinalWaitTimeoutId);
-        publicationFinalWaitTimeoutId = null;
-      }
-      publishStartGuardRef.current = false;
-      phasedPublicationProgressRef.current = false;
-      setSaving(false);
-    }
-  };
-
-  const onSavePublicationDraft = async (options?: {
-    updateRoute?: boolean;
-  }): Promise<string | null> => {
-    if (saving || draftSaving || voiceInputBusy) return null;
-
-    setPublishError("");
-    setDraftMessage("");
-
-    if (!hasDraftablePublicationContent) {
-      setPublishError(
-        i18nT("ajoutez_un_contenu_ou_un_media_b14123ad"),
-      );
-      scrollToPublishArea("smooth");
-      return null;
-    }
-
-    if (!selectedChannels.length) {
-      setPublishError(
-        i18nT("selectionnez_au_moins_1_canal_avant_ce44da85"),
-      );
-      scrollToPublishArea("smooth");
-      return null;
-    }
-
-    const preparedPostsByChannel = filterPostsForSelectedChannels(
-      buildPreparedPostsByChannel(),
-      selectedChannels,
-    );
-    const imageNames = images.map((file) => ({
-      name: file.name,
-      type: file.type,
-      size: file.size,
+        tiktokPublicationSettings,
+        threadsPublicationMode,
+        instagramPublicationPlacement,
+        instagramStoryEnabled,
+        pinterestBoardName,
+        channelDetails,
+        scheduleSaving,
+        scheduleStartGuardRef,
+      },
+      media: {
+        persistentMediaWorkspaceEnabled,
+        mediaPipelineCutoverEnabled,
+        images,
+        videoFile,
+        videoSettingsByChannel,
+        videoDurationSeconds,
+        videoSourceMetadata,
+        persistentMediaSynchronizing,
+        persistentMediaStates,
+        videoVariantPreparationByChannel,
+        channelImageEditors,
+        imageMetaByKey,
+        unifiedMediaConsumptionClientAvailable,
+        mediaWorkspaceClientKey,
+        videoFormatByChannel,
+        videoAdaptationModeByChannel,
+      },
+      preparation: {
+        buildPreparedPostsByChannel,
+        getImagePreparationIssue,
+        resolveChannelMediaMode,
+        waitForPersistentWorkspaceIdle,
+        buildFinalReviewItems,
+        waitForPersistentWorkspaceReadiness,
+        buildChannelImageSettingsPayload,
+        buildChannelImagesPayload,
+        uploadOriginalImagesForPublication,
+        uploadPublicationVideoForPublish,
+        preparePublicationVideoVariants,
+        getPublicationSoundtracks,
+        filterPostsForSelectedChannels,
+        ensureCutoverVideoVariantsReady,
+      },
+      actions: {
+        setPublishError,
+        setDraftMessage,
+        setImgError,
+        setPublishProgress,
+        setPublishProgressLabel,
+        resetPublicationProgressPhases,
+        scrollToPublishArea,
+        setPublicationDestinations,
+        setSaving,
+        setPublicationProgressPhase,
+        setPostsByChannel,
+        setPendingPublishPosts,
+        setEmptyContentWarningChannels,
+        setEmptyContentWarningIndex,
+        closeEmptyContentWarnings,
+        trackEvent,
+        completePublicationProgress,
+        onUnsavedChange,
+        setChannelDetails,
+        archivePersistentMediaWorkspace,
+        onPublishSuccess,
+        onClose,
+        setScheduleError,
+        setScheduleSaving,
+        setChannels,
+        setPendingImmediatePublishAfterSchedule,
+        setScheduleReviewPosts,
+        setTiktokPublicationSettings,
+        setTiktokSettingsFlow,
+        setPendingScheduleRequest,
+      },
     }));
-    const videoName = videoFile
-      ? {
-          name: videoFile.name,
-          type: videoFile.type,
-          size: videoFile.size,
-          duration: videoDurationSeconds,
-        }
-      : null;
-    const channelLabels = selectedChannels
-      .map((channel) => CHANNEL_LABELS[channel] || channel)
-      .join(" / ");
-    const firstTitle = selectedChannels
-      .map((channel) =>
-        String(preparedPostsByChannel[channel]?.title || "").trim(),
-      )
-      .find(Boolean);
-    const firstContent = selectedChannels
-      .map((channel) =>
-        String(preparedPostsByChannel[channel]?.content || "").trim(),
-      )
-      .find(Boolean);
 
-    setDraftSaving(true);
-    try {
-      setDraftMessage(videoFile ? "Sauvegarde vidéo…" : "Enregistrement…");
-      const imageDrafts =
-        images.length && !(mediaPipelineCutoverEnabled && mediaWorkspaceId)
-          ? await uploadPublicationDraftImages()
-          : [];
-      const rawVideoDraft = mediaPipelineCutoverEnabled && mediaWorkspaceId
-        ? null
-        : await buildPublicationDraftVideoPayload();
-      lastSavedStudioVideoDraftRef.current = rawVideoDraft;
-      const videoDraft = rawVideoDraft
-        ? {
-            ...rawVideoDraft,
-            ...videoAiContextReferenceAliases(videoAiContextRef),
-          }
-        : null;
-      const response = await fetch("/api/booster/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "publish_draft",
-          draftId:
-            loadedPublicationDraftId || publicationDraftIdParam || undefined,
-          payload: {
-            status: "draft",
-            creationMode,
-            soundtrackByChannel,
-            mediaWorkspaceId,
-            mediaWorkspaceClientKey,
-            mediaPipelineCutoverV1: mediaPipelineCutoverEnabled,
-            title: firstTitle || "Brouillon publication",
-            preview: firstContent || idea.trim() || channelLabels,
-            content: firstContent || "",
-            idea: idea.trim(),
-            publicationInstruction: publicationInstruction.trim(),
-            theme,
-            contentStyle,
-            aiPreferredEngine: selectedAiPreferredEngine,
-            activeCard,
-            contentWorkspaceOpen,
-            channel: channelLabels,
-            channels: selectedChannels,
-            postByChannel: preparedPostsByChannel,
-            mediaType: videoFile ? "video" : "images",
-            channelMediaModes,
-            videoFormatByChannel,
-            videoAdaptationModeByChannel,
-            videoSettingsByChannel,
-            imageNames: imageNames,
-            videoName: videoName,
-            videoSourceMetadata,
-            imageDrafts,
-            imageInteractionsByKey: Object.fromEntries(
-              Object.entries(imageMetaByKey)
-                .filter(([, meta]) => meta.interactions)
-                .map(([key, meta]) => [key, meta.interactions]),
-            ),
-            videoDraft,
-            ...videoAiContextReferenceAliases(videoAiContextRef),
-            useImagesForAI,
-            imageSettingsByChannel: getDraftImageSettingsByChannel(),
-            threadsPublicationSettings: { mode: threadsPublicationMode },
-            instagramHashtagsInput,
-            xHashtagsInput,
-            instagramPublicationPlacement,
-            instagramStoryEnabled,
-            facebookPublicationPlacement,
-            facebookStoryEnabled,
-            pinterestBoardId,
-            pinterestBoardName,
-            tiktokPublicationSettings,
-            showPublicationPreview,
-            saved_at: new Date().toISOString(),
-          },
-        }),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(
-          String(
-            result?.error ||
-              "Impossible d’enregistrer le brouillon publication.",
-          ),
-        );
-      }
-      const savedDraftId = String(
-        result?.id || loadedPublicationDraftId || publicationDraftIdParam || "",
-      ).trim();
-      if (videoDraft) {
-        const draftVariants = normalizeRestoredVideoVariants(
-          (videoDraft as any).transformedVariants,
-        );
-        setVideoStorageContext({
-          storagePath: videoDraft.storagePath || "",
-          publicUrl: videoDraft.publicUrl || videoDraft.url || "",
-          url: videoDraft.url || videoDraft.publicUrl || "",
-        });
-        if (draftVariants.length) {
-          setVideoTransformedVariants(draftVariants);
-          setVideoVariantPreparationByChannel((prev) => ({
-            ...prev,
-            ...buildVideoPreparationStateFromVariants({
-              channels: selectedChannels,
-              mediaModeByChannel: channelMediaModes,
-              variants: draftVariants,
-            }),
-          }));
-        }
-      }
-      if (savedDraftId) {
-        await linkPersistentWorkspaceDraft(savedDraftId).catch((error) => {
-          console.warn("[media-pipeline] workspace draft link skipped", error);
-        });
-        setLoadedPublicationDraftId(savedDraftId);
-        if (options?.updateRoute !== false) {
-          router.replace(
-            `/dashboard?action=publish&draftId=${encodeURIComponent(savedDraftId)}`,
-            { scroll: false },
-          );
-        }
-      }
-      setLastPublicationDraftSnapshot(currentPublicationDraftSnapshot);
-      // Le PDF reste volontairement local jusqu'à la prochaine génération et
-      // n'est pas inclus dans le brouillon durable.
-      onUnsavedChange?.(Boolean(pdfFile));
-      setDraftMessage(i18nT("brouillon_enregistre_5b3c3ae3"));
-      return savedDraftId || null;
-    } catch (e) {
-      setPublishError(
-        getSimpleFrenchErrorMessage(e, i18nT("publication_draft_save_failed")),
-      );
-      return null;
-    } finally {
-      setDraftSaving(false);
-    }
-  };
+  const onSavePublicationDraft = (options?: { updateRoute?: boolean }) =>
+    savePublicationDraft({
+      saving,
+      draftSaving,
+      voiceInputBusy,
+      setPublishError,
+      setDraftMessage,
+      hasDraftablePublicationContent,
+      i18nT,
+      scrollToPublishArea,
+      selectedChannels,
+      filterPostsForSelectedChannels,
+      buildPreparedPostsByChannel,
+      images,
+      videoFile,
+      videoDurationSeconds,
+      setDraftSaving,
+      mediaPipelineCutoverEnabled,
+      mediaWorkspaceId,
+      uploadPublicationDraftImages,
+      buildPublicationDraftVideoPayload,
+      lastSavedStudioVideoDraftRef,
+      videoAiContextRef,
+      loadedPublicationDraftId,
+      publicationDraftIdParam,
+      creationMode,
+      soundtrackByChannel,
+      mediaWorkspaceClientKey,
+      idea,
+      publicationInstruction,
+      theme,
+      contentStyle,
+      selectedAiPreferredEngine,
+      activeCard,
+      contentWorkspaceOpen,
+      channelMediaModes,
+      videoFormatByChannel,
+      videoAdaptationModeByChannel,
+      videoSettingsByChannel,
+      videoSourceMetadata,
+      imageMetaByKey,
+      useImagesForAI,
+      getDraftImageSettingsByChannel,
+      threadsPublicationMode,
+      instagramHashtagsInput,
+      xHashtagsInput,
+      instagramPublicationPlacement,
+      instagramStoryEnabled,
+      facebookPublicationPlacement,
+      facebookStoryEnabled,
+      pinterestBoardId,
+      pinterestBoardName,
+      tiktokPublicationSettings,
+      showPublicationPreview,
+      setVideoStorageContext,
+      setVideoTransformedVariants,
+      setVideoVariantPreparationByChannel,
+      buildVideoPreparationStateFromVariants,
+      linkPersistentWorkspaceDraft,
+      setLoadedPublicationDraftId,
+      router,
+      setLastPublicationDraftSnapshot,
+      currentPublicationDraftSnapshot,
+      onUnsavedChange,
+      pdfFile,
+    }, options);
 
   useEffect(() => {
     if (!saveDraftActionRef) return;
@@ -6894,7 +4402,7 @@ export default function PublishModal({
         saveDraftActionRef.current = null;
       }
     };
-  }, [saveDraftActionRef, onSavePublicationDraft]);
+  }); // Expose the save handler from every committed render, including current edits.
 
   const openSchedulePublicationModal = () => {
     if (saving || draftSaving || scheduleSaving || voiceInputBusy) return;
@@ -6920,555 +4428,6 @@ export default function PublishModal({
     setScheduleReviewPosts(preparedPostsByChannel);
     setScheduleModalOpen(true);
   };
-
-  const buildChannelRecord = <T,>(
-    source: Partial<Record<ChannelKey, T>>,
-    channels: ChannelKey[],
-  ): Partial<Record<ChannelKey, T>> =>
-    Object.fromEntries(
-      channels
-        .map((channel) => [channel, source[channel]] as const)
-        .filter(
-          (entry): entry is readonly [ChannelKey, T] => entry[1] !== undefined,
-        ),
-    ) as Partial<Record<ChannelKey, T>>;
-
-  const buildChannelUnknownRecord = (
-    source: Partial<Record<ChannelKey, unknown>>,
-    channels: ChannelKey[],
-  ): Partial<Record<ChannelKey, unknown>> =>
-    Object.fromEntries(
-      channels
-        .map((channel) => [channel, source[channel]] as const)
-        .filter((entry) => entry[1] !== undefined),
-    ) as Partial<Record<ChannelKey, unknown>>;
-
-  const performSchedulePublication = async (
-    selections: PublishScheduleSelection[],
-    preparedPostsByChannel: Partial<Record<ChannelKey, ChannelPost>>,
-    tiktokSettingsForSchedule: TiktokPublicationSettings | null,
-    immediateChannels: ChannelKey[] = [],
-  ): Promise<PendingImmediatePublishAfterSchedule | null | undefined> => {
-    if (!authoritativeChannelsRef.current || connectedChannelsScopeRef.current !== (getActiveBrowserUserId() || activeAccountId || null)) {
-      setScheduleError(i18nT("connections_loading"));
-      return;
-    }
-    if (
-      saving ||
-      draftSaving ||
-      scheduleSaving ||
-      voiceInputBusy ||
-      scheduleStartGuardRef.current
-    ) {
-      return;
-    }
-
-    const requestedChannelsToSchedule = Array.from(
-      new Set(selections.map((selection) => selection.channel)),
-    ).filter((channel): channel is ChannelKey =>
-      selectedChannels.includes(channel),
-    );
-
-    if (!requestedChannelsToSchedule.length) {
-      setScheduleError(i18nT("schedule_select_channel_error"));
-      return;
-    }
-
-    const imagePreparationIssue = getImagePreparationIssue([
-      ...requestedChannelsToSchedule,
-      ...immediateChannels,
-    ]);
-    if (imagePreparationIssue) {
-      setScheduleError(imagePreparationIssue);
-      setPublishError(imagePreparationIssue);
-      return;
-    }
-
-    const immediateChannelsToPublish = Array.from(new Set(immediateChannels))
-      .filter((channel): channel is ChannelKey =>
-        selectedChannels.includes(channel),
-      )
-      .filter((channel) => !requestedChannelsToSchedule.includes(channel));
-
-    scheduleStartGuardRef.current = true;
-    setScheduleSaving(true);
-    setPublishError("");
-    setScheduleError("");
-    setDraftMessage("");
-    setImgError("");
-    setPublishProgress(5);
-    setPublishProgressLabel(i18nT("schedule_preparing"));
-    scrollToPublishArea("smooth");
-
-    try {
-      const requestedWorkspaceMediaTypes = [
-        ...(requestedChannelsToSchedule.some(
-          (channel) => resolveChannelMediaMode(channel) === "images",
-        )
-          ? (["image"] as const)
-          : []),
-        ...(requestedChannelsToSchedule.some(
-          (channel) => resolveChannelMediaMode(channel) === "video",
-        )
-          ? (["video"] as const)
-          : []),
-      ];
-      const settledWorkspaceStates = persistentMediaWorkspaceEnabled
-        ? await waitForPersistentWorkspaceIdle(
-            (progress, label) => {
-              setPublishProgress((current) => Math.max(current, progress));
-              setPublishProgressLabel(
-                label || i18nT("schedule_checking_media"),
-              );
-            },
-            {
-              mediaTypes: requestedWorkspaceMediaTypes,
-              tolerateFailures: true,
-            },
-          )
-        : undefined;
-      const reviewItems = buildFinalReviewItems(
-        preparedPostsByChannel,
-        requestedChannelsToSchedule,
-        settledWorkspaceStates,
-      );
-    const blocked = reviewItems.filter((item) => item.blockers.length > 0);
-    const channelsToSchedule = reviewItems
-      .filter((item) => item.blockers.length === 0)
-      .map((item) => item.channel);
-    if (!channelsToSchedule.length) {
-      setScheduleError(
-        i18nT("aucun_canal_ne_peut_etre_programme_5dcc0e18", { value0: blocked
-          .map(
-            (item) =>
-              `${item.label} — ${item.blockers[0] || "canal non prêt"}`,
-          )
-          .join(" / ") }),
-      );
-      return;
-    }
-
-    const publishMediaModeByChannel = Object.fromEntries(
-      channelsToSchedule.map((channel) => [
-        channel,
-        resolveChannelMediaMode(channel),
-      ]),
-    ) as Partial<Record<ChannelKey, ChannelMediaMode>>;
-    const hasAnyVideoPublish = channelsToSchedule.some(
-      (channel) => publishMediaModeByChannel[channel] === "video",
-    );
-    const hasAnyImagePublish = channelsToSchedule.some(
-      (channel) => publishMediaModeByChannel[channel] === "images",
-    );
-    const requiredScheduleMediaTypes = [
-      ...(hasAnyImagePublish ? (["image"] as const) : []),
-      ...(hasAnyVideoPublish ? (["video"] as const) : []),
-    ];
-    const scheduleWorkspaceReadinessTimeoutMs =
-      MEDIA_WORKSPACE_READINESS_TIMEOUT_MS;
-    const workspaceCarriesImagesForSchedule =
-      mediaPipelineCutoverEnabled && images.length > 0;
-    const workspaceCarriesVideoForSchedule =
-      mediaPipelineCutoverEnabled && Boolean(videoFile);
-    const shouldBuildScheduleImageFallback =
-      hasAnyImagePublish && !workspaceCarriesImagesForSchedule;
-    const shouldBuildScheduleVideoFallback =
-      hasAnyVideoPublish && !workspaceCarriesVideoForSchedule;
-    const scheduleVideoSettingsByChannel = Object.fromEntries(
-      channelsToSchedule.map((channel) => [
-        channel,
-        getAutomaticVideoSettingsForPublication({
-          channel,
-          settings: videoSettingsByChannel[channel],
-          durationSeconds:
-            videoDurationSeconds ?? videoSourceMetadata?.duration ?? null,
-        }),
-      ]),
-    ) as Partial<
-      Record<
-        ChannelKey,
-        { format: VideoFormat; adaptationMode: VideoAdaptationMode }
-      >
-    >;
-
-    if (hasAnyVideoPublish && !videoFile) {
-      setScheduleError(i18nT("ajoutez_une_video_avant_de_programmer_f54a63bc"));
-      return;
-    }
-
-      const readyMediaWorkspaceId =
-        await waitForPersistentWorkspaceReadiness(
-          "schedule",
-          (progress, label) => {
-            setPublishProgress((current) => Math.max(current, progress));
-            setPublishProgressLabel(label || i18nT("schedule_checking_media"));
-          },
-          requiredScheduleMediaTypes,
-          scheduleWorkspaceReadinessTimeoutMs,
-        );
-
-      if (hasAnyVideoPublish && workspaceCarriesVideoForSchedule) {
-        const videoChannels = channelsToSchedule.filter(
-          (channel) => publishMediaModeByChannel[channel] === "video",
-        );
-        setPublishProgress((current) => Math.max(current, 43));
-        setPublishProgressLabel(i18nT("progress_media_preparation"));
-        const videoPreparation = await ensureCutoverVideoVariantsReady(
-          videoChannels,
-          scheduleVideoSettingsByChannel,
-          {
-            generateMissingVideoVariants: false,
-            allowPartialChannelFailures: true,
-          },
-        );
-        setPublishProgress((current) => Math.max(current, 57));
-        setPublishProgressLabel(i18nT("progress_media_preparation"));
-      }
-
-      const emptyChannelImages = {} as ChannelImagePayload;
-      const emptyChannelSettings = {} as ChannelImageSettingsPayload;
-      const { channelImages, channelSettings } = !hasAnyImagePublish
-        ? {
-            channelImages: emptyChannelImages,
-            channelSettings: emptyChannelSettings,
-          }
-        : workspaceCarriesImagesForSchedule
-          ? {
-              channelImages: emptyChannelImages,
-              channelSettings: buildChannelImageSettingsPayload(),
-            }
-          : await buildChannelImagesPayload((current, total) => {
-            if (!total) {
-              setPublishProgress((current) => Math.max(current, 20));
-              setPublishProgressLabel(i18nT("schedule_preparing_contents"));
-              return;
-            }
-            const ratio = current / total;
-            setPublishProgress((current) =>
-              Math.max(current, clampPercent(8 + ratio * 22)),
-            );
-            setPublishProgressLabel(
-              i18nT("schedule_preparing_images_progress", { value0: clampPercent(ratio * 100) }),
-            );
-          }, channelsToSchedule.filter(channel => resolveChannelMediaMode(channel) === "images"));
-
-      const originalImageByKey: Record<string, ImagePayload> =
-        !shouldBuildScheduleImageFallback
-          ? {}
-          : await (async () => {
-              setPublishProgress((current) => Math.max(current, 32));
-              setPublishProgressLabel(i18nT("schedule_upload_original_images"));
-              return await uploadOriginalImagesForPublication(
-                (current, total) => {
-                  if (!total) return;
-                  const ratio = current / total;
-                  setPublishProgress((current) =>
-                    Math.max(current, clampPercent(32 + ratio * 12)),
-                  );
-                  setPublishProgressLabel(
-                    i18nT("schedule_upload_original_images_progress", { value0: clampPercent(ratio * 100) }),
-                  );
-                },
-              );
-            })();
-
-      const uploadedChannelImages = {} as ChannelImagePayload;
-      if (shouldBuildScheduleImageFallback) {
-        setPublishProgress((current) => Math.max(current, 48));
-        setPublishProgressLabel(i18nT("schedule_upload_adapted_images"));
-        let uploadedCount = 0;
-        const uploadTargets = channelsToSchedule.reduce(
-          (sum, channel) =>
-            sum +
-            (channelImages[channel] || []).filter((image) => !!image?.dataUrl)
-              .length,
-          0,
-        );
-        for (const channel of channelsToSchedule) {
-          if (publishMediaModeByChannel[channel] !== "images") continue;
-          const uploadedImages = await uploadPreparedImages(
-            channelImages[channel] || [],
-            () => {
-              uploadedCount += 1;
-              const ratio = uploadTargets ? uploadedCount / uploadTargets : 1;
-              setPublishProgress((current) =>
-                Math.max(current, clampPercent(48 + ratio * 22)),
-              );
-              setPublishProgressLabel(
-                i18nT("schedule_upload_adapted_images_progress", { value0: clampPercent(ratio * 100) }),
-              );
-            },
-          );
-          const imageKeysForChannel = channelSettings[channel]?.imageKeys || [];
-          uploadedChannelImages[channel] = uploadedImages.map(
-            (image, index) => {
-              const imageKey = imageKeysForChannel[index] || "";
-              const original = imageKey
-                ? originalImageByKey[imageKey]
-                : undefined;
-              const originalUrl = String(
-                original?.publicUrl ||
-                  original?.originalPublicUrl ||
-                  original?.originalUrl ||
-                  "",
-              ).trim();
-              return {
-                ...image,
-                renderedUrl: image.publicUrl || image.renderedUrl || "",
-                imageKey,
-                originalUrl,
-                originalPublicUrl: originalUrl,
-                originalStoragePath:
-                  original?.storagePath || original?.originalStoragePath || "",
-                originalName: original?.name || image.name,
-                originalType: original?.type || image.type,
-                transform: imageKey
-                  ? channelSettings[channel]?.transforms?.[imageKey]
-                  : undefined,
-                imageMeta:
-                  image.imageMeta ||
-                  (imageKey ? imageMetaByKey[imageKey] : undefined),
-              };
-            },
-          );
-        }
-      }
-
-      let publicationVideo: any = null;
-      if (shouldBuildScheduleVideoFallback) {
-        setPublishProgress(48);
-        setPublishProgressLabel(i18nT("schedule_upload_video"));
-        publicationVideo = await uploadPublicationVideoForPublish();
-        if (!publicationVideo?.publicUrl && !publicationVideo?.url) {
-          throw new Error(
-            "La vidéo n’a pas pu être préparée pour la programmation.",
-          );
-        }
-        publicationVideo = await preparePublicationVideoVariants(
-          publicationVideo,
-          channelsToSchedule,
-          publishMediaModeByChannel,
-          { settingsByChannel: scheduleVideoSettingsByChannel },
-        );
-      }
-
-      setPublishProgress(76);
-      setPublishProgressLabel(i18nT("schedule_recording_agent"));
-
-      const selectionByChannel = new Map(
-        selections.map((selection) => [
-          selection.channel,
-          selection.scheduledAt,
-        ]),
-      );
-
-      const scheduleGroups = Array.from(
-        channelsToSchedule.reduce((groups, channel) => {
-          const scheduledAt = selectionByChannel.get(channel);
-          if (!scheduledAt) return groups;
-          const existing = groups.get(scheduledAt) || [];
-          existing.push(channel);
-          groups.set(scheduledAt, existing);
-          return groups;
-        }, new Map<string, ChannelKey[]>()),
-      );
-
-      for (let index = 0; index < scheduleGroups.length; index += 1) {
-        const [scheduledAt, groupChannels] = scheduleGroups[index];
-        const labels = groupChannels
-          .map((channel) => CHANNEL_LABELS[channel] || channel)
-          .join(", ");
-        const isMultichannel = groupChannels.length > 1;
-        await postBoosterScheduledAction({
-          automationKey: "publish",
-          actionType: "publication",
-          targetTool: "booster",
-          source: "manual",
-          title: isMultichannel
-            ? `Publication multicanale (${groupChannels.length} canaux)`
-            : `Publication ${labels}`,
-          summary: isMultichannel
-            ? `Publication programmée sur ${labels}`
-            : `Publication programmée sur ${labels}`,
-          scheduledAt,
-          timezone: "Europe/Paris",
-          channels: groupChannels,
-          payload: {
-              creationMode,
-              origin: {
-                source: "booster_scheduled",
-                label: i18nT("booster_programme_865e1b6b"),
-                workflowTool: "booster",
-                workflowAction: "publier",
-              },
-              kind: "manual_publish_schedule",
-              scheduleGrouping: {
-                mode: "multichannel_single_action",
-                channelCount: groupChannels.length,
-                createdFrom: "booster_publish_schedule",
-              },
-              publishPayload: {
-                creationMode,
-                soundtrackByChannel: getPublicationSoundtracks(groupChannels),
-                mediaWorkspaceId:
-                  unifiedMediaConsumptionClientAvailable && readyMediaWorkspaceId
-                    ? readyMediaWorkspaceId
-                    : undefined,
-                mediaWorkspaceClientKey:
-                  unifiedMediaConsumptionClientAvailable && readyMediaWorkspaceId
-                    ? mediaWorkspaceClientKey
-                    : undefined,
-                mediaPipelineCutoverV1: mediaPipelineCutoverEnabled,
-                source: "booster_scheduled",
-                origin: {
-                  source: "booster_scheduled",
-                  label: i18nT("booster_programme_865e1b6b"),
-                  workflowTool: "booster",
-                  workflowAction: "publier",
-                },
-                mediaType: hasAnyVideoPublish ? "video" : "images",
-                mediaModeByChannel: buildChannelUnknownRecord(
-                  publishMediaModeByChannel,
-                  groupChannels,
-                ),
-                videoFormatByChannel: buildChannelUnknownRecord(
-                  videoFormatByChannel,
-                  groupChannels,
-                ),
-                videoAdaptationModeByChannel: buildChannelUnknownRecord(
-                  videoAdaptationModeByChannel,
-                  groupChannels,
-                ),
-                videoSettingsByChannel: buildChannelUnknownRecord(
-                  scheduleVideoSettingsByChannel as Partial<
-                    Record<ChannelKey, unknown>
-                  >,
-                  groupChannels,
-                ),
-                video: publicationVideo,
-                idea: idea.trim(),
-                theme,
-                channels: groupChannels,
-                postByChannel: filterPostsForSelectedChannels(
-                  preparedPostsByChannel,
-                  groupChannels,
-                ),
-                images: [],
-                imagesByChannel: buildChannelRecord(
-                  uploadedChannelImages,
-                  groupChannels.filter(channel => resolveChannelMediaMode(channel) === "images"),
-                ),
-                imageSettingsByChannel: buildChannelRecord(
-                  channelSettings,
-                  groupChannels.filter(channel => resolveChannelMediaMode(channel) === "images"),
-                ),
-                tiktokPublicationSettings: groupChannels.includes("tiktok")
-                  ? tiktokSettingsForSchedule
-                  : null,
-                threadsPublicationSettings: groupChannels.includes("threads") ? { mode: threadsPublicationMode } : null,
-                instagramPublicationSettings: groupChannels.includes(
-                  "instagram",
-                )
-                  ? buildMetaPublicationSelection(
-                      instagramPublicationPlacement,
-                      instagramStoryEnabled,
-                    )
-                  : null,
-                facebookPublicationSettings: groupChannels.includes(
-                  "facebook",
-                )
-                  ? buildMetaPublicationSelection(
-                      facebookPublicationPlacement,
-                      facebookStoryEnabled,
-                    )
-                  : null,
-                pinterestPublicationSettings: groupChannels.includes(
-                  "pinterest",
-                )
-                  ? { boardId: pinterestBoardId, boardName: pinterestBoardName }
-                  : null,
-              },
-          },
-        });
-        setPublishProgress(
-          clampPercent(76 + ((index + 1) / scheduleGroups.length) * 20),
-        );
-      }
-
-      setChannels((prev) => {
-        const next = { ...prev };
-        for (const channel of [
-          ...channelsToSchedule,
-          ...immediateChannelsToPublish,
-        ]) {
-          next[channel] = false;
-        }
-        return next;
-      });
-      setPublishProgress(100);
-      setPublishProgressLabel(
-        immediateChannelsToPublish.length ? i18nT("schedule_saved_other_channels") : i18nT("schedule_delegated_agent"),
-      );
-      const scheduledMessage =
-        channelsToSchedule.length > 1
-          ? `Publication multicanale programmée dans iNr’Agent (${channelsToSchedule.length} canaux).`
-          : "Publication programmée dans iNr’Agent.";
-      const blockedMessage = blocked.length
-        ? `${blocked.length > 1 ? " Canaux non programmés" : " Canal non programmé"} : ${blocked
-            .map(
-              (item) =>
-                `${item.label} — ${item.blockers[0] || "canal non prêt"}`,
-            )
-            .join(" / ")}.`
-        : "";
-      setDraftMessage(`${scheduledMessage}${blockedMessage}`);
-
-      const immediatePublishRequest = immediateChannelsToPublish.length
-        ? {
-            immediateChannels: immediateChannelsToPublish,
-            preparedPostsByChannel,
-            tiktokSettingsForSchedule: immediateChannelsToPublish.includes(
-              "tiktok",
-            )
-              ? tiktokSettingsForSchedule
-              : null,
-          }
-        : null;
-      setPendingImmediatePublishAfterSchedule(immediatePublishRequest);
-
-      setScheduleReviewPosts(null);
-      setTiktokPublicationSettings(null);
-      setTiktokSettingsFlow(null);
-      setPendingScheduleRequest(null);
-      onUnsavedChange?.(blocked.length > 0);
-      return immediatePublishRequest;
-    } catch (e) {
-      const message = getSimpleFrenchErrorMessage(
-        e,
-        "Programmation de la publication impossible.",
-      );
-      setScheduleError(message);
-      setPublishError(message);
-      throw new Error(message);
-    } finally {
-      scheduleStartGuardRef.current = false;
-      setScheduleSaving(false);
-    }
-  };
-
-  function publishImmediateChannelsAfterSchedule(
-    request: PendingImmediatePublishAfterSchedule,
-  ) {
-    if (!request.immediateChannels.length) return;
-    void runPublish({
-      skipEmptyContentWarnings: true,
-      preparedPostsByChannel: request.preparedPostsByChannel,
-      tiktokPublicationSettings: request.tiktokSettingsForSchedule,
-      channels: request.immediateChannels,
-      closeOnSuccess: false,
-      throwOnError: false,
-    });
-  }
 
   const confirmSchedulePublication = async (
     selections: PublishScheduleSelection[],
@@ -7844,25 +4803,7 @@ export default function PublishModal({
       >
     >,
   );
-  const imageAdapterTabs = imageAdapterChannels.map((channel) => {
-    const reviewItem = publishReadinessItems.find(
-      (item) => item.channel === channel,
-    );
-    const count =
-      reviewItem?.imageCount ?? getPublishImageKeysForChannel(channel).length;
-    return {
-      key: channel,
-      label: getLocalizedChannelLabel(channel, runtimeT),
-      count,
-      tone: reviewItem?.mediaBlockers?.length
-        ? ("blocked" as const)
-        : count
-          ? ("ready" as const)
-          : ("warning" as const),
-      message: reviewItem?.mediaBlockers?.[0] || "",
-      blockers: reviewItem?.mediaBlockers || [],
-    };
-  });
+
 
   const closeFinalReview = () => {
     setFinalReviewOpen(false);
@@ -8125,10 +5066,8 @@ export default function PublishModal({
     }
   };
 
-  const openInrStudioRetoucher = (channel: ChannelKey, imageKey: string) =>
-    openInrStudioImageTool("retouch", channel, imageKey);
-  const openInrStudioModifier = (channel: ChannelKey, imageKey: string) =>
-    openInrStudioImageTool("modify", channel, imageKey);
+
+
 
   const openInrStudioVideoRetoucher = async (channel: ChannelKey) => {
     const currentDurableSourceUrl = String(
@@ -8655,7 +5594,6 @@ export default function PublishModal({
           onClose();
         }}
       />
-
 
       <PublishFinalReviewModal
         open={finalReviewOpen}

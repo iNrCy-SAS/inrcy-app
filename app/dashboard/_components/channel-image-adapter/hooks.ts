@@ -20,9 +20,11 @@ export function useViewportWidth(defaultWidth = 1440) {
 export function useNaturalImageMeta(src: string, provided?: ImageMeta) {
   const [meta, setMeta] = useState<ImageMeta | null>(provided && provided.width && provided.height ? provided : null);
 
+  const providedWidth = provided?.width;
+  const providedHeight = provided?.height;
   useEffect(() => {
-    if (provided?.width && provided?.height) {
-      setMeta(provided);
+    if (providedWidth && providedHeight) {
+      setMeta({ width: providedWidth, height: providedHeight });
       return;
     }
     if (!src) {
@@ -42,7 +44,7 @@ export function useNaturalImageMeta(src: string, provided?: ImageMeta) {
     return () => {
       cancelled = true;
     };
-  }, [src, provided?.width, provided?.height]);
+  }, [src, providedWidth, providedHeight]);
 
   return meta;
 }

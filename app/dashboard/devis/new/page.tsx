@@ -8,10 +8,11 @@ import DashboardAssistantTrigger from "../../_components/DashboardAssistantTrigg
 
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { commercialDocumentCompletionError, commercialDocumentLinesForEditor } from "@/lib/commercialDocumentValidation";
 import { confirmInrcy, promptInrcy } from "@/lib/inrcyDialog";
 import styles from "../../_documents/documents.module.css";
 import dash from "../../dashboard.module.css";
@@ -38,6 +39,7 @@ import {
   prepareTemplateSnapshot,
 } from "../../_documents/documentTemplateUtils";
 import { printWithIosSafariScale } from "../../_documents/printUtils";
+import { exportDocumentPreviewPdf } from "../../_documents/documentPdfExport";
 import { DocumentContactSection } from "../../_documents/DocumentContactSection";
 import { DocumentParties } from "../../_documents/DocumentParties";
 import {
@@ -91,7 +93,7 @@ export default function NewDevisPage() {
   const searchParams = useSearchParams();
   const supabase = createClient();
   const {
-    settingsOpen, setSettingsOpen, settingsHasUnsavedChanges,
+    settingsOpen, setSettingsOpen,
     setSettingsHasUnsavedChanges, requestCloseSettings,
     documentsSettings, setDocumentsSettings,
   } = useDocumentSettingsPanel();
@@ -118,7 +120,7 @@ export default function NewDevisPage() {
   const [docDateISO, setDocDateISO] = useState<string>(""); // pour affichage stable
 
   const {
-    clientName, setClientName, clientAddress, setClientAddress,
+    clientName, setClientName,  setClientAddress,
     clientEmail, setClientEmail, clientSiren, setClientSiren,
     clientVatNumber, setClientVatNumber, clientType, setClientType,
     billingAddress, setBillingAddress, billingPostalCode, setBillingPostalCode,
@@ -129,7 +131,7 @@ export default function NewDevisPage() {
     servicePeriodStart, setServicePeriodStart, servicePeriodEnd, setServicePeriodEnd,
     updateServiceDateMode, purchaseOrderReference, setPurchaseOrderReference,
     depositKind, setDepositKind, depositValue, setDepositValue,
-    billingFullAddress, deliveryFullAddress, setPrimaryClientAddress,
+    billingFullAddress, deliveryFullAddress,
     discountKind, setDiscountKind, discountValue, setDiscountValue,
     discountDetails, setDiscountDetails,
   } = useDocumentClientForm();
@@ -193,7 +195,7 @@ export default function NewDevisPage() {
       "(Sans nom)",
     );
 
-  const { sortedCrmContacts, filteredCrmContacts, selectedCrmContact } =
+  const {  filteredCrmContacts, selectedCrmContact } =
     useDocumentCrmDirectory({
       contacts: crmContacts,
       query: crmQuery,
@@ -208,11 +210,7 @@ export default function NewDevisPage() {
     eventTarget: "window",
   });
 
-  const clearCrmSelection = () => {
-    setSelectedCrmContactId("");
-    setCrmQuery("");
-    setCrmOpen(false);
-  };
+
 
   const selectCrmContact = (c: CrmContact) => {
     setSelectedCrmContactId(String(c.id));
@@ -262,6 +260,11 @@ export default function NewDevisPage() {
     setLines([makeDefaultLine(settings, vatDispense)]);
   };
 
+  const onDocumentSettingsLoaded = useEffectEvent((nextSettings: InrDocumentsSettings, applyDefaults: boolean) => {
+    setDocumentsSettings(nextSettings);
+    if (applyDefaults) applyDocumentDefaults(nextSettings);
+  });
+
   useEffect(() => {
     let cancelled = false;
     const shouldApplyDefaults = !(
@@ -276,8 +279,7 @@ export default function NewDevisPage() {
       if (!response.ok) return;
       const nextSettings = normalizeInrDocumentsSettings(json?.settings);
       if (cancelled) return;
-      setDocumentsSettings(nextSettings);
-      if (applyDefaults) applyDocumentDefaults(nextSettings);
+      onDocumentSettingsLoaded(nextSettings, applyDefaults);
     };
 
     void loadSettings(shouldApplyDefaults);
@@ -374,14 +376,14 @@ export default function NewDevisPage() {
   const [documentsTab, setDocumentsTab] = useState<DocumentsTab>("saves");
   const [drafts, setDrafts] = useState<DevisDraft[]>([]);
   const [templates, setTemplates] = useState<DevisDraft[]>([]);
-  const [draftsLoading, setDraftsLoading] = useState(false);
+  const [, setDraftsLoading] = useState(false);
   const [isFinalized, setIsFinalized] = useState(false);
   const [finalizedAt, setFinalizedAt] = useState<string>("");
   const [finalizing, setFinalizing] = useState(false);
 
   useDocumentModalBodyLock(draftsOpen);
 
-  const refreshSaves = async () => {
+  const refreshSaves = useCallback(async () => {
     setDraftsLoading(true);
     try {
       const {
@@ -412,11 +414,20 @@ export default function NewDevisPage() {
     } finally {
       setDraftsLoading(false);
     }
-  };
+  }, [supabase]);
 
   useEffect(() => {
     void refreshSaves();
-  }, []);
+  }, [refreshSaves]);
+
+  const onRequestedSaveLoadFailed = useEffectEvent((missing: boolean) => {
+    setFormMessage({ type: "error", text: missing ? i18nT("devis_introuvable_d3cb961f") : i18nT("impossible_de_reouvrir_ce_devis_61080602") });
+  });
+  const onRequestedSaveLoaded = useEffectEvent((data: { id: string; payload: DevisDraft["snapshot"] }) => {
+    applyDraftSnapshot(data.payload);
+    setCurrentSaveId(data.id);
+    setFormMessage({ type: "success", text: i18nT("devis_reouvert_depuis_inrsend_7453e560") });
+  });
 
   useEffect(() => {
     const saveId =
@@ -443,27 +454,17 @@ export default function NewDevisPage() {
       if (error) {
         console.error(error);
         if (!cancelled)
-          setFormMessage({
-            type: "error",
-            text: i18nT("impossible_de_reouvrir_ce_devis_61080602"),
-          });
+          onRequestedSaveLoadFailed(false);
         return;
       }
 
       if (!data?.payload) {
         if (!cancelled)
-          setFormMessage({ type: "error", text: i18nT("devis_introuvable_d3cb961f") });
+          onRequestedSaveLoadFailed(true);
         return;
       }
 
-      if (!cancelled) {
-        applyDraftSnapshot(data.payload as DevisDraft["snapshot"]);
-        setCurrentSaveId(data.id);
-        setFormMessage({
-          type: "success",
-          text: i18nT("devis_reouvert_depuis_inrsend_7453e560"),
-        });
-      }
+      if (!cancelled) onRequestedSaveLoaded({ id: data.id, payload: data.payload as DevisDraft["snapshot"] });
     };
 
     void loadRequestedSave();
@@ -534,6 +535,10 @@ export default function NewDevisPage() {
     asFinalized?: boolean;
     targetStatus?: DocRecord["status"];
   }) => {
+    if (!profile) {
+      setFormMessage({ type: "error", text: "Les informations de votre entreprise ne sont pas encore disponibles. Réessayez dans un instant." });
+      return null;
+    }
     const nowISO = new Date().toISOString();
     const finalNumber = number || generateNumber("DEV");
     if (!number) setNumber(finalNumber);
@@ -553,9 +558,7 @@ export default function NewDevisPage() {
       billingPostalCode,
       billingCity,
     );
-    const normalizedDeliveryAddress = sameAddresses
-      ? normalizedBillingAddress
-      : buildFullCrmAddress(deliveryAddress, deliveryPostalCode, deliveryCity);
+
     const savedServiceDate = serviceDateMode === "single" ? serviceDate : "";
     const savedServicePeriodStart =
       serviceDateMode === "period" ? servicePeriodStart : "";
@@ -597,7 +600,7 @@ export default function NewDevisPage() {
       notes,
       quoteMention,
       validityDays,
-      lines,
+      lines: isFinalized ? lines : commercialDocumentLinesForEditor(lines, vatDispense),
       discountKind,
       discountValue: Number(discountValue) || 0,
       discountDetails,
@@ -661,7 +664,7 @@ export default function NewDevisPage() {
       }).catch(() => null);
       const result = response ? await response.json().catch(() => null) : null;
       if (!response?.ok || !result?.ok) {
-        setFormMessage({ type: "error", text: result?.error || "La finalisation du devis ne peut pas être confirmée. Vérifiez sa sauvegarde avant de réessayer." });
+        setFormMessage({ type: "error", text: commercialDocumentCompletionError(result, "La finalisation du devis ne peut pas être confirmée. Vérifiez sa sauvegarde avant de réessayer.") });
         return;
       }
       setIsFinalized(true);
@@ -966,124 +969,7 @@ export default function NewDevisPage() {
     const el = previewRef.current;
     if (!el) return null;
 
-    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-      import("html2canvas"),
-      import("jspdf"),
-    ]);
-
-    const pdf = new jsPDF("p", "mm", "a4");
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const printPages = el.querySelector(`.${styles.documentPrintPages}`) as HTMLElement | null;
-
-    if (printPages) {
-      const staging = document.createElement("div");
-      staging.className = styles.pdfExportStaging;
-
-      const printPagesClone = printPages.cloneNode(true) as HTMLElement;
-      const previewClasses =
-        typeof el.className === "string" ? el.className : "";
-      printPagesClone.className = `${printPagesClone.className} ${previewClasses}`.trim();
-      printPagesClone.removeAttribute("aria-hidden");
-      staging.appendChild(printPagesClone);
-      document.body.appendChild(staging);
-
-      try {
-        await waitForDomUpdate();
-
-        const pageEls = Array.from(
-          printPagesClone.querySelectorAll(`.${styles.documentPrintPage}`),
-        ) as HTMLElement[];
-
-        if (pageEls.length) {
-          for (const [index, pageEl] of pageEls.entries()) {
-            const canvas = await html2canvas(pageEl, {
-              scale: 2,
-              useCORS: true,
-              backgroundColor: "#ffffff",
-              windowWidth: 794,
-              windowHeight: 1123,
-            });
-
-            if (index > 0) pdf.addPage();
-            pdf.addImage(
-              canvas.toDataURL("image/png"),
-              "PNG",
-              0,
-              0,
-              pageWidth,
-              pageHeight,
-            );
-          }
-
-          return pdf.output("blob") as Blob;
-        }
-      } finally {
-        staging.remove();
-      }
-    }
-
-    const hiddenSelector = [
-      styles.noPrint,
-      styles.printHidden,
-      styles.printHiddenCell,
-    ]
-      .filter(Boolean)
-      .map((className) => `.${className}`)
-      .join(", ");
-    const hiddenEls = hiddenSelector
-      ? (Array.from(el.querySelectorAll(hiddenSelector)) as HTMLElement[])
-      : [];
-    const printOnlyEls = Array.from(
-      el.querySelectorAll(`.${styles.printOnly}`),
-    ) as HTMLElement[];
-    const previousHiddenDisplay = hiddenEls.map((node) => node.style.display);
-    const previousPrintOnlyDisplay = printOnlyEls.map(
-      (node) => node.style.display,
-    );
-
-    hiddenEls.forEach((node) => {
-      node.style.display = "none";
-    });
-    printOnlyEls.forEach((node) => {
-      node.style.display = "block";
-    });
-
-    let canvas: HTMLCanvasElement;
-    try {
-      canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      });
-    } finally {
-      hiddenEls.forEach((node, index) => {
-        node.style.display = previousHiddenDisplay[index] || "";
-      });
-      printOnlyEls.forEach((node, index) => {
-        node.style.display = previousPrintOnlyDisplay[index] || "";
-      });
-    }
-
-    const imgData = canvas.toDataURL("image/png");
-    const imgProps = (pdf as any).getImageProperties(imgData);
-    const imgWidth = pageWidth;
-    const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-
-    let position = 0;
-    let heightLeft = imgHeight;
-
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-    }
-
-    return pdf.output("blob") as Blob;
+    return exportDocumentPreviewPdf(el, styles, waitForDomUpdate);
   };
 
   useInrAssistantDocumentPdf(currentSaveId ? { kind: "quote", id: currentSaveId } : null, buildPdfBlob, "devis");

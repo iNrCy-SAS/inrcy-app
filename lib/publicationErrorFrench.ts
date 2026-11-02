@@ -36,6 +36,9 @@ export function getProviderPublicationErrorMessage(
   if (!message) return null;
 
   if (provider === "pinterest") {
+    if (message.includes("blocked this link") && message.includes("spam")) {
+      return "Pinterest a bloqué le lien de destination comme indésirable. Vérifiez ce lien et contactez Pinterest si le blocage est une erreur.";
+    }
     if (
       message.includes("same width/height ratios") ||
       message.includes("same width and height ratios") ||
@@ -169,6 +172,9 @@ export function getProviderPublicationErrorMessage(
   }
 
   if (provider === "linkedin") {
+    if (message.includes("le contenu de la publication est vide")) {
+      return "Ajoutez un texte à cette publication LinkedIn avant de la publier.";
+    }
     if (message.includes("media upload") && message.includes("failed")) {
       return "LinkedIn n’a pas pu recevoir le média. Réessayez dans quelques instants.";
     }

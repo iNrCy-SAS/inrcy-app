@@ -1,3 +1,4 @@
+import { readVideoNormalizationWorkerSource } from "../media-pipeline/video-worker-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -248,7 +249,7 @@ test("l'attestation fallback démarre à l'upload et une publication mixte atten
   const intent = read("app/api/media-pipeline/upload-intent/route.ts");
   const uploadEvent = read("app/api/media-pipeline/upload-event/route.ts");
   const publish = read("app/api/booster/publish-now/route.ts");
-  const normalizationWorker = read("lib/mediaVideoNormalizationWorker.ts");
+  const normalizationWorker = readVideoNormalizationWorkerSource();
 
   assert.match(
     intent,

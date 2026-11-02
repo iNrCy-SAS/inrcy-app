@@ -7,7 +7,7 @@ import { readNotificationPreferences } from "@/lib/notifications";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   try {
@@ -19,7 +19,7 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const body = await req.json().catch(() => ({}));

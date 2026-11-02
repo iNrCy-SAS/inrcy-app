@@ -48,7 +48,7 @@ test("dashboard tools use progressive intent-first warmup and immediate click fe
 });
 
 test("heavy dashboard tools hydrate from browser snapshots then refresh silently", () => {
-  const mailbox = read("app/dashboard/mails/MailboxClient.tsx");
+  const mailbox = read("app/dashboard/mails/_hooks/useMailboxHistory.ts");
   const crm = read("app/dashboard/crm/CRMClient.tsx");
   const agenda = read("app/dashboard/agenda/AgendaClient.tsx");
   const propulser = read("app/dashboard/propulser/page.tsx");

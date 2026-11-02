@@ -126,12 +126,15 @@ async function updateIntegrationSourceOfTruth(
 }
 
 export async function PATCH(request: Request) {
-  const { supabase, activeUserId, errorResponse } = await requireUser();
+  const { supabase, activeUserId, authUserId, errorResponse } = await requireUser();
   if (errorResponse) return errorResponse;
 
   try {
     const raw = await request.json().catch(() => null);
     const body = asRecord(raw);
+    if (body.accountId !== undefined && body.accountId !== activeUserId || body.actorUserId !== undefined && body.actorUserId !== authUserId) {
+      return NextResponse.json({ ok: false, error: "Le compte actif a changé.", errorCode: "account_changed" }, { status: 409 });
+    }
     const channel = body.channel;
     if (channel === "threads" && !await isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, activeUserId)) return metaChannelPilotDeniedResponse();
     if (!isEditableChannelPublicUrlChannel(channel)) {

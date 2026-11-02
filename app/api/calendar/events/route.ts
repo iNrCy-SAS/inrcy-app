@@ -785,7 +785,7 @@ async function sendAgendaConfirmationEmails(args: {
 }
 
 async function getCalendarEventsHandler(req: Request) {
-  const { supabase, user, errorResponse, activeUserId } = await requireUser();
+  const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const { searchParams } = new URL(req.url);
@@ -860,7 +860,7 @@ async function getCalendarEventsHandler(req: Request) {
 }
 
 async function createCalendarEventHandler(req: Request) {
-  const { supabase, user, errorResponse, activeUserId } = await requireUser();
+  const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const body = (await req.json().catch(() => ({}))) as CreateEventBody;
@@ -922,7 +922,7 @@ async function createCalendarEventHandler(req: Request) {
 }
 
 async function updateCalendarEventHandler(req: Request) {
-  const { supabase, user, errorResponse, activeUserId } = await requireUser();
+  const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const { searchParams } = new URL(req.url);
@@ -1062,7 +1062,7 @@ async function updateCalendarEventHandler(req: Request) {
 }
 
 async function deleteCalendarEventHandler(req: Request) {
-  const { supabase, user, errorResponse, activeUserId } = await requireUser();
+  const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const { searchParams } = new URL(req.url);

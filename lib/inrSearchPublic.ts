@@ -15,8 +15,11 @@ import {
   mergeInrSearchPublicationFeeds,
 } from "@/lib/inrSearchPublicationFeed";
 import {
+  resolveInrSearchHistoricalMediaUrls,
+  resolveInrSearchStorageMediaUrl,
   resolveInrSearchStorageMediaUrls,
   type InrSearchStorageMediaCandidate,
+  type InrSearchStorageMediaResolverDependencies,
 } from "@/lib/inrSearchStorageMediaResolver";
 import {
   resolveProfessionalCompanyNameFromProfile,
@@ -329,31 +332,6 @@ function normalizeExternalUrl(value: unknown): string {
   }
 }
 
-function firstImageUrl(value: unknown): string | null {
-  const candidates = Array.isArray(value) ? value : [];
-  for (const candidate of candidates) {
-    const record = asRecord(candidate);
-    const raw = typeof candidate === "string"
-      ? candidate
-      : clean(
-          record.url ||
-          record.publicUrl ||
-          record.public_url ||
-          record.renderedUrl ||
-          record.rendered_url ||
-          record.originalPublicUrl ||
-          record.original_public_url ||
-          record.originalUrl ||
-          record.original_url ||
-          record.src,
-          1000,
-        );
-    const url = normalizeExternalUrl(raw);
-    if (url) return url;
-  }
-  return null;
-}
-
 function imageUrlsFromUnknown(value: unknown, limit = 5): string[] {
   const candidates = Array.isArray(value) ? value : [];
   const urls: string[] = [];
@@ -561,27 +539,18 @@ function collectThumbnailStorageCandidates(records: Record<string, unknown>[]) {
   return candidates;
 }
 
-async function resolveStorageMediaUrl(candidates: StorageMediaCandidate[]) {
-  for (const candidate of candidates) {
-    const signedUrl = await createSafeStorageSignedUrl(
-      candidate.bucket,
-      candidate.storagePath,
-      MEDIA_SIGNED_URL_TTL_SECONDS,
-    );
-    const normalizedSignedUrl = normalizeExternalUrl(signedUrl);
-    if (normalizedSignedUrl) return normalizedSignedUrl;
+const storageMediaDependencies: InrSearchStorageMediaResolverDependencies = {
+  probeStorageObject,
+  getPublicUrl: (bucket, storagePath) => normalizeExternalUrl(
+    supabaseAdmin.storage.from(bucket).getPublicUrl(storagePath)?.data?.publicUrl,
+  ) || null,
+  signAuthorizedUrl: async (bucket, storagePath) => normalizeExternalUrl(
+    await createSafeStorageSignedUrl(bucket, storagePath, MEDIA_SIGNED_URL_TTL_SECONDS),
+  ) || null,
+};
 
-    // The Booster bucket is intentionally public. Keep a stable public fallback
-    // if signing is temporarily unavailable, without trusting an expired URL
-    // persisted in the historical event.
-    if (candidate.bucket === "booster") {
-      const publicUrl = normalizeExternalUrl(
-        supabaseAdmin.storage.from(candidate.bucket).getPublicUrl(candidate.storagePath)?.data?.publicUrl,
-      );
-      if (publicUrl) return publicUrl;
-    }
-  }
-  return null;
+async function resolveStorageMediaUrl(candidates: StorageMediaCandidate[]) {
+  return resolveInrSearchStorageMediaUrl(candidates, storageMediaDependencies);
 }
 
 async function resolveStorageMediaUrls(
@@ -590,21 +559,16 @@ async function resolveStorageMediaUrls(
 ) {
   return resolveInrSearchStorageMediaUrls(
     candidates,
-    {
-      probeStorageObject,
-      getPublicUrl: (bucket, storagePath) => normalizeExternalUrl(
-        supabaseAdmin.storage.from(bucket).getPublicUrl(storagePath)?.data?.publicUrl,
-      ) || null,
-      signAuthorizedUrl: async (bucket, storagePath) => normalizeExternalUrl(
-        await createSafeStorageSignedUrl(
-          bucket,
-          storagePath,
-          MEDIA_SIGNED_URL_TTL_SECONDS,
-        ),
-      ) || null,
-    },
+    storageMediaDependencies,
     limit,
   );
+}
+
+async function resolveHistoricalMediaUrls(urls: string[], accountId: string, limit = 5) {
+  return resolveInrSearchHistoricalMediaUrls(urls, storageMediaDependencies, {
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    accountId,
+  }, limit);
 }
 
 async function loadRowsInBatches<T>(buildQuery: () => any, pageSize = 1000) {
@@ -621,6 +585,7 @@ async function loadRowsInBatches<T>(buildQuery: () => any, pageSize = 1000) {
 async function publicationImageUrls(
   payload: Record<string, unknown>,
   post: Record<string, unknown>,
+  accountId: string,
 ) {
   const storageUrls = await resolveStorageMediaUrls(
     collectImageStorageCandidates(payload, post),
@@ -641,10 +606,10 @@ async function publicationImageUrls(
     ...arrayFromUnknown(payload.attachments).filter((item) => !isVideoLikeRecord(item)),
     ...videoRecords.flatMap((video) => [video.thumbnailUrl, video.thumbnail_url, video.video_thumbnail_url]),
   ].filter(Boolean);
-  return imageUrlsFromUnknown(candidates);
+  return resolveHistoricalMediaUrls(imageUrlsFromUnknown(candidates, candidates.length), accountId);
 }
 
-async function publicationVideoUrl(payload: Record<string, unknown>, post: Record<string, unknown>) {
+async function publicationVideoUrl(payload: Record<string, unknown>, post: Record<string, unknown>, accountId: string) {
   const videoRecords = collectVideoRecords(payload, post);
   const storageUrl = await resolveStorageMediaUrl(collectVideoStorageCandidates(videoRecords));
   if (storageUrl) return storageUrl;
@@ -660,11 +625,8 @@ async function publicationVideoUrl(payload: Record<string, unknown>, post: Recor
     payload.videoUrl,
     payload.video_url,
   ];
-  for (const candidate of candidates) {
-    const url = normalizeExternalUrl(candidate);
-    if (url) return url;
-  }
-  return null;
+  const urls = await resolveHistoricalMediaUrls(candidates.map(normalizeExternalUrl).filter(Boolean), accountId, 1);
+  return urls[0] || null;
 }
 
 function publicationVideoMime(payload: Record<string, unknown>, post: Record<string, unknown>) {
@@ -679,26 +641,28 @@ function publicationVideoMime(payload: Record<string, unknown>, post: Record<str
   return clean(payload.video_mime || "video/mp4", 120) || "video/mp4";
 }
 
-async function publicationVideoThumbnailUrl(payload: Record<string, unknown>, post: Record<string, unknown>) {
+async function publicationVideoThumbnailUrl(payload: Record<string, unknown>, post: Record<string, unknown>, accountId: string) {
   const videoRecords = collectVideoRecords(payload, post);
   const storageUrl = await resolveStorageMediaUrl(collectThumbnailStorageCandidates(videoRecords));
   if (storageUrl) return storageUrl;
 
-  return firstImageUrl([
+  const candidates = [
     ...videoRecords.flatMap((video) => [
       video.thumbnailUrl,
       video.thumbnail_url,
       video.video_thumbnail_url,
     ]),
     payload.video_thumbnail_url,
-  ]);
+  ];
+  const urls = await resolveHistoricalMediaUrls(imageUrlsFromUnknown(candidates, candidates.length), accountId, 1);
+  return urls[0] || null;
 }
 
 function hasLivePublicationChannel(payload: Record<string, unknown>) {
   return hasSuccessfulInrSearchChannel(payload);
 }
 
-async function normalizeBoosterPublicationEvents(value: unknown): Promise<InrSearchPublication[]> {
+async function normalizeBoosterPublicationEvents(value: unknown, accountId: string): Promise<InrSearchPublication[]> {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
   const publications: InrSearchPublication[] = [];
@@ -719,9 +683,9 @@ async function normalizeBoosterPublicationEvents(value: unknown): Promise<InrSea
     if (!title && !content) continue;
 
     const [imageUrls, videoUrl, videoThumbnailUrl] = await Promise.all([
-      publicationImageUrls(payload, preferredPost),
-      publicationVideoUrl(payload, preferredPost),
-      publicationVideoThumbnailUrl(payload, preferredPost),
+      publicationImageUrls(payload, preferredPost, accountId),
+      publicationVideoUrl(payload, preferredPost, accountId),
+      publicationVideoThumbnailUrl(payload, preferredPost, accountId),
     ]);
 
     seen.add(publicationId);
@@ -744,6 +708,7 @@ async function normalizeBoosterPublicationEvents(value: unknown): Promise<InrSea
 
 async function normalizeDurableInrSearchPublications(
   value: unknown,
+  accountId: string,
 ): Promise<InrSearchPublication[]> {
   if (!Array.isArray(value)) return [];
   const publications: InrSearchPublication[] = [];
@@ -851,9 +816,9 @@ async function normalizeDurableInrSearchPublications(
     if (!title && !content) continue;
 
     const [imageUrls, videoUrl, videoThumbnailUrl] = await Promise.all([
-      publicationImageUrls(durablePayload, durablePost),
-      publicationVideoUrl(durablePayload, durablePost),
-      publicationVideoThumbnailUrl(durablePayload, durablePost),
+      publicationImageUrls(durablePayload, durablePost, accountId),
+      publicationVideoUrl(durablePayload, durablePost, accountId),
+      publicationVideoThumbnailUrl(durablePayload, durablePost, accountId),
     ]);
 
     publications.push({
@@ -1268,8 +1233,8 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
 
   const faq = buildFaq({ companyName, profession, city, services, zones, customerTypes, phone, email, openingDays, openingHours });
   const [eventPublications, durablePublications] = await Promise.all([
-    normalizeBoosterPublicationEvents(boosterEventsRes.data),
-    normalizeDurableInrSearchPublications(durablePublicationsRes.data),
+    normalizeBoosterPublicationEvents(boosterEventsRes.data, userId),
+    normalizeDurableInrSearchPublications(durablePublicationsRes.data, userId),
   ]);
   const publications = mergeInrSearchPublicationFeeds(
     eventPublications,
@@ -1335,7 +1300,7 @@ const loadInrSearchPublicPageCached = cache(async (slugValue: string) => {
   if (!slug) return null;
   const readCachedPage = unstable_cache(
     async () => loadInrSearchPublicPageRequestCached(slug),
-    ["inr-search-public-page-v5", slug],
+    ["inr-search-public-page-v6", slug],
     { revalidate: 300, tags: [getInrSearchPublicPageCacheTag(slug)] },
   );
   const cachedPage = await readCachedPage();

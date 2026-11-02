@@ -1,6 +1,5 @@
+import { readVideoNormalizationWorkerSource } from "./video-worker-sources.mjs";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import test from "node:test";
 
 import {
@@ -58,10 +57,7 @@ test("a light one-stage video keeps the full 0..100 range", () => {
 });
 
 test("the worker persists the stage boundary instead of resetting chained progress", () => {
-  const worker = readFileSync(
-    resolve(process.cwd(), "lib/mediaVideoNormalizationWorker.ts"),
-    "utf8",
-  );
+  const worker = readVideoNormalizationWorkerSource();
 
   assert.match(worker, /progress:\s*params\.stageCompletionProgress/);
   assert.match(worker, /processing_progress:\s*params\.stageCompletionProgress/);

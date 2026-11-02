@@ -1,4 +1,4 @@
-import { resolveInstagramAuthMode, buildInstagramGraphUrl } from "@/lib/instagramAuthMode";
+import { resolveInstagramAuthMode } from "@/lib/instagramAuthMode";
 import { randomUUID } from "crypto";
 import { tryDecryptToken } from "@/lib/oauthCrypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";

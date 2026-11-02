@@ -1,3 +1,5 @@
+import { readFileSync as readDraftSessionSource } from "node:fs";
+const draftSession = readDraftSessionSource(new URL("../../app/dashboard/booster/publier/publicationDraftSession.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -26,6 +28,8 @@ function pdfReference(): BoosterPdfAttachmentRef {
     size: 12_345,
   };
 }
+
+const generationController = readFileSync(join(process.cwd(), "app/dashboard/booster/publier/useBoosterGeneration.ts"), "utf8");
 
 test("une référence PDF seule reste une petite requête JSON sans binaire", async () => {
   const documentForAI = pdfReference();
@@ -185,11 +189,11 @@ test("l'étape Intention affiche le PDF et le flux génération assure upload, r
   assert.match(panel, /formatAttachmentSize\(pdfFile\.size\)/);
   assert.match(panel, /onClick=\{\(\) => onRemovePdf\(index\)\}/);
   assert.match(
-    modal,
+    generationController,
     /\.from\(BOOSTER_PDF_STORAGE_BUCKET\)[\s\S]*\.upload\(/,
   );
-  assert.match(modal, /documentForAI: temporaryPdfReference/);
-  assert.match(modal, /\.remove\(temporaryDocumentReferences\.map\(reference => reference\.path\)\)/);
+  assert.match(generationController, /documentForAI: temporaryPdfReference/);
+  assert.match(generationController, /\.remove\(temporaryDocumentReferences\.map\(reference => reference\.path\)\)/);
   assert.match(modal, /const clearAiCreationWork[\s\S]*setDocumentFiles\(\[\]\)/);
-  assert.match(modal, /onUnsavedChange\?\.\(Boolean\(pdfFile\)\)/);
+  assert.match(draftSession, /onUnsavedChange\?\.\(Boolean\(pdfFile\)\)/);
 });

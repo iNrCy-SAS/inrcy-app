@@ -140,7 +140,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
         premiumOnly: isStandardDashboardEdition(edition),
       },
     ];
-  }, [edition, events, weekStart]);
+  }, [edition, events, i18nT, weekStart]);
 
   const labelFromAction = useMemo(() => {
     return {

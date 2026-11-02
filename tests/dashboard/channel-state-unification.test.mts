@@ -1,3 +1,4 @@
+import { readAgentPublicationPreparationSource } from "../inragent/prepare-publication-sources.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -137,7 +138,7 @@ test("Dashboard and iNrStats continuously reconcile canonical state without stal
 });
 
 test("iNrAgent uses the same official state and Bubble Access matrix as Booster", () => {
-  const agent = read("app/api/agent/actions/prepare-publish/route.ts");
+  const agent = readAgentPublicationPreparationSource();
   assert.match(agent, /const bubbleKeyByChannel: Record<BoosterChannels, AppBubbleKey>/);
   assert.match(agent, /isOfficialPublicationChannelConnected\(\s*states\.site_web\s*\)/);
   assert.match(agent, /isOfficialPublicationChannelConnected\(\s*states\.gmb\s*\)/);

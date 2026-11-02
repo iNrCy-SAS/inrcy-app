@@ -12,7 +12,7 @@ import {
   mailboxHistoryRefreshInterval,
 } from "../../app/dashboard/mails/_lib/mailboxHistoryPreload.ts";
 
-const client = readFileSync("app/dashboard/mails/MailboxClient.tsx", "utf8");
+const client = readFileSync("app/dashboard/mails/_hooks/useMailboxHistory.ts", "utf8");
 const list = readFileSync("app/dashboard/mails/_components/MailboxList.tsx", "utf8");
 const styles = readFileSync("app/dashboard/mails/mails.module.css", "utf8");
 const route = readFileSync("app/api/inrsend/history/route.ts", "utf8");

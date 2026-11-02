@@ -5922,31 +5922,6 @@
     padding: 8px 6px 4px;
   }
 
-  .gearGrid > :nth-child(1) {
-    grid-column: 1;
-    grid-row: 1;
-    justify-self: start;
-  }
-  .gearGrid > :nth-child(2) {
-    grid-column: 2;
-    grid-row: 2;
-    justify-self: end;
-  }
-  .gearGrid > :nth-child(3) {
-    grid-column: 1;
-    grid-row: 3;
-    justify-self: start;
-  }
-  .gearGrid > :nth-child(4) {
-    grid-column: 2;
-    grid-row: 4;
-    justify-self: end;
-  }
-  .gearGrid > :nth-child(5) {
-    grid-column: 1;
-    grid-row: 5;
-    justify-self: start;
-  }
 
   .gearCapsule {
     width: 252px;
@@ -6996,10 +6971,6 @@
   box-shadow: 0 0 11px rgba(56, 189, 248, 0.62);
 }
 
-.channelPillDisabled .channelPillDot {
-  background: #64748b;
-  box-shadow: 0 0 8px rgba(100, 116, 139, 0.3);
-}
 
 .channelPillDisabled.channelPillActive {
   border-color: rgba(148, 163, 184, 0.34);
@@ -7877,10 +7848,6 @@
   background: rgba(71, 85, 105, 0.08);
 }
 
-.carouselIconBtnDisabled::after {
-  background: #64748b;
-  box-shadow: 0 0 7px rgba(100, 116, 139, 0.28);
-}
 
 /* =========================
    Hierarchie lumineuse des surfaces Premium
@@ -9392,9 +9359,6 @@
 }
 
 @media (max-width: 340px) {
-  .mobileTopbarActions {
-    gap: 3px;
-  }
 
   .mobileHeaderIconBtn,
   .notificationBellBtnMobile,
@@ -11284,9 +11248,6 @@
     padding-bottom: 10px;
   }
 
-  .generatorEfficiencyFlow {
-    display: none;
-  }
 
   .generatorHeaderLead {
     gap: 6px;

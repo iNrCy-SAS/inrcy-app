@@ -267,7 +267,7 @@ function buildCampaignDuplicateMessage(
 }
 
 async function createCampaignHandler(req: Request) {
-  const { supabase, user, activeUserId, errorResponse, isCron } = await resolveCampaignRequestUser(req);
+  const { supabase, activeUserId, errorResponse, isCron } = await resolveCampaignRequestUser(req);
   if (errorResponse) return errorResponse;
 
   if (!isCron) {

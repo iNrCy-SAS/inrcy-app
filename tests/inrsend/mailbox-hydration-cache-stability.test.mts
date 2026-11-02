@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const mailbox = readFileSync(
-  new URL('../../app/dashboard/mails/MailboxClient.tsx', import.meta.url),
+  new URL('../../app/dashboard/mails/_hooks/useMailboxHistory.ts', import.meta.url),
   'utf8',
 );
 

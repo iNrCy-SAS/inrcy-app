@@ -13,7 +13,7 @@ function read(path: string) {
 }
 
 const migration = read("ops/sql/2026-08-06_inrsend_realtime_version.sql");
-const mailbox = read("app/dashboard/mails/MailboxClient.tsx");
+const mailbox = read("app/dashboard/mails/_hooks/useMailboxHistory.ts");
 const historyPreload = read("app/dashboard/mails/_lib/mailboxHistoryPreload.ts");
 const boosterLayer = read("app/dashboard/_components/DashboardBoosterModalLayer.tsx");
 const moduleSnapshotCache = read("lib/browserModuleSnapshotCache.ts");

@@ -43,7 +43,7 @@ export function createInrAssistantUiTools(options: { accountId: string; currentU
       execute: async input => {
         const screen = options.clientContext?.screen;
         const command = parseInrAssistantUiCommand({ command: input.command, selection: screen?.selection });
-        if (!command || !screen?.availableCommands?.includes(command.command) || options.canStartWork?.() === false ||
+        if (!command || command.command !== "export_document_pdf" || !screen?.availableCommands?.includes(command.command) || options.canStartWork?.() === false ||
           !input.instructionQuote?.trim() || !options.currentUserMessage.includes(input.instructionQuote) ||
           !isInrAssistantScreenCommandRequest(input.instructionQuote) || !isInrAssistantScreenCommandRequest(options.currentUserMessage)) {
           return { ok: false, status: "needs_instruction", message: "Ouvrez le devis ou la facture puis demandez le téléchargement de son PDF. Aucun document n’a été modifié." };

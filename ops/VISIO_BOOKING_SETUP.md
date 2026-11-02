@@ -33,7 +33,9 @@ Les identifiants d’agenda d’Océane, Apolline et Jimmy ont des valeurs par d
 
 ## WordPress
 
-Installer puis activer le dossier `ops/wordpress-visio-booking` sous forme d’extension. Le plugin observe la réponse de l’appel d’inscription existant : il ne crée jamais une seconde inscription.
+Construire l’extension depuis la racine du dépôt avec `node scripts/build-wordpress-visio-booking.mjs`, puis vérifier l’archive avec `node scripts/build-wordpress-visio-booking.mjs --check`. Installer le ZIP vérifié `ops/inrcy-visio-booking.zip` et conserver son manifeste SHA-256 `ops/inrcy-visio-booking.manifest.json`. Le détail du contenu et du mode de test est dans `ops/wordpress-visio-booking/README.md`.
+
+Le plugin observe la réponse de l’appel d’inscription existant : il ne crée jamais une seconde inscription. La construction du ZIP ne l’installe pas sur WordPress.
 
 ## Ancien Apps Script à désactiver
 

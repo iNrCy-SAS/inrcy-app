@@ -551,7 +551,7 @@ export default function CRMClient() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function startEdit(c: CrmContact) {
+  const startEdit = useCallback((c: CrmContact) => {
     setEditingId(c.id);
     setDraft({
       display_name: buildDisplayName(c),
@@ -578,7 +578,7 @@ export default function CRMClient() {
     } catch {}
 
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }
+  }, [importantIds]);
 
   const editingContactIndex = editingId ? contacts.findIndex((contact) => contact.id === editingId) : -1;
   const responsiveListContainsPreviousPages = isResponsive && contacts.length > pageSize;
@@ -630,7 +630,7 @@ export default function CRMClient() {
     } finally {
       setContactNavigationBusy(false);
     }
-  }, [contactNavigationBusy, contacts, editingId, loadContacts, page, pageCount, pageSize, serverQuery]);
+  }, [contactNavigationBusy, contacts, editingId, loadContacts, page, pageCount, pageSize, serverQuery, startEdit]);
 
   const deliverySameAsPrimary = !String(draft.delivery_address || "").trim() || String(draft.delivery_address || "").trim() === String(draft.address || "").trim();
 
@@ -691,7 +691,7 @@ export default function CRMClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingId ? { id: editingId, ...payload } : payload),
       });
-      const j = await r.json().catch(() => ({}));
+      await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(await getSimpleFrenchApiError(r, "Impossible d'enregistrer."));
       const nextPage = isResponsive ? 1 : editingId ? page : 1;
       if (nextPage === 1) setPage(1);
@@ -744,7 +744,7 @@ export default function CRMClient() {
       await Promise.all(
         ids.map(async (id) => {
           const r = await fetch(`/api/crm/contacts?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-          const j = await r.json().catch(() => ({}));
+          await r.json().catch(() => ({}));
           if (!r.ok) throw new Error(await getSimpleFrenchApiError(r, "Impossible de supprimer."));
         })
       );
@@ -777,7 +777,7 @@ export default function CRMClient() {
     setError(null);
     try {
       const r = await fetch(`/api/crm/contacts?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      const j = await r.json().catch(() => ({}));
+      await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(await getSimpleFrenchApiError(r, "Impossible de supprimer."));
       const targetReloadPage = isResponsive ? 1 : page;
       if (targetReloadPage === 1) setPage(1);

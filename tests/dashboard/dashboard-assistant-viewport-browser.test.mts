@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
-import { chromium, type Page } from "playwright";
+import { chromium, type Page } from "@playwright/test";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
@@ -19,6 +19,9 @@ const sources = {
   "react-dom/client": packageSource("react-dom", "react-dom-client.production.js"),
   scheduler: packageSource("scheduler", "scheduler.production.js"),
   session: compile("app/dashboard/_components/DashboardAssistantProvider.tsx", "\nexport { AssistantSession as TestSession };"),
+  "./DashboardAssistantSession": compile("app/dashboard/_components/DashboardAssistantSession.tsx"),
+  "./dashboardAssistantSessionState": compile("app/dashboard/_components/dashboardAssistantSessionState.ts"),
+  "../_hooks/useAssistantDialogViewport": compile("app/dashboard/_hooks/useAssistantDialogViewport.ts"),
   "./dashboardAssistantCopy": compile("app/dashboard/_components/dashboardAssistantCopy.ts"),
   "./dashboardAssistantErrorCopy": compile("app/dashboard/_components/dashboardAssistantErrorCopy.ts"),
   "./dashboardAssistantAttachmentCopy": compile("app/dashboard/_components/dashboardAssistantAttachmentCopy.ts"),
@@ -45,6 +48,7 @@ function require(name) {
   if(name==='@/lib/multicompte/constants') return {ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};
   if(name==='@/lib/supabaseClient') return {};
   if(name==='@/lib/inrAssistantClientStream') return {readInrAssistantResponse(){throw Error('No chat request expected')}};
+  if(name==='@/lib/inrAssistantRefresh') return {dispatchInrAssistantRefresh(){return false}};
   if(name==='@/lib/inrAssistantContextualHelp') return {getInrAssistantContextualHelp:()=>null};
   if(name==='./DashboardViewerAccessProvider') return {};
   if(name==='./DashboardAssistantMessageContent') return {__esModule:true,default:()=>null};
@@ -87,7 +91,7 @@ function require(name){
  if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
  if(name==='./inrAssistantStudioDraft.ts')return require('@/lib/inrAssistantStudioDraft');
- if(name==='next/navigation')return {useRouter:()=>({replace(){},push(){}})};
+ if(name==='next/navigation')return {usePathname:()=>'/dashboard/generer-media',useRouter:()=>({replace(){},push(){}})};
  if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:()=>key=>key};
  if(name==='@/app/dashboard/_components/DashboardViewerAccessProvider')return {useDashboardViewerAccess:()=>({actorUserId:'actor-fixture',activeAccountId:window.fixtureAccount})};
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.fixtureAccount};

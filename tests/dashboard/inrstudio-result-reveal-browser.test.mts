@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
-import { chromium, type Page } from "playwright";
+import { chromium, type Page } from "@playwright/test";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
@@ -103,6 +103,7 @@ function require(name){
  if(name==='next/image')return {__esModule:true,default:({fill,unoptimized,...props})=>React.createElement('img',props)};
  if(name==='next/navigation')return {useRouter:()=>({replace:noOp,push:noOp})};
  if(name==='@/app/dashboard/_components/DashboardViewerAccessProvider')return {useDashboardViewerAccess:()=>({actorUserId:'actor-a',activeAccountId:window.activeAccount})};
+ if(name==='./DashboardAssistantScreenContext')return {useInrAssistantScreen(){}};
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.activeAccount};
  if(name==='@/lib/multicompte/constants')return {ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};
  if(name==='@/lib/inrStudioNavigation')return {readInrStudioHandoff:()=>null,getInrStudioOriginLabel:()=>null};

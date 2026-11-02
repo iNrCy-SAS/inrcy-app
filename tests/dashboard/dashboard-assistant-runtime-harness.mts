@@ -19,6 +19,13 @@ const source = readFileSync(new URL("../../app/dashboard/_components/DashboardAs
 const compiled = ts.transpileModule(`${source}\nexport { AssistantSession as TestSession, clearActorSessions as TestClearActorSessions };`, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
 }).outputText;
+const extractedSources: Record<string, string> = Object.fromEntries([
+  ["./DashboardAssistantSession", "app/dashboard/_components/DashboardAssistantSession.tsx"],
+  ["./dashboardAssistantSessionState", "app/dashboard/_components/dashboardAssistantSessionState.ts"],
+  ["../_hooks/useAssistantDialogViewport", "app/dashboard/_hooks/useAssistantDialogViewport.ts"],
+].map(([name, file]) => [name, ts.transpileModule(readFileSync(new URL("../../" + file, import.meta.url), "utf8"), {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
+}).outputText]));
 export type Props = Record<string, unknown>;
 type Element = ReactElement<Props>;
 export function elements(tree: ReactNode): Element[] {
@@ -67,7 +74,16 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
   }
   const copy = { open: "Open", close: "Close", intro: "Intro", prompt: "Prompt", placeholder: "Request", send: "Send", pending: "Thinking", retry: "Retry", unavailable: "Unavailable", timeout: "Timeout", newChat: "New", you: "You", suggestions: ["Post", "Channel", "Profile"], minimize: "Minimize", human: "Contact team", requestLabel: "My request", exchangeLabel: "Last exchange", mediaReady: "Created media", mediaProcessing: "Media processing", mediaFailed: "Media failed", mediaLibrary: "My media", keepWorking: "You may minimize", moveLeft: "Move window to the left", moveRight: "Move window to the right", interrupted: "Restored interrupted request", reference: "Reference:", history: "History", historyLoading: "Loading history", historyEmpty: "No saved conversations", historyUnavailable: "History unavailable; this conversation stays open", historyOlder: "Older conversations remain available", replaceDraft: "Replace your draft?", openConversation: "Open", keepDraft: "Keep draft", inProgress: "Your request is still in progress; retry manually", collaboration: "Collaboration", collaborating: "Collaborating with", activityUnconfirmed: "Check status", activityStatuses: { running: "Working", completed: "Done", blocked: "Needs input", failed: "Failed" }, onboardingGreeting: "Welcome, I am your assistant", onboardingMessage: "Let us set up your first channel", onboardingConnect: "Connect my first channel", onboardingRequest: "Help me connect my first channel" };
   const moduleRecord = { exports: {} as { TestSession: (props: Props) => ReactNode; default: (props: Props) => ReactNode; TestClearActorSessions: (actor: string) => void } };
-  const mockRequire = (name: string) => {
+  const extractedModules = new Map<string, { exports: Record<string, unknown> }>();
+  const mockRequire = (name: string): unknown => {
+    if (name in extractedSources) {
+      const cached = extractedModules.get(name);
+      if (cached) return cached.exports;
+      const entry = { exports: {} };
+      extractedModules.set(name, entry);
+      new Function("module", "exports", "require", "document", "MutationObserver", "localStorage", "sessionStorage", extractedSources[name])(entry, entry.exports, mockRequire, browserDocument, BrowserMutationObserver, browserStorage, browserStorage);
+      return entry.exports;
+    }
     if (name === "react/jsx-runtime") return require(name);
     if (name === "next/image") return { __esModule: true, default: "img" };
     if (name === "next/dynamic") return { __esModule: true, default: () => "MediaLibraryPicker" };
@@ -92,6 +108,7 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
     if (name.endsWith("/useAssistantFirstArrival")) return { useAssistantFirstArrival: (value: typeof arrivalOptions) => { arrivalOptions = value; } };
     if (name === "@/lib/inrAssistantClientContext") return clientContext;
     if (name === "@/lib/inrAssistantClientStream") return clientStream;
+    if (name === "@/lib/inrAssistantRefresh") return { dispatchInrAssistantRefresh: () => false };
     if (name === "@/lib/inrAssistantUiCommands") return uiCommands;
     if (name === "./dashboardAssistantTaskCopy") return taskCopy;
     if (name === "./DashboardAssistantScreenContext") return { DashboardAssistantScreenContext: require("react").createContext(() => {}) };

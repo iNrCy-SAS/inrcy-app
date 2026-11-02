@@ -42,7 +42,7 @@ function command(message: string, quote: string, action: Preview["operation"]) {
 function local(source: Request, path: string, method: string, body?: unknown) { const headers = new Headers({ "content-type": "application/json" }); for (const name of ["cookie", "authorization"]) { const value = source.headers.get(name); if (value) headers.set(name, value); } return new Request(new URL(path, source.url), { method, headers, signal: source.signal, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); }
 
 /** A preview never changes an event. Only the same pro's exact, signed proposal can call the native lifecycle. */
-export function createInrAssistantCalendarTools(options: { request: Request; accountId: string; actorUserId: string; edition: DashboardEdition; supabase: Pick<SupabaseClient, "from">; currentUserMessage: string; canStartWork?: () => boolean; resolvePreview?: (reference: string) => string | null }) {
+export function createInrAssistantCalendarTools(options: { request: Request; accountId: string; actorUserId: string; edition: DashboardEdition; supabase: Pick<SupabaseClient, "from">; currentUserMessage: string; currentApprovalMessage?: string; canStartWork?: () => boolean; resolvePreview?: (reference: string) => string | null }) {
   if (!UUID.test(options.accountId) || !UUID.test(options.actorUserId)) throw new Error("Périmètre agenda invalide");
   const { request, accountId, actorUserId, supabase, currentUserMessage } = options;
   const fail = (status: string, message: string) => ({ ok: false, status, message, nextAction: LINK });
@@ -73,7 +73,7 @@ export function createInrAssistantCalendarTools(options: { request: Request; acc
       inputSchema: schema<Apply>({ reference: { type: "string", pattern: "^IA-[A-F0-9]{12}$" }, instructionQuote: { type: "string", maxLength: 1200 } }, parseApply),
       execute: async raw => {
         const input = parseApply(raw), approved = verifyAssistantActionPreview(options.resolvePreview?.(input.reference) ?? "", { accountId, actorUserId, kind: "calendar" });
-        if (!approved || approved.reference !== input.reference || !hasAssistantActionApproval(currentUserMessage, input.instructionQuote, approved.reference)) return fail("confirmation_required", "Confirmez la référence exacte d’un aperçu agenda valide.");
+        if (!approved || approved.reference !== input.reference || !hasAssistantActionApproval(options.currentApprovalMessage ?? currentUserMessage, input.instructionQuote, approved.reference)) return fail("confirmation_required", "Confirmez la référence exacte d’un aperçu agenda valide.");
         if (!await scope()) return fail("blocked", "Le compte actif a changé ou l’action est indisponible.");
         if (!attempts.has(approved.reference)) attempts.set(approved.reference, (async (): Promise<Row> => {
           try {

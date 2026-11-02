@@ -5,11 +5,15 @@ export type GoogleBusinessPeriod = { openDay: GoogleBusinessDay; openTime: Googl
 export type GoogleBusinessDate = { year: number; month: number; day: number };
 export type GoogleBusinessSpecialPeriod = { startDate: GoogleBusinessDate; endDate?: GoogleBusinessDate; openTime?: GoogleBusinessTime; closeTime?: GoogleBusinessTime; closed?: boolean };
 export type GoogleBusinessAddress = { regionCode?: string; administrativeArea?: string; locality?: string; postalCode?: string; addressLines?: string[]; [key: string]: unknown };
+export type GoogleBusinessCategory = { name: string; displayName: string };
+export type GoogleBusinessCategories = { primaryCategory: GoogleBusinessCategory | null; additionalCategories: GoogleBusinessCategory[] };
 export type GoogleBusinessProfile = {
   title: string;
   primaryPhone: string;
+  additionalPhones?: string[];
   websiteUri: string;
   description: string;
+  categories?: GoogleBusinessCategories;
   storefrontAddress: GoogleBusinessAddress | null;
   regularHours: { periods: GoogleBusinessPeriod[] };
   specialHours: { specialHourPeriods: GoogleBusinessSpecialPeriod[] };
@@ -18,10 +22,32 @@ type RecordValue = Record<string, unknown>;
 export const googleBusinessRecord = (value: unknown): RecordValue => value && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : {};
 const string = (value: unknown) => typeof value === "string" ? value : "";
 
+export function editableGoogleBusinessCategories(value: unknown): GoogleBusinessCategories {
+  const source = googleBusinessRecord(value);
+  const category = (raw: unknown): GoogleBusinessCategory | null => {
+    const item = googleBusinessRecord(raw);
+    return typeof item.name === "string" && item.name ? { name: item.name, displayName: string(item.displayName) || item.name } : null;
+  };
+  return {
+    primaryCategory: category(source.primaryCategory),
+    additionalCategories: (Array.isArray(source.additionalCategories) ? source.additionalCategories : []).flatMap(item => {
+      const normalized = category(item);
+      return normalized ? [normalized] : [];
+    }),
+  };
+}
+
+// Category labels are read-only provider data. Only Google's identifiers are written.
+export function googleBusinessCategoryNames(value: GoogleBusinessCategories | undefined) {
+  return { primaryCategory: value?.primaryCategory?.name ?? null, additionalCategories: (value?.additionalCategories ?? []).map(item => item.name).sort() };
+}
+
 export function editableGoogleBusinessProfile(value: unknown): GoogleBusinessProfile {
   const source = googleBusinessRecord(value);
   return {
     title: string(source.title), primaryPhone: string(googleBusinessRecord(source.phoneNumbers).primaryPhone), websiteUri: string(source.websiteUri), description: string(googleBusinessRecord(source.profile).description),
+    additionalPhones: (Array.isArray(googleBusinessRecord(source.phoneNumbers).additionalPhones) ? googleBusinessRecord(source.phoneNumbers).additionalPhones as unknown[] : []).filter((value): value is string => typeof value === "string"),
+    categories: editableGoogleBusinessCategories(source.categories),
     storefrontAddress: source.storefrontAddress ? googleBusinessRecord(source.storefrontAddress) : null,
     regularHours: { periods: Array.isArray(googleBusinessRecord(source.regularHours).periods) ? googleBusinessRecord(source.regularHours).periods as GoogleBusinessPeriod[] : [] },
     specialHours: { specialHourPeriods: Array.isArray(googleBusinessRecord(source.specialHours).specialHourPeriods) ? googleBusinessRecord(source.specialHours).specialHourPeriods as GoogleBusinessSpecialPeriod[] : [] },
@@ -66,7 +92,7 @@ export function buildGoogleBusinessProfilePatch(current: GoogleBusinessProfile, 
   const set = (key: keyof GoogleBusinessProfile, normalized: unknown, mask = String(key)) => {
     if (stableGoogleBusinessValue(current[key]) === stableGoogleBusinessValue(normalized)) return;
     updateMask.push(mask);
-    if (key === "primaryPhone") location.phoneNumbers = { primaryPhone: normalized };
+    if (key === "primaryPhone") location.phoneNumbers = { primaryPhone: normalized, additionalPhones: current.additionalPhones ?? [] };
     else if (key === "description") location.profile = { description: normalized };
     else location[key] = normalized;
   };
@@ -74,7 +100,8 @@ export function buildGoogleBusinessProfilePatch(current: GoogleBusinessProfile, 
   if ("primaryPhone" in source) {
     const phone = boundedText(source.primaryPhone, 50);
     if (phone && !/^\+?[\d\s().-]{5,50}$/.test(phone)) throw new Error("Le numéro de téléphone est invalide.");
-    set("primaryPhone", phone, "phoneNumbers.primaryPhone");
+    // Google requires both phone fields; preserve secondary numbers read from the current profile.
+    set("primaryPhone", phone, "phoneNumbers");
   }
   if ("websiteUri" in source) {
     const website = boundedText(source.websiteUri, 2048);
@@ -82,6 +109,25 @@ export function buildGoogleBusinessProfilePatch(current: GoogleBusinessProfile, 
     set("websiteUri", website);
   }
   if ("description" in source) set("description", boundedText(source.description, 750), "profile.description");
+  if ("categories" in source) {
+    const incoming = googleBusinessRecord(source.categories);
+    const normalized = editableGoogleBusinessCategories(incoming);
+    if (stableGoogleBusinessValue(googleBusinessCategoryNames(current.categories)) !== stableGoogleBusinessValue(googleBusinessCategoryNames(normalized))) {
+      const category = (value: unknown) => {
+        const name = boundedText(googleBusinessRecord(value).name, 200, true);
+        if (!/^(?:categories\/)?gcid:[a-z0-9_]+$/.test(name)) throw new Error("Choisissez une activité dans la liste de Google.");
+        return { name };
+      };
+      if (!Array.isArray(incoming.additionalCategories) || incoming.additionalCategories.length > 9) throw new Error("Google autorise neuf activités secondaires au maximum.");
+      const primaryCategory = category(incoming.primaryCategory);
+      const additionalCategories = incoming.additionalCategories.map(category);
+      const names = [primaryCategory.name, ...additionalCategories.map(item => item.name)];
+      if (new Set(names).size !== names.length) throw new Error("Une activité ne peut être sélectionnée qu’une seule fois.");
+      // Google requires a single categories mask with BOTH lists, even for a primary-only edit.
+      location.categories = { primaryCategory, additionalCategories };
+      updateMask.push("categories");
+    }
+  }
   if ("storefrontAddress" in source) {
     if (source.storefrontAddress === null && current.storefrontAddress !== null) throw new Error("La suppression de l’adresse doit être effectuée depuis Google.");
     if (source.storefrontAddress !== null) {

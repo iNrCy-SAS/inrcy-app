@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
 import { getDashboardMobileMenu } from "../../app/dashboard/_components/dashboardMobileMenuModel.ts";
+import { parseGeneralPreferencesPatch } from "../../lib/generalPreferences.ts";
 
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 const file = ts.createSourceFile("ResponsiveBottomNav.tsx", read("app/dashboard/_components/ResponsiveBottomNav.tsx"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -112,7 +113,7 @@ test("saving general preferences preserves the old shortcut data and saves only 
   const form = { clientLanguage: "en", timezone: "Europe/London", dateFormat: "yyyy-MM-dd", currency: "GBP" };
   const baseline = { current: "old" };
   await evaluate(callbackFrom("app/dashboard/settings/_components/GeneralPreferencesContent.tsx", "save"), {
-    form, STORAGE_KEY: "inrcy_general_preferences", TABLE: "business_profiles", savedPreferencesSignatureRef: baseline,
+    form, parseGeneralPreferencesPatch, STORAGE_KEY: "inrcy_general_preferences", TABLE: "business_profiles", savedPreferencesSignatureRef: baseline,
     localStorage: { setItem: (key: string, value: string) => storage.set(key, value) },
     createClient: () => ({ auth: { getUser: async () => ({ data: { user: { id: "auth" } } }) }, from: (table: string) => { tables.push(table); return { upsert: async (payload: Record<string, unknown>) => { payloads.push(payload); return {}; } }; } }),
     resolveActiveBrowserUserId: () => "account", markClientLanguageCustom: () => {}, invalidateBoosterGenerationContextClient: async () => {},

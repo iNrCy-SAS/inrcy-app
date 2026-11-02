@@ -72,7 +72,7 @@ function scheduledActionForResponse(
 
 
 export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
+  const { errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
   const standardMode =
     (await getDashboardEditionForAuthUser(authUserId)) === "standard";
@@ -104,7 +104,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
 }
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
+  const { errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
   const standardMode =
     (await getDashboardEditionForAuthUser(authUserId)) === "standard";
@@ -300,7 +300,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 }
 
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
+  const { errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
   const standardMode =
     (await getDashboardEditionForAuthUser(authUserId)) === "standard";

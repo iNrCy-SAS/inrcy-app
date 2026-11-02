@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useEffectEvent, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import dynamic from "next/dynamic";
@@ -174,7 +174,7 @@ export default function PublishScheduleModal({
     () => items.filter((item) => !item.blockers.length),
     [items],
   );
-  const defaultDateTime = useMemo(() => getDefaultDateTime(), [open]);
+  const defaultDateTime = useMemo(() => open ? getDefaultDateTime() : { date: "", time: "" }, [open]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [dateByChannel, setDateByChannel] = useState<Record<string, string>>(
     {},
@@ -198,8 +198,9 @@ export default function PublishScheduleModal({
   const planningButtonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { if (!open) setPlanningOpen(false); }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
+  // Opening or replacing the schedule initializes a form snapshot. Later blocker
+  // or presentation updates must not overwrite dates currently being edited.
+  const initializeSchedule = useEffectEvent((defaultDateTime: { date: string; time: string }) => {
     const nextSelected: Record<string, boolean> = {};
     const nextDates: Record<string, string> = {};
     const nextTimes: Record<string, string> = {};
@@ -268,13 +269,14 @@ export default function PublishScheduleModal({
     setLocalError("");
     setSubmitting(false);
     setDoneMessage("");
-  }, [
-    open,
-    items.map((item) => item.channel).join("|"),
-    (initialSelections || [])
-      .map((selection) => `${selection.channel}:${selection.scheduledAt}`)
-      .join("|"),
-  ]);
+  });
+  const channelIdsKey = items.map((item) => item.channel).join("|");
+  const initialSelectionsKey = (initialSelections || [])
+    .map((selection) => `${selection.channel}:${selection.scheduledAt}`)
+    .join("|");
+  useEffect(() => {
+    if (open) initializeSchedule(defaultDateTime);
+  }, [open, channelIdsKey, initialSelectionsKey, defaultDateTime]);
 
   const currentSignature = JSON.stringify({
     mode: scheduleMode,

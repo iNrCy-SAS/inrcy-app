@@ -5,7 +5,7 @@ import { DEFAULT_INRSEND_SIGNATURE_TEMPLATE, buildInrSendSignature, getInrSendSi
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 
 export async function GET(req: Request) {
-  const { supabase, user, errorResponse, activeUserId } = await requireUser();
+  const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const settings = await getInrSendSignatureSettings(supabase as SupabaseLike, activeUserId);
@@ -53,7 +53,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const { supabase, user, errorResponse, activeUserId } = await requireUser();
+  const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const body = await req.json().catch(() => ({}));

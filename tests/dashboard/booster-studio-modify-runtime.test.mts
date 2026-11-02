@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
@@ -28,11 +28,12 @@ function expression(source: ts.SourceFile, name: string, component?: string) {
 function returnedEffect() {
   let found: ts.Expression | undefined;
   const visit = (node: ts.Node) => {
-    if (ts.isCallExpression(node) && node.expression.getText(publish) === "useEffect" && node.arguments[0]?.getText(publish).includes("const returnedRecord = pendingStudioReturn.item")) found = node.arguments[0];
+    if (ts.isCallExpression(node) && node.expression.getText(publish) === "useEffectEvent" && node.arguments[0]?.getText(publish).includes("const returnedRecord = pendingStudioReturn.item")) found = node.arguments[0];
     ts.forEachChild(node, visit);
   };
   visit(publish); assert.ok(found, "The real Booster Studio return effect must be exercised");
-  return ts.transpileModule(`const handler = (${found.getText(publish)});`, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText + "\nreturn handler;";
+  assert.ok(ts.isArrowFunction(found));
+  return ts.transpileModule(`const handler = () => ${found.body.getText(publish)};`, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText + "\nreturn handler;";
 }
 const handlers = {
   openImage: expression(publish, "openInrStudioImageTool"),
@@ -68,6 +69,7 @@ function require(name){
  if(name==='next/navigation')return {useRouter:()=>({replace:noOp,push:noOp})};
  if(name==='next/dynamic')return {__esModule:true,default:()=>require('studio').default};
  if(name==='@/app/dashboard/_components/DashboardViewerAccessProvider')return {useDashboardViewerAccess:()=>({actorUserId:'actor-a',activeAccountId:'account-a'})};
+ if(name==='./DashboardAssistantScreenContext')return {useInrAssistantScreen:noOp};
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=> 'account-a'};
  if(name==='@/lib/multicompte/constants')return {ACTIVE_INRCY_ACCOUNT_EVENT:'account-change'};
  if(name==='@/app/dashboard/_hooks/useMediaGeneration')return {__esModule:true,default:useGeneration,discardMediaGenerationDraft:async()=>{},MediaGenerationAccountChangedError:Error,MediaGenerationCancelledError:Error};
@@ -120,7 +122,9 @@ test("Booster Modify opens the actual Studio Modifier with the selected source, 
     const modify = page.getByRole("button", { name: "Modifier l’image 3", exact: true });
     assert.match(await modify.locator("svg path").getAttribute("d") || "", /^m12 3 2\.5 6\.5/, "AI modification uses the sparkle icon");
     await modify.click();
-    await page.locator('section[data-studio-tab="modify"]').waitFor();
+    await page.locator('section[data-studio-tab="modify"]').waitFor().catch(error => {
+      throw new Error(`${String(error)}\nFixture browser errors: ${errors.join("\n")}`, { cause: error });
+    });
     await page.locator('[data-modifier-preview]').waitFor({ state: "hidden" });
     await page.getByText("source-3.png", { exact: true }).last().waitFor();
     assert.equal(await page.locator('#modifier-source-title').count(), 1, errors.join("\n"));

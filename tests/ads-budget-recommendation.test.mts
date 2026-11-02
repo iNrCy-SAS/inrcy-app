@@ -1,3 +1,4 @@
+import { projectAdsCampaignPlan } from "../lib/adsCampaignPlanClient.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -54,6 +55,7 @@ function durationOf(plan: AdsCampaignPlan, provider: AdsChannelId) {
 
 const client = ts.createSourceFile("AdsClient.tsx", readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 function functionFrom(source: ts.SourceFile, name: string, scope: Record<string, unknown>) {
+  scope = { ...scope, projectAdsCampaignPlan };
   let declaration: ts.FunctionDeclaration | undefined;
   const visit = (node: ts.Node) => { if (ts.isFunctionDeclaration(node) && node.name?.text === name) declaration = node; ts.forEachChild(node, visit); };
   visit(source); assert.ok(declaration);

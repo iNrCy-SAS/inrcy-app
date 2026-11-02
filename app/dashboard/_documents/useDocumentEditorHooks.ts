@@ -419,7 +419,8 @@ export function useDocumentClientQueryPrefill(
   searchParams: SearchParamsReader,
   form: ClientPrefillForm,
 ) {
-  useEffect(() => {
+  // URL prefill belongs to the initial editor session, not subsequent edits.
+  const [initialPrefill] = useState(() => {
     const name =
       searchParams.get("clientName") || searchParams.get("name") || "";
     const email =
@@ -437,29 +438,35 @@ export function useDocumentClientQueryPrefill(
       searchParams.get("billingCity") || searchParams.get("city") || "";
     const delivery = searchParams.get("deliveryAddress") || "";
 
-    if (name) form.setClientName((previous) => previous || name);
-    if (email) form.setClientEmail((previous) => previous || email);
-    if (siren) form.setClientSiren((previous) => previous || siren);
-    if (vatNumber) form.setClientVatNumber((previous) => previous || vatNumber);
+    return { name, email, address, siren, vatNumber, billing, billingPostal, billingCityParam, delivery };
+  });
+  const { setClientName, setClientAddress, setClientEmail, setClientSiren, setClientVatNumber, setBillingAddress, setBillingPostalCode, setBillingCity, setDeliveryAddress, setDeliveryPostalCode, setDeliveryCity } = form;
+
+  useEffect(() => {
+    const { name, email, address, siren, vatNumber, billing, billingPostal, billingCityParam, delivery } = initialPrefill;
+    if (name) setClientName((previous) => previous || name);
+    if (email) setClientEmail((previous) => previous || email);
+    if (siren) setClientSiren((previous) => previous || siren);
+    if (vatNumber) setClientVatNumber((previous) => previous || vatNumber);
 
     if (address) {
-      form.setClientAddress((previous) => previous || address);
+      setClientAddress((previous) => previous || address);
       const parsed = splitFrenchAddress(billing || address);
-      form.setBillingAddress((previous) => previous || parsed.address);
-      form.setBillingPostalCode(
+      setBillingAddress((previous) => previous || parsed.address);
+      setBillingPostalCode(
         (previous) => previous || billingPostal || parsed.postal_code,
       );
-      form.setBillingCity(
+      setBillingCity(
         (previous) => previous || billingCityParam || parsed.city,
       );
       const parsedDelivery = splitFrenchAddress(delivery || billing || address);
-      form.setDeliveryAddress(
+      setDeliveryAddress(
         (previous) => previous || parsedDelivery.address,
       );
-      form.setDeliveryPostalCode(
+      setDeliveryPostalCode(
         (previous) => previous || billingPostal || parsedDelivery.postal_code,
       );
-      form.setDeliveryCity(
+      setDeliveryCity(
         (previous) => previous || billingCityParam || parsedDelivery.city,
       );
       return;
@@ -467,28 +474,28 @@ export function useDocumentClientQueryPrefill(
 
     if (billing) {
       const parsed = splitFrenchAddress(billing);
-      form.setBillingAddress((previous) => previous || parsed.address);
-      form.setBillingPostalCode(
+      setBillingAddress((previous) => previous || parsed.address);
+      setBillingPostalCode(
         (previous) => previous || billingPostal || parsed.postal_code,
       );
-      form.setBillingCity(
+      setBillingCity(
         (previous) => previous || billingCityParam || parsed.city,
       );
     }
 
     if (delivery) {
       const parsedDelivery = splitFrenchAddress(delivery);
-      form.setDeliveryAddress(
+      setDeliveryAddress(
         (previous) => previous || parsedDelivery.address,
       );
-      form.setDeliveryPostalCode(
+      setDeliveryPostalCode(
         (previous) => previous || billingPostal || parsedDelivery.postal_code,
       );
-      form.setDeliveryCity(
+      setDeliveryCity(
         (previous) => previous || billingCityParam || parsedDelivery.city,
       );
     }
-  }, []);
+  }, [initialPrefill, setClientName, setClientAddress, setClientEmail, setClientSiren, setClientVatNumber, setBillingAddress, setBillingPostalCode, setBillingCity, setDeliveryAddress, setDeliveryPostalCode, setDeliveryCity]);
 }
 
 export function useDocumentCrmContactsLoader({
@@ -544,7 +551,7 @@ export function useDocumentCrmContactsLoader({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setContacts, setLoading, setError]);
 }
 
 type CrmContactApplicationForm = Pick<
@@ -714,7 +721,7 @@ export function useDocumentProfileLoader({
     };
 
     void load();
-  }, [supabase]);
+  }, [supabase, setProfile, setClientExchangePreferences]);
 }
 
 export function useDocumentModalBodyLock(active: boolean) {

@@ -3,10 +3,9 @@ import type { ChannelBubbleRenderer } from "../../_components/channel-bubble.typ
 import ChannelParametersDialog from "../../_components/ChannelParametersDialog";
 
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import styles from "../../dashboard.module.css";
-import localStyles from "./InrSearchSettingsContent.module.css";
 
 const INR_SEARCH_PUBLIC_ORIGIN = ((process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, "") === "https://inrcy.com" ? "https://app.inrcy.com" : (process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, ""));
 
@@ -208,11 +207,6 @@ export default function InrSearchSettingsContent({
   const mountedRef = useRef(true);
   const [initialLoadBlocking] = useState(() => !initialSnapshot && initialConnected === null);
 
-  const publicUrl = useMemo(
-    () => settings.slug ? `${INR_SEARCH_PUBLIC_ORIGIN}/entreprises/${settings.slug}` : "",
-    [settings.slug],
-  );
-
   const applySnapshot = useCallback((payload: Record<string, unknown>, refresh: boolean) => {
     const next = normalizeSettings(payload.inrSearch);
     const nextPublication = normalizePublication(payload.publication);
@@ -260,11 +254,12 @@ export default function InrSearchSettingsContent({
   }, [applySnapshot]);
 
   useEffect(() => {
+    const requestSequence = requestSeqRef;
     mountedRef.current = true;
     void load({ blocking: initialLoadBlocking });
     return () => {
       mountedRef.current = false;
-      requestSeqRef.current++;
+      requestSequence.current++;
       loadInFlightRef.current = null;
       mutationRef.current = null;
     };

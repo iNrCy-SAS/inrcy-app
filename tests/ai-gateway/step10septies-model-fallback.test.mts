@@ -6,6 +6,8 @@ import { resolve } from "node:path";
 const ROOT = resolve(import.meta.dirname, "../..");
 const read = (rel: string) => readFileSync(resolve(ROOT, rel), "utf8");
 
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
+
 test("generation fallback chain is bounded and ordered: selected model, Gateway model, OpenAI direct", () => {
   const client = read("lib/aiGatewayClient.ts");
   const primary = client.indexOf('stage: "primary"');
@@ -85,7 +87,7 @@ test("Booster exposes the actual fallback to the user without changing saved pre
   assert.match(generation, /getAiGenerationFallbackInfo/);
   assert.match(route, /\.\.\.\(aiFallback \? \{ aiFallback \} : \{\}\)/);
   assert.match(modal, /setGenerationNotice/);
-  assert.match(modal, /via la connexion OpenAI de secours/);
+  assert.match(generationController, /via la connexion OpenAI de secours/);
   assert.match(panel, /role="status"/);
   assert.doesNotMatch(generation, /ai_preferred_engine\s*=/);
 });

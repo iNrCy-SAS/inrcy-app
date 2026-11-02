@@ -1,3 +1,5 @@
+import { readVideoNormalizationWorkerSource } from "../media-pipeline/video-worker-sources.mjs";
+import { readAgentScheduleSource } from "../inragent/schedule-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -45,7 +47,7 @@ test("les PATCH optimistes observés ne demandent plus une réponse singulière"
     "app/api/media-pipeline/upload-intent/route.ts",
     "app/api/media-library/items/route.ts",
   ]) {
-    const source = read(relativePath);
+    const source = relativePath === "lib/mediaVideoNormalizationWorker.ts" ? readVideoNormalizationWorkerSource() : read(relativePath);
     for (const statement of source.split(";")) {
       if (!statement.includes(".update(")) continue;
       assert.doesNotMatch(
@@ -168,7 +170,7 @@ test("Booster publie des URLs permanentes et ne signe plus son bucket public", (
   );
   const inrsend = read("lib/inrsend/publicationChannelActions.ts");
   const agentExecute = read("app/api/agent/actions/execute/route.ts");
-  const agentSchedule = read("app/api/agent/actions/schedule/route.ts");
+  const agentSchedule = readAgentScheduleSource();
 
   assert.match(preparation, /bucket === "booster" \? nativePublicUrl : null/);
   assert.match(

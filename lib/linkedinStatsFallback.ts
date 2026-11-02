@@ -68,15 +68,6 @@ function sumLinkedInMetricSignals(metrics: unknown) {
   return total;
 }
 
-function linkedInRawHasError(value: unknown): boolean {
-  if (!value || typeof value !== "object") return false;
-  if (Array.isArray(value)) return value.some((entry) => String(entry || "").trim().length > 0);
-  const rec = value as AnyRec;
-  if (typeof rec.error === "string" && rec.error.trim()) return true;
-  if (Array.isArray(rec.errors) && rec.errors.some((entry) => String(entry || "").trim())) return true;
-  return Object.values(rec).some((entry) => linkedInRawHasError(entry));
-}
-
 export function hasUsableLinkedInMetrics(metrics: unknown) {
   const m = asRecord(metrics);
   if (!Object.keys(m).length) return false;

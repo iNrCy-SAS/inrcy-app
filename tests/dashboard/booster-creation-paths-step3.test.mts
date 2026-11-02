@@ -12,6 +12,7 @@ function read(path: string) {
 }
 
 const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
+const generation = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
 const contentPanel = read(
   "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx",
 );
@@ -19,7 +20,7 @@ const intentPanel = read(
   "app/dashboard/booster/publier/components/PublishIntentPanel.tsx",
 );
 const imagePanel = read(
-  "app/dashboard/booster/publier/components/PublishImagesPanel.tsx",
+  "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx",
 );
 const workspaceHook = read(
   "app/dashboard/booster/publier/usePersistentMediaWorkspace.ts",
@@ -103,7 +104,7 @@ test("AI media preparation follows the selected path and the image opt-in", () =
 });
 
 test("the manual path cannot trigger AI generation or AI media preparation", () => {
-  assert.match(modal, /if \(creationMode !== "ai"\)/);
+  assert.match(generation, /if \(creationMode !== "ai"\)/);
   assert.match(workspaceHook, /creationModeRef\.current !== "ai"/);
   assert.match(workspaceHook, /runPreparationMission\("ai_preparation"\)/);
   assert.match(generationRoute, /body\.creationMode === "manual"/);
@@ -114,21 +115,21 @@ test("the manual path cannot trigger AI generation or AI media preparation", () 
 });
 
 test("workspace media is consumed by AI only when explicitly requested", () => {
-  assert.match(modal, /const shouldPrepareMediaForAi = shouldPrepareBoosterMediaForAi/);
+  assert.match(generation, /const shouldPrepareMediaForAi = shouldPrepareBoosterMediaForAi/);
   assert.match(
-    modal,
+    generation,
     /const shouldUsePersistentMediaWorkspaceForAi =[\s\S]*shouldPrepareMediaForAi[\s\S]*unifiedMediaConsumptionClientAvailable/,
   );
   assert.match(
-    modal,
+    generation,
     /let readyMediaWorkspaceId = shouldUsePersistentMediaWorkspaceForAi[\s\S]*waitForPersistentWorkspaceReadiness/,
   );
   assert.match(
-    modal,
+    generation,
     /useWorkspaceMediaForAI:[\s\S]*shouldUsePersistentMediaWorkspaceForAi/,
   );
   assert.match(
-    modal,
+    generation,
     /mediaWorkspaceExpected:[\s\S]*shouldUsePersistentMediaWorkspaceForAi[\s\S]*Boolean\(readyMediaWorkspaceId\)/,
   );
   assert.match(generationRoute, /let useWorkspaceMediaForAI =/);
@@ -139,10 +140,10 @@ test("workspace media is consumed by AI only when explicitly requested", () => {
 });
 
 test("generation reuses the existing workspace and never resynchronizes the original", () => {
-  const generateStart = modal.indexOf("const onGenerate = async");
-  const generateEnd = modal.indexOf("const onDuplicateContentToAllChannels", generateStart);
+  const generateStart = generation.indexOf("const onGenerate = async");
+  const generateEnd = generation.indexOf("  return { onGenerate", generateStart);
   assert.ok(generateStart >= 0 && generateEnd > generateStart);
-  const generateSource = modal.slice(generateStart, generateEnd);
+  const generateSource = generation.slice(generateStart, generateEnd);
 
   assert.match(generateSource, /waitForPersistentWorkspaceReadiness/);
   assert.doesNotMatch(generateSource, /syncPersistentWorkspaceImages\(/);
@@ -165,7 +166,9 @@ test("media can be added after generation without clearing channel content", () 
   assert.doesNotMatch(imageSource, /setContentWorkspaceOpen/);
 
   assert.doesNotMatch(intentPanel, /getLocalizedBoosterMediaOptimization/);
-  assert.match(imagePanel, /getLocalizedBoosterMediaOptimization\("publication", runtimeT\)/);
+  assert.match(imagePanel, /getLocalizedBoosterImageLimits\(runtimeT\)/);
+  assert.match(imagePanel, /getLocalizedBoosterVideoLimits\(runtimeT\)/);
+  assert.match(imagePanel, /title=\{kind === "image" \? imageHelp : videoHelp\}/);
 });
 
 test("the UI keeps one final publishing engine with dynamic branch labels", () => {

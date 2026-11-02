@@ -58,6 +58,8 @@ async function fixture() {
     "@/lib/browserAccountCache": { getActiveBrowserUserId: () => activeAccount },
     "@/lib/inrcyDialog": { confirmInrcy: (options: InrcyConfirmOptions) => { confirmations.push(options); return new Promise<boolean>(resolve => { resolveConfirmation = resolve; }); } },
     "./GoogleBusinessWeeklyHours": { __esModule: true, default: "weekly-hours" },
+    "./GoogleBusinessCategoriesEditor": { __esModule: true, default: "category-editor" },
+    "../_hooks/useInrAssistantRefresh": { useInrAssistantRefresh: () => undefined },
     "./GoogleBusinessProfileEditor.module.css": { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) },
   };
   const code = ts.transpileModule(readFileSync("app/dashboard/_components/GoogleBusinessProfileEditor.tsx", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
@@ -81,6 +83,8 @@ async function fixture() {
   };
   return {
     render, save, form, edit, confirmations, writes,
+    editCategories: (value: profile.GoogleBusinessCategories) => (render().find(node => node.type === "category-editor")!.props.onChange as (value: profile.GoogleBusinessCategories) => void)(value),
+    categorySearchPending: (pending: boolean) => (render().find(node => node.type === "category-editor")!.props.onPendingChange as (pending: boolean) => void)(pending),
     submit: () => (form().props.onSubmit as (event: unknown) => void)({ preventDefault() {} }),
     choose: async (confirmed: boolean) => { resolveConfirmation(confirmed); await tick(); },
     respond: async (ok: boolean) => { resolveWrite(Response.json(ok ? { ok: true, version: "version-2", profile: { ...original, description: "Updated description" } } : { ok: false, user_message: "Google refused the change" }, { status: ok ? 200 : 502 })); await tick(); },
@@ -88,6 +92,23 @@ async function fixture() {
     unmount: () => cleanups.forEach(cleanup => cleanup()),
   };
 }
+
+test("an unfinished category search cannot save and category confirmation shows both lists", async () => {
+  const h = await fixture(); h.edit(); h.categorySearchPending(true);
+  assert.equal(h.save().props.disabled, true);
+  h.submit(); assert.equal(h.confirmations.length, 0);
+  h.categorySearchPending(false);
+  h.editCategories({ primaryCategory: { name: "categories/gcid:plumber", displayName: "Plombier" }, additionalCategories: [{ name: "categories/gcid:heating_contractor", displayName: "Chauffagiste" }] });
+  h.submit(); assert.equal(h.confirmations.length, 1);
+  assert.ok(h.confirmations[0].steps?.some(step => step.includes("Activité principale : Plombier") && step.includes("Activités secondaires : Chauffagiste")));
+  assert.match(h.confirmations[0].message, /nouvelle validation/);
+  await h.choose(false); assert.equal(h.writes.length, 0);
+});
+
+test("editing the draft after opening a confirmation makes that confirmation stale", async () => {
+  const h = await fixture(); h.edit("First edit"); h.submit(); h.edit("Later edit");
+  await h.choose(true); assert.equal(h.writes.length, 0);
+});
 
 test("Save is unavailable without changes and opens one confirmation containing only the changed field and selected business", async () => {
   const h = await fixture();

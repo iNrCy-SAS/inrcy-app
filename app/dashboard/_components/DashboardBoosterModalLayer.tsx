@@ -204,7 +204,7 @@ export default function DashboardBoosterModalLayer({
       if (!ok) return;
     }
     closePublishModal();
-  }, [closePublishModal, publishHasUnsavedChanges]);
+  }, [closePublishModal, i18nT, publishHasUnsavedChanges]);
 
   const openPublishDraft = useCallback(async (draftId: string) => {
     const nextDraftId = String(draftId || "").trim();
@@ -398,7 +398,7 @@ export default function DashboardBoosterModalLayer({
         { left: "Objectif", right: "visibilité" },
       ],
     };
-  }, [metrics, weeklySummary]);
+  }, [i18nT, metrics, weeklySummary]);
 
   return (
     <>

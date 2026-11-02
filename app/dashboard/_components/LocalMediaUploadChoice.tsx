@@ -73,6 +73,7 @@ export default function LocalMediaUploadChoice({
 
   useEffect(() => {
     if (!open) return;
+    const trigger = triggerRef.current;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
@@ -116,7 +117,7 @@ export default function LocalMediaUploadChoice({
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
-      triggerRef.current?.focus();
+      trigger?.focus();
     };
   }, [open]);
 

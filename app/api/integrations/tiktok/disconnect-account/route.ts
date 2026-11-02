@@ -27,7 +27,7 @@ async function revokeTiktokToken(token: string) {
 }
 
 export async function POST() {
-  const { supabase, user, errorResponse, activeUserId } = await requireUser();
+  const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const { data: integration } = await supabaseAdmin

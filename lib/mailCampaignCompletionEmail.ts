@@ -101,10 +101,6 @@ function greeting(profile: ProfileRow | null) {
   return "Bonjour,";
 }
 
-function formatCount(count: number, singular: string, plural: string) {
-  return `${count} ${count > 1 ? plural : singular}`;
-}
-
 function formatDate(value: unknown) {
   const raw = cleanText(value, 80);
   if (!raw) return "-";

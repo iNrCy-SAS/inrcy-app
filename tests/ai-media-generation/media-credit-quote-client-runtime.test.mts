@@ -178,3 +178,16 @@ test("changing HeyGen from AI to supplied voices invalidates its base-route auth
   h.update(base); assert.equal(h.status().ready, false); assert.deepEqual(h.status().authorization, {});
   h.dispose();
 });
+
+test("equivalent input objects preserve a pending and then confirmed quote without refetching", async () => {
+  const h = harness();
+  h.runTimers();
+  h.update({ ...input() }); h.runTimers();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].signal.aborted, false);
+  h.respond(0, "account-a"); await h.flush();
+  h.update({ ...input() }, quota()); h.runTimers();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.status().quote?.quoteId, "account-a-0");
+  h.dispose();
+});

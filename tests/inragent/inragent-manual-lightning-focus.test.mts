@@ -1,14 +1,11 @@
+import { readAgentPublicationPreparationSource } from "./prepare-publication-sources.mjs";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 
 import { chooseInrAgentInstantFocusMode } from "../../lib/inrAgentInstantFocusMode.ts";
 
-const route = readFileSync(new URL(
-  "../../app/api/agent/actions/prepare-publish/route.ts",
-  import.meta.url,
-), "utf8");
+const route = readAgentPublicationPreparationSource();
 
 test("un éclair tire à parts égales entre une idée disponible et l'iNr'ADN", () => {
   assert.equal(chooseInrAgentInstantFocusMode(3, 0), "saved_idea");
@@ -41,7 +38,7 @@ for (const source of ["media_library", "image_bank"]) {
   for (const planned of [false, true]) {
     test(`${source}: ${planned ? "un créneau" : "un éclair"} ne réserve aucune idée avant la lecture du fichier`, async () => {
       const ast = ts.createSourceFile("route.ts", route, ts.ScriptTarget.Latest, true);
-      const post = ast.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === "POST");
+      const post = ast.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === "prepareInrAgentEditorialIdea");
       assert.ok(post && ts.isFunctionDeclaration(post) && post.body);
       const indexOf = (name: string) => post.body!.statements.findIndex((node) => ts.isVariableStatement(node) && node.declarationList.declarations.some((declaration) => declaration.name.getText(ast) === name));
       const start = indexOf("prefersExistingMedia"), end = indexOf("baseIdea");

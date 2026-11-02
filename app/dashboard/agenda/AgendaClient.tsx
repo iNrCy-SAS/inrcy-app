@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./agenda.module.css";
 import { confirmInrcy } from "@/lib/inrcyDialog";
@@ -252,11 +252,10 @@ export default function AgendaClient({
   const [rdvExistingContact, setRdvExistingContact] = useState<any | null>(null);
   const [rdvGuests, setRdvGuests] = useState<GuestContactForm[]>([]);
 
-  const [mailAccounts, setMailAccounts] = useState<MailAccountOption[]>(() => Array.isArray(initialSettingsSnapshot?.accounts) ? initialSettingsSnapshot.accounts : []);
+  const [, setMailAccounts] = useState<MailAccountOption[]>(() => Array.isArray(initialSettingsSnapshot?.accounts) ? initialSettingsSnapshot.accounts : []);
   const [agendaMailAccountId, setAgendaMailAccountId] = useState(() => String(initialSettingsSnapshot?.selectedMailAccountId || ""));
-  const [agendaMailLoading, setAgendaMailLoading] = useState(() => !initialSettingsSnapshot);
-  const [agendaMailSaving, setAgendaMailSaving] = useState(false);
-  const [agendaMailError, setAgendaMailError] = useState<string | null>(null);
+  const [, setAgendaMailLoading] = useState(() => !initialSettingsSnapshot);
+  const [, setAgendaMailError] = useState<string | null>(null);
   const [agendaReminderOffsetsMinutes, setAgendaReminderOffsetsMinutes] = useState<number[]>(() => Array.isArray(initialSettingsSnapshot?.reminderOffsetsMinutes) ? initialSettingsSnapshot.reminderOffsetsMinutes : [1440, 120]);
   const [rdvRemindersEnabled, setRdvRemindersEnabled] = useState(true);
   const rdvRemindersAvailable = agendaReminderOffsetsMinutes.length > 0;
@@ -358,7 +357,7 @@ export default function AgendaClient({
     });
     if (!ok) return;
     closeRdvModal();
-  }, [closeRdvModal, rdvHasUnsavedChanges, rdvMode, rdvOpen]);
+  }, [closeRdvModal, i18nT, rdvHasUnsavedChanges, rdvMode, rdvOpen]);
 
   useUnsavedExitGuard({
     active: rdvOpen,
@@ -548,27 +547,7 @@ export default function AgendaClient({
       .filter((guest): guest is ContactPayload => Boolean(guest && (guest.display_name || guest.email)));
   }
 
-  async function saveAgendaMailAccount(nextId: string) {
-    const previousId = agendaMailAccountId;
-    setAgendaMailAccountId(nextId);
-    setAgendaMailSaving(true);
-    setAgendaMailError(null);
-    try {
-      const response = await fetch("/api/calendar/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selectedMailAccountId: nextId }),
-      });
-      if (!response.ok) throw new Error(await getSimpleFrenchApiError(response, "Impossible d’enregistrer la boîte d’envoi agenda."));
-    } catch (e: any) {
-      setAgendaMailAccountId(previousId);
-      setAgendaMailError(getSimpleFrenchErrorMessage(e, "Impossible d’enregistrer la boîte d’envoi agenda."));
-    } finally {
-      setAgendaMailSaving(false);
-    }
-  }
-
-  function hydrateContactFields(contact: any | null) {
+  const hydrateContactFields = useCallback((contact: any | null) => {
     const raw = contact && typeof contact === "object" ? contact : null;
     const displayName = String(raw?.display_name ?? "").trim();
     const firstName = String(raw?.first_name ?? "").trim();
@@ -592,7 +571,7 @@ export default function AgendaClient({
 
     const structuredLocation = composeAddressLine(address, postalCode, city);
     if (structuredLocation) setRdvLocation(structuredLocation);
-  }
+  }, []);
 
   async function loadContacts(options?: { silent?: boolean }) {
     if (!options?.silent) setContactsLoading(true);
@@ -610,6 +589,8 @@ export default function AgendaClient({
     }
   }
 
+  // A routed creation is an event: changing reminders must not reset its draft.
+  const openCreateRdvFromLink = useEffectEvent((date: Date) => openCreateRdv(date));
   useEffect(() => {
     const action = (searchParams?.get("action") || "").toLowerCase();
     if (action !== "new") return;
@@ -630,7 +611,7 @@ export default function AgendaClient({
     const notesParam = searchParams?.get("notes") || "";
 
     loadContacts();
-    openCreateRdv(selectedDate);
+    openCreateRdvFromLink(selectedDate);
 
     if (/^\d{4}-\d{2}-\d{2}$/.test(rdvDateParam)) setRdvDate(rdvDateParam);
     if (/^\d{2}:\d{2}$/.test(rdvStartParam)) {
@@ -747,7 +728,7 @@ export default function AgendaClient({
     setRdvOpen(true);
   }
 
-  function openEditRdv(event: DayEvent) {
+  const openEditRdv = useCallback((event: DayEvent) => {
     if (isGoogleSyncedEvent(event)) {
       window.open(
         event.htmlLink || "https://calendar.google.com/calendar/u/0/r",
@@ -798,7 +779,7 @@ export default function AgendaClient({
     setCrmAddFeedback("");
     setRdvError(null);
     setRdvOpen(true);
-  }
+  }, [hydrateContactFields, rdvRemindersAvailable, selectedDate]);
 
   async function ensureContact(): Promise<ContactPayload | null> {
     if (rdvContactId) {
@@ -1290,7 +1271,7 @@ export default function AgendaClient({
   useEffect(() => {
     void loadContacts({ silent: Boolean(initialContactsSnapshot) });
     void loadAgendaMailSettings({ silent: Boolean(initialSettingsSnapshot) });
-  }, []);
+  }, [initialContactsSnapshot, initialSettingsSnapshot]);
 
   useEffect(() => {
     const refreshAgendaSettings = () => {
@@ -1349,12 +1330,14 @@ export default function AgendaClient({
     });
   }, [appointmentRequests]);
 
+  // Keep the link/list as the trigger; use the current form defaults when it opens.
+  const openAppointmentRequestFromLink = useEffectEvent((index: number) => openAppointmentRequestAt(index));
   useEffect(() => {
     const requestId = searchParams?.get("request") || "";
     if (!requestId || !normalizedAppointmentRequests.length) return;
     const index = normalizedAppointmentRequests.findIndex((request) => request.id === requestId);
     if (index < 0) return;
-    openAppointmentRequestAt(index);
+    openAppointmentRequestFromLink(index);
     try {
       const nextQuery = new URLSearchParams(searchParams?.toString() || "");
       nextQuery.delete("request");
@@ -1448,7 +1431,7 @@ export default function AgendaClient({
       if (!ok) return;
     }
     openEditRdv(target);
-  }, [navigableEventIndex, navigableEvents, rdvHasUnsavedChanges, rdvMode]);
+  }, [i18nT, navigableEventIndex, navigableEvents, openEditRdv, rdvHasUnsavedChanges, rdvMode]);
 
   const todayKey = useMemo(() => keyOf(new Date()), []);
 

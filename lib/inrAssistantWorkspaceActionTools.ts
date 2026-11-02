@@ -100,7 +100,7 @@ export function createInrAssistantWorkspaceActionTools(options: {
 }) {
   const { request, supabase, edition, currentUserMessage } = options;
   const accountId = id(options.accountId);
-  if (!options.actionRequestId || options.actionRequestId.length > 180 || !["standard", "premium", "founder"].includes(edition)) throw new Error("Périmètre de l’assistant invalide.");
+  if (!options.actionRequestId || options.actionRequestId.length > 180 || !["basic", "standard", "premium", "founder"].includes(edition)) throw new Error("Périmètre de l’assistant invalide.");
   const writes = new Map<string, Promise<Result>>();
   const batchKeys = new Map<string, Set<string>>();
   const batchSlot = (kind: "campaign" | "appointment", operation: string | null | undefined): string | null => {
@@ -166,7 +166,7 @@ export function createInrAssistantWorkspaceActionTools(options: {
       inputSchema: schema<CampaignInput>({ type: "object", properties: { instructionQuote: quoteSchema, track: { type: "string", enum: [...TRACKS] }, subject: { type: "string", minLength: 1, maxLength: 220 }, bodyText: { type: "string", minLength: 1, maxLength: 12000 }, operationKey: operationSchema }, required: ["instructionQuote", "track", "subject", "bodyText", "operationKey"], additionalProperties: false }, parseCampaign),
       execute: async raw => {
         const input = parseCampaign(raw);
-        if (edition === "standard") return fail(LINKS.mail, "not_included");
+        if (edition === "basic" || edition === "standard") return fail(LINKS.mail, "not_included");
         if (!currentInstruction(currentUserMessage, input.instructionQuote, "mail")) return fail(LINKS.mail, "needs_instruction");
         const slot = batchSlot("campaign", input.operationKey); if (!slot) return fail(LINKS.mail, "needs_instruction");
         return once(slot, async () => {
@@ -196,7 +196,7 @@ export function createInrAssistantWorkspaceActionTools(options: {
       inputSchema: schema<AppointmentInput>({ type: "object", properties: { instructionQuote: quoteSchema, title: { type: "string", minLength: 1, maxLength: 180 }, description: { type: ["string", "null"], maxLength: 3000 }, location: { type: ["string", "null"], maxLength: 300 }, start: { type: "string", maxLength: 40 }, end: { type: "string", maxLength: 40 }, operationKey: operationSchema }, required: ["instructionQuote", "title", "description", "location", "start", "end", "operationKey"], additionalProperties: false }, parseAppointment),
       execute: async raw => {
         const input = parseAppointment(raw);
-        if (edition === "standard") return fail(LINKS.calendar, "not_included");
+        if (edition === "basic" || edition === "standard") return fail(LINKS.calendar, "not_included");
         if (!currentInstruction(currentUserMessage, input.instructionQuote, "calendar")) return fail(LINKS.calendar, "needs_instruction");
         const slot = batchSlot("appointment", input.operationKey); if (!slot) return fail(LINKS.calendar, "needs_instruction");
         return once(slot, async () => {
@@ -224,7 +224,7 @@ export function createInrAssistantWorkspaceActionTools(options: {
       execute: async raw => {
         const input = strict(raw, ["query"]); const query = text(input.query, 80);
         const current = normalize(currentUserMessage);
-        if (edition === "standard") return fail(LINKS.crm, "not_included");
+        if (edition === "basic" || edition === "standard") return fail(LINKS.crm, "not_included");
         if (query.length < 2 || !current.includes(normalize(query)) || !/\b(?:crm|contact|client|prospect|fournisseur|partenaire)\b/.test(current)) return fail(LINKS.crm, "needs_instruction");
         if (!await inScope()) return fail(LINKS.crm, "blocked");
         const parts = query.replace(/[^\p{L}\p{N}\s-]/gu, " ").split(/\s+/).filter(part => part.length > 1).slice(0, 4);
@@ -243,7 +243,7 @@ export function createInrAssistantWorkspaceActionTools(options: {
       inputSchema: schema<{ contactId: string; reference: string }>({ type: "object", properties: { contactId: { type: "string", pattern: UUID.source }, reference: { type: "string", minLength: 2, maxLength: 180 } }, required: ["contactId", "reference"], additionalProperties: false }, value => { const input = strict(value, ["contactId", "reference"]); return { contactId: id(input.contactId), reference: text(input.reference, 180) }; }),
       execute: async raw => {
         const input = strict(raw, ["contactId", "reference"]), contactId = id(input.contactId), reference = text(input.reference, 180);
-        if (edition === "standard") return fail(LINKS.crm, "not_included");
+        if (edition === "basic" || edition === "standard") return fail(LINKS.crm, "not_included");
         if (reference.length < 2 || !normalize(currentUserMessage).includes(normalize(reference)) || !/\b(?:crm|contact|client|prospect|fiche|fournisseur|partenaire|coordonnees|devis|facture)\b/.test(normalize(currentUserMessage))) return fail(LINKS.crm, "needs_instruction");
         if (!await inScope()) return fail(LINKS.crm, "blocked");
         try {

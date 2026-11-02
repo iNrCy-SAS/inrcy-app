@@ -3,6 +3,7 @@ export const GOOGLE_BUSINESS_LOCAL_POST_TIMEOUT_MS = 15_000;
 export type GoogleBusinessFieldViolation = {
   field: string;
   description: string;
+  code?: number;
 };
 
 export type GoogleBusinessProviderDetail = {
@@ -50,12 +51,35 @@ function sanitizeFieldViolations(value: unknown): GoogleBusinessFieldViolation[]
   });
 }
 
+function sanitizeGoogleBusinessValidationDetails(value: unknown): GoogleBusinessFieldViolation[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 20).flatMap((entry) => {
+    const record = asRecord(entry);
+    const field = sanitizeProviderText(record.field, 300);
+    const description = sanitizeProviderText(record.message, 800);
+    if (!field && !description) return [];
+    return [{
+      field,
+      description,
+      ...(Number.isSafeInteger(record.code) ? { code: Number(record.code) } : {}),
+    }];
+  });
+}
+
 function sanitizeProviderDetails(value: unknown): GoogleBusinessProviderDetail[] {
   if (!Array.isArray(value)) return [];
   return value.slice(0, 12).flatMap((entry) => {
     const record = asRecord(entry);
     if (!Object.keys(record).length) return [];
-    const fieldViolations = sanitizeFieldViolations(record.fieldViolations);
+    // The v4 Business Profile API uses errorDetails, unlike google.rpc.BadRequest.
+    // Keep both in one bounded shape so the existing media repair can see why
+    // Google rejected a request instead of only INVALID_ARGUMENT.
+    const fieldViolations = [
+      ...sanitizeFieldViolations(record.fieldViolations),
+      ...(record["@type"] === "type.googleapis.com/google.mybusiness.v4.ValidationError"
+        ? sanitizeGoogleBusinessValidationDetails(record.errorDetails)
+        : []),
+    ].slice(0, 20);
     const detail: GoogleBusinessProviderDetail = {
       type: sanitizeProviderText(record["@type"], 240) || null,
     };

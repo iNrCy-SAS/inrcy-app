@@ -1,3 +1,4 @@
+import { readVideoNormalizationWorkerSource } from "./video-worker-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -5,6 +6,7 @@ import test from "node:test";
 
 const ROOT = process.cwd();
 const read = (file) => readFileSync(resolve(ROOT, file), "utf8");
+const submission = read("app/dashboard/booster/publier/publicationSubmission.ts");
 
 test("la confirmation finale d'upload est obligatoire et rejouée", () => {
   const source = read("lib/universalMediaUploadClient.ts");
@@ -40,9 +42,9 @@ test("Générer vérifie les sources sans déclencher la préparation lourde du 
   assert.match(client, /\/api\/media-pipeline\/workspace\/prepare/);
   assert.match(modal, /await waitForPersistentWorkspaceIdle/);
   assert.match(modal, /await verifyPersistentWorkspaceSources/);
-  assert.doesNotMatch(modal, /preparePersistentAiMedia/);
-  assert.doesNotMatch(modal, /preparePersistentPublicationMedia/);
-  assert.doesNotMatch(modal, /prepareMediaPublicationWorkspace\(/);
+  assert.doesNotMatch([modal, submission].join("\n"), /preparePersistentAiMedia/);
+  assert.doesNotMatch([modal, submission].join("\n"), /preparePersistentPublicationMedia/);
+  assert.doesNotMatch([modal, submission].join("\n"), /prepareMediaPublicationWorkspace\(/);
   const hook = read(
     "app/dashboard/booster/publier/usePersistentMediaWorkspace.ts",
   );
@@ -63,7 +65,7 @@ test("le rattrapage reconnaît un fichier déjà présent dans Storage", () => {
 
 test("la préparation vidéo cible le média du workspace au lieu d'un job arbitraire", () => {
   const route = read("app/api/media-pipeline/workspace/prepare/route.ts");
-  const worker = read("lib/mediaVideoNormalizationWorker.ts");
+  const worker = readVideoNormalizationWorkerSource();
   const targetedClaim = read("lib/mediaProcessingTargetedClaim.ts");
 
   assert.match(

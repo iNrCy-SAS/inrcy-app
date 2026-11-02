@@ -23,6 +23,7 @@ export default function PublishReferencePicker({ disabled, image, video, camera,
 
   useEffect(() => {
     if (!open) return;
+    const trigger = triggerRef.current;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     dialogRef.current?.focus({ preventScroll: true });
@@ -40,7 +41,7 @@ export default function PublishReferencePicker({ disabled, image, video, camera,
     return () => {
       document.removeEventListener("keydown", onKeyDown, true);
       document.body.style.overflow = previousOverflow;
-      triggerRef.current?.focus({ preventScroll: true });
+      trigger?.focus({ preventScroll: true });
     };
   }, [open]);
 

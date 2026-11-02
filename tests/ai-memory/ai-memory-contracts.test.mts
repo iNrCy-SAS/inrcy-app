@@ -62,16 +62,16 @@ test("Business DNA strategy is available to Standard and Premium generations", (
 });
 
 test("profile is embedded in Business DNA while AI settings remains a dedicated tool", () => {
-  const menu = read("app/dashboard/_components/UserMenu.tsx");
+  const menu = read("app/dashboard/_components/DashboardTopbar.tsx");
   const drawer = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
   const routing = read("app/dashboard/_hooks/useDashboardPanelRouting.ts");
   const dnaPage = read("app/dashboard/adn-entreprise/page.tsx");
   const profilePage = read("app/dashboard/mon-profil/page.tsx");
   const configurationPage = read("app/dashboard/configuration-ia/page.tsx");
-  const profile = read("app/dashboard/settings/_components/ProfileAndActivityContent.tsx");
+  const profile = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
   const configuration = read("app/dashboard/settings/_components/AiConfigurationContent.tsx");
 
-  assert.doesNotMatch(menu, /closeAndOpen\("ai_memory"\)/);
+  assert.doesNotMatch(menu, /openPanel\("ai_memory"\)/);
   assert.match(read("lib/mobileShortcutPolicy.ts"), /id: "business_dna", href: "\/dashboard\/adn-entreprise"/);
   assert.doesNotMatch(drawer, /panel === "ai_memory"/);
   assert.match(routing, /name === "ai_memory" \|\| name === "ia"/);

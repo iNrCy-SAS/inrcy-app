@@ -16,10 +16,10 @@ test("Step 4 persists explicit Adapter provenance instead of relying on opening 
 });
 
 test("Step 4 gives explicit customization priority in preview and publication preparation", async () => {
-  const panel = await read("app/dashboard/booster/publier/components/PublishImagesPanel.tsx");
   const controller = await read("app/dashboard/booster/publier/usePublishImageController.ts");
 
-  assert.match(panel, /customized: explicitlyCustomized/);
+  assert.match(controller, /const activeEditorDisplayPlan = getBoosterImageDisplayPlan\(\{/);
+  assert.match(controller, /customized: activeEditorExplicitlyCustomized/);
   assert.match(controller, /customized: explicitlyCustomized/);
   assert.match(controller, /imageDecisionMode: displayPlan\.decision\.mode/);
   assert.match(controller, /isCustomized: displayPlan\.decision\.mode === "customized"/);
@@ -33,10 +33,9 @@ test("Step 4 keeps manual Instagram carousel framing inside the shared sequence 
     /channel === "instagram" && sequenceTargetRatio[\s\S]*buildAutomaticRenderPreset\(channel, sequenceTargetRatio\)/,
   );
   assert.match(controller, /activeEditorSequenceTargetRatio/);
-  const panel = await read("app/dashboard/booster/publier/components/PublishImagesPanel.tsx");
   assert.match(
-    panel,
-    /decision\.mode === "customized"[\s\S]*activeImageSequenceTargetRatio/,
+    controller,
+    /activeEditorDisplayPlan\.decision\.mode === "customized"[\s\S]*activeEditorSequenceTargetRatio/,
   );
 });
 

@@ -9,7 +9,6 @@ import useMediaGeneration, {
   type MediaGenerationFormat,
   type MediaGenerationImageStyle,
   type MediaGenerationImagePurpose,
-  type MediaGenerationInspirationImage,
   type MediaGenerationKind,
   type MediaGenerationLogoMode,
   type MediaGenerationNarrationVoice,
@@ -50,7 +49,9 @@ import {
 import {
   prepareMediaGenerationImageReference,
   prepareVideoReferenceFrame,
+  prepareMediaGenerationLibraryReferenceFile,
 } from "@/lib/mediaGenerationReferenceClient";
+import { normalizeCharacterReferenceIndexes, insertStudioReference, type StudioReferenceImage } from "@/lib/mediaGenerationReferenceCollection";
 export { prepareMediaGenerationImageReference } from "@/lib/mediaGenerationReferenceClient";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 import MediaCharacterVoiceInput from "./MediaCharacterVoiceInput";
@@ -124,10 +125,6 @@ type StudioRequiredReferenceRole = Exclude<
   MediaGenerationReferenceRole,
   "inspiration"
 >;
-type StudioReferenceImage = MediaGenerationInspirationImage & {
-  usage: "required" | "inspiration";
-  clientReferenceId?: string;
-};
 
 const IMAGE_STYLES: MediaGenerationImageStyle[] = [
   "photo",
@@ -198,27 +195,6 @@ const INSPIRATION_MEDIA_ACCEPT = [
   ...INR_MEDIA_ALLOWED_VIDEO_MIME_TYPES,
   ...INR_MEDIA_ALLOWED_VIDEO_EXTENSIONS.map((extension) => `.${extension}`),
 ].join(",");
-
-function normalizeCharacterReferenceIndexes(images: StudioReferenceImage[]) {
-  let characterIndex = 0;
-  return images.map((image) => {
-    if (image.role !== "character") {
-      const { characterIndex: _characterIndex, voiceMode: _voiceMode, voiceSample: _voiceSample, ...withoutCharacterIndex } =
-        image;
-      return withoutCharacterIndex;
-    }
-    characterIndex += 1;
-    if (characterIndex > 3) {
-      const { characterIndex: _characterIndex, ...withoutCharacterIndex } =
-        image;
-      return withoutCharacterIndex;
-    }
-    return {
-      ...image,
-      characterIndex: characterIndex as 1 | 2 | 3,
-    };
-  });
-}
 
 type RememberPreferenceControlProps = {
   checked: boolean;
@@ -313,7 +289,6 @@ export default function MediaGenerator({
     cancellable: generationCancellable,
     cancellationPending,
     canRecover,
-    quotaLoading,
     loadQuota,
     generate,
     retryRecovery,
@@ -369,7 +344,7 @@ export default function MediaGenerator({
   const [videoSceneMode, setVideoSceneMode] = useState<StudioVideoSceneMode>("single");
   const [durationSeconds, setDurationSeconds] =
     useState<MediaGenerationVideoDuration>(8);
-  const [withText, setWithText] = useState(!transformMode);
+  const [, setWithText] = useState(!transformMode);
   const [textKeywords, setTextKeywords] = useState<string[]>([]);
   const [textKeywordDraft, setTextKeywordDraft] = useState("");
   const [withMusic, setWithMusic] = useState(true);
@@ -776,19 +751,6 @@ export default function MediaGenerator({
     if (actionError || error) clearTransientState();
   };
 
-  const orderReferences = (images: StudioReferenceImage[]) =>
-    [...images].sort((left, right) => {
-      const rank = (image: StudioReferenceImage) =>
-        image.role === "character"
-          ? image.characterIndex || 1
-          : image.role === "environment"
-          ? 4
-          : image.role === "inspiration"
-          ? 4.5
-          : 5;
-      return rank(left) - rank(right);
-    });
-
   const selectMediaSourceMode = (mode: StudioMediaSourceMode) => {
     setMediaSourceMode(mode);
     if (mode === "ai" && transformMode) {
@@ -798,18 +760,6 @@ export default function MediaGenerator({
       // Le Studio ne doit pas créer implicitement un personnage obligatoire.
       setRealCharacterCount(0);
     }
-    resetReferenceConsent();
-  };
-
-  const selectRealCharacterCount = (count: StudioCharacterCount) => {
-    inspirationImages.filter((image) => image.role === "character" && (image.characterIndex || 0) > count).forEach((image) => { void deleteCharacterVoiceSample(image.voiceSample); });
-    setRealCharacterCount(count);
-    setInspirationImages((current) =>
-      current.filter(
-        (image) =>
-          image.role !== "character" || (image.characterIndex || 0) <= count
-      )
-    );
     resetReferenceConsent();
   };
 
@@ -865,22 +815,9 @@ export default function MediaGenerator({
           ? "inspiration"
           : "required",
       };
-      setInspirationImages((current) => {
-        const retained =
-          insertion === "append"
-            ? current
-            : current.filter(
-                (image) =>
-                  !(
-                    image.role === role &&
-                    (role !== "character" ||
-                      image.characterIndex === characterIndex)
-                  )
-              );
-        return normalizeCharacterReferenceIndexes(
-          orderReferences([...retained, next]).slice(0, MAX_INSPIRATION_IMAGES)
-        );
-      });
+      setInspirationImages((current) =>
+        insertStudioReference(current, next, role, characterIndex, insertion)
+      );
       if (proposedRole !== "character" && characterReferences.length === 0) {
         // Une référence de décor/produit suffit : elle bascule explicitement
         // la scène en mode « aucun personnage » et débloque la génération.
@@ -901,30 +838,8 @@ export default function MediaGenerator({
     insertion: "replace" | "append" = "replace",
     options?: { manageBusy?: boolean; clearError?: boolean }
   ) => {
-    if (!item.signed_url) {
-      throw new Error(t("ai_generator_inspiration_library_unavailable"));
-    }
-    const response = await fetch(item.signed_url, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(t("ai_generator_inspiration_library_unavailable"));
-    }
-    const blob = await response.blob();
-    const candidateMimeType = blob.type || item.mime_type || "";
-    const videoReference = isInrMediaVideoFile({
-      name: item.original_file_name || item.title || "inspiration",
-      type: candidateMimeType,
-    });
-    const mimeType = videoReference
-      ? candidateMimeType
-      : (["image/jpeg", "image/png", "image/webp"] as string[]).includes(
-          candidateMimeType
-        )
-      ? candidateMimeType
-      : "image/jpeg";
-    const file = new File(
-      [blob],
-      item.original_file_name || item.title || "inspiration.jpg",
-      { type: mimeType }
+    const file = await prepareMediaGenerationLibraryReferenceFile(
+      item, t("ai_generator_inspiration_library_unavailable")
     );
     await prepareReferenceFile(
       file,

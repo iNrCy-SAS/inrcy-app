@@ -17,7 +17,7 @@ const readPromptArchitecture = () =>
 
 test("la consigne ponctuelle traverse le client, le prompt et les rédacteurs sans être stockée en clair", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
-  const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
+  const hook = [read("app/dashboard/_hooks/useMediaGeneration.ts"), read("lib/mediaGenerationClientRequest.ts")].join("\n");
   const prompt = readPromptArchitecture();
   const copywriter = read("lib/aiMediaCopywriter.ts");
   const narration = read("lib/aiMediaNarration.ts");

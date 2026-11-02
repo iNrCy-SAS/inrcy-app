@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -144,13 +146,13 @@ test("every workspace client fetch and readiness use a composable deadline", () 
     modal,
     /waitForPersistentWorkspaceReadiness[\s\S]*timeoutMs = MEDIA_WORKSPACE_READINESS_TIMEOUT_MS[\s\S]*withMediaWorkspaceDeadline\([\s\S]*timeoutMs/,
   );
-  assert.doesNotMatch(modal, /BOOSTER_HEAVY_VIDEO_WORKSPACE_READINESS_TIMEOUT_MS/);
+  assert.doesNotMatch([modal, submission].join("\n"), /BOOSTER_HEAVY_VIDEO_WORKSPACE_READINESS_TIMEOUT_MS/);
   assert.match(
-    modal,
+    submission,
     /publishWorkspaceReadinessTimeoutMs\s*=\s*[\r\n\s]*MEDIA_WORKSPACE_READINESS_TIMEOUT_MS[\s\S]*waitForPersistentWorkspaceReadiness\([\s\S]*"publish"[\s\S]*publishWorkspaceReadinessTimeoutMs/,
   );
   assert.match(
-    modal,
+    submission,
     /scheduleWorkspaceReadinessTimeoutMs\s*=\s*[\r\n\s]*MEDIA_WORKSPACE_READINESS_TIMEOUT_MS[\s\S]*waitForPersistentWorkspaceReadiness\([\s\S]*"schedule"[\s\S]*scheduleWorkspaceReadinessTimeoutMs/,
   );
 });

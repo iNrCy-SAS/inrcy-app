@@ -82,6 +82,13 @@ export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
   const [saved, setSaved] = React.useState(false);
   const baselineRef = React.useRef("");
 
+  const onLegalSettingsLoadFailed = React.useEffectEvent((error: unknown, unauthenticated = false) => {
+    setError(getClientUserFacingErrorMessage(
+      unauthenticated ? new Error(settingsT("user_not_authenticated")) : error,
+      settingsT("business_legal_load_failed"),
+    ));
+  });
+
   React.useEffect(() => {
     let active = true;
     const load = async () => {
@@ -91,7 +98,7 @@ export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
         const supabase = createClient();
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
-        if (!authData.user) throw new Error(settingsT("user_not_authenticated"));
+        if (!authData.user) { if (active) onLegalSettingsLoadFailed(null, true); return; }
         const userId = resolveActiveBrowserUserId(authData.user.id);
         const { data, error: loadError } = await supabase
           .from("profiles")
@@ -122,12 +129,7 @@ export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
         onUnsavedChange?.(false);
       } catch (caught) {
         if (active) {
-          setError(
-            getClientUserFacingErrorMessage(
-              caught,
-              settingsT("business_legal_load_failed"),
-            ),
-          );
+          onLegalSettingsLoadFailed(caught);
         }
       } finally {
         if (active) setLoading(false);

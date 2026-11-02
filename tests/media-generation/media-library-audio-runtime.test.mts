@@ -114,7 +114,8 @@ test("library audio finalization derives duration from validated bytes and never
 });
 
 test("default library lists stay visual, while the main library explicitly opts into Audio", async () => {
-  const rows = [{ id: "audio-id", user_id: ACCOUNT, media_type: "audio", duration_seconds: 2, size_bytes: 100 }, { id: "image-id", user_id: ACCOUNT, media_type: "image", size_bytes: 200 }];
+  const rows = [{ id: "audio-id", user_id: ACCOUNT, is_active: true, media_type: "audio", duration_seconds: 2, size_bytes: 100 }, { id: "image-id", user_id: ACCOUNT, is_active: true, media_type: "image", size_bytes: 200 }];
+  const signedIds: string[] = [];
   const queries: Array<{ column: string; values: unknown }> = [];
   const client = { from: (table: string) => {
     const filters: Array<(row: Record<string, unknown>) => boolean> = [];
@@ -126,7 +127,7 @@ test("default library lists stay visual, while the main library explicitly opts 
   } };
   const runtime = load<{ GET: (request: Request) => Promise<Response> }>("app/api/media-library/items/route.ts", {
     "next/server": next, "@/lib/requireUser": auth, "@/lib/supabaseAdmin": { supabaseAdmin: client },
-    "@/lib/mediaLibraryContentUrl": { buildMediaLibraryContentUrl: (id: string) => `/content/${id}` },
+    "@/lib/mediaLibraryContentUrl": { buildMediaLibraryContentUrl: (id: string) => { signedIds.push(id); return `/content/${id}`; } },
     "@/lib/mediaImageRecoverySummary": { getMediaImageRecoverySummary: () => ({}) }, "@/lib/inrAgentVideoContextCache": {},
     "@/lib/mediaLibraryOptimizationPolicy": { MEDIA_LIBRARY_OPTIMIZATION_JOB_TYPES: [] },
     "@/lib/mediaMetadataTransfer": { normalizeTransferredMediaMetadata: (row: { duration_seconds?: number }) => ({ width: null, height: null, durationSeconds: row.duration_seconds || null }) },
@@ -137,6 +138,15 @@ test("default library lists stay visual, while the main library explicitly opts 
   const audioOnly = await (await runtime.GET(new Request("https://app.invalid/items?type=audio&includeAudio=true"))).json(); assert.equal(audioOnly.items.length, 1); assert.equal(audioOnly.items[0].media_type, "audio");
   assert.equal((await runtime.GET(new Request("https://app.invalid/items?type=audio"))).status, 400);
   assert.ok(queries.some((query) => query.column === "user_id" && query.values === ACCOUNT));
+  rows[0].is_active = false;
+  signedIds.length = 0;
+  const withHidden = await (await runtime.GET(new Request("https://app.invalid/items?type=all&includeAudio=true&active=all"))).json();
+  assert.equal(withHidden.items.length, 2, "hidden media metadata remains available for restoration");
+  assert.equal(withHidden.items[0].is_active, false);
+  assert.equal(withHidden.items[0].signed_url, null);
+  assert.equal(withHidden.items[0].preview_url, null);
+  assert.equal(withHidden.items[1].signed_url, "/content/image-id");
+  assert.deepEqual(signedIds, ["image-id"], "inactive media must not receive a URL that the native content handler rejects");
 });
 
 test("audio content checks its active account and owned path, then streams through a signed redirect with a safe download name", async () => {

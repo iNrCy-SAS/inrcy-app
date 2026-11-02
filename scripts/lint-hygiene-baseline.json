@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "description": "No warning allowances. The 459 remaining diagnostics from the 2026-11-02 cleanup are resolved; every new warning is blocking.",
+  "entries": []
+}

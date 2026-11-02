@@ -6,7 +6,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export const runtime = "nodejs";
 
 export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
   const { id } = await ctx.params;
 

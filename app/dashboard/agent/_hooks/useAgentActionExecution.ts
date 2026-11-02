@@ -320,7 +320,7 @@ export function useAgentActionExecution({
         channelLinks,
       });
       await refreshActions(true);
-    } catch (error) {
+    } catch {
       stopAgentPublishProgressTimer();
       setAgentPublishExecutionProgress(null);
       showNotice(i18nT("immediate_other_channels_failed"));
@@ -439,7 +439,7 @@ export function useAgentActionExecution({
           }),
         );
       }
-    } catch (error) {
+    } catch {
       if (isPublishExecution) {
         stopAgentPublishProgressTimer();
         setAgentPublishExecutionProgress(null);
@@ -606,7 +606,7 @@ export function useAgentActionExecution({
       } else {
         showNotice(i18nT("action_refusee_rien_ne_sera_execute_30ca428e"));
       }
-    } catch (error) {
+    } catch {
       if (isImmediatePublishExecution) {
         stopAgentPublishProgressTimer();
         setAgentPublishExecutionProgress(null);

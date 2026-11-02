@@ -834,10 +834,25 @@
     "automaticPublicationShort": "Automatische publicatie zodra de bedrijfsgegevens compleet zijn.",
     "waitingHint": "Blijf je kanalen verbinden. Dit kanaal wordt automatisch gepubliceerd zodra de bedrijfsgegevens compleet zijn.",
     "missingInformation": "Ontbrekende gegevens",
-    "activate": "Activeren", "deactivate": "Deactiveren", "published": "Gepubliceerd", "pending": "Geactiveerd — gegevens ontbreken", "inactive": "Niet geactiveerd",
-    "completeDna": "Bedrijfsgegevens aanvullen", "pendingDescription": "De activering is opgeslagen. Publicatie wacht op ontbrekende bedrijfsgegevens.", "automaticPublication": "Het kanaal wordt automatisch gepubliceerd zodra de bedrijfsgegevens compleet zijn. Je hoeft niet terug naar de kanalen.",
-    "yourCompany": "Je bedrijf", "loadFailed": "Dit kanaal kon niet worden geladen. Probeer het straks opnieuw.", "saveFailed": "De activering kon niet worden opgeslagen. Probeer het opnieuw.", "unavailable": "Dit kanaal is niet beschikbaar met de huidige toegang van dit account.",
-    "fields": { "company": "Bedrijfsnaam", "contact": "Openbaar contact: telefoon, e-mail of verbonden kanaal", "profession": "Beroep", "city": "Vestigingsplaats", "postalCode": "Postcode van de vestiging" }
+    "activate": "Activeren",
+    "deactivate": "Deactiveren",
+    "published": "Gepubliceerd",
+    "pending": "Geactiveerd — gegevens ontbreken",
+    "inactive": "Niet geactiveerd",
+    "completeDna": "Bedrijfsgegevens aanvullen",
+    "pendingDescription": "De activering is opgeslagen. Publicatie wacht op ontbrekende bedrijfsgegevens.",
+    "automaticPublication": "Het kanaal wordt automatisch gepubliceerd zodra de bedrijfsgegevens compleet zijn. Je hoeft niet terug naar de kanalen.",
+    "yourCompany": "Je bedrijf",
+    "loadFailed": "Dit kanaal kon niet worden geladen. Probeer het straks opnieuw.",
+    "saveFailed": "De activering kon niet worden opgeslagen. Probeer het opnieuw.",
+    "unavailable": "Dit kanaal is niet beschikbaar met de huidige toegang van dit account.",
+    "fields": {
+      "company": "Bedrijfsnaam",
+      "contact": "Openbaar contact: telefoon, e-mail of verbonden kanaal",
+      "profession": "Beroep",
+      "city": "Vestigingsplaats",
+      "postalCode": "Postcode van de vestiging"
+    }
   },
   "channelBubble": {
     "instagramProfessionalRequired": "Je hebt een professioneel Instagram-account (Business) of Creator-account nodig om te verbinden.",
@@ -1098,7 +1113,8 @@
       "description": "Description",
       "storefrontAddress": "Address",
       "regularHours": "Regular opening hours",
-      "specialHours": "Special opening hours and closures"
+      "specialHours": "Special opening hours and closures",
+      "categories": "Hoofdcategorie"
     },
     "days": {
       "MONDAY": "Monday",
@@ -1128,6 +1144,21 @@
     "closeDayEditor": "Close time slots",
     "periodNumber": "Period {current} / {total}",
     "doneDay": "Done",
-    "midnight": "Until midnight (24:00)"
+    "midnight": "Until midnight (24:00)",
+    "categories": {
+      "primary": "Hoofdcategorie",
+      "additional": "Extra categorieën",
+      "placeholder": "Zoek een categorie…",
+      "hint": "Typ het begin van de naam en kies een Google-categorie.",
+      "selectResult": "Kies een Google-suggestie of annuleer de zoekopdracht.",
+      "searching": "Zoeken…",
+      "noResults": "Geen categorie gevonden. Probeer een ander begin van de naam.",
+      "error": "Google-categorieën konden niet worden geladen.",
+      "more": "Meer tonen",
+      "remove": "{name} verwijderen",
+      "cancelSearch": "Zoeken annuleren",
+      "maximum": "Maximaal negen extra categorieën.",
+      "review": "Een categoriewijziging kan een nieuwe verificatie door Google vereisen."
+    }
   }
 }

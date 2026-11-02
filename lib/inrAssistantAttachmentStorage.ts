@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { inrAssistantMemoryCutoff, sanitizeInrAssistantMemoryText } from "./inrAssistantMemory.ts";
 import { compactInrAssistantTaskReceipts, inrAssistantTaskTrackingLimit, type InrAssistantTaskState, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
 import { ASSISTANT_ATTACHMENT_BUCKET as BUCKET, ASSISTANT_ATTACHMENT_UUID as UUID, ASSISTANT_ATTACHMENT_TEXT_MAX_CHARS, AssistantAttachmentError, assistantAttachmentFile, parseAssistantAttachments, type AssistantAttachment } from "./inrAssistantAttachments.ts";
+import { parseInrAssistantReplyReplay, type InrAssistantReplyReplay } from "./inrAssistantReplyReplay.ts";
 
 export type AssistantAttachmentScope = { accountId: string; actorUserId: string; conversationId: string };
 type Claims = AssistantAttachment & AssistantAttachmentScope & { issuedAt: string; extension: string; mime: string };
@@ -16,6 +17,40 @@ function taskPath(scope: AssistantAttachmentScope, turn: { turnId: string; creat
   return `${turn.createdAt.slice(0,10)}/${scope.accountId}_${scope.actorUserId}_${scope.conversationId}_${turn.turnId}.task.json`;
 }
 export type AssistantTaskStateRead = { status: "available" | "expired"; task: InrAssistantTaskState } | { status: "missing" | "invalid" | "unavailable" };
+function validMediaImportSource(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const source = value as Record<string, unknown>;
+  return Object.keys(source).length === 2 && typeof source.turnId === "string" && UUID.test(source.turnId) &&
+    typeof source.createdAt === "string" && source.createdAt.length <= 35 &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(source.createdAt) && Number.isFinite(Date.parse(source.createdAt));
+}
+/** A completed turn may be retried after the HTTP/SSE result was lost. Keep its
+ * validated UI envelope in the same private, retained storage as the journal.
+ * Reading it never resumes an executor. Legacy turns have no envelope. */
+export async function loadAssistantReplyReplay(scope: AssistantAttachmentScope, turn: { turnId: string; createdAt: string }): Promise<InrAssistantReplyReplay | null> {
+  try {
+    const bytes = await readStorage(BUCKET, taskPath(scope, turn).replace(/\.task\.json$/, ".reply.json"), 32_000, true);
+    if (!bytes) return null;
+    const saved = JSON.parse(bytes.toString("utf8"));
+    if (saved.version !== 1 || saved.accountId !== scope.accountId || saved.actorUserId !== scope.actorUserId || saved.conversationId !== scope.conversationId || saved.turnId !== turn.turnId ||
+      !Number.isFinite(saved.expiresAt) || saved.expiresAt <= Date.now() || saved.expiresAt > Date.now() + 30 * 60_000) return null;
+    return parseInrAssistantReplyReplay(saved.reply);
+  } catch { return null; }
+}
+export async function saveAssistantReplyReplay(scope: AssistantAttachmentScope, turn: { turnId: string; createdAt: string }, reply: unknown): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const safe = parseInrAssistantReplyReplay(reply);
+    if (!Object.keys(safe).length) return true;
+    const path = taskPath(scope, turn).replace(/\.task\.json$/, ".reply.json");
+    const data = Buffer.from(JSON.stringify({ version: 1, ...scope, turnId: turn.turnId, expiresAt: Date.now() + 30 * 60_000, reply: safe }));
+    if (data.length > 32_000) return false;
+    const result = await Promise.race([store().upload(path, data, { contentType: "application/json", upsert: true }), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Reply store unavailable")), 5000); timer.unref?.(); })]);
+    return !result.error;
+  } catch { return false; }
+  finally { if (timer) clearTimeout(timer); }
+}
 /** Private server receipts, not browser history or user-editable conversation prose. */
 export async function inspectAssistantTaskState(scope: AssistantAttachmentScope, turn: { turnId: string; createdAt: string }): Promise<AssistantTaskStateRead> {
   try {
@@ -33,9 +68,10 @@ export async function inspectAssistantTaskState(scope: AssistantAttachmentScope,
     if (task.receipts.some((receipt: Record<string,unknown>) =>
       receipt.approvalToken !== undefined && (typeof receipt.approvalToken !== "string" || receipt.approvalToken.length > 24_000) ||
       receipt.approvalReference !== undefined && (typeof receipt.approvalReference !== "string" || !/^IA-[a-f0-9]{12}$/i.test(receipt.approvalReference)) ||
-      receipt.approvalKind !== undefined && !["calendar", "scheduled_publication"].includes(String(receipt.approvalKind)))) return { status: "invalid" };
+      receipt.approvalKind !== undefined && !["calendar", "scheduled_publication", "google_business_profile", "media_delete", "publication_lifecycle"].includes(String(receipt.approvalKind)))) return { status: "invalid" };
     if (task.requiredCalls !== undefined && (!task.requiredCalls || typeof task.requiredCalls !== "object" || Array.isArray(task.requiredCalls) || Object.keys(task.requiredCalls).length > 20 ||
       Object.entries(task.requiredCalls).some(([name,count])=>!task.requiredTools.includes(name) || !Number.isSafeInteger(count) || Number(count) < 1 || Number(count) > 1_000_000))) return { status: "invalid" };
+    if (!validMediaImportSource(task.mediaImportSource)) return { status: "invalid" };
     return { status: Date.parse(task.expiresAt) <= Date.now() ? "expired" : "available", task };
   } catch { return { status: "unavailable" }; }
 }
@@ -47,6 +83,7 @@ export async function loadAssistantTaskState(scope: AssistantAttachmentScope, tu
 export async function saveAssistantTaskState(scope: AssistantAttachmentScope, turn: { turnId: string; createdAt: string }, task: InrAssistantTaskState): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    if (!validMediaImportSource(task.mediaImportSource)) return false;
     if (inrAssistantTaskTrackingLimit(task.requiredTools, task.requiredCalls)) return false;
     const receipts = compactInrAssistantTaskReceipts(task.receipts, task.requiredTools, task.requiredCalls);
     if (receipts.length > 32) return false;
@@ -215,9 +252,37 @@ export async function finalizeAssistantAttachment(scope: AssistantAttachmentScop
   if (await readStorage(BUCKET, contextPath(claims), 800_000, true)) return publicRef(claims);
   const buffer = await readStorage(BUCKET, assistantAttachmentUploadPath(claims), claims.size);
   await saveContext(claims, buffer!);
-  // Keep only the bounded model context, not another copy of the original file.
-  await bounded(store().remove([assistantAttachmentUploadPath(claims)])).catch(() => undefined);
+  // Images/videos can be explicitly imported into the professional's library
+  // later in this conversation. Keep their bounded original privately under
+  // the existing dated retention policy; never reconstruct it from the AI JPEG.
+  if (claims.kind === "document") await bounded(store().remove([assistantAttachmentUploadPath(claims)])).catch(() => undefined);
   return publicRef(claims);
+}
+export type AssistantMediaAttachmentOriginal = { id: string; name: string; kind: "image" | "video"; mimeType: string; size: number; bytes: Buffer };
+/** Called only with an attachment bound to the current authenticated turn.
+ * The caller supplies the signed reference; models never receive its token,
+ * bucket/path, or bytes. Previously attached library items need no re-import. */
+export async function loadAssistantMediaAttachmentOriginal(scope: AssistantAttachmentScope, ref: AssistantAttachment): Promise<AssistantMediaAttachmentOriginal | null> {
+  const claims = verifyAssistantAttachment(scope, ref);
+  if (claims.kind !== "image" && claims.kind !== "video") return null;
+  // A prepared upload alone is not an accepted attachment: finalization must
+  // have inspected it successfully before it can enter the native media flow.
+  if (!await readStorage(BUCKET, contextPath(claims), 800_000, true)) return null;
+  const bytes = await readStorage(BUCKET, assistantAttachmentUploadPath(claims), claims.size, true);
+  if (!bytes || bytes.length !== claims.size) return null;
+  return { id: claims.id, name: claims.name, kind: claims.kind, mimeType: claims.mime, size: claims.size, bytes };
+}
+/** Atomic single-use claim before the native import starts. It intentionally
+ * survives unknown results: replay first reconciles the stable library source,
+ * and an absent result never authorizes a second native upload. No schema or
+ * global lock is required; this object follows the attachment's retention. */
+export async function claimAssistantMediaAttachmentImport(scope: AssistantAttachmentScope, ref: AssistantAttachment): Promise<boolean> {
+  const claims = verifyAssistantAttachment(scope, ref);
+  if (!["image", "video"].includes(claims.kind) || !await readStorage(BUCKET, contextPath(claims), 800_000, true)) return false;
+  const result = await bounded(store().upload(`${filePrefix(claims)}.import.json`, Buffer.from(JSON.stringify({ version: 1, ...scope, attachmentId: claims.id, startedAt: new Date().toISOString() })), { contentType: "application/json", upsert: false }));
+  if (result.error && storageStatus(result.error) === 409) return false;
+  if (result.error) throw new AssistantAttachmentError("attachment_unavailable");
+  return true;
 }
 export async function attachAssistantLibraryItem(scope: AssistantAttachmentScope, supabase: Pick<SupabaseClient, "from">, id: unknown, remainingBytes = 20 * 1024 * 1024) {
   if (typeof id !== "string" || !UUID.test(id)) throw new AssistantAttachmentError("attachment_invalid");

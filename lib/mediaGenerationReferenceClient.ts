@@ -1,6 +1,6 @@
 "use client";
 
-import type { MediaGenerationInspirationImage } from "@/app/dashboard/_hooks/useMediaGeneration";
+import type { MediaGenerationInspirationImage } from "./mediaGenerationClientRequest";
 import {
   AI_MEDIA_INSPIRATION_MAX_DIMENSION,
   AI_MEDIA_INSPIRATION_MAX_IMAGE_BASE64_CHARS,
@@ -273,4 +273,43 @@ export async function prepareVideoReferenceFrame(
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
+}
+
+type MediaGenerationLibraryReference = {
+  signed_url?: string | null;
+  mime_type?: string | null;
+  original_file_name?: string | null;
+  title?: string | null;
+};
+
+export async function prepareMediaGenerationLibraryReferenceFile(
+  item: MediaGenerationLibraryReference,
+  unavailableMessage: string,
+): Promise<File> {
+  if (!item.signed_url) {
+    throw new Error(unavailableMessage);
+  }
+  const response = await fetch(item.signed_url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(unavailableMessage);
+  }
+  const blob = await response.blob();
+  const candidateMimeType = blob.type || item.mime_type || "";
+  const videoReference = isInrMediaVideoFile({
+    name: item.original_file_name || item.title || "inspiration",
+    type: candidateMimeType,
+  });
+  const mimeType = videoReference
+    ? candidateMimeType
+    : (["image/jpeg", "image/png", "image/webp"] as string[]).includes(
+        candidateMimeType
+      )
+    ? candidateMimeType
+    : "image/jpeg";
+  const file = new File(
+    [blob],
+    item.original_file_name || item.title || "inspiration.jpg",
+    { type: mimeType }
+  );
+  return file;
 }

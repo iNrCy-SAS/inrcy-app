@@ -28,9 +28,9 @@ test("Basic permits manual tools and blocks every agent route and Premium tool",
  assert.equal(isApiRouteAllowedForEdition("/api/booster/publish-now",undefined,"basic"),true);assert.equal(hasAgentAutomationAccess("basic"),false);assert.equal(hasPremiumDashboardAccess("basic"),false);
  assert.equal(hasAgentAutomationAccess("standard"),true);assert.equal(hasPremiumDashboardAccess("premium"),true);
 });
-test("Basic assistant is read-only, including tools introduced in the future",()=>{
+test("Basic assistant allows included manual actions but denies tools introduced in the future",()=>{
  const all={readAppGuide:{},getAccountDiagnostics:{},recallPastDiscussions:{},readWorkspaceSection:{},generateMedia:{},updateBusinessDna:{},preparePublication:{},executePublication:{},unknownFutureAction:{}};
- assert.deepEqual(Object.keys(assistantToolsForEdition(all,"basic")),["readAppGuide","getAccountDiagnostics","recallPastDiscussions","readWorkspaceSection"]);
+ assert.deepEqual(Object.keys(assistantToolsForEdition(all,"basic")),["readAppGuide","getAccountDiagnostics","recallPastDiscussions","readWorkspaceSection","generateMedia","updateBusinessDna","preparePublication","executePublication"]);
  assert.equal(assistantToolsForEdition(all,"standard"),all);
  assert.equal(isBasicAssistantExecutionRequest("Comment mettre mon site dans mes CTA ?"),false);
  assert.equal(isBasicAssistantExecutionRequest("Mets mon téléphone dans tous mes CTA"),true);

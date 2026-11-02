@@ -1,3 +1,4 @@
+import { readAgentScheduleSource } from "./schedule-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -8,11 +9,11 @@ const read = (relativePath: string) =>
   readFileSync(resolve(ROOT, relativePath), "utf8").replace(/\r\n/g, "\n");
 
 const client = read("app/dashboard/agent/AgentClient.tsx");
-const scheduleRoute = read("app/api/agent/actions/schedule/route.ts");
+const scheduleRoute = readAgentScheduleSource();
 const executeRoute = read("app/api/agent/actions/execute/route.ts");
 const actionsRoute = read("app/api/agent/actions/route.ts");
 const cronRoute = read("app/api/cron/inr-agent-scheduled-actions/route.ts");
-const boosterPublish = read("app/dashboard/booster/publier/PublishModal.tsx");
+const boosterPublish = read("app/dashboard/booster/publier/publicationSubmission.ts");
 const scheduledModel = read("lib/inrAgentScheduledActions.ts");
 const migration = read(
   "ops/sql/2026-09-11_inr_agent_editorial_validation_deadline.sql",

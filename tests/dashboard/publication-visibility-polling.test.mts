@@ -13,6 +13,7 @@ function occurrences(source: string, fragment: string) {
 const resultModal = read("app/dashboard/_components/PublishExecutionResultModal.tsx");
 const detailsModal = read("app/dashboard/mails/_components/MailboxDetailsModal.tsx");
 const mailboxClient = read("app/dashboard/mails/MailboxClient.tsx");
+const historyController = read("app/dashboard/mails/_hooks/useMailboxHistory.ts");
 const tiktokStatusRoute = read(
   "app/api/inrsend/publications/[publicationId]/tiktok/status/route.ts",
 );
@@ -51,12 +52,15 @@ test("iNrSend publication and TikTok details polling sleeps with the tab", () =>
 
 test("iNrSend campaign tracking no longer owns a hidden-tab interval", () => {
   assert.doesNotMatch(mailboxClient, /window\.setInterval/);
+  assert.doesNotMatch(historyController, /window\.setInterval/);
   assert.equal(
-    occurrences(mailboxClient, 'document.addEventListener("visibilitychange"'),
+    occurrences(mailboxClient, 'document.addEventListener("visibilitychange"') +
+      occurrences(historyController, 'document.addEventListener("visibilitychange"'),
     2,
   );
   assert.equal(
-    occurrences(mailboxClient, 'document.removeEventListener("visibilitychange"'),
+    occurrences(mailboxClient, 'document.removeEventListener("visibilitychange"') +
+      occurrences(historyController, 'document.removeEventListener("visibilitychange"'),
     2,
   );
   assert.match(mailboxClient, /if \(cancelled \|\| document\.hidden\) return;/);

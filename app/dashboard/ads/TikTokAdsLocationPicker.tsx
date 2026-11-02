@@ -5,6 +5,8 @@ import { tikTokAdsGeoTargetLabel, type TikTokAdsGeoTarget } from "@/lib/adsTikTo
 import { tikTokLocationPickerRows, type TikTokLocationRow } from "@/lib/adsTikTokLocationSelection";
 import styles from "./linkedin-campaign.module.css";
 
+const EMPTY_LOCATION_ROWS: readonly TikTokLocationRow[] = [];
+
 export default function TikTokAdsLocationPicker({ accountId, locations, active, onChange, onResolvedTargets }: {
   accountId: string; locations: string[]; active: boolean; onChange: (locations: string[]) => void; onResolvedTargets?: (targets: TikTokAdsGeoTarget[]) => void;
 }) {
@@ -35,7 +37,7 @@ export default function TikTokAdsLocationPicker({ accountId, locations, active, 
     return () => controller.abort();
   }, [active, accountId, contextKey, queriesKey, revision]);
   const visible = result.key === contextKey ? result : null;
-  const rows = visible?.rows || [];
+  const rows = visible?.rows || EMPTY_LOCATION_ROWS;
   const ready = rows.filter((row) => row.selected).length;
   const resolvedKey = JSON.stringify(rows.map((row) => row.selected));
   useEffect(() => {

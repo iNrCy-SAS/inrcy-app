@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);

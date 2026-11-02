@@ -21,6 +21,7 @@ import * as taskPolicy from "../../lib/inrAssistantTaskPolicy.ts";
 import * as commandRegistry from "../../lib/inrAssistantCommandRegistry.ts";
 import * as uiCommands from "../../lib/inrAssistantUiCommands.ts";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
+import type * as ToolRegistry from "../../lib/inrAssistantToolRegistry.ts";
 import type { InrAssistantMediaResult } from "../../lib/inrAssistantMediaTools.ts";
 import type { InrAssistantPublicationResult } from "../../lib/inrAssistantPublicationTools.ts";
 import type * as Memory from "../../lib/inrAssistantMemory.ts";
@@ -44,7 +45,9 @@ const memoryToolsRuntime = loadClosedModule<typeof MemoryTools>("inrAssistantMem
 });
 
 function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; failCommit?: boolean;
-  productionNoRedis?: boolean; handoff?: boolean; media?: boolean; followup?: boolean; workflow?: boolean; failAfterPublication?: boolean;
+  budgetFailure?: "limit" | "unavailable"; budgetFailureAt?: number; budgetCommitFailure?: boolean;
+  reportedUsage?: { input: number | undefined; output: number | undefined };
+  productionNoRedis?: boolean; noCredential?: boolean; handoff?: boolean; media?: boolean; followup?: boolean; workflow?: boolean; failAfterPublication?: boolean;
   verifiedNavigation?: string; lookup?: "diagnostics" | "workspace" | "memory"; providerError?: Error; outputLimit?: boolean;
   emptyText?: boolean; ignoresToolChoice?: boolean; abortAfterPublication?: AbortController;
   textReply?: string; unexpectedHandoff?: boolean; mediaMetadata?: boolean; crmIds?: string[]; crmStatus?: string;
@@ -52,11 +55,16 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   parallelPlan?:Array<{tool:string;input?:Record<string,unknown>}>;
   extraTools?:Record<string,unknown>;
   calendarFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
+  mediaLibraryFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
+  channelActionFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
+  statsFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   cta?: { definition: ReturnType<typeof createCtaToolFixture>["definition"]; input: { target: "phone" | "website"; instructionQuote: string; channels: string[] | null } } } = {}) {
   const generations: { model: string; params: LanguageModelV3CallOptions }[] = [];
   const reservations: { feature: string; reservedOutputTokens: number; estimatedInputTokens: number }[] = [];
   const commits: { model: string; usage: { inputTokens: number; outputTokens: number; totalTokens: number } }[] = [];
   const finalized: { success: boolean }[] = [];
+  const budgetReservations: { accountId: string; edition: string; estimatedCostMicroUsd: number }[] = [];
+  const budgetFinalizations: { reservation: unknown; actualCostMicroUsd: number | undefined }[] = [];
   const factories: string[] = [];
   const actionFactories: string[] = [];
   const publicationExecutions: string[] = [];
@@ -97,13 +105,13 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
             content: callTool ? [{ type: "tool-call", toolCallId: "call-1", toolName, input: JSON.stringify(input) }]
               : [{ type: "text", text: options.emptyText ? "" : options.textReply ?? "Voici la prochaine étape." }],
             finishReason: { unified: options.outputLimit ? "length" : callTool ? "tool-calls" : "stop", raw: "test" },
-            usage: { inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
-              outputTokens: { total: 40, text: 10, reasoning: 30 } }, warnings: [],
+            usage: { inputTokens: { total: options.reportedUsage ? options.reportedUsage.input : 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
+              outputTokens: { total: options.reportedUsage ? options.reportedUsage.output : 40, text: 10, reasoning: 30 } }, warnings: [],
           };
         },
         doStream: async () => { throw new Error("Streaming not expected"); },
       }) },
-    "@/lib/aiGatewayConfig": { getAiGatewayCredential: () => "synthetic" },
+    "@/lib/aiGatewayConfig": { getAiGatewayCredential: () => options.noCredential ? null : "synthetic" },
     "@/lib/aiGatewayAccountGuard": { AiGatewayGuardUnavailableError: class extends Error {},
       reserveAiGatewayAccountAttempt: async (_id: string, args: { feature: string; reservedOutputTokens: number; estimatedInputTokens: number }) => {
         if (options.guardError) throw new Error("guard unavailable");
@@ -131,8 +139,24 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantCalendarTools.ts": { createInrAssistantCalendarTools: (args:Record<string,unknown>) => options.calendarFactory?.(args)??{} },
     "./inrAssistantScheduledPublicationTools.ts": { createInrAssistantScheduledPublicationTools: () => ({}) },
     "./inrAssistantAttachmentTools.ts": { createInrAssistantAttachmentTools: () => ({}) },
+    "./inrAssistantAgentTools.ts": { createInrAssistantAgentTools: () => ({}) },
+    "./inrAssistantChannelActionTools.ts": { createInrAssistantChannelActionTools: (args:Record<string,unknown>) => options.channelActionFactory?.(args) ?? {} },
+    "./inrAssistantMediaLibraryTools.ts": { createInrAssistantMediaLibraryTools: (args:Record<string,unknown>) => options.mediaLibraryFactory?.(args) ?? {} },
+    "./inrAssistantPublicationLifecycleTools.ts": { createInrAssistantPublicationLifecycleTools: () => ({}) },
+    "./inrAssistantStatsTools.ts": { createInrAssistantStatsTools: (args:Record<string,unknown>) => options.statsFactory?.(args) ?? {} },
     "./inrAssistantQuota.ts": { reserveInrAssistantRequest: async () => ({ solReserved: options.sol ?? false }),
       finalizeInrAssistantRequest: async (_quota: unknown, outcome: { success: boolean }) => { finalized.push(outcome); } },
+    "./inrAssistantBudget.ts": {
+      reserveInrAssistantBudget: async (args: { accountId: string; edition: string; estimatedCostMicroUsd: number }) => {
+        budgetReservations.push(args);
+        if (options.budgetFailure && budgetReservations.length >= (options.budgetFailureAt ?? 1)) throw Object.assign(new Error(options.budgetFailure === "limit" ? "Monthly assistant budget reached" : "Assistant budget unavailable"), { code: options.budgetFailure === "limit" ? "assistant_monthly_budget_reached" : "assistant_budget_unavailable" });
+        return { id: budgetReservations.length };
+      },
+      finalizeInrAssistantBudget: async (reservation: unknown, actualCostMicroUsd?: number) => {
+        budgetFinalizations.push({ reservation, actualCostMicroUsd });
+        if (options.budgetCommitFailure) throw Object.assign(new Error("Assistant budget commit unavailable"), { code: "assistant_budget_unavailable" });
+      },
+    },
     "./inrAssistantConversation.ts": conversation,
     "./inrAssistantToolRouting.ts": routing,
     "./inrAssistantActivity.ts": activity,
@@ -170,11 +194,11 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantWorkspaceActionTools.ts": { createInrAssistantWorkspaceActionTools: () => ({ ...(options.crmIds ? {
       searchCrmContacts: tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ available: true, contacts: [] }) }),
     } : {}), ...(options.mediaMetadata ? {
-      updateMediaMetadata: tool({ inputSchema: jsonSchema({ type: "object", properties: {
+      updateMediaMetadata: tool({ inputSchema: jsonSchema<{ instructionQuote: string; mediaId: string; title: string; tags: string[] | null; tagsMode: string | null; isActive: boolean | null }>({ type: "object", properties: {
         instructionQuote: { type: "string" }, mediaId: { type: "string" }, title: { type: "string" },
         tags: { type: ["array", "null"], items: { type: "string" } }, tagsMode: { type: ["string", "null"] }, isActive: { type: ["boolean", "null"] },
       }, required: ["instructionQuote", "mediaId", "title", "tags", "tagsMode", "isActive"], additionalProperties: false }),
-        execute: async input => { metadataExecutions.push(input); return { ok: true, status: "updated", message: "Le titre de l’image a été enregistré.", nextAction: { label: "Mes médias", href: "/dashboard/mediatheque" } }; },
+        execute: async input => { metadataExecutions.push(input); return { ok: true, status: "updated", mediaId: input.mediaId, message: "Le titre de l’image a été enregistré.", nextAction: { label: "Mes médias", href: "/dashboard/mediatheque" } }; },
       }),
     } : {}) }) },
     "./inrAssistantInsightsTools.ts": { createInrAssistantInsightsTools: () => {
@@ -211,6 +235,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
         } }),...options.extraTools };
     } },
   };
+  stubs["./inrAssistantToolRegistry.ts"] = loadClosedModule<typeof ToolRegistry>("inrAssistantToolRegistry.ts", stubs);
   const compiled = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantGateway.ts", import.meta.url), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
@@ -218,7 +243,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, {
     Date, TextEncoder, AbortSignal, console, process: { env: { NODE_ENV: options.productionNoRedis ? "production" : "test" } },
   })((name: string) => { if (!(name in stubs)) throw new Error(`Unexpected dependency: ${name}`); return stubs[name]; }, moduleRecord, moduleRecord.exports);
-  return { runtime: moduleRecord.exports as typeof Gateway, generations, reservations, commits, finalized, factories, actionFactories, toolScopes, ctaScopes, publicationExecutions, metadataExecutions, crmExecutions, mediaScopes, diagnostics, get mediaExecutions() { return mediaExecutions; } };
+  return { runtime: moduleRecord.exports as typeof Gateway, generations, reservations, commits, finalized, budgetReservations, budgetFinalizations, factories, actionFactories, toolScopes, ctaScopes, publicationExecutions, metadataExecutions, crmExecutions, mediaScopes, diagnostics, get mediaExecutions() { return mediaExecutions; } };
 }
 
 const basic = { accountId: "account-a", displayName: "Entreprise A", edition: "standard" as const,
@@ -350,6 +375,18 @@ test("a media creation followed by metadata update continues until both requeste
   assert.deepEqual(JSON.parse(JSON.stringify(h.metadataExecutions[0])), metadataInput);
   assert.equal(reply.outcome, "completed");
   assert.deepEqual(new Set(reply.taskState?.receipts.map(receipt => receipt.tool)), new Set(["generateMedia", "updateMediaMetadata"]));
+});
+
+test("metadata edits retain distinct media identities so a two-image task can finish and resume safely", async () => {
+  const message = "Renomme deux images de ma médiathèque : Atelier et Equipe.";
+  const ids = ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002"];
+  const plan = ids.map((mediaId, index) => ({ tool: "updateMediaMetadata", input: { ...metadataInput, instructionQuote: message, mediaId, title: index ? "Equipe" : "Atelier" } }));
+  const h = harness({ mediaMetadata: true, plan });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, messages: [{ role: "user", content: message }] });
+  assert.equal(h.metadataExecutions.length, 2);
+  assert.equal(reply.outcome, "completed");
+  assert.equal(reply.taskState?.requiredCalls?.updateMediaMetadata, 2);
+  assert.deepEqual(reply.taskState?.receipts.filter(receipt => receipt.tool === "updateMediaMetadata").map(receipt => receipt.recordId).sort(), ids);
 });
 
 test("an unfinished metadata step stays partial and a resumed task never creates the same media twice", async () => {
@@ -495,27 +532,35 @@ test("Standard CTA guidance and ambiguous destination never persist a guessed co
     await h.runtime.generateInrAssistantReply({ ...basic, accountId: CTA_TEST_ACCOUNT_ID,
       supabase: {} as never, messages: [{ role: "user", content: current }] });
     assert.equal(fixture.calls.length, 0);
-    assert.match(JSON.stringify(h.generations[1].params.prompt), /needs_instruction/);
+    if (current.startsWith("Comment")) {
+      assert.ok(h.generations.every(generation => !generation.params.tools?.some(t => t.type === "function" && t.name === "configureBusinessCta")), "guidance never exposes a mutation tool");
+      assert.match(JSON.stringify(h.generations[1].params.prompt), /unavailable tool 'configureBusinessCta'/);
+    } else assert.match(JSON.stringify(h.generations[1].params.prompt), /needs_instruction/);
   }
 });
 
-test("Basique refuses execution before constructing action tools or calling a model", async () => {
+test("Basique executes an explicitly requested included manual tool with scoped budget accounting", async () => {
   const h = harness({ media: true });
-  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", messages: [{ role: "user", content: "Génère une image pour ma publication" }] });
-  assert.match(reply.message, /Basique.*accompagnement/);
-  assert.equal(h.generations.length, 0);
-  assert.equal(h.factories.length, 0);
-  assert.equal(h.mediaExecutions, 0);
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", messages: [{ role: "user", content: "Génère une image de mon atelier." }] });
+  assert.equal(reply.message, "Votre média est enregistré.");
+  assert.equal(h.generations.length, 1);
+  assert.equal(h.mediaExecutions, 1);
+  assert.equal(h.budgetReservations.length, 1);
+  assert.equal(h.budgetReservations[0].edition, "basic");
+  assert.equal(h.budgetReservations[0].accountId, basic.accountId);
+  assert.ok(toolNames(h.generations[0].params).includes("generateMedia"));
+  assert.ok(h.generations.every(item => item.model !== policy.INR_ASSISTANT_MODELS.sol));
   assert.equal(h.publicationExecutions.length, 0);
 });
 
-test("Basique tool catalogue denies new and renamed execution tools by default", () => {
+test("Basique admits only reviewed manual tools and denies agents, Premium tools and unknown additions", () => {
   const result = editionPolicy.assistantToolsForEdition({
     readAppGuide: {}, getBusinessDna: {}, getAccountDiagnostics: {}, recallPastDiscussions: {},
     generateMedia: {}, preparePublication: {}, executePublication: {}, updateToolSettings: {},
+    readPublicationIdeas: {}, managePublicationIdeas: {}, updateAgentAutomation: {}, dispatchAgent: {}, manageCrmContact: {}, dispatchCampaignDraft: {}, manageAdvertisingCampaign: {},
     readAndModifyEverything: {}, newFutureTool: {},
   }, "basic");
-  assert.deepEqual(Object.keys(result), ["readAppGuide", "getBusinessDna", "getAccountDiagnostics", "recallPastDiscussions"]);
+  assert.deepEqual(Object.keys(result), ["readAppGuide", "getBusinessDna", "getAccountDiagnostics", "recallPastDiscussions", "generateMedia", "preparePublication", "executePublication", "updateToolSettings"]);
 });
 
 test("Basique can ask how to use a tool, with no execution capability exposed", async () => {
@@ -531,19 +576,18 @@ test("Basique can ask how to use a tool, with no execution capability exposed", 
   assert.equal(h.publicationExecutions.length, 0);
 });
 
-test("Basique support questions do not construct CTA, DNA analysis or review execution tools", async () => {
+test("Basique support questions expose requested reads without CTA, DNA or review mutations", async () => {
   const h = harness();
   const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic",
     messages: [{ role: "user", content: "Comment compléter mon ADN, mettre mon téléphone en CTA et consulter mes avis et statistiques ?" }],
     supabase: { from: () => assert.fail("No unrequested database operation") } as never,
   });
   assert.equal(reply.message, "Voici la prochaine étape.");
-  assert.deepEqual(h.actionFactories, []);
   assert.deepEqual(h.factories, []);
   assert.equal(h.mediaExecutions, 0);
   assert.equal(h.publicationExecutions.length, 0);
   assert.ok(h.generations[0].params.tools?.some(definition => definition.type === "function" && definition.name === "getBusinessDna"));
-  assert.ok(h.generations[0].params.tools?.every(definition => definition.type !== "function" || ["proposeHumanSupport", "readAppGuide", "getBusinessDna", "readWorkspaceSection"].includes(definition.name)));
+  assert.ok(h.generations[0].params.tools?.every(definition => definition.type !== "function" || /^(?:read|get|search|recall|guide)/.test(definition.name) || definition.name === "proposeHumanSupport"), JSON.stringify(toolNames(h.generations[0].params)));
 });
 
 test("a reviewed navigation answer is delivered without any provider call or economic reservation", async () => {
@@ -871,7 +915,11 @@ test("signed preview remains private across turns and exact approval fulfills it
  const confirmation=`Confirme ${reference}`;
  const effective=taskPolicy.continueInrAssistantTask(confirmation,reply.taskState)!;
  assert.ok(effective);let resolved:string|null=null;
- const second=harness({plan:[{tool:"applyCalendarAction"}],calendarFactory:args=>({applyCalendarAction:tool({inputSchema,execute:async()=>{resolved=(args.resolvePreview as (ref:string)=>string|null)(reference);return {ok:true,status:"updated",action:"update",eventId,message:"Rendez-vous modifié et relu."};}})})});
+ const second=harness({plan:[{tool:"applyCalendarAction"}],calendarFactory:args=>{
+  assert.equal(args.currentApprovalMessage,confirmation,"Approval must use the current turn, not the original appointment date");
+  assert.match(String(args.currentUserMessage),/demain/);
+  return {applyCalendarAction:tool({inputSchema,execute:async()=>{resolved=(args.resolvePreview as (ref:string)=>string|null)(reference);return {ok:true,status:"updated",action:"update",eventId,message:"Rendez-vous modifié et relu."};}})};
+ }});
  const done=await second.runtime.generateInrAssistantReply({...basic,actorUserId:"actor-a",edition:"premium",supabase:{} as never,messages:[{role:"user",content:confirmation}],taskContext:reply.taskState,actionInstruction:effective});
  assert.equal(resolved,token);assert.equal(done.outcome,"completed");
  assert.ok(done.taskState?.receipts.some(receipt=>receipt.tool==="updateCalendarAppointment"&&receipt.status==="updated"));
@@ -896,6 +944,43 @@ test("navigation returns a browser request without a durable business task or re
  assert.equal(reply.navigation?.destination,"crm");assert.equal(reply.outcome,"processing");assert.equal(reply.taskState,undefined);assert.equal(reply.taskProgress,undefined);
 });
 
+test("a pure natural-language navigation executes its authenticated tool once without waiting on the unavailable provider", async () => {
+  for (const [message, destination] of [["Emmène-moi dans la médiathèque", "media"], ["Peux-tu m’ouvrir l’agenda ?", "calendar"], ["Ouvre le module iNr’Annuaire.", "directory"]]) {
+    let opens = 0;
+    const target = uiCommands.getInrAssistantNavigation(destination)!;
+    const h = harness({ providerError: new Error("Synthetic unavailable provider"), noCredential: true, productionNoRedis: true, extraTools: {
+      navigateApplication: tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async input => {
+        opens++; assert.equal((input as { destination: string }).destination, destination);
+        return { ok: true, status: "navigation_requested", navigation: target, message: `Ouverture de ${target.label} demandée.` };
+      } }),
+    } });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, messages: [{ role: "user", content: message }] });
+    assert.equal(opens, 1); assert.equal(h.generations.length, 0); assert.equal(h.reservations.length, 0);
+    assert.equal(reply.navigation?.destination, destination); assert.equal(reply.outcome, "processing");
+    assert.equal(reply.taskState, undefined); assert.match(reply.message, /demandée/);
+    assert.equal(h.finalized.length, 0, "A free route must not manufacture paid-model success allowance");
+  }
+});
+
+test("a refused or forged native navigation result remains blocked without asking a model to bypass it", async () => {
+  for (const output of [
+    { ok: false, status: "blocked", message: "Le compte actif doit être vérifié." },
+    { ok: true, status: "navigation_requested", navigation: { ...uiCommands.getInrAssistantNavigation("crm"), href: "/api/delete" }, message: "Navigation non vérifiée." },
+  ]) {
+    const h = harness({ extraTools: { navigateApplication: tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => output }) } });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, messages: [{ role: "user", content: "Ouvre le CRM." }] });
+    assert.equal(reply.navigation, undefined); assert.equal(reply.outcome, "blocked"); assert.equal(h.generations.length, 0);
+  }
+});
+
+test("an aborted pure navigation does not execute its native route or call a provider", async () => {
+  const controller = new AbortController(); controller.abort(new Error("Cancelled navigation"));
+  let opens = 0;
+  const h = harness({ extraTools: { navigateApplication: tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => { opens++; return {}; } }) } });
+  await assert.rejects(h.runtime.generateInrAssistantReply({ ...basic, signal: controller.signal, messages: [{ role: "user", content: "Ouvre le CRM." }] }), /Cancelled navigation/);
+  assert.equal(opens, 0); assert.equal(h.generations.length, 0); assert.equal(h.finalized.length, 0);
+});
+
 test("opening a module plus reading settings performs both even when the model omits navigation",async()=>{
  const target=uiCommands.getInrAssistantNavigation("preferences")!;
  let opens=0,reads=0;
@@ -905,6 +990,7 @@ test("opening a module plus reading settings performs both even when the model o
  }});
  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:"Ouvre les préférences de l’application et indique mes réglages de notifications actuellement enregistrés. Lis-les sans rien modifier."}]});
  assert.equal(opens,1);assert.equal(reads,1);assert.equal(reply.navigation?.destination,"preferences");
+ assert.ok(h.generations.length > 0,"The navigation shortcut must not skip the requested read");
  assert.equal(reply.taskState,undefined);
  assert.ok(h.generations.every(call=>!(call.params.tools??[]).some(tool=>tool.type==="function"&&tool.name==="navigateApplication")));
 });
@@ -920,4 +1006,112 @@ test("an uncertain resolved mutation stops a second parallel SDK action and cann
   assert.equal(h.crmExecutions.length,1);assert.equal(checkpoints,2);assert.equal(h.generations.length,1);assert.equal(result.outcome,"blocked");
   assert.equal(taskPolicy.continueInrAssistantTask("Continue",result.taskState,Date.now(),"continue"),null);
  }
+});
+
+test("monthly assistant budget denial stops before the first paid call and does not try a fallback", async () => {
+  for (const budgetFailure of ["limit", "unavailable"] as const) {
+    const h = harness({ budgetFailure });
+    await assert.rejects(h.runtime.generateInrAssistantReply(basic), { code: budgetFailure === "limit" ? "assistant_monthly_budget_reached" : "assistant_budget_unavailable" });
+    assert.equal(h.budgetReservations.length, 1); assert.equal(h.generations.length, 0);
+    assert.equal(h.reservations.length, 0); assert.equal(h.budgetFinalizations.length, 0);
+  }
+});
+
+test("a fallback needs its own monthly budget reservation and a failed provider call retains its full cost", async () => {
+  const h = harness({ fail: 1, budgetFailure: "limit", budgetFailureAt: 2 });
+  await assert.rejects(h.runtime.generateInrAssistantReply(basic), { code: "assistant_monthly_budget_reached" });
+  assert.equal(h.generations.length, 1); assert.equal(h.budgetReservations.length, 2);
+  assert.equal(h.budgetFinalizations.length, 1); assert.equal(h.budgetFinalizations[0].actualCostMicroUsd, undefined);
+  assert.equal(h.commits.length, 1);
+});
+
+test("missing or invalid provider usage cannot refund the monthly assistant budget estimate", async () => {
+  for (const reportedUsage of [{ input: undefined, output: 10 }, { input: -1, output: 40 }, { input: 100, output: -1 }, { input: 10.5, output: 40 }]) {
+    const h = harness({ reportedUsage }); await h.runtime.generateInrAssistantReply(basic);
+    assert.equal(h.generations.length, 1); assert.equal(h.budgetFinalizations.length, 1);
+    assert.equal(h.budgetFinalizations[0].actualCostMicroUsd, undefined);
+  }
+  const valid = harness(); await valid.runtime.generateInrAssistantReply(basic);
+  assert.ok(Number.isSafeInteger(valid.budgetFinalizations[0].actualCostMicroUsd));
+  assert.ok(valid.budgetFinalizations[0].actualCostMicroUsd! > 0);
+});
+
+test("only an unsent provider call releases budget and a budget commit failure prevents tool execution", async () => {
+  const notSent = harness({ guardError: true });
+  await assert.rejects(notSent.runtime.generateInrAssistantReply(basic), /guard unavailable/);
+  assert.equal(notSent.generations.length, 0); assert.equal(notSent.budgetFinalizations[0].actualCostMicroUsd, 0);
+  const failedCommit = harness({ media: true, budgetCommitFailure: true });
+  await assert.rejects(failedCommit.runtime.generateInrAssistantReply({ ...basic, messages: [{ role: "user", content: "Génère une image de mon atelier." }] }), { code: "assistant_budget_unavailable" });
+  assert.equal(failedCommit.generations.length, 1); assert.equal(failedCommit.mediaExecutions, 0);
+});
+
+const importAttachmentIds = ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002"];
+const importedMediaIds = ["20000000-0000-4000-8000-000000000001", "20000000-0000-4000-8000-000000000002"];
+function importFixture() {
+  const writes: string[] = [], calls: string[] = [];
+  const factory = () => ({ importMediaAttachment: tool({ inputSchema: jsonSchema<{ attachmentId: string }>({ type: "object", properties: { attachmentId: { type: "string" } }, required: ["attachmentId"] }), execute: async ({ attachmentId }) => {
+    assert.ok(importAttachmentIds.includes(attachmentId)); calls.push(attachmentId);
+    const existed = writes.includes(attachmentId); if (!existed) writes.push(attachmentId);
+    return { ok: true, status: existed ? "already_processed" : "imported", id: importedMediaIds[importAttachmentIds.indexOf(attachmentId)], message: existed ? "Image déjà importée." : "Image importée." };
+  } }) });
+  return { writes, calls, factory };
+}
+const importPlan = importAttachmentIds.map(attachmentId => ({ tool: "importMediaAttachment", input: { attachmentId } }));
+const twoImportAttachments = importAttachmentIds.map((id, index) => ({ id, name: `photo-${index + 1}.png`, kind: "image" as const, size: 10 }));
+
+test("two attachment imports require two distinct saved media receipts before the task completes", async () => {
+  for (const message of ["Importe ces deux images dans ma médiathèque.", "Importe toutes les images jointes dans ma médiathèque."]) {
+    const fixture = importFixture(), h = harness({ mediaLibraryFactory: fixture.factory, plan: importPlan });
+    const result = await h.runtime.generateInrAssistantReply({ ...basic, actorUserId: importAttachmentIds[0], edition: "basic", supabase: {} as never, mediaAttachments: twoImportAttachments, messages: [{ role: "user", content: message }] });
+    assert.equal(result.outcome, "completed"); assert.deepEqual(fixture.writes, importAttachmentIds);
+    assert.equal(result.taskState?.requiredCalls?.importMediaAttachment, 2);
+    assert.deepEqual(new Set(result.taskState?.receipts.map(receipt => receipt.id)), new Set(importedMediaIds));
+    assert.equal(toolNames(h.generations[1].params).includes("importMediaAttachment"), true, "one saved attachment must not remove the second import");
+  }
+});
+
+test("repeated receipts for one imported attachment stay partial and a resumed task reconciles it without another upload", async () => {
+  const message = "Importe ces deux images dans ma médiathèque.", fixture = importFixture();
+  const args = { ...basic, actorUserId: importAttachmentIds[0], supabase: {} as never, mediaAttachments: twoImportAttachments };
+  const first = harness({ mediaLibraryFactory: fixture.factory, plan: [importPlan[0], importPlan[0]] });
+  const partial = await first.runtime.generateInrAssistantReply({ ...args, messages: [{ role: "user", content: message }] });
+  assert.equal(partial.outcome, "partial"); assert.ok(partial.taskState); assert.deepEqual(fixture.writes, [importAttachmentIds[0]]);
+  const continuation = taskPolicy.continueInrAssistantTask("Continue", partial.taskState, Date.now(), "continue"); assert.ok(continuation);
+  const second = harness({ mediaLibraryFactory: fixture.factory, plan: importPlan });
+  const completed = await second.runtime.generateInrAssistantReply({ ...args, actionInstruction: continuation, taskContext: partial.taskState, messages: [{ role: "user", content: "Continue" }] });
+  assert.equal(completed.outcome, "completed"); assert.deepEqual(fixture.writes, importAttachmentIds);
+  assert.deepEqual(fixture.calls, [importAttachmentIds[0], importAttachmentIds[0], importAttachmentIds[0], importAttachmentIds[1]]);
+  assert.deepEqual(new Set(completed.taskState?.receipts.map(receipt => receipt.id)), new Set(importedMediaIds));
+});
+
+test("a Google submission without confirmed readback stops later mutations and cannot be resumed", async () => {
+  for (const status of ["submitted_unconfirmed", "save_unconfirmed"]) {
+    const calls: string[] = [], definition = (name: string, output: Record<string, unknown>) => tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => { calls.push(name); return output; } });
+    const h = harness({ parallelPlan: [{ tool: "applyGoogleBusinessProfileUpdate" }, { tool: "setNativeChannelActivation" }], channelActionFactory: () => ({
+      applyGoogleBusinessProfileUpdate: definition("google", { ok: false, status, message: "Modification envoyée à Google mais non confirmée." }),
+      setNativeChannelActivation: definition("activation", { ok: true, status: "saved", message: "Canal désactivé." }),
+    }) });
+    const result = await h.runtime.generateInrAssistantReply({ ...basic, actorUserId: importAttachmentIds[0], supabase: {} as never, messages: [{ role: "user", content: "Modifie la description de ma fiche Google Business puis désactive mon annuaire." }], onTaskCheckpoint: async () => {} });
+    assert.deepEqual(calls, ["google"]); assert.equal(result.outcome, "blocked"); assert.equal(h.generations.length, 1);
+    assert.ok(result.taskState?.receipts.some(receipt => receipt.status === status));
+    assert.equal(taskPolicy.continueInrAssistantTask("Continue", result.taskState, Date.now(), "continue"), null);
+    const resumed = harness();
+    const refused = await resumed.runtime.generateInrAssistantReply({ ...basic, taskContext: result.taskState, actionInstruction: result.taskState!.instruction, messages: [{ role: "user", content: "Continue" }] });
+    assert.equal(refused.outcome, "blocked"); assert.equal(resumed.generations.length, 0);
+  }
+});
+
+test("a compound statistics refresh then PDF download retains and executes both requested actions", async () => {
+  const message = "Actualise mes statistiques puis télécharge mon rapport PDF de statistiques.", calls: string[] = [];
+  assert.deepEqual(taskPolicy.inrAssistantRequiredTools(message), ["refreshStatsSources", "prepareStatsReportDownload"]);
+  assert.deepEqual(taskPolicy.inrAssistantRequiredTools("Désactive mon annuaire et actualise mes statistiques."), ["setNativeChannelActivation", "refreshStatsSources"]);
+  assert.deepEqual(taskPolicy.inrAssistantRequiredTools("Importe cette image dans ma médiathèque puis télécharge cette image."), ["importMediaAttachment", "prepareMediaDownload"]);
+  const h = harness({ plan: [{ tool: "refreshStatsSources" }, { tool: "prepareStatsReportDownload" }], statsFactory: () => ({
+    refreshStatsSources: tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => { calls.push("refresh"); return { ok: true, status: "refreshed", message: "Statistiques actualisées." }; } }),
+    prepareStatsReportDownload: tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => { calls.push("download"); return { ok: true, status: "ui_action_requested", message: "Téléchargement demandé au navigateur.", uiCommand: { command: "download_stats_report", reportId: importedMediaIds[0], selection: { kind: "stats_report", id: importedMediaIds[0] } } }; } }),
+  }) });
+  const result = await h.runtime.generateInrAssistantReply({ ...basic, actorUserId: importAttachmentIds[0], supabase: {} as never, messages: [{ role: "user", content: message }] });
+  assert.deepEqual(calls, ["refresh", "download"]); assert.equal(result.uiCommand?.command, "download_stats_report");
+  assert.equal(result.outcome, "processing", "requesting a download is not proof of its reception");
+  assert.deepEqual([...(result.taskState?.requiredTools ?? [])], ["refreshStatsSources", "prepareStatsReportDownload"]);
 });

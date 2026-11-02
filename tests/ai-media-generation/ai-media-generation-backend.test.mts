@@ -1059,6 +1059,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   const composer = read("lib/aiMediaGeneratedVideo.ts");
   const narration = read("lib/aiMediaNarration.ts");
   const narrationAudio = read("lib/aiMediaNarrationAudio.ts");
+  const narrationPreparation = read("lib/aiMediaNarrationPreparation.ts");
   const quotaPresentation = read("lib/aiMediaQuotaPresentation.ts");
   const nextConfig = read("next.config.ts");
   const vercelConfig = read("vercel.json");
@@ -1361,8 +1362,9 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(veo, /adultSafePromptText\(args\.creativeBrief, 180\)/);
   assert.doesNotMatch(veo, /compact\(args\.creativeBrief, 6_000\)/);
   assert.match(server, /writeAiMediaHeadline/);
-  assert.match(server, /writeAiMediaNarration/);
-  assert.match(server, /generateAiMediaNarrationAudio/);
+  assert.match(server, /\) => prepareAiMediaNarration\(\{/);
+  assert.match(narrationPreparation, /writeAiMediaNarration/);
+  assert.match(narrationPreparation, /generateAiMediaNarrationAudio/);
   assert.match(server, /composeOriginalAiVideo/);
   assert.match(server, /branding_overlay_unavailable_video_continued/);
   assert.match(server, /video_enhancements_unavailable_video_continued/);
@@ -1401,7 +1403,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
     /narrationVoicePreset\([\s\S]*?args\.narrationVoiceVariant/,
   );
   assert.match(
-    server,
+    narrationPreparation,
     /narrationVoiceVariant: narrationRequest\.narrationVoiceVariant/,
   );
   assert.match(

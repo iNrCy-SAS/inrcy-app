@@ -1,4 +1,4 @@
-import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { isMetaChannelPilotEnabledForActorAndAccount } from "@/lib/metaChannelRolloutServer";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
@@ -156,7 +156,7 @@ function firstCleanLabel(candidates: unknown[], fallback: string, formatter: (va
 
 export async function GET() {
   try {
-    const { supabase, user, errorResponse, activeUserId } = await requireUser();
+    const { supabase, errorResponse, activeUserId } = await requireUser();
     if (errorResponse) return errorResponse;
 
     const [states, bubbleAccess, provisioned] = await Promise.all([

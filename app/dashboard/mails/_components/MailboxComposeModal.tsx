@@ -148,8 +148,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
     bulkCampaignNotice,
     crmPickerOpen,
     setCrmPickerOpen,
-    crmSearchOpen,
-    setCrmSearchOpen,
+      setCrmSearchOpen,
     crmSearchRef,
     crmFilter,
     setCrmFilter,
@@ -314,7 +313,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
       if (!confirmed) return;
     }
     await doSend();
-  }, [doSend, subject, text]);
+  }, [doSend, i18nT, subject, text]);
 
   const [isMobileViewport, setIsMobileViewport] = React.useState(false);
 

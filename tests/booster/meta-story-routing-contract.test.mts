@@ -101,7 +101,7 @@ test("the known Facebook-login Creator restriction applies only to Story and nev
 });
 
 test("explicit Auto in a prepared action takes priority over an older nested manual soundtrack", () => {
-  const path = "app/api/agent/actions/schedule/route.ts";
+  const path = "lib/inrAgentSchedulePayloadBuilder.ts";
   const source = ts.createSourceFile(path, read(path), ts.ScriptTarget.Latest, true);
   let selection: ts.Expression | undefined;
   function visit(node: ts.Node) {

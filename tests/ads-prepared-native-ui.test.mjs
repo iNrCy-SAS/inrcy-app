@@ -123,3 +123,56 @@ test("Actual thumbnail client discards a frame aborted during encoding and refus
   const t = thumbnailRuntime(), controller = new AbortController(), result = t.run(url(mediaA), controller.signal); t.fire("loadeddata"); await tick(); controller.abort(); t.finishBlob(); await assert.rejects(result, (error) => error.name === "AbortError"); assert.equal(t.state().cleared, 1);
   const invalid = thumbnailRuntime(); invalid.video.videoWidth = 0; const failure = invalid.run(url(mediaA), new AbortController().signal); invalid.fire("loadeddata"); await assert.rejects(failure, /format/); assert.equal(invalid.state().draw, 0); assert.equal(invalid.state().cleared, 1);
 });
+
+test("equivalent X location arrays do not restart reads, but same-length edits do", async () => {
+  const h = harness("XAdsLocationPicker", { accountId: accountA, locations: ["Lille"], selections: xNative(), active: true, onChange() {} });
+  h.render(); h.render({ locations: ["Lille"] });
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].init.signal.aborted, false);
+  h.render({ locations: ["Arras"] });
+  assert.equal(h.requests.length, 2);
+  assert.equal(h.requests[0].init.signal.aborted, true);
+  await h.finish(1, xGeoResponse(accountA, "Arras", geoB));
+  await h.finish(0, xGeoResponse());
+  assert.equal(h.elements("select")[0].props.value, geoB.id);
+});
+
+test("prepared geography uses the requested values through equivalent draft rerenders", async () => {
+  const h = harness("PreparedAdsNativeControls", xProps()); h.render();
+  h.render({ draft: { ...h.props.draft, targetLocations: ["Lille"], primaryText: "Saisie conservée" } });
+  assert.equal(h.requests.length, 2);
+  assert.equal(h.requests[1].init.signal.aborted, false);
+  h.render({ draft: { ...h.props.draft, targetLocations: ["Arras"] } });
+  assert.equal(h.requests[1].init.signal.aborted, true);
+  await h.finish(0, xResource());
+  await h.finish(2, xGeoResponse(accountA, "Arras", geoB));
+  await h.finish(1, xGeoResponse());
+  assert.deepEqual(h.props.draft.targetLocations, [geoB.name]);
+  assert.equal(h.props.draft.primaryText, "Saisie conservée");
+});
+
+test("thumbnail completion and cache reuse preserve edits made while the frame was preparing", async () => {
+  const h = harness("PreparedAdsNativeControls", ttProps(url(mediaA))); h.render();
+  h.render({ draft: { ...h.props.draft, tiktokNativeSelections: { ...h.props.draft.tiktokNativeSelections, isAiGenerated: true } } });
+  assert.equal(h.frames.length, 1);
+  assert.equal(h.frames[0].signal.aborted, false);
+  await h.finishFrame(0);
+  assert.equal(h.props.draft.tiktokNativeSelections.isAiGenerated, true);
+  h.render({ draft: { ...h.props.draft, tiktokNativeSelections: { ...h.props.draft.tiktokNativeSelections, isAiGenerated: false, thumbnailMediaId: null } } });
+  assert.equal(h.frames.length, 1);
+  assert.equal(h.uploads.length, 1);
+  assert.equal(h.props.draft.tiktokNativeSelections.isAiGenerated, false);
+  assert.equal(h.props.draft.tiktokNativeSelections.thumbnailMediaId, mediaB);
+});
+
+test("TikTok resolved targets emit once across equivalent rerenders", async () => {
+  const results = [];
+  const h = harness("TikTokAdsLocationPicker", { accountId: ttAccount, locations: ["Lille"], active: true, onChange() {}, onResolvedTargets: value => results.push(value) });
+  h.render(); h.render({ locations: ["Lille"] });
+  assert.equal(h.requests.length, 1);
+  await h.finish(0, ttGeoResponse());
+  assert.equal(results.length, 1);
+  h.render({ locations: ["Lille"], onResolvedTargets: value => results.push(value) });
+  assert.equal(results.length, 1);
+  assert.equal(h.requests.length, 1);
+});

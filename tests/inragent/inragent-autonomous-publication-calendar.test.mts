@@ -1,3 +1,4 @@
+import { readAgentPublicationPreparationSource } from "./prepare-publication-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -368,7 +369,7 @@ test("les fréquences mensuelles stockent des dates numériques et non des jours
 });
 
 test("iNrAgent construit seul une publication contextualisée et utilise les quotas du Studio", () => {
-  const publishRoute = read("app/api/agent/actions/prepare-publish/route.ts");
+  const publishRoute = readAgentPublicationPreparationSource();
   const mediaGeneration = read("lib/inrAgentMediaGeneration.ts");
   const mediaRequest = read("lib/inrAgentMediaRequest.ts");
   const chooseThemeSource = publishRoute.slice(

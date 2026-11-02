@@ -1,3 +1,4 @@
+import { readVideoNormalizationWorkerSource } from "./video-worker-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -5,6 +6,8 @@ import test from "node:test";
 
 const ROOT = process.cwd();
 const read = (file) => readFileSync(resolve(ROOT, file), "utf8");
+
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
 
 test("la migration étape 6 est additive, idempotente et réservée au worker", () => {
   const sql = read(
@@ -38,7 +41,7 @@ test("le normaliseur extrait seulement les artefacts utiles depuis l'original", 
   assert.match(source, /force_original_aspect_ratio=decrease/);
   assert.match(source, /force_divisible_by=2/);
   assert.match(source, /key:\s*"canonical"/);
-  assert.doesNotMatch(source, /key:\s*"ai_preview"/);
+  assert.doesNotMatch([source, generationController].join("\n"), /key:\s*"ai_preview"/);
   assert.match(source, /key:\s*"thumbnail"/);
   assert.match(source, /requestedFrameIndexes/);
   assert.match(source, /`frame_0\$\{index \+ 1\}`/);
@@ -90,16 +93,16 @@ test("les captures locales commencent pour toute vidéo acceptée sans bloquer l
   assert.doesNotMatch(addVideoBlock, /getOrPrepareVideoFramesForAI/);
   assert.doesNotMatch(addVideoBlock, /getOrPrepareVideoAudioFileForAI/);
   assert.match(publishModal, /void getOrPrepareVideoFramesForAI\(videoFile\)/);
-  assert.doesNotMatch(publishModal, /BOOSTER_LOCAL_VIDEO_FRAME_PREWARM_MIN_BYTES/);
+  assert.doesNotMatch([publishModal, generationController].join("\n"), /BOOSTER_LOCAL_VIDEO_FRAME_PREWARM_MIN_BYTES/);
   assert.match(
-    publishModal,
+    generationController,
     /const framesResult = await settleOptionalMediaEnrichment\([\s\S]*getOrPrepareVideoFramesForAI\(videoFile\)/,
   );
-  assert.doesNotMatch(publishModal, /transcribeVideoAudioForAI\(/);
+  assert.doesNotMatch([publishModal, generationController].join("\n"), /transcribeVideoAudioForAI\(/);
 });
 
 test("le worker télécharge la source privée et conserve l'original", () => {
-  const worker = read("lib/mediaVideoNormalizationWorker.ts");
+  const worker = readVideoNormalizationWorkerSource();
   const cron = read("app/api/cron/media-video-normalization/route.ts");
   assert.match(
     worker,
@@ -164,5 +167,5 @@ test("le test Booster obsolète vérifie maintenant la branche réelle", () => {
   );
   assert.match(source, /sourceFile:\\s\*file/);
   assert.match(source, /assert\.doesNotMatch\(originalBranch, \/renderChannelImage/);
-  assert.doesNotMatch(source, /fileToImagePayload\\\(file/);
+  assert.doesNotMatch([source, generationController].join("\n"), /fileToImagePayload\\\(file/);
 });

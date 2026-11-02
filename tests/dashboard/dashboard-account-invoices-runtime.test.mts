@@ -44,7 +44,7 @@ function harness(locale: string = "fr-FR", edition: DashboardEdition = "standard
   const selected: string[] = [];
   const headerContext = { Provider: ({ children }: { children: ReactNode }) => children };
   const stub = (name: string) => {
-    if (!stubs.has(name)) stubs.set(name, (_props: Props) => null);
+    if (!stubs.has(name)) stubs.set(name, () => null);
     return stubs.get(name)!;
   };
   const loader = (specifier: string): unknown => {

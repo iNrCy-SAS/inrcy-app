@@ -35,6 +35,11 @@ function controller(file: string, initial: unknown, fetch: (url: string, init?: 
       return [slots[index], (next: RuntimeValue) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
     },
     useRef(value: unknown) { return slots[cursor++] ??= { current: value }; },
+    useEffectEvent(callback: (...args: unknown[]) => unknown) {
+      const event = hooks.useRef(callback);
+      event.current = callback;
+      return (...args: unknown[]) => event.current(...args);
+    },
     useMemo(factory: () => unknown, deps?: unknown[]) {
       const index = cursor++;
       if (!slots[index] || changed(slots[index].deps, deps)) slots[index] = { deps, value: factory() };

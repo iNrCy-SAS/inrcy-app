@@ -121,7 +121,7 @@ export async function deleteUserAccountEverywhere(authUserId: string): Promise<D
         usedFallback = true;
         await fallbackDeleteBusinessAccount(accountId, errors);
       }
-    } catch (e: unknown) {
+    } catch {
       usedFallback = true;
       await fallbackDeleteBusinessAccount(accountId, errors);
     }
@@ -136,7 +136,7 @@ export async function deleteUserAccountEverywhere(authUserId: string): Promise<D
       const subscriptionErr = await safeDeleteByUserId("subscriptions", authUserId);
       if (subscriptionErr) errors["subscriptions"] = subscriptionErr;
     }
-  } catch (e: unknown) {
+  } catch {
     usedFallback = true;
     await fallbackDeleteBusinessAccount(authUserId, errors);
     const subscriptionErr = await safeDeleteByUserId("subscriptions", authUserId);

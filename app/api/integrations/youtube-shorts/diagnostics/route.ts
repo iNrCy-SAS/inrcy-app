@@ -92,7 +92,7 @@ async function pingAnalytics(accessToken: string) {
 }
 
 export async function GET() {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const integration = await readYoutubeShortsIntegration(supabaseAdmin, activeUserId);

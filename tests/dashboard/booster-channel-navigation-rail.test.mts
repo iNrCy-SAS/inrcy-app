@@ -14,21 +14,22 @@ const contentPanel = read(
   "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx",
 );
 const mediaPanel = read(
-  "app/dashboard/booster/publier/components/PublishImagesPanel.tsx",
+  "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx",
 );
 const validationBoard = read(
   "app/dashboard/booster/publier/components/PublishValidationBoard.tsx",
 );
 
-test("les éditeurs partagent le rail, puis Validation affiche directement chaque canal", () => {
-  for (const source of [contentPanel, mediaPanel]) {
+test("le contenu conserve son rail, le pool est partagé et Validation affiche chaque canal", () => {
+  for (const source of [contentPanel]) {
     assert.match(source, /import ChannelNavigationRail from "\.\/ChannelNavigationRail"/);
     assert.match(source, /<ChannelNavigationRail/);
     assert.match(source, /setSynchronizedActiveChannel/);
   }
 
   assert.match(contentPanel, /items=\{displayCards\}/);
-  assert.match(mediaPanel, /items=\{selectedChannels\}/);
+  assert.match(mediaPanel, /data-publish-media-pool/);
+  assert.doesNotMatch(mediaPanel, /ChannelNavigationRail/);
   assert.match(validationBoard, /items\.map\(\(item\) =>/);
   assert.match(validationBoard, /data-channel=\{item\.channel\}/);
   assert.match(validationBoard, /onSelectChannel\(channel\)/);
@@ -58,14 +59,14 @@ test("le nouveau rendu est strictement réservé au desktop", () => {
   assert.match(railStyles, /justify-content:\s*center/);
   assert.match(railStyles, /scroll-snap-align:\s*center/);
 
-  // Les deux éditeurs conservent leur navigation mobile/tablette.
-  for (const source of [contentPanel, mediaPanel]) {
+  // Le contenu conserve son rail mobile/tablette ; les médias restent un pool partagé.
+  for (const source of [contentPanel]) {
     assert.match(source, /isMobile\s*\?\s*"repeat\(2, minmax\(0, 1fr\)\)"/);
   }
   // Le fallback hors mobile suit le nombre réel de canaux ; il reste donc juste
   // quand X ou de futurs canaux portent le rail à 10, 11 ou 12 éléments.
   assert.match(contentPanel, /displayCards\.length/);
-  assert.match(mediaPanel, /selectedChannels\.length/);
+  assert.match(mediaPanel, /Array\.from\(\{ length: BOOSTER_MAX_IMAGE_COUNT \}/);
   const boardStyles = read("app/dashboard/booster/publier/components/PublishValidationBoard.module.css");
   assert.match(boardStyles, /@media\(max-width:600px\)/);
 });

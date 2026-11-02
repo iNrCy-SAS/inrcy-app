@@ -46,6 +46,8 @@ function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: 
     "@/lib/aiGatewayOperationTelemetry": { recordAiGatewayOperationCall() {} },
     "@/lib/upstashMode": { isUpstashEnabled: () => true },
     "./inrAssistantQuota.ts": { reserveInrAssistantRequest: async () => ({ solReserved: false }), finalizeInrAssistantRequest: async () => {} },
+    "./inrAssistantBudget.ts": { reserveInrAssistantBudget: async () => ({}), finalizeInrAssistantBudget: async () => {} },
+    "@/lib/supabaseAdmin": { supabaseAdmin: { from: untouched, storage: { from: untouched } } },
     "./aiMemory.ts": { normalizeAiMemory }, "./aiPromptBudget.ts": { fitPromptPayloadToJsonBudget },
     "./aiMediaGenerationContracts.ts": { normalizeAiMediaGenerationRequest: untouched },
     "./aiMediaModelCatalog.ts": { getAiMediaImageModel: untouched, getAiMediaVideoModel: untouched, isAiMediaVideoEngineAvailable: untouched },
@@ -56,13 +58,14 @@ function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: 
     "./inrAssistantCodeIndex.generated.ts": { INR_ASSISTANT_CODE_INDEX: { sourceDigest: "schema-matrix-public-guide-only" } },
     "./boosterCtaPreferences": { getPreferredCtaLabel: untouched, normalizeCtaPhone: untouched },
     "./inrBadgeSettings.ts": { normalizeInrBadgeShareSettings: untouched },
-    "./channelPublicUrl.ts": { normalizeChannelPublicUrl: untouched },
     "./metaChannelRolloutServer": { isMetaChannelPilotEnabledForActorAndAccount: untouched },
     "./channelConnectionState": { getChannelConnectionStates: untouched },
     "./bubbleAccess.ts": { buildBubbleAccessMap: untouched, isBubbleEnabled: untouched },
     "./dashboardCompletion.ts": { DASHBOARD_PROFILE_COMPLETION_SELECT: "synthetic", evaluateDashboardProfileCompletion: untouched },
     "@/lib/accountSubscriptionAccess": { getActiveSubscriptionAccountIds: untouched },
     "@/lib/dashboardEditionServer": { getDashboardEditionForAccountId: untouched },
+    "./dashboardEditionServer": { getDashboardEditionForAuthUser: untouched },
+    "./accountSubscriptionAccess": { getActiveSubscriptionAccountIds: untouched },
     "./adsValidation.ts": { parseAdsCampaignInput: untouched },
     "./adsCampaignMetrics.ts": { isAdsCampaignMetrics: untouched },
     "./adsCampaignLifecycle.ts": { parseAdsCampaignLifecycleRequest: untouched },
@@ -139,7 +142,7 @@ function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: 
         if (/^\.\.\/messages\/fr-FR\/[a-zA-Z-]+\.json$/.test(id)) return { default: JSON.parse(readFileSync(resolve(dirname(path), id), "utf8")) };
         const target = resolve(dirname(path), id.endsWith(".ts") ? id : `${id}.ts`);
         const name = basename(target);
-        assert.ok(/^inrAssistant[A-Za-z.]+\.ts$/.test(name) || ["commercialDocumentDraft.ts", "commercialDocumentValidation.ts", "commercialDocumentUpdate.ts", "inrAgentSettings.ts", "inrAgentMonthSchedule.ts", "siteWebChannel.ts", "subscriptionOffers.ts", "boosterPublicationPolicy.ts", "boosterChannelRules.ts", "boosterPublicationOutcome.ts", "aiContentLength.ts", "aiInstructionSections.ts", "dashboard.channel-setup.ts", "aiChannelCtaPreferences.ts", "boosterWhatsappCta.ts"].includes(name), `Unexpected dependency ${id}`);
+        assert.ok(/^inrAssistant[A-Za-z.]+\.ts$/.test(name) || ["commercialDocumentDraft.ts", "commercialDocumentValidation.ts", "commercialDocumentUpdate.ts", "inrAgentSettings.ts", "inrAgentMonthSchedule.ts", "siteWebChannel.ts", "subscriptionOffers.ts", "boosterPublicationPolicy.ts", "boosterChannelRules.ts", "boosterPublicationOutcome.ts", "aiContentLength.ts", "aiInstructionSections.ts", "dashboard.channel-setup.ts", "aiChannelCtaPreferences.ts", "boosterWhatsappCta.ts", "generalPreferences.ts", "googleBusinessProfile.ts", "channelPublicUrl.ts", "instagramCapabilities.ts"].includes(name), `Unexpected dependency ${id}`);
         return load(target);
       }
       assert.fail(`Unexpected schema dependency ${id}`);
@@ -236,6 +239,7 @@ const scenarios = [
   { name: "notification-natural-alerts", prompt: "Coupe les alertes par email.", required: ["readToolSettings", "updateToolSettings"] },
   { name: "cockpit-missing-channels", prompt: "Quels sont les deux canaux non connectés parmi les 14 de mon cockpit ? Lis leur état actuel et explique ce qui bloque chacun, sans rien modifier ni lancer de connexion.", required: ["readChannelStatus", "getAccountDiagnostics"] },
   { name: "navigate-crm", prompt: "Ouvre mon CRM.", required: ["navigateApplication"] },
+  { name: "navigate-and-read", prompt: "Ouvre les préférences et indique mes réglages de notifications actuellement enregistrés.", required: ["navigateApplication", "readToolSettings"] },
   { name: "crm-and-quote", prompt: "Ajoute un contact CRM puis crée un devis pour lui.", required: ["manageCrmContact", "prepareCommercialDocument"] },
   { name: "campaign-audience-preview", prompt: "Envoie ma campagne à tous mes clients.", required: ["previewCampaignAudience", "listCampaignMailboxes"] },
   { name: "ads-draft", prompt: "Prépare un brouillon ADS sur Google avec un budget de 20 euros par jour jusqu’au 2026-12-01.", required: ["readAdvertisingCampaigns", "prepareAdvertisingCampaign"] },
@@ -248,12 +252,24 @@ const scenarios = [
   { name: "composed-workspace", prompt: "Complète mon ADN, crée une image et prépare une publication Facebook. Configure l’agent Stats chaque lundi à neuf heures, analyse mes statistiques et prépare une campagne mail avec mes contacts CRM.", required: ["updateBusinessDna", "generateMedia", "preparePublication", "configureAgentAutomation", "readStatsSnapshots", "prepareCampaignEmail", "searchCrmContacts"] },
   { name: "composed-workspace-long-history", prompt: "Complète mon ADN, crée une image et prépare une publication Facebook. Configure l’agent Stats chaque lundi à neuf heures, analyse mes statistiques et prépare une campagne mail avec mes contacts CRM.", required: ["updateBusinessDna", "generateMedia", "preparePublication", "configureAgentAutomation", "readStatsSnapshots", "prepareCampaignEmail", "searchCrmContacts"], history: true },
   { name: "cta-dna-analysis-composed", prompt: "Complète mon ADN avec mes canaux et mets mon numéro comme CTA partout. Crée une image puis prépare une publication Facebook ; configure l’agent Stats chaque lundi à neuf heures et prépare une campagne mail pour mes contacts CRM.", required: ["configureBusinessCta", "startBusinessDnaAnalysis", "getBusinessDnaAnalysis", "generateMedia", "preparePublication", "configureAgentAutomation", "prepareCampaignEmail", "searchCrmContacts"] },
+  { name: "basic-import-attachment", edition: "basic", prompt: "Importe la pièce jointe photo.png dans ma médiathèque.", required: ["listImportableMediaAttachments", "importMediaAttachment"], forbidden: ["generateMedia", "managePublicationIdeas"] },
+  { name: "basic-download-media", edition: "basic", prompt: "Télécharge les images de ma médiathèque.", required: ["searchMedia", "prepareMediaDownload"], forbidden: ["generateMedia"] },
+  { name: "basic-delete-media", edition: "basic", prompt: "Supprime la photo de toiture de ma médiathèque.", required: ["searchMedia", "previewMediaDeletion", "applyMediaDeletion"], forbidden: ["generateMedia"] },
+  { name: "basic-channel-activation", edition: "basic", prompt: "Désactive mon annuaire iNrCy.", required: ["setNativeChannelActivation"], forbidden: ["configureAgentAutomation"] },
+  { name: "basic-channel-url", edition: "basic", prompt: "Change le lien public de mon profil Facebook en https://www.facebook.com/ateliermartin.", required: ["updateChannelPublicUrl"] },
+  { name: "basic-google-profile", edition: "basic", prompt: "Modifie la description de ma fiche Google Business : rénovation de toiture et isolation.", required: ["readGoogleBusinessProfile", "previewGoogleBusinessProfileUpdate", "applyGoogleBusinessProfileUpdate"] },
+  { name: "basic-google-categories", edition: "basic", prompt: "Modifie l’activité principale de ma fiche Google Business : cherche électricien et conserve mes activités secondaires.", required: ["readGoogleBusinessProfile", "searchGoogleBusinessCategories", "previewGoogleBusinessProfileUpdate", "applyGoogleBusinessProfileUpdate"] },
+  { name: "basic-general-preferences", edition: "basic", prompt: "Modifie mes préférences générales : langue anglaise, devise USD et fuseau Europe/London.", required: ["readToolSettings", "updateToolSettings"] },
+  { name: "standard-prepared-publication", edition: "standard", prompt: "Modifie le texte de ma publication préparée par l’agent pour présenter notre offre toiture.", required: ["readPublicationWorkspace", "editPreparedPublication"] },
+  { name: "standard-publication-ideas", edition: "standard", prompt: "Ajoute cette idée de publication à l’agent : présenter notre équipe de couvreurs.", required: ["readPublicationIdeas", "managePublicationIdeas"] },
+  { name: "standard-stats-refresh", edition: "standard", prompt: "Actualise les statistiques Facebook et affiche mon dernier rapport.", required: ["refreshStatsSources", "readStatsReports"] },
+  { name: "standard-stats-send", edition: "standard", prompt: "Envoie mon rapport de statistiques à mon adresse professionnelle.", required: ["sendStatsReport", "readStatsReports"] },
 ] as const;
 
 for (const scenario of scenarios) test(`real schema budget matrix: ${scenario.name}`, async t => {
   const h = harness();
   const accountContext = { source: "authenticated_account", business: { description: "Entreprise artisanale de couverture. ".repeat(85) }, setup: { channels: { connected: 3, total: 13 }, dna: { readiness: "partial" }, ai: { readiness: "ready" } } };
-  const input = { accountId: ACCOUNT, actorUserId: ACTOR, displayName: "Entreprise Toitures", edition: "premium" as const,
+  const input = { accountId: ACCOUNT, actorUserId: ACTOR, displayName: "Entreprise Toitures", edition: "edition" in scenario ? scenario.edition : "premium" as const,
     requestId: randomUUID(), actionRequestId: `${ACCOUNT}_${randomUUID()}`, request: new Request("https://app.inrcy.com/api/assistant/chat"),
     supabase: { from: () => assert.fail("No SQL in schema matrix") } as never,
     memory: { loadRecent: async () => assert.fail("No memory read in schema matrix"), search: async () => assert.fail("No memory read in schema matrix") },
@@ -264,7 +280,19 @@ for (const scenario of scenarios) test(`real schema budget matrix: ${scenario.na
     clientContext: { source: "untrusted_client" as const, screen: { pathname: "/dashboard", tool: "Cockpit" } },
   };
   let failure: unknown;
-  try { await h.runtime.generateInrAssistantReply(input); } catch (error) { failure = error; }
+  let reply: Awaited<ReturnType<typeof h.runtime.generateInrAssistantReply>> | undefined;
+  try { reply = await h.runtime.generateInrAssistantReply(input); } catch (error) { failure = error; }
+  assert.equal(failure, undefined, `Actual Gateway rejects a normal ${scenario.name} request before any external operation: ${String(failure)}`);
+  if (scenario.name === "navigate-crm") {
+    assert.equal(h.navigationPreparations, 1, "Pure navigation prepares the native command exactly once");
+    assert.deepEqual(JSON.parse(JSON.stringify(reply?.navigation)), getInrAssistantNavigation("crm"));
+    assert.equal(reply?.outcome, "processing", "The browser still has to apply the requested route");
+    assert.equal(h.providerCalls.length, 0, "Opening a known module needs no model reply");
+    assert.equal(h.reservations.length, 0, "Free navigation makes no paid model reservation");
+    assert.equal(h.generatedInputs.length, 0, "No context or schemas are sent to a model");
+    t.diagnostic(JSON.stringify({ scenario: scenario.name, providerCalls: 0, modelReservations: 0, navigation: reply?.navigation?.destination }));
+    return;
+  }
   const system = h.conversation.buildInrAssistantSystemPrompt(input.displayName, accountContext, h.guides.getInrAssistantAppKnowledge(scenario.prompt), input.edition, input.clientContext);
   const providerSchemas = h.schemas.map(({ name, description, schema }) => ({ type: "function", name, description, inputSchema: schema }));
   const compacted = h.generatedInputs[0];
@@ -272,16 +300,21 @@ for (const scenario of scenarios) test(`real schema budget matrix: ${scenario.na
   t.diagnostic(JSON.stringify({ scenario: scenario.name, systemBytes: bytes(system), schemaBytes: bytes(providerSchemas), preflightBytes,
     providerBytes: h.providerCalls.map(params => bytes({ prompt: params.prompt, tools: params.tools }) + 1024),
     tools: h.schemas.map(({ name, description, schema }) => ({ name, bytes: bytes({ name, description, inputSchema: schema }) })) }));
-  assert.equal(failure, undefined, `Actual Gateway rejects a normal ${scenario.name} request before any external operation: ${String(failure)}`);
   assert.equal(h.providerCalls.length, 1);
-  if (scenario.name === "navigate-crm") assert.equal(h.navigationPreparations, 1, "The requested navigation is prepared exactly once before the model reply");
+  if (scenario.name === "navigate-and-read") {
+    assert.equal(h.navigationPreparations, 1, "The native opening must accompany the requested read");
+    assert.deepEqual(JSON.parse(JSON.stringify(reply?.navigation)), getInrAssistantNavigation("preferences"));
+    assert.equal(h.reservations.length, 1, "The composed task retains its guarded model step");
+  }
   for (const name of scenario.required) assert.ok(h.schemas.some(schema => schema.name === name), `Compaction must retain the ${name} action actually requested`);
+  if ("forbidden" in scenario) for (const name of scenario.forbidden) assert.ok(!h.schemas.some(schema => schema.name === name), `The ${scenario.name} request must not expose ${name}`);
   if(scenario.name === "studio-natural-format") assert.ok(!h.schemas.some(schema=>["generateMedia","modifyMedia"].includes(schema.name)),"A defaults request must not expose paid media generation or retouching");
   const sent = h.generatedInputs[0];
-  assert.match(sent.system ?? "", /Entreprise Toitures/); assert.match(sent.system ?? "", /premium/);
+  assert.match(sent.system ?? "", /Entreprise Toitures/); assert.match(sent.system ?? "", new RegExp(input.edition));
   assert.equal((sent.messages as Array<{ content: string }>).at(-1)?.content, scenario.prompt, "Compaction never discards the latest request");
   if ("history" in scenario) assert.ok((sent.messages as unknown[]).length < input.messages.length, "Old chat text should compact before refusing an ordinary request");
   assert.ok(preflightBytes <= 31_000, `Preflight ${preflightBytes} exceeds the actual 31K UTF-8 guard`);
+  assert.ok(h.providerCalls.every(params => bytes({ prompt: params.prompt, tools: params.tools }) + 1024 <= 32_000), "Every materialized SDK schema must fit the provider input guard");
   assert.ok(h.reservations.every(item => Number(item.estimatedInputTokens) <= 32_000));
 });
 

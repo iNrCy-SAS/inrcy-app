@@ -28,7 +28,7 @@ test("Booster exposes iNrSearch in content, generation and image channel flows",
       read("app/dashboard/booster/publier/publishModal.foundations.ts"),
       read("app/dashboard/booster/publier/usePublishImageController.ts"),
       read("app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"),
-      read("app/dashboard/booster/publier/components/PublishImagesPanel.tsx"),
+      read("app/dashboard/booster/publier/components/PublishValidationBoard.tsx"),
       read("app/dashboard/booster/publier/publishModal.shared.tsx"),
       read("lib/boosterPrompt.ts"),
       read("lib/boosterPublishGeneration.ts"),
@@ -38,9 +38,10 @@ test("Booster exposes iNrSearch in content, generation and image channel flows",
   assert.match(modal, /CHANNEL_KEYS\.filter\(\(channel\) => channels\[channel\] && connected\[channel\]\)/);
   assert.match(imageController, /BOOSTER_CHANNEL_ORDER\.filter/);
   assert.match(contentEditor, /i18nT\("phrase_courte_inr_search_ee6e97e1"\)/);
-  assert.match(mediaPanel, /gridTemplateColumns: isMobile/);
-  assert.match(mediaPanel, /repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(mediaPanel, /overflowX: "hidden"/);
+  assert.match(modal, /<PublishValidationBoard items=\{publishReadinessItems\}/);
+  assert.match(mediaPanel, /items\.map\(\(item\) =>/);
+  assert.match(mediaPanel, /data-channel=\{item\.channel\}/);
+  assert.match(mediaPanel, /channelSupportsImages\(item\.channel\)/);
   assert.match(shared, /content: INR_SEARCH_CONTENT_MAX_LENGTH/);
   assert.match(shared, /"site_web",\s*"gmb",\s*"inr_search"/);
   assert.match(prompt, /INR_SEARCH_CONTENT_MAX_LENGTH/);
@@ -64,7 +65,7 @@ test("iNrSearch is available in iNrAgent between Google Business and Facebook", 
   const [agentConfig, agentSettings, preparePublish] = await Promise.all([
     read("app/dashboard/agent/_lib/agent.config.ts"),
     read("lib/inrAgentSettings.ts"),
-    read("app/api/agent/actions/prepare-publish/route.ts"),
+    read("lib/inrAgentPublicationPreparationPolicy.ts"),
   ]);
 
   assert.match(agentConfig, /"gmb",\s*\n\s*"inrSearch",\s*\n\s*"facebook"/);

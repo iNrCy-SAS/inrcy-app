@@ -41,12 +41,16 @@ function normalizeLines(lines: unknown, vatDispense: boolean) {
   const mapped = input
     .map((line, index) => {
       const item = (line ?? {}) as Partial<LineItem>;
+      const rawVatRate: unknown = item.vatRate;
+      const vatRate = rawVatRate == null || typeof rawVatRate === "string" && !rawVatRate.trim()
+        ? 20
+        : Number(rawVatRate);
       return {
         id: typeof item.id === "string" && item.id ? item.id : `l_${index + 1}`,
         label: typeof item.label === "string" ? item.label : "",
         qty: Number(item.qty) || 0,
         unitPrice: Number(item.unitPrice) || 0,
-        vatRate: vatDispense ? 0 : Number(item.vatRate) || 20,
+        vatRate: vatDispense ? 0 : Number.isFinite(vatRate) ? vatRate : 20,
       } satisfies LineItem;
     })
     .filter((line) => line.label || line.qty || line.unitPrice);

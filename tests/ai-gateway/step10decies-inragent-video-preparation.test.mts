@@ -1,3 +1,4 @@
+import { readAgentPublicationPreparationSource } from "../inragent/prepare-publication-sources.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -7,7 +8,7 @@ function read(relativePath: string) {
 }
 
 const helper = read("lib/inrAgentVideoPreparation.ts");
-const route = read("app/api/agent/actions/prepare-publish/route.ts");
+const route = readAgentPublicationPreparationSource();
 const multicompte = read("tests/multicompte/account-scope-step5.test.mts");
 
 test("iNrAgent télécharge une seule fois la vidéo puis prépare images et audio en parallèle", () => {
@@ -36,8 +37,9 @@ test("iNrAgent transmet les captures et la transcription au moteur Booster parta
 
 
 test("le quota vidéo est réservé avant toute transcription iNrAgent", () => {
-  const reservationIndex = route.indexOf("reserveAiCredits({");
-  const preparationIndex = route.indexOf("getOrPrepareInrAgentVideoForAi({");
+  const httpRoute = read("app/api/agent/actions/prepare-publish/route.ts");
+  const reservationIndex = httpRoute.indexOf("reserveAiCredits({");
+  const preparationIndex = httpRoute.indexOf("await prepareInrAgentSelectedMediaAnalysis({");
   assert.ok(reservationIndex >= 0);
   assert.ok(preparationIndex >= 0);
   assert.ok(reservationIndex < preparationIndex);

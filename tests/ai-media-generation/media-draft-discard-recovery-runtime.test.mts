@@ -6,6 +6,7 @@ import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as models from "../../lib/aiMediaModelCatalog.ts";
 import * as transport from "../../lib/aiMediaGenerationTransport.ts";
 import * as recovery from "../../lib/aiMediaGenerationRecovery.ts";
+import * as clientRequestRules from "../../lib/mediaGenerationClientRequest.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
 
 type Scope = { accountId: string | null; kind: "image" | "video"; isCurrent: () => boolean };
@@ -35,6 +36,7 @@ function harness() {
     ["@/lib/aiMediaGenerationContracts", contracts], ["@/lib/aiMediaModelCatalog", models],
     ["@/lib/aiMediaGenerationTransport", transport], ["@/lib/aiMediaGenerationRecovery", recovery],
     ["@/lib/aiMediaCharacterVoiceClient", characterVoices],
+    ["@/lib/mediaGenerationClientRequest", clientRequestRules],
   ]);
   const record = { exports: {} as { default: () => Hook; discardMediaGenerationDraft: (mediaId: string, scope?: Scope) => Promise<boolean> } };
   new Function("module", "exports", "require", "window", "fetch", output)(record, record.exports, (name: string) => {

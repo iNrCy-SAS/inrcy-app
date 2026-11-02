@@ -5,7 +5,7 @@ import { once } from "node:events";
 import { resolve } from "node:path";
 import test from "node:test";
 import vm from "node:vm";
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 import ts from "typescript";
 
 const root = resolve(import.meta.dirname, "../..");

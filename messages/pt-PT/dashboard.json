@@ -834,10 +834,25 @@
     "automaticPublicationShort": "Publicação automática com os dados da empresa completos.",
     "waitingHint": "Continue a ligar os seus canais. Este canal será publicado automaticamente quando os dados da empresa estiverem completos.",
     "missingInformation": "Informações em falta",
-    "activate": "Ativar", "deactivate": "Desativar", "published": "Publicado", "pending": "Ativado — a aguardar dados", "inactive": "Não ativado",
-    "completeDna": "Completar os dados", "pendingDescription": "A ativação está guardada. A publicação aguarda os dados da empresa em falta.", "automaticPublication": "O canal será publicado automaticamente quando os dados da empresa estiverem completos. Não será necessário voltar aos canais.",
-    "yourCompany": "A sua empresa", "loadFailed": "Não foi possível carregar este canal. Tente novamente dentro de instantes.", "saveFailed": "Não foi possível guardar a ativação. Tente novamente.", "unavailable": "Este canal não está disponível com os acessos atuais desta conta.",
-    "fields": { "company": "Nome da empresa", "contact": "Contacto público: telefone, email ou canal ligado", "profession": "Profissão", "city": "Cidade da sede", "postalCode": "Código postal da sede" }
+    "activate": "Ativar",
+    "deactivate": "Desativar",
+    "published": "Publicado",
+    "pending": "Ativado — a aguardar dados",
+    "inactive": "Não ativado",
+    "completeDna": "Completar os dados",
+    "pendingDescription": "A ativação está guardada. A publicação aguarda os dados da empresa em falta.",
+    "automaticPublication": "O canal será publicado automaticamente quando os dados da empresa estiverem completos. Não será necessário voltar aos canais.",
+    "yourCompany": "A sua empresa",
+    "loadFailed": "Não foi possível carregar este canal. Tente novamente dentro de instantes.",
+    "saveFailed": "Não foi possível guardar a ativação. Tente novamente.",
+    "unavailable": "Este canal não está disponível com os acessos atuais desta conta.",
+    "fields": {
+      "company": "Nome da empresa",
+      "contact": "Contacto público: telefone, email ou canal ligado",
+      "profession": "Profissão",
+      "city": "Cidade da sede",
+      "postalCode": "Código postal da sede"
+    }
   },
   "channelBubble": {
     "instagramProfessionalRequired": "É necessária uma conta profissional do Instagram (Business) ou Creator para estabelecer a ligação.",
@@ -1098,7 +1113,8 @@
       "description": "Description",
       "storefrontAddress": "Address",
       "regularHours": "Regular opening hours",
-      "specialHours": "Special opening hours and closures"
+      "specialHours": "Special opening hours and closures",
+      "categories": "Atividade principal"
     },
     "days": {
       "MONDAY": "Monday",
@@ -1128,6 +1144,21 @@
     "closeDayEditor": "Close time slots",
     "periodNumber": "Period {current} / {total}",
     "doneDay": "Done",
-    "midnight": "Until midnight (24:00)"
+    "midnight": "Until midnight (24:00)",
+    "categories": {
+      "primary": "Atividade principal",
+      "additional": "Atividades secundárias",
+      "placeholder": "Pesquisar uma atividade…",
+      "hint": "Escreva o início do nome e escolha uma categoria do Google.",
+      "selectResult": "Escolha uma sugestão do Google ou cancele a pesquisa.",
+      "searching": "A pesquisar…",
+      "noResults": "Nenhuma atividade encontrada. Experimente outro início do nome.",
+      "error": "Não foi possível ler as atividades do Google.",
+      "more": "Ver mais",
+      "remove": "Remover {name}",
+      "cancelSearch": "Cancelar pesquisa",
+      "maximum": "Até nove atividades secundárias.",
+      "review": "Alterar a atividade pode exigir uma nova validação pelo Google."
+    }
   }
 }

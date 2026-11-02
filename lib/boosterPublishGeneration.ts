@@ -50,7 +50,6 @@ import {
   limitBoosterGeneratedTitle,
 } from "@/lib/boosterChannelRules";
 import {
-  hasAiGeneratedCitationArtifacts,
   sanitizeAiGeneratedEditorialText,
 } from "@/lib/aiGeneratedTextSafety";
 import { normalizeBoosterInstagramPostHashtags } from "@/lib/boosterPublicationSafety";
@@ -701,17 +700,6 @@ function hasCorePublishableContent(channel: BoosterChannels, post: ChannelPost |
   return post.content.trim().length >= minContentLength;
 }
 
-function hasRequiredContent(channel: BoosterChannels, post: ChannelPost | undefined) {
-  // Étape 6 ter : un CTA séparé est une préférence éditoriale, pas un motif de
-  // normalisation. Un bon texte doit rester intact même si le moteur juge qu'un
-  // CTA serait artificiel. La clé cta existe toujours dans le JSON et peut être vide.
-  return hasCorePublishableContent(channel, post);
-}
-
-function hasPublishableText(post: ChannelPost | undefined) {
-  return Boolean(post?.content?.trim());
-}
-
 function normalizeIdeaToken(value: string) {
   return value
     .toLowerCase()
@@ -1118,10 +1106,10 @@ async function generateVersions(args: {
       engine: args.generationProfile.preferences.engine,
     }),
     deadlineAt: args.deadlineAt,
-    // Avec des médias, une nouvelle tentative du même fournisseur consomme la
-    // fenêtre Vercel sans améliorer la fiabilité. On bascule immédiatement vers
-    // un autre moteur ; sans média, l'unique reprise historique reste autorisée.
-    retries: mode === "repair" || Boolean(args.imagesForAI?.length) ? 0 : 1,
+    // Un timeout du moteur principal doit laisser la réserve de temps au secours.
+    // Rejouer le même appel texte de 50 s consommait les 100 s de l'opération
+    // avant ce basculement. Chaque moteur garde donc une seule tentative HTTP.
+    retries: 0,
   });
 }
 

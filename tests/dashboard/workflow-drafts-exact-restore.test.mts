@@ -1,3 +1,5 @@
+import { readFileSync as readDraftSessionSource } from "node:fs";
+const draftSession = readDraftSessionSource(new URL("../../app/dashboard/booster/publier/publicationDraftSession.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -9,7 +11,6 @@ function read(relativePath: string) {
 const workflowState = read("app/dashboard/_lib/workflowCampaignState.ts");
 const workflowDraftRoute = read("app/api/mails/workflow-draft/route.ts");
 const mailbox = read("app/dashboard/mails/MailboxClient.tsx");
-const booster = read("app/dashboard/booster/publier/PublishModal.tsx");
 const migration = read(
   "supabase/migrations/20260910170000_inrsend_workflow_draft_state.sql",
 );
@@ -114,15 +115,15 @@ test("Booster reprend tous les réglages de publication et les médias", () => {
     "pinterestBoardId",
     "tiktokPublicationSettings",
   ]) {
-    assert.ok(booster.includes(token), `état Booster manquant: ${token}`);
+    assert.ok(draftSession.includes(token), `état Booster manquant: ${token}`);
   }
   assert.match(
-    booster,
+    draftSession,
     /restorePublicationDraftImages\(imageDrafts, payload\.imageInteractionsByKey\)/,
   );
-  assert.match(booster, /restorePublicationDraftVideo\(videoDraft\)/);
-  assert.match(booster, /setSelectedAiPreferredEngine\(nextAiPreferredEngine\)/);
-  assert.match(booster, /setTiktokPublicationSettings\(nextTiktokPublicationSettings\)/);
+  assert.match(draftSession, /restorePublicationDraftVideo\(videoDraft\)/);
+  assert.match(draftSession, /setSelectedAiPreferredEngine\(nextAiPreferredEngine\)/);
+  assert.match(draftSession, /setTiktokPublicationSettings\(nextTiktokPublicationSettings\)/);
 });
 
 test("la migration de l'état riche est additive, typée JSON et réexécutable", () => {

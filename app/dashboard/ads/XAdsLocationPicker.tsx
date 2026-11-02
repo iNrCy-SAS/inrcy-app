@@ -11,16 +11,17 @@ export default function XAdsLocationPicker({ accountId, locations, selections, a
   const locationsKey = JSON.stringify(locations), key = JSON.stringify([accountId, active, locationsKey]);
   const [result, setResult] = useState<{ key: string; value: XAdsGeography | null; error: string }>({ key: "", value: null, error: "" });
   useEffect(() => {
-    if (!active || !accountId || !locations.length) return;
+    const requestedLocations = JSON.parse(locationsKey) as string[];
+    if (!active || !accountId || !requestedLocations.length) return;
     const abort = new AbortController(); setResult({ key, value: null, error: "" });
     void fetch(`/api/ads/x/geography?accountId=${encodeURIComponent(accountId)}&queries=${encodeURIComponent(locationsKey)}`, { cache: "no-store", signal: abort.signal }).then(async (response) => {
       const body = await response.json() as XAdsGeography;
       if (!response.ok || body.selectedAccountId !== accountId || body.complete !== true || body.publicationEnabled !== false || !Array.isArray(body.resolutions)
-        || body.resolutions.length !== locations.length || body.resolutions.some((row, index) => row.query !== locations[index] || !normalizeXAdsGeoTargets(row.options))) throw new Error("Les zones X ne peuvent pas encore être vérifiées pour ce compte.");
+        || body.resolutions.length !== requestedLocations.length || body.resolutions.some((row, index) => row.query !== requestedLocations[index] || !normalizeXAdsGeoTargets(row.options))) throw new Error("Les zones X ne peuvent pas encore être vérifiées pour ce compte.");
       return body;
     }).then((value) => { if (!abort.signal.aborted) setResult({ key, value, error: "" }); }).catch((error) => { if (!abort.signal.aborted) setResult({ key, value: null, error: error instanceof Error ? error.message : "Les zones X sont indisponibles." }); });
     return () => abort.abort();
-  }, [active, accountId, key, locationsKey, locations.length]);
+  }, [active, accountId, key, locationsKey]);
   const current = result.key === key ? result : null;
   return <div className={styles.panel} data-x-location-picker="true"><div className={styles.heading}><div><strong>Confirmer les zones proposées</strong><p>Une ligne par lieu ; les zones exactes viennent de votre compte X.</p></div></div>
     {!active && <small>Les lieux seront vérifiés après connexion du compte X.</small>}

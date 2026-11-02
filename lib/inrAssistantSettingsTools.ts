@@ -3,12 +3,14 @@ import { jsonSchema, tool } from "ai";
 import type { DashboardEdition } from "./dashboardEdition.ts";
 import { requireUser } from "./requireUser";
 import { requestsInrAssistantSettingsChange } from "./inrAssistantCommandRegistry.ts";
+import { GENERAL_PREFERENCE_VALUES, parseGeneralPreferencesPatch } from "./generalPreferences.ts";
 
 type Row = Record<string, unknown>;
 type Value = string | number | boolean | number[];
-const TOOLS = ["calendar", "notifications", "documents", "badge", "studio", "tiktok"] as const;
+const TOOLS = ["general", "calendar", "notifications", "documents", "badge", "studio", "tiktok"] as const;
 type Tool = typeof TOOLS[number];
 const LINKS: Record<Tool, { label: string; href: string }> = {
+  general: { label: "Préférences générales", href: "/dashboard?panel=preferences" },
   calendar: { label: "Réglages iNr’Calendar", href: "/dashboard?panel=agenda" },
   notifications: { label: "Notifications", href: "/dashboard?panel=notifications" },
   documents: { label: "Réglages des documents", href: "/dashboard?panel=documents" },
@@ -17,6 +19,7 @@ const LINKS: Record<Tool, { label: string; href: string }> = {
   tiktok: { label: "TikTok", href: "/dashboard?panel=tiktok" },
 };
 const FIELDS: Record<Tool, string[]> = {
+  general: ["clientLanguage", "timezone", "dateFormat", "currency"],
   calendar: ["selectedMailAccountId", "sendConfirmationOnSave", "reminderOffsetsMinutes"],
   notifications: ["in_app_enabled", "email_enabled", "performance_enabled", "action_enabled", "information_enabled", "digest_every_hours"],
   documents: ["common.operationCategory", "common.depositKind", "common.depositValue", "common.paymentMethod", "common.paymentDetails", "common.notes", "common.design.preset", "common.design.accentColor", "common.design.frame", "common.design.coloredTotals", "common.design.coloredParties", "quote.validityDays", "quote.mention", "invoice.dueDays", "invoice.lateFeeRate", "invoice.fixedRecoveryFee40", "invoice.vatOnDebits", "invoice.mention"],
@@ -45,14 +48,15 @@ function authorized(message: string, quote: string, target: Tool) {
   return requestsInrAssistantSettingsChange(message,target);
 }
 function nativeRequest(source: Request, target: Tool, body?: unknown) {
-  const paths: Record<Tool, string> = { calendar: "/api/calendar/settings", notifications: "/api/notifications/preferences", documents: "/api/documents/settings", badge: "/api/inrbadge/settings", studio: "/api/media-generation/preferences", tiktok: "/api/integrations/tiktok/settings" };
-  const methods: Record<Tool, string> = { calendar: "PATCH", notifications: "PUT", documents: "PATCH", badge: "PATCH", studio: "PATCH", tiktok: "POST" };
+  const paths: Record<Tool, string> = { general: "/api/preferences/general", calendar: "/api/calendar/settings", notifications: "/api/notifications/preferences", documents: "/api/documents/settings", badge: "/api/inrbadge/settings", studio: "/api/media-generation/preferences", tiktok: "/api/integrations/tiktok/settings" };
+  const methods: Record<Tool, string> = { general: "PATCH", calendar: "PATCH", notifications: "PUT", documents: "PATCH", badge: "PATCH", studio: "PATCH", tiktok: "POST" };
   const headers = new Headers({ accept: "application/json", "content-type": "application/json" });
   for (const name of ["cookie", "authorization"]) { const value = source.headers.get(name); if (value) headers.set(name, value); }
   return new Request(new URL(paths[target], source.url), { method: body === undefined ? "GET" : methods[target], headers, signal: source.signal, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 }
 async function route(target: Tool) {
   switch (target) {
+    case "general": return import("@/app/api/preferences/general/route");
     case "calendar": return import("@/app/api/calendar/settings/route");
     case "notifications": return import("@/app/api/notifications/preferences/route");
     case "documents": return import("@/app/api/documents/settings/route");
@@ -62,7 +66,7 @@ async function route(target: Tool) {
   }
 }
 function publicSettings(target: Tool, data: Row) {
-  const source = target === "notifications" || target === "studio" ? row(data.preferences) : target === "documents" || target === "badge" ? row(data.settings) : target === "tiktok" ? row(data.tiktok) : data;
+  const source = target === "general" || target === "notifications" || target === "studio" ? row(data.preferences) : target === "documents" || target === "badge" ? row(data.settings) : target === "tiktok" ? row(data.tiktok) : data;
   const output: Row = {};
   for (const field of FIELDS[target]) {
     const parts = field.split(".");
@@ -73,12 +77,12 @@ function publicSettings(target: Tool, data: Row) {
 }
 
 /** Fixed native settings adapters; no arbitrary route, table, environment or account argument. */
-export function createInrAssistantSettingsTools(options: { request: Request; accountId: string; edition: DashboardEdition; currentUserMessage: string; canStartWork?: () => boolean }) {
+export function createInrAssistantSettingsTools(options: { request: Request; accountId: string; actorUserId?: string; edition: DashboardEdition; currentUserMessage: string; canStartWork?: () => boolean }) {
   const { request, accountId, edition } = options;
   const pending = new Map<string, Promise<Row>>();
   const scope = async (target: Tool) => {
     if (request.signal.aborted || options.canStartWork?.() === false || target === "documents" && edition !== "founder" || target === "calendar" && (edition === "standard" || edition === "basic")) return false;
-    const auth = await requireUser(); return !auth.errorResponse && auth.activeUserId === accountId;
+    const auth = await requireUser(); return !auth.errorResponse && auth.activeUserId === accountId && (!options.actorUserId || auth.authUserId === options.actorUserId);
   };
   const fail = (target: Tool, status = "unavailable"): Row => ({ ok: false, status, nextAction: LINKS[target], message: status === "needs_instruction" ? "Précisez le réglage à modifier dans votre demande actuelle. Aucun réglage n’a changé." : "Le réglage ne peut pas être confirmé. Vérifiez le module ; aucune modification supplémentaire n’est annoncée." });
   const read = async (target: Tool) => {
@@ -90,20 +94,19 @@ export function createInrAssistantSettingsTools(options: { request: Request; acc
     return { data, settings: publicSettings(target, data) };
   };
   return {
-    readToolSettings: tool({ strict: true, description: "Lire les réglages ACTUELS autorisés d’iNr’Calendar, Notifications, Documents (droits comptables requis), iNr’Badge, iNr’Studio ou TikTok. Champs publics seulement, sans clés ni comptes externes. Utiliser les champs retournés pour une correction précise. Une lecture ne change aucun réglage.",
+    readToolSettings: tool({ strict: true, description: "Lire les réglages ACTUELS : general (langue client, fuseau, date, devise), iNr’Calendar, Notifications, Documents (droits comptables requis), iNr’Badge, iNr’Studio ou TikTok. Champs publics seulement. Utiliser les champs et valeurs autorisées retournés pour une correction précise. Une lecture ne change aucun réglage.",
       inputSchema: jsonSchema<{ tool: Tool }>({ type: "object", properties: { tool: { type: "string", enum: [...TOOLS] } }, required: ["tool"], additionalProperties: false }),
       execute: async raw => {
         const target = parseTool(strict(raw, ["tool"]).tool);
-        try { const current = await read(target); return current ? { ok: true, status: "read", tool: target, settings: current.settings, ...(target === "notifications" ? { source: current.data.source === "defaults" ? "defaults_not_saved" : "saved", message: current.data.source === "defaults" ? "Aucune préférence enregistrée : ces valeurs sont les valeurs par défaut, sans écriture." : "Préférences enregistrées lues sans modification." } : {}), editableFields: FIELDS[target], nextAction: LINKS[target] } : fail(target); } catch { return fail(target); }
+        try { const current = await read(target); return current ? { ok: true, status: "read", tool: target, settings: current.settings, ...(target === "general" ? { allowedValues: GENERAL_PREFERENCE_VALUES } : {}), ...(["general", "notifications"].includes(target) ? { source: current.data.source === "defaults" ? "defaults_not_saved" : "saved", message: current.data.source === "defaults" ? "Aucune préférence enregistrée : ces valeurs sont les valeurs par défaut, sans écriture." : "Préférences enregistrées lues sans modification." } : {}), editableFields: FIELDS[target], nextAction: LINKS[target] } : fail(target); } catch { return fail(target); }
       },
     }),
-    updateToolSettings: tool({ strict: true, description: "Corriger des réglages précis sur ordre ACTUEL, après readToolSettings. tool=calendar|notifications|documents|badge|studio|tiktok ; changes utilise les noms EXACTS retournés. Valeurs scalaires ou liste numérique. Préserve les champs omis, vérifie les valeurs réellement enregistrées. Studio : un seul bloc par action. Pas de changement de déclaration légale TikTok, d’identité/secret, d’abonnement ou d’activation d’un agent. Pas de génération, envoi ou rendez-vous créé.",
+    updateToolSettings: tool({ strict: true, description: "Corriger des réglages précis sur ordre ACTUEL, après readToolSettings. tool=general|calendar|notifications|documents|badge|studio|tiktok ; changes utilise les noms EXACTS retournés. Valeurs scalaires ou liste numérique. Préserve les champs omis, vérifie les valeurs réellement enregistrées. Studio : un seul bloc par action. Pas de changement de déclaration légale TikTok, d’identité/secret, d’abonnement ou d’activation d’un agent. Pas de génération, envoi ou rendez-vous créé.",
       inputSchema: jsonSchema<{ tool: Tool; instructionQuote: string; changes: { field: string; value: Value }[] }>({ type: "object", properties: {
         tool: { type: "string", enum: [...TOOLS] }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 }, changes: { type: "array", minItems: 1, maxItems: 10, items: { type: "object", properties: { field: { type: "string", maxLength: 80 }, value: { anyOf: [{ type: "string", maxLength: 1200 }, { type: "boolean" }, { type: "number" }, { type: "array", maxItems: 8, items: { type: "integer", minimum: 0, maximum: 2880 } }] } }, required: ["field", "value"], additionalProperties: false } },
       }, required: ["tool", "instructionQuote", "changes"], additionalProperties: false }),
       execute: async raw => {
         const input = strict(raw, ["tool", "instructionQuote", "changes"]); const target = parseTool(input.tool);
-        if (edition === "basic") return fail(target,"not_included");
         if (typeof input.instructionQuote !== "string" || input.instructionQuote.length > 1200 || !authorized(options.currentUserMessage, input.instructionQuote, target)) return fail(target, "needs_instruction");
         if (!Array.isArray(input.changes) || !input.changes.length || input.changes.length > 10) return fail(target, "invalid_settings");
         const key = JSON.stringify(input); if (pending.has(key)) return pending.get(key)!;
@@ -118,12 +121,13 @@ export function createInrAssistantSettingsTools(options: { request: Request; acc
             if (before !== undefined && (Array.isArray(before) ? !Array.isArray(value) : typeof before !== typeof value)) return fail(target, "invalid_settings");
             // Regulatory labels describe the real post; never persist a guessed default declaration.
             if (target === "tiktok" && ["defaults.aiContent", "defaults.commercialContent"].includes(field)) return fail(target, "confirmation_required");
-            if (target === "badge" && field === "appointment" && edition === "standard") return fail(target, "not_included");
+            if (target === "badge" && field === "appointment" && (edition === "standard" || edition === "basic")) return fail(target, "not_included");
             desired[field] = value;
             if (target === "studio") { const [id, name] = field.split("."); if (block && block !== id) return fail(target, "invalid_settings"); block = id; patch[name] = value; }
             else put(patch, field, value);
           }
           let body: unknown = patch;
+          if (target === "general") body = { accountId, ...(options.actorUserId ? { actorUserId: options.actorUserId } : {}), preferences: parseGeneralPreferencesPatch(patch) };
           if (target === "notifications") body = { ...current.settings, ...patch };
           if (target === "badge") body = { settings: { ...row(current.data.settings), ...patch } };
           if (target === "documents") body = { settings: patch };

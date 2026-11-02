@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "../../dashboard/dashboard.module.css";
 import b from "../booster/booster.module.css";
 import BaseModal from "../_components/WorkflowBaseModal";
@@ -106,7 +106,7 @@ export default function PropulserPage() {
       if (!ok) return;
     }
     closeActiveModal();
-  }, [active, activeHasUnsavedWork, closeActiveModal]);
+  }, [active, activeHasUnsavedWork, closeActiveModal, i18nT]);
 
   useUnsavedExitGuard({
     active: Boolean(active),
@@ -184,7 +184,7 @@ export default function PropulserPage() {
     setWorkflowDraftMessage("");
     workflowDraftActionRef.current = null;
     setActive(next);
-  }, [activeThemeIndex]);
+  }, [activeThemeIndex, i18nT]);
 
   const metricsLoading = !metricsLoadedOnce;
 
@@ -569,19 +569,3 @@ function TipPanel({ styles, title, lines }: any) {
     </div>
   );
 }
-
-
-const aiHeaderButtonStyle: CSSProperties = {
-  width: 38,
-  minWidth: 38,
-  minHeight: 36,
-  padding: 0,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 2,
-  borderRadius: 999,
-  fontSize: 13,
-  fontWeight: 900,
-  lineHeight: 1,
-};

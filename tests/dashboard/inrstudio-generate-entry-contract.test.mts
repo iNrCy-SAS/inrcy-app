@@ -249,7 +249,7 @@ test("Générer permet de changer Image/Vidéo sans abandonner Booster", () => {
 test("un média accepté Libre ou Guidé revient et s'insère dans Booster en image comme en vidéo", async () => {
   const publishSource = parsed(publishPath);
   const insertionEffect = findNode(publishSource, (node): node is ts.CallExpression =>
-    ts.isCallExpression(node) && node.expression.getText(publishSource) === "useEffect" &&
+    ts.isCallExpression(node) && node.expression.getText(publishSource) === "useEffectEvent" &&
     Boolean(node.arguments[0]?.getText(publishSource).includes("if (!pendingStudioReturn?.item) return;")));
   const client = read(studioClientPath);
   assert.match(client, /acceptMode=\{handoff \? "insert" : "library"\}/);
@@ -286,7 +286,7 @@ test("un média accepté Libre ou Guidé revient et s'insère dans Booster en im
         const inserted: unknown[] = [];
         let complete!: () => void;
         const completed = new Promise<void>((resolve) => { complete = resolve; });
-        execute<() => void>(insertionEffect.arguments[0], publishSource, {
+        execute<(result: InrStudioReturnedMedia, draftId: string, done: () => void) => void>(insertionEffect.arguments[0], publishSource, {
           pendingStudioReturn: returned[0], loadedPublicationDraftId: "42",
           inlineStudioReturnKeyRef: { current: embedded ? handoff.returnKey : "" },
           studioReturnApplyingKeyRef: { current: "" },
@@ -296,7 +296,7 @@ test("un média accepté Libre ou Guidé revient et s'insère dans Booster en im
           setImgError: (message: string) => { assert.fail(message); },
           setPendingStudioReturn: (result: unknown) => { assert.equal(result, null); },
           completeReturn: complete,
-        })();
+        })(returned[0], "42", complete);
         await completed;
         assert.deepEqual(inserted, [item]);
       }

@@ -112,7 +112,11 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState<string | { loadError: unknown; unauthenticated?: boolean }>("");
+  const errorMessage = typeof error === "string" ? error : getClientUserFacingErrorMessage(
+    error.unauthenticated ? new Error(i18nT("user_not_authenticated")) : error.loadError,
+    i18nT("profile_load_failed"),
+  );
   const [jobSearch, setJobSearch] = useState("");
   const [jobSearchOpen, setJobSearchOpen] = useState(false);
   const jobSearchResultsVisible = jobSearchOpen && jobSearch.trim().length > 0;
@@ -273,7 +277,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
           await supabase.auth.getUser();
         if (authErr) throw new Error(authErr.message);
         const user = authData?.user;
-        if (!user) throw new Error(i18nT("user_not_authenticated"));
+        if (!user) { setError({ loadError: null, unauthenticated: true }); return; }
 
         const { data, error: dbErr } = await supabase
           .from(TABLE)
@@ -333,9 +337,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
         loadSucceededRef.current = true;
       } catch (e: unknown) {
         console.error(e);
-        setError(
-          getClientUserFacingErrorMessage(e, i18nT("profile_load_failed")),
-        );
+        setError({ loadError: e });
       } finally {
         setLoading(false);
       }
@@ -1137,9 +1139,9 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
 
             </section> : null}
 
-            {error ? (
+            {errorMessage ? (
               <div style={{ color: "rgba(248,113,113,0.95)", fontWeight: 800 }}>
-                {error}
+                {errorMessage}
               </div>
             ) : null}
             {saved ? (

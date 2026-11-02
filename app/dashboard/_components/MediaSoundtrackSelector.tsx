@@ -114,9 +114,10 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
   useEffect(() => {
     if (!open || inline) return;
     const dialog = dialogRef.current;
+    const trigger = triggerRef.current;
     if (!dialog) return;
     if (!dialog.open) dialog.showModal();
-    return () => { if (dialog.open) dialog.close(); triggerRef.current?.focus({ preventScroll: true }); };
+    return () => { if (dialog.open) dialog.close(); trigger?.focus({ preventScroll: true }); };
   }, [open, inline]);
 
   const choose = (id: string | null) => { if (!disabled && !selectionLocked && !unavailableHint) { stopPreview(); onChange(id); } };

@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -164,9 +166,9 @@ test("la finalisation serveur valide chaque canal et isole les adaptations", asy
   const variants = await readSource("lib/boosterVideoVariantServer.ts");
 
   assert.match(modal, /async function ensureCutoverVideoVariantsReady/);
-  assert.match(modal, /i18nT\("publication_checking_media"\)/);
-  assert.match(modal, /setPublishProgressLabel\(i18nT\("progress_media_preparation"\)\)/);
-  assert.doesNotMatch(modal, /Compression des médias/);
+  assert.match(submission, /i18nT\("publication_checking_media"\)/);
+  assert.match(submission, /setPublishProgressLabel\(i18nT\("progress_media_preparation"\)\)/);
+  assert.doesNotMatch([modal, submission].join("\n"), /Compression des médias/);
   assert.match(controller, /validateVideoPublicationForChannel/);
   assert.match(prewarm, /invalidSignatures/);
   assert.match(prewarm, /invalidChannels/);

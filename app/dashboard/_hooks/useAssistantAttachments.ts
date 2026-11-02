@@ -14,8 +14,9 @@ export function useAssistantAttachments({ accountId, actorUserId, locale, ensure
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRef = useRef<{ controller: AbortController; revision: number } | null>(null);
   const revisionRef = useRef(0);
-  const reset = useCallback(() => { revisionRef.current++; activeRef.current?.controller.abort(); activeRef.current = null; setAttachments([]); setBusy(false); setError(null); setMenuOpen(false); setLibraryOpen(false); }, []);
-  useEffect(() => { return () => { revisionRef.current++; activeRef.current?.controller.abort(); }; }, [accountId, actorUserId]);
+  const cancelPendingUpload = useCallback(() => { revisionRef.current++; activeRef.current?.controller.abort(); }, []);
+  const reset = useCallback(() => { cancelPendingUpload(); activeRef.current = null; setAttachments([]); setBusy(false); setError(null); setMenuOpen(false); setLibraryOpen(false); }, [cancelPendingUpload]);
+  useEffect(() => cancelPendingUpload, [accountId, actorUserId, cancelPendingUpload]);
 
   const add = async (files: File[] | null, ids?: string[]) => {
     if (activeRef.current || (getActiveBrowserUserId() || accountId) !== accountId) return;

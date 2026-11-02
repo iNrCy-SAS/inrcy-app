@@ -1,3 +1,4 @@
+import { readAgentPublicationPreparationSource } from "../inragent/prepare-publication-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -95,7 +96,7 @@ test("AI writing follows configured CTA per channel and leaves unconfigured chan
 test("Booster and iNrAgent send the same saved channel CTA defaults to the AI writer", () => {
   const shared = readFileSync(new URL("../../lib/boosterPublishGeneration.ts", import.meta.url), "utf8");
   const booster = readFileSync(new URL("../../app/api/booster/generate/route.ts", import.meta.url), "utf8");
-  const agent = readFileSync(new URL("../../app/api/agent/actions/prepare-publish/route.ts", import.meta.url), "utf8");
+  const agent = readAgentPublicationPreparationSource();
   const regenerated = readFileSync(new URL("../../app/api/agent/actions/regenerate-channel/route.ts", import.meta.url), "utf8");
   assert.match(shared, /buildBoosterCtaGenerationInstructions\(/);
   assert.match(shared, /const extraInstructions = \[args\.extraInstructions, ctaInstructions\]/);

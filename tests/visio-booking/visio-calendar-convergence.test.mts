@@ -43,6 +43,9 @@ const sharedCalendarId = "shared@example.test";
 const now = new Date("2026-10-04T12:00:00.000Z");
 const nativeRequire = createRequire(import.meta.url);
 const sourcePath = new URL("../../lib/visioBookingGoogle.ts", import.meta.url);
+const clientCompiled = ts.transpileModule(readFileSync(new URL("../../lib/visioGoogleCalendarClient.ts", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText;
 
 // Only external boundaries are mocked. The synchronizer, reconciliation,
 // mutation wrappers, caches, and all policy modules execute their actual code.
@@ -186,7 +189,7 @@ function createHarness() {
     "@/lib/visioPendingSignupPolicy": pendingPolicy,
   };
   const exports = {} as HarnessModule;
-  runInNewContext(compiled, {
+  const runtimeContext = {
     exports,
     require: (name: string) => {
       if (name.startsWith("node:")) return nativeRequire(name);
@@ -197,7 +200,11 @@ function createHarness() {
     process: { env: { NODE_ENV: "test" } },
     console: { info() {}, warn() {}, error() {} },
     Date, Error, URL, URLSearchParams, structuredClone, setTimeout, clearTimeout,
-  }, { filename: "visioBookingGoogle.convergence.cjs" });
+  };
+  const clientExports = {};
+  runInNewContext(clientCompiled, { ...runtimeContext, exports: clientExports }, { filename: "visioGoogleCalendarClient.convergence.cjs" });
+  dependencies["@/lib/visioGoogleCalendarClient"] = clientExports;
+  runInNewContext(compiled, runtimeContext, { filename: "visioBookingGoogle.convergence.cjs" });
   return {
     api: exports,
     members: exports.getVisioTeamMembers(),

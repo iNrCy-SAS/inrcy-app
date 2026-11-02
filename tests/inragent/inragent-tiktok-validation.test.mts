@@ -1,3 +1,4 @@
+import { readAgentScheduleSource } from "./schedule-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -11,7 +12,7 @@ const actionExecution = read(
   "app/dashboard/agent/_hooks/useAgentActionExecution.ts",
 );
 const executeRoute = read("app/api/agent/actions/execute/route.ts");
-const scheduleRoute = read("app/api/agent/actions/schedule/route.ts");
+const scheduleRoute = readAgentScheduleSource();
 
 test("iNrAgent asks once, then reuses verified TikTok settings for immediate publications", () => {
   assert.match(agentClient, /<TiktokPublicationSettingsModal/);

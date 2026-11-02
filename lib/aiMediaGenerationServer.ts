@@ -20,6 +20,7 @@ import { AI_MEDIA_FREE_PROMPT_VERSION, buildAiMediaFreeSceneFramePrompt, getAiMe
 import { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover } from "@/lib/aiMediaFreeVoiceoverPolicy";
 import { splitAiMediaSpokenScript } from "./aiMediaSpokenScript.ts";
 import { buildAiMediaLocalLogoCompositionPrompt } from "./aiMediaLocalLogoCompositionPrompt.ts";
+import { prepareAiMediaNarration } from "@/lib/aiMediaNarrationPreparation";
 import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
 import {
   AiGatewayAccountLimitError,
@@ -53,9 +54,7 @@ import {
 import { assertAiMediaGatewayImageInputs } from "./aiMediaImageProviderGateway.ts";
 import { isAiMediaContentPolicyRejection } from "./aiMediaGenerationPublicErrors.ts";
 import {
-  AiMediaNarrationTooLongError,
   composeOriginalAiVideo,
-  prepareAiMediaNarrationAudioForVideo,
 } from "@/lib/aiMediaGeneratedVideo";
 import { AI_MEDIA_VIDEO_TEXT_LAYOUT } from "@/lib/aiMediaVideoLayout";
 import { inspectAiMediaVideoBufferLocally } from "@/lib/aiMediaVideoLocalQa";
@@ -72,8 +71,6 @@ import {
   createReferenceTeamFallbackVideo,
   createReferenceTeamMontage,
 } from "@/lib/aiMediaReferenceTeam";
-import { writeAiMediaNarration } from "@/lib/aiMediaNarration";
-import { generateAiMediaNarrationAudio } from "@/lib/aiMediaNarrationAudio";
 import { auditAiMediaNativeDialogueWithGoogle } from "@/lib/aiMediaNativeDialogueQaGoogle";
 import { resolveAiMediaDialogueSequence } from "@/lib/aiMediaDialogue";
 import {
@@ -1466,109 +1463,22 @@ export async function generateAndSaveAiMedia(args: {
       audio: null,
       warnings: [] as string[],
     });
-    const generateNarrationResult = async (
+    const generateNarrationResult = (
       narrationRequest: AiMediaGenerationRequest,
       preparedNativeNarration = nativeVoiceoverNarration,
-    ) => {
-      try {
-        let maximumSpeechUnits: number | undefined;
-        for (let preflightAttempt = 0; preflightAttempt < 3; preflightAttempt += 1) {
-          const stageSuffix = preflightAttempt ? `_rewrite_${preflightAttempt}` : "";
-          const narration = preparedNativeNarration && preflightAttempt === 0
-            ? preparedNativeNarration
-            : await measure(`narration_copy${stageSuffix}`, () =>
-            isFreeCreation ? writeAiMediaFreeNarration({ accountId: args.accountId, request: narrationRequest, profile, plan: creativePlan, maximumSpeechUnits, businessDnaContext }) : writeAiMediaNarration({
-              accountId: args.accountId,
-              request: narrationRequest,
-              profile,
-              plan: creativePlan,
-              recentPublications: generationContext.recentPublications,
-              maximumSpeechUnits,
-            })
-          );
-          args.signal?.throwIfAborted();
-          if (!narration) {
-            throw new Error("ai_media_narration_copy_unavailable");
-          }
-          const audio = await measure(`narration_audio${stageSuffix}`, () =>
-            generateAiMediaNarrationAudio({
-              accountId: args.accountId,
-              narration,
-              durationSeconds,
-              narrationVoice: narrationRequest.narrationVoice || "female",
-              narrationVoiceVariant: narrationRequest.narrationVoiceVariant,
-              pronunciationAliases: isFreeCreation ? extractAiMediaPronunciationAliases(narrationRequest.freePrompt || "") : undefined,
-              signal: narrationController.signal,
-            })
-          );
-          try {
-            const prepared = await measure(
-              `narration_audio_preflight${stageSuffix}`,
-              () =>
-                prepareAiMediaNarrationAudioForVideo({
-                  audio,
-                  durationSeconds,
-                  signal: narrationController.signal,
-                })
-            );
-            return {
-              narration,
-              audio: prepared.audio,
-              warnings: prepared.silenceCompacted
-                ? ["narration_silence_compacted_before_video"]
-                : ([] as string[]),
-            };
-          } catch (error) {
-            args.signal?.throwIfAborted();
-            if (
-              error instanceof AiMediaNarrationTooLongError &&
-              preflightAttempt < 2
-            ) {
-              // Réécrire une vraie phrase plus concise, puis la resynthétiser,
-              // plutôt que couper des mots, accélérer artificiellement la voix
-              // ou payer une vidéo qui devrait ensuite être livrée muette.
-              const suggestedMaximum = Math.max(
-                1,
-                Math.min(
-                  narration.wordCount - 1,
-                  Math.floor(
-                    (narration.wordCount / error.requiredTempo) * 0.96
-                  )
-                )
-              );
-              maximumSpeechUnits = maximumSpeechUnits
-                ? Math.min(maximumSpeechUnits - 1, suggestedMaximum)
-                : suggestedMaximum;
-              continue;
-            }
-            throw new Error(
-              `ai_media_narration_audio_preflight_failed:${safeAiMediaErrorMessage(
-                error,
-                320
-              )}`,
-              { cause: error }
-            );
-          }
-        }
-        throw new Error("ai_media_narration_audio_preflight_exhausted");
-      } catch (error) {
-        args.signal?.throwIfAborted();
-        if (narrationRequest.withNarration) {
-          throw new Error(
-            `ai_media_narration_unavailable:${safeAiMediaErrorMessage(
-              error,
-              400
-            )}`,
-            { cause: error }
-          );
-        }
-        return {
-          narration: null,
-          audio: null,
-          warnings: ["narration_unavailable_video_continued"],
-        };
-      }
-    };
+    ) => prepareAiMediaNarration({
+      context: { accountId: args.accountId, signal: args.signal },
+      narrationRequest,
+      preparedNativeNarration,
+      isFreeCreation,
+      profile,
+      creativePlan,
+      businessDnaContext,
+      recentPublications: generationContext.recentPublications,
+      durationSeconds,
+      narrationSignal: narrationController.signal,
+      measure,
+    });
     const narrationTask =
       providerRequest.teamVideoSpeechMode === "characters" || nativeVoiceoverRequested || !providerRequest.withNarration
         ? Promise.resolve(emptyNarrationResult())

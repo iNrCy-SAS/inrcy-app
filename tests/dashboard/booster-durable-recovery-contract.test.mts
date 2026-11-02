@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -17,7 +19,7 @@ const ingress = read("lib/boosterPublicationIngress.ts");
 const asyncPublication = read("lib/boosterAsyncPublication.ts");
 const executionIdempotency = read("lib/executionIdempotency.ts");
 const cron = read("app/api/cron/booster-publications/route.ts");
-const publishModal = read("app/dashboard/booster/publier/PublishModal.tsx");
+
 const workspacePreparation = read(
   "lib/mediaWorkspacePublicationPreparation.ts",
 );
@@ -84,8 +86,8 @@ test("cron reserves independent capacity for queued, stale recovery, and finaliz
 });
 
 test("red target channels are durable but never dispatchable", () => {
-  assert.match(publishModal, /channels: publishTargetChannels/);
-  assert.match(publishModal, /clientPreflightFailuresByChannel/);
+  assert.match(submission, /channels: publishTargetChannels/);
+  assert.match(submission, /clientPreflightFailuresByChannel/);
   assert.match(
     ingress,
     /normalizeClientPreflightFailuresByChannel[\s\S]*slice\(0, 100\)[\s\S]*slice\(0, 600\)/,

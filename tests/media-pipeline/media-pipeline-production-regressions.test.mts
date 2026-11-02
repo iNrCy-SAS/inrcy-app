@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -126,11 +128,11 @@ test("le choix vidéo reste instantané et l'original est attesté sans compress
   );
   assert.match(prepareRoute, /canonical MP4\/H\.264\/AAC is the durable fallback/);
   assert.doesNotMatch(prepareRoute, /size_requires_compression/);
-  assert.doesNotMatch(modal, /startBackgroundVideoPrewarm/);
-  assert.doesNotMatch(modal, /prepareCutoverVideoVariants/);
-  const immediatePublish = modal.slice(
-    modal.indexOf("const runPublish = async"),
-    modal.indexOf("const onSavePublicationDraft = async"),
+  assert.doesNotMatch([modal, submission].join("\n"), /startBackgroundVideoPrewarm/);
+  assert.doesNotMatch([modal, submission].join("\n"), /prepareCutoverVideoVariants/);
+  const immediatePublish = submission.slice(
+    submission.indexOf("const runPublish = async"),
+    submission.indexOf("const performSchedulePublication = async"),
   );
   assert.doesNotMatch(
     immediatePublish,

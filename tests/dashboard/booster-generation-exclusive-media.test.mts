@@ -4,6 +4,8 @@ import test from "node:test";
 import { getGenerationMediaSelectionError, getGenerationMediaSelectionPolicy } from "../../app/dashboard/booster/publier/generationMediaSelection.ts";
 function read(path: string) { return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8"); }
 
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
+
 test("generation keeps five image slots and one video slot independent", () => {
   const empty = getGenerationMediaSelectionPolicy({ imageCount: 0, hasVideo: false });
   assert.equal(empty.imagePickerDisabled, false); assert.equal(empty.videoPickerDisabled, false); assert.equal(empty.libraryMaxSelection, 6);
@@ -24,14 +26,13 @@ test("generation allows five images plus a video but rejects a sixth image and a
 });
 
 test("the generation UI and preparation keep both families while the publisher keeps its channel choices", () => {
-  const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
   const intent = read("app/dashboard/booster/publier/components/PublishIntentPanel.tsx");
   assert.match(intent, /pickImagesDisabled = generationMediaPolicy\.imagePickerDisabled/);
   assert.match(intent, /pickVideoDisabled = generationMediaPolicy\.videoPickerDisabled/);
-  assert.match(modal, /const shouldUseImagesForAI =\s*images\.length > 0 && useImagesForAI/);
-  assert.match(modal, /shouldUseImagesForAI \? \["image" as const\]/);
-  assert.match(modal, /hasVideoForGeneration \? \["video" as const\]/);
-  const publication = read("app/dashboard/booster/publier/components/PublishImagesPanel.tsx");
-  assert.match(publication, /setChannelMediaMode\(activeImageChannel, "video"\)/);
-  assert.match(publication, /setChannelMediaMode\(activeImageChannel, "images"\)/);
+  assert.match(generationController, /const shouldUseImagesForAI =\s*images\.length > 0 && useImagesForAI/);
+  assert.match(generationController, /shouldUseImagesForAI \? \["image" as const\]/);
+  assert.match(generationController, /hasVideoForGeneration \? \["video" as const\]/);
+  const publication = read("app/dashboard/booster/publier/components/PublishValidationBoard.tsx");
+  assert.match(publication, /onModeChange\(item\.channel, "video"\)/);
+  assert.match(publication, /onModeChange\(item\.channel, "images"\)/);
 });

@@ -44,6 +44,7 @@ function libraryHarness() {
     if (id === "next/link") return { default: "a" };
     if (id.endsWith("DashboardAssistantTrigger")) return { default: "assistant-trigger" };
     if (id.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
+    if (id.endsWith("useInrAssistantRefresh")) return { useInrAssistantRefresh() {} };
     if (id === "@/lib/supabaseClient") return { createClient: () => ({ storage: { from: () => ({ uploadToSignedUrl: async (_path: string, _token: string, file: File) => { transfers.push(file); return { error: null }; } }) } }) };
     if (id === "@/lib/universalMediaUploadClient") return { isUniversalMediaUploadEnabled: () => true, uploadFileToPreparedUniversalIntent: () => { throw new Error("Audio must bypass the visual upload pipeline"); } };
     if (id === "@/lib/mediaUploadPolicy") return uploadPolicy;
@@ -61,6 +62,7 @@ function libraryHarness() {
       return { ...metadataModule.exports, default: "metadata" };
     }
     if (id.endsWith("MediaOptimizerModal")) return { default: "optimizer" };
+    if (id === "./MediaLibraryVideo") return { default: "video" };
     if (id.endsWith(".module.css")) return { default: {} };
     throw new Error(`Unexpected media library dependency ${id}`);
   };
@@ -126,6 +128,24 @@ test("the library opts in to Audio, renders native playback and keeps audio away
   const preview = h.elements("button").find((item) => item.props["aria-label"] === "library_audio_preview"); assert.ok(preview);
   (preview.props.onClick as (event: unknown) => void)({ stopPropagation() {} }); h.render();
   assert.equal(h.elements("audio").length, 2); assert.equal(h.elements("audio")[1].props.controls, true);
+});
+
+test("inactive library images and videos expose metadata without loading an unusable preview, including stale cached URLs", async () => {
+  const h = libraryHarness();
+  h.setGetResponse(async () => Response.json({ ok: true, items: [
+    { ...photo, is_active: false },
+    { ...photo, id: "hidden-video", media_type: "video", is_active: false },
+    { ...audio, is_active: false },
+  ] }));
+  await h.refresh();
+  assert.equal(h.elements("img").length, 0);
+  assert.equal(h.elements("video").length, 0);
+  assert.equal(h.elements("audio").length, 0);
+  const previews = h.elements("button").filter(item => item.props["aria-label"] === "agrandir_le_media_55f536e4");
+  assert.equal(previews.length, 2);
+  assert.ok(previews.every(item => item.props.disabled === true));
+  assert.equal(h.elements("metadata").length, 6, "hidden media can still be renamed and restored");
+  assert.ok(h.elements("a").filter(item => item.props["aria-label"] === "ai_generator_download").every(item => item.props.href === undefined));
 });
 
 test("a GET captured before a successful metadata edit cannot revert it or repopulate its stale snapshot", async () => {

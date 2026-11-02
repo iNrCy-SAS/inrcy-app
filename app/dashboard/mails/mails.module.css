@@ -420,105 +420,17 @@
    - On supprime les largeurs fixes et on simplifie la grille.
 ========================= */
 
-.detailsStack {
-  display: grid;
-  gap: 14px;
-}
 
-.detailSectionCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.05),
-    rgba(255, 255, 255, 0.03)
-  );
-  border-radius: 18px;
-  padding: 14px;
-}
 
-.detailSectionHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
 
-.detailPillsWrap {
-  margin-top: 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
-.channelBubble {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  background: rgba(56, 189, 248, 0.1);
-  color: rgba(255, 255, 255, 0.94);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: lowercase;
-}
 
-.channelPublicationCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(7, 11, 26, 0.55);
-  border-radius: 16px;
-  padding: 12px;
-}
 
-.attachmentsPanel {
-  display: grid;
-  gap: 12px;
-}
 
-.attachmentGallery {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-start;
-}
 
-.attachmentPreviewCard {
-  display: flex;
-  flex-direction: column;
-  width: 220px;
-  max-width: 100%;
-  flex: 0 1 220px;
-  overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  text-decoration: none;
-  padding: 10px;
-}
 
-.attachmentPreviewImage {
-  display: block;
-  width: 100%;
-  height: 160px;
-  object-fit: contain;
-  object-position: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-}
 
-.attachmentPreviewCaption {
-  padding: 10px 12px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.82);
-  word-break: break-word;
-}
 
-.emptyDetailText {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
-}
 
 @media (max-width: 980px) {
   .page {
@@ -995,105 +907,17 @@
 
 /* RESPONSIVE (panneaux) */
 
-.detailsStack {
-  display: grid;
-  gap: 14px;
-}
 
-.detailSectionCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.05),
-    rgba(255, 255, 255, 0.03)
-  );
-  border-radius: 18px;
-  padding: 14px;
-}
 
-.detailSectionHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
 
-.detailPillsWrap {
-  margin-top: 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
-.channelBubble {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  background: rgba(56, 189, 248, 0.1);
-  color: rgba(255, 255, 255, 0.94);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: lowercase;
-}
 
-.channelPublicationCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(7, 11, 26, 0.55);
-  border-radius: 16px;
-  padding: 12px;
-}
 
-.attachmentsPanel {
-  display: grid;
-  gap: 12px;
-}
 
-.attachmentGallery {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-start;
-}
 
-.attachmentPreviewCard {
-  display: flex;
-  flex-direction: column;
-  width: 220px;
-  max-width: 100%;
-  flex: 0 1 220px;
-  overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  text-decoration: none;
-  padding: 10px;
-}
 
-.attachmentPreviewImage {
-  display: block;
-  width: 100%;
-  height: 160px;
-  object-fit: contain;
-  object-position: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-}
 
-.attachmentPreviewCaption {
-  padding: 10px 12px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.82);
-  word-break: break-word;
-}
 
-.emptyDetailText {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
-}
 
 @media (max-width: 980px) {
   .grid {
@@ -1516,105 +1340,17 @@
   font-weight: 850;
 }
 
-.detailsStack {
-  display: grid;
-  gap: 14px;
-}
 
-.detailSectionCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.05),
-    rgba(255, 255, 255, 0.03)
-  );
-  border-radius: 18px;
-  padding: 14px;
-}
 
-.detailSectionHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
 
-.detailPillsWrap {
-  margin-top: 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
-.channelBubble {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  background: rgba(56, 189, 248, 0.1);
-  color: rgba(255, 255, 255, 0.94);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: lowercase;
-}
 
-.channelPublicationCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(7, 11, 26, 0.55);
-  border-radius: 16px;
-  padding: 12px;
-}
 
-.attachmentsPanel {
-  display: grid;
-  gap: 12px;
-}
 
-.attachmentGallery {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-start;
-}
 
-.attachmentPreviewCard {
-  display: flex;
-  flex-direction: column;
-  width: 220px;
-  max-width: 100%;
-  flex: 0 1 220px;
-  overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  text-decoration: none;
-  padding: 10px;
-}
 
-.attachmentPreviewImage {
-  display: block;
-  width: 100%;
-  height: 160px;
-  object-fit: contain;
-  object-position: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-}
 
-.attachmentPreviewCaption {
-  padding: 10px 12px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.82);
-  word-break: break-word;
-}
 
-.emptyDetailText {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
-}
 
 @media (max-width: 980px) {
   .modalOverlay:has(> .detailsModalCard) {
@@ -1672,105 +1408,17 @@
 
 /* Navigation mail précédent / suivant */
 
-.detailsStack {
-  display: grid;
-  gap: 14px;
-}
 
-.detailSectionCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.05),
-    rgba(255, 255, 255, 0.03)
-  );
-  border-radius: 18px;
-  padding: 14px;
-}
 
-.detailSectionHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
 
-.detailPillsWrap {
-  margin-top: 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
-.channelBubble {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  background: rgba(56, 189, 248, 0.1);
-  color: rgba(255, 255, 255, 0.94);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: lowercase;
-}
 
-.channelPublicationCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(7, 11, 26, 0.55);
-  border-radius: 16px;
-  padding: 12px;
-}
 
-.attachmentsPanel {
-  display: grid;
-  gap: 12px;
-}
 
-.attachmentGallery {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-start;
-}
 
-.attachmentPreviewCard {
-  display: flex;
-  flex-direction: column;
-  width: 220px;
-  max-width: 100%;
-  flex: 0 1 220px;
-  overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  text-decoration: none;
-  padding: 10px;
-}
 
-.attachmentPreviewImage {
-  display: block;
-  width: 100%;
-  height: 160px;
-  object-fit: contain;
-  object-position: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-}
 
-.attachmentPreviewCaption {
-  padding: 10px 12px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.82);
-  word-break: break-word;
-}
 
-.emptyDetailText {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
-}
 
 @media (max-width: 980px) {
   /* Search + Filtrer sur la même ligne (colonne Messages) */
@@ -1783,105 +1431,17 @@
    Mobile header icons (iNrBox)
 ========================= */
 
-.detailsStack {
-  display: grid;
-  gap: 14px;
-}
 
-.detailSectionCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.05),
-    rgba(255, 255, 255, 0.03)
-  );
-  border-radius: 18px;
-  padding: 14px;
-}
 
-.detailSectionHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
 
-.detailPillsWrap {
-  margin-top: 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
-.channelBubble {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  background: rgba(56, 189, 248, 0.1);
-  color: rgba(255, 255, 255, 0.94);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: lowercase;
-}
 
-.channelPublicationCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(7, 11, 26, 0.55);
-  border-radius: 16px;
-  padding: 12px;
-}
 
-.attachmentsPanel {
-  display: grid;
-  gap: 12px;
-}
 
-.attachmentGallery {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-start;
-}
 
-.attachmentPreviewCard {
-  display: flex;
-  flex-direction: column;
-  width: 220px;
-  max-width: 100%;
-  flex: 0 1 220px;
-  overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  text-decoration: none;
-  padding: 10px;
-}
 
-.attachmentPreviewImage {
-  display: block;
-  width: 100%;
-  height: 160px;
-  object-fit: contain;
-  object-position: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-}
 
-.attachmentPreviewCaption {
-  padding: 10px 12px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.82);
-  word-break: break-word;
-}
 
-.emptyDetailText {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
-}
 
 @media (max-width: 980px) {
   .actions {
@@ -1894,105 +1454,17 @@
    MOBILE (Action) : icônes only + centrage
    ========================= */
 
-.detailsStack {
-  display: grid;
-  gap: 14px;
-}
 
-.detailSectionCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.05),
-    rgba(255, 255, 255, 0.03)
-  );
-  border-radius: 18px;
-  padding: 14px;
-}
 
-.detailSectionHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
 
-.detailPillsWrap {
-  margin-top: 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
-.channelBubble {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  background: rgba(56, 189, 248, 0.1);
-  color: rgba(255, 255, 255, 0.94);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: lowercase;
-}
 
-.channelPublicationCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(7, 11, 26, 0.55);
-  border-radius: 16px;
-  padding: 12px;
-}
 
-.attachmentsPanel {
-  display: grid;
-  gap: 12px;
-}
 
-.attachmentGallery {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-start;
-}
 
-.attachmentPreviewCard {
-  display: flex;
-  flex-direction: column;
-  width: 220px;
-  max-width: 100%;
-  flex: 0 1 220px;
-  overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  text-decoration: none;
-  padding: 10px;
-}
 
-.attachmentPreviewImage {
-  display: block;
-  width: 100%;
-  height: 160px;
-  object-fit: contain;
-  object-position: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-}
 
-.attachmentPreviewCaption {
-  padding: 10px 12px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.82);
-  word-break: break-word;
-}
 
-.emptyDetailText {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
-}
 
 @media (max-width: 980px) {
   /* Header du mail (ACTION) centré */
@@ -2010,105 +1482,17 @@
    - "Cadres" au format icône (carrés)
 ========================= */
 
-.detailsStack {
-  display: grid;
-  gap: 14px;
-}
 
-.detailSectionCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.05),
-    rgba(255, 255, 255, 0.03)
-  );
-  border-radius: 18px;
-  padding: 14px;
-}
 
-.detailSectionHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
 
-.detailPillsWrap {
-  margin-top: 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
-.channelBubble {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  background: rgba(56, 189, 248, 0.1);
-  color: rgba(255, 255, 255, 0.94);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: lowercase;
-}
 
-.channelPublicationCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(7, 11, 26, 0.55);
-  border-radius: 16px;
-  padding: 12px;
-}
 
-.attachmentsPanel {
-  display: grid;
-  gap: 12px;
-}
 
-.attachmentGallery {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-start;
-}
 
-.attachmentPreviewCard {
-  display: flex;
-  flex-direction: column;
-  width: 220px;
-  max-width: 100%;
-  flex: 0 1 220px;
-  overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  text-decoration: none;
-  padding: 10px;
-}
 
-.attachmentPreviewImage {
-  display: block;
-  width: 100%;
-  height: 160px;
-  object-fit: contain;
-  object-position: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-}
 
-.attachmentPreviewCaption {
-  padding: 10px 12px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.82);
-  word-break: break-word;
-}
 
-.emptyDetailText {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
-}
 
 @media (max-width: 980px) {
   /* 4 icônes sur une ligne (si la place manque, le navigateur peut quand même wrap) */
@@ -2126,105 +1510,17 @@
 
 /* ===== Mobile UI improvements (responsive only) ===== */
 
-.detailsStack {
-  display: grid;
-  gap: 14px;
-}
 
-.detailSectionCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.05),
-    rgba(255, 255, 255, 0.03)
-  );
-  border-radius: 18px;
-  padding: 14px;
-}
 
-.detailSectionHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
 
-.detailPillsWrap {
-  margin-top: 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
-.channelBubble {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  background: rgba(56, 189, 248, 0.1);
-  color: rgba(255, 255, 255, 0.94);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: lowercase;
-}
 
-.channelPublicationCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(7, 11, 26, 0.55);
-  border-radius: 16px;
-  padding: 12px;
-}
 
-.attachmentsPanel {
-  display: grid;
-  gap: 12px;
-}
 
-.attachmentGallery {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-start;
-}
 
-.attachmentPreviewCard {
-  display: flex;
-  flex-direction: column;
-  width: 220px;
-  max-width: 100%;
-  flex: 0 1 220px;
-  overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  text-decoration: none;
-  padding: 10px;
-}
 
-.attachmentPreviewImage {
-  display: block;
-  width: 100%;
-  height: 160px;
-  object-fit: contain;
-  object-position: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-}
 
-.attachmentPreviewCaption {
-  padding: 10px 12px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.82);
-  word-break: break-word;
-}
 
-.emptyDetailText {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
-}
 
 @media (max-width: 980px) {
   /* Action tiles: perfect squares like the top-right header icons */
@@ -2252,36 +1548,9 @@
 
 /* Mobile fine-tuning */
 
-.detailsStack {
-  display: grid;
-  gap: 14px;
-}
 
-.detailSectionCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.05),
-    rgba(255, 255, 255, 0.03)
-  );
-  border-radius: 18px;
-  padding: 14px;
-}
 
-.detailSectionHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
 
-.detailPillsWrap {
-  margin-top: 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
 .channelBubble {
   display: inline-flex;
@@ -2297,60 +1566,12 @@
   text-transform: lowercase;
 }
 
-.channelPublicationCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(7, 11, 26, 0.55);
-  border-radius: 16px;
-  padding: 12px;
-}
 
-.attachmentsPanel {
-  display: grid;
-  gap: 12px;
-}
 
-.attachmentGallery {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-start;
-}
 
-.attachmentPreviewCard {
-  display: flex;
-  flex-direction: column;
-  width: 220px;
-  max-width: 100%;
-  flex: 0 1 220px;
-  overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  text-decoration: none;
-  padding: 10px;
-}
 
-.attachmentPreviewImage {
-  display: block;
-  width: 100%;
-  height: 160px;
-  object-fit: contain;
-  object-position: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-}
 
-.attachmentPreviewCaption {
-  padding: 10px 12px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.82);
-  word-break: break-word;
-}
 
-.emptyDetailText {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
-}
 
 @media (max-width: 980px) {
   .item {
@@ -2859,19 +2080,6 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
-.searchInputInline {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 36px;
-  border: none;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.92);
-  padding: 0 8px;
-  outline: none;
-}
-.searchInputInline::placeholder {
-  color: rgba(255, 255, 255, 0.55);
-}
 
 .searchClearBtn,
 .searchCloseBtn {
@@ -4235,9 +3443,6 @@
     font-size: 11px;
   }
 
-  .composeAttachmentChips {
-    display: none;
-  }
 
   .composeAttachmentDock .btnAttach {
     width: 42px;
@@ -4665,16 +3870,7 @@
     border-radius: 16px;
   }
 
-  .folderTabLabel {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
 
-  .folderTabBtn .badgeCount {
-    flex: 0 0 auto;
-  }
 }
 
 /* iNr'Send : bulles larges et premium, sans scroll horizontal */

@@ -40,12 +40,6 @@ export async function apiGET(page: Page, url: string): Promise<BrowserFetchResul
   }, url);
 }
 
-export function expectJsonOk(result: BrowserFetchResult) {
-  expect(result.ok, `HTTP ${result.status}\n${result.text}`).toBeTruthy();
-  expect(result.contentType).toContain('application/json');
-  return result.json;
-}
-
 export type JsonObject = { [key: string]: JsonValue };
 
 export function asObject(value: JsonValue): JsonObject {

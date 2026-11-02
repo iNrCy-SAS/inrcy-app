@@ -1,18 +1,10 @@
 import { createHash } from "node:crypto";
 import { getMediaImageInteractions, normalizeImageInteractions, type ImageInteractions } from "@/lib/imageInteractions";
 import sharp from "sharp";
-import { normalizeImageBuffer } from "@/lib/mediaImageNormalizer";
 import { imageSourceRequiresCanonical } from "@/lib/mediaImageRecoveryPolicy";
-import {
-  IMAGE_NORMALIZATION_PIPELINE_VERSION,
-  IMAGE_NORMALIZATION_PURPOSES,
-  buildImageNormalizationStoragePath,
-  type ImageNormalizationPurpose,
-} from "@/lib/mediaImageNormalizationPolicy";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   SUPABASE_STORAGE_BINARY_UPLOAD_VERSION,
-  toExactStorageArrayBuffer,
   withStorageBinaryMetadata,
 } from "@/lib/supabaseStorageBinary";
 import {
@@ -421,10 +413,6 @@ function canonicalVideoName(originalFileName: string) {
   return `${fileStem(originalFileName, "video-inrcy")}.mp4`;
 }
 
-function variantKey(mediaId: string, purpose: string) {
-  return `${mediaId}:${purpose}`;
-}
-
 function editorImageKeyFromClientMediaKey(value: string | null, fallback: string) {
   const clean = cleanText(value);
   if (!clean) return fallback;
@@ -644,17 +632,6 @@ function pickReadyVariant(
   );
 }
 
-function pickAllReadyVariants(
-  variants: readonly ReadyVariant[],
-  mediaId: string,
-  purpose: string,
-) {
-  return variants.filter(
-    (variant) =>
-      variant.mediaId === mediaId && variant.purpose === purpose,
-  );
-}
-
 function pickReadyVideoNormalizationVariant(
   variants: readonly ReadyVariant[],
   mediaId: string,
@@ -697,9 +674,6 @@ async function downloadVariant(variant: ReadyVariant) {
   };
 }
 
-const imageRepairInFlight = new Map<string, Promise<ReadyVariant[]>>();
-let imageRepairTail: Promise<void> = Promise.resolve();
-
 function hasTrustedBinaryUpload(variant: ReadyVariant) {
   return (
     Number(variant.metadata.storage_binary_upload_version || 0) ===
@@ -723,35 +697,6 @@ async function markVariantBinaryUploadTrusted(variant: ReadyVariant) {
     return;
   }
   variant.metadata = metadata;
-}
-
-async function assertStoredImageVariantIsValid(variant: ReadyVariant) {
-  if (hasTrustedBinaryUpload(variant)) return;
-
-  const { buffer } = await downloadVariant(variant);
-  if (variant.sizeBytes > 0 && buffer.byteLength !== variant.sizeBytes) {
-    throw new Error(
-      `image_variant_size_mismatch:${buffer.byteLength}:${variant.sizeBytes}`,
-    );
-  }
-
-  const expectedSha256 = cleanText(variant.metadata.output_sha256).toLowerCase();
-  if (
-    expectedSha256.length === 64 &&
-    expectedSha256 !== sha256(buffer)
-  ) {
-    throw new Error("image_variant_hash_mismatch");
-  }
-
-  const metadata = await sharp(buffer, {
-    failOn: "error",
-    limitInputPixels: AI_PROVIDER_SAFE_MAX_INPUT_PIXELS,
-    pages: 1,
-  }).metadata();
-  if (!metadata.width || !metadata.height) {
-    throw new Error("image_variant_dimensions_missing");
-  }
-  await markVariantBinaryUploadTrusted(variant);
 }
 
 async function downloadWorkspaceImageSource(params: {
@@ -798,180 +743,6 @@ async function downloadWorkspaceImageSource(params: {
     );
   }
   return buffer;
-}
-
-async function performImageVariantRepair(params: {
-  accountId: string;
-  media: WorkspaceMediaRow;
-  variants: ReadyVariant[];
-}) {
-  const sourceBuffer = await downloadWorkspaceImageSource(params);
-  const normalized = await normalizeImageBuffer({
-    buffer: sourceBuffer,
-    mimeType: params.media.detectedMimeType || params.media.sourceMimeType,
-    originalFileName: params.media.originalFileName,
-  });
-  const repairedAt = new Date().toISOString();
-  const outputs: Record<string, Record<string, unknown>> = {};
-
-  for (const purpose of IMAGE_NORMALIZATION_PURPOSES) {
-    const target = params.variants.find(
-      (variant) =>
-        variant.mediaId === params.media.mediaId &&
-        variant.purpose === purpose,
-    );
-    if (!target) {
-      throw new MediaWorkspaceConsumptionError(
-        `La variante ${purpose} est absente du registre.`,
-        "workspace_image_variant_registry_missing",
-        409,
-      );
-    }
-
-    const output = normalized.variants[purpose];
-    const storagePath = buildImageNormalizationStoragePath({
-      accountId: params.accountId,
-      mediaId: params.media.mediaId,
-      purpose,
-      extension: output.extension,
-    });
-    const variantMetadata = withStorageBinaryMetadata({
-      ...output.metadata,
-      repaired_from_source_at: repairedAt,
-    });
-    const uploaded = await supabaseAdmin.storage
-      .from(PRIVATE_MEDIA_BUCKET)
-      .upload(storagePath, toExactStorageArrayBuffer(output.buffer), {
-        upsert: true,
-        contentType: output.mimeType,
-        cacheControl: "31536000",
-      });
-    if (uploaded.error) {
-      throw new MediaWorkspaceConsumptionError(
-        uploaded.error.message,
-        "workspace_image_repair_upload_failed",
-        503,
-      );
-    }
-
-    const updated = await supabaseAdmin
-      .from("media_variants")
-      .update({
-        status: "ready",
-        bucket_name: PRIVATE_MEDIA_BUCKET,
-        storage_path: storagePath,
-        mime_type: output.mimeType,
-        size_bytes: output.sizeBytes,
-        width: output.width,
-        height: output.height,
-        duration_seconds: null,
-        pipeline_version: IMAGE_NORMALIZATION_PIPELINE_VERSION,
-        transform_spec: output.transformSpec,
-        variant_metadata: variantMetadata,
-        error_code: null,
-        error_message: null,
-        ready_at: repairedAt,
-      })
-      .eq("id", target.id)
-      .eq("account_id", params.accountId)
-      .eq("media_id", params.media.mediaId);
-    if (updated.error) throw updated.error;
-
-    Object.assign(target, {
-      bucket: PRIVATE_MEDIA_BUCKET,
-      storagePath,
-      mimeType: output.mimeType,
-      sizeBytes: output.sizeBytes,
-      width: output.width,
-      height: output.height,
-      durationSeconds: null,
-      metadata: variantMetadata,
-    });
-    outputs[purpose] = {
-      variantId: target.id,
-      bucket: PRIVATE_MEDIA_BUCKET,
-      storagePath,
-      mimeType: output.mimeType,
-      sizeBytes: output.sizeBytes,
-      width: output.width,
-      height: output.height,
-    };
-  }
-
-  const canonical = params.variants.find(
-    (variant) =>
-      variant.mediaId === params.media.mediaId &&
-      variant.purpose === "canonical",
-  );
-  if (!canonical) {
-    throw new MediaWorkspaceConsumptionError(
-      "La variante canonique réparée est introuvable.",
-      "workspace_image_repair_canonical_missing",
-      409,
-    );
-  }
-  const mediaUpdate = await supabaseAdmin
-    .from("pro_media_library")
-    .update({
-      canonical_bucket_name: canonical.bucket,
-      canonical_storage_path: canonical.storagePath,
-      canonical_mime_type: canonical.mimeType,
-      canonical_size_bytes: canonical.sizeBytes,
-      processing_status: "ready",
-      publication_status: "ready",
-      processing_progress: 100,
-      processing_error_code: null,
-      processing_error_message: null,
-      processing_completed_at: repairedAt,
-      pipeline_version: IMAGE_NORMALIZATION_PIPELINE_VERSION,
-      media_metadata: {
-        ...params.media.mediaMetadata,
-        image_binary_repair: {
-          version: SUPABASE_STORAGE_BINARY_UPLOAD_VERSION,
-          repaired_at: repairedAt,
-          source: normalized.source,
-          variants: outputs,
-        },
-      },
-    })
-    .eq("id", params.media.mediaId)
-    .eq("user_id", params.accountId);
-  if (mediaUpdate.error) throw mediaUpdate.error;
-
-  params.media.mediaMetadata = {
-    ...params.media.mediaMetadata,
-    image_binary_repair: {
-      version: SUPABASE_STORAGE_BINARY_UPLOAD_VERSION,
-      repaired_at: repairedAt,
-    },
-  };
-  return params.variants;
-}
-
-async function repairImageVariantsFromSource(params: {
-  accountId: string;
-  media: WorkspaceMediaRow;
-  variants: ReadyVariant[];
-}) {
-  const repairKey = `${params.accountId}:${params.media.mediaId}`;
-  const existing = imageRepairInFlight.get(repairKey);
-  if (existing) return await existing;
-
-  // Une source peut peser 50 Mo et se décompresser en plusieurs centaines de
-  // Mo. Les réparations historiques sont donc sérialisées, alors que les
-  // aperçus déjà sains restent lus en parallèle.
-  const repair = imageRepairTail
-    .catch(() => undefined)
-    .then(() => performImageVariantRepair(params))
-    .finally(() => {
-      imageRepairInFlight.delete(repairKey);
-    });
-  imageRepairTail = repair.then(
-    () => undefined,
-    () => undefined,
-  );
-  imageRepairInFlight.set(repairKey, repair);
-  return await repair;
 }
 
 async function variantToDataUrl(variant: ReadyVariant) {

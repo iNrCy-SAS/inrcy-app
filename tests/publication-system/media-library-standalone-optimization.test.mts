@@ -134,7 +134,7 @@ test("compression stays autonomous and reusable outside Booster", () => {
 test("Booster optimizer buttons never forward the React click event as a media item", () => {
   const publishModal = read("app/dashboard/booster/publier/PublishModal.tsx");
   const intentPanel = read("app/dashboard/booster/publier/components/PublishIntentPanel.tsx");
-  const imagesPanel = read("app/dashboard/booster/publier/components/PublishImagesPanel.tsx");
+  const imagesPanel = read("app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx");
   const warningModals = read("app/dashboard/booster/publier/components/PublishWarningModals.tsx");
   const picker = read("app/dashboard/_components/MediaLibraryPickerModal.tsx");
   const optimizer = read("app/dashboard/_components/MediaOptimizerModal.tsx");
@@ -144,7 +144,10 @@ test("Booster optimizer buttons never forward the React click event as a media i
   assert.doesNotMatch(intentPanel, /onClick=\{onOpenMediaOptimizer\}/);
   assert.doesNotMatch(imagesPanel, /onClick=\{onOpenMediaOptimizer\}/);
   assert.match(intentPanel, /onClick=\{\(\) => onOpenMediaOptimizer\(\)\}/);
-  assert.match(imagesPanel, /onClick=\{\(\) => onOpenMediaOptimizer\(\)\}/);
+  // Pool actions wrap their media kind; oversize imports open the shared warning flow.
+  assert.match(imagesPanel, /onClick=\{\(\) => onLibrary\(kind\)\}/);
+  assert.match(imagesPanel, /onClick=\{\(\) => onGenerate\(kind\)\}/);
+  assert.match(warningModals, /onClick=\{onOptimizeOversizedMedia\}/);
   assert.match(publishModal, /type BoosterMediaInsertionDestination/);
   assert.match(publishModal, /destination\.kind === "channel" \? destination\.channel : undefined/);
   assert.match(publishModal, /setMediaOptimizerPromptOpen\(true\)/);

@@ -42,11 +42,6 @@ function asRecord(value: unknown): JsonRecord {
     : {};
 }
 
-function positiveNumber(value: unknown) {
-  const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? number : null;
-}
-
 function buildVariantAttachment(params: {
   currentVideo: InrSendGoogleBusinessVideo;
   sourceVideo: InrSendGoogleBusinessVideo;

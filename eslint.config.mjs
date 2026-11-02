@@ -3,7 +3,7 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 // Flat config (eslint.config.mjs)
-// Goal: keep CI green while still surfacing useful issues as warnings.
+// Keep the existing rule coverage, with blocking source hygiene checks below.
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -58,25 +58,20 @@ export default defineConfig([
   },
 
 
-  // API routes: tolerate dynamic provider payloads and unused destructured values.
+  // API routes use dynamic provider payloads; source hygiene is enforced below.
   {
     files: ["app/api/**/*.{ts,tsx}"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
-      "no-unused-vars": "off",
-      "@typescript-eslint/no-unused-vars": "off",
     },
   },
 
-  // Dashboard: allow pragmatic typing + hooks deps to keep CI green
+  // Dashboard typing and render patterns retain their established rule settings.
   {
     files: ["app/dashboard/**/*.{ts,tsx}"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
-      "no-unused-vars": "off",
-      "@typescript-eslint/no-unused-vars": "off",
       "@next/next/no-img-element": "off",
-      "react-hooks/exhaustive-deps": "off",
       "react-hooks/set-state-in-effect": "off",
     },
   },
@@ -86,8 +81,21 @@ export default defineConfig([
     files: ["lib/**/*.{ts,tsx}", "middleware.ts"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
+
+  // Source hygiene is blocking in the standard lint command as well as the audit.
+  {
+    files: ["app/**/*.{js,jsx,ts,tsx}", "lib/**/*.{js,jsx,ts,tsx}", "hooks/**/*.{js,jsx,ts,tsx}", "i18n/**/*.{js,jsx,ts,tsx}"],
+    rules: {
       "no-unused-vars": "off",
-      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": ["error", {
+        argsIgnorePattern: "^_",
+        varsIgnorePattern: "^_",
+        caughtErrorsIgnorePattern: "^_",
+        ignoreRestSiblings: true,
+      }],
+      "react-hooks/exhaustive-deps": "error",
     },
   },
 

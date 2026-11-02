@@ -15,6 +15,7 @@ function sliceBetween(source: string, start: string, end: string) {
 }
 
 const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
+const submission = read("app/dashboard/booster/publier/publicationSubmission.ts");
 const hook = read(
   "app/dashboard/booster/publier/usePersistentMediaWorkspace.ts",
 );
@@ -28,7 +29,7 @@ test("strict scheduled video never validates the browser original", () => {
     "const syncActiveImagesToPersistentWorkspace",
   );
   const schedule = sliceBetween(
-    modal,
+    submission,
     "if (hasAnyVideoPublish && workspaceCarriesVideoForSchedule)",
     "const emptyChannelImages",
   );

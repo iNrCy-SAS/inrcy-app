@@ -247,7 +247,9 @@ export async function buildStatsOverview(args: {
     profession: decodedBusinessSector.profession,
     inrcyPublishedActivityStats,
   });
-  const rangeKey = `metaPilot=${metaPilotEnabled ? 1 : 0}|days=${days}|include=${includeRaw || "all"}|snapshot=${dateWindow.snapshotDate || "live"}|conn=${connectionsKey}`;
+  // Skip pre-fix LinkedIn error snapshots without invalidating other channels.
+  const linkedInDateRangeCacheVersion = includeAll || includeSet.has("linkedin") ? "|liDateRange=restli2" : "";
+  const rangeKey = `metaPilot=${metaPilotEnabled ? 1 : 0}|days=${days}|include=${includeRaw || "all"}|snapshot=${dateWindow.snapshotDate || "live"}|conn=${connectionsKey}${linkedInDateRangeCacheVersion}`;
 
   const {
     buildLinkedInMetricsCacheKey,
@@ -1364,7 +1366,6 @@ export async function buildStatsOverview(args: {
   // while the mirrored settings still contain the selected establishment. The
   // canonical channel state resolves that transition once for every consumer.
   try {
-    const gmbRow = latestIntegrationAny("google", "gmb", "gmb");
     const resourceId = String(channelStates.gmb.resource_id || "").trim();
     sourcesStatus.gmb.connected = isStatsActiveConnection(channelStates.gmb);
 

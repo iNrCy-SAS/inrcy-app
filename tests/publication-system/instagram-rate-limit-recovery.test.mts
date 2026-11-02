@@ -16,7 +16,7 @@ test("Instagram classe la limite Meta comme une erreur relançable", () => {
 });
 
 test("le worker Instagram diffère la reprise et le cron respecte l'échéance", () => {
-  const route = read("../../app/api/booster/publish-now/route.ts");
+  const route = read("../../app/api/booster/publish-now/route.ts") + "\n" + read("../../app/api/booster/publish-now/publishNow.continuations.ts");
   const cron = read("../../app/api/cron/booster-publications/route.ts");
 
   assert.match(route, /queueInstagramRateLimitRetry/);

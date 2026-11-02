@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 
 import { useUnsavedExitGuard } from "../../_hooks/useUnsavedExitGuard";
 import {
@@ -90,8 +90,6 @@ export function ChannelImageAdapterModal({
   onBackgroundModeChange,
   onBackgroundColorChange,
   onOverlayChange,
-  pillButtonStyle,
-  pillButtonActiveStyle,
   sidebarItems,
 }: ModalProps) {
   const i18nT = useTranslations("shell");
@@ -109,8 +107,11 @@ export function ChannelImageAdapterModal({
   const [, setFontRevision] = useState(0);
   const adapterSnapshot = JSON.stringify({ backgroundMode, backgroundColor, fitLabel, zoomLabel, overlay });
 
+  // The opening snapshot is the baseline for detecting subsequent edits.
+  const captureOpeningSnapshot = useEffectEvent(() => setAdapterBaseline(adapterSnapshot));
   useEffect(() => {
-    setAdapterBaseline(open ? adapterSnapshot : "");
+    if (open) captureOpeningSnapshot();
+    else setAdapterBaseline("");
   }, [open]);
 
   const { confirmExit } = useUnsavedExitGuard({

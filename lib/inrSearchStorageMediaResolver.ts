@@ -46,6 +46,65 @@ async function resolveStorageMediaCandidate(
   );
 }
 
+export async function resolveInrSearchStorageMediaUrl(
+  candidates: InrSearchStorageMediaCandidate[],
+  dependencies: InrSearchStorageMediaResolverDependencies,
+) {
+  for (const candidate of candidates) {
+    const url = await resolveStorageMediaCandidate(candidate, dependencies);
+    if (url) return url;
+  }
+  return null;
+}
+
+/** Only renew references already present in this account's published content. */
+export async function resolveInrSearchHistoricalMediaUrls(
+  urls: string[],
+  dependencies: InrSearchStorageMediaResolverDependencies,
+  scope: { supabaseUrl: string; accountId: string },
+  limit = 5,
+) {
+  let storageOrigin = "";
+  try { storageOrigin = new URL(scope.supabaseUrl).origin; } catch { /* No trusted origin to sign. */ }
+  const resolved: string[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of urls) {
+    let url: URL;
+    try { url = new URL(raw); } catch { continue; }
+    if (!/^https?:$/.test(url.protocol)) continue;
+    let target: string | null = raw;
+
+    if (url.origin === storageOrigin) {
+      // Never fall back to the old token when an owned Storage reference is
+      // missing or cannot be renewed. getPublicUrl alone cannot verify it.
+      const match = url.pathname.match(
+        /^\/storage\/v1\/(?:object|render\/image)\/(?:public|sign|authenticated)\/([^/]+)\/(.+)$/,
+      );
+      if (!match) continue;
+      let bucket: string;
+      let storagePath: string;
+      try {
+        bucket = decodeURIComponent(match[1]);
+        storagePath = decodeURIComponent(match[2]);
+      } catch { continue; }
+      const prefix = bucket === "booster"
+        ? `${scope.accountId}/`
+        : bucket === "inrcy-pro-media" ? `users/${scope.accountId}/` : "";
+      if (!scope.accountId || !prefix || !storagePath.startsWith(prefix) ||
+        storagePath.includes("\\") || storagePath.split("/").some((part) => !part || part === "." || part === "..")) continue;
+
+      target = await resolveStorageMediaCandidate({ bucket, storagePath }, dependencies);
+    }
+
+    if (!target || seen.has(target)) continue;
+    seen.add(target);
+    resolved.push(target);
+    if (resolved.length >= limit) break;
+  }
+  return resolved;
+}
+
 export async function resolveInrSearchStorageMediaUrls(
   candidates: InrSearchStorageMediaCandidate[],
   dependencies: InrSearchStorageMediaResolverDependencies,

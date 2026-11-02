@@ -7,7 +7,7 @@ export type InrAssistantScreenHandler = InrAssistantUiCommand & { pathname: stri
 export const DashboardAssistantCommandContext = createContext<(key: string, handler: InrAssistantScreenHandler | null) => void>(() => {});
 
 /** Reuse the document's native renderer; never click arbitrary DOM nodes or export another selection. */
-export function useInrAssistantDocumentPdf(selection: InrAssistantUiCommand["selection"] | null, buildPdf: () => Promise<Blob | null>, filename: string) {
+export function useInrAssistantDocumentPdf(selection: Extract<InrAssistantUiCommand, { command: "export_document_pdf" }>["selection"] | null, buildPdf: () => Promise<Blob | null>, filename: string) {
   const register = useContext(DashboardAssistantCommandContext);
   const key = useId(), pathname = usePathname();
   const current = useRef({ selection, buildPdf, filename });

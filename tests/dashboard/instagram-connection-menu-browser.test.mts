@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);

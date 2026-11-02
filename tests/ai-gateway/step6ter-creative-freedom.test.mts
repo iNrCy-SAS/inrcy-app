@@ -1,3 +1,4 @@
+import { readAgentPublicationPreparationSource } from "../inragent/prepare-publication-sources.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -112,7 +113,7 @@ test("token budgets keep safe headroom while generated channel ceilings stay cen
 });
 
 test("iNrAgent publishing explicitly preserves the selected engine's native voice", () => {
-  const agent = read("app/api/agent/actions/prepare-publish/route.ts");
+  const agent = readAgentPublicationPreparationSource();
   assert.match(agent, /Préserve la voix native du moteur IA choisi par l'établissement/i);
   assert.match(agent, /un CTA séparé reste facultatif/i);
 });

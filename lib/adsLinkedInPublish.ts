@@ -144,8 +144,6 @@ export type LinkedInAdsPartialUpdateRequest = {
 export type LinkedInAdsDraftCampaignPreparation =
   | { readyForDraftCreate: false; publicationReady: false; request: null; issues: AdsDraftIssue[] }
   | { readyForDraftCreate: true; publicationReady: false; request: LinkedInAdsDraftCampaignRequest; issues: [] };
-
-const ACCOUNT_URN = /^urn:li:sponsoredAccount:(\d{1,25})$/;
 const GROUP_URN = /^urn:li:sponsoredCampaignGroup:(\d{1,25})$/;
 const ORGANIZATION_URN = /^urn:li:organization:\d{1,25}$/;
 const GEO_URN = /^urn:li:geo:\d{1,25}$/;

@@ -11,7 +11,7 @@ const read = (relativePath: string) => readFileSync(relativePath, "utf8");
 
 test("toute vidéo du Studio essentiel demande une vraie scène animée sans interrupteur trompeur", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
-  const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
+  const hook = [read("app/dashboard/_hooks/useMediaGeneration.ts"), read("lib/mediaGenerationClientRequest.ts")].join("\n");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
   assert.doesNotMatch(generator, /ANIMATABLE_IDENTITY_MODES|teamAnimationToggle/);
@@ -31,7 +31,7 @@ test("les photos sont présentées comme personnages, décor et produit distinct
   assert.match(generator, /id: "character"/);
   assert.match(generator, /id: "environment"/);
   assert.match(generator, /id: "product"/);
-  assert.match(generator, /characterIndex: characterIndex as 1 \| 2 \| 3/);
+  assert.match(read("lib/mediaGenerationReferenceCollection.ts"), /characterIndex: characterIndex as 1 \| 2 \| 3/);
   assert.match(generator, /image\.role === args\.role/);
   assert.match(styles, /\.referenceCollection\s*\{/);
   assert.match(styles, /\.referenceTile\s*\{/);
@@ -58,7 +58,7 @@ test("le bandeau propose les combinaisons valides et le bloc 3 reste consacré a
 
 test("le bloc 1 distingue la voix off des personnages parlants sans mélanger les deux", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
-  const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
+  const hook = [read("app/dashboard/_hooks/useMediaGeneration.ts"), read("lib/mediaGenerationClientRequest.ts")].join("\n");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
   assert.match(generator, /\(\["voiceover", "characters"\] as const\)\.map/);
@@ -79,7 +79,7 @@ test("le bloc 1 distingue la voix off des personnages parlants sans mélanger le
 
 test("le consentement du fournisseur choisi est demandé à chaque génération et transmis séparément", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
-  const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
+  const hook = [read("app/dashboard/_hooks/useMediaGeneration.ts"), read("lib/mediaGenerationClientRequest.ts")].join("\n");
 
   assert.match(generator, /teamCinematicConsentRequired[\s\S]*?setTeamVideoConsentOpen\(true\)/);
   assert.match(generator, /handleConfirmTeamVideoConsent[\s\S]*?performGeneration\(true\)/);

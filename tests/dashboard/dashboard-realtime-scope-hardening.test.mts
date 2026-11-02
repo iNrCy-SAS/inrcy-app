@@ -6,7 +6,8 @@ function read(path: string) {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
 
-const dashboard = read("app/dashboard/DashboardClient.tsx");
+const dashboard = read("app/dashboard/dashboard.channel-realtime.ts");
+const shell = read("app/dashboard/DashboardClient.tsx");
 const profileBridge = read("app/dashboard/_components/ProfileRealtimeBridge.tsx");
 
 test("dashboard connection realtime is scoped to the active account", () => {
@@ -32,8 +33,9 @@ test("dashboard realtime sleeps in hidden tabs and reconciles on return", () => 
   assert.match(dashboard, /refreshAfterVisibilityRestore = true/);
   assert.match(
     dashboard,
-    /if \(refreshAfterVisibilityRestore\)[\s\S]*?latestFallbackToServerSyncThenGlobalRef\.current/,
+    /if \(refreshAfterVisibilityRestore\)[\s\S]*?refreshFallback\(\)/,
   );
+  assert.match(shell, /refreshFallback: \(\) => latestFallbackToServerSyncThenGlobalRef\.current/);
   assert.match(dashboard, /ACTIVE_INRCY_ACCOUNT_EVENT/);
 });
 

@@ -63,9 +63,11 @@ export default function DashboardChannelWorkspace(props: Props) {
     }
   });
   const { metaPilotEnabled } = useDashboardViewerAccess();
+  const gmbAccountConnected = gmb?.gmbAccountConnected;
+  const loadGmbAccountsAndLocations = gmb?.loadGmbAccountsAndLocations;
   useEffect(() => {
-    if (item.key === "gmb" && gmb.gmbAccountConnected && !item.configureDisabled && !item.premiumLocked) void gmb.loadGmbAccountsAndLocations({ autoSelect: false });
-  }, [item.key, item.configureDisabled, item.premiumLocked, gmb?.gmbAccountConnected, gmb?.loadGmbAccountsAndLocations]);
+    if (item.key === "gmb" && gmbAccountConnected && !item.configureDisabled && !item.premiumLocked) void loadGmbAccountsAndLocations?.({ autoSelect: false });
+  }, [item.key, item.configureDisabled, item.premiumLocked, gmbAccountConnected, loadGmbAccountsAndLocations]);
   const [dirty, setDirty] = useState(false);
   const [profileLinkDirty, setProfileLinkDirty] = useState(false);
   const [organizationLinkDirty, setOrganizationLinkDirty] = useState(false);

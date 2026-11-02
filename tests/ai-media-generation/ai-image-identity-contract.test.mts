@@ -10,7 +10,7 @@ const read = (relativePath: string) =>
 test("les médias source restent distincts des références d'identité strictes", () => {
   const contracts = read("lib/aiMediaGenerationContracts.ts");
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
-  const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
+  const hook = [read("app/dashboard/_hooks/useMediaGeneration.ts"), read("lib/mediaGenerationClientRequest.ts")].join("\n");
 
   assert.match(contracts, /let inspirationImages = normalizeInspirationImages/);
   assert.match(contracts, /const requiredCharacterReferences = inspirationImages\.filter/);

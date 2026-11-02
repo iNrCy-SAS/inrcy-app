@@ -1,0 +1,128 @@
+{
+  "certify:publication-system": [
+    "qa:publication-system:optimization",
+    "certify:media-pipeline:full",
+    "lint",
+    "build"
+  ],
+  "qa:publication-system:optimization": [
+    "qa:publication-system:step8",
+    "audit:publication-system:optimization",
+    "test:publication-system:optimization",
+    "test:publication-system:recovery",
+    "typecheck"
+  ],
+  "qa:publication-system:step8": [
+    "qa:publication-system:step7",
+    "audit:publication-system:step8",
+    "test:publication-system:step8",
+    "typecheck"
+  ],
+  "qa:publication-system:step7": [
+    "qa:publication-system:step6",
+    "audit:publication-system:step7",
+    "test:publication-system:step7",
+    "typecheck"
+  ],
+  "qa:publication-system:step6": [
+    "qa:publication-system:step5",
+    "audit:publication-system:step6",
+    "test:publication-system:step6",
+    "typecheck"
+  ],
+  "qa:publication-system:step5": [
+    "qa:publication-system:step4",
+    "audit:publication-system:step5",
+    "test:publication-system:step5",
+    "typecheck"
+  ],
+  "qa:publication-system:step4": [
+    "qa:publication-system:step3",
+    "audit:publication-system:step4",
+    "test:publication-system:step4",
+    "typecheck"
+  ],
+  "qa:publication-system:step3": [
+    "qa:publication-system:step2",
+    "audit:publication-system:step3",
+    "test:publication-system:step3",
+    "typecheck"
+  ],
+  "qa:publication-system:step2": [
+    "qa:publication-system:step1",
+    "audit:publication-system:step2",
+    "test:publication-system:step2"
+  ],
+  "qa:publication-system:step1": [
+    "audit:publication-system:step1",
+    "test:publication-system:step1",
+    "qa:booster-images",
+    "test:dashboard",
+    "typecheck"
+  ],
+  "qa:booster-images": [
+    "test:booster-images",
+    "test:media-rules"
+  ],
+  "certify:media-pipeline:full": [
+    "certify:media-pipeline",
+    "typecheck"
+  ],
+  "certify:media-pipeline": [
+    "qa:media-pipeline:step10",
+    "qa:booster-images",
+    "test:pinterest",
+    "test:multicompte",
+    "test:inrsend"
+  ],
+  "qa:media-pipeline:step10": [
+    "qa:media-pipeline:step9",
+    "audit:media-pipeline:step10",
+    "test:media-pipeline:step10"
+  ],
+  "qa:media-pipeline:step9": [
+    "qa:media-pipeline:step8",
+    "audit:media-pipeline:step9",
+    "test:media-pipeline:step9"
+  ],
+  "qa:media-pipeline:step8": [
+    "qa:media-pipeline:step7",
+    "audit:media-pipeline:step8",
+    "test:media-pipeline:step8"
+  ],
+  "qa:media-pipeline:step7": [
+    "qa:media-pipeline:step6",
+    "audit:media-pipeline:step7",
+    "test:media-pipeline:step7"
+  ],
+  "qa:media-pipeline:step6": [
+    "qa:media-pipeline:step5",
+    "audit:media-pipeline:step6",
+    "test:media-pipeline:step6"
+  ],
+  "qa:media-pipeline:step5": [
+    "qa:media-pipeline:step4",
+    "audit:media-pipeline:step5",
+    "test:media-pipeline:step5"
+  ],
+  "qa:media-pipeline:step4": [
+    "qa:media-pipeline:step3",
+    "audit:media-pipeline:step4",
+    "test:media-pipeline:step4"
+  ],
+  "qa:media-pipeline:step3": [
+    "qa:media-pipeline:step2",
+    "audit:media-pipeline:step3",
+    "test:media-pipeline:step3"
+  ],
+  "qa:media-pipeline:step2": [
+    "qa:media-pipeline:step1",
+    "audit:media-pipeline:step2",
+    "test:media-pipeline:step2"
+  ],
+  "qa:media-pipeline:step1": [
+    "audit:media-pipeline",
+    "test:media-pipeline",
+    "test:media-rules"
+  ]
+}

@@ -20,7 +20,7 @@ function between(source: string, start: string, end: string) {
 
 const publishModal = read("app/dashboard/booster/publier/PublishModal.tsx");
 const imagesPanel = read(
-  "app/dashboard/booster/publier/components/PublishImagesPanel.tsx",
+  "app/dashboard/booster/publier/components/PublishValidationBoard.tsx",
 );
 const videoPanel = read(
   "app/dashboard/booster/publier/components/PublishVideoAdapterPanel.tsx",
@@ -62,13 +62,13 @@ test("assigning the global source changes only the requested channel", () => {
   });
 });
 
-test("a channel picker targets one channel while synchronizing one global source", () => {
+test("the media picker preserves its destination and channel insertion synchronizes one global source", () => {
   const picker = between(
     publishModal,
-    "const onPickVideoForChannel",
+    "const onPickVideoClick",
     "const removeVideo",
   );
-  assert.match(picker, /videoPickerTargetChannelRef\.current = channel/);
+  assert.match(picker, /pendingDirectMediaDestinationRef\.current = destination/);
   assert.match(picker, /videoInputRef\.current\?\.click\(\)/);
 
   const addVideo = between(
@@ -100,15 +100,12 @@ test("a channel picker targets one channel while synchronizing one global source
 });
 
 test("reusing an existing video is a local channel-mode update", () => {
-  assert.match(imagesPanel, /getVideoChannelAction\(/);
-  assert.match(
-    imagesPanel,
-    /videoChannelAction\.kind === "pick"[\s\S]{0,180}onPickVideoForChannel\(activeImageChannel\)[\s\S]{0,180}setChannelMediaMode\(activeImageChannel, "video"\)/,
-  );
-  assert.doesNotMatch(imagesPanel, /syncPersistentWorkspaceVideo/);
-  assert.doesNotMatch(imagesPanel, /addVideoFile/);
-  assert.match(imagesPanel, /aria-pressed=\{active\}/);
-  assert.match(imagesPanel, /aria-label=\{accessibleLabel\}/);
+  assert.match(imagesPanel, /videoPreviewUrl && mode !== "video"/);
+  assert.match(imagesPanel, /onModeChange\(item\.channel,\s*"video"\)/);
+  assert.match(publishModal, /else setChannelMediaMode\(channel, mode\)/);
+  assert.doesNotMatch(imagesPanel, /syncPersistentWorkspaceVideo|addVideoFile/);
+  assert.match(imagesPanel, /aria-pressed=\{mode === "video"\}/);
+  assert.match(imagesPanel, /aria-label=\{t\("wizard_add_channel_video", \{ channel: item\.label \}\)\}/);
 });
 
 test("channel removal and global deletion are explicit and remain separate", () => {

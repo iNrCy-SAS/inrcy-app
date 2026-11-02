@@ -23,7 +23,7 @@ function sanitizeFilename(name: string): string {
 }
 
 export async function POST(req: Request) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const formData = await req.formData().catch(() => null);
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const { supabase, user, errorResponse, activeUserId } = await requireUser();
+  const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const body = await req.json().catch(() => ({}));

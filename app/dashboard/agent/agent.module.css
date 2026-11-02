@@ -1615,12 +1615,6 @@
     min-height: 108px;
   }
 
-  .robotCard {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto;
-    gap: 0;
-    padding-bottom: 0;
-  }
 
   .previewMeta,
   .modalGrid {
@@ -2743,9 +2737,6 @@
 }
 
 @media (max-width: 1180px) {
-  .previewMeta {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 760px) {
@@ -5243,9 +5234,6 @@
     text-overflow: ellipsis !important;
   }
 
-  .cardPendingCount {
-    display: none !important;
-  }
 
   .cardStatus {
     top: 50% !important;
@@ -5752,9 +5740,6 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .previewMetaStats {
-    grid-template-columns: 1fr;
-  }
 
   .previewMetaStats .dateItem {
     margin-left: 0;
@@ -5912,9 +5897,6 @@
     min-height: 0;
   }
 
-  .previewMetaStats {
-    grid-template-columns: 1fr;
-  }
 
   .previewMetaStats .dateItem {
     min-width: 0;
@@ -6383,9 +6365,6 @@
     font-size: 12px;
   }
 
-  .headerInrSendLabel {
-    display: none;
-  }
 
   .headerInrSendLogo {
     display: none;
@@ -7209,10 +7188,6 @@ button.campaignInfoCard:disabled:hover {
 }
 
 @media (max-width: 760px) {
-  .previewMetaCampaign {
-    grid-template-columns: 1fr !important;
-    overflow-x: visible !important;
-  }
 
   .previewMetaCampaign .channelsItem,
   .previewMetaCampaign .dateItem,
@@ -7323,9 +7298,6 @@ button.campaignInfoCard:disabled:hover {
     min-height: 240px !important;
   }
 
-  .previewMetaCampaign {
-    grid-template-columns: 1fr !important;
-  }
 }
 
 /* Correctif iNrAgent campagnes — rendu final Propulser / Fidéliser */
@@ -7983,11 +7955,6 @@ button.campaignInfoCard:disabled:hover {
     z-index: 6 !important;
   }
 
-  .automationCard .settingsButton {
-    top: 50% !important;
-    right: 7px !important;
-    transform: translateY(-50%) !important;
-  }
 
   .automationCard .automationSelect {
     padding-right: 54px !important;
@@ -8089,10 +8056,6 @@ button.campaignInfoCard:disabled:hover {
   border-radius: 12px !important;
 }
 
-.statsInsightIcon svg {
-  width: 16px !important;
-  height: 16px !important;
-}
 
 .statsInsightCopy {
   min-width: 0 !important;
@@ -10061,9 +10024,6 @@ button.campaignInfoRecipients:hover {
     gap: 8px;
   }
 
-  .scheduleModalHeaderActions {
-    gap: 6px;
-  }
 
   .scheduleSummaryPill {
     min-height: 32px;
@@ -10074,9 +10034,6 @@ button.campaignInfoRecipients:hover {
     font-size: 17px;
   }
 
-  .scheduleSummaryPill span {
-    display: none;
-  }
 
   .scheduleCloseButton {
     min-height: 32px;
@@ -10710,9 +10667,6 @@ button.campaignInfoRecipients:hover {
   margin-bottom: 0;
 }
 
-.publishEmptyHint {
-  min-height: 100%;
-}
 
 .channelScrollerWrap {
   min-width: 0;
@@ -11586,13 +11540,7 @@ button.campaignInfoRecipients:hover {
     letter-spacing: -0.045em !important;
   }
 
-  .automationCard .cardTitleFull {
-    display: none !important;
-  }
 
-  .automationCard .cardTitleShort {
-    display: inline !important;
-  }
 
   .automationCard .settingsButton {
     top: 50% !important;
@@ -13282,10 +13230,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     min-width: 0;
   }
 
-  .scheduleMonthNavigation strong {
-    min-width: 0;
-    font-size: 14px;
-  }
 
   .scheduleHalfSwitcher button {
     min-width: 66px;
@@ -13790,18 +13734,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     overflow: hidden !important;
   }
 
-  .previewMetaPublish .channelScroller button {
-    width: 34px !important;
-    height: 34px !important;
-    min-height: 34px !important;
-    flex: 0 0 34px !important;
-  }
 
-  .previewMetaPublish .channelNavArrow {
-    width: 18px !important;
-    height: 18px !important;
-    font-size: 15px !important;
-  }
 
   .previewMetaPublish .channelNavArrow:disabled {
     opacity: 0.36;
@@ -13826,12 +13759,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
       48px 48px minmax(220px, max-content) !important;
   }
 
-  .previewMetaPublish .channelScroller button {
-    width: 32px !important;
-    height: 32px !important;
-    min-height: 32px !important;
-    flex-basis: 32px !important;
-  }
 
   .previewMetaPublish .dateItem {
     min-width: 174px !important;
@@ -14051,9 +13978,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     scrollbar-width: none !important;
   }
 
-  .previewMetaPublish .channelScroller::-webkit-scrollbar {
-    display: none !important;
-  }
 
   .previewMetaPublish .channelScroller button {
     width: 30px !important;
@@ -14519,13 +14443,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     max-width: none !important;
   }
 
-  .previewMetaPublish .saveCampaignDraftButton {
-    grid-area: save !important;
-  }
 
-  .previewMetaPublish .modifyCampaignButton {
-    grid-area: edit !important;
-  }
 
   .previewMetaPublish .saveCampaignDraftButton,
   .previewMetaPublish .modifyCampaignButton {
@@ -15770,13 +15688,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     border-left-width: 3px;
   }
 
-  .scheduleCalendarCard[data-category="stats"] {
-    border-left-color: #c084fc;
-  }
 
-  .scheduleCalendarCard[data-category="campaigns"] {
-    border-left-color: #fb923c;
-  }
 
   .scheduleCalendarCardTopline {
     min-width: 0;
@@ -16476,25 +16388,10 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
       "actions actions actions actions" !important;
   }
 
-  .previewMetaPublish .channelsItem {
-    grid-area: channels !important;
-  }
 
-  .previewMetaPublish .dateItem {
-    grid-area: date !important;
-  }
 
-  .previewMetaPublish .saveCampaignDraftButton {
-    grid-area: save !important;
-  }
 
-  .previewMetaPublish .modifyCampaignButton {
-    grid-area: edit !important;
-  }
 
-  .previewMetaPublish .previewActions {
-    grid-area: actions !important;
-  }
 }
 
 @media (max-width: 760px) {
@@ -18162,13 +18059,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     opacity: 1 !important;
   }
 
-  .previewMetaPublish .saveCampaignDraftButton {
-    grid-area: save !important;
-  }
 
-  .previewMetaPublish .modifyCampaignButton {
-    grid-area: edit !important;
-  }
 
   .previewMetaPublish .saveCampaignDraftButton > span,
   .previewMetaPublish .modifyCampaignButton > span {
@@ -18976,15 +18867,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     min-height: 0;
   }
 
-  .scheduleDayActions {
-    grid-auto-rows: auto;
-    overflow: visible;
-  }
 
-  .scheduleDayActions > .scheduleCalendarCard {
-    height: auto;
-    min-height: 0;
-  }
 
   .scheduleDayCarouselControls {
     gap: 5px;

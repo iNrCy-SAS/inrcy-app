@@ -71,6 +71,7 @@ export default function ProfileRealtimeBridge() {
 
   useEffect(() => {
     const supabase = createClient();
+    const pendingChanges = pendingChangesRef.current;
     let cancelled = false;
     let userId: string | null = null;
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -240,7 +241,7 @@ export default function ProfileRealtimeBridge() {
         window.clearTimeout(dispatchTimerRef.current);
         dispatchTimerRef.current = null;
       }
-      pendingChangesRef.current.clear();
+      pendingChanges.clear();
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibility);
     };

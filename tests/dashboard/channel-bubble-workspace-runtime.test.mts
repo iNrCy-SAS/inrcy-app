@@ -30,6 +30,11 @@ function runtime(path: string, overrides: Props = {}) {
       return [slots[index], (next: RuntimeValue) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
     },
     useRef(initial: RuntimeValue) { const index = cursor++; return slots[index] ??= { current: initial }; },
+    useEffectEvent(callback: (...args: unknown[]) => unknown) {
+      const event = hooks.useRef(callback);
+      event.current = callback;
+      return (...args: unknown[]) => event.current(...args);
+    },
     useId: () => "test-publication-types",
     useCallback: (fn: RuntimeValue) => fn,
     useMemo: (fn: RuntimeValue) => fn(),

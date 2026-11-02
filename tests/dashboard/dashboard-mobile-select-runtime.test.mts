@@ -64,6 +64,7 @@ function statefulHooks(runEffects = false) {
     },
     useMemo: (get: () => unknown) => get(),
     useCallback: (callback: unknown) => callback,
+    useEffectEvent: (callback: unknown) => callback,
     useRef(initial: unknown) { const slot = cursor++; return values[slot] ||= { current: initial }; },
     useEffect(effect: () => void, deps?: unknown[]) {
       const slot = cursor++;

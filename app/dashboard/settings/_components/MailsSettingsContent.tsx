@@ -42,14 +42,6 @@ type MailAccount = {
   created_at: string;
 };
 
-type MessengerAccount = {
-  id: string;
-  page_id: string;
-  page_name: string | null;
-  status: "connected" | "expired" | "error";
-  created_at: string;
-} | null;
-
 const MAIL_ACCOUNTS_UPDATED_EVENT = "inrsend:mail-accounts-updated";
 
 function dispatchMailAccountsUpdated(mailAccounts: MailAccount[], refresh = false) {
@@ -187,8 +179,9 @@ function useMailsSettingsController({ onUnsavedChange }: SignatureSettingsProps)
   }, [applyMailAccounts]);
 
   React.useEffect(() => {
+    const mailAccountsRevision = mailAccountsRevisionRef;
     mountedRef.current = true;
-    return () => { mountedRef.current = false; mailAccountsRevisionRef.current++; };
+    return () => { mountedRef.current = false; mailAccountsRevision.current++; };
   }, []);
 
   const [signatureEnabled, setSignatureEnabled] = React.useState(true);
@@ -220,13 +213,13 @@ Email : {{email}}`);
   type SmtpSecurityMode = "ssl" | "starttls" | "none";
   const IMAP_PRESETS: Record<ImapPresetKey, {
     label: string;
-  } & ImapSettings> = {
+  } & ImapSettings> = React.useMemo(() => ({
     ovh: { label: "OVH", imap_host: "ssl0.ovh.net", imap_port: 993, imap_secure: true, smtp_host: "smtp.mail.ovh.net", smtp_port: 465, smtp_secure: true, smtp_starttls: false },
     ionos: { label: "IONOS", imap_host: "imap.ionos.com", imap_port: 993, imap_secure: true, smtp_host: "smtp.ionos.com", smtp_port: 587, smtp_secure: false, smtp_starttls: true },
     orange: { label: i18nT("orange_09fb6aab"), imap_host: "imap.orange.fr", imap_port: 993, imap_secure: true, smtp_host: "smtp.orange.fr", smtp_port: 465, smtp_secure: true, smtp_starttls: false },
     sfr: { label: "SFR", imap_host: "imap.sfr.fr", imap_port: 993, imap_secure: true, smtp_host: "smtp.sfr.fr", smtp_port: 465, smtp_secure: true, smtp_starttls: false },
     other: { label: i18nT("autre_fournisseur_ce6f5c74"), imap_host: "", imap_port: 993, imap_secure: true, smtp_host: "", smtp_port: 587, smtp_secure: false, smtp_starttls: true },
-  };
+  }), [i18nT]);
 
   const [imapModalOpen, setImapModalOpen] = React.useState(false);
   const [imapEditingAccountId, setImapEditingAccountId] = React.useState<string | null>(null);
@@ -243,7 +236,7 @@ Email : {{email}}`);
     smtp_starttls: true,
   });
   const [imapShowPassword, setImapShowPassword] = React.useState(false);
-  const [imapTestBusy, setImapTestBusy] = React.useState(false);
+  const [imapTestBusy] = React.useState(false);
   const [imapConnectBusy, setImapConnectBusy] = React.useState(false);
   const [imapFormError, setImapFormError] = React.useState<string | null>(null);
   const [imapAssistMessage, setImapAssistMessage] = React.useState<string | null>(null);
@@ -282,7 +275,7 @@ Email : {{email}}`);
     imapModalBaselineSignatureRef.current = "";
     setImapModalOpen(false);
     setImapEditingAccountId(null);
-  }, [imapDraftSignature, imapModalOpen]);
+  }, [i18nT, imapDraftSignature, imapModalOpen]);
 
   React.useEffect(() => {
     if (loading) {
@@ -323,7 +316,7 @@ Email : {{email}}`);
       return { mode: "starttls", message: i18nT("configuration_recommandee_appliquee_port_587_sta_2ec12239") };
     }
     return null;
-  }, []);
+  }, [i18nT]);
 
   const applyImapPreset = React.useCallback((key: ImapPresetKey) => {
     const preset = IMAP_PRESETS[key];
@@ -341,7 +334,7 @@ Email : {{email}}`);
         ? "Autre fournisseur sélectionné : renseignez vos paramètres librement."
         : `Réglages recommandés chargés pour ${IMAP_PRESETS[key].label}. Vous pouvez les modifier.`
     );
-  }, []);
+  }, [IMAP_PRESETS]);
 
   function openImapModal(account: MailAccount | null) {
     const settings: ImapSettings = account?.imap_settings
@@ -462,7 +455,7 @@ Email : {{email}}`));
     return () => {
       alive = false;
     };
-  }, []);
+  }, [refreshMailAccounts]);
 
   const slots = [0, 1, 2, 3];
   const oauthAccounts = mailAccounts.filter((a) => a.provider !== "imap");
@@ -805,7 +798,7 @@ Email : {{email}}`));
                           ...preset,
                         }),
                       });
-                      const j = await r.json().catch(() => ({}));
+                      await r.json().catch(() => ({}));
                       if (!r.ok) throw new Error(await getSimpleFrenchApiError(r, "Connexion impossible"));
                       imapModalBaselineSignatureRef.current = "";
                       setImapModalOpen(false);

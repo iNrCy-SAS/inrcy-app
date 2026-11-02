@@ -3,14 +3,14 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
 const transpile = (source: string, jsx = false) => ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: jsx ? ts.JsxEmit.ReactJSX : undefined, esModuleInterop: true } }).outputText;
 const packageSource = (name: string, file: string) => readFileSync(path.join(path.dirname(require.resolve(`${name}/package.json`)), "cjs", file), "utf8");
-const modal = ts.createSourceFile("PublishModal.tsx", read("app/dashboard/booster/publier/PublishModal.tsx"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const modal = ts.createSourceFile("PublishModal.tsx", [read("app/dashboard/booster/publier/PublishModal.tsx"), read("app/dashboard/booster/publier/publicationSubmission.ts")].join("\n"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 function initializer(name: string) {
   let found: ts.Expression | undefined;
   function visit(node: ts.Node) { if (ts.isVariableDeclaration(node) && node.name.getText(modal) === name) found = node.initializer; ts.forEachChild(node, visit); }
@@ -46,7 +46,7 @@ test("Contents and Validation bind the same four controlled channel states and r
     placement("reel"); assert.equal(state.placement, "classic"); placement("story"); assert.equal(state.placement, "classic"); story(true); assert.equal(state.includeStory, false);
   }
   const board = { id: "", name: "", error: "previous" };
-  callback("onPinterestBoardChange", { pinterestBoards: [{ id: "board-one", name: "Vitrine" }, { id: "board-two", name: "Projets" }], setPinterestBoardId: (value: string) => { board.id = value; }, setPinterestBoardName: (value: string) => { board.name = value; }, setPinterestBoardsError: (value: string) => { board.error = value; } })(" board-two ");
+  callback("onPinterestBoardChange", { pinterestBoards: [{ id: "board-one", name: "Vitrine" }, { id: "board-two", name: "Projets" }], setPinterestBoardId: (value: string) => { board.id = value; }, setPinterestBoardName: (value: string) => { board.name = value; }, setPinterestBoardsFailure: (value: unknown) => { board.error = value === null ? "" : String(value); } })(" board-two ");
   assert.deepEqual(board, { id: "board-two", name: "Projets", error: "" });
   const boardPayloads: ts.Expression[] = [];
   function findBoardPayloads(node: ts.Node) { if (ts.isPropertyAssignment(node) && node.name.getText(modal) === "pinterestPublicationSettings") boardPayloads.push(node.initializer); ts.forEachChild(node, findBoardPayloads); }

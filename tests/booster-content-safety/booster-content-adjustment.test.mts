@@ -90,7 +90,7 @@ test("the real generation pipeline supplies current drafts to primary and repair
   }
 });
 
-test("two-step modal prefills the brief, checks all channels and submits only checked targets", () => {
+test("single-step modal displays the brief and channels together and submits only checked targets", () => {
   const prior = Object.getOwnPropertyDescriptor(globalThis, "document");
   Object.defineProperty(globalThis, "document", { value: { body: {} }, configurable: true });
   try {
@@ -106,11 +106,12 @@ test("two-step modal prefills the brief, checks all channels and submits only ch
     const fields = nodes().filter(node => node.type === "textarea");
     assert.equal(fields[0].props.value, input.previousIdea);
     assert.equal(fields[1].props.value, input.previousInstruction);
-    const next = () => nodes().find(node => node.type === "button" && node.props.children === labels.adjust_choose_channels)!;
-    assert.equal(next().props.disabled, true);
+    const apply = () => nodes().find(node => node.type === "button" && node.props.children === labels.adjust_apply)!;
+    assert.equal(apply().props.disabled, true);
+    assert.equal(nodes().some(node => node.type === "button" && node.props.children === labels.adjust_choose_channels), false);
+    assert.equal(nodes().filter(node => node.type === "input" && node.props.type === "checkbox").length, 2);
     fields[1].props.onChange({ target: { value: `${input.previousInstruction}. Ajouter la date.` } });
-    assert.equal(next().props.disabled, false);
-    next().props.onClick();
+    assert.equal(apply().props.disabled, false);
     const boxes = nodes().filter(node => node.type === "input" && node.props.type === "checkbox");
     assert.equal(boxes.length, 2);
     assert.ok(boxes.every(node => node.props.checked));
@@ -119,7 +120,10 @@ test("two-step modal prefills the brief, checks all channels and submits only ch
     assert.deepEqual(submitted, [{ idea: input.previousIdea, instruction: `${input.previousInstruction}. Ajouter la date.`, channels: ["x"] }]);
     nodes().find(node => node.type === "button" && node.props.children === labels.adjust_select_none)!.props.onClick();
     assert.equal(nodes().find(node => node.type === "button" && node.props.children === labels.adjust_apply)!.props.disabled, true);
+    apply().props.onClick();
+    assert.equal(submitted.length, 1, "An empty selection cannot invoke generation");
     assert.ok(channelNodes(runtime.render({ ...props, busy: true })).filter(node => node.type === "button").every(node => node.props.disabled));
+    assert.ok(channelNodes(runtime.render({ ...props, busy: true })).filter(node => node.type === "textarea").every(node => node.props.disabled));
   } finally {
     if (prior) Object.defineProperty(globalThis, "document", prior); else Reflect.deleteProperty(globalThis, "document");
   }

@@ -1,12 +1,15 @@
 import { hasInrAssistantMediaSubject, permitsInrAssistantMediaAction } from "./inrAssistantMediaIntent.ts";
 import { isInrAssistantStudioDraftRequest } from "./inrAssistantStudioDraft.ts";
+import { inrAssistantStandardCommands } from "./inrAssistantStandardRouting.ts";
 import { INR_ASSISTANT_COMMANDS, INR_ASSISTANT_PENDING_STATUSES, INR_ASSISTANT_UNCERTAIN_STATUSES, isInrAssistantAcceptedReceipt, inrAssistantSettingTargets, requestsInrAssistantSettingsChange } from "./inrAssistantCommandRegistry.ts";
 
 export type InrAssistantTaskOutcome = "completed" | "partial" | "needs_input" | "processing" | "blocked" | "failed";
-export type InrAssistantActionReceipt = { tool: string; ok: boolean; status: string; message: string; id?: string; draftId?: string; requestId?: string; scheduledActionId?: string; eventId?: string; recordId?: string; publicationId?: string; toolUrl?: string; /** Private capability, never sent to the model or client. */ approvalToken?: string; approvalReference?: string; approvalKind?: "calendar" | "scheduled_publication" };
+export type InrAssistantActionReceipt = { tool: string; ok: boolean; status: string; message: string; id?: string; draftId?: string; requestId?: string; scheduledActionId?: string; eventId?: string; recordId?: string; publicationId?: string; toolUrl?: string; /** Private capability, never sent to the model or client. */ approvalToken?: string; approvalReference?: string; approvalKind?: "calendar" | "scheduled_publication" | "google_business_profile" | "media_delete" | "publication_lifecycle" };
 export type InrAssistantTaskState = {
   version: 1; instruction: string; actionRequestId: string; startedAt: string; expiresAt: string;
   outcome: InrAssistantTaskOutcome; requiredTools: string[]; requiredCalls?: Record<string, number>; receipts: InrAssistantActionReceipt[]; question: string;
+  /** Private server binding to the original attachments; never a browser grant. */
+  mediaImportSource?: { turnId: string; createdAt: string };
 };
 export const INR_ASSISTANT_MAX_TRACKED_ACTIONS = 24;
 const normalize = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
@@ -28,7 +31,7 @@ export function inrAssistantRequiredTools(message: string): string[] {
   if (isInrAssistantStudioDraftRequest(message)) return [];
   const normalized = inrAssistantRoutingText(message.replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm," ")).trim();
   if (/^(?:comment|pourquoi|explique|how|why|what|wie|como)\b/.test(normalized) || /\b(?:explique|explain|me dire)\b.{0,60}\b(?:comment|how|pourquoi|why)\b/.test(normalized)) return [];
-  const clauseStart = "(?:(?:ne|not|never|do not)\\s+|n['’]|don't\\s+)?(?:ajout\\w*|cree\\w*|creer|gener\\w*|modifi\\w*|retouch\\w*|prepar\\w*|redig\\w*|publie\\w*|poste\\w*|envoi\\w*|configur\\w*|activ\\w*|desactiv\\w*|coup\\w*|regl\\w*|chang\\w*|repond\\w*|annul\\w*|supprim\\w*|deplac\\w*|mets|renomm\\w*|archive\\w*|retrouv\\w*|recherch\\w*|consulte\\w*|verifi\\w*|create|generate|prepare|add|edit|publish|send|find|read|disable|enable|reply)\\b";
+  const clauseStart = "(?:(?:ne|not|never|do not)\\s+|n['’]|don't\\s+)?(?:actualis\\w*|rafraich\\w*|synchronis\\w*|telecharg\\w*|import\\w*|export\\w*|restaur\\w*|refus\\w*|reordonn\\w*|download|refresh|import|export|ajout\\w*|cree\\w*|creer|gener\\w*|modifi\\w*|retouch\\w*|prepar\\w*|redig\\w*|publie\\w*|poste\\w*|envoi\\w*|configur\\w*|activ\\w*|desactiv\\w*|coup\\w*|regl\\w*|chang\\w*|repond\\w*|annul\\w*|supprim\\w*|deplac\\w*|mets|renomm\\w*|archive\\w*|retrouv\\w*|recherch\\w*|consulte\\w*|verifi\\w*|create|generate|prepare|add|edit|publish|send|find|read|disable|enable|reply)\\b";
   const clauses = normalized.split(new RegExp(`(?:\\s+(?:et\\s+(?:puis\\s+)?|puis\\s+|ensuite\\s+|and\\s+(?:then\\s+)?|then\\s+)|[,;.!?]\\s+)(?=${clauseStart})`, "i"));
   const mediaContext = hasInrAssistantMediaSubject(message, "image") || hasInrAssistantMediaSubject(message, "video");
   const required: string[] = [];
@@ -51,6 +54,8 @@ function requiredToolsForClause(message: string, mediaContext: boolean): string[
   if (/^(?:ne\b|n['’]|not\b|never\b|don't\b|do not\b)/.test(t.trim()) || /\b(?:ne|sans|not|never)\b.{0,20}\b(?:modifi|cre|gener|publ|envoi)/.test(t)) return result;
   // Settings are a distinct object, even if their defaults mention images,
   // emails or appointments. Do not borrow those nouns for a creation goal.
+  const standardCommands = inrAssistantStandardCommands(t);
+  if (standardCommands) return standardCommands;
   if (requestsInrAssistantSettingsChange(message)) return ["updateToolSettings"];
   if (/\b(?:annule\w*|arret\w*|stop|cancel)\b/.test(t) && /generat|creation/.test(t) && /media|image|video/.test(t)) return ["cancelMediaGeneration"];
   if (permitsInrAssistantMediaAction(message, "generate", "image") || permitsInrAssistantMediaAction(message, "generate", "video")) result.push("generateMedia");

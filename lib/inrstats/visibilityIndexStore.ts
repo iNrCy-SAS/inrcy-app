@@ -36,6 +36,7 @@ async function ownSignals(db: SupabaseClient, userId: string, now: Date) {
 export async function captureVisibilityIndex(args: { userId: string; bulk: OfficialBulk; channelStates: ChannelStates; activity: unknown; now?: Date }) {
   const now = args.now ?? new Date();
   const day = visibilityDay(now);
+  let blockedChannel: VisibilityIndexChannel["key"] | null = null;
   if (args.bulk.period !== 30 || args.bulk.meta.snapshotDate && ![day, getDefaultSnapshotDate(now)].includes(args.bulk.meta.snapshotDate)) return { recorded: false, reason: "historical_request" };
   try {
     const registration = await supabaseAdmin.from("inrstats_visibility_tracking").upsert({ user_id: args.userId }, { onConflict: "user_id", ignoreDuplicates: true });
@@ -52,8 +53,14 @@ export async function captureVisibilityIndex(args: { userId: string; bulk: Offic
       const connected = key === "inrbadge" ? true : key === "inr_search" ? args.channelStates.inr_search.connected : key === "mails" ? args.channelStates.mails.connected && !args.channelStates.mails.requiresUpdate : Boolean(block?.connection.statsConnected && !block.connection.requiresUpdate);
       const overview = object(block?.overview ?? args.bulk.overviews[key]);
       const metrics = object(object(object(overview.sources)[key]).metrics);
-      if (connected && (block?.error || metrics.error || metrics.needs_reconnect === true)) throw new Error("visibility_provider_unavailable");
-      if (connected && block?.snapshotDate && ![day, getDefaultSnapshotDate(now)].includes(block.snapshotDate)) throw new Error("visibility_provider_snapshot_stale");
+      if (connected && (block?.error || metrics.error || metrics.needs_reconnect === true)) {
+        blockedChannel = key;
+        throw new Error("visibility_provider_unavailable");
+      }
+      if (connected && block?.snapshotDate && ![day, getDefaultSnapshotDate(now)].includes(block.snapshotDate)) {
+        blockedChannel = key;
+        throw new Error("visibility_provider_snapshot_stale");
+      }
       const totals = object(metrics.totals);
       let audience: number | null = null;
       for (const field of ["followers", "followers_count", "follower_count", "followerCount", "memberFollowersCount", "fan_count", "fans", "subscribers", "subscriberCount", "audience"]) {
@@ -81,7 +88,8 @@ export async function captureVisibilityIndex(args: { userId: string; bulk: Offic
     return { recorded: true, reason: "recorded" };
   } catch (error) {
     const reason = error instanceof Error ? error.message : "visibility_snapshot_unavailable";
-    console.warn("[inrstats-visibility] Capture deferred", { reason });
-    return { recorded: false, reason };
+    const context = { reason, ...(blockedChannel ? { channel: blockedChannel } : {}) };
+    console.warn("[inrstats-visibility] Capture deferred", context);
+    return { recorded: false, ...context };
   }
 }

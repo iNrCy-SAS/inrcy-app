@@ -148,9 +148,8 @@ test("the profile form keeps identity while implantation is edited in Business D
 
 test("business enrichment collections live in Business DNA and stay out of the compact profile", () => {
   const source = read("app/dashboard/settings/_components/ActivityContent.tsx");
-  const combined = read("app/dashboard/settings/_components/ProfileAndActivityContent.tsx");
   const dna = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
-  assert.match(combined, /contentScope="profile-core"/);
+  assert.match(dna, /<ActivityContent[\s\S]*contentScope="profile-core"/);
   assert.match(source, /!isProfileCore \? <div style=\{label\}>[\s\S]*values=\{form\.services\}/);
   assert.match(source, /!isProfileCore \? <section data-activity-section="positioning"/);
   assert.match(dna, /values=\{businessKnowledge\.services\}/);
@@ -172,13 +171,12 @@ test("Encaisser and the generator keep the exact historical database columns", (
 
 test("profile and activity live inside Business DNA without becoming an access gate", () => {
   const content = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
-  const combined = read("app/dashboard/settings/_components/ProfileAndActivityContent.tsx");
   const legacyProfilePage = read("app/dashboard/mon-profil/page.tsx");
   const dnaPage = read("app/dashboard/adn-entreprise/page.tsx");
   const dnaContent = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
   const routing = read("app/dashboard/_hooks/useDashboardPanelRouting.ts");
   const activity = read("app/dashboard/settings/_components/ActivityContent.tsx");
-  const menu = read("app/dashboard/_components/UserMenu.tsx");
+  const menu = read("app/dashboard/_components/DashboardTopbar.tsx");
   const client = read("app/dashboard/DashboardClient.tsx");
   const drawer = read("app/dashboard/SettingsDrawer.tsx");
 
@@ -193,19 +191,18 @@ test("profile and activity live inside Business DNA without becoming an access g
   assert.match(routing, /"\/dashboard\/adn-entreprise\?tab=activity"/);
   assert.match(dnaContent, /data-ai-memory-tab="profile"/);
   assert.match(dnaContent, /data-ai-memory-tab="activity-foundation"/);
-  assert.match(combined, /data-profile-block="general"/);
-  assert.equal((combined.match(/data-profile-block=/g) || []).length, 1);
-  assert.match(combined, /data-profile-segment="identity"/);
-  assert.match(combined, /data-profile-segment="activity"/);
-  assert.ok(combined.indexOf('data-profile-segment="identity"') < combined.indexOf('data-profile-segment="activity"'));
-  assert.doesNotMatch(combined, /onOpenAiMemory/);
-  assert.match(combined, /<ProfilContent[\s\S]*showActions=\{false\}/);
-  assert.match(combined, /<ActivityContent[\s\S]*showActions=\{false\}/);
-  assert.match(combined, /handleSaveAll/);
+  // The mounted Business DNA workspace owns the two forms and their save lifecycle.
+  assert.ok(dnaContent.indexOf('data-ai-memory-tab="profile"') < dnaContent.indexOf('data-ai-memory-tab="activity-foundation"'));
+  assert.doesNotMatch(dnaContent, /onOpenAiMemory/);
+  assert.match(dnaContent, /<ProfilContent[\s\S]*showActions=\{false\}/);
+  assert.match(dnaContent, /<ActivityContent[\s\S]*showActions=\{false\}/);
+  assert.match(dnaContent, /const profile = profileContentRef\.current;[\s\S]*await profile\.save\(\)/);
+  assert.match(dnaContent, /const activity = activityContentRef\.current;[\s\S]*await activity\.save\(\)/);
+  assert.match(dnaContent, /workspaceSavePromiseRef/);
   assert.match(activity, /data-activity-section="identity"/);
   assert.match(activity, /!isProfileCore \? <section data-activity-section="reach"/);
   assert.match(activity, /data-activity-section="positioning"/);
-  assert.doesNotMatch(menu, /closeAndOpen\("activite"\)/);
+  assert.doesNotMatch(menu, /openPanel\("activite"\)/);
   assert.doesNotMatch(content, /guidedOnboarding|onOnboarding/);
   assert.doesNotMatch(client, /guidedOnboarding|onboardingProgress/);
   assert.doesNotMatch(client, /RequiredSetupLock|openRequiredSetupPanel/);

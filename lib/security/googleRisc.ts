@@ -6,7 +6,6 @@ import { asRecord, asString, safeErrorMessage } from "@/lib/tsSafe";
 import { log } from "@/lib/observability/logger";
 import { tryDecryptToken } from "@/lib/oauthCrypto";
 import {
-  extractSecurityEventToken,
   parseGoogleRiscEvents,
   parseJwt,
   tokenMatchesIdentifier,

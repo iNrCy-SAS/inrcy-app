@@ -1,3 +1,4 @@
+import { loadNarrationPreparationRuntime } from "./narration-preparation-runtime.mjs";
 import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -105,6 +106,7 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
     ["@/lib/aiMediaCreditQuoteServer", { quoteAiMediaRequest: (_account: string, request: contracts.AiMediaGenerationRequest) => pricing.quoteAiMediaCredits({ ...request, inspirationImagesCount: request.inspirationImages.length }) }],
   ];
   for (const [id, moduleValue] of overrides) modules.set(id, moduleValue);
+  modules.set("@/lib/aiMediaNarrationPreparation", loadNarrationPreparationRuntime(modules));
   const runtime = compile("lib/aiMediaGenerationServer.ts", modules, true) as unknown as { generateAndSaveAiMedia: (args: RecordValue) => Promise<unknown> };
   return { counts, providerCalls, composerCalls, contactCalls, promptCalls, saved, logo, generate: (request: contracts.AiMediaGenerationRequest, execution: RecordValue = {}) => runtime.generateAndSaveAiMedia({ accountId: "test-account", authUserId: "test-actor", jobId: "test-job", supabase: {}, request, ...execution }) };
 }

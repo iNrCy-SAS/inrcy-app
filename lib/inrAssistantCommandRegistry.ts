@@ -11,6 +11,18 @@ type Command = {
   batchObject?: string;
 };
 export const INR_ASSISTANT_COMMANDS: Record<string, Command> = {
+  managePublicationIdeas: { family:"management", label:"mettre à jour les idées de l’agent" },
+  setNativeChannelActivation: { family:"business", label:"modifier l’activation du canal" },
+  updateChannelPublicUrl: { family:"business", label:"enregistrer le lien public du canal" },
+  applyGoogleBusinessProfileUpdate: { family:"business", label:"modifier la fiche Google après confirmation" },
+  importMediaAttachment: { family:"media", label:"importer la pièce jointe en médiathèque", batchObject:"medias?|images?|photos?|videos?|fichiers?|pieces? jointes?" },
+  prepareMediaDownload: { family:"media", label:"télécharger les médias" },
+  applyMediaDeletion: { family:"media", label:"supprimer les médias après confirmation" },
+  editPreparedPublication: { family:"publication", label:"modifier la proposition de l’agent" },
+  applyPublicationLifecycleAction: { family:"publication", label:"appliquer l’action confirmée à la publication" },
+  refreshStatsSources: { family:"workspace", label:"actualiser les statistiques" },
+  sendStatsReport: { family:"management", label:"générer et envoyer le bilan statistique" },
+  prepareStatsReportDownload: { family:"workspace", label:"télécharger le bilan PDF" },
   generateMedia: { family:"media",label:"créer le média",statusReader:"getMediaGeneration" },
   modifyMedia: { family:"media",label:"retoucher l’image",statusReader:"getMediaGeneration" },
   cancelMediaGeneration: { family:"media",label:"arrêter la génération en attente" },
@@ -48,10 +60,10 @@ export const INR_ASSISTANT_COMMANDS: Record<string, Command> = {
 };
 
 export const INR_ASSISTANT_PENDING_STATUSES = new Set(["queued","processing","running","ready_to_save","navigation_requested","ui_action_requested"]);
-export const INR_ASSISTANT_UNCERTAIN_STATUSES = new Set(["executing_unconfirmed","unknown","saved_unconfirmed"]);
+export const INR_ASSISTANT_UNCERTAIN_STATUSES = new Set(["executing_unconfirmed","unknown","saved_unconfirmed","submitted_unconfirmed","save_unconfirmed"]);
 const REJECTED_STATUSES = new Set(["failed","unknown","partial","executing_unconfirmed","preview_ready","stale_preview","paused","needs_instruction","needs_details","needs_clarification","needs_confirmation","needs_input","blocked","unavailable","saved_unconfirmed","confirmation_required","admin_required","support_required","not_included"]);
 export function isInrAssistantAcceptedReceipt(receipt: {ok:boolean;status:string}): boolean {
-  return receipt.ok && !REJECTED_STATUSES.has(receipt.status);
+  return receipt.ok && !REJECTED_STATUSES.has(receipt.status) && !INR_ASSISTANT_UNCERTAIN_STATUSES.has(receipt.status);
 }
 export function inrAssistantCommandLabel(name: string): string {
   return INR_ASSISTANT_COMMANDS[name]?.label ?? "terminer l’action demandée";
@@ -62,7 +74,8 @@ export function unquotedInrAssistantIntent(value: string): string {
   return normalizeInrAssistantIntent(value.replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm," ")).trim();
 }
 const SETTING_TARGETS = {
-  notifications: /notification|preferences|\balertes?\b|\balerts?\b/,
+  general: /preferences generales|fuseau|devise|format (?:de |des )?dates?|langue (?:clients?|de (?:mes|nos|vos) clients|des clients|de l.application|d.affichage|de l.interface)|interface.{0,30}langue/,
+  notifications: /notification|\balertes?\b|\balerts?\b/,
   studio: /(?:inr.?studio|studio|generateur|generation).{0,90}(?:reglage|parametr|format|portrait|paysage|vertical|horizontal|defaut|critere|couleur)|(?:reglage|parametr|format|portrait|paysage|vertical|horizontal|defaut|critere|couleur).{0,90}(?:inr.?studio|studio|generateur|generation)/,
   calendar: /(?:reglag|parametr|configur|rappel|confirmation).{0,65}(?:calendar|agenda|rendez.vous)|(?:calendar|agenda|rendez.vous).{0,65}(?:reglag|parametr|configur|rappel|confirmation)/,
   documents: /(?:reglag|parametr|defaut|validite|echeance).{0,65}(?:devis|facture|document)|(?:devis|facture|document).{0,65}(?:reglag|parametr|defaut|validite|echeance)/,

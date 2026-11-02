@@ -5,21 +5,10 @@ import { normalizeMetaPublicationSelection } from "@/lib/metaPublicationTargets"
 const DEFAULT_DUPLICATE_WINDOW_MINUTES = 60;
 const DEFAULT_IMMEDIATE_DUPLICATE_LOOKAHEAD_MINUTES = 240;
 const DUPLICATE_STATUSES = ["scheduled", "running"];
-const BOOSTER_CHANNELS = [
-  "site_web",
-  "gmb",
-  "facebook",
-  "instagram",
-  "threads",
-  "linkedin",
-  "tiktok",
-  "youtube_shorts",
-  "pinterest",
-  "x",
-] as const;
+
 
 type JsonRecord = Record<string, unknown>;
-type BoosterChannel = (typeof BOOSTER_CHANNELS)[number];
+type BoosterChannel = "site_web" | "gmb" | "facebook" | "instagram" | "threads" | "linkedin" | "tiktok" | "youtube_shorts" | "pinterest" | "x";
 
 type SupabaseLike = {
   from: (table: string) => any;

@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -46,6 +48,8 @@ const mailboxDetails = read(
 );
 const inrsendChannelActions = read("lib/inrsend/publicationChannelActions.ts");
 
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
+
 test("01 - parcours IA sans média", () => {
   const workflow = getBoosterCreationWorkflow("ai");
   assert.equal(workflow.generationEnabled, true);
@@ -60,11 +64,11 @@ test("01 - parcours IA sans média", () => {
     false,
   );
   assert.match(
-    modal,
+    generationController,
     /mediaWorkspaceExpected:[\s\S]*shouldUsePersistentMediaWorkspaceForAi[\s\S]*Boolean\(readyMediaWorkspaceId\)/,
   );
   assert.match(
-    modal,
+    generationController,
     /let readyMediaWorkspaceId = shouldUsePersistentMediaWorkspaceForAi[\s\S]*?waitForPersistentWorkspaceReadiness/,
   );
 });
@@ -169,7 +173,7 @@ test("06 - parcours manuel avec vidéo sans IA", () => {
 
 test("07 - changement IA vers Manuel conserve canaux et médias", () => {
   const start = modal.indexOf("const onSelectCreationMode");
-  const end = modal.indexOf("const onGenerate", start);
+  const end = modal.indexOf("const onDuplicateContentToAllChannels", start);
   assert.ok(start >= 0 && end > start);
   const source = modal.slice(start, end);
   assert.match(source, /Vos canaux et vos médias seront conservés/);
@@ -271,7 +275,7 @@ test("12 - une incompatibilité réelle demande une conversion minimale", () => 
 
 test("13 - publication immédiate utilise le moteur final commun", () => {
   assert.equal((modal.match(/<PublishFooterActions/g) || []).length, 1);
-  assert.match(modal, /trackEvent\("publish"/);
+  assert.match(submission, /trackEvent\("publish"/);
   assert.match(publishClient, /fetchWithBrowserDeadline\(\{/);
   assert.match(publishClient, /input:\s*"\/api\/booster\/publish-now"/);
   assert.match(publishRoute, /invalidVideoChannels\.forEach/);

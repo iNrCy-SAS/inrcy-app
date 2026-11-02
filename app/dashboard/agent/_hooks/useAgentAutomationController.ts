@@ -286,7 +286,7 @@ export function useAgentAutomationController({
       setSaveState("saved");
       if (showSuccess) showNotice(i18nT("agent_settings_saved"));
       return true;
-    } catch (error) {
+    } catch {
       setSaveState("error");
       showNotice(i18nT("agent_settings_save_failed"));
       return false;
@@ -520,7 +520,7 @@ export function useAgentAutomationController({
       setInstantPublicationPreparing(false);
       showNotice(i18nT("agent_publication_prepared"));
       return true;
-    } catch (error) {
+    } catch {
       showNotice(i18nT("agent_publication_prepare_failed"));
       return false;
     } finally {
@@ -582,7 +582,7 @@ export function useAgentAutomationController({
       setSelectedKey(key);
       showNotice(i18nT(key === "grow" ? "agent_grow_campaign_prepared" : "agent_loyalty_campaign_prepared"));
       return true;
-    } catch (error) {
+    } catch {
       showNotice(i18nT("agent_campaign_prepare_failed"));
       return false;
     } finally {
@@ -656,7 +656,7 @@ export function useAgentAutomationController({
           : i18nT("agent_stats_report_sent"),
       );
       await wait(800);
-    } catch (error) {
+    } catch {
       if (progressTimer) {
         window.clearInterval(progressTimer);
         progressTimer = null;

@@ -184,7 +184,7 @@ export function useLinkedinChannel({
     void triggerChannelRefresh("linkedin").catch(() => {});
     if (!options?.silent) setPanelSuccess(`Page LinkedIn « ${org.name} » connectée.`, 2400);
     return true;
-  }, [linkedinDisplayName, linkedinOrganizationUrl, linkedinProfileUrl, linkedinShareToPersonalProfile, patchChannelConnectionLocally, triggerChannelRefresh, setPanelSuccess, setPanelError]);
+  }, [linkedinOrganizationUrl, patchChannelConnectionLocally, triggerChannelRefresh, setPanelSuccess, setPanelError]);
 
   const loadLinkedinOrganizations = useCallback(async (options?: { resetSelection?: boolean; autoSelect?: boolean }) => {
     if (!linkedinAccountConnected) {

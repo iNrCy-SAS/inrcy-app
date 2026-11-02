@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -95,19 +97,19 @@ test("publier finalise après le clic tandis que la programmation garde sa récu
   );
 
   assert.match(
-    modal,
+    submission,
     /waitForPersistentWorkspaceReadiness\(\s*"publish"/,
   );
   assert.match(
-    modal,
+    submission,
     /waitForPersistentWorkspaceReadiness\(\s*"schedule"/,
   );
   assert.match(modal, /async function ensureCutoverVideoVariantsReady/);
-  assert.doesNotMatch(modal, /startBackgroundVideoPrewarm/);
-  assert.doesNotMatch(modal, /prepareCutoverVideoVariants/);
-  const immediatePublish = modal.slice(
-    modal.indexOf("const runPublish = async"),
-    modal.indexOf("const onSavePublicationDraft = async"),
+  assert.doesNotMatch([modal, submission].join("\n"), /startBackgroundVideoPrewarm/);
+  assert.doesNotMatch([modal, submission].join("\n"), /prepareCutoverVideoVariants/);
+  const immediatePublish = submission.slice(
+    submission.indexOf("const runPublish = async"),
+    submission.indexOf("const performSchedulePublication = async"),
   );
   assert.doesNotMatch(
     immediatePublish,
@@ -117,7 +119,7 @@ test("publier finalise après le clic tandis que la programmation garde sa récu
     immediatePublish,
     /if \(shouldBuildVideoFallbackPayload\)[\s\S]*preparePublicationVideoVariants\(/,
   );
-  assert.match(modal, /generateMissingVideoVariants:\s*false/);
+  assert.match(submission, /generateMissingVideoVariants:\s*false/);
   assert.match(
     modal,
     /shouldRetryVideoVariantGeneration[\s\S]*generateMissingVideoVariants:\s*true/,

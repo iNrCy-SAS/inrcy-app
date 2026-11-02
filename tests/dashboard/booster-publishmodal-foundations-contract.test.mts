@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -65,9 +67,9 @@ test("media, browser and transcription operations stay in the dedicated client r
   assert.match(videoAiRuntime, /fetch\("\/api\/booster\/transcribe"/);
   assert.doesNotMatch(videoAiRuntime, /\buseState\b|\buseEffect\b|\bcreateClient\b/);
   assert.match(publishModal, /from "\.\/publishModal\.videoAiRuntime"/);
-  assert.doesNotMatch(publishModal, /function preloadPreparedImagePreview/);
-  assert.doesNotMatch(publishModal, /function readVideoSourceMetadata/);
-  assert.doesNotMatch(publishModal, /async function transcribeVideoAudioForAI/);
+  assert.doesNotMatch([publishModal, submission].join("\n"), /function preloadPreparedImagePreview/);
+  assert.doesNotMatch([publishModal, submission].join("\n"), /function readVideoSourceMetadata/);
+  assert.doesNotMatch([publishModal, submission].join("\n"), /async function transcribeVideoAudioForAI/);
   assert.doesNotMatch(videoAiRuntime, /from "\.\/PublishModal"/);
   assert.match(publishModal, /usePersistentMediaWorkspace\(/);
   assert.match(publishModal, /usePublishImageController\(/);

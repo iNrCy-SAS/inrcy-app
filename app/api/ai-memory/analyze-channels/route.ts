@@ -5,6 +5,7 @@ import { after, NextResponse } from "next/server";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
 import { createAiOperationBudget } from "@/lib/aiGatewayPolicy";
+import { normalizeBusinessDnaAnalysisResponse } from "@/lib/businessDnaAnalysisResponse";
 import { normalizeAiPreferredEngine } from "@/lib/aiEnginePreference";
 import {
   getBusinessDnaAnalysisDepthGaps,
@@ -283,7 +284,7 @@ export async function GET() {
   if (errorResponse) return errorResponse;
 
   try {
-    const [edition, channelStates, isAdmin, job] = await Promise.all([
+    const [, channelStates, isAdmin, job] = await Promise.all([
       getDashboardEditionForAccountId(activeUserId),
       getChannelConnectionStates(supabase, activeUserId).catch(() => null),
       isAdminUserForAi(supabase, authUserId),
@@ -649,6 +650,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
       temperature: 0.18,
       timeoutMs: BUSINESS_DNA_PRIMARY_TIMEOUT_MS,
       responseSchema: ANALYSIS_RESPONSE_SCHEMA,
+      normalizeResponseBeforeValidation: normalizeBusinessDnaAnalysisResponse,
       system,
       input,
     });
@@ -715,6 +717,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
           temperature: 0.12,
           timeoutMs: 45_000,
           responseSchema: ANALYSIS_RESPONSE_SCHEMA,
+          normalizeResponseBeforeValidation: normalizeBusinessDnaAnalysisResponse,
           system: completionSystem,
           input: `${identityIntroduction}${identityContextJson}\n\n${professionCatalogIntroduction}${professionCatalog}\n\n${completionIntroduction}${completionSourceIntroduction}${JSON.stringify(completionSources)}${completionFinalInstruction}`,
         });

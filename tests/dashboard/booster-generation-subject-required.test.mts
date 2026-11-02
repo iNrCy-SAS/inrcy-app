@@ -18,6 +18,7 @@ function evaluate(expression: ts.Expression, source: ts.SourceFile, scope: Recor
 
 const intent = readSource("app/dashboard/booster/publier/components/PublishIntentPanel.tsx");
 const modal = readSource("app/dashboard/booster/publier/PublishModal.tsx");
+const generation = readSource("app/dashboard/booster/publier/useBoosterGeneration.ts");
 
 test("generation button requires a nonblank subject even with instructions and media", () => {
   let disabled: ts.Expression | undefined;
@@ -47,16 +48,16 @@ test("generation button requires a nonblank subject even with instructions and m
 test("generation handler rejects blank subjects before any engine or media preparation", async () => {
   let handler: ts.Expression | undefined;
   function visit(node: ts.Node) {
-    if (ts.isVariableDeclaration(node) && node.name.getText(modal) === "onGenerate") handler = node.initializer;
+    if (ts.isVariableDeclaration(node) && node.name.getText(generation) === "onGenerate") handler = node.initializer;
     ts.forEachChild(node, visit);
   }
-  visit(modal);
+  visit(generation);
   assert.ok(handler);
   const accepted = new Error("Subject accepted: stop test before generation");
   for (const idea of ["", " \t\n\u00a0 ", "  Nouveau chantier  "]) {
     const errors: string[] = [];
     const noop = () => {};
-    const generate = evaluate(handler, modal, {
+    const context = {
       generating: false, creationMode: "ai", idea, selectedChannels: ["facebook"],
       generationInFlightRef: { current: false }, selectedForGeneration: ["facebook"],
       publicationActorScopeRef: { current: { actorUserId: "test-user", accountId: "test-account" } },
@@ -66,6 +67,9 @@ test("generation handler rejects blank subjects before any engine or media prepa
       setGenerationNotice: noop, setGenerationMediaWarning: noop,
       i18nT: (key: string) => key, selectedAiPreferredEngine: "test",
       getAiEngineOption: () => { throw accepted; },
+    };
+    const generate = evaluate(handler, generation, { ...context,
+      readContext: () => ({ intent: context, media: context, workspace: context, editor: context }),
     }) as () => Promise<void>;
     if (idea.trim()) {
       await assert.rejects(generate, (error) => error === accepted);

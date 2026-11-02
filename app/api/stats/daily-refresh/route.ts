@@ -1,5 +1,5 @@
 import { captureVisibilityIndex } from "@/lib/inrstats/visibilityIndexStore";
-import { isMetaChannelPilotEnabledForActorAndAccount, isMetaChannelPilotEnabledForAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { isMetaChannelPilotEnabledForActorAndAccount } from "@/lib/metaChannelRolloutServer";
 import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from "next/server";
 import { withApi } from "@/lib/observability/withApi";
@@ -165,7 +165,7 @@ async function handler(req: Request) {
   const totalStarted = nowMs();
 
   try {
-    const { supabase, user, errorResponse, activeUserId } = await requireUser();
+    const { supabase, errorResponse, activeUserId } = await requireUser();
     if (errorResponse) return errorResponse;
 
     const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId);

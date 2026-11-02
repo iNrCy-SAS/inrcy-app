@@ -1,9 +1,10 @@
 "use client";
 
+import AgentPublicationIdeasEditor from "./_components/AgentPublicationIdeasEditor";
 import AgentWorkspaceHeader from "./_components/AgentWorkspaceHeader";
 import AgentWorkspaceMessages from "./_components/AgentWorkspaceMessages";
 import AgentCampaignAccess from "./_components/AgentCampaignAccess";
-import { INR_AGENT_WORKSPACES, isAutomationInAgentWorkspace, filterAgentWorkspaceActions, filterAgentWorkspaceSchedule, type InrAgentWorkspace } from "@/lib/inrAgentWorkspaces";
+import { INR_AGENT_WORKSPACES, isAutomationInAgentWorkspace, filterAgentWorkspaceSchedule, type InrAgentWorkspace } from "@/lib/inrAgentWorkspaces";
 import AgentPublicationChannelList from "./_components/AgentPublicationChannelList";
 import AgentMediaReferences from "./_components/AgentMediaReferences";
 import AgentMediaImage from "./_components/AgentMediaImage";
@@ -21,6 +22,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import {
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -46,6 +48,7 @@ import {
 } from "@/lib/inrStudioNavigation";
 import { useInrStudioSession } from "../_hooks/useInrStudioSession";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
+import { useInrAssistantRefresh } from "../_hooks/useInrAssistantRefresh";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import CampaignScheduleModal from "../_components/CampaignScheduleModal";
 import PublishScheduleModal, {
@@ -136,9 +139,7 @@ import {
   INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
   INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS,
   INR_AGENT_PUBLICATION_IDEA_INITIAL_ITEMS,
-  INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS,
   INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH,
-  appendInrAgentPublicationIdeaSlot,
   inrAgentPublicationIdeaFieldCount,
   normalizeInrAgentPublicationIdeas,
   normalizeInrAgentStudioMediaPreferencePercent,
@@ -158,10 +159,10 @@ import {
 } from "@/lib/inrAgentMonthSchedule";
 import { isStandardAgentAutomationKey } from "@/lib/standardAgentPolicy";
 import { useDashboardEdition } from "../_components/DashboardEditionProvider";
-import MediaSubjectVoiceButton from "../_components/MediaSubjectVoiceButton";
 import LocalMediaUploadChoice from "../_components/LocalMediaUploadChoice";
 import styles from "./agent.module.css";
 import dashboardStyles from "../dashboard.module.css";
+import { useAgentCampaignRecipients } from "./_hooks/useAgentCampaignRecipients";
 import { useAgentResponsiveUi } from "./_hooks/useAgentResponsiveUi";
 import {
   useAgentRuntimeData,
@@ -206,7 +207,6 @@ import {
   SendPlaneIcon,
   ShieldLineIcon,
   SparkSettingsIcon,
-  TrashActionIcon,
   ValidateActionIcon,
   renderRichInlineText,
 } from "./_components/AgentVisuals";
@@ -218,8 +218,6 @@ import type {
   AgentPreparedAction,
   AgentMediaLibraryItem,
   CampaignAttachmentRef,
-  CampaignRecipientPreview,
-  CrmContactForAgent,
   AgentMailAccount,
   CampaignMailPreview,
   AgentScheduledAction,
@@ -290,7 +288,6 @@ import {
 } from "./_lib/agent.config";
 
 import {
-  clampNumber,
   toggleItem,
   firstSafeString,
   asRecord,
@@ -314,7 +311,6 @@ import {
   normalizeConfigScheduleSlots,
   settingsToConfigs,
   configsToSettings,
-  inrSendFolderForAutomation,
 } from "./_lib/agent.settings";
 import {
   extractImageAsset,
@@ -335,12 +331,6 @@ import {
   isCampaignAutomationKey,
   normalizeCampaignAttachmentRefs,
   recipientsForAction,
-  contactDisplayName,
-  contactToCampaignRecipient,
-  parseRecipientEmails,
-  sanitizeDepartmentFilter,
-  contactDepartment,
-  manualRecipientFromEmail,
   extractCampaignMailPreview,
   channelsForAction,
   targetThemesLabel,
@@ -386,7 +376,6 @@ import {
   agentContentKindLabel,
   agentFrequencyLabel,
   agentMediaStatusLabel,
-  agentProgressLabel,
   agentSourceLabel,
   agentThemeLabel,
   agentThemeListLabel,
@@ -561,7 +550,6 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   const i18nT = useTranslations("agent");
   const mediaT = useTranslations("media");
   const boosterT = useTranslations("booster");
-  const dashboardT = useTranslations("dashboard");
   const boosterRuntimeT = boosterT as unknown as (
     key: string,
     values?: Record<string, string | number>
@@ -582,24 +570,24 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     configs,
     setConfigs,
     agentConnectedChannels,
+    connectedChannelsAccountId,
     connectedChannelsLoadState,
     loadState,
     saveState,
     setSaveState,
-    tableMissing,
     setTableMissing,
     notice,
     setNotice,
     actions,
     setActions,
     historyPublications,
-    refreshPublicationHistory,
     scheduledActions,
     setScheduledActions,
     setScheduledActionsTableMissing,
     actionsLoadState,
     refreshActions,
     refreshScheduledActions,
+    refreshAssistantData,
     showNotice,
   } = useAgentRuntimeData({ standardMode });
   const [publicationVisibilityNow, setPublicationVisibilityNow] = useState(0);
@@ -703,29 +691,6 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     "idle" | "saving"
   >("idle");
   const [recipientsPreviewOpen, setRecipientsPreviewOpen] = useState(false);
-  const [recipientsEditOpen, setRecipientsEditOpen] = useState(false);
-  const [crmContacts, setCrmContacts] = useState<CrmContactForAgent[]>([]);
-  const [crmContactsLoading, setCrmContactsLoading] = useState(false);
-  const [crmRecipientSearch, setCrmRecipientSearch] = useState("");
-  const [crmRecipientFiltersOpen, setCrmRecipientFiltersOpen] = useState(false);
-  const [crmRecipientCategory, setCrmRecipientCategory] = useState("all");
-  const [crmRecipientType, setCrmRecipientType] = useState("all");
-  const [crmRecipientDepartment, setCrmRecipientDepartment] = useState("");
-  const [crmRecipientImportantOnly, setCrmRecipientImportantOnly] =
-    useState(false);
-  const [manualRecipientsInput, setManualRecipientsInput] = useState("");
-  const [selectedRecipientEmails, setSelectedRecipientEmails] = useState<
-    string[]
-  >([]);
-  const [newRecipientOpen, setNewRecipientOpen] = useState(false);
-  const [newRecipientDraft, setNewRecipientDraft] = useState({
-    name: "",
-    email: "",
-    phone: "",
-  });
-  const [newRecipientState, setNewRecipientState] = useState<"idle" | "saving">(
-    "idle"
-  );
   const [mailAccountEditOpen, setMailAccountEditOpen] = useState(false);
   const [mailAccounts, setMailAccounts] = useState<AgentMailAccount[]>([]);
   const [mailAccountsLoading, setMailAccountsLoading] = useState(false);
@@ -895,16 +860,14 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   useEffect(() => {
     let alive = true;
 
-    setThreadsPublicationPreferences(CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES);
     async function loadMetaPublicationPreferences() {
-      const [instagramResult, facebookResult, threadsResult] = await Promise.allSettled([
+      const [instagramResult, facebookResult] = await Promise.allSettled([
         fetch("/api/integrations/instagram/publication-preferences", {
           cache: "no-store",
         }),
         fetch("/api/integrations/facebook/publication-preferences", {
           cache: "no-store",
         }),
-        metaPilotEnabled ? fetch("/api/integrations/threads/publication-preferences", { cache: "no-store" }) : Promise.resolve(null),
       ]);
       if (!alive) return;
 
@@ -924,10 +887,6 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
           );
         }
       }
-      if (threadsResult.status === "fulfilled" && threadsResult.value?.ok) {
-        const payload = await threadsResult.value.json().catch(() => ({}));
-        if (alive) setThreadsPublicationPreferences(normalizeThreadsPublicationPreferences(payload?.preferences));
-      }
     }
 
     loadMetaPublicationPreferences().catch(() => undefined);
@@ -935,6 +894,20 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       alive = false;
     };
   }, [metaPilotEnabled]);
+
+  useEffect(() => {
+    let alive = true;
+    setThreadsPublicationPreferences(CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES);
+    if (!metaPilotEnabled || connectedChannelsAccountId !== activeAccountId || connectedChannelsLoadState !== "ready" || !agentConnectedChannels?.threads) return;
+    async function loadThreadsPublicationPreferences() {
+      const response = await fetch("/api/integrations/threads/publication-preferences", { cache: "no-store" });
+      if (!alive || !response.ok) return;
+      const payload = await response.json().catch(() => ({}));
+      if (alive) setThreadsPublicationPreferences(normalizeThreadsPublicationPreferences(payload?.preferences));
+    }
+    loadThreadsPublicationPreferences().catch(() => undefined);
+    return () => { alive = false; };
+  }, [activeAccountId, metaPilotEnabled, connectedChannelsAccountId, connectedChannelsLoadState, agentConnectedChannels?.threads]);
 
   const pendingActionsByAutomation = useMemo(() => {
     return actions.reduce<Record<AutomationKey, number>>(
@@ -1198,7 +1171,6 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     historyPublications,
     agentConnectedChannels,
     configs,
-    i18nT,
     locale,
     runtimeT,
     scheduledActions,
@@ -1367,7 +1339,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         if (!controller.signal.aborted) console.warn("[inr-agent] publication idea states", error);
       });
     return () => controller.abort();
-  }, [publicationIdeasOpen, agentSettings.automations.publish.metadata?.publicationIdeas]);
+  }, [publicationIdeasOpen, agentSettings.automations.publish.metadata?.publicationIdeas, i18nT]);
 
   async function togglePublicationIdea(ideaText: string, active: boolean) {
     if (publicationIdeaToggleBusy) return;
@@ -1911,6 +1883,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     threadsPublicationPreferences,
     metaPilotEnabled,
     i18nT,
+    runtimeT,
     instagramPublicationPreferences,
     isPublishView,
     selectedPublishChannels,
@@ -1952,86 +1925,11 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     selectedPreparedAction?.payload?.attachments ||
       asRecord(selectedPreparedAction?.payload?.campaign)?.attachments
   );
-  const filteredCrmContacts = useMemo(() => {
-    const q = crmRecipientSearch.trim().toLowerCase();
-    const department = sanitizeDepartmentFilter(crmRecipientDepartment);
-    return crmContacts.filter((contact) => {
-      if (!firstSafeString(contact.email)) return false;
-      if (crmRecipientImportantOnly && !contact.important) return false;
-      if (
-        crmRecipientCategory !== "all" &&
-        firstSafeString(contact.category).toLowerCase() !== crmRecipientCategory
-      )
-        return false;
-      if (
-        crmRecipientType !== "all" &&
-        firstSafeString(contact.contact_type).toLowerCase() !== crmRecipientType
-      )
-        return false;
-      if (
-        department &&
-        !contactDepartment(contact.postal_code).startsWith(department)
-      )
-        return false;
-      if (!q) return true;
-      return [
-        contactDisplayName(contact),
-        contact.email,
-        contact.phone,
-        contact.company_name,
-        contact.city,
-        contact.postal_code,
-        contact.contact_type,
-        contact.category,
-      ]
-        .map((value) => firstSafeString(value).toLowerCase())
-        .some((value) => value.includes(q));
-    });
-  }, [
-    crmContacts,
-    crmRecipientCategory,
-    crmRecipientDepartment,
-    crmRecipientImportantOnly,
-    crmRecipientSearch,
-    crmRecipientType,
-  ]);
-  const crmRecipientsByEmail = useMemo(() => {
-    return new Map(
-      crmContacts
-        .map((contact) => contactToCampaignRecipient(contact))
-        .filter((recipient): recipient is CampaignRecipientPreview =>
-          Boolean(recipient)
-        )
-        .map((recipient) => [recipient.email.toLowerCase(), recipient])
-    );
-  }, [crmContacts]);
-  const manualSelectedRecipientEmails = useMemo(() => {
-    return selectedRecipientEmails.filter(
-      (email) => !crmRecipientsByEmail.has(email.toLowerCase())
-    );
-  }, [crmRecipientsByEmail, selectedRecipientEmails]);
-  const filteredCrmRecipientEmails = useMemo(() => {
-    return filteredCrmContacts
-      .map((contact) =>
-        contactToCampaignRecipient(contact)?.email.toLowerCase()
-      )
-      .filter((email): email is string => Boolean(email));
-  }, [filteredCrmContacts]);
-  const filteredCrmSelectedCount = useMemo(() => {
-    const selected = new Set(
-      selectedRecipientEmails.map((email) => email.toLowerCase())
-    );
-    return filteredCrmRecipientEmails.filter((email) => selected.has(email))
-      .length;
-  }, [filteredCrmRecipientEmails, selectedRecipientEmails]);
-  const filteredCrmAllSelected =
-    filteredCrmRecipientEmails.length > 0 &&
-    filteredCrmSelectedCount === filteredCrmRecipientEmails.length;
-  const activeCrmRecipientFiltersCount =
-    (crmRecipientCategory !== "all" ? 1 : 0) +
-    (crmRecipientType !== "all" ? 1 : 0) +
-    (crmRecipientDepartment.trim() ? 1 : 0) +
-    (crmRecipientImportantOnly ? 1 : 0);
+  const recipientsEditor = useAgentCampaignRecipients({
+    selectedPreparedAction, selectedKey, campaignSaveState, setCampaignSaveState,
+    patchCampaignAction, i18nT: runtimeT, showNotice,
+    onOpen: () => { setRecipientsPreviewOpen(false); setCampaignEditOpen(false); },
+  });
   const selectedAutomationSettings = agentSettings.automations[selected.key];
   const statsReports = useMemo(
     () => statsReportsFromActions(actions, { automaticOnly: true, limit: 5 }),
@@ -2159,7 +2057,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
           ? i18nT("texte_modifie_temporairement_valider_l_enregistr_97bc9fa5")
           : i18nT("texte_de_la_campagne_mis_a_2147ff62")
       );
-    } catch (error) {
+    } catch {
       showNotice(i18nT("modification_du_mail_impossible_79c8df8a"));
     } finally {
       setCampaignSaveState("idle");
@@ -2285,7 +2183,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         showNotice(i18nT("publish_video_updated"));
       }
       return true;
-    } catch (error) {
+    } catch {
       showNotice(i18nT("publish_media_update_failed"));
       return false;
     } finally {
@@ -2299,6 +2197,13 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     },
   });
   const historicalStudioReturnHandledRef = useRef(false);
+  const onHistoricalStudioReturn = useEffectEvent((result: ReturnType<typeof consumeInrStudioReturn>) => {
+    if (!result?.item) {
+      showNotice(i18nT("publish_media_update_failed"));
+      return;
+    }
+    void applyInrStudioReturn(result);
+  });
 
   useEffect(() => {
     if (historicalStudioReturnHandledRef.current) return;
@@ -2319,11 +2224,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         params.size ? `?${params.toString()}` : ""
       }${window.location.hash}`
     );
-    if (!result?.item) {
-      showNotice(i18nT("publish_media_update_failed"));
-      return;
-    }
-    void applyInrStudioReturn(result);
+    onHistoricalStudioReturn(result);
   }, []);
 
   async function applyInrStudioReturn(result: InrStudioReturnedMedia) {
@@ -2613,7 +2514,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         },
       });
       openStudio(href);
-    } catch (error) {
+    } catch {
       showNotice(i18nT("image_adaptation_failed"));
     }
   }
@@ -3089,7 +2990,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     let mediaKind: "image" | "video";
     try {
       mediaKind = validateAgentPublishMediaFile(file);
-    } catch (error) {
+    } catch {
       showNotice(i18nT("invalid_media"));
       return;
     }
@@ -3257,7 +3158,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
           ? i18nT("publish_image_added")
           : i18nT("publish_image_updated")
       );
-    } catch (error) {
+    } catch {
       showNotice(i18nT("publish_media_update_failed"));
     } finally {
       setPublishMediaUploadState("idle");
@@ -3287,7 +3188,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         setPublishMediaActiveIndex(0);
       }
       showNotice(i18nT("publish_media_removed"));
-    } catch (error) {
+    } catch {
       showNotice(i18nT("publish_media_remove_failed"));
     } finally {
       setPublishMediaUploadState("idle");
@@ -3511,195 +3412,6 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     return updatedAction;
   }
 
-  async function loadCrmContactsForAgent() {
-    setCrmContactsLoading(true);
-    try {
-      const response = await fetch("/api/crm/contacts?all=1&pageSize=500", {
-        cache: "no-store",
-      });
-      const payload = (await response.json().catch(() => null)) as {
-        contacts?: CrmContactForAgent[];
-        error?: string;
-      } | null;
-      if (!response.ok)
-        throw new Error(payload?.error || "Contacts CRM indisponibles.");
-      setCrmContacts(Array.isArray(payload?.contacts) ? payload.contacts : []);
-    } catch (error) {
-      showNotice(i18nT("crm_contacts_unavailable"));
-    } finally {
-      setCrmContactsLoading(false);
-    }
-  }
-
-  async function openRecipientsEditor() {
-    const currentRecipients = recipientsForAction(selectedPreparedAction);
-    setSelectedRecipientEmails(
-      currentRecipients.map((recipient) => recipient.email.toLowerCase())
-    );
-    setRecipientsPreviewOpen(false);
-    setCampaignEditOpen(false);
-    setRecipientsEditOpen(true);
-    setCrmRecipientSearch("");
-    setManualRecipientsInput("");
-    setCrmRecipientFiltersOpen(false);
-    await loadCrmContactsForAgent();
-  }
-
-  function toggleRecipientSelection(emailValue: string) {
-    const email = emailValue.trim().toLowerCase();
-    if (!email) return;
-    setSelectedRecipientEmails((current) =>
-      current.includes(email)
-        ? current.filter((item) => item !== email)
-        : [...current, email]
-    );
-  }
-
-  function addManualRecipientsFromInput() {
-    const emails = parseRecipientEmails(manualRecipientsInput);
-    if (!emails.length) {
-      showNotice(i18nT("valid_email_required"));
-      return;
-    }
-    setSelectedRecipientEmails((current) => {
-      const next = new Set(current.map((email) => email.toLowerCase()));
-      for (const email of emails) next.add(email);
-      return Array.from(next);
-    });
-    setManualRecipientsInput("");
-    showNotice(i18nT("recipients_added", { count: emails.length }));
-  }
-
-  function selectAllFilteredCrmRecipients() {
-    const emails = filteredCrmContacts
-      .map((contact) =>
-        contactToCampaignRecipient(contact)?.email.toLowerCase()
-      )
-      .filter((email): email is string => Boolean(email));
-    setSelectedRecipientEmails((current) => {
-      const next = new Set(current.map((email) => email.toLowerCase()));
-      for (const email of emails) next.add(email);
-      return Array.from(next);
-    });
-  }
-
-  function clearFilteredCrmRecipients() {
-    const emailsToRemove = new Set(
-      filteredCrmContacts
-        .map((contact) =>
-          contactToCampaignRecipient(contact)?.email.toLowerCase()
-        )
-        .filter((email): email is string => Boolean(email))
-    );
-    setSelectedRecipientEmails((current) =>
-      current.filter((email) => !emailsToRemove.has(email.toLowerCase()))
-    );
-  }
-
-  function toggleFilteredCrmRecipients() {
-    if (filteredCrmAllSelected) {
-      clearFilteredCrmRecipients();
-      return;
-    }
-    selectAllFilteredCrmRecipients();
-  }
-
-  function removeSelectedRecipient(emailValue: string) {
-    const email = emailValue.trim().toLowerCase();
-    setSelectedRecipientEmails((current) =>
-      current.filter((item) => item.toLowerCase() !== email)
-    );
-  }
-
-  async function saveCampaignRecipients() {
-    if (!selectedPreparedAction || campaignSaveState === "saving") return;
-    const previousByEmail = new Map(
-      campaignRecipients.map((recipient) => [
-        recipient.email.toLowerCase(),
-        recipient,
-      ])
-    );
-    const pendingManualEmails = parseRecipientEmails(manualRecipientsInput);
-    const emails = Array.from(
-      new Set([
-        ...selectedRecipientEmails.map((email) => email.toLowerCase()),
-        ...pendingManualEmails,
-      ])
-    );
-    const recipients = emails
-      .map(
-        (email) =>
-          crmRecipientsByEmail.get(email) ||
-          previousByEmail.get(email) ||
-          manualRecipientFromEmail(email)
-      )
-      .filter((recipient): recipient is CampaignRecipientPreview =>
-        Boolean(recipient)
-      );
-
-    if (!recipients.length) {
-      showNotice(i18nT("recipient_required"));
-      return;
-    }
-
-    setCampaignSaveState("saving");
-    try {
-      await patchCampaignAction(
-        { editType: "campaign_recipients", recipients },
-        i18nT("campaign_recipients_update_failed")
-      );
-      setRecipientsEditOpen(false);
-      setManualRecipientsInput("");
-      showNotice(i18nT("campaign_recipients_updated"));
-    } catch (error) {
-      showNotice(i18nT("campaign_recipients_update_failed"));
-    } finally {
-      setCampaignSaveState("idle");
-    }
-  }
-
-  async function addNewRecipientToCrm() {
-    if (newRecipientState === "saving") return;
-    const email = newRecipientDraft.email.trim().toLowerCase();
-    const name = newRecipientDraft.name.trim();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(email)) {
-      showNotice(i18nT("email_required"));
-      return;
-    }
-
-    setNewRecipientState("saving");
-    try {
-      const response = await fetch("/api/crm/contacts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          display_name: name || email,
-          email,
-          phone: newRecipientDraft.phone.trim(),
-          category: "professionnel",
-          contact_type: selectedKey === "loyalty" ? "client" : "prospect",
-        }),
-      });
-      const payload = (await response.json().catch(() => null)) as {
-        id?: string;
-        error?: string;
-      } | null;
-      if (!response.ok)
-        throw new Error(payload?.error || i18nT("crm_contact_add_failed"));
-      await loadCrmContactsForAgent();
-      setSelectedRecipientEmails((current) =>
-        current.includes(email) ? current : [...current, email]
-      );
-      setNewRecipientDraft({ name: "", email: "", phone: "" });
-      setNewRecipientOpen(false);
-      showNotice(i18nT("crm_contact_added"));
-    } catch (error) {
-      showNotice(i18nT("crm_contact_add_failed"));
-    } finally {
-      setNewRecipientState("idle");
-    }
-  }
-
   async function loadMailAccountsForAgent() {
     setMailAccountsLoading(true);
     try {
@@ -3721,7 +3433,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
           )
         : [];
       setMailAccounts(accounts);
-    } catch (error) {
+    } catch {
       showNotice(i18nT("mailboxes_unavailable"));
     } finally {
       setMailAccountsLoading(false);
@@ -3753,7 +3465,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       );
       setMailAccountEditOpen(false);
       showNotice(i18nT("mailbox_updated"));
-    } catch (error) {
+    } catch {
       showNotice(i18nT("mailbox_update_failed"));
     } finally {
       setCampaignSaveState("idle");
@@ -3851,7 +3563,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
             })
           : i18nT("attachments_added", { count: uploaded.length })
       );
-    } catch (error) {
+    } catch {
       showNotice(i18nT("attachment_add_failed"));
     } finally {
       setAttachmentUploadState("idle");
@@ -3891,7 +3603,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       await saveCampaignAttachments([...current, ...picked].slice(0, 10));
       showNotice(i18nT("attachments_library_added", { count: picked.length }));
       return true;
-    } catch (error) {
+    } catch {
       showNotice(i18nT("attachment_add_failed"));
       return false;
     } finally {
@@ -3933,7 +3645,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         current.filter((attachment) => attachment.path !== path)
       );
       showNotice(i18nT("attachment_removed"));
-    } catch (error) {
+    } catch {
       showNotice(i18nT("attachment_remove_failed"));
     } finally {
       setAttachmentUploadState("idle");
@@ -3978,7 +3690,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       );
       setCampaignDraftConfirmOpen(false);
       showNotice(i18nT("campaign_draft_saved"));
-    } catch (error) {
+    } catch {
       showNotice(i18nT("draft_save_failed"));
     } finally {
       setCampaignDraftSaveState("idle");
@@ -4024,7 +3736,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       );
       setCampaignDraftConfirmOpen(false);
       showNotice(i18nT("publication_draft_saved"));
-    } catch (error) {
+    } catch {
       showNotice(i18nT("draft_save_failed"));
     } finally {
       setCampaignDraftSaveState("idle");
@@ -4195,7 +3907,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       setCampaignEditOpen(false);
       setMailTextEditOpen(false);
       setRecipientsPreviewOpen(false);
-      setRecipientsEditOpen(false);
+      recipientsEditor.close();
       setAttachmentPreviewOpen(false);
       setMailAccountEditOpen(false);
       setSelectedKey(session.previousSelectedKey);
@@ -4227,6 +3939,8 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     restorePreviousState();
     return true;
   }
+
+  useInrAssistantRefresh({ topics: ["agents"], accountId: activeAccountId, blocked: Boolean(settingsKey || publicationIdeasOpen || scheduledEditSession || campaignEditOpen || publishEditOpen || publishEditChoiceOpen || mailTextEditOpen || recipientsEditor.isOpen || mailAccountEditOpen || scheduleOnlyEdit || automationScheduleEdit || scheduleOpen || validationChoiceOpen || validationScheduleOpen || tiktokSettingsOpen || agentConfirmDialog || prepareNowConfirm || publishRegeneration || publicationChannelPreparing || agentReferenceBusy || publishChannelSelectionSaving) || saveState === "saving" || publicationIdeasSaveState === "saving" || campaignSaveState === "saving" || publishSaveState === "saving" || scheduleMutationState === "saving" || validationScheduleState === "saving" || publicationRestoreState === "saving", refresh: ({ canApply }) => refreshAssistantData(canApply) });
 
   useUnsavedExitGuard({
     active: Boolean(scheduledEditSession),
@@ -4487,7 +4201,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       exitScheduledEditSession({ silent: true, force: true });
       await refreshScheduledActions(true);
       showNotice(i18nT("scheduled_action_deleted"));
-    } catch (error) {
+    } catch {
       showNotice(i18nT("scheduled_action_delete_failed"));
     } finally {
       setScheduleMutationState("idle");
@@ -4581,7 +4295,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       setAutomationScheduleEdit(null);
       await refreshScheduledActions(true);
       showNotice(i18nT("programmation_mise_a_jour_ea5f575f"));
-    } catch (error) {
+    } catch {
       const message = i18nT("schedule_update_failed");
       setAutomationScheduleEditError(message);
       throw new Error(message);
@@ -4627,7 +4341,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       }
       setScheduleOnlyEdit(null);
       showNotice(i18nT("programmation_mise_a_jour_ea5f575f"));
-    } catch (error) {
+    } catch {
       const message = i18nT("schedule_update_failed");
       setScheduleOnlyEditError(message);
       throw new Error(message);
@@ -4649,7 +4363,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         );
       showNotice(i18nT("scheduled_action_deleted"));
       await refreshScheduledActions(true);
-    } catch (error) {
+    } catch {
       showNotice(i18nT("scheduled_action_delete_failed"));
     } finally {
       setScheduleMutationState("idle");
@@ -4693,7 +4407,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       );
       showNotice(i18nT("scheduled_action_deleted"));
       await refreshActions(true);
-    } catch (error) {
+    } catch {
       showNotice(i18nT("scheduled_action_delete_failed"));
     } finally {
       setScheduleMutationState("idle");
@@ -4738,7 +4452,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       setConfigs(settingsToConfigs(savedSettings));
       writeCachedAgentViewSnapshot({ settings: savedSettings });
       showNotice(i18nT("automation_disabled_notice"));
-    } catch (error) {
+    } catch {
       showNotice(i18nT("automation_disable_failed"));
     } finally {
       setScheduleMutationState("idle");
@@ -5191,7 +4905,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       setNotice(null);
       try {
         await saveScheduledEditCampaign(scheduledAt);
-      } catch (error) {
+      } catch {
         const message = i18nT("scheduled_campaign_update_failed");
         showNotice(message);
         throw new Error(message);
@@ -5213,7 +4927,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         i18nT("scheduled_campaign_success"),
         { closeSchedule: false, showSuccessNotice: false }
       );
-    } catch (error) {
+    } catch {
       const message = i18nT("campaign_schedule_failed");
       showNotice(message);
       throw new Error(message);
@@ -5257,7 +4971,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       try {
         await saveScheduledEditPublication(selections, effectiveTiktokSettings);
         setPendingImmediateAgentPublishAfterSchedule(null);
-      } catch (error) {
+      } catch {
         const message = i18nT("scheduled_publication_update_failed");
         showNotice(message);
         throw new Error(message);
@@ -7604,57 +7318,10 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         preview={campaignMailPreview}
         recipients={campaignRecipients}
         onClose={() => setRecipientsPreviewOpen(false)}
-        onEdit={openRecipientsEditor}
+        onEdit={recipientsEditor.open}
       />
 
-      <RecipientsPickerModal
-        open={recipientsEditOpen}
-        preview={campaignMailPreview}
-        manualRecipientsInput={manualRecipientsInput}
-        manualSelectedRecipientEmails={manualSelectedRecipientEmails}
-        crmSearch={crmRecipientSearch}
-        filtersOpen={crmRecipientFiltersOpen}
-        activeFiltersCount={activeCrmRecipientFiltersCount}
-        category={crmRecipientCategory}
-        contactType={crmRecipientType}
-        department={crmRecipientDepartment}
-        importantOnly={crmRecipientImportantOnly}
-        filteredContacts={filteredCrmContacts}
-        filteredAllSelected={filteredCrmAllSelected}
-        contactsLoading={crmContactsLoading}
-        selectedRecipientEmails={selectedRecipientEmails}
-        newRecipientOpen={newRecipientOpen}
-        newRecipientDraft={newRecipientDraft}
-        newRecipientState={newRecipientState}
-        saveState={campaignSaveState}
-        onClose={() => setRecipientsEditOpen(false)}
-        onManualRecipientsChange={setManualRecipientsInput}
-        onAddManualRecipients={addManualRecipientsFromInput}
-        onRemoveSelectedRecipient={removeSelectedRecipient}
-        onSearchChange={setCrmRecipientSearch}
-        onToggleFilters={() =>
-          setCrmRecipientFiltersOpen((current) => !current)
-        }
-        onToggleFiltered={toggleFilteredCrmRecipients}
-        onToggleNewRecipient={() => setNewRecipientOpen((current) => !current)}
-        onCategoryChange={setCrmRecipientCategory}
-        onContactTypeChange={setCrmRecipientType}
-        onDepartmentChange={(value) =>
-          setCrmRecipientDepartment(sanitizeDepartmentFilter(value))
-        }
-        onToggleImportantOnly={() =>
-          setCrmRecipientImportantOnly((current) => !current)
-        }
-        onNewRecipientNameChange={(name) =>
-          setNewRecipientDraft((current) => ({ ...current, name }))
-        }
-        onNewRecipientEmailChange={(email) =>
-          setNewRecipientDraft((current) => ({ ...current, email }))
-        }
-        onAddNewRecipient={addNewRecipientToCrm}
-        onToggleRecipient={toggleRecipientSelection}
-        onSave={saveCampaignRecipients}
-      />
+      <RecipientsPickerModal {...recipientsEditor.pickerProps} preview={campaignMailPreview} />
 
       <MailAccountEditModal
         open={mailAccountEditOpen}
@@ -9108,206 +8775,30 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
             </div>
 
             {publicationIdeasOpen ? (
-              <section className={styles.publicationIdeasPanel}>
-                <header>
-                  <div className={styles.publicationIdeasHeaderActions}>
-                    <details className={styles.publicationIdeasHelp}>
-                      <summary aria-label={i18nT("publication_ideas_help_label")} title={i18nT("publication_ideas_help_label")}>?</summary>
-                      <div className={styles.publicationIdeasHelpContent}>
-                        <strong>{i18nT("publication_ideas_help_label")}</strong>
-                        <p>{i18nT("publication_ideas_description")}</p>
-                        <p>{i18nT("publication_ideas_help_order")}</p>
-                        <p>{i18nT("publication_ideas_help_consumption")}</p>
-                        <p>{i18nT("publication_ideas_help_reactivation")}</p>
-                        <p>{i18nT("publication_ideas_help_fallback")}</p>
-                        <p>{i18nT("publication_ideas_hint")}</p>
-                      </div>
-                    </details>
-                    <span className={styles.publicationIdeasCount}>
-                      {publicationIdeasDraft.filter((idea) => idea.trim()).length}
-                      /{INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS}
-                    </span>
-                  </div>
-                </header>
-                <div className={styles.publicationIdeasGrid}>
-                  {settingsPublicationIdeaEntries.map(
-                    ({ index, value }, visualIndex) => {
-                      const inputId = `publication-idea-${index}`;
-                      const ideaState = publicationIdeaStates[value];
-                      const ideaIsSaved = Boolean(value && savedPublicationIdeas.includes(value));
-                      const ideaIsReserved = ideaState?.status === "active" && Boolean(ideaState.reserved_action_id);
-                      const ideaIsActive = ideaState?.status === "active";
-                      const ideaWasUsed = ideaState?.status === "used";
-                      const queueIndex = savedPublicationIdeaOrder.indexOf(value);
-                      const canReorder = queueIndex >= 0 &&
-                        settingsPublicationIdeaEntries.filter((entry) => entry.value === value).length === 1 &&
-                        !publicationIdeaToggleBusy && publicationIdeasSaveState !== "saving";
-                      return (
-                        <div
-                          key={inputId}
-                          className={styles.publicationIdeaCard}
-                          data-idea-state={ideaState?.status || "empty"}
-                          data-drop-target={publicationIdeaDropTarget === value || undefined}
-                          draggable={canReorder}
-                          onDragStart={(event) => {
-                            if (!canReorder || (event.target instanceof Element &&
-                              !event.target.closest(`.${styles.publicationIdeaDragHandle}`) &&
-                              event.target.closest("button, textarea, input, label"))) {
-                              event.preventDefault();
-                              return;
-                            }
-                            event.dataTransfer.effectAllowed = "move";
-                            event.dataTransfer.setData("text/plain", value);
-                            setDraggedPublicationIdea(value);
-                          }}
-                          onDragOver={(event) => {
-                            if (!canReorder || !draggedPublicationIdea || draggedPublicationIdea === value) return;
-                            event.preventDefault();
-                            event.dataTransfer.dropEffect = "move";
-                            setPublicationIdeaDropTarget(value);
-                          }}
-                          onDrop={(event) => {
-                            event.preventDefault();
-                            const source = event.dataTransfer.getData("text/plain") || draggedPublicationIdea;
-                            if (canReorder && source && source !== value && savedPublicationIdeaOrder.includes(source)) {
-                              movePublicationIdea(source, queueIndex);
-                            }
-                            setDraggedPublicationIdea(null);
-                            setPublicationIdeaDropTarget(null);
-                          }}
-                          onDragEnd={() => {
-                            setDraggedPublicationIdea(null);
-                            setPublicationIdeaDropTarget(null);
-                          }}
-                        >
-                          <div className={styles.publicationIdeaCardHeader}>
-                            <button
-                              type="button"
-                              className={styles.publicationIdeaMoveButton}
-                              disabled={!canReorder || queueIndex === 0}
-                              onClick={() => movePublicationIdea(value, queueIndex - 1)}
-                              aria-label={i18nT("publication_idea_move_previous", { number: visualIndex + 1 })}
-                              title={i18nT("publication_idea_move_previous", { number: visualIndex + 1 })}
-                            >←</button>
-                            <label htmlFor={inputId}>
-                              <strong>{i18nT("publication_idea_label", { number: visualIndex + 1 })}</strong>
-                              <span className={styles.publicationIdeaDragHandle} aria-hidden="true">⠿</span>
-                            </label>
-                            <button
-                              type="button"
-                              className={styles.publicationIdeaMoveButton}
-                              disabled={!canReorder || queueIndex === savedPublicationIdeaOrder.length - 1}
-                              onClick={() => movePublicationIdea(value, queueIndex + 1)}
-                              aria-label={i18nT("publication_idea_move_next", { number: visualIndex + 1 })}
-                              title={i18nT("publication_idea_move_next", { number: visualIndex + 1 })}
-                            >→</button>
-                            <small>{value.length}/{INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}</small>
-                          </div>
-                          <div className={styles.publicationIdeaTextareaWrap}>
-                            <textarea
-                              id={inputId}
-                              value={value}
-                              maxLength={INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}
-                              rows={4}
-                              readOnly={settingsPublicationIdeaVoiceBusy || publicationIdeasSaveState === "saving"}
-                              aria-busy={publicationIdeaVoiceIndex === index}
-                              placeholder={i18nT(
-                                "publication_idea_placeholder"
-                              )}
-                              onChange={(event) =>
-                                updateSettingsPublicationIdea(
-                                  index,
-                                  event.target.value
-                                )
-                              }
-                            />
-                            <MediaSubjectVoiceButton
-                              purpose="subject"
-                              value={value}
-                              maxLength={INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}
-                              mergeMode="paragraph"
-                              contextLabel={i18nT("publication_idea_label", {
-                                number: visualIndex + 1,
-                              })}
-                              disabled={
-                                publicationIdeasSaveState === "saving" ||
-                                loadState === "loading" ||
-                                Boolean(testNowKey) ||
-                                (publicationIdeaVoiceIndex !== null &&
-                                  publicationIdeaVoiceIndex !== index)
-                              }
-                              onBusyChange={(busy) =>
-                                setPublicationIdeaVoiceIndex((current) =>
-                                  busy
-                                    ? index
-                                    : current === index
-                                    ? null
-                                    : current
-                                )
-                              }
-                              onChange={(nextValue) =>
-                                updateSettingsPublicationIdea(index, nextValue)
-                              }
-                            />
-                          </div>
-                          {value.trim() ? (
-                            <div className={styles.publicationIdeaStatusRow}>
-                              <span>
-                                {ideaWasUsed
-                                  ? i18nT("publication_idea_state_used")
-                                  : ideaState?.status === "disabled"
-                                    ? i18nT("publication_idea_state_disabled")
-                                    : ideaIsReserved
-                                      ? i18nT("publication_idea_state_reserved")
-                                      : ideaIsActive
-                                        ? i18nT("publication_idea_state_active")
-                                        : ideaIsSaved
-                                          ? i18nT("publication_idea_state_loading")
-                                          : i18nT("publication_idea_state_unsaved")}
-                              </span>
-                              <button
-                                type="button"
-                                disabled={!ideaIsSaved || !ideaState || Boolean(publicationIdeaToggleBusy) || publicationIdeasSaveState === "saving"}
-                                onClick={() => void togglePublicationIdea(value, !ideaIsActive)}
-                                aria-label={ideaIsActive
-                                  ? i18nT("publication_idea_disable_aria", { number: visualIndex + 1 })
-                                  : ideaWasUsed
-                                    ? i18nT("publication_idea_reuse_aria", { number: visualIndex + 1 })
-                                    : i18nT("publication_idea_reactivate_aria", { number: visualIndex + 1 })}
-                              >
-                                {ideaIsActive
-                                  ? i18nT("publication_idea_disable")
-                                  : ideaWasUsed
-                                    ? i18nT("publication_idea_reuse")
-                                    : i18nT("publication_idea_reactivate")}
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    }
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className={styles.publicationIdeasAddButton}
-                  disabled={
-                    settingsPublicationIdeaVoiceBusy ||
-                    publicationIdeasSaveState === "saving" ||
-                    settingsPublicationIdeaFieldCount >=
-                      INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS
-                  }
-                  onClick={() =>
-                    setPublicationIdeasDraft(appendInrAgentPublicationIdeaSlot(publicationIdeasDraft))
-                  }
-                >
-                  <span aria-hidden="true">+</span>
-                  {settingsPublicationIdeaFieldCount >=
-                  INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS
-                    ? i18nT("publication_ideas_limit_reached")
-                    : i18nT("publication_ideas_add")}
-                </button>
-              </section>
+              <AgentPublicationIdeasEditor
+                i18nT={i18nT}
+                publicationIdeasDraft={publicationIdeasDraft}
+                settingsPublicationIdeaEntries={settingsPublicationIdeaEntries}
+                publicationIdeaStates={publicationIdeaStates}
+                savedPublicationIdeas={savedPublicationIdeas}
+                savedPublicationIdeaOrder={savedPublicationIdeaOrder}
+                publicationIdeaToggleBusy={publicationIdeaToggleBusy}
+                publicationIdeasSaveState={publicationIdeasSaveState}
+                publicationIdeaDropTarget={publicationIdeaDropTarget}
+                setDraggedPublicationIdea={setDraggedPublicationIdea}
+                draggedPublicationIdea={draggedPublicationIdea}
+                setPublicationIdeaDropTarget={setPublicationIdeaDropTarget}
+                movePublicationIdea={movePublicationIdea}
+                settingsPublicationIdeaVoiceBusy={settingsPublicationIdeaVoiceBusy}
+                publicationIdeaVoiceIndex={publicationIdeaVoiceIndex}
+                updateSettingsPublicationIdea={updateSettingsPublicationIdea}
+                loadState={loadState}
+                testNowKey={testNowKey}
+                setPublicationIdeaVoiceIndex={setPublicationIdeaVoiceIndex}
+                togglePublicationIdea={togglePublicationIdea}
+                settingsPublicationIdeaFieldCount={settingsPublicationIdeaFieldCount}
+                setPublicationIdeasDraft={setPublicationIdeasDraft}
+              />
             ) : null}
 
             <footer

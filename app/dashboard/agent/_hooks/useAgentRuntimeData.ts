@@ -3,7 +3,7 @@
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import { filterMetaPilotPayload, filterMetaPilotItems } from "@/lib/metaChannelUiAccess";
 import { useTranslations } from "next-intl";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import {
   getActiveBrowserUserId,
   readAccountCacheValue,
@@ -300,6 +300,7 @@ export function useAgentRuntimeData({
   >(() => settingsToConfigs(deterministicInitialSettings));
   const [agentConnectedChannels, setAgentConnectedChannels] =
     useState<ConnectedChannelMap | null>(null);
+  const [connectedChannelsAccountId, setConnectedChannelsAccountId] = useState<string | null>(null);
   const [connectedChannelsLoadState, setConnectedChannelsLoadState] =
     useState<LoadState>("loading");
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -338,6 +339,7 @@ export function useAgentRuntimeData({
 
     if (cachedConnectedChannels) {
       setAgentConnectedChannels({ ...cachedConnectedChannels, threads: metaPilotEnabled && cachedConnectedChannels.threads });
+      setConnectedChannelsAccountId(getActiveBrowserUserId());
       setConnectedChannelsLoadState("ready");
     }
 
@@ -364,6 +366,36 @@ export function useAgentRuntimeData({
     );
   }, [standardMode, metaPilotEnabled]);
 
+  // Responses use the current view policy and locale without restarting the
+  // account-scoped background read when the surrounding form rerenders.
+  const onSettingsLoaded = useEffectEvent((ok: boolean, payload: { settings?: Partial<InrAgentSettings>; error?: string; tableMissing?: boolean } | null) => {
+    if (!ok) {
+      throw new Error(
+        payload?.error || i18nT("agent_settings_unavailable"),
+      );
+    }
+
+    const sanitizedSettings = sanitizeInrAgentSettings(filterMetaPilotPayload(payload?.settings, metaPilotEnabled));
+    const nextSettings = standardMode
+      ? restrictInrAgentSettingsForStandard(sanitizedSettings)
+      : sanitizedSettings;
+    setAgentSettings(nextSettings);
+    setConfigs(settingsToConfigs(nextSettings));
+    setTableMissing((current) => current || Boolean(payload?.tableMissing));
+    setLoadState("ready");
+    writeCachedAgentViewSnapshot({
+      settings: nextSettings,
+      tableMissing: Boolean(payload?.tableMissing),
+    });
+  });
+  const onSettingsLoadFailed = useEffectEvent(() => {
+    setLoadState((current) => (current === "ready" ? current : "error"));
+    if (!cachedAgentSnapshotRef.current?.settings) {
+      setNotice(i18nT("agent_settings_unavailable"));
+      window.setTimeout(() => setNotice(null), 2600);
+    }
+  });
+
   useEffect(() => {
     let alive = true;
 
@@ -383,31 +415,10 @@ export function useAgentRuntimeData({
 
         if (!alive) return;
 
-        if (!response.ok) {
-          throw new Error(
-            payload?.error || i18nT("agent_settings_unavailable"),
-          );
-        }
-
-        const sanitizedSettings = sanitizeInrAgentSettings(filterMetaPilotPayload(payload?.settings, metaPilotEnabled));
-        const nextSettings = standardMode
-          ? restrictInrAgentSettingsForStandard(sanitizedSettings)
-          : sanitizedSettings;
-        setAgentSettings(nextSettings);
-        setConfigs(settingsToConfigs(nextSettings));
-        setTableMissing((current) => current || Boolean(payload?.tableMissing));
-        setLoadState("ready");
-        writeCachedAgentViewSnapshot({
-          settings: nextSettings,
-          tableMissing: Boolean(payload?.tableMissing),
-        });
-      } catch (error) {
+        onSettingsLoaded(response.ok, payload);
+      } catch {
         if (!alive) return;
-        setLoadState((current) => (current === "ready" ? current : "error"));
-        if (!cachedAgentSnapshotRef.current?.settings) {
-          setNotice(i18nT("agent_settings_unavailable"));
-          window.setTimeout(() => setNotice(null), 2600);
-        }
+        onSettingsLoadFailed();
       }
     }
 
@@ -417,6 +428,20 @@ export function useAgentRuntimeData({
       alive = false;
     };
   }, []);
+
+  const onConnectedChannelsLoaded = useEffectEvent((ok: boolean, payload: unknown, accountScope: string | null) => {
+    if (!ok) {
+      throw new Error(i18nT("agent_channels_unavailable"));
+    }
+
+    const nextConnectedChannels = channelMapFromConnectionStates(payload);
+    setAgentConnectedChannels({ ...nextConnectedChannels, threads: metaPilotEnabled && nextConnectedChannels.threads });
+    setConnectedChannelsAccountId(accountScope);
+    setConnectedChannelsLoadState("ready");
+    writeCachedAgentViewSnapshot({
+      connectedChannels: nextConnectedChannels,
+    });
+  });
 
   useEffect(() => {
     let alive = true;
@@ -434,16 +459,7 @@ export function useAgentRuntimeData({
         });
         const payload = await response.json().catch(() => null);
         if (!isCurrent()) return;
-        if (!response.ok) {
-          throw new Error(i18nT("agent_channels_unavailable"));
-        }
-
-        const nextConnectedChannels = channelMapFromConnectionStates(payload);
-        setAgentConnectedChannels({ ...nextConnectedChannels, threads: metaPilotEnabled && nextConnectedChannels.threads });
-        setConnectedChannelsLoadState("ready");
-        writeCachedAgentViewSnapshot({
-          connectedChannels: nextConnectedChannels,
-        });
+        onConnectedChannelsLoaded(response.ok, payload, accountScope);
       } catch {
         if (!isCurrent()) return;
         setAgentConnectedChannels((current) => current ?? null);
@@ -539,7 +555,7 @@ export function useAgentRuntimeData({
         actions: nextActions,
         tableMissing: nextTableMissing,
       });
-    } catch (error) {
+    } catch {
       setActionsLoadState((current) =>
         current === "ready" ? current : "error",
       );
@@ -582,16 +598,47 @@ export function useAgentRuntimeData({
         scheduledActions: nextScheduledActions,
         scheduledActionsTableMissing: nextScheduledTableMissing,
       });
-    } catch (error) {
+    } catch {
       if (!silent) {
         showNotice(i18nT("scheduled_actions_unavailable"));
       }
     }
   }
 
-  useEffect(() => {
+  async function refreshAssistantData(canApply: () => boolean): Promise<boolean> {
+    const accountId = getActiveBrowserUserId();
+    const { from, to } = agentPublicationHistoryWindow();
+    try {
+      const payloads = await Promise.all([
+        "/api/agent/settings", "/api/agent/actions", "/api/agent/scheduled-actions",
+        `/api/agent/publication-history?${new URLSearchParams({ from, to })}`,
+      ].map(async path => { const response = await fetch(path, { cache: "no-store" }); if (!response.ok) throw new Error("Assistant refresh unavailable"); return response.json(); }));
+      if (!canApply() || accountId !== getActiveBrowserUserId()) return false;
+      const [settingsPayload, actionsPayload, scheduledPayload, historyPayload] = payloads;
+      if (!settingsPayload?.settings || !Array.isArray(actionsPayload?.actions) || !Array.isArray(scheduledPayload?.scheduledActions) || !Array.isArray(historyPayload?.historyPublications)) return false;
+      const sanitized = sanitizeInrAgentSettings(filterMetaPilotPayload(settingsPayload.settings, metaPilotEnabled));
+      const settings = standardMode ? restrictInrAgentSettingsForStandard(sanitized) : sanitized;
+      const nextActions = standardMode ? filterStandardAgentItems(actionsPayload.actions) : actionsPayload.actions;
+      const nextScheduled = standardMode ? filterStandardAgentItems(scheduledPayload.scheduledActions) : scheduledPayload.scheduledActions;
+      setAgentSettings(settings); setConfigs(settingsToConfigs(settings));
+      setActions(filterMetaPilotItems(nextActions, metaPilotEnabled));
+      setScheduledActions(filterMetaPilotItems(nextScheduled, metaPilotEnabled));
+      setHistoryPublications(filterMetaPilotItems(historyPayload.historyPublications, metaPilotEnabled));
+      setLoadState("ready"); setActionsLoadState("ready");
+      writeCachedAgentViewSnapshot({ settings, actions: nextActions, scheduledActions: nextScheduled });
+      return true;
+    } catch { return false; }
+  }
+
+  const onInitialRuntimeLoad = useEffectEvent(() => {
     void refreshActions();
     void refreshScheduledActions(true);
+  });
+  const onEditorialPreparationPoll = useEffectEvent(() => {
+    void refreshActions(true, false);
+  });
+  useEffect(() => {
+    onInitialRuntimeLoad();
   }, []);
 
   useEffect(() => {
@@ -605,7 +652,7 @@ export function useAgentRuntimeData({
     });
     if (!hasEditorialPreparation) return;
     const interval = window.setInterval(() => {
-      void refreshActions(true, false);
+      onEditorialPreparationPoll();
     }, 12_000);
     return () => window.clearInterval(interval);
   }, [actions]);
@@ -622,6 +669,7 @@ export function useAgentRuntimeData({
     configs: visibleConfigs,
     setConfigs,
     agentConnectedChannels,
+    connectedChannelsAccountId,
     setAgentConnectedChannels,
     connectedChannelsLoadState,
     setConnectedChannelsLoadState,
@@ -645,6 +693,7 @@ export function useAgentRuntimeData({
     setActionsLoadState,
     refreshActions,
     refreshScheduledActions,
+    refreshAssistantData,
     showNotice,
   };
 }

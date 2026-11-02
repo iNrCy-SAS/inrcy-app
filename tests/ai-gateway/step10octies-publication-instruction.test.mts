@@ -1,3 +1,5 @@
+import { readFileSync as readDraftSessionSource } from "node:fs";
+const draftSession = readDraftSessionSource(new URL("../../app/dashboard/booster/publier/publicationDraftSession.ts", import.meta.url), "utf8");
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -5,6 +7,8 @@ import { resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const read = (rel: string) => readFileSync(resolve(ROOT, rel), "utf8");
+
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
 
 test("the desktop brief keeps separate subject and instruction fields with more room for the subject", () => {
   const panel = read(
@@ -66,15 +70,15 @@ test("Step 10 octies saves, restores, resets and submits the one-publication ins
   const route = read("app/api/booster/generate/route.ts");
 
   assert.match(modal, /const \[publicationInstruction, setPublicationInstruction\]/);
-  assert.match(modal, /payload\.publicationInstruction/);
-  assert.match(modal, /setPublicationInstruction\(nextPublicationInstruction\)/);
+  assert.match(draftSession, /payload\.publicationInstruction/);
+  assert.match(draftSession, /setPublicationInstruction\(nextPublicationInstruction\)/);
   assert.match(modal, /setPublicationInstruction\(""\)/);
   assert.ok(
-    (modal.match(/publicationInstruction:\s*publicationInstruction\.trim\(\)/g) || [])
+    ([modal, draftSession].join("\n").match(/publicationInstruction:\s*publicationInstruction\.trim\(\)/g) || [])
       .length >= 2,
   );
-  assert.match(modal, /publicationInstruction: generationInstruction/);
-  assert.match(modal, /adjustmentInput\?\.instruction \?\? publicationInstruction/);
+  assert.match(generationController, /publicationInstruction: generationInstruction/);
+  assert.match(generationController, /adjustmentInput\?\.instruction \?\? publicationInstruction/);
   assert.match(route, /publicationInstruction\?: string/);
   assert.match(route, /slice\(0, 4_000\)/);
   assert.match(route, /publicationInstruction,\s*\n\s*theme/);

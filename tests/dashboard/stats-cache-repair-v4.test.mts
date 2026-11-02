@@ -12,7 +12,7 @@ test("one shared current schema invalidates overview, summary signature and dire
   const signature = read("lib/stats/connectionSignature.ts");
   const metrics = read("lib/metrics/computeMetrics.ts");
 
-  assert.match(schema, /INRCY_STATS_CACHE_SCHEMA_VERSION = "v6-2026-10-12-meta-direct-pilot"/);
+  assert.match(schema, /INRCY_STATS_CACHE_SCHEMA_VERSION = "v7-2026-10-30-instagram-window"/);
   assert.match(overviewKey, /cache_schema:\$\{INRCY_STATS_CACHE_SCHEMA_VERSION\}/);
   assert.match(signature, /"stats_cache_schema", INRCY_STATS_CACHE_SCHEMA_VERSION/);
   assert.match(signature, /CONNECTION_RECONNECT_MARKER_KEYS/);

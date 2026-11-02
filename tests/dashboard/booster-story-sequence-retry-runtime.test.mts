@@ -12,7 +12,7 @@ import * as motionTiming from "../../lib/metaImageMotionTiming.ts";
 const require = createRequire(import.meta.url);
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
 const parse = (file: string) => ts.createSourceFile(file, read(file), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
-const modal = parse("app/dashboard/booster/publier/PublishModal.tsx"), editor = parse("app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"), result = parse("app/dashboard/_components/PublishExecutionResultModal.tsx");
+const modal = ts.createSourceFile("BoosterPublicationWorkflow.tsx", ["app/dashboard/booster/publier/PublishModal.tsx", "app/dashboard/booster/publier/publicationSubmission.ts", "app/dashboard/booster/publier/publicationSubmissionPayload.ts"].map(file => parse(file).text).join("\n"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX), editor = parse("app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"), result = parse("app/dashboard/_components/PublishExecutionResultModal.tsx");
 function find(source: ts.Node, predicate: (node: ts.Node) => boolean): ts.Node {
   let found: ts.Node | undefined;
   const visit = (node: ts.Node) => { if (!found && predicate(node)) found = node; if (!found) ts.forEachChild(node, visit); };

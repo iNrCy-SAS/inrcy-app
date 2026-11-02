@@ -15,6 +15,7 @@ export async function GET(req: Request) {
   const active = await getActiveSubscriptionAccountIds(ids);
   const queue = [...ids];
   let recorded = 0, failed = 0, skipped = 0;
+  const failureReasons: Record<string, number> = {};
   await Promise.all(Array.from({ length: Math.min(3, queue.length) }, async () => {
     for (let userId = queue.shift(); userId; userId = queue.shift()) {
       try {
@@ -25,15 +26,22 @@ export async function GET(req: Request) {
         }
         const response = await fetch(`${getAppOriginFromRequest(req)}/api/stats/dashboard-bulk?days=30`, { headers: buildInternalCronHeaders(userId), cache: "no-store", signal: AbortSignal.timeout(100_000) });
         const payload = response.ok ? await response.json() : null;
-        if (payload?.visibilityIndex?.recorded !== true) throw new Error("capture_not_recorded");
+        if (!response.ok) throw new Error(`capture_http_${response.status}`);
+        if (payload?.visibilityIndex?.recorded !== true) {
+          const reason = String(payload?.visibilityIndex?.reason || "capture_not_recorded");
+          throw new Error(/^[a-z][a-z0-9_]{1,80}$/.test(reason) ? reason : "capture_not_recorded");
+        }
         recorded++;
-      } catch {
+      } catch (error) {
         failed++;
+        const reason = error instanceof Error && /^[a-z][a-z0-9_]{1,80}$/.test(error.message) ? error.message : "capture_unavailable";
+        failureReasons[reason] = (failureReasons[reason] || 0) + 1;
         // Keep the next retry bounded and do not fill a missed day later.
         await supabaseAdmin.from("inrstats_visibility_tracking").update({ next_capture_at: new Date(Date.now() + 3_600_000).toISOString() }).eq("user_id", userId);
       }
     }
   }));
-  console.info("[inrstats-visibility] Scheduled captures", { recorded, failed, skipped });
+  if (failed) console.warn("[inrstats-visibility] Scheduled captures", { recorded, failed, skipped, failureReasons });
+  else console.info("[inrstats-visibility] Scheduled captures", { recorded, failed, skipped });
   return NextResponse.json({ ok: failed === 0, recorded, failed, skipped }, { headers: { "Cache-Control": "no-store" } });
 }

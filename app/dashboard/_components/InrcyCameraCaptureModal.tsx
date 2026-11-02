@@ -21,6 +21,19 @@ function formatMegabytes(bytes: number) {
 
 type CameraMode = "photo" | "video";
 type RecordingState = "idle" | "recording" | "saving";
+type CameraFailure = string | {
+  key: "l_enregistrement_video_n_est_pas_54fbe6f6"
+    | "image_camera_indisponible_reessayez_ou_importez_91edfa05"
+    | "capture_impossible_sur_ce_navigateur_85e428b9"
+    | "capture_impossible_importez_une_image_a_746d40fd"
+    | "micro_indisponible_autorisez_le_micro_pour_41f094c3"
+    | "enregistrement_video_interrompu_merci_de_reessay_d964ee55"
+    | "la_video_depasse_value_faites_une_a7f6d88f"
+    | "aucune_video_enregistree_merci_de_reessayer_3b444b28"
+    | "impossible_d_ajouter_cette_video_merci_b5b67c0f"
+    | "impossible_de_lancer_l_enregistrement_video_b2c96916";
+  values?: Record<string, string | number>;
+};
 
 const recordedVideoMimeCandidates = [
   "video/mp4;codecs=h264,aac",
@@ -132,7 +145,8 @@ export default function InrcyCameraCaptureModal({
   const [recordingState, setRecordingState] =
     React.useState<RecordingState>("idle");
   const [recordingSeconds, setRecordingSeconds] = React.useState(0);
-  const [error, setError] = React.useState("");
+  const [errorState, setError] = React.useState<CameraFailure>("");
+  const error = typeof errorState === "string" ? errorState : i18nT(errorState.key, errorState.values);
   const [facingMode, setFacingMode] = React.useState<"environment" | "user">(
     "environment",
   );
@@ -150,7 +164,8 @@ export default function InrcyCameraCaptureModal({
     max: 4,
     step: 0.05,
   });
-  const [flashNotice, setFlashNotice] = React.useState("");
+  const [flashUnavailable, setFlashUnavailable] = React.useState(false);
+  const flashNotice = flashUnavailable ? i18nT("flash_indisponible_sur_cet_appareil_9eac5eab") : "";
 
   React.useEffect(() => {
     if (!open) return;
@@ -228,8 +243,8 @@ export default function InrcyCameraCaptureModal({
       console.warn("inrcy_camera_torch_apply_failed", err);
       setTorchOn(false);
       setTorchSupported(false);
-      setFlashNotice(i18nT("flash_indisponible_sur_cet_appareil_9eac5eab"));
-      window.setTimeout(() => setFlashNotice(""), 1800);
+      setFlashUnavailable(true);
+      window.setTimeout(() => setFlashUnavailable(false), 1800);
     }
   }, []);
 
@@ -280,7 +295,7 @@ export default function InrcyCameraCaptureModal({
     pinchStartRef.current = null;
     setTorchOn(false);
     setTorchSupported(false);
-    setFlashNotice("");
+    setFlashUnavailable(false);
     setHardwareZoomSupported(false);
     setZoom(1);
   }, []);
@@ -376,9 +391,7 @@ export default function InrcyCameraCaptureModal({
 
     if (cameraMode === "video" && typeof MediaRecorder === "undefined") {
       setPhase("error");
-      setError(
-        i18nT("l_enregistrement_video_n_est_pas_54fbe6f6"),
-      );
+      setError({ key: "l_enregistrement_video_n_est_pas_54fbe6f6" });
       return;
     }
 
@@ -505,7 +518,7 @@ export default function InrcyCameraCaptureModal({
     const width = video.videoWidth || 1280;
     const height = video.videoHeight || 720;
     if (!width || !height) {
-      setError(i18nT("image_camera_indisponible_reessayez_ou_importez_91edfa05"));
+      setError({ key: "image_camera_indisponible_reessayez_ou_importez_91edfa05" });
       setPhase("error");
       return;
     }
@@ -516,7 +529,7 @@ export default function InrcyCameraCaptureModal({
     const context = canvas.getContext("2d");
     if (!context) {
       setPhase("error");
-      setError(i18nT("capture_impossible_sur_ce_navigateur_85e428b9"));
+      setError({ key: "capture_impossible_sur_ce_navigateur_85e428b9" });
       return;
     }
 
@@ -553,7 +566,7 @@ export default function InrcyCameraCaptureModal({
 
     if (!blob) {
       setPhase("error");
-      setError(i18nT("capture_impossible_importez_une_image_a_746d40fd"));
+      setError({ key: "capture_impossible_importez_une_image_a_746d40fd" });
       return;
     }
 
@@ -574,9 +587,7 @@ export default function InrcyCameraCaptureModal({
   const startVideoRecording = React.useCallback(() => {
     if (phase !== "ready" || cameraMode !== "video") return;
     if (typeof MediaRecorder === "undefined") {
-      setError(
-        i18nT("l_enregistrement_video_n_est_pas_54fbe6f6"),
-      );
+      setError({ key: "l_enregistrement_video_n_est_pas_54fbe6f6" });
       setPhase("error");
       return;
     }
@@ -584,9 +595,7 @@ export default function InrcyCameraCaptureModal({
     const stream = streamRef.current;
     if (!stream) return;
     if (!stream.getAudioTracks().length) {
-      setError(
-        i18nT("micro_indisponible_autorisez_le_micro_pour_41f094c3"),
-      );
+      setError({ key: "micro_indisponible_autorisez_le_micro_pour_41f094c3" });
       return;
     }
 
@@ -619,7 +628,7 @@ export default function InrcyCameraCaptureModal({
       recorder.onerror = () => {
         clearRecordingTimer();
         setRecordingState("idle");
-        setError(i18nT("enregistrement_video_interrompu_merci_de_reessay_d964ee55"));
+        setError({ key: "enregistrement_video_interrompu_merci_de_reessay_d964ee55" });
       };
 
       recorder.onstop = () => {
@@ -645,13 +654,13 @@ export default function InrcyCameraCaptureModal({
 
         if (oversized) {
           setRecordingState("idle");
-          setError(i18nT("la_video_depasse_value_faites_une_a7f6d88f", { value0: formatMegabytes(maxVideoBytes) }));
+          setError({ key: "la_video_depasse_value_faites_une_a7f6d88f", values: { value0: formatMegabytes(maxVideoBytes) } });
           return;
         }
 
         if (!chunks.length) {
           setRecordingState("idle");
-          setError(i18nT("aucune_video_enregistree_merci_de_reessayer_3b444b28"));
+          setError({ key: "aucune_video_enregistree_merci_de_reessayer_3b444b28" });
           return;
         }
 
@@ -671,7 +680,7 @@ export default function InrcyCameraCaptureModal({
           .catch((err) => {
             console.warn("inrcy_camera_video_capture_failed", err);
             setRecordingState("idle");
-            setError(i18nT("impossible_d_ajouter_cette_video_merci_b5b67c0f"));
+            setError({ key: "impossible_d_ajouter_cette_video_merci_b5b67c0f" });
           });
       };
 
@@ -690,7 +699,7 @@ export default function InrcyCameraCaptureModal({
       clearRecordingTimer();
       mediaRecorderRef.current = null;
       setRecordingState("idle");
-      setError(i18nT("impossible_de_lancer_l_enregistrement_video_b2c96916"));
+      setError({ key: "impossible_de_lancer_l_enregistrement_video_b2c96916" });
     }
   }, [
     applyTorch,
@@ -895,8 +904,8 @@ export default function InrcyCameraCaptureModal({
       onClick={() => {
         if (controlsLocked) return;
         if (!torchSupported) {
-          setFlashNotice(i18nT("flash_indisponible_sur_cet_appareil_9eac5eab"));
-          window.setTimeout(() => setFlashNotice(""), 1800);
+          setFlashUnavailable(true);
+          window.setTimeout(() => setFlashUnavailable(false), 1800);
           return;
         }
         void applyTorch(!torchOn);

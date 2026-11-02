@@ -15,7 +15,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 export async function GET() {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const { tiktok } = await readTiktokSettingsWithOAuth(supabaseAdmin, activeUserId);
@@ -23,7 +23,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { supabase, user, errorResponse, activeUserId } = await requireUser();
+  const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const body = await request.json().catch(() => ({}));

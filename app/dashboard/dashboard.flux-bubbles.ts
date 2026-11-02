@@ -93,7 +93,6 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
     instagramConnected,
     instagramConnectionStatus,
     instagramUrl,
-    inrBadgeLogoUrl,
     inrBadgeProfileReady,
     inrBadgeProfileCheckReady,
     inrBadgePublicUrl,

@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -102,10 +104,9 @@ test("le workspace exige le traitement image seulement quand son flag est actif"
 test("le cron image est protégé et planifié sans retirer les anciens parcours", () => {
   const cron = read("app/api/cron/media-image-normalization/route.ts");
   const vercel = read("vercel.json");
-  const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
   assert.match(cron, /VERCEL_CRON_SECRET/);
   assert.match(cron, /repairPendingImageNormalizationQueue/);
   assert.match(cron, /processImageNormalizationJobs/);
   assert.match(vercel, /\/api\/cron\/media-image-normalization/);
-  assert.match(modal, /uploadOriginalImagesForPublication\(/);
+  assert.match(submission, /uploadOriginalImagesForPublication\(/);
 });

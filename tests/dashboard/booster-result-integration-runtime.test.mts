@@ -9,7 +9,7 @@ import { isBoosterPublicationPendingStatus } from "../../lib/boosterPublicationS
 import * as storyRetry from "../../lib/publicationStorySequenceRetry.ts";
 
 const parse = (path: string) => ts.createSourceFile(path, readFileSync(new URL(`../../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
-const modal = parse("app/dashboard/booster/publier/PublishModal.tsx");
+const modal = ts.createSourceFile("BoosterPublicationWorkflow.tsx", ["app/dashboard/booster/publier/PublishModal.tsx", "app/dashboard/booster/publier/publicationSubmission.ts", "app/dashboard/booster/publier/publicationSubmissionPayload.ts"].map(file => parse(file).text).join("\n"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
 const layer = parse("app/dashboard/_components/DashboardBoosterModalLayer.tsx");
 const progress = parse("app/dashboard/_components/PublishExecutionProgress.tsx");
 const resultModal = parse("app/dashboard/_components/PublishExecutionResultModal.tsx");
@@ -43,7 +43,7 @@ function callback(name: string, scope: Record<string, unknown>) {
   return evaluate(variable(layer, name).getText(layer), { useCallback: (fn: unknown) => fn, ...scope });
 }
 const destinationStatus = evaluate(find(progress, node => ts.isFunctionDeclaration(node) && node.name?.text === "getPublicationDestinationStatus").getText(progress).replace(/^export\s+/, ""), { isBoosterPublicationPendingStatus });
-const mergeRetrySummary = evaluate(find(modal, node => ts.isFunctionDeclaration(node) && node.name?.text === "mergeRetriedPublicationSummary").getText(modal), { getPublicationDestinationStatus: destinationStatus });
+const mergeRetrySummary = evaluate(find(modal, node => ts.isFunctionDeclaration(node) && node.name?.text === "mergeRetriedPublicationSummary").getText(modal).replace(/^export\s+/, ""), { getPublicationDestinationStatus: destinationStatus });
 function resultProps(scope: Record<string, unknown>) {
   return evaluate(attribute(layer, "PublishModal", "publicationResult").getText(layer), {
     publishSuccessOpen: true, publishSummary: { publicationId: "previous" }, publishRetrying: false,

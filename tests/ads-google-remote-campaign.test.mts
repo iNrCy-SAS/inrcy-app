@@ -451,7 +451,7 @@ test("remove supprime à distance puis traite les répétitions comme un no-op",
 
 test("a native total budget remains readable and pausable without conversion into a daily amount", async () => {
   const mock = mockGoogleAds({ totalBudget: true });
-  const adapter = createGoogleAdsRemoteCampaignCoreAdapter({ expectedCustomerId: customerId, providerResources, request: mock.request, resolveTargetLocations: async () => [] });
+  const adapter = createGoogleAdsRemoteCampaignCoreAdapter({ expectedCustomerId: customerId, providerResources, request: mock.request, resolveTargetLocations: async () => [], now: () => Date.parse("2026-09-29T10:00:00Z") });
   const snapshot = await adapter.read();
   assert.equal(snapshot.budgetType, "total"); assert.equal(snapshot.totalBudgetEuros, 200.5); assert.equal(snapshot.dailyBudgetEuros, null); assert.equal(snapshot.startDate, "2026-10-08");
   const paused = await adapter.pause(); assert.equal(paused.status, "PAUSED");

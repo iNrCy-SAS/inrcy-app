@@ -1,4 +1,5 @@
 import { restoreInrAgentPublicationReview, PublicationRefusalRestoreError } from "@/lib/inrAgentPublicationRefusalServer";
+import { refuseUnvalidatedInrAgentPublication, UnvalidatedPublicationRefusalError } from "@/lib/inrAgentUnvalidatedPublicationRefusal";
 import { isInrAgentActionId } from "@/lib/inrAgentActionId";
 import { isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { normalizeThreadsPublicationMode, normalizeThreadsPublicationPreferences, isThreadsPublicationModeEnabled } from "@/lib/threadsPublicationPreferences";
@@ -1131,7 +1132,7 @@ async function saveCampaignActionAsInrSendDraft(args: {
 }
 
 export async function GET() {
-  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
+  const { errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
   const standardMode =
     (await getDashboardEditionForAuthUser(authUserId)) === "standard";
@@ -1201,7 +1202,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
+  const { errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
   const standardMode =
     (await getDashboardEditionForAuthUser(authUserId)) === "standard";
@@ -2136,6 +2137,13 @@ export async function PATCH(request: Request) {
       );
     }
 
+    if (requestBody?.expectedUpdatedAt !== undefined && (typeof requestBody.expectedUpdatedAt !== "string" || !requestBody.expectedUpdatedAt || requestBody.expectedUpdatedAt !== currentAction.updatedAt)) {
+      return NextResponse.json(
+        { error: "La publication a changé. Actualisez avant de modifier son texte.", code: "INR_AGENT_PUBLICATION_CHANGED" },
+        { status: 409 },
+      );
+    }
+
     const currentPayload = currentAction.payload || {};
     const currentPublishPayload = asRecord(currentPayload.publishPayload) || {};
     const currentPostByChannel =
@@ -2310,6 +2318,13 @@ export async function PATCH(request: Request) {
             "Cette modification est réservée aux publications Booster préparées par iNr’Agent.",
         },
         { status: 400 },
+      );
+    }
+
+    if (requestBody?.expectedUpdatedAt !== undefined && (typeof requestBody.expectedUpdatedAt !== "string" || !requestBody.expectedUpdatedAt || requestBody.expectedUpdatedAt !== currentAction.updatedAt)) {
+      return NextResponse.json(
+        { error: "La publication a changé. Actualisez avant de modifier son média.", code: "INR_AGENT_PUBLICATION_CHANGED" },
+        { status: 409 },
       );
     }
 
@@ -2948,6 +2963,17 @@ export async function PATCH(request: Request) {
       { error: "Action ou statut invalide" },
       { status: 400 },
     );
+  }
+
+  if (status === "refused" && requestBody?.expectedUpdatedAt !== undefined) {
+    if (!isInrAgentActionId(actionId)) return NextResponse.json({ error: "Action invalide" }, { status: 400 });
+    try {
+      const action = await refuseUnvalidatedInrAgentPublication({ accountId: activeUserId, actionId, expectedUpdatedAt: requestBody.expectedUpdatedAt, select: ACTION_SELECT });
+      return NextResponse.json({ action: await refreshActionImageUrls(action), saved: true });
+    } catch (error) {
+      if (error instanceof UnvalidatedPublicationRefusalError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+      return NextResponse.json({ error: "Le refus de la publication n’est pas confirmé." }, { status: 503 });
+    }
   }
 
   if (["validated", "scheduled", "pending", "pending_validation"].includes(status)) {

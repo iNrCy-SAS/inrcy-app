@@ -29,6 +29,7 @@ import DashboardBoosterModalLayer from "./_components/DashboardBoosterModalLayer
 import DashboardSettingsDrawerContent from "./_components/DashboardSettingsDrawerContent";
 import { useDrawerMutationGuard } from "./_hooks/useDrawerMutationGuard";
 import { useUnsavedExitGuard } from "./_hooks/useUnsavedExitGuard";
+import { useInrAssistantRefresh } from "./_hooks/useInrAssistantRefresh";
 import { useDashboardNotifications } from "./_hooks/useDashboardNotifications";
 import { useReferralForm } from "./_hooks/useReferralForm";
 import { useDashboardPanelRouting, type DashboardPanelName } from "./_hooks/useDashboardPanelRouting";
@@ -56,7 +57,6 @@ import {
   setActiveBrowserUserId,
   writeAccountCacheValue,
 } from "@/lib/browserAccountCache";
-import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { expectedUiSnapshotDate, getLastChannelSyncAt, getOverviewSnapshotDate, hasFreshLocalGeneratorSnapshot, markChannelsSynced, mergeChannelBlockIntoCachedSnapshots, mergeGeneratorChannelBlockIntoCachedKpis, syncGeneratorOpportunitiesFromStatsSummary, readCachedChannelBlocks, readCachedChannelSyncAt, readCachedGeneratorChannelSyncAt, readCachedOppTotal, readGeneratorCache, readInrStatsPeriodSyncAt, statsCubeSessionKey, statsSummarySessionKey, type StatsWarmPeriod, writeUiCacheValue } from "./dashboard.client-cache";
 import { markDailyStatsRefreshBootstrapChecked, markServerCacheSyncChecked, runDailyStatsRefreshBootstrap, wasDailyStatsRefreshBootstrapCheckedRecently, wasServerCacheSyncCheckedRecently, type DailyStatsRefreshBootstrapResponse } from "@/lib/dailyStatsRefreshClient";
 import { buildBubbleAccessMap, isBubbleEnabled, type AppBubbleAccessMap } from "@/lib/bubbleAccess";
@@ -65,7 +65,9 @@ import { PROFILE_VERSION_EVENT, type ProfileVersionChangeDetail } from "@/lib/pr
 import { resolveProfileLogoUrl } from "@/lib/profileLogo";
 import { PUBLIC_PROFILE_DATA_SAVED_EVENT } from "@/lib/publicProfileRefreshClient";
 import { getDrawerTitle, isDrawerPanel } from "./dashboard.utils";
-import { inferChannelsFromRealtimePayload, inferChannelsFromSearchParams } from "./dashboard.shared";
+import { inferChannelsFromSearchParams } from "./dashboard.shared";
+import { normalizeDashboardConnectionPatch, projectDashboardConnectionCachePatch, projectDashboardConnectionBlock } from "./dashboard.connection-projection";
+import { startDashboardChannelRealtime } from "./dashboard.channel-realtime";
 import type { ActusFont, GoogleProduct, GoogleSource} from "./dashboard.types";
 import { normalizeActusAccent, normalizeActusDesign, normalizeActusLayout, normalizeActusTheme } from "./dashboard.types";
 import { DASHBOARD_CHANNEL_KEYS, type DashboardChannelKey } from "@/lib/dashboardChannels";
@@ -196,7 +198,30 @@ export default function DashboardClient({
   const { metaPilotEnabled, activeAccountId, actorUserId } = useDashboardViewerAccess();
   const publishGeneratorState = useDashboardGeneratorPublisher();
   const i18nT = useTranslations("shell");
-  const commonT = useTranslations("common");
+
+
+  const notifyStatsRefresh = useCallback((at?: number, channels?: readonly DashboardChannelKey[]) => {
+    if (typeof window === "undefined") return;
+    const syncAt = Number.isFinite(Number(at)) ? Number(at) : Date.now();
+    const normalizedChannels = Array.isArray(channels)
+      ? Array.from(new Set(channels.filter((channel): channel is DashboardChannelKey => typeof channel === "string" && channel.length > 0)))
+      : [];
+
+    if (normalizedChannels.length) {
+      markChannelsSynced(normalizedChannels, syncAt);
+      for (const channel of normalizedChannels) {
+        window.dispatchEvent(new CustomEvent("inrcy:channel-updated", { detail: { channel, at: syncAt } }));
+      }
+    } else {
+      try {
+        writeUiCacheValue(DASHBOARD_CACHE_KEYS.lastChannelSync, String(syncAt));
+      } catch {
+        // ignore
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent("inrcy:channels-updated", { detail: { at: syncAt, channels: normalizedChannels.length ? normalizedChannels : undefined } }));
+  }, []);
   const settingsDrawerT = useTranslations("dashboard.settingsDrawer");
   const initialBrowserCacheAccountId = initialOfficialChannelStatesUserId ?? getActiveBrowserUserId();
   const [initialServerOfficialDashboardState] = useState(() => (
@@ -816,8 +841,6 @@ const {
   deleteSiteWebUrl,
   saveSiteWebActusWidgetSettings,
   resetSiteWebAll,
-  attachWebsiteGoogleAnalytics,
-  attachWebsiteGoogleSearchConsole,
   connectSiteWebGa4,
   connectSiteWebGsc,
   disconnectSiteWebGa4,
@@ -1171,6 +1194,7 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
   if (options?.markReady) setSiteConnectionsReady(true);
   return true;
 }, [
+  setFacebookAccountEmail, setGmbAccountEmail, setLinkedinShareToPersonalProfile,
   setFacebookAccountConnected, setFacebookConnectionStatus, setFacebookPageConnected, setFacebookUrl,
   setFbSelectedPageId, setFbSelectedPageName,   setGmbAccountConnected,
   setGmbConfigured, setGmbConnected, setGmbConnectionStatus, setGmbLocationLabel, setGmbLocationName, setGmbUrl,
@@ -1200,7 +1224,7 @@ const applyOfficialChannelStates = useCallback((payload: unknown) => {
   return true;
 }, [applyDashboardChannelState]);
 
-const refreshOfficialChannelStates = useCallback(async () => {
+const refreshOfficialChannelStates = useCallback(async (canApply?: () => boolean) => {
   const requestSeq = ++officialChannelStatesRequestSeqRef.current;
   const accountScope = getActiveBrowserUserId();
   setGeneratorPowerRevalidating(true);
@@ -1223,6 +1247,7 @@ const refreshOfficialChannelStates = useCallback(async () => {
     if (
       requestSeq !== officialChannelStatesRequestSeqRef.current ||
       accountScope !== getActiveBrowserUserId() ||
+      canApply?.() === false ||
       !response.ok ||
       !applyOfficialChannelStates(payload)
     ) {
@@ -1236,6 +1261,13 @@ const refreshOfficialChannelStates = useCallback(async () => {
     return null;
   }
 }, [applyOfficialChannelStates]);
+
+useInrAssistantRefresh({ topics: ["channels", "business"], blocked: Boolean(panel) || settingsDrawerHasUnsavedChanges, refresh: async ({ accountId, canApply }) => {
+  const refreshed = await refreshOfficialChannelStates(canApply);
+  if (!refreshed || !canApply()) return false;
+  window.dispatchEvent(new CustomEvent("inrcy:channel-connection-updated", { detail: { accountId } }));
+  return true;
+} });
 
 useEffect(() => {
   const handleNativeUpdate = (event: Event) => {
@@ -1382,7 +1414,7 @@ useEffect(() => {
     window.removeEventListener("inrcy:pinterest-settings-updated", handlePinterestUpdate);
     window.removeEventListener("inrcy:inr-search-settings-updated", handleInrSearchUpdate);
   };
-}, []);
+}, [notifyStatsRefresh]);
 
 useEffect(() => {
   if (!canAccessPinterest || !pinterestConnected || pinterestUrl) return;
@@ -1845,7 +1877,7 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshUiBalance]);
 
   // (re)charge le solde UI au chargement
   useEffect(() => {
@@ -2278,29 +2310,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     }
   }, [kpis, notifyGeneratorRefresh]);
 
-  const notifyStatsRefresh = useCallback((at?: number, channels?: readonly DashboardChannelKey[]) => {
-    if (typeof window === "undefined") return;
-    const syncAt = Number.isFinite(Number(at)) ? Number(at) : Date.now();
-    const normalizedChannels = Array.isArray(channels)
-      ? Array.from(new Set(channels.filter((channel): channel is DashboardChannelKey => typeof channel === "string" && channel.length > 0)))
-      : [];
-
-    if (normalizedChannels.length) {
-      markChannelsSynced(normalizedChannels, syncAt);
-      for (const channel of normalizedChannels) {
-        window.dispatchEvent(new CustomEvent("inrcy:channel-updated", { detail: { channel, at: syncAt } }));
-      }
-    } else {
-      try {
-        writeUiCacheValue(DASHBOARD_CACHE_KEYS.lastChannelSync, String(syncAt));
-      } catch {
-        // ignore
-      }
-    }
-
-    window.dispatchEvent(new CustomEvent("inrcy:channels-updated", { detail: { at: syncAt, channels: normalizedChannels.length ? normalizedChannels : undefined } }));
-  }, []);
-
   const warmInrStatsUi = useCallback(async (options?: {
     syncedAt?: number;
     fresh?: boolean;
@@ -2477,22 +2486,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     officialChannelStatesRequestSeqRef.current += 1;
     channelResponseGateRef.current.begin(channel);
     setGeneratorPowerRevalidating(false);
-    const requiresUpdate = Boolean(
-      patch.requiresUpdate || patch.expired || patch.connectionStatus === "needs_update",
-    );
-    const inferredStatus = requiresUpdate
-      ? "needs_update"
-      : typeof patch.connected === "boolean"
-        ? patch.connected ? "connected" : "disconnected"
-        : patch.connectionStatus;
-    const normalizedPatch: Partial<InrstatsChannelBlock["connection"]> = {
-      ...patch,
-      ...(typeof inferredStatus === "string" ? { connectionStatus: inferredStatus } : {}),
-      ...(typeof patch.connected === "boolean" ? {
-        requiresUpdate,
-        expired: requiresUpdate ? Boolean(patch.expired) : false,
-      } : {}),
-    };
+    const { normalizedPatch, requiresUpdate } = normalizeDashboardConnectionPatch(patch);
 
     if (typeof normalizedPatch.connected === "boolean") {
       if (channel === "gmb") setGmbConnected(normalizedPatch.connected);
@@ -2522,85 +2516,10 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     if (channel === "youtube_shorts") setYoutubeShortsRequiresUpdate(requiresUpdate);
     if (channel === "pinterest") setPinterestRequiresUpdate(requiresUpdate);
 
-    const cachePatch: Record<string, unknown> = {};
-    const has = (key: keyof typeof normalizedPatch) => Object.prototype.hasOwnProperty.call(normalizedPatch, key);
-    if (channel === "gmb") {
-      if (normalizedPatch.accountConnected === false) cachePatch.gmbAccountEmail = "";
-      if (typeof normalizedPatch.connected === "boolean") cachePatch.gmbConnected = normalizedPatch.connected;
-      if (typeof normalizedPatch.accountConnected === "boolean") cachePatch.gmbAccountConnected = normalizedPatch.accountConnected;
-      if (typeof normalizedPatch.configured === "boolean") cachePatch.gmbConfigured = normalizedPatch.configured;
-      if (isConnectionStatus(normalizedPatch.connectionStatus)) cachePatch.gmbConnectionStatus = normalizedPatch.connectionStatus;
-      if (has("resourceId")) cachePatch.gmbLocationName = String(normalizedPatch.resourceId || "");
-      if (has("resourceLabel")) cachePatch.gmbLocationLabel = String(normalizedPatch.resourceLabel || "");
-      if (has("resourceUrl")) cachePatch.gmbUrl = String(normalizedPatch.resourceUrl || "");
-    } else if (channel === "facebook") {
-      if (normalizedPatch.accountConnected === false) cachePatch.facebookAccountEmail = "";
-      if (typeof normalizedPatch.connected === "boolean") cachePatch.facebookPageConnected = normalizedPatch.connected;
-      if (typeof normalizedPatch.accountConnected === "boolean") cachePatch.facebookAccountConnected = normalizedPatch.accountConnected;
-      if (isConnectionStatus(normalizedPatch.connectionStatus)) cachePatch.facebookConnectionStatus = normalizedPatch.connectionStatus;
-      if (has("resourceId")) cachePatch.fbSelectedPageId = String(normalizedPatch.resourceId || "");
-      if (has("resourceLabel")) cachePatch.fbSelectedPageName = String(normalizedPatch.resourceLabel || "");
-      if (has("resourceUrl")) cachePatch.facebookUrl = String(normalizedPatch.resourceUrl || "");
-    } else if (channel === "instagram") {
-      if (typeof normalizedPatch.connected === "boolean") cachePatch.instagramConnected = normalizedPatch.connected;
-      if (typeof normalizedPatch.accountConnected === "boolean") cachePatch.instagramAccountConnected = normalizedPatch.accountConnected;
-      if (isConnectionStatus(normalizedPatch.connectionStatus)) cachePatch.instagramConnectionStatus = normalizedPatch.connectionStatus;
-      if (has("resourceLabel")) cachePatch.instagramUsername = String(normalizedPatch.resourceLabel || "");
-      if (has("resourceUrl")) cachePatch.instagramUrl = String(normalizedPatch.resourceUrl || "");
-    } else if (channel === "linkedin") {
-      if (typeof normalizedPatch.connected === "boolean") cachePatch.linkedinConnected = normalizedPatch.connected;
-      if (typeof normalizedPatch.accountConnected === "boolean") cachePatch.linkedinAccountConnected = normalizedPatch.accountConnected;
-      if (isConnectionStatus(normalizedPatch.connectionStatus)) cachePatch.linkedinConnectionStatus = normalizedPatch.connectionStatus;
-      if (has("resourceLabel")) cachePatch.linkedinDisplayName = String(normalizedPatch.resourceLabel || "");
-      if (has("resourceUrl")) cachePatch.linkedinUrl = String(normalizedPatch.resourceUrl || "");
-
-      if (normalizedPatch.accountConnected === false) {
-        cachePatch.linkedinSelectedOrganizationId = "";
-        cachePatch.linkedinSelectedOrganizationName = "";
-        cachePatch.linkedinProfileUrl = "";
-        cachePatch.linkedinOrganizationUrl = "";
-        cachePatch.linkedinShareToPersonalProfile = false;
-      } else if (has("resourceId")) {
-        cachePatch.linkedinSelectedOrganizationId = String(normalizedPatch.resourceId || "");
-        cachePatch.linkedinSelectedOrganizationName = normalizedPatch.resourceId ? String(normalizedPatch.resourceLabel || "") : "";
-        cachePatch.linkedinOrganizationUrl = normalizedPatch.resourceId ? String(normalizedPatch.resourceUrl || "") : "";
-        if (!normalizedPatch.resourceId && has("resourceUrl")) cachePatch.linkedinProfileUrl = String(normalizedPatch.resourceUrl || "");
-      }
-    } else if (channel === "tiktok") {
-      if (typeof normalizedPatch.connected === "boolean") cachePatch.tiktokConnected = normalizedPatch.connected;
-      cachePatch.tiktokRequiresUpdate = requiresUpdate;
-      if (has("resourceLabel")) cachePatch.tiktokUsername = String(normalizedPatch.resourceLabel || "");
-      if (has("resourceUrl")) cachePatch.tiktokProfileUrl = String(normalizedPatch.resourceUrl || "");
-    } else if (channel === "youtube_shorts") {
-      if (typeof normalizedPatch.connected === "boolean") cachePatch.youtubeShortsConnected = normalizedPatch.connected;
-      cachePatch.youtubeShortsRequiresUpdate = requiresUpdate;
-      if (has("resourceUrl")) cachePatch.youtubeShortsUrl = String(normalizedPatch.resourceUrl || "");
-    } else if (channel === "pinterest") {
-      if (typeof normalizedPatch.connected === "boolean") cachePatch.pinterestConnected = normalizedPatch.connected;
-      cachePatch.pinterestRequiresUpdate = requiresUpdate;
-      if (has("resourceUrl")) cachePatch.pinterestUrl = String(normalizedPatch.resourceUrl || "");
-    }
-    if (channel === "x") {
-      if (typeof normalizedPatch.connected === "boolean") cachePatch.xConnected = normalizedPatch.connected;
-      cachePatch.xRequiresUpdate = requiresUpdate;
-      if (isConnectionStatus(normalizedPatch.connectionStatus)) cachePatch.xConnectionStatus = normalizedPatch.connectionStatus;
-      if (has("resourceLabel")) cachePatch.xUsername = String(normalizedPatch.resourceLabel || "");
-      if (has("resourceUrl")) cachePatch.xProfileUrl = String(normalizedPatch.resourceUrl || "");
-    }
-    if (channel === "threads") {
-      if (typeof normalizedPatch.connected === "boolean") cachePatch.threadsConnected = normalizedPatch.connected;
-      if (typeof normalizedPatch.accountConnected === "boolean") cachePatch.threadsAccountConnected = normalizedPatch.accountConnected;
-      cachePatch.threadsRequiresUpdate = requiresUpdate;
-      if (isConnectionStatus(normalizedPatch.connectionStatus)) cachePatch.threadsConnectionStatus = normalizedPatch.connectionStatus;
-      if (has("resourceLabel")) cachePatch.threadsUsername = String(normalizedPatch.resourceLabel || "");
-      if (has("resourceUrl")) cachePatch.threadsUrl = String(normalizedPatch.resourceUrl || "");
-    }
-    if (channel === "site_web") {
-      // These controllers persist their per-service details before the patch.
-      const cached = readCachedDashboardChannelState() ?? {};
-      const prefix = "siteWeb";
-      for (const key of Object.keys(cached)) if (key.startsWith(prefix)) cachePatch[key] = cached[key];
-    }
+    const cachePatch = projectDashboardConnectionCachePatch(
+      channel, normalizedPatch, requiresUpdate,
+      channel === "site_web" ? readCachedDashboardChannelState() : null,
+    );
     if (Object.keys(cachePatch).length) {
       const previous = confirmedChannelStateRef.current ?? readCachedDashboardChannelState() ?? {};
       const changed = Object.keys(cachePatch).some(key => JSON.stringify(previous[key]) !== JSON.stringify(cachePatch[key]));
@@ -2610,21 +2529,9 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       if (changed) window.dispatchEvent(new CustomEvent("inrcy:channel-connection-updated", { detail: { channel, accountId: getActiveBrowserUserId() } }));
     }
 
-    return updateChannelBlockLocally(channel, (current) => ({
-      ...current,
-      connection: {
-        ...current.connection,
-        ...normalizedPatch,
-      },
-      overview: options?.clearData ? null : current.overview,
-      opportunities: options?.clearData ? 0 : current.opportunities,
-      capturedLeads: options?.clearData ? { week: 0, month: 0 } : current.capturedLeads,
-      estimatedValue: options?.clearData ? 0 : current.estimatedValue,
-      live: options?.clearData ? false : current.live,
-      error: options?.clearError === false ? current.error : null,
-      syncAt: Date.now(),
-      snapshotDate: expectedUiSnapshotDate(),
-    }));
+    return updateChannelBlockLocally(channel, (current) => projectDashboardConnectionBlock(
+      current, normalizedPatch, options, Date.now(), expectedUiSnapshotDate(),
+    ));
   }, [
     setFacebookConnectionStatus,
     setFacebookAccountConnected,
@@ -3038,7 +2945,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     } finally {
       serverCacheCheckPromiseRef.current = null;
     }
-  }, [applyBootstrapRefresh, readCachedGeneratorChannelSyncAt, refreshChannelBlocksFromApi, refreshGeneratorChannelsFromApi, warmInrStatsUi]);
+  }, [applyBootstrapRefresh, refreshChannelBlocksFromApi, refreshGeneratorChannelsFromApi, warmInrStatsUi]);
   latestSyncFromServerCacheIfNeededRef.current = syncFromServerCacheIfNeeded;
 
   const triggerGeneratorRefresh = useCallback(async () => {
@@ -3245,109 +3152,11 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   // - pro_tools_configs (mirrors/settings)
   // `profiles` reste centralise dans ProfileRealtimeBridge pour eviter une
   // seconde souscription sur la meme ligne dans chaque onglet.
-  useEffect(() => {
-    const supabase = createClient();
-    let disposed = false;
-    let t: number | null = null;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    let authUserId: string | null = null;
-    let subscribedUserId: string | null = null;
-    let refreshAfterVisibilityRestore = false;
-
-    const isSafeUserId = (value: unknown): value is string =>
-      typeof value === "string" &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-
-    const resolveScopedUserId = (candidate?: unknown) => {
-      if (isSafeUserId(candidate)) return candidate;
-      if (!isSafeUserId(authUserId)) return null;
-      const resolved = resolveActiveBrowserUserId(authUserId);
-      return isSafeUserId(resolved) ? resolved : authUserId;
-    };
-
-    const removeRealtimeChannel = () => {
-      const current = channel;
-      channel = null;
-      subscribedUserId = null;
-      if (!current) return;
-      try {
-        void Promise.resolve(supabase.removeChannel(current)).catch(() => {});
-      } catch {}
-    };
-
-    const scheduleRefresh = (payload?: any) => {
-      if (disposed) return;
-      if (document.visibilityState === "hidden") {
-        refreshAfterVisibilityRestore = true;
-        return;
-      }
-      if (Date.now() - lastGeneratorRefreshAtRef.current < 2500) return;
-      if (t) window.clearTimeout(t);
-
-      const impactedChannels = inferChannelsFromRealtimePayload(payload);
-
-      t = window.setTimeout(() => {
-        if (disposed) return;
-        if (Date.now() - lastGeneratorRefreshAtRef.current < 2500) return;
-        if (impactedChannels.length) {
-          void latestTriggerChannelsRefreshRef.current?.(impactedChannels);
-          return;
-        }
-
-        void latestFallbackToServerSyncThenGlobalRef.current?.();
-      }, 500);
-    };
-
-    const subscribeForUser = (userId: string | null) => {
-      if (
-        disposed ||
-        document.visibilityState === "hidden" ||
-        !isSafeUserId(userId) ||
-        subscribedUserId === userId
-      ) {
-        return;
-      }
-
-      removeRealtimeChannel();
-      subscribedUserId = userId;
-      const userFilter = `user_id=eq.${userId}`;
-      channel = supabase
-        .channel(`inrcy-generator-sync:${userId}`)
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "integrations", filter: userFilter },
-          (payload: any) => scheduleRefresh(payload),
-        )
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "pro_tools_configs", filter: userFilter },
-          (payload: any) => scheduleRefresh(payload),
-        )
-        .subscribe();
-    };
-
-    const handleVisibility = () => {
-      if (document.visibilityState === "hidden") {
-        refreshAfterVisibilityRestore = true;
-        if (t) {
-          window.clearTimeout(t);
-          t = null;
-        }
-        removeRealtimeChannel();
-        return;
-      }
-
-      subscribeForUser(resolveScopedUserId());
-      if (refreshAfterVisibilityRestore) {
-        refreshAfterVisibilityRestore = false;
-        void latestFallbackToServerSyncThenGlobalRef.current?.();
-      }
-    };
-
-    const handleActiveAccountChange = (event: Event) => {
-      const nextUserId = (event as CustomEvent<{ activeUserId?: unknown }>).detail?.activeUserId;
-      const scopedUserId = resolveScopedUserId(nextUserId);
-      if (!scopedUserId) return;
+  useEffect(() => startDashboardChannelRealtime({
+    readLastRefreshAt: () => lastGeneratorRefreshAtRef.current,
+    refreshChannels: (channels) => latestTriggerChannelsRefreshRef.current?.(channels),
+    refreshFallback: () => latestFallbackToServerSyncThenGlobalRef.current?.(),
+    onAccountChange: () => {
       channelResponseGateRef.current.changeScope();
       canonicalChannelStatesReadyRef.current = false;
       confirmedChannelStateRef.current = null;
@@ -3360,29 +3169,10 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       if (!applyDashboardChannelState(cachedChannelState)) {
         resetAccountScopedDashboardState();
       }
-      refreshAfterVisibilityRestore = true;
-      subscribeForUser(scopedUserId);
-      void loadSiteWebSettings();
-    };
-
-    document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, handleActiveAccountChange as EventListener);
-
-    void supabase.auth.getUser().then(({ data }) => {
-      if (disposed) return;
-      authUserId = data.user?.id ?? null;
-      subscribeForUser(resolveScopedUserId());
-    });
-
-    return () => {
-      disposed = true;
-      if (t) window.clearTimeout(t);
-      clearScheduledGeneratorRefreshes();
-      document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, handleActiveAccountChange as EventListener);
-      removeRealtimeChannel();
-    };
-  }, [applyDashboardChannelState, clearScheduledGeneratorRefreshes, loadSiteWebSettings, resetAccountScopedDashboardState]);
+    },
+    refreshSiteSettings: loadSiteWebSettings,
+    clearScheduledRefreshes: clearScheduledGeneratorRefreshes,
+  }), [applyDashboardChannelState, clearScheduledGeneratorRefreshes, loadSiteWebSettings, resetAccountScopedDashboardState]);
 
   useEffect(() => {
     const linked = searchParams.get("linked");
@@ -3424,7 +3214,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [setPanelError]);
+  }, [i18nT, setPanelError, setSiteWebGa4Notice, setSiteWebGscNotice]);
 
   useEffect(() => {
     const linked = searchParams.get("linked");
@@ -3467,7 +3257,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       setSiteWebGscNotice(i18nT("search_console_deja_connecte_pour_le_9ff26595"));
       window.setTimeout(() => setSiteWebGscNotice(null), 2600);
     }
-  }, [searchParams]);
+  }, [i18nT, searchParams, setSiteWebGa4Notice, setSiteWebGscNotice]);
 
   useEffect(() => {
     const linked = searchParams.get("linked");
@@ -3655,7 +3445,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     };
   }, [applyMailAccountsState, notifyStatsRefresh, refreshMailChannelStatus]);
 
-  const leadsToday = typeof kpis?.leads?.today === "number" ? kpis.leads.today : null;
   const leadsWeek = typeof kpis?.leads?.week === "number" ? kpis.leads.week : null;
   const leadsMonth = typeof kpis?.leads?.month === "number" ? kpis.leads.month : null;
   const computedGeneratorIsActive = Boolean(
@@ -3725,7 +3514,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       return displayedSiteBubbleProgress[kind] as SiteBubbleProgress;
     }
     return siteBubbleProgressSnapshot[kind] ?? computeSiteBubbleProgress(kind);
-  }, [bubbleAccessReady, computeSiteBubbleProgress, displayedSiteBubbleProgress, siteBubbleProgressSnapshot, siteConnectionsReady]);
+  }, [computeSiteBubbleProgress, displayedSiteBubbleProgress, siteBubbleProgressSnapshot, siteConnectionsReady]);
 
   useEffect(() => {
     if (!siteConnectionsReady) return;
@@ -3871,10 +3660,8 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   }), [
     nativeChannelStates,
     bubbleAccessMap,
-    bubbleAccessReady,
     metaPilotEnabled, threadsConnected, threadsConnectionStatus, threadsUrl,
     canAccessPinterest,
-    canAccessInrSearch,
 
     officialChannelStatesReady,
     channelBlocks,
@@ -3988,6 +3775,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     onOpenActivity: () => openPanel("activite"),
     onOpenCalendarSettings: () => openPanel("agenda"),
   }), [
+    normalizeSiteUrl,
     metaPilotEnabled, threadsConnected, threadsUrl,
     inrBadgeProfile,
     inrBadgePublicUrl,

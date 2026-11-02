@@ -9,6 +9,7 @@ import { getInrDirectoryUrl } from "@/lib/inrDirectorySettings";
 import type { ChannelBubbleRenderer } from "../../_components/channel-bubble.types";
 import { InrBadgeQrButton, InrBadgeCopyButton, InrBadgeDownloadButton } from "../../_components/InrBadgeBubbleActions";
 import { readNativeChannelSnapshot, type NativeChannelSnapshot } from "../../_components/native-channel-state";
+import { useInrAssistantRefresh } from "../../_hooks/useInrAssistantRefresh";
 import styles from "../../_components/DashboardChannelBubble.module.css";
 import local from "./NativeChannelSettingsContent.module.css";
 
@@ -65,6 +66,14 @@ export default function NativeChannelSettingsContent({ channelKey, renderBubble,
     } catch { if (mounted.current && accountId === getActiveBrowserUserId()) setError(t("saveFailed")); }
     finally { saving.current = false; if (mounted.current && accountId === getActiveBrowserUserId()) setBusy(false); }
   };
+  useInrAssistantRefresh({ topics: ["channels"], blocked: loading || busy, refresh: async ({ accountId, canApply }) => {
+    const response = await fetch("/api/native-channels/settings", { cache: "no-store", credentials: "include" });
+    const raw = await response.json();
+    if (!response.ok || !raw.ok || !mounted.current || !canApply()) return false;
+    const next = readNativeChannelSnapshot(raw, accountId);
+    if (!next) return false;
+    setSnapshot(next); emit(next); return true;
+  } });
   const state = snapshot?.states[channelKey] || initialStates?.[channelKey];
   const published = state?.published === true;
   const publicUrl = !published ? "" : channelKey === "inrbadge" ? snapshot?.badgeUrl || "" : channelKey === "inr_directory" ? getInrDirectoryUrl() : snapshot?.searchSlug ? `${window.location.origin}/entreprises/${encodeURIComponent(snapshot.searchSlug)}` : "";

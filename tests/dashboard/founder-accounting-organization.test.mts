@@ -61,7 +61,6 @@ test("Founder est la seule édition qui possède Encaisser, Factures et Devis", 
 
 test("le cockpit validé conserve Booster distinct, les outils quotidiens et les quatre outils Premium verrouillables", () => {
   const source = read("app/dashboard/_components/DashboardModulesCard.tsx");
-  const campaignChoices = read("app/dashboard/_components/DashboardCampaignChoices.tsx");
   const styles = read("app/dashboard/_components/DashboardSignatureTools.module.css");
   const booster = source.indexOf('"premium-booster-publish"');
   const pilot = source.indexOf('id="dashboard-pilot-title"');
@@ -101,7 +100,8 @@ test("le cockpit validé conserve Booster distinct, les outils quotidiens et les
 
   // The visual regrouping must keep the existing tool entry points and access restrictions.
   assert.match(source, /testId: standardMode \? "standard-campaign-mails" : "premium-campaign-open"/);
-  assert.match(campaignChoices, /premium-campaign-open/);
+  assert.match(source, /path: "\/dashboard\?action=campaigns"/);
+  assert.match(source, /data-testid=\{tool\.testId\}/);
   assert.match(source, /startModuleNavigation\("\/dashboard\/propulser"\)/);
   assert.match(source, /startModuleNavigation\("\/dashboard\/fideliser"\)/);
   assert.match(source, /accountingEnabled && cashModalOpen/);
@@ -142,7 +142,7 @@ test("iNrSend, CRM, menus et GPS masquent la comptabilité hors Founder", () => 
   const crm = read("app/dashboard/crm/CRMClient.tsx");
   const crmToolbar = read("app/dashboard/crm/_components/CRMToolbar.tsx");
   const crmContacts = read("app/dashboard/crm/_components/CRMContactsView.tsx");
-  const userMenu = read("app/dashboard/_components/UserMenu.tsx");
+  const userMenu = read("app/dashboard/_components/DashboardTopbar.tsx");
   const responsiveMenu = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
   const gpsPolicy = read("app/dashboard/gps/gpsEditionPolicy.ts");
 

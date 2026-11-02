@@ -161,7 +161,6 @@ export default function MediaFreeGenerator({
     cancelGeneration,
     acceptDraft,
     discardDraft,
-    reset,
   } = useMediaGeneration();
   const recoveryIncompatible = Boolean(recoveryContext && ((imageOnly && recoveryContext.kind !== "image") || (fixedFormat && recoveryContext.format !== fixedFormat)));
   const recoveredFormat = result?.recovered ? result.format : recoveryContext?.format;

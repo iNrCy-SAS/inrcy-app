@@ -42,10 +42,6 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
-function asString(value: unknown) {
-  return typeof value === "string" ? value : value == null ? null : String(value);
-}
-
 const MAILBOX_SCAN_FAILURE_THRESHOLD = 3;
 const MAILBOX_SCAN_PAUSE_MS = 6 * 60 * 60_000;
 

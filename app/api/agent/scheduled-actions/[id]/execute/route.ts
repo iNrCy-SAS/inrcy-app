@@ -372,7 +372,7 @@ async function executeBoosterPublicationNow(row: any, userId: string) {
 }
 
 export async function POST(_request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
+  const { errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
   const standardMode =
     (await getDashboardEditionForAuthUser(authUserId)) === "standard";

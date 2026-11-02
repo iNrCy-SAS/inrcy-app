@@ -7,6 +7,8 @@ import sectionStyles from "./SettingsSections.module.css";
 import React from "react";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { getSimpleFrenchApiError } from "@/lib/userFacingErrors";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { useInrAssistantRefresh } from "../../_hooks/useInrAssistantRefresh";
 
 type Preferences = {
   in_app_enabled: boolean;
@@ -99,29 +101,44 @@ export default function NotificationsSettingsContent() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
+  const savingRef = React.useRef(false);
+  const saveRevision = React.useRef(0);
+  useInrAssistantRefresh({ topics: ["settings"], blocked: loading || saving, refresh: async ({ accountId, canApply }) => {
+    const revision = saveRevision.current;
+    const response = await fetch("/api/notifications/preferences", { cache: "no-store", credentials: "include" });
+    const data = await response.json();
+    if (!response.ok || !data.preferences || !canApply() || savingRef.current || revision !== saveRevision.current || accountId !== getActiveBrowserUserId()) return false;
+    setPrefs(data.preferences);
+    return true;
+  } });
 
   React.useEffect(() => {
     let alive = true;
+    const accountId = getActiveBrowserUserId();
     (async () => {
       try {
         setLoading(true);
         const res = await fetch("/api/notifications/preferences", { credentials: "include" });
         const json = await res.json().catch(() => null);
         if (!res.ok) throw new Error(await getSimpleFrenchApiError(res));
-        if (!alive) return;
+        if (!alive || accountId !== getActiveBrowserUserId()) return;
         setPrefs(json.preferences);
         setError(null);
       } catch (e: any) {
-        if (!alive) return;
+        if (!alive || accountId !== getActiveBrowserUserId()) return;
         setError(getSimpleFrenchErrorMessage(e, "Impossible de charger les notifications."));
       } finally {
-        if (alive) setLoading(false);
+        if (alive && accountId === getActiveBrowserUserId()) setLoading(false);
       }
     })();
     return () => { alive = false; };
   }, []);
 
   const updatePrefs = async (next: Preferences) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    saveRevision.current++;
+    const accountId = getActiveBrowserUserId();
     setPrefs(next);
     setSaving(true);
     setNotice(null);
@@ -133,14 +150,17 @@ export default function NotificationsSettingsContent() {
         body: JSON.stringify(next),
       });
       const json = await res.json().catch(() => null);
+      if (accountId !== getActiveBrowserUserId()) return;
       if (!res.ok) throw new Error(await getSimpleFrenchApiError(res));
       setPrefs(json.preferences);
       setNotice(i18nT("preferences_enregistrees_0935a477"));
       setError(null);
     } catch (e: any) {
+      if (accountId !== getActiveBrowserUserId()) return;
       setError(getSimpleFrenchErrorMessage(e, "Impossible d’enregistrer les préférences de notification."));
     } finally {
-      setSaving(false);
+      savingRef.current = false;
+      if (accountId === getActiveBrowserUserId()) setSaving(false);
     }
   };
 

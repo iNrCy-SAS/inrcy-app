@@ -7,7 +7,7 @@ import { readChannelWorkspaceSnapshot, writeChannelWorkspaceSnapshot } from "../
 
 import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 
 import styles from "../../dashboard.module.css";
 import { createClient } from "@/lib/supabaseClient";
@@ -215,7 +215,8 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange, renderBu
     setSettings((current) => ({ ...current, ...patch }));
   }, []);
 
-  const loadSettings = useCallback(async () => {
+  // Hydrate on mount or an OAuth return; changing the language must not replace edits.
+  const loadSettings = useEffectEvent(async () => {
     if (disconnectInFlightRef.current) return;
     const revision = ++connectionRevisionRef.current;
     const accountId = getActiveBrowserUserId();
@@ -241,19 +242,20 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange, renderBu
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, []);
+  });
 
   useEffect(() => {
+    const connectionRevision = connectionRevisionRef;
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      connectionRevisionRef.current++;
+      connectionRevision.current++;
     };
   }, []);
 
   useEffect(() => {
     void loadSettings();
-  }, [loadSettings]);
+  }, []);
 
   useEffect(() => {
     if (!loading && settingsBaselineRef.current) {
@@ -262,7 +264,7 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange, renderBu
     }
   }, [channelUrlDraftDirty, loading, onUnsavedChange, settings]);
 
-  useEffect(() => {
+  const onOAuthReturned = useEffectEvent(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("linked") !== "youtube_shorts") return;
@@ -271,7 +273,8 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange, renderBu
       void loadSettings();
     }
     if (params.get("ok") === "0") setError(params.get("message") || "Connexion YouTube impossible.");
-  }, [loadSettings]);
+  });
+  useEffect(() => { onOAuthReturned(); }, []);
 
   const saveSettings = useCallback(async (nextPatch?: Partial<YoutubeShortsSettings>) => {
     const nextSettings = { ...settings, ...(nextPatch ?? {}) };
@@ -319,7 +322,7 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange, renderBu
     } finally {
       if (mountedRef.current) setSaving(false);
     }
-  }, [settings]);
+  }, [i18nT, onUnsavedChange, settings]);
 
   const connectYoutube = useCallback(() => {
     const returnTo = "/dashboard?panel=youtube_shorts";
@@ -356,7 +359,7 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange, renderBu
       disconnectInFlightRef.current = false;
       if (mountedRef.current) { setSaving(false); setLoading(false); }
     }
-  }, []);
+  }, [i18nT, onUnsavedChange]);
 
 
 

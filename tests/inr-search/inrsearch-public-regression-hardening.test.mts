@@ -88,9 +88,9 @@ test("iNrSearch news renews publication media from durable storage before histor
   assert.match(publicData, /collectThumbnailStorageCandidates/);
   assert.match(publicData, /createSafeStorageSignedUrl\([\s\S]*MEDIA_SIGNED_URL_TTL_SECONDS/);
   assert.match(publicData, /const storageUrl = await resolveStorageMediaUrl/);
-  assert.match(publicData, /normalizeBoosterPublicationEvents\(boosterEventsRes\.data\)/);
+  assert.match(publicData, /normalizeBoosterPublicationEvents\(boosterEventsRes\.data, userId\)/);
   assert.match(publicData, /normalizeDurableInrSearchPublications/);
-  assert.match(publicData, /"inr-search-public-page-v5"/);
+  assert.match(publicData, /"inr-search-public-page-v6"/);
   assert.match(publicData, /if \(cachedPage\) return cachedPage/);
   assert.match(publicData, /return loadInrSearchPublicPageUncached\(slug\)/);
   assert.doesNotMatch(publicData, /inr_search_page_missing_do_not_cache/);

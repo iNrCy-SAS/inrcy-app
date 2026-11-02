@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { Children, createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 import ts from "typescript";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));

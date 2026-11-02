@@ -1,3 +1,4 @@
+import { readVideoNormalizationWorkerSource } from "../media-pipeline/video-worker-sources.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -28,7 +29,9 @@ const sourcePreviewSource = read(
   "app/api/media-pipeline/workspace/source-preview/route.ts",
 );
 const imageWorkerSource = read("lib/mediaImageNormalizationWorker.ts");
-const videoWorkerSource = read("lib/mediaVideoNormalizationWorker.ts");
+const videoWorkerSource = readVideoNormalizationWorkerSource();
+
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
 
 test("étape 2 expose exactement les trois missions média", () => {
   for (const mission of [
@@ -94,15 +97,15 @@ test("la vidéo n'est plus analysée au moment de son ajout et Générer ne lanc
   assert.match(readinessSource, /await waitForPersistentWorkspaceIdle/);
   assert.match(readinessSource, /await verifyPersistentWorkspaceSources/);
   assert.doesNotMatch(readinessSource, /preparePersistent/);
-  assert.doesNotMatch(modalSource, /preparePersistentAiMedia/);
-  assert.doesNotMatch(modalSource, /preparePersistentPublicationMedia/);
+  assert.doesNotMatch([modalSource, generationController].join("\n"), /preparePersistentAiMedia/);
+  assert.doesNotMatch([modalSource, generationController].join("\n"), /preparePersistentPublicationMedia/);
   assert.match(
-    modalSource,
+    generationController,
     /await waitForPersistentWorkspaceReadiness\(\s*"generate"/,
   );
-  assert.match(modalSource, /BOOSTER_GENERATION_TARGET_MS = 30_000/);
+  assert.match(generationController, /Date\.now\(\) \+ BOOSTER_GENERATION_SAFETY_BUDGET_MS/);
   assert.match(
-    modalSource,
+    generationController,
     /BOOSTER_GENERATION_SAFETY_BUDGET_MS\s*=\s*105_000/,
   );
 });

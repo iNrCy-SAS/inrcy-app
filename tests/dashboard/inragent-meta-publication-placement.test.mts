@@ -1,3 +1,4 @@
+import { readAgentScheduleSource } from "../inragent/schedule-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -17,7 +18,7 @@ function read(relativePath: string) {
 const client = read("app/dashboard/agent/AgentClient.tsx");
 const actionApi = read("app/api/agent/actions/route.ts");
 const executeApi = read("app/api/agent/actions/execute/route.ts");
-const scheduleApi = read("app/api/agent/actions/schedule/route.ts");
+const scheduleApi = readAgentScheduleSource();
 const scheduleClient = read("app/dashboard/agent/_lib/agent.schedule.ts");
 const publishNow = read("app/api/booster/publish-now/route.ts");
 

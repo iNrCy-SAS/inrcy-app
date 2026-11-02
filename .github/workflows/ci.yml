@@ -96,6 +96,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Lint hygiene (no new unused or hook warnings)
+        run: npm run lint:hygiene
+
+      - name: Tooling contracts
+        run: npm run test:tooling
+
       - name: Typecheck
         run: npm run typecheck
 

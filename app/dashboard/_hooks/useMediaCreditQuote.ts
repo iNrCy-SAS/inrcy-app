@@ -23,6 +23,8 @@ export type ConfirmedMediaCreditQuote = {
 export default function useMediaCreditQuote(input: MediaCreditQuoteInput, quota: MediaGenerationQuota | null, eligible = true) {
   const [accountEpoch, setAccountEpoch] = useState(0);
   const [scopeInvalidated, setScopeInvalidated] = useState(false);
+  const requestBody = JSON.stringify(input);
+  const accountId = quota?.accountId;
   const key = JSON.stringify({ accountId: quota?.accountId, accountEpoch, eligible, availableCredits: quota?.credits.remaining, reservedCredits: quota?.credits.reserved, ...input });
   const [state, setState] = useState<{ key: string; quote: ConfirmedMediaCreditQuote | null; error: string; loading: boolean; remaining?: number | null }>({ key: "", quote: null, error: "", loading: false });
   const [retryEpoch, setRetryEpoch] = useState(0);
@@ -40,14 +42,14 @@ export default function useMediaCreditQuote(input: MediaCreditQuoteInput, quota:
   }, [quota?.accountId]);
   useEffect(() => {
     if (!eligible) { setState({ key, quote: null, error: "", loading: false }); return; }
-    if (!quota?.accountId || !quota.creditsReady || scopeInvalidated) return;
+    if (!accountId || !quota?.creditsReady || scopeInvalidated) return;
     const controller = new AbortController();
     setState({ key, quote: null, error: "", loading: true });
     const timer = window.setTimeout(() => {
       void fetch("/api/media-generation/quote", {
         method: "POST", credentials: "same-origin", cache: "no-store",
         headers: { "content-type": "application/json" }, signal: controller.signal,
-        body: JSON.stringify(input),
+        body: requestBody,
       }).then(async (response) => {
         const data = await response.json().catch(() => null);
         if (!response.ok || !data?.quote || typeof data.quote.totalCredits !== "number" || !data.quote.quoteId) {
@@ -60,8 +62,8 @@ export default function useMediaCreditQuote(input: MediaCreditQuoteInput, quota:
       });
     }, 180);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  // input is represented by its serialized key, so referential changes do not refetch.
-  }, [key, quota?.creditsReady, scopeInvalidated, retryEpoch, eligible]);
+  // Depend on the serialized payload so equivalent input objects do not refetch.
+  }, [key, requestBody, accountId, quota?.creditsReady, scopeInvalidated, retryEpoch, eligible]);
   let estimate: ReturnType<typeof quoteAiMediaCredits> | null = null;
   try { if (eligible) estimate = quoteAiMediaCredits(input); } catch { /* The confirmed quote reports unsupported settings. */ }
   const matching = eligible && state.key === key && !scopeInvalidated && quota?.creditsReady === true;

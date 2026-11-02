@@ -17,7 +17,6 @@ import {
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 import { ensureSystemManagedInrSearch } from "@/lib/inrSearchProvisioning";
 import { getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
-import { captureApiException } from "@/lib/observability/sentry";
 import { withApi } from "@/lib/observability/withApi";
 import { getDashboardEditionForAuthUser } from "@/lib/dashboardEditionServer";
 import { getAiMediaQuotaSnapshot } from "@/lib/aiMediaGenerationQuota";
@@ -489,7 +488,7 @@ function rowsToSettings(
 }
 
 async function getAgentSettingsHandler() {
-  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
+  const { errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
   const standardMode =
     (await getDashboardEditionForAuthUser(authUserId)) === "standard";

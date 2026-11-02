@@ -36,13 +36,20 @@ export type GoogleBusinessMediaProbeDiagnostic = {
 };
 
 function googleBusinessProviderErrorText(error: unknown) {
-  if (error instanceof Error) return String(error.message || "").toLowerCase();
   if (typeof error === "string") return error.toLowerCase();
   if (error && typeof error === "object" && !Array.isArray(error)) {
     const record = error as Record<string, unknown>;
-    return String(
+    const message = String(
       record.message || record.error || record.error_description || "",
-    ).toLowerCase();
+    );
+    const violations = Array.isArray(record.fieldViolations)
+      ? record.fieldViolations.slice(0, 20).flatMap((entry) => {
+          if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+          const violation = entry as Record<string, unknown>;
+          return [String(violation.field || "").slice(0, 300), String(violation.description || "").slice(0, 800)];
+        })
+      : [];
+    return [message, ...violations].join(" ").toLowerCase();
   }
   return String(error || "").toLowerCase();
 }
@@ -54,6 +61,7 @@ export function isGoogleBusinessMediaProviderError(error: unknown) {
     [
       "mediaitem",
       "sourceurl",
+      "source_url",
       "source url",
       "invalid image",
       "unsupported image",

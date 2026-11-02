@@ -6,9 +6,9 @@ import { buildStatsConnectionSignature } from "@/lib/stats/connectionSignature";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
-const PERIODS = [7, 30] as const;
 
-type PeriodKey = (typeof PERIODS)[number];
+
+type PeriodKey = 7 | 30;
 type AnyRec = Record<string, unknown>;
 type ChannelStatus = {
   syncedAt: number;

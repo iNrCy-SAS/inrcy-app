@@ -4,7 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import EmojiPickerButton from "@/app/dashboard/_components/EmojiPickerButton";
@@ -497,12 +497,10 @@ export default function EReputationReviewsClient(props: Props) {
   const i18nT = useTranslations("reputation");
   const locale = useLocale();
   const runtimeT = i18nT as unknown as ReputationTranslator;
-  const normalizedPlatforms = useMemo(() => {
-    const source = props.platforms?.length ? props.platforms : [buildDefaultPlatform(props, runtimeT)];
-    return source.map(normalizePlatform);
-  }, [i18nT, props.platforms, props.reviews, props.reviewsReady, props.reviewsError, props.initialNextPageToken, props.totalReviewCount, props.averageRatingLabel, props.locationLabel, props.statusLabel, props.gmbReady, props.reportGoogleUrl]);
-
+  const { onDirtyChange } = props;
   const [platformData, setPlatformData] = useState<EReputationReviewsPlatform[]>(() => {
+    const source = props.platforms?.length ? props.platforms : [buildDefaultPlatform(props, runtimeT)];
+    const normalizedPlatforms = source.map(normalizePlatform);
     const snapshot = readModuleSnapshot<ReviewsResponse>(MODULE_SNAPSHOT_KEYS.eReputationGoogle)?.data ?? null;
     const matchingSnapshot = props.locationName && snapshot?.locationName !== props.locationName ? null : snapshot;
     return normalizedPlatforms.map((platform) => platform.id === "google" ? platformFromSnapshot(platform, matchingSnapshot, locale, runtimeT) : platform);
@@ -574,14 +572,18 @@ export default function EReputationReviewsClient(props: Props) {
     updateActivePlatform((platform) => ({ ...platform, initialNextPageToken: next }));
   }
 
-  useEffect(() => {
+  // A platform/locale change starts a draft; background review updates do not.
+  const resetPlatformSelection = useEffectEvent(() => {
     const first = activePlatform.reviews[0] || null;
     setCurrentPage(1);
     setSelectedId((current) => (activePlatform.reviews.some((review) => review.id === current) ? current : first?.id || ""));
     setReplyText(defaultReplyFor(first, runtimeT));
     setNotice(null);
     setListNotice(null);
-  }, [activePlatform.id, i18nT]);
+  });
+  useEffect(() => {
+    resetPlatformSelection();
+  }, [activePlatform.id, runtimeT]);
 
   const stats = useMemo(() => {
     const answered = items.filter((review) => review.status === "Répondu").length;
@@ -652,11 +654,15 @@ export default function EReputationReviewsClient(props: Props) {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  useEffect(() => {
+  // Preserve a typed reply when the same review is refreshed in the background.
+  const resetSelectedReviewDraft = useEffectEvent(() => {
     setReplyText(defaultReplyFor(selectedReview, runtimeT));
     replySelectionRef.current = null;
     setNotice(null);
-  }, [selectedReview?.id, i18nT]);
+  });
+  useEffect(() => {
+    resetSelectedReviewDraft();
+  }, [selectedReview?.id, runtimeT]);
 
   useEffect(() => {
     if (!detailsOpen) return;
@@ -702,9 +708,9 @@ export default function EReputationReviewsClient(props: Props) {
     selectedReview && replyText.trim() !== defaultReplyFor(selectedReview, runtimeT).trim(),
   );
   useEffect(() => {
-    props.onDirtyChange?.(detailsOpen && replyHasUnsavedChanges);
-    return () => props.onDirtyChange?.(false);
-  }, [detailsOpen, replyHasUnsavedChanges, props.onDirtyChange]);
+    onDirtyChange?.(detailsOpen && replyHasUnsavedChanges);
+    return () => onDirtyChange?.(false);
+  }, [detailsOpen, replyHasUnsavedChanges, onDirtyChange]);
 
   function openDetails(review: EReputationReviewItem) {
     setSelectedId(review.id);
@@ -783,9 +789,7 @@ export default function EReputationReviewsClient(props: Props) {
     }
   }
 
-  useEffect(() => {
-    if (!detailsOpen) return;
-    const handleKey = (event: KeyboardEvent) => {
+  const onReviewKeyDown = useEffectEvent((event: KeyboardEvent) => {
       const target = event.target instanceof HTMLElement ? event.target : null;
       const editingText = Boolean(
         target?.isContentEditable ||
@@ -803,10 +807,12 @@ export default function EReputationReviewsClient(props: Props) {
         event.preventDefault();
         void navigateReview("next");
       }
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [canGoToNextReview, canGoToPreviousReview, detailsOpen, replyHasUnsavedChanges, selectedReview?.id]);
+  });
+  useEffect(() => {
+    if (!detailsOpen) return;
+    window.addEventListener("keydown", onReviewKeyDown);
+    return () => window.removeEventListener("keydown", onReviewKeyDown);
+  }, [detailsOpen]);
 
   function saveReplySelection() {
     const textarea = replyTextareaRef.current;
@@ -980,22 +986,6 @@ export default function EReputationReviewsClient(props: Props) {
     }).catch(() => { /* A failed preload can be retried by an explicit page request. */ });
     return () => { ignored = true; };
   }, [safeCurrentPage, items.length, nextPageToken, reviewsReady, initialLoading, refreshing, hasLocalFilter, activePlatform.id, props.locationName, locale, requestReviews, updateActivePlatform]);
-
-  async function loadMoreReviews() {
-    if (!nextPageToken || !reviewsReady) return;
-    setLoadingMore(true);
-    setListNotice(null);
-    try {
-      const count = await fetchReviews({ pageToken: nextPageToken });
-      setListNotice({ type: "success", text: count > 0 ? i18nT("more_reviews_loaded") : i18nT("no_more_reviews") });
-      if (count > 0) setCurrentPage((page) => page + 1);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : i18nT("unable_load_following_reviews");
-      setListNotice({ type: "error", text: message });
-    } finally {
-      setLoadingMore(false);
-    }
-  }
 
   async function goToPage(targetPage: number) {
     if (!reviewsReady || busy) return;

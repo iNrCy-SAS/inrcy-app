@@ -38,9 +38,9 @@ function harness() {
   };
   const runtime = load<CalendarRuntime>("../../lib/inrAssistantCalendarTools.ts", { "server-only": {}, ai: { jsonSchema, tool }, "./requireUser": { requireUser: async () => ({ activeUserId: account, authUserId: actor }) }, "./inrAssistantActionPreview.ts": preview, "./inrAssistantMemory.ts": { sanitizeInrAssistantMemoryText: (text: string, max: number) => text.slice(0, max) }, "@/app/api/calendar/events/route": { PATCH: native, DELETE: native } }, { Date: Clock });
   const saved = new Map<string, string>();
-  const create = (message: string, edition = "premium") => runtime.createInrAssistantCalendarTools({ request: new Request("https://app.test/api/assistant/chat", { headers: { cookie: "session", "x-account-id": OTHER } }), accountId: ACCOUNT, actorUserId: ACTOR, edition, supabase: db, currentUserMessage: message, resolvePreview: (reference: string) => saved.get(reference) ?? null });
+  const create = (message: string, edition = "premium", currentApprovalMessage?: string) => runtime.createInrAssistantCalendarTools({ request: new Request("https://app.test/api/assistant/chat", { headers: { cookie: "session", "x-account-id": OTHER } }), accountId: ACCOUNT, actorUserId: ACTOR, edition, supabase: db, currentUserMessage: message, currentApprovalMessage, resolvePreview: (reference: string) => saved.get(reference) ?? null });
   const propose = (operation = "confirm", patch: Row = {}) => { const quote = operation === "confirm" ? "Confirme le rendez-vous Alice" : operation === "cancel" ? "Annule le rendez-vous Alice" : "Déplace le rendez-vous Alice au 2 décembre à 10h"; return create(quote).previewCalendarAction.execute({ eventId: EVENT, operation, instructionQuote: quote, title: null, description: null, location: null, start: null, end: null, ...patch }); };
-  const apply = (result: ActionResult, message = `Confirme ${result.reference}`) => { assert.ok(result.reference); assert.ok(result.token); saved.set(result.reference, result.token); return create(message).applyCalendarAction.execute({ reference: result.reference, instructionQuote: message }); };
+  const apply = (result: ActionResult, message = `Confirme ${result.reference}`, currentApprovalMessage?: string, quote = currentApprovalMessage ?? message) => { assert.ok(result.reference); assert.ok(result.token); saved.set(result.reference, result.token); return create(message, "premium", currentApprovalMessage).applyCalendarAction.execute({ reference: result.reference, instructionQuote: quote }); };
   return { preview, create, propose, apply, calls, get: () => row!, edit: (patch: Row) => { Object.assign(row!, patch); }, scope: (active = ACCOUNT, user = ACTOR) => { account = active; actor = user; }, expire: () => { now += 16 * 60_000; }, race: () => { nativeRace = true; }, uncertain: () => { uncertain = true; } };
 }
 
@@ -79,6 +79,27 @@ test("signatures, actor/account, expiry, scope and explicit confirmation cannot 
     if (variant === "question") message = `Explique comment confirmer ${p.reference}`;
     assert.equal((await h.apply(p, message)).ok, false, variant); assert.equal(h.calls.length, 0, variant);
   }
+});
+
+test("conditional or delayed approvals never call the native agenda mutation, even when the tool quotes only the affirmative fragment", async () => {
+  for (const suffix of ["seulement si le client accepte", "après ma confirmation", "dans 2 heures", "à 15h", "vendredi", "quand le client aura répondu", "sous réserve de son accord"]) {
+    const h = harness(), p = await h.propose(), quote = `Confirme ${p.reference}`, message = `${quote} ${suffix}.`;
+    assert.equal((await h.apply(p, message, undefined, quote)).status, "confirmation_required", suffix);
+    assert.equal(h.calls.length, 0, suffix);
+    assert.equal(h.get().meta.status, "draft", suffix);
+  }
+  const h = harness(), p = await h.propose(), quote = `Confirme ${p.reference}`;
+  assert.equal((await h.apply(p, `Si le client accepte, ${quote}`, undefined, quote)).status, "confirmation_required");
+  assert.equal(h.calls.length, 0);
+});
+
+test("an immediate approval may ask a separate conditional read and does not inherit tomorrow from the original scheduling request", async () => {
+  const h = harness(), p = await h.propose(), approval = `Confirme ${p.reference} et indique si les rappels sont activés.`;
+  assert.equal((await h.apply(p, `Déplace le rendez-vous demain à 14h.\nValidation actuelle de cet aperçu uniquement : ${approval}`, approval)).status, "confirmed");
+  assert.equal(h.calls.length, 1);
+  const negative = harness(), np = await negative.propose(), quote = `Confirme ${np.reference}`;
+  assert.equal((await negative.apply(np, `${quote} et indique si les rappels sont activés, mais ne confirme pas encore.`, undefined, quote)).status, "confirmation_required");
+  assert.equal(negative.calls.length, 0);
 });
 
 test("stale and concurrently changed events never overwrite another edit or request native emails", async () => {

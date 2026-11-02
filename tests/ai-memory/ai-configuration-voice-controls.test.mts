@@ -69,7 +69,7 @@ test("all dashboard catalogues expose the new AI configuration labels", () => {
 });
 
 test("Configuration IA stays in the cockpit and keeps its yellow monogram in the ADN mobile header", () => {
-  const menu = read("app/dashboard/_components/UserMenu.tsx");
+  const menu = read("app/dashboard/_components/DashboardTopbar.tsx");
   const mobileMenu = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
   const businessDnaPage = read("app/dashboard/adn-entreprise/page.tsx");
   const profilePage = read("app/dashboard/mon-profil/page.tsx");
@@ -77,7 +77,7 @@ test("Configuration IA stays in the cockpit and keeps its yellow monogram in the
   const icon = read("app/dashboard/_components/AiConfigurationIcon.tsx");
 
   assert.doesNotMatch(menu, /AiConfigurationIcon/);
-  assert.doesNotMatch(menu, /closeAndOpen\("ia"\)/);
+  assert.doesNotMatch(menu, /openPanel\("ia"\)/);
   assert.doesNotMatch(mobileMenu, /label=\{t\.userMenu\.ai\}/);
   assert.match(read("lib/mobileShortcutPolicy.ts"), /id: "ai_configuration", href: "\/dashboard\/configuration-ia"/);
   assert.doesNotMatch(mobileMenu, /<AiConfigurationIcon/);

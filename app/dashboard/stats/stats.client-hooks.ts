@@ -1,7 +1,6 @@
 "use client";
 
 import { useDashboardViewerAccess } from "@/app/dashboard/_components/DashboardViewerAccessProvider";
-import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
 
 
@@ -121,7 +120,6 @@ export function useStatsChannelIdentitySync({
   setCachedChannelConnectivity,
   setOfficialChannelConnectionStatuses,
 }: UseStatsChannelIdentitySyncArgs) {
-  const { metaPilotEnabled } = useDashboardViewerAccess();
   useEffect(() => {
     let cancelled = false;
     let channelStatesRequestSeq = 0;
@@ -213,7 +211,9 @@ export function useStatsChannelIdentitySync({
       document.removeEventListener("visibilitychange", onVisibilityChange);
       unsubscribeConnectionUpdates();
     };
-  }, [refreshNonce]);
+  }, [
+    refreshNonce, setCachedChannelConnectivity, setChannelIdentityHints, setOfficialChannelConnectionStatuses
+  ]);
 }
 
 type UseStatsDataControllerArgs = {
@@ -280,6 +280,64 @@ export function useStatsDataController({
     mailStatsRequestSeqRef.current += 1;
   }, []);
 
+  const fetchBulkStats = useCallback(async (period: Period, forceFresh = false): Promise<BulkFetchResult> => {
+    const params = new URLSearchParams({ days: String(period) });
+    const expectedSnapshotDate = expectedUiSnapshotDate();
+    if (forceFresh) params.set("fresh", "1");
+    if (expectedSnapshotDate) params.set("snapshotDate", expectedSnapshotDate);
+    const r = await fetch(`/api/stats/dashboard-bulk?${params.toString()}`, { cache: "no-store" });
+    if (!r.ok) {
+      throw new Error(await getSimpleFrenchApiError(r));
+    }
+    const json = (await r.json()) as StatsBulkResponse;
+    const overviews = (json?.overviews || {}) as Partial<Record<CubeKey, Overview>>;
+    const byCubePartial = json?.opportunities?.byCube || {};
+    const snapshotDate = typeof json?.meta?.snapshotDate === "string" ? json.meta.snapshotDate : getOverviewSnapshotDate(overviews) || expectedSnapshotDate;
+    return {
+      overviews,
+      summary: {
+        total: safeNum(json?.opportunities?.total),
+        byCube: {
+          inrbadge: 0,
+          inr_search: 0,
+
+          site_web: safeNum(byCubePartial.site_web),
+          gmb: safeNum(byCubePartial.gmb),
+          facebook: safeNum(byCubePartial.facebook),
+          instagram: safeNum(byCubePartial.instagram),
+          threads: metaPilotEnabled ? safeNum(byCubePartial.threads) : 0,
+          linkedin: safeNum(byCubePartial.linkedin),
+          x: safeNum(byCubePartial.x),
+          mails: 0,
+          tiktok: safeNum(byCubePartial.tiktok),
+          youtube_shorts: safeNum(byCubePartial.youtube_shorts),
+          pinterest: safeNum(byCubePartial.pinterest),
+        } as Record<CubeKey, number>,
+      },
+      profile: {
+        lead_conversion_rate: safeNum(json?.profile?.lead_conversion_rate),
+        avg_basket: safeNum(json?.profile?.avg_basket),
+      },
+      estimatedByCube: {
+        inrbadge: 0,
+        inr_search: 0,
+
+        site_web: safeNum(json?.estimatedByCube?.site_web),
+        gmb: safeNum(json?.estimatedByCube?.gmb),
+        facebook: safeNum(json?.estimatedByCube?.facebook),
+        instagram: safeNum(json?.estimatedByCube?.instagram),
+        threads: metaPilotEnabled ? safeNum(json?.estimatedByCube?.threads) : 0,
+        linkedin: safeNum(json?.estimatedByCube?.linkedin),
+        x: safeNum(json?.estimatedByCube?.x),
+        mails: 0,
+        tiktok: safeNum(json?.estimatedByCube?.tiktok),
+        youtube_shorts: safeNum(json?.estimatedByCube?.youtube_shorts),
+      } as Record<CubeKey, number>,
+      blocks: json?.blocks as any,
+      snapshotDate: snapshotDate ?? null,
+    };
+  }, [metaPilotEnabled]);
+
   const applyBulkPayload = useCallback((targetPeriod: Period, next: BulkFetchResult, syncedAt: number) => {
     const snap = next.overviews as Record<CubeKey, Overview>;
     periodCacheRef.current.set(targetPeriod, snap);
@@ -331,7 +389,9 @@ export function useStatsDataController({
     setSummaryEstimatedByCube(next.estimatedByCube);
     setLastRefreshAt(Date.now());
     setIsRefreshing(false);
-  }, [period]);
+  }, [
+    period, periodCacheRef, setDataByCube, setIsRefreshing, setLastRefreshAt, setSummaryEstimatedByCube, setSummaryHydrated, setSummaryOpp, setSummaryProfile
+  ]);
 
   const applyChannelRefreshPayload = useCallback((channel: DashboardChannelKey, payload: ChannelRefreshResponse | null | undefined, fallbackSyncAt?: number) => {
     const syncAt = Number.isFinite(Number(fallbackSyncAt)) ? Number(fallbackSyncAt) : Date.now();
@@ -451,7 +511,9 @@ export function useStatsDataController({
     setLastRefreshAt(Date.now());
     setIsRefreshing(false);
     return latestSyncAt;
-  }, [period]);
+  }, [
+    period, metaPilotEnabled, setDataByCube, setIsRefreshing, setLastRefreshAt, setSummaryEstimatedByCube, setSummaryHydrated, setSummaryOpp, setSummaryProfile
+  ]);
 
   const refreshChannelFromApi = useCallback(async (channel: DashboardChannelKey, fallbackSyncAt?: number) => {
     const json = await fetchSharedDashboardRefreshJson<ChannelRefreshResponse | null>(
@@ -561,7 +623,7 @@ export function useStatsDataController({
     }
 
     return { syncAt, bootstrapSnapshotDate };
-  }, [applyBulkPayload]);
+  }, [applyBulkPayload, metaPilotEnabled]);
 
   const syncFromServerCacheIfNeeded = useCallback(async (force = false) => {
     if (typeof window === "undefined") return;
@@ -633,7 +695,9 @@ export function useStatsDataController({
     } finally {
       serverCacheCheckPromiseRef.current = null;
     }
-  }, [applyBootstrapPayload, applyBulkPayload, refreshChannelFromApi]);
+  }, [
+    applyBootstrapPayload, applyBulkPayload, fetchBulkStats, lastServerCacheCheckAtRef, refreshChannelFromApi, serverCacheCheckPromiseRef
+  ]);
 
   const handleSharedStatsRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -652,7 +716,9 @@ export function useStatsDataController({
     } finally {
       setIsRefreshing(false);
     }
-  }, [applyBootstrapPayload, syncFromServerCacheIfNeeded]);
+  }, [
+    applyBootstrapPayload, setIsRefreshing, setLastRefreshAt, setRefreshNonce, syncFromServerCacheIfNeeded
+  ]);
 
   const refreshInrBadgeStats = useCallback(async () => {
     const requestSeq = ++inrBadgeStatsRequestSeqRef.current;
@@ -677,7 +743,7 @@ export function useStatsDataController({
         error: getSimpleFrenchErrorMessage(error, "Impossible de charger les données iNrBadge pour le moment."),
       }));
     }
-  }, []);
+  }, [setInrBadgeStats]);
 
   const refreshInrSearchStats = useCallback(() => {
     const existingRequest = inrSearchStatsRequestRef.current;
@@ -720,7 +786,7 @@ export function useStatsDataController({
       },
     );
     return request;
-  }, []);
+  }, [setInrSearchStats]);
 
   const refreshMailStats = useCallback(async () => {
     if (!includeMailStats) return;
@@ -900,65 +966,10 @@ export function useStatsDataController({
       pinterest: safeNum(estimatedByCubePartial.pinterest),
     });
     return true;
-  }, []);
+  }, [
+    metaPilotEnabled, periodCacheRef, setDataByCube, setSummaryEstimatedByCube, setSummaryHydrated, setSummaryOpp, setSummaryProfile
+  ]);
 
-  const fetchBulkStats = async (period: Period, forceFresh = false): Promise<BulkFetchResult> => {
-    const params = new URLSearchParams({ days: String(period) });
-    const expectedSnapshotDate = expectedUiSnapshotDate();
-    if (forceFresh) params.set("fresh", "1");
-    if (expectedSnapshotDate) params.set("snapshotDate", expectedSnapshotDate);
-    const r = await fetch(`/api/stats/dashboard-bulk?${params.toString()}`, { cache: "no-store" });
-    if (!r.ok) {
-      throw new Error(await getSimpleFrenchApiError(r));
-    }
-    const json = (await r.json()) as StatsBulkResponse;
-    const overviews = (json?.overviews || {}) as Partial<Record<CubeKey, Overview>>;
-    const byCubePartial = json?.opportunities?.byCube || {};
-    const snapshotDate = typeof json?.meta?.snapshotDate === "string" ? json.meta.snapshotDate : getOverviewSnapshotDate(overviews) || expectedSnapshotDate;
-    return {
-      overviews,
-      summary: {
-        total: safeNum(json?.opportunities?.total),
-        byCube: {
-          inrbadge: 0,
-          inr_search: 0,
-
-          site_web: safeNum(byCubePartial.site_web),
-          gmb: safeNum(byCubePartial.gmb),
-          facebook: safeNum(byCubePartial.facebook),
-          instagram: safeNum(byCubePartial.instagram),
-          threads: metaPilotEnabled ? safeNum(byCubePartial.threads) : 0,
-          linkedin: safeNum(byCubePartial.linkedin),
-          x: safeNum(byCubePartial.x),
-          mails: 0,
-          tiktok: safeNum(byCubePartial.tiktok),
-          youtube_shorts: safeNum(byCubePartial.youtube_shorts),
-          pinterest: safeNum(byCubePartial.pinterest),
-        } as Record<CubeKey, number>,
-      },
-      profile: {
-        lead_conversion_rate: safeNum(json?.profile?.lead_conversion_rate),
-        avg_basket: safeNum(json?.profile?.avg_basket),
-      },
-      estimatedByCube: {
-        inrbadge: 0,
-        inr_search: 0,
-
-        site_web: safeNum(json?.estimatedByCube?.site_web),
-        gmb: safeNum(json?.estimatedByCube?.gmb),
-        facebook: safeNum(json?.estimatedByCube?.facebook),
-        instagram: safeNum(json?.estimatedByCube?.instagram),
-        threads: metaPilotEnabled ? safeNum(json?.estimatedByCube?.threads) : 0,
-        linkedin: safeNum(json?.estimatedByCube?.linkedin),
-        x: safeNum(json?.estimatedByCube?.x),
-        mails: 0,
-        tiktok: safeNum(json?.estimatedByCube?.tiktok),
-        youtube_shorts: safeNum(json?.estimatedByCube?.youtube_shorts),
-      } as Record<CubeKey, number>,
-      blocks: json?.blocks as any,
-      snapshotDate: snapshotDate ?? null,
-    };
-  };
 
   useEffect(() => {
     const snapshotDate = expectedUiSnapshotDate();
@@ -999,7 +1010,9 @@ export function useStatsDataController({
     return () => {
       cancelled = true;
     };
-  }, [applyBootstrapPayload, hydrateFromSessionCache, period, syncFromServerCacheIfNeeded]);
+  }, [
+    applyBootstrapPayload, hydrateFromSessionCache, period, setDailyBootReady, syncFromServerCacheIfNeeded
+  ]);
 
   useEffect(() => {
     if (!dailyBootReady) return;
@@ -1011,7 +1024,9 @@ export function useStatsDataController({
     } catch {
       // ignore
     }
-  }, [dailyBootReady, hydrateFromSessionCache, period]);
+  }, [
+    dailyBootReady, hydratedPeriodsRef, hydrateFromSessionCache, period
+  ]);
 
   useEffect(() => {
   if (!dailyBootReady) return;
@@ -1055,7 +1070,9 @@ export function useStatsDataController({
   return () => {
     cancelled = true;
   };
-  }, [dailyBootReady, hydrateFromSessionCache, period, refreshNonce]);
+  }, [
+    applyBulkPayload, dailyBootReady, fetchBulkStats, hydrateFromSessionCache, period, refreshNonce, setDataByCube, setSummaryOpp
+  ]);
 
   useEffect(() => {
     if (!isRefreshing) return;
@@ -1073,7 +1090,9 @@ export function useStatsDataController({
         refreshTimeoutRef.current = null;
       }
     };
-  }, [isRefreshing, refreshNonce]);
+  }, [
+    isRefreshing, refreshNonce, refreshTimeoutRef, setIsRefreshing
+  ]);
 
   useEffect(() => {
     const runSilentSync = async (force: boolean) => {
@@ -1107,7 +1126,9 @@ export function useStatsDataController({
       window.removeEventListener("inrcy:channel-updated", handleChannelUpdated as EventListener);
       window.removeEventListener("inrcy:channels-updated", handleChannelsUpdated as EventListener);
     };
-  }, [hydrateFromSessionCache, period, syncFromServerCacheIfNeeded]);
+  }, [
+    hydrateFromSessionCache, lastAutoRefreshAtRef, period, setIsRefreshing, syncFromServerCacheIfNeeded
+  ]);
 
   useEffect(() => {
     const handleProfileVersionChange = (event: Event) => {
@@ -1132,5 +1153,17 @@ export function useStatsDataController({
     void syncFromServerCacheIfNeeded(false);
   }, [dailyBootReady, syncFromServerCacheIfNeeded]);
 
-  return { handleSharedStatsRefresh };
+  const refreshAssistantSnapshot = async (canApply: () => boolean) => {
+    const accountId = getActiveBrowserUserId();
+    try {
+      // Read the canonical server snapshot; the assistant already performed
+      // the requested source operation. Do not start another provider sync.
+      const next = await fetchBulkStats(period, false);
+      if (!canApply() || accountId !== getActiveBrowserUserId()) return false;
+      applyBulkPayload(period, next, Date.now());
+      setRefreshNonce(value => value + 1);
+      return true;
+    } catch { return false; }
+  };
+  return { handleSharedStatsRefresh, refreshAssistantSnapshot };
 }

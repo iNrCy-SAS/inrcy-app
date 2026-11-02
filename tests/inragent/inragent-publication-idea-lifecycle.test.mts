@@ -1,3 +1,4 @@
+import { readAgentPublicationPreparationSource } from "./prepare-publication-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -153,7 +154,7 @@ test("une idée multiligne réserve son texte brut et un claim refusé termine s
   assert.deepEqual(acceptedClaims, [multilineIdea]);
   assert.equal(accepted?.subject, multilineIdea);
 
-  const route = readFileSync(new URL("../../app/api/agent/actions/prepare-publish/route.ts", import.meta.url), "utf8");
+  const route = readAgentPublicationPreparationSource();
   const planner = readFileSync(new URL("../../lib/inrAgentEditorialPlanServer.ts", import.meta.url), "utf8");
   assert.match(route, /claimFirstAvailableInrAgentIdea\(\{/);
   assert.match(route, /runtimeFocus = \{ \.\.\.runtimeFocus, subject: ideaRow\.idea_text \}/);
@@ -186,7 +187,7 @@ test("une ancienne action peut régénérer sa propre idée même si une nouvell
     metadata: {}, ideaText,
   }), false);
 
-  const route = readFileSync(new URL("../../app/api/agent/actions/prepare-publish/route.ts", import.meta.url), "utf8");
+  const route = readAgentPublicationPreparationSource();
   const planner = readFileSync(new URL("../../lib/inrAgentEditorialPlanServer.ts", import.meta.url), "utf8");
   const sql = readFileSync(new URL("../../supabase/migrations/20261003140451_inr_agent_publication_idea_lifecycle.sql", import.meta.url), "utf8");
   assert.match(route, /wasInrAgentPublicationIdeaPreviouslyGenerated\(\{[\s\S]*?editorialTarget\.payload/);

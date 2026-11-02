@@ -1,4 +1,4 @@
-import { isMetaChannelPilotEnabledForActorAndAccount, isMetaChannelPilotEnabledForAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from 'next/server';
 import { jsonUserFacingError } from '@/lib/apiUserFacingErrors';
@@ -91,7 +91,7 @@ async function fetchChannelOverview(args: {
 
 export async function POST(req: Request) {
   try {
-    const { supabase, user, errorResponse, activeUserId } = await requireUser();
+    const { supabase, errorResponse, activeUserId } = await requireUser();
     if (errorResponse) return errorResponse;
 
     const body = await req.json().catch(() => ({} as { channel?: unknown }));

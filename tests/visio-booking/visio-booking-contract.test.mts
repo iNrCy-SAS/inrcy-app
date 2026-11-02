@@ -214,7 +214,8 @@ test("le calendrier partagé global est synchronisé par un cron protégé et id
   assert.match(webhook, /after\(async/);
   assert.match(webhook, /resourceState === "sync"/);
   assert.match(webhook, /claimVisioCalendarWebhookSync/);
-  assert.match(backend, /events\/watch/);
+  assert.match(backend, /export \{[^}]*createVisioGoogleCalendarWatch[^}]*\} from "@\/lib\/visioGoogleCalendarClient"/);
+  assert.match(read("lib/visioGoogleCalendarClient.ts"), /events\/watch/);
   assert.match(watch, /timingSafeEqual/);
   assert.match(backend, /inrcy:visio-booking:team-calendar-sync/);
   assert.match(backend, /sourceFingerprint/);

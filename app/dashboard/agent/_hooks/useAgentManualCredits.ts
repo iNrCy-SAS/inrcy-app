@@ -7,8 +7,9 @@ import type { InrAgentManualCreditAvailability } from "@/lib/inrAgentManualCredi
 export function useAgentManualCredits(refreshKey: string) {
   const [availability,setAvailability] = useState<InrAgentManualCreditAvailability | null>(null);
   const requestVersion = useRef(0);
+  const invalidatePendingRequests = useCallback(() => ++requestVersion.current, []);
   const refresh = useCallback(async () => {
-    const version = ++requestVersion.current;
+    const version = invalidatePendingRequests();
     let value: InrAgentManualCreditAvailability = {ready:false,allowed:false,unlimited:false,remaining:null,required:0};
     try {
       const response = await fetch("/api/agent/settings",{cache:"no-store"});
@@ -18,7 +19,7 @@ export function useAgentManualCredits(refreshKey: string) {
     } catch { /* Keep the manual button unavailable until the balance is verified. */ }
     if (version === requestVersion.current) setAvailability(value);
     return value;
-  },[]);
+  },[invalidatePendingRequests]);
   useEffect(() => {
     setAvailability(null);
     void refresh();
@@ -27,11 +28,11 @@ export function useAgentManualCredits(refreshKey: string) {
     document.addEventListener("visibilitychange",onFocus);
     const interval = window.setInterval(onFocus,60_000);
     return () => {
-      requestVersion.current++;
+      invalidatePendingRequests();
       window.removeEventListener("focus",onFocus);
       document.removeEventListener("visibilitychange",onFocus);
       window.clearInterval(interval);
     };
-  },[refresh,refreshKey]);
+  },[invalidatePendingRequests,refresh,refreshKey]);
   return {availability,refresh};
 }

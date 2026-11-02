@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 import ts from "typescript";
 import { runtimeModules } from "../inragent/runtime-module-loader.mts";
+import { durationReviewItems } from "./booster-duration-readiness-fixture.mts";
 
 const require = createRequire(import.meta.url);
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
@@ -50,15 +51,15 @@ const channels=['facebook','instagram','threads',...Object.keys(labels).filter(c
 const root=require('react-dom/client').createRoot(document.getElementById('root'));
 window.nativeCalls=0;window.catalogueCalls=0;window.activeAudio=new Set();let fixtureConfig={count:13,modes:{},eligible:{},optionValues:{},blocked:false};
 HTMLMediaElement.prototype.play=function(){window.activeAudio.add(this);return Promise.resolve()};HTMLMediaElement.prototype.pause=function(){window.activeAudio.delete(this)};HTMLMediaElement.prototype.load=function(){};
-function Fixture({count,modes,eligible,optionValues,blocked}){
+function Fixture({count,modes,eligible,optionValues,blocked,reviewItems,videoPreviewUrl=''}){
  const [active,setActive]=React.useState('site_web');
  const [settings,setSettings]=React.useState({}),[selection,setSelection]=React.useState({facebook:null,instagram:null});
  const change=(name,value)=>setSettings(previous=>({...previous,[name]:value}));
  window.patchContents=patch=>setSettings(previous=>({...previous,...patch}));
  const optionProps={facebookPublicationPlacement:'reel',facebookStoryEnabled:true,facebookPublicationPreferences:{reelsEnabled:true,storiesEnabled:true},facebookMediaMode:modes.facebook||'images',facebookImageCount:1,instagramPublicationPlacement:'classic',instagramStoryEnabled:false,instagramPublicationPreferences:{reelsEnabled:true,storiesEnabled:true},instagramMediaMode:modes.instagram||'images',instagramImageCount:1,pinterestBoards:[{id:'board-one',name:'Mon tableau Pinterest avec une très longue description de mon activité professionnelle'},{id:'board-two',name:'Autre tableau'}],pinterestBoardId:'board-one',pinterestBoardsLoading:false,pinterestBoardsError:'',threadsPublicationMode:'classic',threadsPublicationPreferences:{ghostEnabled:true},threadsPreferencesLoading:false,threadsPreferencesFailed:false,...optionValues,...settings,onFacebookPublicationPlacementChange:value=>change('facebookPublicationPlacement',value),onFacebookStoryEnabledChange:value=>change('facebookStoryEnabled',value),onInstagramPublicationPlacementChange:value=>change('instagramPublicationPlacement',value),onInstagramStoryEnabledChange:value=>change('instagramStoryEnabled',value),onPinterestBoardChange:value=>change('pinterestBoardId',value),onThreadsPublicationModeChange:value=>change('threadsPublicationMode',value)};
  window.contentsValues={...optionProps,soundtrackByChannel:selection};
- const items=channels.slice(0,count).map(channel=>({channel,label:labels[channel],hasText:!blocked,blockers:[],warnings:[],contentBlockers:blocked?['Le contenu doit être complété avant de pouvoir publier sur ce canal.']:[],contentWarnings:[],mediaBlockers:channel==='youtube_shorts'?['Ajoutez une vidéo pour ce canal.']:[],mediaWarnings:[],mediaBlockerCodes:channel==='youtube_shorts'?['youtube_video_required']:[]}));
- return React.createElement(Board,{items,imageKeys:['first','second'],previewByKey:{first:image,second:image},videoPreviewUrl:'',getMode:channel=>modes[channel]||(channel==='youtube_shorts'?'none':'images'),getSelectedImageKeys:()=>['first'],onModeChange(){},onToggleImage(){},onAddImage(){},onReorderImage(){},onOpenMediaPool(){},onSelectChannel:setActive,activePreview:{channelKey:active,channelLabel:labels[active]},disabled:false,renderChannelOptions:channel=>React.createElement(ChannelOptions,{channel,...optionProps}),soundtrackByChannel:selection,soundtrackScopeKey:'actor:account',canSelectSoundtrack:channel=>eligible[channel]??(channel==='facebook'?optionProps.facebookPublicationPlacement!=='classic'||optionProps.facebookStoryEnabled:channel==='instagram'?optionProps.instagramPublicationPlacement!=='classic'||optionProps.instagramStoryEnabled:false),onSoundtrackChange:(channel,id)=>setSelection(previous=>({...previous,[channel]:id})),isSoundtrackLocked:()=>false});
+ const items=reviewItems||channels.slice(0,count).map(channel=>({channel,label:labels[channel],hasText:!blocked,blockers:[],warnings:[],contentBlockers:blocked?['Le contenu doit être complété avant de pouvoir publier sur ce canal.']:[],contentWarnings:[],mediaBlockers:channel==='youtube_shorts'?['Ajoutez une vidéo pour ce canal.']:[],mediaWarnings:[],mediaBlockerCodes:channel==='youtube_shorts'?['youtube_video_required']:[]}));
+ return React.createElement(Board,{items,imageKeys:['first','second'],previewByKey:{first:image,second:image},videoPreviewUrl,getMode:channel=>modes[channel]||(channel==='youtube_shorts'?'none':'images'),getSelectedImageKeys:()=>['first'],onModeChange(){},onToggleImage(){},onAddImage(){},onReorderImage(){},onOpenMediaPool(){},onSelectChannel:setActive,activePreview:{channelKey:active,channelLabel:labels[active]},disabled:false,renderChannelOptions:channel=>React.createElement(ChannelOptions,{channel,...optionProps}),soundtrackByChannel:selection,soundtrackScopeKey:'actor:account',canSelectSoundtrack:channel=>eligible[channel]??(channel==='facebook'?optionProps.facebookPublicationPlacement!=='classic'||optionProps.facebookStoryEnabled:channel==='instagram'?optionProps.instagramPublicationPlacement!=='classic'||optionProps.instagramStoryEnabled:false),onSoundtrackChange:(channel,id)=>setSelection(previous=>({...previous,[channel]:id})),isSoundtrackLocked:()=>false});
 }
 window.renderFixture=(count,patch={})=>{fixtureConfig={...fixtureConfig,...patch,count};root.render(React.createElement(Fixture,fixtureConfig))};
 window.renderFixture(13);
@@ -68,6 +69,37 @@ const css = ["app/dashboard/booster/publier/components/publishWizard.module.css"
 const html = `<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*,::before,::after{box-sizing:border-box;margin:0;padding:0}dialog{margin:0}${css}
 *{box-sizing:border-box}body{margin:0;padding:16px;background:#080c22;font:14px Arial;color:#fff;height:100dvh}button{font-family:inherit}.wizard{height:100%}.progress{min-height:50px}.footer{min-height:56px}.instruction{min-height:26px}
 </style></head><body><div class="wizard" data-current-step="control"><nav class="progress">Validation</nav><div class="workspace"><p class="instruction">Vérifiez vos canaux avant publication.</p><div class="body" tabindex="0"><section class="screen" data-wizard-screen="control"><div id="root"></div></section></div></div><footer class="footer">Étape précédente · Continuer</footer></div></body></html>`;
+
+test("a duration-invalid video displays a red media warning and its reason, then clears at the valid boundary", async () => {
+ const browser=await chromium.launch({headless:true});
+ try {
+  const page=await browser.newPage();
+  await page.route("**/*",route=>route.abort());
+  await page.setContent(html);await page.addScriptTag({content:fixture});
+  const render=async(duration:number)=>{
+   const reviewItems=durationReviewItems(duration);
+   await page.evaluate(items=>(window as unknown as {renderFixture:(count:number,patch:unknown)=>void}).renderFixture(2,{reviewItems:items,modes:{facebook:'none',gmb:'video'},videoPreviewUrl:'blob:fixture-video'}),reviewItems);
+  };
+  await render(31);
+  const blocked=page.locator('[data-channel="gmb"] [data-tone="blocked"]');
+  await blocked.waitFor();
+  assert.equal(await blocked.count(),1,"only the invalid media status is blocked");
+  assert.equal(await blocked.evaluate(node=>getComputedStyle(node).color),'rgb(242, 119, 142)',"the actual stylesheet paints the blocker red");
+  const message=durationReviewItems(31).find(item=>item.channel==='gmb')!.mediaBlockers[0];
+  assert.ok(message.length>0);
+  const trigger=blocked.locator('button');
+  assert.ok((await trigger.getAttribute('aria-label'))?.includes(message));
+  await trigger.click();
+  const tooltip=blocked.getByRole('tooltip');
+  await tooltip.waitFor({state:'visible'});
+  assert.equal(await tooltip.textContent(),message);
+  assert.equal(await trigger.getAttribute('aria-describedby'),await tooltip.getAttribute('id'));
+  assert.equal(await page.locator('[data-channel="facebook"] [data-tone="blocked"]').count(),0,"the valid destination stays publishable");
+  await render(30);
+  await page.waitForFunction(()=>!document.querySelector('[data-channel="gmb"] [data-tone="blocked"]'));
+  assert.equal(await page.locator('[data-channel="gmb"] [data-tone="ready"]').count(),2,"content and video become ready at the inclusive duration boundary");
+ } finally {await browser.close();}
+});
 
 test("Validation keeps the same compact card dimensions with 1, 3 or 13 channels in portrait and landscape",async t=>{
  const browser=await chromium.launch({headless:true});

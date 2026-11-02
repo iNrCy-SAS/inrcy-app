@@ -510,8 +510,9 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     };
   }, [analyzing]);
 
+  const analysisJobPending = isBusinessDnaManualAnalysisPending(analysisJob);
   useEffect(() => {
-    if (!isBusinessDnaManualAnalysisPending(analysisJob)) return;
+    if (!analysisJobPending) return;
     let active = true;
     let polling = false;
     const accountId = analysisAccountIdRef.current;
@@ -569,7 +570,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     void refresh();
     const timer = window.setInterval(() => { void refresh(); }, 3_000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [analysisJob?.id, analysisJob?.status, activityDirty, strategyEnabled, t, updateBusinessKnowledge, updateMemory]);
+  }, [analysisJob?.id, analysisJob?.status, analysisJobPending, activityDirty, strategyEnabled, t, updateBusinessKnowledge, updateMemory]);
 
   const setField = <K extends keyof AiMemory>(key: K, value: AiMemory[K]) => {
     setSaved(false);
@@ -879,7 +880,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     setBusinessField("customerTypes", next);
   };
 
-  const saveAiMemory = async (
+  const saveAiMemory = useCallback(async (
     draft: {
       memory?: AiMemory;
       businessKnowledge?: AiBusinessKnowledge;
@@ -942,9 +943,9 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     } finally {
       setSaving(false);
     }
-  };
+  }, [saving, loaded, t, updateMemory, updateBusinessKnowledge]);
 
-  const restoreAiMemoryDraft = () => {
+  const restoreAiMemoryDraft = useCallback(() => {
     try {
       const savedWorkspace = JSON.parse(savedSignatureRef.current) as {
         memory?: unknown;
@@ -961,7 +962,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     } catch {
       // La signature est toujours créée par JSON.stringify sur des objets validés.
     }
-  };
+  }, [strategyEnabled, updateMemory, updateBusinessKnowledge]);
 
   const saveWorkspace = useCallback(async (options: WorkspaceSaveOptions = {}): Promise<boolean> => {
     const inFlightSave = workspaceSavePromiseRef.current;
@@ -1109,6 +1110,8 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     }
   }, [
     activityDirty,
+    changeTab,
+    saveAiMemory,
     loaded,
     locationDirty,
     memoryDirty,
@@ -1139,7 +1142,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     setWorkspaceError("");
     setAutoSaveState("idle");
     onUnsavedChange?.(false);
-  }, [onUnsavedChange]);
+  }, [onUnsavedChange, restoreAiMemoryDraft]);
 
   const cancelActiveTabChanges = async () => {
     if (workspaceSaving || voiceTargetRef.current) return;

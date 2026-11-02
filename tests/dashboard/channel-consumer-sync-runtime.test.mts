@@ -62,7 +62,17 @@ function runEffect(path: string, marker: string, dependencies: Dict) {
   }
   visit(source);
   assert.ok(found, `Missing effect: ${marker}`);
-  const compiled = ts.transpileModule(`const effect = (${found.getText(source)});`, {
+  const events: string[] = [];
+  function collectEvents(node: ts.Node) {
+    if (ts.isVariableDeclaration(node) && node.initializer && ts.isCallExpression(node.initializer)
+      && node.initializer.expression.getText(source) === "useEffectEvent"
+      && found!.getText(source).includes(node.name.getText(source))) {
+      events.push(`const ${node.name.getText(source)} = (${node.initializer.arguments[0].getText(source)});`);
+    }
+    ts.forEachChild(node, collectEvents);
+  }
+  collectEvents(source);
+  const compiled = ts.transpileModule(`${events.join("\n")}\nconst effect = (${found.getText(source)});`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   }).outputText;
   return new Function(...Object.keys(dependencies), `${compiled}\nreturn effect();`)(...Object.values(dependencies));
@@ -207,6 +217,7 @@ for (const consumer of ["Booster", "iNrAgent"] as const) {
     const applied: Dict[] = [];
     let details: Dict = {};
     let loadState = "loading";
+    let connectedAccount: string | null = null;
     const dependencies = {
       window: b.window,
       document: b.document,
@@ -228,6 +239,7 @@ for (const consumer of ["Booster", "iNrAgent"] as const) {
       setChannelDetails: (update: any) => { details = typeof update === "function" ? update(details) : update; },
       setConnectedChannelsLoadState: (update: any) => { loadState = typeof update === "function" ? update(loadState) : update; },
       setAgentConnectedChannels: (next: Dict) => applied.push(next),
+      setConnectedChannelsAccountId: (next: string | null) => { connectedAccount = next; },
       writeCachedAgentViewSnapshot() {},
       channelMapFromConnectionStates: (state: Dict) => ({ gmb: state.gmb.connected, threads: false }),
       metaPilotEnabled: false,
@@ -248,6 +260,7 @@ for (const consumer of ["Booster", "iNrAgent"] as const) {
     await tick();
     assert.equal(applied.length, initialWrites + 1);
     assert.equal(applied.at(-1)?.gmb, false);
+    if (consumer === "iNrAgent") assert.equal(connectedAccount, "account-a");
     cleanup();
     b.confirm();
     await tick();
@@ -583,7 +596,7 @@ test("Booster: cold opening remains unknown until an actual connection response 
 
 for(const action of ["runPublish", "performSchedulePublication"]) {
   test("Booster: "+action+" refuses a display-only connection snapshot before any network work", async()=>{
-    const path="app/dashboard/booster/publier/PublishModal.tsx";
+    const path="app/dashboard/booster/publier/publicationSubmission.ts";
     const source=ts.createSourceFile(path,read(path),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
     let found:ts.Expression|undefined;
     function visit(node:ts.Node) {
@@ -596,7 +609,8 @@ for(const action of ["runPublish", "performSchedulePublication"]) {
     const dependencies={saving:false,draftSaving:false,voiceInputBusy:false,publishStartGuardRef:{current:false},
       authoritativeChannelsRef:{current:false},connectedChannelsScopeRef:{current:"account-a"},getActiveBrowserUserId:()=>"account-a",activeAccountId:"",
       i18nT:(key:string)=>key,setPublishError:(message:string)=>errors.push(message),setScheduleError:(message:string)=>errors.push(message)};
-    const invoke=new Function(...Object.keys(dependencies),compiled+"; return action;")(...Object.values(dependencies));
+    const ports={...dependencies,readContext:()=>({state:dependencies,media:dependencies,preparation:dependencies,actions:dependencies})};
+    const invoke=new Function(...Object.keys(ports),compiled+"; return action;")(...Object.values(ports));
     await invoke();
     assert.deepEqual(errors,["connections_loading"]);
   });
@@ -634,6 +648,6 @@ test("Booster: the first render reads the cached display using the trusted accou
   });
   assert.equal(bootstrap.accountId,"account-a");
   assert.equal(bootstrap.snapshot,snapshot);
-  const getInitial=modalInitializer("getInitialConnectedChannels")({initialConnectionBootstrap:bootstrap});
+  const getInitial=modalInitializer("getInitialConnectedChannels")({initialConnectionBootstrap:bootstrap, initialConnectedChannels:undefined, metaPilotEnabled:false, useCallback:(callback:()=>unknown)=>callback});
   assert.deepEqual(getInitial(),snapshot.channels);
 });

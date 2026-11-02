@@ -89,12 +89,6 @@ class MediaLibraryOptimizationError extends Error {
   }
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
 function compactMessage(error: unknown) {
   const record = error as { message?: unknown; stderr?: unknown } | null;
   return String(record?.stderr || record?.message || error || "Erreur inconnue")
@@ -237,7 +231,6 @@ function validateMedia(job: OptimizationJob, media: OptimizationMedia) {
       false,
     );
   }
-  const targetBytes = targetBytesForJob(job, mediaType);
   const requirements = optimizationRequirementsForMedia(job, media);
   if (!requirements.needsOptimization) {
     throw new MediaLibraryOptimizationError(

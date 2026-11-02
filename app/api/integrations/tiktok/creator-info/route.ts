@@ -4,6 +4,7 @@ import { encryptToken, tryDecryptToken } from "@/lib/oauthCrypto";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { fetchTiktokCreatorInfo, refreshTiktokAccessToken } from "@/lib/tiktokOAuth";
+import { TikTokCreatorInfoError, tiktokCreatorInfoFailureResponse } from "@/lib/tiktokCreatorInfo";
 import { isTiktokIntegrationActive, readTiktokIntegration, readTiktokSettingsWithOAuth } from "@/lib/tiktokRouteStorage";
 import { asRecord, asString } from "@/lib/tsSafe";
 
@@ -77,7 +78,7 @@ function normalizePrivacyOptions(value: unknown) {
 }
 
 export async function GET() {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const [integration, settingsResult] = await Promise.all([
@@ -94,7 +95,22 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "Connexion TikTok expirée. Reconnecte TikTok dans Canaux." }, { status: 401 });
   }
 
-  const creatorInfo = await fetchTiktokCreatorInfo(accessToken);
+  let creatorInfo: Record<string, unknown>;
+  try {
+    creatorInfo = await fetchTiktokCreatorInfo(accessToken);
+  } catch (error) {
+    if (!(error instanceof TikTokCreatorInfoError)) throw error;
+    const failure = tiktokCreatorInfoFailureResponse(error);
+    console.warn("[tiktok] creator info unavailable", {
+      status: error.status,
+      code: error.code,
+      retryable: error.retryable,
+    });
+    return NextResponse.json(
+      { ok: false, error: failure.message, code: failure.code },
+      { status: failure.status, headers: failure.retryAfter ? { "Retry-After": failure.retryAfter } : {} },
+    );
+  }
   const normalized = {
     accountKey:
       settingsResult.tiktok.openId ||

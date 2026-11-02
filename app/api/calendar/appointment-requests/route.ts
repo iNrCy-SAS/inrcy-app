@@ -13,8 +13,6 @@ import {
   type ClientExchangePreferences,
 } from "@/lib/clientCommunication";
 
-const AGENDA_TIMEZONE = "Europe/Paris";
-
 type AppointmentRequestRow = {
   id?: string | null;
   title?: string | null;
@@ -70,30 +68,6 @@ function subjectSafe(value: string) {
     .replace(/[^ -~]/g, "")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function fmtDateOnly(iso: string | null | undefined) {
-  const d = new Date(String(iso || ""));
-  return Number.isFinite(d.getTime())
-    ? new Intl.DateTimeFormat("fr-FR", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-        timeZone: AGENDA_TIMEZONE,
-      }).format(d)
-    : "-";
-}
-
-function fmtTimeOnly(iso: string | null | undefined) {
-  const d = new Date(String(iso || ""));
-  return Number.isFinite(d.getTime())
-    ? new Intl.DateTimeFormat("fr-FR", {
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: AGENDA_TIMEZONE,
-      }).format(d)
-    : "-";
 }
 
 function buildDisplayName(args: {
@@ -339,7 +313,7 @@ async function sendAppointmentRejectionEmail(args: { userId: string; row: Appoin
 }
 
 export async function PATCH(req: Request) {
-  const { supabase, user, errorResponse, activeUserId } = await requireUser();
+  const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const { searchParams } = new URL(req.url);

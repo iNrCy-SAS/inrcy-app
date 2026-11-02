@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -5,8 +7,6 @@ import test from "node:test";
 function read(path: string) {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
-
-const publishModal = read("app/dashboard/booster/publier/PublishModal.tsx");
 const modalLayer = read("app/dashboard/_components/DashboardBoosterModalLayer.tsx");
 const resultModal = read("app/dashboard/_components/PublishExecutionResultModal.tsx");
 const bottomNav = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
@@ -19,15 +19,15 @@ const mediaWorkspaceClient = read("lib/mediaWorkspaceClient.ts");
 const publicationRetry = read("lib/publicationStorySequenceRetry.ts");
 
 test("partial publishing retries only retryable failed channels and keeps the workspace", () => {
-  assert.match(publishModal, /const retryFailedChannels = resultEntries/);
-  assert.match(publishModal, /isRetryablePublicationEntry\(entry\)/);
+  assert.match(submission, /const retryFailedChannels = resultEntries/);
+  assert.match(submission, /isRetryablePublicationEntry\(entry\)/);
   assert.match(publicationRetry, /entry\.ok === false/);
   assert.match(publicationRetry, /entry\.retryable === false/);
-  assert.match(publishModal, /const channels = \(retryPreviousSummary\.entries \|\| \[\]\)/);
-  assert.match(publishModal, /const retryPreviousSummary = latestPublicationSummaryRef\.current \|\| completedSummary/);
-  assert.match(publishModal, /filter\(isRetryablePublicationEntry\)/);
-  assert.match(publishModal, /if \(publicationComplete\) \{[\s\S]*archivePersistentMediaWorkspace/);
-  assert.match(publishModal, /options\?\.closeOnSuccess !== false && publicationAccepted/);
+  assert.match(submission, /const channels = \(retryPreviousSummary\.entries \|\| \[\]\)/);
+  assert.match(submission, /const retryPreviousSummary = latestPublicationSummaryRef\.current \|\| completedSummary/);
+  assert.match(submission, /filter\(isRetryablePublicationEntry\)/);
+  assert.match(submission, /if \(publicationComplete\) \{[\s\S]*archivePersistentMediaWorkspace/);
+  assert.match(submission, /options\?\.closeOnSuccess !== false && publicationAccepted/);
 });
 
 test("the result modal exposes a dedicated retry for failed channels", () => {
@@ -58,6 +58,6 @@ test("transient Pixel workspace reads get one safe retry and a precise user mess
   assert.match(mediaWorkspaceClient, /fetchWorkspaceSnapshotWithRetry/);
   assert.match(mediaWorkspaceClient, /isMediaWorkspaceRetryableHttpStatus/);
   assert.match(mediaWorkspaceClient, /isMediaWorkspaceRetryableFetchError/);
-  assert.match(publishModal, /Connexion interrompue pendant la préparation des médias/);
-  assert.match(publishModal, /vérifiez iNr’Send avant de relancer/);
+  assert.match(submission, /Connexion interrompue pendant la préparation des médias/);
+  assert.match(submission, /vérifiez iNr’Send avant de relancer/);
 });

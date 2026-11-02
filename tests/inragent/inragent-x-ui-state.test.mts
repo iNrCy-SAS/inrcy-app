@@ -1,3 +1,4 @@
+import { readAgentPublicationPreparationSource } from "./prepare-publication-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -25,7 +26,7 @@ const agentSchedule = read("app/dashboard/agent/_lib/agent.schedule.ts");
 const agentClient = read("app/dashboard/agent/AgentClient.tsx");
 const agentSettingsApi = read("app/api/agent/settings/route.ts");
 const agentActionsApi = read("app/api/agent/actions/route.ts");
-const agentPrepareApi = read("app/api/agent/actions/prepare-publish/route.ts");
+const agentPrepareApi = readAgentPublicationPreparationSource();
 const agentStyles = read("app/dashboard/agent/agent.module.css");
 
 test("X is a first-class iNrAgent publication channel", () => {

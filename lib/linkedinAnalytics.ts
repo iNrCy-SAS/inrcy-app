@@ -116,6 +116,9 @@ function toNumberRecord(value: unknown): Record<string, number> {
 }
 
 function toDateRangeParam(start: Date, end: Date): string {
+  // Rest.li 2.0 requires its record delimiters to remain literal in the URL.
+  // Encoding the whole record produces HTTP 400 "Invalid query parameters".
+  // These fields are numeric date components, so no user text needs escaping.
   return `(start:(year:${start.getUTCFullYear()},month:${start.getUTCMonth() + 1},day:${start.getUTCDate()}),end:(year:${end.getUTCFullYear()},month:${end.getUTCMonth() + 1},day:${end.getUTCDate()}))`;
 }
 
@@ -430,8 +433,8 @@ async function liFetchMemberFollowers(
   try {
     const daily = await fetchFirstOk(
       [
-        `${LI_API}/memberFollowersCount?q=dateRange&dateRange=${encodeURIComponent(toDateRangeParam(start, end))}`,
-        `https://api.linkedin.com/v2/memberFollowersCount?q=dateRange&dateRange=${encodeURIComponent(toDateRangeParam(start, end))}`,
+        `${LI_API}/memberFollowersCount?q=dateRange&dateRange=${toDateRangeParam(start, end)}`,
+        `https://api.linkedin.com/v2/memberFollowersCount?q=dateRange&dateRange=${toDateRangeParam(start, end)}`,
       ],
       accessToken,
       { extraHeaders: { "X-RestLi-Method": "FINDER" } },
@@ -471,8 +474,8 @@ async function liFetchMemberPostAnalytics(
     queryTypes.map((queryType) =>
       fetchFirstOk(
         [
-          `${LI_API}/memberCreatorPostAnalytics?q=me&queryType=${encodeURIComponent(queryType)}&aggregation=TOTAL&dateRange=${encodeURIComponent(toDateRangeParam(start, end))}`,
-          `https://api.linkedin.com/v2/memberCreatorPostAnalytics?q=me&queryType=${encodeURIComponent(queryType)}&aggregation=TOTAL&dateRange=${encodeURIComponent(toDateRangeParam(start, end))}`,
+          `${LI_API}/memberCreatorPostAnalytics?q=me&queryType=${encodeURIComponent(queryType)}&aggregation=TOTAL&dateRange=${toDateRangeParam(start, end)}`,
+          `https://api.linkedin.com/v2/memberCreatorPostAnalytics?q=me&queryType=${encodeURIComponent(queryType)}&aggregation=TOTAL&dateRange=${toDateRangeParam(start, end)}`,
         ],
         accessToken,
         { extraHeaders: { "X-RestLi-Method": "FINDER" } },
@@ -497,40 +500,6 @@ async function liFetchMemberPostAnalytics(
   }
 
   return normalizeTotals(totals);
-}
-
-async function liFetchPosts(
-  accessToken: string,
-  authorUrn: string,
-  start: Date,
-): Promise<Record<string, number>> {
-  if (!authorUrn) return { postsPublished: 0 };
-  const params = new URLSearchParams({
-    q: "author",
-    author: authorUrn,
-    count: "100",
-    sortBy: "LAST_MODIFIED",
-    viewContext: "AUTHOR",
-  }).toString();
-
-  const resp = await fetchFirstOk(
-    [
-      `${LI_API}/posts?${params}`,
-      `https://api.linkedin.com/v2/posts?${params}`,
-    ],
-    accessToken,
-    { extraHeaders: { "X-RestLi-Method": "FINDER" } },
-  );
-  const elements = Array.isArray(resp?.elements) ? resp.elements : [];
-  const postCount = elements.filter((raw: unknown) => {
-    const post = raw && typeof raw === "object" ? (raw as Dict) : {};
-    const createdAt = safeNum(
-      post.createdAt || post.publishedAt || post.lastModifiedAt,
-    );
-    return createdAt <= 0 || createdAt >= start.getTime();
-  }).length;
-
-  return { postsPublished: postCount };
 }
 
 export async function liResolveFirstAdminOrgUrn(

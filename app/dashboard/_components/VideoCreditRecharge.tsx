@@ -107,6 +107,8 @@ function MediaCreditPacksPanel({ mediaKind, onCheckoutOpened, onBusyChange }: Pa
   const [balanceRefresh, setBalanceRefresh] = useState(0);
   const checkoutToRefresh = useRef(false);
   const epoch = useRef(0);
+  // Invalidate all in-flight catalogue/checkout reads using the current scope.
+  const invalidateScope = useCallback(() => { epoch.current++; }, []);
   const busyRef = useRef<number | null>(null);
   const purchaseSequence = useRef(0);
   const requests = useRef(new Map<string, string>());
@@ -134,7 +136,7 @@ function MediaCreditPacksPanel({ mediaKind, onCheckoutOpened, onBusyChange }: Pa
     setWeb(detectClientBillingPlatform() === "web");
     void load();
     const changed = () => {
-      epoch.current++; busyRef.current = null; setBusy(null);
+      invalidateScope(); busyRef.current = null; setBusy(null);
       checkoutToRefresh.current = false;
       setCatalogue(null); setCheckoutUrl(null); setNotice(""); requests.current.clear(); void load();
     };
@@ -144,8 +146,8 @@ function MediaCreditPacksPanel({ mediaKind, onCheckoutOpened, onBusyChange }: Pa
     };
     window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, changed);
     window.addEventListener("focus", returnedFromCheckout);
-    return () => { epoch.current++; window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, changed); window.removeEventListener("focus", returnedFromCheckout); };
-  }, [load]);
+    return () => { invalidateScope(); window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, changed); window.removeEventListener("focus", returnedFromCheckout); };
+  }, [invalidateScope, load]);
 
   const purchase = async (packKey: string) => {
     if (!web || !catalogue?.canPurchase || busyRef.current !== null) return;

@@ -13,7 +13,7 @@ export type InrAssistantClientContext = {
 };
 
 const ACTIONS = new Set(["channels", "publish", "campaigns", "cash", "help", "generator", "stats"]);
-const PANELS = new Set(["contact", "profil", "preferences", "notifications", "inrbadge", "compte", "activite", "ia", "ai_memory", "abonnement", "factures", "mails", "agenda", "site_web", "site_inrcy", "instagram", "threads", "linkedin", "x", "gmb", "inr_search", "facebook", "tiktok", "youtube_shorts", "pinterest", "legal", "rgpd", "inertie", "boutique", "parrainage", "documents", "trustpilot"]);
+const PANELS = new Set(["contact", "profil", "preferences", "notifications", "inrbadge", "compte", "activite", "ia", "ai_memory", "abonnement", "factures", "mails", "agenda", "site_web", "site_inrcy", "instagram", "threads", "linkedin", "x", "gmb", "inr_search", "inr_directory", "facebook", "tiktok", "youtube_shorts", "pinterest", "legal", "rgpd", "inertie", "boutique", "parrainage", "documents", "trustpilot"]);
 const CHANNELS = new Set(["site_web", "gmb", "facebook", "instagram", "threads", "linkedin", "tiktok", "youtube_shorts", "pinterest", "x", "inr_search", "inr_directory", "inrbadge", "mails", "meta", "google", "openai"]);
 const STEPS = new Set(["mode", "channels", "intention", "content", "media", "control", "validation", "publication", "results", "project", "analysis", "foundations", "budget", "geography", "targeting", "bidding", "creative", "review", "launch"]);
 const member = (value: unknown, values: Set<string>) => typeof value === "string" && values.has(value) ? value : undefined;

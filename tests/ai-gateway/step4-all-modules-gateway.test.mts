@@ -1,3 +1,4 @@
+import { readAgentPublicationPreparationSource } from "../inragent/prepare-publication-sources.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
@@ -101,6 +102,6 @@ test("major iNrCy modules have distinct Gateway feature tags", () => {
 });
 
 test("iNrAgent shared generators identify Agent traffic explicitly", () => {
-  assert.match(read("app/api/agent/actions/prepare-publish/route.ts"), /aiFeature:\s*"agent\.publish"/);
+  assert.match(readAgentPublicationPreparationSource(), /aiFeature:\s*"agent\.publish"/);
   assert.match(read("app/api/agent/actions/prepare-campaign/route.ts"), /aiFeature:\s*"agent\.campaign"/);
 });

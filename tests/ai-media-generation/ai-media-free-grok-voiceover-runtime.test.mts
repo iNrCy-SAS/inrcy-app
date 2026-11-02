@@ -1,4 +1,5 @@
 import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
+import { loadNarrationPreparationRuntime } from "./narration-preparation-runtime.mjs";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -133,6 +134,7 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
     ["@/lib/aiMediaVideoTemporaryImages", { preflightAiMediaVideoTemporaryImages: async () => {} }],
   ];
   for (const [name, value] of entries) modules.set(name, value);
+  modules.set("@/lib/aiMediaNarrationPreparation", loadNarrationPreparationRuntime(modules));
   const filename = path.resolve("lib/aiMediaGenerationServer.ts");
   const source = ts.transpileModule(readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const moduleRecord = { exports: {} as { generateAndSaveAiMedia: (args: Row) => Promise<Row> } };

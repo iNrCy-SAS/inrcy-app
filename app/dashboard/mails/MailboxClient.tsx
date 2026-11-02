@@ -1,12 +1,14 @@
 "use client";
 
+import { useMailboxHistory } from "./_hooks/useMailboxHistory";
+import { useMailboxCrmRecipients } from "./_hooks/useMailboxCrmRecipients";
+import { useMailboxPublicationMedia } from "./_hooks/useMailboxPublicationMedia";
+
 import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessProvider";
-import { filterMetaPilotItems, filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
+import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
 import { useLocale, useTranslations } from "next-intl";
 
-
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
-import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
 
 import { readWorkflowMailPrefillAttachments } from "@/app/dashboard/_lib/workflowMailPrefillAttachments";
 import {
@@ -15,10 +17,10 @@ import {
   saveWorkflowCampaignState,
   workflowCampaignTargetFromTrack,
 } from "@/app/dashboard/_lib/workflowCampaignState";
-import React, {
+import {
   useCallback,
   useEffect,
-  useLayoutEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -31,17 +33,14 @@ import {
   containsForbiddenXUrl,
   X_FORBIDDEN_URL_ERROR,
 } from "@/lib/xChannel";
-import { requestBoosterVideoTransforms } from "@/lib/boosterVideoTransformClient";
+
 import {
   buildVideoTransformSignature,
   getVideoPublicationProfileForChannel,
 } from "@/lib/boosterVideoTransforms";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { canRemoveInstagramDraftLocally } from "@/lib/inrsend/instagramCapabilities";
-import {
-  PROFILE_VERSION_EVENT,
-  type ProfileVersionChangeDetail,
-} from "@/lib/profileVersioning";
+
 import MailboxHeader from "./_components/MailboxHeader";
 import PublishAiConfigurationDrawer from "../booster/publier/components/PublishAiConfigurationDrawer";
 import FolderTabs from "./_components/FolderTabs";
@@ -51,8 +50,7 @@ import MailboxToolbar from "./_components/MailboxToolbar";
 import MailboxList from "./_components/MailboxList";
 import MailboxSearchPanel from "./_components/MailboxSearchPanel";
 import MailboxDetailsModal from "./_components/MailboxDetailsModal";
-import type { MediaLibraryPickerItem } from "@/app/dashboard/_components/MediaLibraryPickerModal";
-import { withMediaImageInteractions } from "@/lib/imageInteractions";
+
 import { useInrStudioSession } from "@/app/dashboard/_hooks/useInrStudioSession";
 import {
   consumeInrStudioReturn,
@@ -77,62 +75,21 @@ import {
   bulkConfirmationMessage,
   campaignCounts,
   campaignReportToHealth,
-  campaignTitleFromFolder,
   channelApiPath,
-  computePublicationPreviewLayout,
-  defaultFolderFromSendType,
-  emptyFolderCounts,
-  extractAttachmentsFromPayload,
   extractChannelPublications,
-  extractChannelsFromPayload,
-  extractMessageFromPayload,
   extractPublicationParts,
-  extractPublicationResults,
   folderFromTrack,
-  folderLabel,
-  folderTheme,
   formatCampaignDuration,
-  formatCampaignFilterLabel,
   formatCampaignProgress,
   formatChannelLabel,
-  formatOutboxStatusLabel,
   getPublicationChannelPreset,
-  getCampaignRecipientStatusLabel,
-  getChannelIndicatorMeta,
-  getFailedChannelMessage,
-  getPublicationBackgroundMode,
-  buildPublicationDefaultTransform,
-  getPublicationChannelStatuses,
-  hasAttachmentFields,
-  firstNonEmpty,
-  historyEmptyState,
   isBusinessMailFolder,
-  isDeletedChannelResult,
-  isFailedChannelResult,
-  isFolderValue,
-  isImageAttachment,
   isPublicationTransformModified,
-  isRetryableCampaignItem,
-  isVideoAttachment,
-  isVisibleInFolder,
-  listGridTemplateColumns,
-  makePublicationImageAssetKey,
   normalizeChannelKey,
-  normalizeFolderCounts,
-  offsetFromPublicationDrawPosition,
   orderChannelKeys,
-  pill,
-  publicationClamp,
-  renderPublicationChannelsWithFailures,
   renderPublicationImageAsset,
-  resolveCampaignFolder,
   safeDecode,
-  safeS,
-  splitList,
-  stripText,
   tagsToEditorString,
-  toolbarActionTheme,
-  withPublicationBackgroundMode,
   type BoxView,
   type CampaignExperienceReport,
   type CampaignHealthSummary,
@@ -141,36 +98,13 @@ import {
   type ChannelPublication,
   type ComposeAttachmentRef,
   type ComposeCrmRecipientHint,
-  type EditablePublicationAttachment,
   type Folder,
-  type FolderCounts,
   type MailAccount,
   type OutboxItem,
-  type PublicationChannelImagesState,
-  type PublicationImageAsset,
-  type PublicationImageBackgroundMode,
-  type PublicationImageFitMode,
-  type PublicationImageTransform,
   type PublicationEditForm,
-  type PublicationParts,
-  type SendItem,
   type SendType,
   type Status,
 } from "./_lib/mailboxPhase1";
-
-import {
-  MAILBOX_HISTORY_PREFETCH_CONCURRENCY,
-  buildMailboxHistoryPreloadPlan,
-  isMailboxHistorySnapshotFresh,
-  mailboxHistoryContextKey,
-  mailboxHistoryGroupKey,
-  mailboxHistoryPageCount,
-  mailboxHistoryPageKey,
-  mailboxHistoryRefreshInterval,
-  normalizeMailboxHistoryQuery,
-  type MailboxHistoryContext,
-  type MailboxHistorySnapshot,
-} from "./_lib/mailboxHistoryPreload";
 
 import {
   MAILBOX_FILE_INPUT_ID,
@@ -188,37 +122,13 @@ import {
   normalizeRichMailHtmlForSend,
   textToRichMailHtml,
 } from "@/lib/mailRichText";
+
 import {
-  BOOSTER_MAX_IMAGE_BYTES,
-  BOOSTER_MAX_IMAGE_COUNT,
-  BOOSTER_MAX_IMAGE_MB_LABEL,
-  BOOSTER_MAX_MEDIA_BYTES,
-  BOOSTER_MAX_MEDIA_MB_LABEL,
-  BOOSTER_MAX_VIDEO_BYTES,
-  BOOSTER_MAX_VIDEO_MB_LABEL,
-  uploadBoosterVideo,
-  getLocalizedVideoAdaptationModeLabel,
-  getLocalizedVideoFormatLabel,
-  getLocalizedVideoOrientationLabel,
-  normalizeVideoAdaptationMode,
-  normalizeVideoFormat,
-  isUnsupportedBrowserImageFile,
-  type BoosterVideoSourceMetadata,
-  type ChannelKey as BoosterChannelKey,
-  type VideoAdaptationMode,
-  type VideoFormat,
-  type VideoPayload,
-} from "../booster/publier/publishModal.shared";
-import {
-  attachmentToVideoPayload,
   normalizeBoosterChannelKeyForVideo,
-  readPublicationVideoMetadata,
   type CampaignDistributionNotice,
-  type PublicationEditVideoState,
 } from "./_lib/mailboxPublicationVideo.foundations";
 import {
   asScheduledRecord,
-  contactDepartment,
   inferTrackFromCampaign,
   normalizeCampaignAttachments,
   sanitizeCrmDepartmentFilter,
@@ -226,22 +136,6 @@ import {
   workflowDraftTargetFromSendItem,
   type PendingTrack,
 } from "./_lib/mailboxComposeCampaign.foundations";
-
-type InrSendDefaultSnapshot = {
-  items: OutboxItem[];
-  page: number;
-  total: number | null;
-  hasMore: boolean;
-  folderCounts: FolderCounts;
-  draftFolderCounts: FolderCounts;
-};
-
-const INRSEND_HISTORY_RECOVERY_THROTTLE_MS = 10_000;
-const INRSEND_COUNTS_CACHE_MS = 30_000;
-
-function mailboxHistoryCountsKey(context: MailboxHistoryContext) {
-  return `account=${encodeURIComponent(context.filterAccountId)}|q=${encodeURIComponent(context.query)}`;
-}
 
 export default function MailboxClient({
   standardMode = false,
@@ -280,68 +174,34 @@ export default function MailboxClient({
     return () => mq.removeEventListener?.("change", update);
   }, []);
 
-  // Keep the server render and the first browser render identical. Reading
-  // sessionStorage inside a state initializer made the server display `0`
-  // while the hydrating client displayed `…`, forcing React to rebuild iNrSend.
-  const [initialHistorySnapshot, setInitialHistorySnapshot] =
-    useState<InrSendDefaultSnapshot | null>(null);
-  const [historyCacheHydrated, setHistoryCacheHydrated] = useState(false);
-  const [folder, setFolder] = useState<Folder>("publications");
-  const [boxView, setBoxView] = useState<BoxView>("sent");
-  const [items, setItems] = useState<OutboxItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [historyLoadedOnce, setHistoryLoadedOnce] = useState(false);
-  const [historyCountsLoadedOnce, setHistoryCountsLoadedOnce] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [historyPage, setHistoryPage] = useState(1);
-  const historyPageRef = useRef(1);
-  const [historyHasMorePotential, setHistoryHasMorePotential] = useState(false);
-  const [historyTotalCount, setHistoryTotalCount] = useState<number | null>(null);
-  const [folderCounts, setFolderCounts] = useState<FolderCounts>(() =>
-    emptyFolderCounts(),
-  );
-  const [draftFolderCounts, setDraftFolderCounts] = useState<FolderCounts>(() =>
-    emptyFolderCounts(),
-  );
-
-  const historyCacheRef = useRef<Map<string, MailboxHistorySnapshot<OutboxItem>>>(new Map());
-  const historyInFlightRef = useRef<Map<string, Promise<MailboxHistorySnapshot<OutboxItem> | null>>>(new Map());
-  const historyCountsInFlightRef = useRef<Map<string, Promise<boolean>>>(new Map());
-  const historyCountsFetchedAtRef = useRef<Map<string, number>>(new Map());
-  const historyCountsDisplayKeyRef = useRef("");
-  const historyDisplayedContextKeyRef = useRef("");
-  const historyLoadedContextKeyRef = useRef("");
-  const historyPreloadGenerationRef = useRef(0);
-  const historyPreloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    const snapshot =
-      readModuleSnapshot<InrSendDefaultSnapshot>(
-        MODULE_SNAPSHOT_KEYS.inrSendDefault,
-      )?.data ?? null;
-    setInitialHistorySnapshot(snapshot);
-    if (snapshot) {
-      const restoredItems = filterMetaPilotItems(Array.isArray(snapshot.items) ? snapshot.items : [], metaPilotEnabled);
-      const restoredPage = Math.max(1, snapshot.page || 1);
-      setItems(restoredItems);
-      setLoading(false);
-      setHistoryLoadedOnce(true);
-      setSelectedId(restoredItems[0]?.id ?? null);
-      setHistoryPage(restoredPage);
-      historyPageRef.current = restoredPage;
-      setHistoryHasMorePotential(Boolean(snapshot.hasMore));
-      setHistoryTotalCount(snapshot.total ?? null);
-      setFolderCounts(snapshot.folderCounts ?? emptyFolderCounts());
-      setDraftFolderCounts(snapshot.draftFolderCounts ?? emptyFolderCounts());
-      historyDisplayedContextKeyRef.current = mailboxHistoryContextKey({
-        folder: "publications",
-        boxView: "sent",
-        filterAccountId: "",
-        query: "",
-      });
-    }
-    setHistoryCacheHydrated(true);
-  }, []);
+  const {
+    folder,
+    setFolder,
+    boxView,
+    setBoxView,
+    items,
+    setItems,
+    loading,
+    historyCountsLoadedOnce,
+    selectedId,
+    setSelectedId,
+    historyPage,
+    historyHasMorePotential,
+    historyTotalCount,
+    folderCounts,
+    draftFolderCounts,
+    filterAccountId,
+    setFilterAccountId,
+    historyQuery,
+    setHistoryQuery,
+    searchOpen,
+    setSearchOpen,
+    historySearchRef,
+    loadHistory,
+    filteredItems,
+    historyPageCount,
+    visibleItems
+  } = useMailboxHistory({ metaPilotEnabled });
 
   // Détails : ouverture en double-clic dans une fenêtre au-dessus (modal)
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -417,13 +277,6 @@ export default function MailboxClient({
       ctaPhone: "",
       hashtags: "",
     });
-  const [publicationEditImagesByChannel, setPublicationEditImagesByChannel] =
-    useState<Record<string, PublicationChannelImagesState>>({});
-  const [publicationEditVideoByChannel, setPublicationEditVideoByChannel] =
-    useState<Record<string, PublicationEditVideoState>>({});
-  useEffect(() => {
-    historyPageRef.current = historyPage;
-  }, [historyPage]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -451,7 +304,6 @@ export default function MailboxClient({
   const [requestedAccountId, setSelectedAccountId] = useState<string>("");
   const selectedAccount = resolveMailAccountSelection(mailAccounts, requestedAccountId);
   const selectedAccountId = selectedAccount?.id || "";
-  const [filterAccountId, setFilterAccountId] = useState<string>("");
 
   // Compose
   const [composeOpen, setComposeOpen] = useState(false);
@@ -461,7 +313,7 @@ export default function MailboxClient({
   const [subject, setSubject] = useState("");
   const [text, setText] = useState("");
   const [html, setHtml] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
+  const [, setFiles] = useState<File[]>([]);
   const [composeAttachments, setComposeAttachments] = useState<
     ComposeAttachmentRef[]
   >([]);
@@ -516,7 +368,7 @@ export default function MailboxClient({
     if ((requestedFolder && requestedFolder !== "publications" && !(adsEnabled && requestedFolder === "campagnes-ads")) || hasPremiumComposeIntent) {
       router.replace("/dashboard/mails?folder=publications", { scroll: false });
     }
-  }, [adsEnabled, router, searchParams, standardMode]);
+  }, [adsEnabled, router, searchParams, standardMode, setBoxView, setFilterAccountId, setFolder]);
 
   // Attachments uploaded by Factures / Devis screens are stored here.
   const ATTACH_BUCKET = "inrbox_attachments";
@@ -534,48 +386,41 @@ export default function MailboxClient({
     payload: Record<string, any>;
   };
 
-  // CRM selection (compose)
-  type CrmContact = {
-    id: string;
-    full_name: string | null;
-    email: string | null;
-    category: "particulier" | "professionnel" | "collectivite_publique" | null;
-    contact_type:
-      "client" | "prospect" | "fournisseur" | "partenaire" | "autre" | null;
-    postal_code: string | null;
-    city: string | null;
-    important: boolean;
-  };
-
-  const [crmContacts, setCrmContacts] = useState<CrmContact[]>([]);
-  const [crmLoading, setCrmLoading] = useState(false);
-  const [crmFilter, setCrmFilter] = useState("");
-  const [crmSearchOpen, setCrmSearchOpen] = useState(false);
-  const crmSearchRef = useRef<HTMLInputElement | null>(null);
-  const [crmError, setCrmError] = useState<string | null>(null);
-  const [crmPickerOpen, setCrmPickerOpen] = useState(false);
-  const [crmCategory, setCrmCategory] = useState<
-    "all" | CrmContact["category"]
-  >("all");
-  const [crmContactType, setCrmContactType] = useState<
-    "all" | CrmContact["contact_type"]
-  >("all");
-  const [crmDepartment, setCrmDepartment] = useState("");
-  const [crmImportantOnly, setCrmImportantOnly] = useState(false);
+  const {
+    crmLoading,
+    crmFilter,
+    setCrmFilter,
+    crmSearchOpen,
+    setCrmSearchOpen,
+    crmSearchRef,
+    crmError,
+    crmPickerOpen,
+    setCrmPickerOpen,
+    crmCategory,
+    setCrmCategory,
+    crmContactType,
+    setCrmContactType,
+    crmDepartment,
+    setCrmDepartment,
+    crmImportantOnly,
+    setCrmImportantOnly,
+    toggleEmailInTo,
+    filteredContacts,
+    selectedToSet,
+    selectedCrmCount,
+    crmRecipientsByEmail,
+    composeRecipientHintsByEmail,
+    loadCrmContacts
+  } = useMailboxCrmRecipients({
+    composeOpen,
+    to,
+    setTo,
+    composeRecipientHints,
+  });
 
   // Used to trigger the hidden file input with a nice button
   const fileInputId = MAILBOX_FILE_INPUT_ID;
   const publicationEditFileInputId = PUBLICATION_EDIT_FILE_INPUT_ID;
-
-  function toggleEmailInTo(email: string) {
-    const list = normalizeEmails(to);
-    const lower = email.toLowerCase();
-    const exists = list.some((x) => x.toLowerCase() === lower);
-    const next = exists
-      ? list.filter((x) => x.toLowerCase() !== lower)
-      : [...list, email];
-    setTo(next.join(", "));
-  }
 
   async function uploadComposeFiles(nextFiles: File[]) {
     if (!nextFiles.length) return [] as ComposeAttachmentRef[];
@@ -608,132 +453,10 @@ export default function MailboxClient({
     }
   }
 
-  // Recherche dans l'historique iNr'Send
-  const [historyQuery, setHistoryQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const historySearchRef = useRef<HTMLInputElement | null>(null);
-
-  const activeHistoryContext = useMemo<MailboxHistoryContext>(() => ({
-    folder,
-    boxView,
-    filterAccountId,
-    query: normalizeMailboxHistoryQuery(historyQuery),
-  }), [boxView, filterAccountId, folder, historyQuery]);
-  const activeHistoryContextKey = useMemo(
-    () => mailboxHistoryContextKey(activeHistoryContext),
-    [activeHistoryContext],
-  );
-  const activeHistoryContextKeyRef = useRef(activeHistoryContextKey);
-  const activeHistoryContextRef = useRef(activeHistoryContext);
-
-  useLayoutEffect(() => {
-    activeHistoryContextKeyRef.current = activeHistoryContextKey;
-    activeHistoryContextRef.current = activeHistoryContext;
-  }, [activeHistoryContext, activeHistoryContextKey]);
-
-  useEffect(() => {
-    if (!initialHistorySnapshot) return;
-    const initialContext: MailboxHistoryContext = {
-      folder: "publications",
-      boxView: "sent",
-      filterAccountId: "",
-      query: "",
-    };
-    historyCacheRef.current.set(
-      mailboxHistoryPageKey(initialContext, initialHistorySnapshot.page),
-      {
-        items: initialHistorySnapshot.items,
-        page: initialHistorySnapshot.page,
-        total: initialHistorySnapshot.total,
-        hasMore: initialHistorySnapshot.hasMore,
-        folderCounts: initialHistorySnapshot.folderCounts,
-        draftFolderCounts: initialHistorySnapshot.draftFolderCounts,
-        fetchedAt: Date.now(),
-      },
-    );
-  }, [initialHistorySnapshot]);
-
-  useEffect(() => () => {
-    historyPreloadGenerationRef.current += 1;
-    if (historyPreloadTimerRef.current) {
-      clearTimeout(historyPreloadTimerRef.current);
-      historyPreloadTimerRef.current = null;
-    }
-  }, []);
-
-  const filteredContacts = useMemo(() => {
-    const q = crmFilter.trim().toLowerCase();
-    const department = sanitizeCrmDepartmentFilter(crmDepartment);
-    return crmContacts.filter((c) => {
-      if (crmImportantOnly && !c.important) return false;
-      if (crmCategory !== "all" && c.category !== crmCategory) return false;
-      if (crmContactType !== "all" && c.contact_type !== crmContactType)
-        return false;
-      if (
-        department &&
-        !contactDepartment(c.postal_code).startsWith(department)
-      )
-        return false;
-      if (!q) return true;
-      const hay =
-        `${c.full_name || ""} ${c.email || ""} ${c.postal_code || ""} ${c.city || ""}`.toLowerCase();
-      return hay.includes(q);
-    });
-  }, [
-    crmContacts,
-    crmFilter,
-    crmImportantOnly,
-    crmCategory,
-    crmContactType,
-    crmDepartment,
-  ]);
-
-  const selectedToSet = useMemo(() => {
-    return new Set(normalizeEmails(to).map((e) => e.toLowerCase()));
-  }, [to]);
-
-  const selectedCrmCount = useMemo(() => {
-    let n = 0;
-    for (const c of crmContacts) {
-      if (c.email && selectedToSet.has(String(c.email).toLowerCase())) n += 1;
-    }
-    return n;
-  }, [crmContacts, selectedToSet]);
-
-  const crmRecipientsByEmail = useMemo(() => {
-    const map = new Map<string, ComposeCrmRecipientHint>();
-    for (const contact of crmContacts) {
-      const email = String(contact.email || "").trim();
-      if (!email) continue;
-      const lower = email.toLowerCase();
-      if (map.has(lower)) continue;
-      map.set(lower, {
-        email,
-        contact_id: contact.id,
-        display_name: (contact.full_name || "").trim() || null,
-      });
-    }
-    return map;
-  }, [crmContacts]);
-
-  const composeRecipientHintsByEmail = useMemo(() => {
-    const map = new Map<string, ComposeCrmRecipientHint>();
-    for (const hint of composeRecipientHints) {
-      const email = String(hint.email || "").trim();
-      if (!email) continue;
-      map.set(email.toLowerCase(), {
-        email,
-        contact_id: hint.contact_id || null,
-        display_name: hint.display_name || null,
-      });
-    }
-    return map;
-  }, [composeRecipientHints]);
-
   const counts = folderCounts;
   const currentFolderDraftCount = draftFolderCounts[folder] || 0;
 
-  function makeComposeSnapshot(input?: {
+  const makeComposeSnapshot = useCallback((input?: {
     selectedAccountId?: string;
     to?: string;
     subject?: string;
@@ -746,7 +469,7 @@ export default function MailboxClient({
     composeSourceDocNumber?: string;
     composeTemplateKey?: string;
     pendingTrack?: PendingTrack | null;
-  }) {
+  }) => {
     const source = input || {};
     return JSON.stringify({
       selectedAccountId: source.selectedAccountId ?? selectedAccountId ?? "",
@@ -766,24 +489,15 @@ export default function MailboxClient({
       templateKey: source.composeTemplateKey ?? composeTemplateKey ?? "",
       pendingTrack: source.pendingTrack ?? pendingTrack ?? null,
     });
-  }
+  }, [
+    selectedAccountId, to, subject, text, html, composeType, composeAttachments,
+    composeSourceDocSaveId, composeSourceDocType, composeSourceDocNumber,
+    composeTemplateKey, pendingTrack,
+  ]);
 
   const currentComposeSnapshot = useMemo(
     () => makeComposeSnapshot(),
-    [
-      selectedAccountId,
-      to,
-      subject,
-      text,
-      html,
-      composeType,
-      composeAttachments,
-      composeSourceDocSaveId,
-      composeSourceDocType,
-      composeSourceDocNumber,
-      composeTemplateKey,
-      pendingTrack,
-    ],
+    [makeComposeSnapshot],
   );
 
   function setComposeSavedSnapshotFromCurrent() {
@@ -1158,7 +872,7 @@ export default function MailboxClient({
     }
   }
 
-  async function loadAccounts() {
+  const loadAccounts = useCallback(async () => {
     const res = await fetch("/api/integrations/status", { cache: "no-store" });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) return;
@@ -1182,7 +896,7 @@ export default function MailboxClient({
       resolveMailAccountSelection(accounts as MailAccount[], prev)?.id || "",
     );
     setFilterAccountId((prev) => (prev && accountIds.has(prev) ? prev : ""));
-  }
+  }, [setFilterAccountId]);
 
   async function loadSignature(accountId?: string) {
     try {
@@ -1202,383 +916,6 @@ export default function MailboxClient({
       // keep fallback signature
     }
   }
-
-  const applyHistorySnapshot = useCallback((
-    context: MailboxHistoryContext,
-    snapshot: MailboxHistorySnapshot<OutboxItem>,
-  ) => {
-    const contextKey = mailboxHistoryContextKey(context);
-    if (activeHistoryContextKeyRef.current !== contextKey) return false;
-
-    setItems(filterMetaPilotItems(snapshot.items, metaPilotEnabled));
-    setHistoryPage(snapshot.page);
-    setHistoryHasMorePotential(snapshot.hasMore);
-    setHistoryTotalCount(snapshot.total);
-    if (snapshot.folderCounts) setFolderCounts(snapshot.folderCounts);
-    if (snapshot.draftFolderCounts) setDraftFolderCounts(snapshot.draftFolderCounts);
-    setSelectedId((previous) =>
-      snapshot.items.some((item) => item.id === previous)
-        ? previous
-        : (snapshot.items[0]?.id ?? null),
-    );
-    historyDisplayedContextKeyRef.current = contextKey;
-
-    const isDefaultSnapshot =
-      snapshot.page === 1 &&
-      context.folder === "publications" &&
-      context.boxView === "sent" &&
-      !context.filterAccountId &&
-      !context.query;
-    if (isDefaultSnapshot && snapshot.folderCounts && snapshot.draftFolderCounts) {
-      writeModuleSnapshot<InrSendDefaultSnapshot>(MODULE_SNAPSHOT_KEYS.inrSendDefault, {
-        items: snapshot.items,
-        page: snapshot.page,
-        total: snapshot.total,
-        hasMore: snapshot.hasMore,
-        folderCounts: snapshot.folderCounts,
-        draftFolderCounts: snapshot.draftFolderCounts,
-      });
-    }
-
-    return true;
-  }, []);
-
-  const fetchHistoryPage = useCallback(async (options: {
-    context: MailboxHistoryContext;
-    page: number;
-    totalHint?: number | null;
-    folderCountsHint?: FolderCounts;
-    draftFolderCountsHint?: FolderCounts;
-  }): Promise<MailboxHistorySnapshot<OutboxItem> | null> => {
-    const targetPage = Math.max(1, Math.floor(options.page || 1));
-    const pageKey = mailboxHistoryPageKey(options.context, targetPage);
-    const requestKey = pageKey;
-    const existingRequest = historyInFlightRef.current.get(requestKey);
-    if (existingRequest) return existingRequest;
-
-    const request = (async () => {
-      try {
-        const params = new URLSearchParams();
-        params.set("page", String(targetPage));
-        params.set("pageSize", String(MAILBOX_PAGE_SIZE));
-        params.set("folder", options.context.folder);
-        params.set("boxView", options.context.boxView);
-        if (options.context.filterAccountId) {
-          params.set("filterAccountId", options.context.filterAccountId);
-        }
-        if (options.context.query) params.set("q", options.context.query);
-        params.set("includeCounts", "0");
-
-        const response = await fetch(`/api/inrsend/history?${params.toString()}`, {
-          method: "GET",
-          cache: "no-store",
-        });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) {
-          throw new Error(
-            payload?.error || i18nT("history_load_failed"),
-          );
-        }
-
-        const nextItems = Array.isArray(payload?.items)
-          ? filterMetaPilotItems(payload.items as OutboxItem[], metaPilotEnabled)
-          : [];
-        const nextPage = typeof payload?.page === "number"
-          ? Math.max(1, Number(payload.page))
-          : targetPage;
-        const nextFolderCounts = payload?.folderCounts
-          ? normalizeFolderCounts(payload.folderCounts)
-          : options.folderCountsHint;
-        const nextDraftFolderCounts = payload?.draftFolderCounts
-          ? normalizeFolderCounts(payload.draftFolderCounts)
-          : options.draftFolderCountsHint;
-        const nextTotal = typeof payload?.total === "number"
-          ? Math.max(0, Number(payload.total))
-          : typeof options.totalHint === "number"
-            ? Math.max(0, Number(options.totalHint))
-            : null;
-        const nextHasMore = nextTotal != null
-          ? nextPage < mailboxHistoryPageCount(nextTotal, MAILBOX_PAGE_SIZE)
-          : Boolean(payload?.hasMore);
-
-        const snapshot: MailboxHistorySnapshot<OutboxItem> = {
-          items: nextItems,
-          page: nextPage,
-          total: nextTotal,
-          hasMore: nextHasMore,
-          folderCounts: nextFolderCounts,
-          draftFolderCounts: nextDraftFolderCounts,
-          fetchedAt: Date.now(),
-        };
-        historyCacheRef.current.set(pageKey, snapshot);
-        return snapshot;
-      } catch (error) {
-        console.error(error);
-        return null;
-      } finally {
-        historyInFlightRef.current.delete(requestKey);
-      }
-    })();
-
-    historyInFlightRef.current.set(requestKey, request);
-    return request;
-  }, []);
-
-  const loadHistoryCounts = useCallback(async (
-    context: MailboxHistoryContext,
-    options?: { force?: boolean },
-  ) => {
-    const countsKey = mailboxHistoryCountsKey(context);
-    const now = Date.now();
-    const lastFetchedAt = historyCountsFetchedAtRef.current.get(countsKey) || 0;
-    if (
-      !options?.force &&
-      historyCountsDisplayKeyRef.current === countsKey &&
-      now - lastFetchedAt < INRSEND_COUNTS_CACHE_MS
-    ) {
-      return true;
-    }
-
-    const existingRequest = historyCountsInFlightRef.current.get(countsKey);
-    if (existingRequest) return existingRequest;
-
-    const request = (async () => {
-      try {
-        const params = new URLSearchParams();
-        params.set("countsOnly", "1");
-        params.set("folder", context.folder);
-        params.set("boxView", context.boxView);
-        if (context.filterAccountId) {
-          params.set("filterAccountId", context.filterAccountId);
-        }
-        if (context.query) params.set("q", context.query);
-
-        const response = await fetch(`/api/inrsend/history?${params.toString()}`, {
-          method: "GET",
-          cache: "no-store",
-        });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok || payload?.countsIncluded !== true) return false;
-
-        const nextFolderCounts = normalizeFolderCounts(payload.folderCounts);
-        const nextDraftFolderCounts = normalizeFolderCounts(payload.draftFolderCounts);
-        historyCountsFetchedAtRef.current.set(countsKey, Date.now());
-
-        const currentContext = activeHistoryContextRef.current;
-        if (mailboxHistoryCountsKey(currentContext) !== countsKey) return true;
-
-        const activeCounts = currentContext.boxView === "drafts"
-          ? nextDraftFolderCounts
-          : nextFolderCounts;
-        const nextTotal = Math.max(0, Number(activeCounts[currentContext.folder] || 0));
-        setFolderCounts(nextFolderCounts);
-        setDraftFolderCounts(nextDraftFolderCounts);
-        setHistoryTotalCount(nextTotal);
-        setHistoryHasMorePotential(
-          historyPageRef.current < mailboxHistoryPageCount(nextTotal, MAILBOX_PAGE_SIZE),
-        );
-        setHistoryCountsLoadedOnce(true);
-        historyCountsDisplayKeyRef.current = countsKey;
-
-        const currentSnapshot = historyCacheRef.current.get(
-          mailboxHistoryPageKey(currentContext, historyPageRef.current),
-        );
-        if (currentSnapshot) {
-          const enrichedSnapshot = {
-            ...currentSnapshot,
-            total: nextTotal,
-            hasMore:
-              historyPageRef.current < mailboxHistoryPageCount(nextTotal, MAILBOX_PAGE_SIZE),
-            folderCounts: nextFolderCounts,
-            draftFolderCounts: nextDraftFolderCounts,
-          };
-          historyCacheRef.current.set(
-            mailboxHistoryPageKey(currentContext, historyPageRef.current),
-            enrichedSnapshot,
-          );
-
-          const isDefaultSnapshot =
-            enrichedSnapshot.page === 1 &&
-            currentContext.folder === "publications" &&
-            currentContext.boxView === "sent" &&
-            !currentContext.filterAccountId &&
-            !currentContext.query;
-          if (isDefaultSnapshot) {
-            writeModuleSnapshot<InrSendDefaultSnapshot>(MODULE_SNAPSHOT_KEYS.inrSendDefault, {
-              items: enrichedSnapshot.items,
-              page: enrichedSnapshot.page,
-              total: enrichedSnapshot.total,
-              hasMore: enrichedSnapshot.hasMore,
-              folderCounts: nextFolderCounts,
-              draftFolderCounts: nextDraftFolderCounts,
-            });
-          }
-        }
-
-        return true;
-      } catch (error) {
-        console.error(error);
-        return false;
-      } finally {
-        historyCountsInFlightRef.current.delete(countsKey);
-      }
-    })();
-
-    historyCountsInFlightRef.current.set(countsKey, request);
-    return request;
-  }, []);
-
-  const scheduleHistoryPreload = useCallback((
-    context: MailboxHistoryContext,
-    snapshot: MailboxHistorySnapshot<OutboxItem>,
-  ) => {
-    const availableFolderCounts = snapshot.folderCounts;
-    const availableDraftFolderCounts = snapshot.draftFolderCounts;
-
-    historyPreloadGenerationRef.current += 1;
-    const generation = historyPreloadGenerationRef.current;
-    if (historyPreloadTimerRef.current) {
-      clearTimeout(historyPreloadTimerRef.current);
-      historyPreloadTimerRef.current = null;
-    }
-
-    const plan = buildMailboxHistoryPreloadPlan({
-      currentContext: context,
-      currentPage: snapshot.page,
-      pageSize: MAILBOX_PAGE_SIZE,
-      currentTotal: snapshot.total,
-      currentHasMore: snapshot.hasMore,
-    }).filter((job) => {
-      const cached = historyCacheRef.current.get(
-        mailboxHistoryPageKey(job.context, job.page),
-      );
-      return !isMailboxHistorySnapshotFresh(cached);
-    });
-
-    if (!plan.length) return;
-
-    historyPreloadTimerRef.current = setTimeout(() => {
-      historyPreloadTimerRef.current = null;
-      let cursor = 0;
-      const worker = async () => {
-        while (cursor < plan.length && generation === historyPreloadGenerationRef.current) {
-          const job = plan[cursor];
-          cursor += 1;
-          const pageKey = mailboxHistoryPageKey(job.context, job.page);
-          if (isMailboxHistorySnapshotFresh(historyCacheRef.current.get(pageKey))) {
-            continue;
-          }
-          await fetchHistoryPage({
-            context: job.context,
-            page: job.page,
-            totalHint: job.total,
-            folderCountsHint: availableFolderCounts,
-            draftFolderCountsHint: availableDraftFolderCounts,
-          });
-        }
-      };
-
-      void Promise.all(
-        Array.from(
-          { length: Math.min(MAILBOX_HISTORY_PREFETCH_CONCURRENCY, plan.length) },
-          () => worker(),
-        ),
-      );
-    }, 600);
-  }, [fetchHistoryPage]);
-
-  const loadHistory = useCallback(
-    async (options?: { page?: number; silent?: boolean; force?: boolean }) => {
-      const context = activeHistoryContext;
-      const contextKey = mailboxHistoryContextKey(context);
-      const countsKey = mailboxHistoryCountsKey(context);
-      if (historyCountsDisplayKeyRef.current !== countsKey) {
-        setHistoryCountsLoadedOnce(false);
-      }
-      const targetPage = Math.max(
-        1,
-        options?.page ?? historyPageRef.current ?? 1,
-      );
-      // Calls without options come from refresh buttons, mutations or external
-      // version events. They deliberately bypass the cache.
-      const force = options?.force ?? options === undefined;
-
-      if (force) {
-        historyPreloadGenerationRef.current += 1;
-        const groupPrefix = `${mailboxHistoryGroupKey(context)}|`;
-        for (const key of historyCacheRef.current.keys()) {
-          if (key.startsWith(groupPrefix)) historyCacheRef.current.delete(key);
-        }
-      }
-
-      const pageKey = mailboxHistoryPageKey(context, targetPage);
-      const cached = force ? null : historyCacheRef.current.get(pageKey);
-      if (isMailboxHistorySnapshotFresh(cached)) {
-        applyHistorySnapshot(context, cached);
-        setHistoryLoadedOnce(true);
-        setLoading(false);
-        scheduleHistoryPreload(context, cached);
-        void loadHistoryCounts(context, { force });
-        return cached;
-      }
-
-      const contextChanged =
-        Boolean(historyDisplayedContextKeyRef.current) &&
-        historyDisplayedContextKeyRef.current !== contextKey;
-      if (contextChanged) {
-        setItems([]);
-        setSelectedId(null);
-      }
-      if (!options?.silent || contextChanged) setLoading(true);
-
-      const snapshot = await fetchHistoryPage({
-        context,
-        page: targetPage,
-      });
-
-      if (snapshot) {
-        applyHistorySnapshot(context, snapshot);
-        scheduleHistoryPreload(context, snapshot);
-        void loadHistoryCounts(context, { force });
-      } else if (activeHistoryContextKeyRef.current === contextKey) {
-        // A transient API error must never erase a previously visible history or
-        // replace valid counters with zeros. Keep the last known UI state and let
-        // the recovery refresh retry silently.
-        if (!historyLoadedOnce && !initialHistorySnapshot) {
-          setHistoryPage(targetPage);
-          setHistoryHasMorePotential(false);
-          setHistoryTotalCount(null);
-          setSelectedId(null);
-        }
-      }
-
-      if (activeHistoryContextKeyRef.current === contextKey) {
-        setHistoryLoadedOnce(true);
-        setLoading(false);
-      }
-      return snapshot;
-    },
-    [
-      activeHistoryContext,
-      applyHistorySnapshot,
-      fetchHistoryPage,
-      historyLoadedOnce,
-      initialHistorySnapshot,
-      loadHistoryCounts,
-      scheduleHistoryPreload,
-    ],
-  );
-
-  const filteredItems = items;
-
-  const historyPageCount = useMemo(() => {
-    if (historyTotalCount == null) {
-      return Math.max(1, historyPage + (historyHasMorePotential ? 1 : 0));
-    }
-    return Math.max(1, Math.ceil(historyTotalCount / MAILBOX_PAGE_SIZE));
-  }, [historyHasMorePotential, historyPage, historyTotalCount]);
-
-  const visibleItems = filteredItems;
 
   const detailsItem = useMemo(() => {
     if (!detailsId) return null;
@@ -1713,7 +1050,7 @@ export default function MailboxClient({
         setCampaignRecipientsLoading(false);
       }
     },
-    [campaignRecipientsFilter, campaignRecipientsPage, supabase],
+    [campaignRecipientsFilter, campaignRecipientsPage, i18nT, supabase],
   );
 
   const loadCampaignHealth = useCallback(
@@ -1783,28 +1120,37 @@ export default function MailboxClient({
         setCampaignHealthLoading(false);
       }
     },
-    [],
+    [setItems],
   );
+
+  const detailsItemId = detailsItem?.id;
+  const detailsItemSource = detailsItem?.source;
+  const detailsCampaignStatus = String(campaignReport?.status || (detailsItem as any)?.raw?.status || "").toLowerCase();
+  // Health responses replace raw metadata; that must not trigger another request.
+  const onCampaignHealthRequested = useEffectEvent((campaignId: string) => {
+    if (detailsItem?.id !== campaignId) return;
+    return loadCampaignHealth(campaignId, (detailsItem as any).raw || {});
+  });
 
   useEffect(() => {
     if (
       !detailsOpen ||
-      !detailsItem ||
-      detailsItem.source !== "mail_campaigns"
+      !detailsItemId ||
+      detailsItemSource !== "mail_campaigns"
     ) {
       setCampaignReport(null);
       setCampaignHealth(null);
       setCampaignHealthLoading(false);
       return;
     }
-    void loadCampaignHealth(detailsItem.id, (detailsItem as any).raw || {});
-  }, [detailsOpen, detailsItem?.id, detailsItem?.source, loadCampaignHealth]);
+    void onCampaignHealthRequested(detailsItemId);
+  }, [detailsOpen, detailsItemId, detailsItemSource]);
 
   useEffect(() => {
     if (
       !detailsOpen ||
-      !detailsItem ||
-      detailsItem.source !== "mail_campaigns"
+      !detailsItemId ||
+      detailsItemSource !== "mail_campaigns"
     ) {
       setCampaignRecipients([]);
       setCampaignRecipientsLoading(false);
@@ -1813,7 +1159,7 @@ export default function MailboxClient({
       return;
     }
     void loadCampaignRecipients(
-      detailsItem.id,
+      detailsItemId,
       campaignRecipientsPage,
       campaignRecipientsFilter,
     );
@@ -1821,24 +1167,15 @@ export default function MailboxClient({
     campaignRecipientsFilter,
     campaignRecipientsPage,
     detailsOpen,
-    detailsItem?.id,
-    detailsItem?.source,
+    detailsItemId,
+    detailsItemSource,
     loadCampaignRecipients,
   ]);
 
   useEffect(() => {
-    if (
-      !detailsOpen ||
-      !detailsItem ||
-      detailsItem.source !== "mail_campaigns"
-    ) {
-      setCampaignRecipientsPage(1);
-      setCampaignRecipientsFilter("all");
-      return;
-    }
     setCampaignRecipientsPage(1);
     setCampaignRecipientsFilter("all");
-  }, [detailsItem?.id, detailsItem?.source, detailsOpen]);
+  }, [detailsItemId, detailsItemSource, detailsOpen]);
 
   useEffect(() => {
     if (campaignRecipientsPage <= campaignRecipientsPageCount) return;
@@ -1846,12 +1183,10 @@ export default function MailboxClient({
   }, [campaignRecipientsPage, campaignRecipientsPageCount]);
 
   useEffect(() => {
-    if (!detailsOpen || !detailsItem || detailsItem.source !== "mail_campaigns") return;
-    const status = String(campaignReport?.status || (detailsItem as any).raw?.status || "").toLowerCase();
-    if (["completed", "partial", "failed", "sent"].includes(status)) return;
+    if (!detailsOpen || !detailsItemId || detailsItemSource !== "mail_campaigns") return;
+    if (["completed", "partial", "failed", "sent"].includes(detailsCampaignStatus)) return;
 
-    const campaignId = detailsItem.id;
-    const campaignRaw = (detailsItem as any).raw || {};
+    const campaignId = detailsItemId;
     let cancelled = false;
     let inFlight = false;
     let resumeRequested = false;
@@ -1882,7 +1217,7 @@ export default function MailboxClient({
       inFlight = true;
       try {
         await Promise.all([
-          loadCampaignHealth(campaignId, campaignRaw),
+          onCampaignHealthRequested(campaignId),
           loadCampaignRecipients(campaignId, campaignRecipientsPage, campaignRecipientsFilter),
         ]);
       } finally {
@@ -1921,11 +1256,10 @@ export default function MailboxClient({
   }, [
     campaignRecipientsFilter,
     campaignRecipientsPage,
-    campaignReport?.status,
-    detailsItem?.id,
-    detailsItem?.source,
+    detailsCampaignStatus,
+    detailsItemId,
+    detailsItemSource,
     detailsOpen,
-    loadCampaignHealth,
     loadCampaignRecipients,
   ]);
 
@@ -2017,11 +1351,6 @@ export default function MailboxClient({
     () => getPublicationChannelPreset(activePublicationEditChannelKey),
     [activePublicationEditChannelKey],
   );
-  const activePublicationEditAssets =
-    publicationEditImagesByChannel[activePublicationEditChannelKey]?.assets ||
-    [];
-  const activePublicationEditVideo =
-    publicationEditVideoByChannel[activePublicationEditChannelKey] || null;
 
   useEffect(() => {
     if (
@@ -2053,212 +1382,40 @@ export default function MailboxClient({
     detailsOpen,
     detailsItem,
     activeDetailsChannelEntry?.key,
+    activeDetailsChannelEntry?.parts,
     detailsEditMode,
   ]);
 
-  useEffect(() => {
-    if (
-      !detailsOpen ||
-      !detailsItem ||
-      detailsItem.source !== "app_events" ||
-      detailsEditMode
-    )
-      return;
-    const nextState: Record<string, PublicationChannelImagesState> = {};
-    for (const entry of detailsChannelEntries) {
-      const channel = normalizeChannelKey(entry.key);
-      const defaultTransform = buildPublicationDefaultTransform(channel);
-      const assets = (
-        Array.isArray(entry.parts.attachments) ? entry.parts.attachments : []
-      )
-        .filter(
-          (att) =>
-            (att?.url ||
-              att?.originalUrl ||
-              att?.originalPublicUrl ||
-              att?.renderedUrl) &&
-            isImageAttachment({
-              ...att,
-              url:
-                att.url ||
-                att.originalUrl ||
-                att.originalPublicUrl ||
-                att.renderedUrl,
-            }),
-        )
-        .map((att, index) => {
-          const renderedUrl = String(
-            att.renderedUrl || att.url || att.publicUrl || "",
-          ).trim();
-          const originalUrl = String(
-            att.originalUrl || att.originalPublicUrl || "",
-          ).trim();
-          const previewUrl = originalUrl || renderedUrl;
-          const storedTransform =
-            att.transform && typeof att.transform === "object"
-              ? (att.transform as Partial<PublicationImageTransform>)
-              : null;
-          // iNrSend edition always restarts from the healthy source image when
-          // the publication kept one. Never reapply a previous crop to that
-          // source: the professional can create a fresh adaptation instead of
-          // accumulating crops across successive edits.
-          const initialTransform = originalUrl
-            ? { ...defaultTransform }
-            : storedTransform
-              ? { ...defaultTransform, ...storedTransform }
-              : { ...defaultTransform };
-          return {
-            key: makePublicationImageAssetKey(
-              "existing",
-              att.name || `image-${index + 1}`,
-              `${index}:${previewUrl || renderedUrl}`,
-            ),
-            name: att.originalName || att.name || `Image ${index + 1}`,
-            type:
-              String(att.originalType || att.type || "image/jpeg") ||
-              "image/jpeg",
-            previewUrl,
-            sourceUrl: renderedUrl || previewUrl || null,
-            originalUrl: originalUrl || null,
-            renderedUrl: renderedUrl || null,
-            originalStoragePath: att.originalStoragePath || null,
-            originalName: att.originalName || att.name || null,
-            originalType: att.originalType || att.type || null,
-            file: null,
-            selected: channel === "pinterest" ? index === 0 : true,
-            transform: initialTransform,
-            savedTransform: { ...initialTransform },
-            imageMeta: att.imageMeta || null,
-          };
-        });
-      nextState[channel] = { assets };
-    }
-    setPublicationEditImagesByChannel(nextState);
-  }, [
+  const {
+    publicationEditImagesByChannel,
+    setPublicationEditImagesByChannel,
+    publicationEditVideoByChannel,
+    setPublicationEditVideoByChannel,
+    togglePublicationImage,
+    resetPublicationImage,
+    movePublicationImage,
+    addPublicationFiles,
+    addPublicationPhoto,
+    addPublicationMediaLibraryItems,
+    replacePublicationMediaLibraryItem,
+    addPublicationVideo,
+    removePublicationVideo,
+    ensurePublicationEditVideoUploaded,
+  } = useMailboxPublicationMedia({
     detailsOpen,
-    detailsItem?.id,
-    detailsChannelEntries,
+    detailsItem,
     detailsEditMode,
-  ]);
+    detailsChannelEntries,
+    activeDetailsChannelEntry,
+    setDetailsActionError,
+  });
 
-  useEffect(() => {
-    if (
-      !detailsOpen ||
-      !detailsItem ||
-      detailsItem.source !== "app_events" ||
-      detailsEditMode
-    )
-      return;
-    const nextState: Record<string, PublicationEditVideoState> = {};
-    for (const entry of detailsChannelEntries) {
-      const channel = normalizeBoosterChannelKeyForVideo(entry.key);
-      const parts = (entry.parts || {}) as any;
-      const videoCandidate =
-        parts.video ||
-        (Array.isArray(parts.attachments)
-          ? parts.attachments.find((att: any) => isVideoAttachment(att))
-          : null);
-      const finalVideo = attachmentToVideoPayload(videoCandidate);
-      if (!finalVideo) continue;
-      const settings = parts.videoSettings || {};
-      const sourceVideo =
-        attachmentToVideoPayload(parts.sourceVideo) || finalVideo;
-      const sourceMetadata =
-        sourceVideo.sourceMetadata || finalVideo.sourceMetadata || null;
-      const defaultFormat: VideoFormat = "original";
-      const format = (settings.format ||
-        parts.videoFormat ||
-        defaultFormat) as VideoFormat;
-      const adaptationMode = (settings.adaptationMode ||
-        parts.videoAdaptationMode ||
-        "safe_frame") as VideoAdaptationMode;
-      const signature = buildVideoTransformSignature(
-        format,
-        adaptationMode,
-        getVideoPublicationProfileForChannel(
-          normalizeBoosterChannelKeyForVideo(channel),
-        ),
-      );
-      const syntheticFinalVariant =
-        finalVideo.publicUrl || finalVideo.url
-          ? {
-              key: `${channel}-${format}-${adaptationMode}-published`,
-              channel,
-              format,
-              adaptationMode,
-              signature,
-              publicUrl: finalVideo.publicUrl || finalVideo.url || "",
-              url: finalVideo.publicUrl || finalVideo.url || "",
-              storagePath: finalVideo.storagePath || "",
-              contentType: finalVideo.type || "video/mp4",
-              size: finalVideo.size || 0,
-              duration: finalVideo.duration || null,
-              target: {
-                label: getLocalizedVideoFormatLabel(
-                  channel,
-                  format,
-                  sourceMetadata,
-                  i18nT,
-                ),
-              },
-            }
-          : null;
-      const storedVariants = Array.isArray(finalVideo.transformedVariants)
-        ? finalVideo.transformedVariants
-        : [];
-      const transformedVariants = [syntheticFinalVariant, ...storedVariants]
-        .filter(Boolean)
-        .filter(
-          (variant: any, index, arr) =>
-            arr.findIndex(
-              (candidate: any) =>
-                String(
-                  candidate?.signature ||
-                    candidate?.publicUrl ||
-                    candidate?.url ||
-                    "",
-                ) ===
-                String(
-                  variant?.signature ||
-                    variant?.publicUrl ||
-                    variant?.url ||
-                    "",
-                ),
-            ) === index,
-        ) as NonNullable<VideoPayload["transformedVariants"]>;
-      nextState[channel] = {
-        file: null,
-        previewUrl:
-          sourceVideo.publicUrl ||
-          sourceVideo.url ||
-          finalVideo.publicUrl ||
-          finalVideo.url ||
-          "",
-        name: sourceVideo.name || finalVideo.name || "video-inrcy.mp4",
-        type: sourceVideo.type || finalVideo.type || "video/mp4",
-        size: sourceVideo.size || finalVideo.size || 0,
-        duration: sourceVideo.duration || finalVideo.duration || null,
-        sourceMetadata,
-        sourceVideo,
-        transformedVariants,
-        format,
-        adaptationMode,
-        preparation: finalVideo.publicUrl
-          ? {
-              status: "ready",
-              label: i18nT("format_applique_43fe4a7e"),
-              detail: `${getLocalizedVideoFormatLabel(channel, format, sourceMetadata, i18nT)} · ${getLocalizedVideoAdaptationModeLabel(adaptationMode, i18nT)}`,
-            }
-          : null,
-      };
-    }
-    setPublicationEditVideoByChannel(nextState);
-  }, [
-    detailsOpen,
-    detailsItem?.id,
-    detailsChannelEntries,
-    detailsEditMode,
-  ]);
+  const activePublicationEditAssets =
+    publicationEditImagesByChannel[activePublicationEditChannelKey]?.assets ||
+    [];
+
+  const activePublicationEditVideo =
+    publicationEditVideoByChannel[activePublicationEditChannelKey] || null;
 
   const workflowFinalizerKind = useMemo<
     "propulser" | "fideliser" | null
@@ -2306,7 +1463,7 @@ export default function MailboxClient({
       };
     }
     return null;
-  }, [composeRecipientList]);
+  }, [composeRecipientList, i18nT]);
 
   const toolCfg = useMemo(() => {
     switch (folder) {
@@ -2334,14 +1491,14 @@ export default function MailboxClient({
       default:
         return { label: i18nT("ouvrir_l_outil_32a62f9c"), href: null as string | null };
     }
-  }, [folder]);
+  }, [folder, i18nT]);
 
   // initial
   useEffect(() => {
     if (standardMode) return;
     void loadAccounts();
     void loadSignature();
-  }, [standardMode]);
+  }, [loadAccounts, standardMode]);
 
   useEffect(() => {
     if (standardMode) return;
@@ -2369,27 +1526,6 @@ export default function MailboxClient({
       );
   }, [selectedAccountId, standardMode]);
 
-  // refresh des changements de filtres / recherche
-  useEffect(() => {
-    if (!historyCacheHydrated) return;
-    if (historyLoadedContextKeyRef.current === activeHistoryContextKey) return;
-    const isInitialContextLoad = historyLoadedContextKeyRef.current === "";
-    historyLoadedContextKeyRef.current = activeHistoryContextKey;
-    void loadHistory({
-      page: 1,
-      silent: isInitialContextLoad && Boolean(initialHistorySnapshot),
-      // The cached snapshot makes navigation instant, but it can predate a
-      // publication that just finished. Always revalidate the first visible
-      // context once; later tab/search changes can still reuse their cache.
-      force: isInitialContextLoad,
-    });
-  }, [
-    activeHistoryContextKey,
-    historyCacheHydrated,
-    initialHistorySnapshot,
-    loadHistory,
-  ]);
-
   useEffect(() => {
     if (standardMode) return;
     const handleMailAccountsUpdated = async () => {
@@ -2406,108 +1542,13 @@ export default function MailboxClient({
         MAIL_ACCOUNTS_UPDATED_EVENT,
         handleMailAccountsUpdated as EventListener,
       );
-  }, [loadHistory, standardMode]);
+  }, [loadAccounts, loadHistory, standardMode]);
 
   useEffect(() => {
     if (standardMode) return;
     if (!composeOpen) return;
     void loadAccounts();
-  }, [composeOpen, standardMode]);
-
-  // UX recherche: Ctrl/Cmd+K pour ouvrir, Esc pour fermer (sans perdre la saisie)
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const key = (e.key || "").toLowerCase();
-      const isK = key === "k";
-      const isEsc = key === "escape" || key === "esc";
-
-      if ((e.ctrlKey || e.metaKey) && isK) {
-        e.preventDefault();
-        setSearchOpen(true);
-        // focus après rendu
-        requestAnimationFrame(() => historySearchRef.current?.focus());
-        return;
-      }
-
-      if (isEsc && searchOpen) {
-        e.preventDefault();
-        setSearchOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [searchOpen]);
-
-  useEffect(() => {
-    if (!searchOpen) return;
-    requestAnimationFrame(() => historySearchRef.current?.focus());
-  }, [searchOpen]);
-
-  useEffect(() => {
-    const handleProfileVersionChange = (event: Event) => {
-      const detail = (event as CustomEvent<ProfileVersionChangeDetail>).detail;
-      if (!(
-        detail?.field === "inrsend_version" ||
-        detail?.field === "docs_version" ||
-        detail?.field === "publications_version"
-      ))
-        return;
-      void loadHistory({ silent: true, force: true });
-    };
-
-    window.addEventListener(
-      PROFILE_VERSION_EVENT,
-      handleProfileVersionChange as EventListener,
-    );
-    return () => {
-      window.removeEventListener(
-        PROFILE_VERSION_EVENT,
-        handleProfileVersionChange as EventListener,
-      );
-    };
-  }, [loadHistory]);
-
-  useEffect(() => {
-    let lastRefreshAt = 0;
-    let stopped = false;
-    let recoveryTimer: number | null = null;
-
-    const refreshVisibleHistory = () => {
-      if (document.visibilityState === "hidden") return;
-      const now = Date.now();
-      if (now - lastRefreshAt < INRSEND_HISTORY_RECOVERY_THROTTLE_MS) return;
-      lastRefreshAt = now;
-      void loadHistory({ silent: true, force: true });
-    };
-
-    const scheduleRecovery = () => {
-      if (stopped) return;
-      recoveryTimer = window.setTimeout(() => {
-        recoveryTimer = null;
-        refreshVisibleHistory();
-        scheduleRecovery();
-      }, mailboxHistoryRefreshInterval({
-        context: activeHistoryContext,
-        items,
-      }));
-    };
-
-    scheduleRecovery();
-    const handleFocus = () => refreshVisibleHistory();
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") refreshVisibleHistory();
-    };
-
-    window.addEventListener("focus", handleFocus);
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => {
-      stopped = true;
-      if (recoveryTimer != null) window.clearTimeout(recoveryTimer);
-      window.removeEventListener("focus", handleFocus);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [activeHistoryContext, items, loadHistory]);
+  }, [composeOpen, loadAccounts, standardMode]);
 
   // open folder from URL
   useEffect(() => {
@@ -2541,7 +1582,7 @@ export default function MailboxClient({
       }
     }
     if (nextFolder) setFolder(nextFolder);
-  }, [founderMode, router, searchParams, signatureEnabled, signaturePreview, standardMode]);
+  }, [founderMode, router, searchParams, signatureEnabled, signaturePreview, standardMode, setFolder]);
 
   // Open compose + prefill basic fields from URL params.
   // Used by:
@@ -2912,7 +1953,118 @@ export default function MailboxClient({
     };
 
     run();
-  }, [searchParams, standardMode]);
+  }, [router, searchParams, standardMode]);
+
+  const onScheduledMailEditLoaded = useEffectEvent((editId: string, action: any) => {
+    const payload = asScheduledRecord(action.payload);
+    const campaign = asScheduledRecord(payload.campaign);
+    const recipients = Array.isArray(campaign.recipients)
+      ? campaign.recipients
+      : Array.isArray(payload.recipients)
+        ? payload.recipients
+        : [];
+    const recipientEmails = recipients
+      .map((recipient: any) =>
+        typeof recipient === "string"
+          ? recipient
+          : String(recipient?.email || ""),
+      )
+      .map((email: string) => email.trim())
+      .filter(Boolean);
+    const recipientHints = recipients
+      .map((recipient: any) => {
+        if (!recipient || typeof recipient === "string") return null;
+        const email = String(recipient.email || "").trim();
+        if (!email) return null;
+        return {
+          email,
+          contact_id: recipient.contact_id || recipient.contactId || null,
+          display_name:
+            recipient.display_name || recipient.displayName || null,
+        };
+      })
+      .filter(Boolean) as ComposeCrmRecipientHint[];
+
+    const nextAccountId = String(
+      campaign.accountId || payload.accountId || "",
+    );
+    const nextSubject = normalizeMailSubject(
+      String(campaign.subject || payload.subject || action.title || "").trim() ||
+        i18nT("sans_objet_e5ad6a39"),
+    );
+    const nextText = String(
+      campaign.text || payload.campaignBody || payload.bodyText || "",
+    );
+    const nextHtml = normalizeRichMailHtmlForSend(
+      nextText,
+      String(campaign.html || payload.bodyHtml || payload.html || ""),
+    );
+    const nextAttachments = normalizeCampaignAttachments(
+      campaign.attachments || payload.attachments,
+    );
+    const nextTemplateKey = String(
+      campaign.templateKey || payload.templateKey || "",
+    );
+    const nextSourceDocSaveId = String(
+      campaign.sourceDocSaveId || payload.sourceDocSaveId || "",
+    );
+    const nextSourceDocType =
+      campaign.sourceDocType === "facture" || campaign.sourceDocType === "devis"
+        ? campaign.sourceDocType
+        : payload.sourceDocType === "facture" || payload.sourceDocType === "devis"
+          ? payload.sourceDocType
+          : "";
+    const nextSourceDocNumber = String(
+      campaign.sourceDocNumber || payload.sourceDocNumber || "",
+    );
+
+    setScheduledMailEdit({
+      id: editId,
+      scheduledAt: action.scheduledAt || null,
+      title: String(action.title || i18nT("scheduled_mail_default_title")),
+      payload,
+  });
+  setDraftId(null);
+  setComposeType("mail");
+  setPendingTrack(null);
+  setSelectedAccountId(nextAccountId);
+  setTo(recipientEmails.join(", "));
+  setSubject(nextSubject);
+  setText(nextText);
+  setHtml(nextHtml);
+  setComposeAttachments(nextAttachments);
+  setComposeRecipientHints(recipientHints);
+  setComposeTemplateKey(nextTemplateKey);
+  setComposeSourceDocSaveId(nextSourceDocSaveId);
+  setComposeSourceDocType(nextSourceDocType);
+  setComposeSourceDocNumber(nextSourceDocNumber);
+  setFiles([]);
+  setCrmPickerOpen(false);
+  setLastSavedComposeSnapshot(
+    makeComposeSnapshot({
+      selectedAccountId: nextAccountId,
+      to: recipientEmails.join(", "),
+      subject: nextSubject,
+      text: nextText,
+      html: nextHtml,
+      composeType: "mail",
+      composeAttachments: nextAttachments,
+      composeSourceDocSaveId: nextSourceDocSaveId,
+      composeSourceDocType: nextSourceDocType,
+      composeSourceDocNumber: nextSourceDocNumber,
+      composeTemplateKey: nextTemplateKey,
+      pendingTrack: null,
+    }),
+  );
+  setComposeOpen(true);
+  setToast(i18nT("mail_programme_ouvert_en_reedition_25196d5f"));
+  router.replace("/dashboard/mails?folder=mails", { scroll: false });
+  });
+
+  const onScheduledMailEditLoadFailed = useEffectEvent((error: unknown) => {
+    setToast(getClientUserFacingErrorMessage(error, i18nT("scheduled_mail_open_failed")));
+  });
+  const onScheduledMailEditMissing = useEffectEvent(() => i18nT("scheduled_mail_missing"));
 
   useEffect(() => {
     if (standardMode) return;
@@ -2930,119 +2082,11 @@ export default function MailboxClient({
           error?: string;
         } | null;
         if (!response.ok || !data?.scheduledAction) {
-          throw new Error(data?.error || i18nT("scheduled_mail_missing"));
+          throw new Error(data?.error || onScheduledMailEditMissing());
         }
-        const action = data.scheduledAction;
-        const payload = asScheduledRecord(action.payload);
-        const campaign = asScheduledRecord(payload.campaign);
-        const recipients = Array.isArray(campaign.recipients)
-          ? campaign.recipients
-          : Array.isArray(payload.recipients)
-            ? payload.recipients
-            : [];
-        const recipientEmails = recipients
-          .map((recipient: any) =>
-            typeof recipient === "string"
-              ? recipient
-              : String(recipient?.email || ""),
-          )
-          .map((email: string) => email.trim())
-          .filter(Boolean);
-        const recipientHints = recipients
-          .map((recipient: any) => {
-            if (!recipient || typeof recipient === "string") return null;
-            const email = String(recipient.email || "").trim();
-            if (!email) return null;
-            return {
-              email,
-              contact_id: recipient.contact_id || recipient.contactId || null,
-              display_name:
-                recipient.display_name || recipient.displayName || null,
-            };
-          })
-          .filter(Boolean) as ComposeCrmRecipientHint[];
-
-        const nextAccountId = String(
-          campaign.accountId || payload.accountId || "",
-        );
-        const nextSubject = normalizeMailSubject(
-          String(campaign.subject || payload.subject || action.title || "").trim() ||
-            i18nT("sans_objet_e5ad6a39"),
-        );
-        const nextText = String(
-          campaign.text || payload.campaignBody || payload.bodyText || "",
-        );
-        const nextHtml = normalizeRichMailHtmlForSend(
-          nextText,
-          String(campaign.html || payload.bodyHtml || payload.html || ""),
-        );
-        const nextAttachments = normalizeCampaignAttachments(
-          campaign.attachments || payload.attachments,
-        );
-        const nextTemplateKey = String(
-          campaign.templateKey || payload.templateKey || "",
-        );
-        const nextSourceDocSaveId = String(
-          campaign.sourceDocSaveId || payload.sourceDocSaveId || "",
-        );
-        const nextSourceDocType =
-          campaign.sourceDocType === "facture" || campaign.sourceDocType === "devis"
-            ? campaign.sourceDocType
-            : payload.sourceDocType === "facture" || payload.sourceDocType === "devis"
-              ? payload.sourceDocType
-              : "";
-        const nextSourceDocNumber = String(
-          campaign.sourceDocNumber || payload.sourceDocNumber || "",
-        );
-
-        setScheduledMailEdit({
-          id: editId,
-          scheduledAt: action.scheduledAt || null,
-          title: String(action.title || i18nT("scheduled_mail_default_title")),
-          payload,
-        });
-        setDraftId(null);
-        setComposeType("mail");
-        setPendingTrack(null);
-        setSelectedAccountId(nextAccountId);
-        setTo(recipientEmails.join(", "));
-        setSubject(nextSubject);
-        setText(nextText);
-        setHtml(nextHtml);
-        setComposeAttachments(nextAttachments);
-        setComposeRecipientHints(recipientHints);
-        setComposeTemplateKey(nextTemplateKey);
-        setComposeSourceDocSaveId(nextSourceDocSaveId);
-        setComposeSourceDocType(nextSourceDocType);
-        setComposeSourceDocNumber(nextSourceDocNumber);
-        setFiles([]);
-        setCrmPickerOpen(false);
-        setLastSavedComposeSnapshot(
-          makeComposeSnapshot({
-            selectedAccountId: nextAccountId,
-            to: recipientEmails.join(", "),
-            subject: nextSubject,
-            text: nextText,
-            html: nextHtml,
-            composeType: "mail",
-            composeAttachments: nextAttachments,
-            composeSourceDocSaveId: nextSourceDocSaveId,
-            composeSourceDocType: nextSourceDocType,
-            composeSourceDocNumber: nextSourceDocNumber,
-            composeTemplateKey: nextTemplateKey,
-            pendingTrack: null,
-          }),
-        );
-        setComposeOpen(true);
-        setToast(i18nT("mail_programme_ouvert_en_reedition_25196d5f"));
-        router.replace("/dashboard/mails?folder=mails", { scroll: false });
+        onScheduledMailEditLoaded(editId, data.scheduledAction);
       } catch (error) {
-        setToast(
-          getClientUserFacingErrorMessage(
-            error,
-            i18nT("scheduled_mail_open_failed"),
-          ),
-        );
+        onScheduledMailEditLoadFailed(error);
       }
     };
 
@@ -3065,69 +2109,6 @@ export default function MailboxClient({
       return next;
     });
   }, [composeOpen, composeType, signatureEnabled, signaturePreview]);
-
-  async function loadCrmContacts() {
-    if (crmLoading) return;
-    setCrmError(null);
-    setCrmLoading(true);
-
-    const ac = new AbortController();
-    const timeout = setTimeout(() => ac.abort(), 12000);
-    try {
-      // We go through the API route so the same auth method is used as the CRM screens.
-      const res = await fetch("/api/crm/contacts?all=1", {
-        method: "GET",
-        credentials: "include",
-        signal: ac.signal,
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(txt || `HTTP ${res.status}`);
-      }
-
-      const json = (await res.json().catch(() => ({}))) as any;
-      const rows = Array.isArray(json?.contacts) ? json.contacts : [];
-      const mapped = rows.map((c: any) => {
-        const left = [c.first_name, c.last_name]
-          .filter(Boolean)
-          .join(" ")
-          .trim();
-        const company = (c.company_name || "").trim();
-        const full =
-          company && left ? `${company} — ${left}` : company || left || null;
-        return {
-          id: String(c.id),
-          full_name: full,
-          email: c.email || null,
-          category: (c.category as any) ?? null,
-          contact_type: (c.contact_type as any) ?? null,
-          postal_code: c.postal_code || null,
-          city: c.city || null,
-          important: Boolean(c.important),
-        };
-      });
-      setCrmContacts(mapped);
-    } catch (e: any) {
-      console.error("CRM load error", e);
-      const msg =
-        e?.name === "AbortError"
-          ? i18nT("contacts_load_timeout")
-          : i18nT("contacts_load_failed");
-      setCrmError(msg);
-    } finally {
-      clearTimeout(timeout);
-      setCrmLoading(false);
-    }
-  }
-
-  // load CRM when compose opens (lazy)
-  useEffect(() => {
-    if (!composeOpen) return;
-    if (crmContacts.length > 0) return;
-    void loadCrmContacts();
-  }, [composeOpen]);
 
   function updateFolder(next: Folder) {
     if (standardMode) {
@@ -3765,7 +2746,7 @@ export default function MailboxClient({
 
   // L’historique iNr’Send est en lecture seule : seule la rétention automatique le nettoie.
 
-  function resetDetailsStateForItem(item: OutboxItem) {
+  const resetDetailsStateForItem = useCallback((item: OutboxItem) => {
     setSelectedId(item.id);
     setDetailsId(item.id);
     setDetailsChannelKey(null);
@@ -3781,7 +2762,7 @@ export default function MailboxClient({
     setCampaignRecipientsFilter("all");
     setCampaignHealth(null);
     setCampaignReport(null);
-  }
+  }, [setSelectedId]);
 
   function openDetails(it: OutboxItem) {
     resetDetailsStateForItem(it);
@@ -3811,82 +2792,6 @@ export default function MailboxClient({
     } finally {
       setDetailsNavigationBusy(false);
     }
-  }
-
-  function updatePublicationChannelAssets(
-    channel: string,
-    updater: (assets: PublicationImageAsset[]) => PublicationImageAsset[],
-  ) {
-    const normalizedChannel = normalizeChannelKey(channel);
-    setPublicationEditImagesByChannel((prev) => ({
-      ...prev,
-      [normalizedChannel]: {
-        assets: updater(prev[normalizedChannel]?.assets || []).slice(0, 5),
-      },
-    }));
-  }
-
-  function togglePublicationImage(channel: string, imageKey: string) {
-    const normalizedChannel = normalizeChannelKey(channel);
-    updatePublicationChannelAssets(normalizedChannel, (assets) => {
-      if (normalizedChannel === "pinterest") {
-        const target = assets.find((asset) => asset.key === imageKey);
-        if (!target) return assets;
-        if (target.selected) {
-          return assets.map((asset) =>
-            asset.key === imageKey ? { ...asset, selected: false } : asset,
-          );
-        }
-        return assets.map((asset) => ({
-          ...asset,
-          selected: asset.key === imageKey,
-        }));
-      }
-      return assets.map((asset) =>
-        asset.key === imageKey
-          ? { ...asset, selected: !asset.selected }
-          : asset,
-      );
-    });
-  }
-
-  function resetPublicationImage(channel: string, imageKey: string) {
-    updatePublicationChannelAssets(channel, (assets) =>
-      assets.map((asset) =>
-        asset.key === imageKey
-          ? {
-              ...asset,
-              transform: buildPublicationDefaultTransform(
-                normalizeChannelKey(channel),
-              ),
-            }
-          : asset,
-      ),
-    );
-  }
-
-  function movePublicationImage(
-    channel: string,
-    imageKey: string,
-    direction: -1 | 1,
-  ) {
-    updatePublicationChannelAssets(channel, (assets) => {
-      const selectedAssets = assets.filter((asset) => asset.selected);
-      const selectedIndex = selectedAssets.findIndex(
-        (asset) => asset.key === imageKey,
-      );
-      const targetSelected = selectedAssets[selectedIndex + direction];
-      if (!targetSelected) return assets;
-      const sourceIndex = assets.findIndex((asset) => asset.key === imageKey);
-      const targetIndex = assets.findIndex(
-        (asset) => asset.key === targetSelected.key,
-      );
-      if (sourceIndex < 0 || targetIndex < 0) return assets;
-      const next = assets.slice();
-      const [moved] = next.splice(sourceIndex, 1);
-      next.splice(targetIndex, 0, moved);
-      return next;
-    });
   }
 
   async function launchPublicationMediaGenerator(publicationBrief: string) {
@@ -4025,606 +2930,6 @@ export default function MailboxClient({
     }
   }
 
-  function addPublicationPickedFiles(picked: File[]) {
-    const channel = normalizeChannelKey(activeDetailsChannelEntry?.key || "");
-    if (!channel) return;
-    setDetailsActionError(null);
-    if (!picked.length) return;
-
-    const invalid = picked.find((file) => !file.type.startsWith("image/"));
-    if (invalid) {
-      setDetailsActionError(
-        i18nT("seules_les_images_sont_acceptees_dans_d018d9b9"),
-      );
-      return;
-    }
-
-    const unsupported = picked.find(isUnsupportedBrowserImageFile);
-    if (unsupported) {
-      setDetailsActionError(
-        i18nT("unsupported_browser_image", { name: unsupported.name }),
-      );
-      return;
-    }
-
-    const tooBig = picked.find((file) => file.size > BOOSTER_MAX_IMAGE_BYTES);
-    if (tooBig) {
-      setDetailsActionError(
-        i18nT("l_image_value_depasse_value_1c15db6a", {
-          value0: tooBig.name || i18nT("selected_file"),
-          value1: BOOSTER_MAX_IMAGE_MB_LABEL,
-        }),
-      );
-      return;
-    }
-
-    const currentSelectedFileBytes = (
-      publicationEditImagesByChannel[channel]?.assets || []
-    )
-      .filter((asset) => asset.selected && asset.file)
-      .reduce((sum, asset) => sum + (asset.file?.size || 0), 0);
-    const nextPickedBytes = picked.reduce(
-      (sum, file) => sum + (file?.size || 0),
-      0,
-    );
-    if (currentSelectedFileBytes + nextPickedBytes > BOOSTER_MAX_MEDIA_BYTES) {
-      setDetailsActionError(
-        i18nT("les_images_depassent_value_au_total_0e09a0f4", {
-          value0: BOOSTER_MAX_MEDIA_MB_LABEL,
-        }),
-      );
-      return;
-    }
-
-    setPublicationEditVideoByChannel((prev) => {
-      const videoChannel = normalizeBoosterChannelKeyForVideo(channel);
-      const previousVideoState = prev[videoChannel];
-      if (!previousVideoState) return prev;
-      return {
-        ...prev,
-        [videoChannel]: {
-          ...previousVideoState,
-          file: null,
-          previewUrl: "",
-          sourceVideo: null,
-          transformedVariants: [],
-          removed: true,
-          preparation: {
-            status: "idle",
-            label: i18nT("images_selectionnees_db1d99e0"),
-            detail: i18nT("publication_saved_as_images"),
-          },
-        },
-      };
-    });
-
-    updatePublicationChannelAssets(channel, (assets) => {
-      const merged = [...assets];
-      for (const file of picked) {
-        const key = makePublicationImageAssetKey(
-          "new",
-          file.name,
-          `${file.size}:${file.lastModified}`,
-        );
-        if (merged.some((asset) => asset.key === key)) continue;
-        if (merged.length >= BOOSTER_MAX_IMAGE_COUNT) {
-          setDetailsActionError(
-            i18nT("maximum_images_per_publication", {
-              count: BOOSTER_MAX_IMAGE_COUNT,
-            }),
-          );
-          break;
-        }
-        merged.push({
-          key,
-          name: file.name,
-          type: file.type || "image/jpeg",
-          previewUrl: URL.createObjectURL(file),
-          sourceUrl: null,
-          file,
-          selected:
-            channel === "pinterest" ? !merged.some((asset) => asset.selected) : true,
-          transform: buildPublicationDefaultTransform(channel),
-        });
-      }
-      return merged;
-    });
-  }
-
-  function addPublicationFiles(fileList: FileList | File[] | null) {
-    if (!fileList) return;
-    addPublicationPickedFiles(Array.from(fileList));
-  }
-
-  function addPublicationPhoto(file: File) {
-    addPublicationPickedFiles([file]);
-  }
-
-  function getMediaLibraryDisplayName(item: MediaLibraryPickerItem) {
-    return (
-      item.title ||
-      item.storage_path.split("/").pop() ||
-      (item.media_type === "video" ? "video-inrcy.mp4" : "image-inrcy.jpg")
-    );
-  }
-
-  async function mediaLibraryItemToFile(
-    item: MediaLibraryPickerItem,
-  ): Promise<File> {
-    const sourceUrl = String(item.signed_url || "").trim();
-    if (!sourceUrl) throw new Error(i18nT("media_unavailable_in_library"));
-    const response = await fetch(sourceUrl);
-    if (!response.ok)
-      throw new Error(
-        i18nT("media_load_failed_with_status", { status: response.status }),
-      );
-    const blob = await response.blob();
-    const type =
-      item.mime_type ||
-      blob.type ||
-      (item.media_type === "video" ? "video/mp4" : "image/jpeg");
-    return new File([blob], getMediaLibraryDisplayName(item), {
-      type,
-      lastModified: Date.now(),
-    });
-  }
-
-  function buildMediaLibraryImageMetadata(
-    item: MediaLibraryPickerItem,
-  ): PublicationImageAsset["imageMeta"] {
-    const dimensions =
-      item.width && item.height
-        ? {
-            width: item.width,
-            height: item.height,
-            ratio: item.width / item.height,
-          }
-        : {};
-    const metadata = withMediaImageInteractions(dimensions, item);
-    return Object.keys(metadata).length ? metadata : null;
-  }
-
-  function buildMediaLibraryVideoMetadata(
-    item: MediaLibraryPickerItem,
-    file: File,
-  ): BoosterVideoSourceMetadata {
-    const width = Number(item.width || 0) || null;
-    const height = Number(item.height || 0) || null;
-    const duration = Number(item.duration_seconds || 0) || null;
-    const ratio = width && height ? width / height : null;
-    const orientation =
-      width && height
-        ? width > height
-          ? "horizontal"
-          : width < height
-            ? "vertical"
-            : "square"
-        : "unknown";
-    return {
-      width,
-      height,
-      duration,
-      size: file.size || Number(item.size_bytes || 0) || 0,
-      type: file.type || item.mime_type || "video/mp4",
-      ratio,
-      ratioLabel:
-        width && height ? `${width}:${height}` : i18nT("ratio_inconnu_26a9214a"),
-      orientation,
-      orientationLabel: getLocalizedVideoOrientationLabel(orientation, i18nT),
-    };
-  }
-
-  async function addPublicationMediaLibraryItems(
-    items: MediaLibraryPickerItem[],
-  ) {
-    const channel = normalizeChannelKey(activeDetailsChannelEntry?.key || "");
-    if (!channel) return;
-    const selectedItems = Array.isArray(items) ? items.filter(Boolean) : [];
-    if (!selectedItems.length) return;
-
-    const videos = selectedItems.filter((item) => item.media_type === "video");
-    const imageItems = selectedItems.filter(
-      (item) => item.media_type === "image",
-    );
-    if (videos.length && imageItems.length) {
-      const message = i18nT("mixed_media_not_allowed");
-      setDetailsActionError(message);
-      throw new Error(message);
-    }
-    if (videos.length > 1) {
-      const message = i18nT("one_video_per_publication");
-      setDetailsActionError(message);
-      throw new Error(message);
-    }
-
-    if (videos.length) {
-      const item = videos[0];
-      const file = await mediaLibraryItemToFile(item);
-      if (file.size > BOOSTER_MAX_VIDEO_BYTES) {
-        const message = i18nT(
-          "video_trop_lourde_taille_maximale_value_358dea38",
-          { value0: BOOSTER_MAX_VIDEO_MB_LABEL },
-        );
-        setDetailsActionError(message);
-        throw new Error(message);
-      }
-      const previewUrl = URL.createObjectURL(file);
-      const fallbackMeta = buildMediaLibraryVideoMetadata(item, file);
-      const sourceMetadata =
-        fallbackMeta.width || fallbackMeta.height
-          ? fallbackMeta
-          : await readPublicationVideoMetadata(file, previewUrl);
-      const videoChannel = normalizeBoosterChannelKeyForVideo(channel);
-      const defaultFormat: VideoFormat = "original";
-      setDetailsActionError(null);
-      setPublicationEditVideoByChannel((prev) => ({
-        ...prev,
-        [videoChannel]: {
-          file,
-          previewUrl,
-          name: file.name || getMediaLibraryDisplayName(item),
-          type: file.type || item.mime_type || "video/mp4",
-          size: file.size || Number(item.size_bytes || 0) || 0,
-          duration:
-            sourceMetadata.duration ||
-            Number(item.duration_seconds || 0) ||
-            null,
-          sourceMetadata,
-          sourceVideo: null,
-          transformedVariants: [],
-          format: defaultFormat,
-          adaptationMode: prev[videoChannel]?.adaptationMode || "safe_frame",
-          preparation: {
-            status: "idle",
-            label: i18nT("video_ajoutee_depuis_la_mediatheque_880252c9"),
-            detail: i18nT("apply_format_before_saving"),
-          },
-          preparing: false,
-          removed: false,
-        },
-      }));
-      return;
-    }
-
-    if (imageItems.length) {
-      const files = await Promise.all(
-        imageItems.map((item) => mediaLibraryItemToFile(item)),
-      );
-      const invalid = files.find((file) => !file.type.startsWith("image/"));
-      if (invalid) {
-        const message = i18nT("images_only_for_channel");
-        setDetailsActionError(message);
-        throw new Error(message);
-      }
-      const tooBig = files.find((file) => file.size > BOOSTER_MAX_IMAGE_BYTES);
-      if (tooBig) {
-        const message = i18nT("l_image_value_depasse_value_1c15db6a", {
-          value0: tooBig.name || i18nT("selected_file"),
-          value1: BOOSTER_MAX_IMAGE_MB_LABEL,
-        });
-        setDetailsActionError(message);
-        throw new Error(message);
-      }
-      const currentSelectedFileBytes = (
-        publicationEditImagesByChannel[channel]?.assets || []
-      )
-        .filter((asset) => asset.selected && asset.file)
-        .reduce((sum, asset) => sum + (asset.file?.size || 0), 0);
-      const nextPickedBytes = files.reduce(
-        (sum, file) => sum + (file?.size || 0),
-        0,
-      );
-      if (
-        currentSelectedFileBytes + nextPickedBytes >
-        BOOSTER_MAX_MEDIA_BYTES
-      ) {
-        const message = i18nT(
-          "les_images_depassent_value_au_total_0e09a0f4",
-          { value0: BOOSTER_MAX_MEDIA_MB_LABEL },
-        );
-        setDetailsActionError(message);
-        throw new Error(message);
-      }
-
-      setPublicationEditVideoByChannel((prev) => {
-        const videoChannel = normalizeBoosterChannelKeyForVideo(channel);
-        const previousVideoState = prev[videoChannel];
-        if (!previousVideoState) return prev;
-        return {
-          ...prev,
-          [videoChannel]: {
-            ...previousVideoState,
-            file: null,
-            previewUrl: "",
-            sourceVideo: null,
-            transformedVariants: [],
-            removed: true,
-            preparation: {
-              status: "idle",
-              label: i18nT("images_selectionnees_db1d99e0"),
-              detail: i18nT("publication_saved_as_images"),
-            },
-          },
-        };
-      });
-
-      updatePublicationChannelAssets(channel, (assets) => {
-        const merged = [...assets];
-        files.forEach((file, index) => {
-          const item = imageItems[index];
-          const key = makePublicationImageAssetKey(
-            "library",
-            file.name,
-            item.id || `${item.storage_path}:${file.size}`,
-          );
-          if (merged.some((asset) => asset.key === key)) return;
-          if (merged.length >= BOOSTER_MAX_IMAGE_COUNT) {
-            setDetailsActionError(
-              i18nT("maximum_images_per_publication", {
-                count: BOOSTER_MAX_IMAGE_COUNT,
-              }),
-            );
-            return;
-          }
-          const imageMeta = buildMediaLibraryImageMetadata(item);
-          merged.push({
-            key,
-            name: file.name || getMediaLibraryDisplayName(item),
-            type: file.type || item.mime_type || "image/jpeg",
-            previewUrl: URL.createObjectURL(file),
-            sourceUrl: null,
-            originalUrl: item.signed_url || null,
-            originalName: getMediaLibraryDisplayName(item),
-            originalType: item.mime_type || file.type || "image/jpeg",
-            file,
-            selected:
-              channel === "pinterest"
-                ? !merged.some((asset) => asset.selected)
-                : true,
-            transform: buildPublicationDefaultTransform(channel),
-            imageMeta,
-          });
-        });
-        return merged;
-      });
-      setDetailsActionError(null);
-    }
-  }
-
-  async function replacePublicationMediaLibraryItem(
-    item: MediaLibraryPickerItem,
-    target: { channel?: string; imageKey?: string } = {},
-  ): Promise<void> {
-    const channel = normalizeChannelKey(
-      target.channel || activeDetailsChannelEntry?.key || "",
-    );
-    if (!channel) {
-      throw new Error(i18nT("publication_update_failed"));
-    }
-
-    const file = await mediaLibraryItemToFile(item);
-    const videoChannel = normalizeBoosterChannelKeyForVideo(channel);
-
-    if (item.media_type === "video") {
-      if (file.size > BOOSTER_MAX_VIDEO_BYTES) {
-        const message = i18nT(
-          "video_trop_lourde_taille_maximale_value_358dea38",
-          { value0: BOOSTER_MAX_VIDEO_MB_LABEL },
-        );
-        setDetailsActionError(message);
-        throw new Error(message);
-      }
-
-      const returnedItem = item as MediaLibraryPickerItem & Record<string, any>;
-      const returnedSettings =
-        returnedItem.video_settings && typeof returnedItem.video_settings === "object"
-          ? returnedItem.video_settings
-          : {};
-      const returnedFormat = normalizeVideoFormat(
-        videoChannel,
-        returnedItem.video_format || returnedSettings.format || "original",
-      );
-      const returnedAdaptationMode = normalizeVideoAdaptationMode(
-        returnedItem.video_adaptation_mode ||
-          returnedSettings.adaptationMode ||
-          "safe_frame",
-      );
-      const returnedVariants = Array.isArray(returnedItem.transformed_variants)
-        ? returnedItem.transformed_variants
-        : [];
-      const returnedSignature = buildVideoTransformSignature(
-        returnedFormat,
-        returnedAdaptationMode,
-        getVideoPublicationProfileForChannel(videoChannel),
-      );
-      const returnedVariant = returnedVariants.find(
-        (variant: any) => variant?.signature === returnedSignature,
-      );
-      const previewUrl = String(
-        returnedVariant?.publicUrl || returnedVariant?.url || "",
-      ).trim() || URL.createObjectURL(file);
-      const fallbackMeta = buildMediaLibraryVideoMetadata(item, file);
-      const sourceMetadata =
-        returnedItem.source_metadata || fallbackMeta.width || fallbackMeta.height
-          ? returnedItem.source_metadata || fallbackMeta
-          : await readPublicationVideoMetadata(file, previewUrl);
-
-      setPublicationEditImagesByChannel((prev) => ({
-        ...prev,
-        [channel]: { assets: [] },
-      }));
-      setPublicationEditVideoByChannel((prev) => ({
-        ...prev,
-        [videoChannel]: {
-          file,
-          previewUrl,
-          name: file.name || getMediaLibraryDisplayName(item),
-          type: file.type || item.mime_type || "video/mp4",
-          size: file.size || Number(item.size_bytes || 0) || 0,
-          duration:
-            sourceMetadata.duration ||
-            Number(item.duration_seconds || 0) ||
-            null,
-          sourceMetadata,
-          sourceVideo:
-            returnedItem.source_media_record &&
-            typeof returnedItem.source_media_record === "object"
-              ? returnedItem.source_media_record
-              : {
-                  name: file.name || getMediaLibraryDisplayName(item),
-                  type: file.type || item.mime_type || "video/mp4",
-                  size: file.size || Number(item.size_bytes || 0) || 0,
-                  duration:
-                    sourceMetadata.duration ||
-                    Number(item.duration_seconds || 0) ||
-                    null,
-                  storagePath: item.storage_path || null,
-                  publicUrl: item.signed_url || null,
-                  url: item.signed_url || null,
-                  sourceMetadata,
-                },
-          transformedVariants: returnedVariants,
-          format: returnedFormat,
-          adaptationMode: returnedAdaptationMode,
-          preparation: {
-            status: returnedVariant ? "ready" : "idle",
-            label: returnedVariant
-              ? i18nT("format_applique_43fe4a7e")
-              : i18nT("video_ajoutee_depuis_la_mediatheque_880252c9"),
-            detail: returnedVariant
-              ? `${getLocalizedVideoFormatLabel(videoChannel, returnedFormat, sourceMetadata, i18nT)} · ${getLocalizedVideoAdaptationModeLabel(returnedAdaptationMode, i18nT)}`
-              : i18nT("apply_format_before_saving"),
-          },
-          preparing: false,
-          removed: false,
-        },
-      }));
-      setDetailsActionError(null);
-      return;
-    }
-
-    if (!file.type.startsWith("image/") || isUnsupportedBrowserImageFile(file)) {
-      const message = i18nT("images_only_for_channel");
-      setDetailsActionError(message);
-      throw new Error(message);
-    }
-    if (file.size > BOOSTER_MAX_IMAGE_BYTES) {
-      const message = i18nT("l_image_value_depasse_value_1c15db6a", {
-        value0: file.name || i18nT("selected_file"),
-        value1: BOOSTER_MAX_IMAGE_MB_LABEL,
-      });
-      setDetailsActionError(message);
-      throw new Error(message);
-    }
-
-    const key = makePublicationImageAssetKey(
-      "library",
-      file.name,
-      item.id || `${item.storage_path}:${file.size}`,
-    );
-    const imageMeta = buildMediaLibraryImageMetadata(item);
-
-    const targetImageKey = String(target.imageKey || "").trim();
-    if (targetImageKey) {
-      const currentAsset = publicationEditImagesByChannel[channel]?.assets.find(
-        (asset) => asset.key === targetImageKey,
-      );
-      if (!currentAsset) {
-        const message = "L’image source de cette action n’est plus disponible.";
-        setDetailsActionError(message);
-        throw new Error(message);
-      }
-      if (currentAsset.previewUrl?.startsWith("blob:")) {
-        try {
-          URL.revokeObjectURL(currentAsset.previewUrl);
-        } catch {}
-      }
-      const transform = buildPublicationDefaultTransform(channel);
-      const replacementPreviewUrl = URL.createObjectURL(file);
-      setPublicationEditImagesByChannel((previous) => ({
-        ...previous,
-        [channel]: {
-          assets: (previous[channel]?.assets || []).map((asset) =>
-            asset.key === targetImageKey
-              ? {
-                  ...asset,
-                  name: file.name || getMediaLibraryDisplayName(item),
-                  type: file.type || item.mime_type || "image/jpeg",
-                  previewUrl: replacementPreviewUrl,
-                  sourceUrl: null,
-                  originalUrl: item.signed_url || null,
-                  renderedUrl: null,
-                  originalStoragePath: item.storage_path || null,
-                  originalName: getMediaLibraryDisplayName(item),
-                  originalType: item.mime_type || file.type || "image/jpeg",
-                  file,
-                  transform,
-                  savedTransform: { ...transform },
-                  imageMeta,
-                }
-              : asset,
-          ),
-        },
-      }));
-      setDetailsActionError(null);
-      return;
-    }
-
-    setPublicationEditVideoByChannel((prev) => {
-      const previousVideoState = prev[videoChannel];
-      return {
-        ...prev,
-        [videoChannel]: {
-          ...(previousVideoState || {
-            file: null,
-            previewUrl: "",
-            name: "video-inrcy.mp4",
-            type: "video/mp4",
-            size: 0,
-            duration: null,
-            sourceMetadata: null,
-            sourceVideo: null,
-            transformedVariants: [],
-            format: "original",
-            adaptationMode: "safe_frame",
-          }),
-          file: null,
-          previewUrl: "",
-          sourceVideo: null,
-          transformedVariants: [],
-          removed: true,
-          preparation: {
-            status: "idle",
-            label: i18nT("images_selectionnees_db1d99e0"),
-            detail: i18nT("publication_saved_as_images"),
-          },
-        },
-      };
-    });
-    setPublicationEditImagesByChannel((prev) => ({
-      ...prev,
-      [channel]: {
-        assets: [
-          {
-            key,
-            name: file.name || getMediaLibraryDisplayName(item),
-            type: file.type || item.mime_type || "image/jpeg",
-            previewUrl: URL.createObjectURL(file),
-            sourceUrl: null,
-            originalUrl: item.signed_url || null,
-            originalName: getMediaLibraryDisplayName(item),
-            originalType: item.mime_type || file.type || "image/jpeg",
-            file,
-            selected: true,
-            transform: buildPublicationDefaultTransform(channel),
-            imageMeta,
-          },
-        ],
-      },
-    }));
-    setDetailsActionError(null);
-  }
-
   useEffect(() => {
     const snapshotKey = String(
       searchParams?.get("studio_editor_snapshot") || "",
@@ -4685,7 +2990,7 @@ export default function MailboxClient({
     setDetailsOpen(true);
     setDetailsEditMode(true);
     setPendingStudioEditorSnapshot(null);
-  }, [items, pendingStudioEditorSnapshot]);
+  }, [items, pendingStudioEditorSnapshot, resetDetailsStateForItem, setPublicationEditImagesByChannel, setPublicationEditVideoByChannel]);
 
   useEffect(() => {
     const returnKey = String(searchParams?.get("studio_return") || "").trim();
@@ -4798,6 +3103,7 @@ export default function MailboxClient({
     publicationEditImagesByChannel,
     resolvedStudioEditorSnapshotKey,
     failedStudioEditorSnapshotKey,
+    resetDetailsStateForItem,
   ]);
 
   const handleStudioReturnHandled = useCallback(() => {
@@ -4807,317 +3113,6 @@ export default function MailboxClient({
     setFailedStudioEditorSnapshotKey(null);
     completeEmbeddedStudioReturn();
   }, [completeEmbeddedStudioReturn]);
-
-  async function addPublicationVideo(fileList: FileList | File[] | null) {
-    const channel = normalizeBoosterChannelKeyForVideo(
-      activeDetailsChannelEntry?.key || "",
-    );
-    if (!channel || !fileList?.length) return;
-    const file = Array.from(fileList).find(
-      (candidate) =>
-        candidate.type.startsWith("video/") ||
-        /\.(mp4|m4v|mov|webm)$/i.test(candidate.name || ""),
-    );
-    if (!file) {
-      setDetailsActionError(
-        i18nT("seuls_les_fichiers_video_sont_acceptes_20063d2f"),
-      );
-      return;
-    }
-    if (file.size > BOOSTER_MAX_VIDEO_BYTES) {
-      setDetailsActionError(
-        i18nT("video_trop_lourde_taille_maximale_value_358dea38", {
-          value0: BOOSTER_MAX_VIDEO_MB_LABEL,
-        }),
-      );
-      return;
-    }
-    const previewUrl = URL.createObjectURL(file);
-    const sourceMetadata = await readPublicationVideoMetadata(file, previewUrl);
-    const defaultFormat: VideoFormat = "original";
-    setDetailsActionError(null);
-    setPublicationEditVideoByChannel((prev) => ({
-      ...prev,
-      [channel]: {
-        file,
-        previewUrl,
-        name: file.name || "video-inrcy.mp4",
-        type: file.type || "video/mp4",
-        size: file.size || 0,
-        duration: sourceMetadata.duration || null,
-        sourceMetadata,
-        sourceVideo: null,
-        transformedVariants: [],
-        format: defaultFormat,
-        adaptationMode: prev[channel]?.adaptationMode || "safe_frame",
-        preparation: {
-          status: "idle",
-          label: i18nT("nouvelle_video_ajoutee_73db7bab"),
-          detail: i18nT("apply_format_before_saving"),
-        },
-        removed: false,
-      },
-    }));
-  }
-
-  function removePublicationVideo(channelValue?: string) {
-    const channel = normalizeBoosterChannelKeyForVideo(
-      channelValue || activeDetailsChannelEntry?.key || "",
-    );
-    if (!channel) return;
-    setPublicationEditVideoByChannel((prev) => {
-      const previousVideoState = prev[channel];
-      return {
-        ...prev,
-        [channel]: {
-          ...(previousVideoState || {
-            file: null,
-            previewUrl: "",
-            name: "video-inrcy.mp4",
-            type: "video/mp4",
-            size: 0,
-            duration: null,
-            sourceMetadata: null,
-            sourceVideo: null,
-            transformedVariants: [],
-            format: "original",
-            adaptationMode: "safe_frame",
-          }),
-          file: null,
-          previewUrl: "",
-          sourceVideo: null,
-          transformedVariants: [],
-          removed: true,
-          preparation: {
-            status: "error",
-            label: i18nT("video_supprimee_5fd3ed00"),
-            detail: i18nT("ajoutez_une_nouvelle_video_avant_d_803819f5"),
-          },
-        },
-      };
-    });
-  }
-
-  function setPublicationVideoFormatForChannel(
-    channelValue: string,
-    format: VideoFormat,
-  ) {
-    const channel = normalizeBoosterChannelKeyForVideo(channelValue);
-    setPublicationEditVideoByChannel((prev) => {
-      const current = prev[channel];
-      if (!current) return prev;
-      return {
-        ...prev,
-        [channel]: {
-          ...current,
-          format,
-          preparation:
-            current.preparation?.status === "ready"
-              ? {
-                  status: "idle",
-                  label: i18nT("format_modifie_a2680e9d"),
-                  detail: i18nT("apply_this_format_before_saving"),
-                }
-              : current.preparation,
-        },
-      };
-    });
-  }
-
-  function setPublicationVideoAdaptationModeForChannel(
-    channelValue: string,
-    mode: VideoAdaptationMode,
-  ) {
-    const channel = normalizeBoosterChannelKeyForVideo(channelValue);
-    setPublicationEditVideoByChannel((prev) => {
-      const current = prev[channel];
-      if (!current) return prev;
-      return {
-        ...prev,
-        [channel]: {
-          ...current,
-          adaptationMode: mode,
-          preparation:
-            current.preparation?.status === "ready"
-              ? {
-                  status: "idle",
-                  label: i18nT("adaptation_modifiee_7c8ae175"),
-                  detail: i18nT("apply_this_format_before_saving"),
-                }
-              : current.preparation,
-        },
-      };
-    });
-  }
-
-  async function ensurePublicationEditVideoUploaded(
-    channel: BoosterChannelKey,
-    current: PublicationEditVideoState,
-  ): Promise<VideoPayload> {
-    if (!current.file && current.sourceVideo?.publicUrl)
-      return current.sourceVideo;
-    if (!current.file)
-      throw new Error(i18nT("add_video_before_saving"));
-    const uploaded = await uploadBoosterVideo(current.file, {
-      folder: "booster-videos",
-      duration: current.duration,
-      sourceMetadata: current.sourceMetadata,
-    });
-    setPublicationEditVideoByChannel((prev) => ({
-      ...prev,
-      [channel]: {
-        ...(prev[channel] || current),
-        sourceVideo: uploaded,
-        previewUrl: uploaded.publicUrl || uploaded.url || current.previewUrl,
-        transformedVariants: [],
-        preparation: {
-          status: "idle",
-          label: i18nT("video_ajoutee_ad22d54a"),
-          detail: i18nT("format_can_be_applied"),
-        },
-      },
-    }));
-    return uploaded;
-  }
-
-  async function applyPublicationVideoFormatForChannel(channelValue: string) {
-    const channel = normalizeBoosterChannelKeyForVideo(channelValue);
-    const current = publicationEditVideoByChannel[channel];
-    if (!current || current.removed || !current.previewUrl) {
-      setDetailsActionError(i18nT("ajoutez_une_video_avant_d_appliquer_580c0ec6"));
-      return;
-    }
-
-    const format = current.format || "original";
-    const adaptationMode = current.adaptationMode || "safe_frame";
-    const signature = buildVideoTransformSignature(
-      format,
-      adaptationMode,
-      getVideoPublicationProfileForChannel(channel),
-    );
-    const existing = current.transformedVariants.find(
-      (variant: any) => variant.signature === signature,
-    );
-    if (existing?.publicUrl || existing?.url) {
-      setPublicationEditVideoByChannel((prev) => ({
-        ...prev,
-        [channel]: {
-          ...current,
-          previewUrl: existing.publicUrl || existing.url || current.previewUrl,
-          preparation: {
-            status: "ready",
-            label: i18nT("format_applique_43fe4a7e"),
-            detail: `${getLocalizedVideoFormatLabel(channel, format, current.sourceMetadata, i18nT)} · ${getLocalizedVideoAdaptationModeLabel(adaptationMode, i18nT)}`,
-          },
-        },
-      }));
-      return;
-    }
-
-    setDetailsActionError(null);
-    setPublicationEditVideoByChannel((prev) => ({
-      ...prev,
-      [channel]: {
-        ...current,
-        preparing: true,
-        preparation: {
-          status: "preparing",
-          label: i18nT("modification_du_format_d563b6d2"),
-          detail: `${getLocalizedVideoFormatLabel(channel, format, current.sourceMetadata, i18nT)} · ${getLocalizedVideoAdaptationModeLabel(adaptationMode, i18nT)}`,
-        },
-      },
-    }));
-
-    try {
-      const base = await ensurePublicationEditVideoUploaded(channel, current);
-      const response = await requestBoosterVideoTransforms({
-        source: {
-          storagePath: base.storagePath,
-          publicUrl: base.publicUrl || base.url,
-          url: base.url || base.publicUrl,
-          name: base.name,
-          type: base.type,
-          size: base.size,
-          duration: base.duration,
-          sourceMetadata: base.sourceMetadata || current.sourceMetadata,
-        },
-        variants: [
-          {
-            key: `${channel}-${format}-${adaptationMode}`,
-            channel,
-            format,
-            adaptationMode,
-          },
-        ],
-      });
-      const variants = [
-        ...current.transformedVariants.filter(
-          (variant: any) => variant.signature !== signature,
-        ),
-        ...(Array.isArray(response.variants) ? response.variants : []),
-      ];
-      const found = variants.find(
-        (variant: any) => variant.signature === signature,
-      );
-      if (!found?.publicUrl && !found?.url) {
-        setPublicationEditVideoByChannel((prev) => ({
-          ...prev,
-          [channel]: {
-            ...(prev[channel] || current),
-            sourceVideo: base,
-            transformedVariants: variants,
-            previewUrl: base.publicUrl || base.url || current.previewUrl,
-            file: current.file,
-            preparing: false,
-            preparation: {
-              status: "ready",
-              label: i18nT("video_originale_conservee_84fd0d77"),
-              detail: i18nT(
-                "adaptation_automatique_indisponible_la_video_ori_c770d639",
-              ),
-            },
-          },
-        }));
-        setDetailsActionError(
-          i18nT("adaptation_automatique_indisponible_la_video_ori_c770d639"),
-        );
-        return;
-      }
-      setPublicationEditVideoByChannel((prev) => ({
-        ...prev,
-        [channel]: {
-          ...(prev[channel] || current),
-          sourceVideo: base,
-          transformedVariants: variants,
-          previewUrl: found.publicUrl || found.url || current.previewUrl,
-          file: current.file,
-          preparing: false,
-          preparation: {
-            status: "ready",
-            label: i18nT("format_applique_43fe4a7e"),
-            detail: `${getLocalizedVideoFormatLabel(channel, format, current.sourceMetadata, i18nT)} · ${getLocalizedVideoAdaptationModeLabel(adaptationMode, i18nT)}`,
-          },
-        },
-      }));
-    } catch (error: any) {
-      const fallbackDetail = i18nT(
-        "adaptation_automatique_indisponible_la_video_ori_c770d639",
-      );
-      setDetailsActionError(fallbackDetail);
-      setPublicationEditVideoByChannel((prev) => ({
-        ...prev,
-        [channel]: {
-          ...(prev[channel] || current),
-          preparing: false,
-          preparation: {
-            status: "ready",
-            label: i18nT("video_originale_conservee_84fd0d77"),
-            detail: fallbackDetail,
-          },
-        },
-      }));
-    }
-  }
 
   const fileToDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {

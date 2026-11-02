@@ -331,7 +331,10 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
   const [editingBoardName, setEditingBoardName] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | { kind: "load" } | null>(null);
+  const errorMessage = typeof error === "object" && error !== null
+    ? i18nT("chargement_des_reglages_pinterest_impossible_d9ba9660")
+    : error;
   const [profileLinkDirty, setProfileLinkDirty] = useState(false);
 
   const editingBoard = editingBoardId ? settings.boards.find((board) => board.id === editingBoardId) : null;
@@ -374,7 +377,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
     } catch (err) {
       console.warn("[pinterest-settings] load failed", err);
       if (isCurrent()) {
-        setError(i18nT("chargement_des_reglages_pinterest_impossible_d9ba9660"));
+        setError({ kind: "load" });
       }
     } finally {
       if (isCurrent()) setLoading(false);
@@ -382,10 +385,11 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
   }, []);
 
   useEffect(() => {
+    const connectionRevision = connectionRevisionRef;
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      connectionRevisionRef.current++;
+      connectionRevision.current++;
     };
   }, []);
 
@@ -554,7 +558,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
     } finally {
       if (mountedRef.current) setBoardAction(null);
     }
-  }, [newBoardName]);
+  }, [i18nT, newBoardName]);
 
   const startRenameBoard = useCallback((board: PinterestBoard) => {
     setEditingBoardId(board.id);
@@ -621,7 +625,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
         if (mountedRef.current) setBoardAction(null);
       }
     },
-    [editingBoardName],
+    [editingBoardName, i18nT],
   );
 
   const deleteBoard = useCallback(
@@ -685,7 +689,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
         if (mountedRef.current) setBoardAction(null);
       }
     },
-    [editingBoardId],
+    [editingBoardId, i18nT],
   );
 
   const setDefaultBoard = useCallback(async (board: PinterestBoard) => {
@@ -724,7 +728,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
     } finally {
       if (mountedRef.current) setBoardAction(null);
     }
-  }, []);
+  }, [i18nT]);
 
   const disconnectPinterest = useCallback(async () => {
     if (disconnectInFlightRef.current) return false;
@@ -775,7 +779,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
       disconnectInFlightRef.current = false;
       if (mountedRef.current) { setSyncing(false); setLoading(false); }
     }
-  }, [settings]);
+  }, [i18nT, settings]);
 
   const boardOptions = useMemo(() => settings.boards, [settings.boards]);
   const pinterestBoardReady = isPinterestBoardReady(settings);
@@ -810,7 +814,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
 
   const parameters = (
     <div className={guideStyles.steps}>
-      {error ? <StatusMessage variant="error">{error}</StatusMessage> : null}
+      {errorMessage ? <StatusMessage variant="error">{errorMessage}</StatusMessage> : null}
       {notice ? (
         <StatusMessage variant="success">{notice}</StatusMessage>
       ) : null}
@@ -1074,7 +1078,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
     onCreateResource: settings.accountConnected ? createBoard : undefined,
     onConnect: connectPinterest,
     onDisconnect: disconnectPinterest,
-    loading: loading && !pinterestBoardReady, busy: Boolean(boardAction), error, notice,
+    loading: loading && !pinterestBoardReady, busy: Boolean(boardAction), error: errorMessage, notice,
     publicLinks,
     parameters: settings.accountConnected ? parameters : undefined,
     parametersOwnHeading: true,

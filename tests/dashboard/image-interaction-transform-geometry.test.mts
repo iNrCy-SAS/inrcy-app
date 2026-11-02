@@ -165,7 +165,7 @@ test("browser and server publication paths persist transformed metadata without 
     "utf8",
   );
   const publish = readFileSync(
-    "app/dashboard/booster/publier/PublishModal.tsx",
+    "app/dashboard/booster/publier/publicationSubmission.ts",
     "utf8",
   );
   const server = readFileSync("lib/boosterImageServerPreparation.ts", "utf8");

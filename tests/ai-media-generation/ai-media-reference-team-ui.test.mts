@@ -117,7 +117,7 @@ test("la préférence mémorise l'équipe, la normalise et exclut photos et cons
 test("le studio propose l'équipe en image et vidéo avec un flux responsive explicite", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
-  const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
+  const hook = [read("app/dashboard/_hooks/useMediaGeneration.ts"), read("lib/mediaGenerationClientRequest.ts")].join("\n");
 
   assert.match(generator, /type StudioCharacterCount = 0 \| 1 \| 2 \| 3/);
   assert.match(generator, /effectiveCharacterCount === 1[\s\S]*?"professional"[\s\S]*?: "reference_team"/);
@@ -125,7 +125,7 @@ test("le studio propose l'équipe en image et vidéo avec un flux responsive exp
   assert.match(generator, /id: "character"/);
   assert.match(generator, /id: "environment"/);
   assert.match(generator, /id: "product"/);
-  assert.match(generator, /usage: "required" \| "inspiration"/);
+  assert.match(read("lib/mediaGenerationReferenceCollection.ts"), /usage: "required" \| "inspiration"/);
   assert.match(generator, /teamCinematicConsentRequired =/);
   assert.match(generator, /styles\.referenceCollection/);
   assert.match(hook, /\| "reference_team"/);

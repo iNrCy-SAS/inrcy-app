@@ -8,6 +8,7 @@ import { normalizeNativeChannelStates, readNativeChannelSnapshot } from "../../a
 import type { NativeChannelKey, NativeChannelStates } from "../../lib/nativeChannelActivation.ts";
 import { channelRuntime, channelNodes, channelItem } from "../helpers/channel-bubble-runtime.mts";
 import type { ChannelBubbleConnection } from "../../app/dashboard/_components/channel-bubble.types.ts";
+import type { useInrAssistantRefresh } from "../../app/dashboard/_hooks/useInrAssistantRefresh.ts";
 
 const require = createRequire(import.meta.url);
 const read = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), "utf8");
@@ -33,6 +34,7 @@ function runtime(initial = payload(), key: NativeChannelKey = "inrbadge") {
   const effects: Array<() => void> = [];
   const events: Array<{ type: string; detail: unknown }> = [];
   const calls: Array<{ method: string; body?: Record<string, unknown> }> = [];
+  let assistantRefresh: Parameters<typeof useInrAssistantRefresh>[0] | undefined;
   const hooks = { ...React,
     useState(initial: unknown) { const index = cursor++; if (!(index in slots)) slots[index] = typeof initial === "function" ? initial() : initial; return [slots[index], (value: unknown) => { slots[index] = typeof value === "function" ? value(slots[index]) : value; }]; },
     useRef(initial: unknown) { const index = cursor++; return slots[index] ??= { current: initial }; },
@@ -46,6 +48,7 @@ function runtime(initial = payload(), key: NativeChannelKey = "inrbadge") {
     if (id.endsWith("browserAccountCache")) return { getActiveBrowserUserId: () => account };
     if (id.endsWith("inrDirectorySettings")) return { getInrDirectoryUrl: () => "https://inrcy.com/annuaire/" };
     if (id.endsWith("native-channel-state")) return { normalizeNativeChannelStates, readNativeChannelSnapshot };
+    if (id.endsWith("useInrAssistantRefresh")) return { useInrAssistantRefresh: (options: Parameters<typeof useInrAssistantRefresh>[0]) => { assistantRefresh = options; } };
     if (id.endsWith(".css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
     return new Proxy({}, { get: (_, key) => key });
   };
@@ -66,6 +69,11 @@ function runtime(initial = payload(), key: NativeChannelKey = "inrbadge") {
     switchAccount() { account = "account-b"; },
     block() { release = () => {}; },
     release() { const resolve = release; release = undefined; resolve?.(); },
+    async refreshFromAssistant(canApply: () => boolean) {
+      assert.ok(assistantRefresh);
+      assert.deepEqual(assistantRefresh.topics, ["channels"]);
+      return assistantRefresh.refresh({ accountId: account, topics: ["channels"], canApply });
+    },
   };
 }
 
@@ -114,6 +122,19 @@ test("published state enables public actions; stale POST completion cannot updat
   assert.equal(h.events.length, previousEvents);
   connection = h.render();
   assert.equal(connection.accountConnected, true, "The old response is discarded; account remount owns the new account state");
+});
+
+test("assistant refresh applies confirmed native state only while its account request is current", async () => {
+  const h = runtime(payload(false, false));
+  h.render(); await h.mount(); h.render();
+  h.respond(payload(true, true));
+  assert.equal(await h.refreshFromAssistant(() => false), false);
+  assert.equal(h.render().accountConnected, false);
+  assert.equal(await h.refreshFromAssistant(() => true), true);
+  assert.equal(h.render().accountConnected, true);
+  h.respond(payload(false, false, "account-b"));
+  assert.equal(await h.refreshFromAssistant(() => true), false);
+  assert.equal(h.render().accountConnected, true);
 });
 
 test("orange public view remains a disabled button, never an actionable anchor", () => {

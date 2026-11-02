@@ -343,7 +343,7 @@ export function useInstagramChannel({
     void triggerChannelRefresh("instagram").catch(() => {});
     setPanelSuccess("Profil Instagram déconnecté.");
     return true;
-  }, [instagramAuthMode, patchChannelConnectionLocally, triggerChannelRefresh, setPanelError, setPanelSuccess]);
+  }, [patchChannelConnectionLocally, triggerChannelRefresh, setPanelError, setPanelSuccess]);
 
   const loadInstagramAccounts = useCallback(async (options?: { autoSelect?: boolean }) => {
     if (!instagramAccountConnected || instagramAuthMode === "instagram_login") return;
@@ -406,7 +406,7 @@ export function useInstagramChannel({
         setIgAccountsPhase("idle");
       }
     }
-  }, [instagramAccountConnected, instagramConnected, instagramAuthMode, igSelectedPageId, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh, syncInstagramStateFromServer]);
+  }, [instagramAccountConnected, instagramConnected, instagramAuthMode, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh]);
 
   useEffect(() => {
     const linked = searchParams.get("linked");
@@ -470,7 +470,7 @@ export function useInstagramChannel({
       setPanelError(setupError, setupError, 6000);
       return false;
     }
-  }, [igAccounts, igSelectedPageId, patchChannelConnectionLocally, triggerChannelRefresh, setPanelSuccess, setPanelError, syncInstagramStateFromServer]);
+  }, [igAccounts, igSelectedPageId, patchChannelConnectionLocally, triggerChannelRefresh, setPanelSuccess, setPanelError]);
 
   return {
     instagramAuthMode,

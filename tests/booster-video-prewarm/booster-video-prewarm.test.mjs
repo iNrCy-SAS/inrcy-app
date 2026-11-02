@@ -30,6 +30,8 @@ const transcribeRoute = await readFile(
   "utf8",
 );
 
+const generationController = await readFile(new URL("../../app/dashboard/booster/publier/useBoosterGeneration.ts", import.meta.url), "utf8");
+
 test("les captures vidéo restent mises en cache et préchauffent hors du bloc d'insertion", () => {
   assert.match(foundations, /type VideoFramesPreparationCache = \{/);
   assert.match(source, /const getOrPrepareVideoFramesForAI = useCallback/);
@@ -43,8 +45,8 @@ test("les captures vidéo restent mises en cache et préchauffent hors du bloc d
     source,
     /creationMode !== "ai" \|\|\s*!videoFile \|\|\s*videoAiContextRef[\s\S]*?getOrPrepareVideoFramesForAI\(videoFile\)/,
   );
-  assert.doesNotMatch(source, /preparePersistentAiMedia/);
-  assert.doesNotMatch(source, /preparePersistentPublicationMedia/);
+  assert.doesNotMatch([source, generationController].join("\n"), /preparePersistentAiMedia/);
+  assert.doesNotMatch([source, generationController].join("\n"), /preparePersistentPublicationMedia/);
   assert.match(source, /await waitForPersistentWorkspaceIdle/);
   assert.match(source, /await verifyPersistentWorkspaceSources/);
 });
@@ -56,12 +58,12 @@ test("la génération rapide utilise les captures locales sans attendre de trans
   );
   assert.doesNotMatch(addVideoBlock, /getOrPrepareVideoAudioFileForAI/);
   assert.doesNotMatch(addVideoBlock, /getOrPrepareVideoFramesForAI/);
-  assert.doesNotMatch(source, /getOrPrepareVideoAudioFileForAI/);
-  assert.doesNotMatch(source, /transcribeVideoAudioForAI/);
+  assert.doesNotMatch([source, generationController].join("\n"), /getOrPrepareVideoAudioFileForAI/);
+  assert.doesNotMatch([source, generationController].join("\n"), /transcribeVideoAudioForAI/);
 
-  const generationBlock = source.slice(
-    source.indexOf("const onGenerate = async"),
-    source.indexOf("const onDuplicateContentToAllChannels"),
+  const generationBlock = generationController.slice(
+    generationController.indexOf("const onGenerate = async"),
+    generationController.indexOf("  return { onGenerate"),
   );
   assert.ok(generationBlock.length > 0);
   assert.match(generationBlock, /const videoAudioTranscript = ""/);

@@ -330,7 +330,7 @@ export function useFacebookChannel({
         setFbPagesPhase("idle");
       }
     }
-  }, [facebookAccountConnected, facebookPageConnected, fbSelectedPageId, facebookAccountEmail, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh]);
+  }, [facebookAccountConnected, facebookPageConnected, fbSelectedPageId, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh]);
 
   useEffect(() => {
     const linked = searchParams.get("linked");
@@ -393,7 +393,7 @@ export function useFacebookChannel({
       setPanelError(j?.error, "Impossible d'enregistrer la page Facebook.");
       return false;
     }
-  }, [fbPages, fbSelectedPageId, facebookAccountEmail, patchChannelConnectionLocally, triggerChannelRefresh, setPanelSuccess, setPanelError]);
+  }, [fbPages, fbSelectedPageId, patchChannelConnectionLocally, triggerChannelRefresh, setPanelSuccess, setPanelError]);
 
   return {
     facebookUrl,

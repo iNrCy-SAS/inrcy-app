@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
@@ -31,7 +33,7 @@ test("Booster délègue les actions média à iNrStudio et réinsère le résult
     "app/dashboard/booster/publier/components/PublishIntentPanel.tsx"
   );
   const mediaPanel = read(
-    "app/dashboard/booster/publier/components/PublishImagesPanel.tsx"
+    "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx"
   );
 
   assert.match(hook, /\/api\/media-generation\/quota/);
@@ -96,9 +98,10 @@ test("Booster délègue les actions média à iNrStudio et réinsère le résult
   assert.match(publishModal, /addMediaLibrarySelection\(/);
   assert.match(publishModal, /\[returnedItem\]/);
   assert.match(publishModal, /\{ kind: "publication" \}/);
-  assert.doesNotMatch(publishModal, /<MediaGeneratorModal/);
+  assert.doesNotMatch([publishModal, submission].join("\n"), /<MediaGeneratorModal/);
   assert.match(intentPanel, /onGenerateMedia/);
-  assert.match(mediaPanel, /onGenerateMedia/);
+  assert.match(mediaPanel, /onClick=\{\(\) => onGenerate\(kind\)\}/);
+  assert.match(publishModal, /onGenerate=\{\(kind\) => void openInrStudioGenerator\(kind\)\}/);
   assert.doesNotMatch(intentPanel, /onGenerateImage|onGenerateVideo/);
   assert.doesNotMatch(mediaPanel, /onGenerateImage|onGenerateVideo/);
   assert.equal(
@@ -263,9 +266,9 @@ test("les références s’ajoutent immédiatement avec leur rôle, leur utilisa
   assert.match(generator, /insertion === "append" \? "character" : role/);
   assert.match(generator, /usage: insertion === "append"\s*\? "required"/);
   const indexing = sourceSection(
-    generator,
+    read("lib/mediaGenerationReferenceCollection.ts"),
     "function normalizeCharacterReferenceIndexes",
-    "type RememberPreferenceControlProps"
+    "function orderReferences"
   );
   assert.doesNotMatch(indexing, /role: "inspiration"/);
   assert.match(generator, /referenceRoleLimitError/);
@@ -399,7 +402,7 @@ test("iNrStudio reçoit le handoff et retourne le média avec son contexte", () 
     "app/dashboard/generer-media/mediaGeneratorStudio.module.css"
   );
   const edition = read("lib/dashboardEdition.ts");
-  const desktopMenu = read("app/dashboard/_components/UserMenu.tsx");
+  const desktopMenu = read("app/dashboard/_components/DashboardTopbar.tsx");
   const mobileMenu = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
   const dashboardFr = JSON.parse(read("messages/fr-FR/dashboard.json"));
 
@@ -426,7 +429,7 @@ test("iNrStudio reçoit le handoff et retourne le média avec son contexte", () 
   assert.match(read("lib/mobileShortcutPolicy.ts"), /id: "media_studio", href: "\/dashboard\/generer-media"/);
   assert.equal(existsSync("lib/dashboardRequiredSetupAccess.ts"), false);
   assert.equal(existsSync("app/dashboard/generer-media/layout.tsx"), false);
-  assert.doesNotMatch(desktopMenu, /closeAndNavigate\("\/dashboard\/generer-media"\)/);
+  assert.doesNotMatch(desktopMenu, /onNavigateCta\("\/dashboard\/generer-media"\)/);
   assert.doesNotMatch(mobileMenu, /label=\{t\.userMenu\.mediaGenerator\}/);
   assert.equal(
     dashboardFr.userMenu.mediaGenerator,
@@ -460,7 +463,7 @@ test("un handoff iNrStudio protège la sortie et utilise un CTA média unique", 
 test("Booster conserve les outils de Médias dans son sélecteur de références", () => {
   const intentPanel = read("app/dashboard/booster/publier/components/PublishIntentPanel.tsx");
   const picker = read("app/dashboard/booster/publier/components/PublishReferencePicker.tsx");
-  const mediaPanel = read("app/dashboard/booster/publier/components/PublishImagesPanel.tsx");
+  const mediaPanel = read("app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx");
   const topActions = sourceSection(intentPanel, "<PublishReferencePicker", "<div className={css.referenceThumbnails}");
   for (const callback of ["onPickImagesClick", "onPickVideoClick", "onGenerateMedia", "onOpenMediaLibrary", "onTakePhotoClick"]) {
     assert.ok(topActions.includes(callback), callback + " reste accessible dans Idée");
@@ -468,10 +471,11 @@ test("Booster conserve les outils de Médias dans son sélecteur de références
   assertOrdered(picker, ['t("wizard_step_media")', 't("wizard_generate_media")', 't("wizard_media_library")', 't("wizard_file")']);
   assert.match(picker, /data-testid="booster-reference-add"/);
   assert.match(picker, /data-testid="booster-pdf-context-control"/);
-  const lowerActions = sourceSection(mediaPanel, "<LocalMediaUploadChoice", "<div className={css.mediaModes}");
-  assertOrdered(lowerActions, ["onSelect: onPickImagesClick", "onSelect: onPickVideoClick", "onGenerateMedia", "onOpenMediaLibrary", "onTakePhotoClick"]);
-  assert.match(lowerActions, /testId="booster-publication-local-media-choice"/);
-  assert.match(lowerActions, /ai_generator_generate_media/);
+  const lowerActions = sourceSection(mediaPanel, "const actions =", "return <>");
+  assertOrdered(lowerActions, ["onPickImages : onPickVideo", "onGenerate(kind)", "onLibrary(kind)", "onClick={onCamera}"]);
+  assert.match(mediaPanel, /actions\("image"\)/);
+  assert.match(mediaPanel, /actions\("video"\)/);
+  assert.match(lowerActions, /isMobile && kind === "image"/);
 });
 
 test("iNrSend délègue génération, modification et retouche à iNrStudio", () => {

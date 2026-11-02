@@ -206,8 +206,8 @@ const dashboardHelpModalsSource = readFileSync(
   new URL("../../app/dashboard/_components/DashboardHelpModals.tsx", import.meta.url),
   "utf8",
 );
-const gpsClientSource = readFileSync(
-  new URL("../../app/dashboard/gps/GpsClient.tsx", import.meta.url),
+const usageGuideSource = readFileSync(
+  new URL("../../app/dashboard/_components/DashboardUsageGuide.tsx", import.meta.url),
   "utf8",
 );
 const gpsEditionPolicySource = readFileSync(
@@ -569,10 +569,10 @@ test("le GPS Standard adapte les rubriques mixtes et affiche les outils Premium 
   assert.ok(Object.values(gpsI18n).some((message) => message.includes("colonne **Publications**")));
   assert.ok(Object.values(gpsI18n).some((message) => message.includes("données des canaux Standard")));
   assert.ok(Object.values(gpsI18n).some((message) => message.includes("Bilan Booster")));
-  assert.match(gpsClientSource, /selectedSectionPremium/);
-  assert.match(gpsClientSource, /i18nT\("nous_contacter_pour_premium_149750a6"\)/);
+  assert.match(usageGuideSource, /getHelpGoalTools\(goal, edition, inrAgentEnabled\)/);
+  assert.match(usageGuideSource, /tool\.premium \? "\/dashboard\?panel=abonnement" : tool\.href/);
   assert.equal(gpsI18n.nous_contacter_pour_premium_149750a6, "Nous contacter pour Premium");
-  assert.match(gpsClientSource, /styles\.premiumBadge/);
+  assert.match(usageGuideSource, /tool\.premium \? <small>\{t\("premium"\)\}/);
 });
 
 test("les écrans Premium sont refusés tandis que les outils Standard et iNrAgent limité restent accessibles", () => {
@@ -841,7 +841,7 @@ test("iNrSend Standard donne accès aux brouillons de Publications et conserve l
     /requestedBoxView === "drafts" \? "drafts" : "sent"/,
   );
   assert.match(
-    inrSendClientSource,
+    readFileSync(new URL("../../app/dashboard/mails/_hooks/useMailboxHistory.ts", import.meta.url), "utf8"),
     /params\.set\("countsOnly", "1"\);\s*params\.set\("folder", context\.folder\);\s*params\.set\("boxView", context\.boxView\);/,
   );
 });

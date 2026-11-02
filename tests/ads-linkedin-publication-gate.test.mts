@@ -16,7 +16,7 @@ import {
   linkedInAdsVerifiedBidDefault,
 } from "../lib/adsLinkedInClientDefaults.ts";
 
-const source = ts.createSourceFile("AdsClient.tsx", readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const source = ts.createSourceFile("AdsClient.tsx", ["AdsClient.tsx", "useAdsExternalConnections.ts", "adsClientHttp.ts"].map((file) => readFileSync(new URL(`../app/dashboard/ads/${file}`, import.meta.url), "utf8")).join("\n"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 
 function findAll(predicate: (node: ts.Node) => boolean, root: ts.Node = source): ts.Node[] {
   const result: ts.Node[] = [];
@@ -45,6 +45,9 @@ function dialogGate(name: string, scope: Record<string, unknown>): boolean {
 }
 
 function actualFunction(name: string, scope: Record<string, unknown>) {
+  if (name !== "mergeExternalStatus" && scope.setExternalStatuses && !scope.mergeExternalStatus) {
+    scope = { ...scope, mergeExternalStatus: actualFunction("mergeExternalStatus", { setExternalStatuses: scope.setExternalStatuses }) };
+  }
   const declaration = findAll((node) => ts.isFunctionDeclaration(node) && node.name?.text === name)[0];
   assert.ok(declaration, `${name} must exist`);
   const compiled = ts.transpileModule(declaration.getText(source), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;

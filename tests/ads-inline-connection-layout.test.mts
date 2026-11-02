@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+const externalConnections = readFileSync(new URL("../app/dashboard/ads/useAdsExternalConnections.ts", import.meta.url), "utf8");
 const internalSettings = readFileSync(new URL("../app/dashboard/ads/AdsConnectionSettings.tsx", import.meta.url), "utf8");
 const externalSettings = readFileSync(new URL("../app/dashboard/ads/ExternalAdsConnectionSettings.tsx", import.meta.url), "utf8");
 const openaiSettings = readFileSync(new URL("../app/dashboard/ads/OpenaiAdsConnectionSettings.tsx", import.meta.url), "utf8");
@@ -21,11 +22,12 @@ test("connection forms are inline, with no modal, duplicate channel header or st
 
 test("account lists follow the selected card and preserve their caches", () => {
   assert.match(client, /providerAccountsCache = useRef<Partial<Record<AdsProvider, AccountResponse>>>/);
-  assert.match(client, /externalAccountsCache = useRef<Record<ExternalChannelId, ExternalAccountsCacheEntry>>/);
+  assert.match(externalConnections, /externalAccountsCache = useRef<Record<ExternalChannelId, ExternalAccountsCacheEntry>>/);
   assert.match(client, /if \(cached && providerAccountsFetchedRevision\.current\[activeProvider\] === refreshRevision\)/);
-  assert.match(client, /if \(cached\.loaded && !force\)/);
+  assert.match(externalConnections, /if \(cached\.loaded && !force\)/);
   assert.doesNotMatch(client, /externalConfiguring/);
-  assert.match(client, /if \(isExternalChannel\(next\)\) \{[\s\S]*?setExternalAccounts\(locked \? \[\] : cached\.accounts\)/);
+  assert.match(client, /if \(isExternalChannel\(next\)\) \{[\s\S]*?hydrateExternalChannel\(next, locked\)/);
+  assert.match(externalConnections, /setExternalAccounts\(locked \? \[\] : cached\.accounts\)/);
 });
 
 test("the original card geometry stays fixed and only the fields and icons adapt", () => {

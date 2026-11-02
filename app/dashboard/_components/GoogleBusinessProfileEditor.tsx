@@ -6,7 +6,9 @@ import { stableGoogleBusinessValue, type GoogleBusinessDate, type GoogleBusiness
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import GoogleBusinessWeeklyHours from "./GoogleBusinessWeeklyHours";
+import GoogleBusinessCategoriesEditor from "./GoogleBusinessCategoriesEditor";
 import styles from "./GoogleBusinessProfileEditor.module.css";
+import { useInrAssistantRefresh } from "../_hooks/useInrAssistantRefresh";
 
 type Snapshot = { accountId: string; accountName: string; locationName: string; version: string; profile: GoogleBusinessProfile; openStatus?: string };
 const toTime = (value?: GoogleBusinessTime) => `${String(value?.hours ?? 0).padStart(2, "0")}:${String(value?.minutes ?? 0).padStart(2, "0")}`;
@@ -31,14 +33,25 @@ export default function GoogleBusinessProfileEditor({ locationName, onDirtyChang
   const [retry, setRetry] = useState(0);
   const [section, setSection] = useState<typeof SECTIONS[number]>("information");
   const [exceptionPage, setExceptionPage] = useState(0);
+  const [categorySearchPending, setCategorySearchPending] = useState(false);
+  const [categoryReset, setCategoryReset] = useState(0);
   const saveRequestRef = useRef(false);
   const profileRevisionRef = useRef(0);
   const tabId = useId();
-  const dirty = Boolean(snapshot && draft && stableGoogleBusinessValue(snapshot.profile) !== stableGoogleBusinessValue(draft));
+  const profileDirty = Boolean(snapshot && draft && stableGoogleBusinessValue(snapshot.profile) !== stableGoogleBusinessValue(draft));
+  const dirty = profileDirty || categorySearchPending;
+  useInrAssistantRefresh({ topics: ["channels"], scopeKey: locationName, blocked: dirty || loading || saving, refresh: async ({ accountId, canApply }) => {
+    const response = await fetch(`/api/integrations/google-business/profile?${new URLSearchParams({ locationName })}`, { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok || !data.ok || data.accountId !== accountId || data.locationName !== locationName || !canApply()) return false;
+    profileRevisionRef.current++;
+    setSnapshot(data); setDraft(data.profile); setSaved(false); return true;
+  } });
   useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false); }, [dirty, onDirtyChange]);
   useEffect(() => {
     const controller = new AbortController();
-    profileRevisionRef.current++;
+    const profileRevision = profileRevisionRef;
+    profileRevision.current++;
     const account = getActiveBrowserUserId();
     setLoading(true); setError(""); setSnapshot(null); setDraft(null);
     void (async () => {
@@ -51,21 +64,22 @@ export default function GoogleBusinessProfileEditor({ locationName, onDirtyChang
       } catch (caught) { if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : t("loadError")); }
       finally { if (!controller.signal.aborted) setLoading(false); }
     })();
-    return () => { controller.abort(); profileRevisionRef.current++; };
+    return () => { controller.abort(); profileRevision.current++; };
   }, [locationName, retry, t]);
   const changes = useMemo(() => snapshot && draft ? (Object.keys(draft) as Array<keyof GoogleBusinessProfile>).filter(key => stableGoogleBusinessValue(snapshot.profile[key]) !== stableGoogleBusinessValue(draft[key])) : [], [snapshot, draft]);
-  const update = <K extends keyof GoogleBusinessProfile>(key: K, value: GoogleBusinessProfile[K]) => { setDraft(current => current ? { ...current, [key]: value } : current); setSaved(false); setError(""); };
+  const update = <K extends keyof GoogleBusinessProfile>(key: K, value: GoogleBusinessProfile[K]) => { profileRevisionRef.current++; setDraft(current => current ? { ...current, [key]: value } : current); setSaved(false); setError(""); };
   const updateSpecial = (index: number, patch: Partial<GoogleBusinessSpecialPeriod>) => update("specialHours", { specialHourPeriods: draft!.specialHours.specialHourPeriods.map((row, i) => i === index ? { ...row, ...patch } : row) });
   const label = (key: keyof GoogleBusinessProfile) => t(`fields.${key}`);
   const describe = (profile: GoogleBusinessProfile, key: keyof GoogleBusinessProfile): string => {
     const value = profile[key];
     if (typeof value === "string") return value || t("empty");
+    if (key === "categories") return `${t("categories.primary")} : ${profile.categories?.primaryCategory?.displayName || t("empty")}\n${t("categories.additional")} : ${profile.categories?.additionalCategories.map(category => category.displayName).join(", ") || t("empty")}`;
     if (key === "storefrontAddress") { const address = profile.storefrontAddress; return address ? [...(address.addressLines || []), address.postalCode, address.locality, address.regionCode].filter(Boolean).join(", ") : t("empty"); }
     if (key === "regularHours") return profile.regularHours.periods.map(row => `${t(`days.${row.openDay}`)} ${toTime(row.openTime)} → ${t(`days.${row.closeDay}`)} ${toTime(row.closeTime)}`).join("\n") || t("empty");
     return profile.specialHours.specialHourPeriods.map(row => `${toDate(row.startDate)} : ${row.closed ? t("closed") : `${toTime(row.openTime)} → ${toDate(row.endDate || row.startDate)} ${toTime(row.closeTime)}`}`).join("\n") || t("empty");
   };
   async function save() {
-    if (!snapshot || !draft || saving || !dirty) return;
+    if (!snapshot || !draft || saving || !profileDirty || categorySearchPending) return;
     setSaving(true); setError("");
     try {
       const response = await fetch("/api/integrations/google-business/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId: snapshot.accountId, accountName: snapshot.accountName, locationName: snapshot.locationName, version: snapshot.version, profile: draft }) });
@@ -78,13 +92,13 @@ export default function GoogleBusinessProfileEditor({ locationName, onDirtyChang
     finally { setSaving(false); }
   }
   async function requestSave() {
-    if (!snapshot || !draft || !dirty || saving || saveRequestRef.current) return;
+    if (!snapshot || !draft || !profileDirty || categorySearchPending || saving || saveRequestRef.current) return;
     saveRequestRef.current = true;
     const revision = profileRevisionRef.current;
     try {
       const confirmed = await confirmInrcy({
         title: t("reviewTitle"),
-        message: t("reviewHint", { name: snapshot.profile.title }),
+        message: t("reviewHint", { name: snapshot.profile.title }) + (changes.includes("categories") ? `\n${t("categories.review")}` : ""),
         steps: changes.map(key => `${label(key)} : ${describe(draft, key)}`),
         confirmLabel: t("confirmSave"),
         cancelLabel: t("cancelSave"),
@@ -104,11 +118,13 @@ export default function GoogleBusinessProfileEditor({ locationName, onDirtyChang
     {error ? <p className={styles.error} role="alert">{error}</p> : null}
     {saved ? <p className={styles.success} role="status">{t("saved")}</p> : null}
       <div className={styles.tabs} role="tablist" aria-label={t("editSections")}>{SECTIONS.map((key, index) => <button key={key} id={`${tabId}-${key}`} type="button" role="tab" aria-selected={section === key} aria-controls={`${tabId}-panel`} tabIndex={section === key ? 0 : -1} disabled={saving} onClick={() => setSection(key)} onKeyDown={event => { const next = event.key === "ArrowRight" ? (index + 1) % SECTIONS.length : event.key === "ArrowLeft" ? (index + SECTIONS.length - 1) % SECTIONS.length : event.key === "Home" ? 0 : event.key === "End" ? SECTIONS.length - 1 : -1; if (next < 0) return; event.preventDefault(); setSection(SECTIONS[next]); event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus(); }}>{t(`tabs.${key}`)}</button>)}</div>
-      <section id={`${tabId}-panel`} role="tabpanel" aria-labelledby={`${tabId}-${section}`} className={`${styles.section} ${section === "hours" ? styles.hoursSection : ""}`}>
+      <section id={`${tabId}-panel`} role="tabpanel" aria-labelledby={`${tabId}-${section}`} className={`${styles.section} ${section === "hours" ? styles.hoursSection : section === "information" ? styles.informationSection : ""}`}>
       {section === "information" ? <div className={`${styles.fields} ${styles.informationFields}`}>
         <label>{label("title")}<input value={draft.title} maxLength={200} required disabled={saving} onChange={event => update("title", event.target.value)} autoComplete="organization" /></label>
         <label>{label("primaryPhone")}<input type="tel" value={draft.primaryPhone} maxLength={50} disabled={saving} onChange={event => update("primaryPhone", event.target.value)} autoComplete="tel" /></label>
         <label className={styles.wide}>{label("websiteUri")}<input type="url" value={draft.websiteUri} maxLength={2048} placeholder="https://" disabled={saving} onChange={event => update("websiteUri", event.target.value)} /></label>
+        <GoogleBusinessCategoriesEditor key={`${locationName}:${categoryReset}`} context={snapshot} disabled={saving}
+          value={draft.categories ?? { primaryCategory: null, additionalCategories: [] }} onPendingChange={setCategorySearchPending} onChange={value => update("categories", value)} />
         <label className={`${styles.wide} ${styles.descriptionField}`}>{label("description")}<textarea value={draft.description} maxLength={750} rows={3} disabled={saving} onChange={event => update("description", event.target.value)} /><small>{draft.description.length} / 750</small></label>
       </div> : null}
       {section === "address" ? draft.storefrontAddress ? <div className={styles.fields}>
@@ -120,6 +136,6 @@ export default function GoogleBusinessProfileEditor({ locationName, onDirtyChang
         {exception ? <div className={styles.fields}><label>{t("date")}<input type="date" value={toDate(exception.startDate)} required disabled={saving} onChange={event => { if (event.target.value) updateSpecial(exceptionIndex, { startDate: fromDate(event.target.value), endDate: fromDate(event.target.value) }); }} /></label><label className={styles.check}><input type="checkbox" checked={Boolean(exception.closed)} disabled={saving} onChange={event => updateSpecial(exceptionIndex, { closed: event.target.checked, openTime: exception.openTime || { hours: 9 }, closeTime: exception.closeTime || { hours: 18 } })} />{t("closedAllDay")}</label>{!exception.closed ? <><TimeField label={t("opens")} value={exception.openTime} disabled={saving} onChange={value => updateSpecial(exceptionIndex, { openTime: value })} /><TimeField label={t("closes")} value={exception.closeTime} disabled={saving} allowEndOfDay onChange={value => updateSpecial(exceptionIndex, { closeTime: value })} /><label className={styles.wide}>{t("endDate")}<input type="date" value={toDate(exception.endDate || exception.startDate)} required disabled={saving} onChange={event => { if (event.target.value) updateSpecial(exceptionIndex, { endDate: fromDate(event.target.value) }); }} /></label></> : null}</div> : <p className={styles.empty}>{t("noExceptions")}</p>}
         <div className={styles.rowActions}><button type="button" disabled={saving} onClick={() => { const now = new Date(); update("specialHours", { specialHourPeriods: [...draft.specialHours.specialHourPeriods, { startDate: { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() }, closed: true }] }); setExceptionPage(draft.specialHours.specialHourPeriods.length); }}>{t("addException")}</button>{exception ? <button type="button" disabled={saving} onClick={() => update("specialHours", { specialHourPeriods: draft.specialHours.specialHourPeriods.filter((_, i) => i !== exceptionIndex) })}>{t("removeException")}</button> : null}</div></> : null}
       </section>
-      <footer className={styles.footer}><span>{dirty ? t("unsaved") : t("upToDate")}</span><div className={styles.actions}><button type="button" disabled={!dirty || saving} onClick={() => { setDraft(structuredClone(snapshot.profile)); setError(""); }}>{t("reset")}</button><button className={styles.primary} type="submit" disabled={!dirty || saving}>{saving ? t("saving") : t("saveGoogle")}</button></div></footer>
+      <footer className={styles.footer}><span>{dirty ? t("unsaved") : t("upToDate")}</span><div className={styles.actions}><button type="button" disabled={!dirty || saving} onClick={() => { profileRevisionRef.current++; setDraft(structuredClone(snapshot.profile)); setCategoryReset(value => value + 1); setCategorySearchPending(false); setError(""); }}>{t("reset")}</button><button className={styles.primary} type="submit" disabled={!profileDirty || categorySearchPending || saving}>{saving ? t("saving") : t("saveGoogle")}</button></div></footer>
   </form>;
 }

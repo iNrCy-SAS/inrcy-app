@@ -1,3 +1,4 @@
+import { readAgentScheduleSource } from "./schedule-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -18,7 +19,7 @@ const executeNowRoute = read(
 );
 const cronRoute = read("app/api/cron/inr-agent-scheduled-actions/route.ts");
 const historyRoute = read("app/api/inrsend/history/route.ts");
-const agentScheduleRoute = read("app/api/agent/actions/schedule/route.ts");
+const agentScheduleRoute = readAgentScheduleSource();
 const agentExecuteRoute = read("app/api/agent/actions/execute/route.ts");
 
 test("a mixed schedule keeps five image channels and five video channels intact", () => {

@@ -1,5 +1,4 @@
 import { isMetaChannelPilotEnabledForActorAndAccount, isMetaChannelPilotEnabledForAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
-import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from "next/server";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";

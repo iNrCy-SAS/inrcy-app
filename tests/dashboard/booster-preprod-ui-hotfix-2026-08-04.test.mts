@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const publishModal = readFileSync("app/dashboard/booster/publier/PublishModal.tsx", "utf8");
-const mediaPanel = readFileSync("app/dashboard/booster/publier/components/PublishImagesPanel.tsx", "utf8");
 const creationPanel = readFileSync("app/dashboard/booster/publier/components/PublishCreationModePanel.tsx", "utf8");
 const channelSelector = readFileSync("app/dashboard/booster/publier/components/PublishChannelSelector.tsx", "utf8");
 const mailboxClient = readFileSync("app/dashboard/mails/MailboxClient.tsx", "utf8");
@@ -15,9 +14,9 @@ test("manual mode keeps real image and video file inputs mounted", () => {
 });
 
 test("explicit per-channel media removal wins for TikTok and YouTube", () => {
-  const noneIndex = mediaPanel.indexOf('if (explicit === "none") return "none"');
-  const youtubeIndex = mediaPanel.indexOf('if (channel === "youtube_shorts")');
-  const tiktokIndex = mediaPanel.indexOf('if (channel === "tiktok")');
+  const noneIndex = publishModal.indexOf('if (explicit === "none") return "none"');
+  const youtubeIndex = publishModal.indexOf('if (channel === "youtube_shorts")');
+  const tiktokIndex = publishModal.indexOf('if (channel === "tiktok")');
   assert.ok(noneIndex >= 0);
   assert.ok(noneIndex < youtubeIndex);
   assert.ok(noneIndex < tiktokIndex);

@@ -10,7 +10,11 @@ import * as clientContext from "../../lib/inrAssistantClientContext.ts";
 import * as activity from "../../lib/inrAssistantActivity.ts";
 import * as attachmentPolicy from "../../lib/inrAssistantAttachments.ts";
 import * as taskPolicy from "../../lib/inrAssistantTaskPolicy.ts";
+import * as commandRegistry from "../../lib/inrAssistantCommandRegistry.ts";
 import * as studioDraft from "../../lib/inrAssistantStudioDraft.ts";
+import * as replyReplay from "../../lib/inrAssistantReplyReplay.ts";
+import * as refresh from "../../lib/inrAssistantRefresh.ts";
+import { getInrAssistantNavigation } from "../../lib/inrAssistantUiCommands.ts";
 import type * as Route from "../../app/api/assistant/chat/route.ts";
 
 const { NextResponse } = createRequire(import.meta.url)("next/server") as typeof import("next/server");
@@ -32,6 +36,9 @@ type GatewayArguments = {
   taskContext?: taskPolicy.InrAssistantTaskState;
   taskIntent?: "continue" | "check_status";
   onTaskCheckpoint?: (state: taskPolicy.InrAssistantTaskState) => Promise<void>;
+  mediaAttachments: Array<Pick<attachmentPolicy.AssistantAttachment, "id" | "name" | "kind" | "size">>;
+  resolveMediaAttachment: (id: string) => Promise<{ id: string } | null>;
+  claimMediaAttachmentImport: (id: string) => Promise<boolean>;
 };
 type GatewayReply = { message: string; taskState?: taskPolicy.InrAssistantTaskState; [key: string]: unknown };
 type MemoryScope = { accountId: string; actorUserId: string };
@@ -54,6 +61,7 @@ function harness(options: {
   taskSaveUnavailable?: boolean;
   taskSaveFailureAfter?: number;
   taskReadState?: "missing" | "invalid" | "unavailable" | "expired";
+  replySaveUnavailable?: boolean;
 } = {}) {
   const gatewayCalls: GatewayArguments[] = [];
   const editionScopes: string[] = [];
@@ -69,6 +77,10 @@ function harness(options: {
   let activeScope = { ...initialScope };
   const savedTurns = new Map<string, MemoryTurn>();
   const taskStates = new Map<string, taskPolicy.InrAssistantTaskState>();
+  const replyStates = new Map<string, replyReplay.InrAssistantReplyReplay>();
+  const attachmentBindings = new Map<string, attachmentPolicy.AssistantAttachment[]>();
+  const mediaOriginalReads: Array<TaskScope & { id: string }> = [];
+  const mediaImportClaims = new Set<string>();
   const taskLoads: Array<TaskScope & { turnId: string }> = [];
   const taskSaves: Array<TaskScope & { turnId: string; task: taskPolicy.InrAssistantTaskState }> = [];
   const memoryKey = (scope: MemoryScope, id: string) => `${scope.accountId}:${scope.actorUserId}:${id}`;
@@ -130,6 +142,8 @@ function harness(options: {
     status: options.authStatus, headers: { "Cache-Control": "public", "WWW-Authenticate": "Bearer" },
   }) : null;
   const dependencies: Record<string, unknown> = {
+    "@/lib/inrAssistantCommandRegistry": commandRegistry,
+    "@/lib/inrAssistantRefresh": refresh,
     "node:crypto": { randomUUID },
     "next/server": { NextResponse },
     "@/lib/requireUser": { requireUser: async () => {
@@ -161,7 +175,28 @@ function harness(options: {
     "@/lib/inrAssistantConversation": conversation,
     "@/lib/inrAssistantAttachments": attachmentPolicy,
     "@/lib/inrAssistantAttachmentStorage": {
-      assistantTurnAttachments: async () => [], loadAssistantFileContexts: async () => [],
+      assistantTurnAttachments: async (scope: TaskScope, turn: { turnId: string }, raw?: unknown, create = false) => {
+        const key = taskKey(scope, turn.turnId), existing = attachmentBindings.get(key);
+        if (raw === undefined && existing) return existing;
+        const refs = attachmentPolicy.parseAssistantAttachments(raw);
+        if (existing && JSON.stringify(existing) !== JSON.stringify(refs)) throw new attachmentPolicy.AssistantAttachmentError("attachment_conflict");
+        if (!existing && create) attachmentBindings.set(key, structuredClone(refs));
+        return existing ?? refs;
+      },
+      loadAssistantFileContexts: async (_scope: TaskScope, refs: attachmentPolicy.AssistantAttachment[]) => refs.map(ref => ({ name: ref.name, kind: ref.kind, note: "Aperçu serveur." })),
+      loadAssistantMediaAttachmentOriginal: async (scope: TaskScope, ref: attachmentPolicy.AssistantAttachment) => {
+        mediaOriginalReads.push({ ...scope, id: ref.id }); return { id: ref.id };
+      },
+      claimAssistantMediaAttachmentImport: async (scope: TaskScope, ref: attachmentPolicy.AssistantAttachment) => {
+        const key = taskKey(scope, ref.id); if (mediaImportClaims.has(key)) return false;
+        mediaImportClaims.add(key); return true;
+      },
+      loadAssistantReplyReplay: async (scope: TaskScope, turn: { turnId: string }) => replyStates.get(taskKey(scope, turn.turnId)) ?? null,
+      saveAssistantReplyReplay: async (scope: TaskScope, turn: { turnId: string }, reply: unknown) => {
+        if (options.replySaveUnavailable) return false;
+        replyStates.set(taskKey(scope, turn.turnId), replyReplay.parseInrAssistantReplyReplay(reply));
+        return true;
+      },
       inspectAssistantTaskState: async (scope: TaskScope, turn: { turnId: string }) => {
         taskLoads.push({ ...scope, turnId: turn.turnId });
         const saved = taskStates.get(taskKey(scope, turn.turnId));
@@ -204,7 +239,7 @@ function harness(options: {
   }, moduleRecord, moduleRecord.exports);
   const runtime = moduleRecord.exports as typeof Route;
   return { post: runtime.POST, gatewayCalls, editionScopes, contextScopes, diagnosticContexts, diagnosticErrors, serverContext, supabase,
-    memoryScopes, memoryBegins, memoryLoads, memoryCompletes, memoryFailures, memory, taskStates, taskLoads, taskSaves,
+    memoryScopes, memoryBegins, memoryLoads, memoryCompletes, memoryFailures, memory, taskStates, taskLoads, taskSaves, mediaOriginalReads,
     setScope(scope: Partial<MemoryScope>) { activeScope = { ...activeScope, ...scope }; },
     seedTurn(turn: MemoryTurn) { savedTurns.set(memoryKey(activeScope, turn.turnId), turn); },
   };
@@ -844,6 +879,45 @@ test("completed durable turns replay without Gateway, quota-related lookups or a
   assert.equal(h.memoryFailures.length, 0);
 });
 
+test("a lost completed response replays its navigation and PDF command without running tools twice", async () => {
+  const navigation = getInrAssistantNavigation("media")!;
+  const uiCommand = { command: "export_document_pdf", selection: { kind: "quote", id: "document_saved_001" } };
+  const taskProgress = { outcome: "completed", completed: ["préparer le devis"], remaining: [] };
+  const h = harness({ gatewayReply: { message: "Ouverture demandée.", navigation, uiCommand, taskProgress, outcome: "processing", approvalToken: "must-never-replay", media: { url: "https://example.invalid/private?token=secret" } } });
+  const body = { conversationId, turnId, messages: [{ role: "user", content: "Ouvre mes médias." }] };
+  const first = await (await h.post(request(body))).json();
+  const replay = await (await h.post(request(body))).json();
+  assert.deepEqual(replay.navigation, first.navigation);
+  assert.deepEqual(replay.uiCommand, uiCommand);
+  assert.deepEqual(replay.taskProgress, taskProgress);
+  assert.equal(replay.outcome, "processing");
+  assert.equal(replay.approvalToken, undefined);
+  assert.equal(replay.media, undefined, "private media URLs are never stored in a UI replay");
+  assert.equal(h.gatewayCalls.length, 1);
+  assert.equal(h.memoryCompletes.length, 1);
+  assert.notEqual(replay.requestId, first.requestId);
+});
+
+test("UI replay storage failure never marks the turn completed with a prose-only result", async () => {
+  const h = harness({ replySaveUnavailable: true, gatewayReply: { message: "Ouverture demandée.", navigation: getInrAssistantNavigation("media")! } });
+  const response = await h.post(request({ conversationId, turnId, messages: [{ role: "user", content: "Ouvre mes médias." }] }));
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).code, "assistant_reply_unavailable");
+  assert.equal(h.memoryCompletes.length, 0);
+  assert.equal(h.memoryFailures.length, 1);
+});
+
+test("replay envelopes never cross account or actor boundaries", async () => {
+  const h = harness({ gatewayReply: { message: "Ouverture demandée.", navigation: getInrAssistantNavigation("media")! } });
+  const body = { conversationId, turnId, messages: [{ role: "user", content: "Ouvre mes médias." }] };
+  await h.post(request(body));
+  h.setScope({ accountId: otherAccountId });
+  await h.post(request(body));
+  h.setScope({ actorUserId: "c3333333-3333-4333-8333-333333333333" });
+  await h.post(request(body));
+  assert.equal(h.gatewayCalls.length, 3, "each authenticated scope must own its turn and reply");
+});
+
 test("a leased pending turn returns 202 with retry guidance and cannot start duplicate work", async () => {
   const h = harness({ memoryState: "pending" });
   const response = await h.post(request({ conversationId, turnId, messages: [{ role: "user", content: "Crée une image" }] }));
@@ -1035,4 +1109,66 @@ test("final persistence warning is stored verbatim and survives an HTTP replay",
   const first = await (await h.post(request(body))).json(), replay = await (await h.post(request(body))).json();
   assert.match(first.message, /suivi de cette tâche n’a pas pu être enregistré/); assert.equal(replay.message, first.message);
   assert.equal(h.memoryCompletes[0].assistantText, first.message);
+});
+
+const initialImportFiles: attachmentPolicy.AssistantAttachment[] = [1, 2].map(index => ({
+  id: `10000000-0000-4000-8000-00000000000${index}`, token: `private-original-${index}`, name: `photo-${index}.png`, kind: "image", size: 10,
+}));
+const importInstruction = "Importe ces deux images dans ma médiathèque.";
+function importContinuationHarness() {
+  return harness({ storedTurnCreatedAt: new Date().toISOString(), gatewayReply: async args => {
+    // The Gateway constructs a fresh journal without any private attachment binding.
+    // The route must preserve that binding on both intermediate and final writes.
+    const state: taskPolicy.InrAssistantTaskState = {
+      version: 1, instruction: args.actionInstruction ?? args.messages.at(-1)!.content, actionRequestId: args.actionRequestId,
+      startedAt: args.actionStartedAt!, expiresAt: new Date(Date.now() + 60_000).toISOString(), outcome: "partial",
+      requiredTools: ["importMediaAttachment"], requiredCalls: { importMediaAttachment: 2 }, question: "Il reste une image à importer.",
+      receipts: [{ tool: "importMediaAttachment", ok: true, status: "imported", recordId: "20000000-0000-4000-8000-000000000001", message: "Image enregistrée." }],
+    };
+    await args.onTaskCheckpoint?.(state);
+    return { message: state.question, taskState: state };
+  } });
+}
+
+test("a real HTTP Continue without new files retains the two original import references and private callbacks", async () => {
+  const h = importContinuationHarness();
+  const initial = await h.post(request({ conversationId, turnId, attachments: initialImportFiles, messages: [{ role: "user", content: importInstruction }] }));
+  assert.equal(initial.status, 200);
+  const resumed = await h.post(request({ conversationId, turnId: randomUUID(), taskIntent: "continue", messages: [{ role: "user", content: "Continue" }] }));
+  assert.equal(resumed.status, 200); assert.equal(h.gatewayCalls.length, 2);
+  const args = h.gatewayCalls[1];
+  assert.equal(args.actionInstruction, importInstruction);
+  assert.deepEqual([...args.mediaAttachments].map(file => file.id), initialImportFiles.map(file => file.id));
+  for (const ref of initialImportFiles) {
+    assert.equal((await args.resolveMediaAttachment(ref.id))?.id, ref.id);
+    assert.equal(await args.claimMediaAttachmentImport(ref.id), true);
+    assert.equal(await args.claimMediaAttachmentImport(ref.id), false, "a repeated import keeps the same atomic claim");
+  }
+  assert.ok(h.mediaOriginalReads.every(read => read.accountId === accountId && read.actorUserId === actorId && read.conversationId === conversationId));
+  const expectedSource = { turnId: turnId.toLowerCase(), createdAt: args.actionStartedAt! };
+  assert.ok(h.taskSaves.length >= 6);
+  for (const saved of h.taskSaves) assert.deepEqual(saved.task.mediaImportSource, expectedSource);
+  assert.doesNotMatch(JSON.stringify(await resumed.json()), /mediaImportSource|private-original|taskState/);
+});
+
+test("new client attachments cannot expand the original import grant across two successive HTTP continuations", async () => {
+  const h = importContinuationHarness();
+  assert.equal((await h.post(request({ conversationId, turnId, attachments: initialImportFiles, messages: [{ role: "user", content: importInstruction }] }))).status, 200);
+  for (const index of [3, 4]) {
+    const added: attachmentPolicy.AssistantAttachment = { ...initialImportFiles[0], id: `10000000-0000-4000-8000-00000000000${index}`, name: `added-${index}.png`, token: `private-added-${index}` };
+    const nextTurn = randomUUID();
+    const response = await h.post(request({ conversationId, turnId: nextTurn, attachments: [added], taskIntent: "continue",
+      mediaImportSource: { turnId: nextTurn, createdAt: new Date().toISOString() }, messages: [{ role: "user", content: "Continue" }] }));
+    assert.equal(response.status, 200);
+    const args = h.gatewayCalls.at(-1)!;
+    assert.equal(args.actionInstruction, importInstruction);
+    assert.deepEqual([...args.mediaAttachments].map(file => file.id), initialImportFiles.map(file => file.id));
+    assert.equal(await args.resolveMediaAttachment(added.id), null); assert.equal(await args.claimMediaAttachmentImport(added.id), false);
+    assert.equal((await args.resolveMediaAttachment(initialImportFiles[1].id))?.id, initialImportFiles[1].id);
+    assert.equal(args.taskContext?.mediaImportSource?.turnId, turnId.toLowerCase());
+    assert.doesNotMatch(JSON.stringify(await response.json()), /mediaImportSource|private-added|private-original/);
+  }
+  assert.equal(h.gatewayCalls.length, 3);
+  assert.ok(h.taskSaves.every(saved => saved.task.mediaImportSource?.turnId === turnId.toLowerCase()));
+  assert.ok(h.mediaOriginalReads.every(read => initialImportFiles.some(ref => ref.id === read.id)));
 });

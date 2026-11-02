@@ -7,7 +7,8 @@ function read(path: string) {
 }
 
 const route = read("app/api/booster/generate/route.ts");
-const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
+
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
 
 test("the generation server owns a fresh route-entry deadline", () => {
   assert.match(
@@ -30,18 +31,18 @@ test("the generation server owns a fresh route-entry deadline", () => {
 });
 
 test("browser media readiness finishes before its POST safety window starts", () => {
-  const readinessIndex = modal.indexOf(
+  const readinessIndex = generationController.indexOf(
     "await waitForPersistentWorkspaceReadiness",
   );
-  const localFramesIndex = modal.indexOf(
+  const localFramesIndex = generationController.indexOf(
     "getOrPrepareVideoFramesForAI(videoFile)",
     readinessIndex,
   );
-  const deadlineIndex = modal.indexOf(
+  const deadlineIndex = generationController.indexOf(
     "const generationDeadlineAt =",
     readinessIndex,
   );
-  const fetchIndex = modal.indexOf(
+  const fetchIndex = generationController.indexOf(
     'fetch("/api/booster/generate"',
     deadlineIndex,
   );
@@ -51,7 +52,7 @@ test("browser media readiness finishes before its POST safety window starts", ()
   assert.ok(deadlineIndex > localFramesIndex);
   assert.ok(fetchIndex > deadlineIndex);
   assert.match(
-    modal.slice(deadlineIndex, fetchIndex),
+    generationController.slice(deadlineIndex, fetchIndex),
     /Date\.now\(\) \+ BOOSTER_GENERATION_SAFETY_BUDGET_MS/,
   );
 });

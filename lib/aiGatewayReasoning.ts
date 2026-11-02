@@ -11,10 +11,16 @@ export function resolveAiMediaEditorialReasoning(feature: string, model: string)
     return { effort: "high" as const };
   }
 
-  if (feature !== "media.image" && feature !== "media.video") return undefined;
+  const shortEditorialFeatures = ["media.image", "media.video", "agent.stats-report"];
+  const publicationFeatures = ["booster.publish", "agent.publish"];
   // The live Gateway catalog advertises low/high for this exact fallback.
-  // Its default reasoning exhausted short editorial JSON budgets in production.
-  if (model.trim() === "google/gemini-3-flash") return { effort: "low" as const };
+  // Its default reasoning exhausted editorial JSON budgets in production,
+  // including small publication batches. Keep the existing output/cost caps.
+  if (model.trim() === "google/gemini-3-flash"
+    && [...shortEditorialFeatures, ...publicationFeatures].includes(feature)) {
+    return { effort: "low" as const };
+  }
+  if (!shortEditorialFeatures.includes(feature)) return undefined;
   if (!/^gpt-5\.6(?:-(?:luna|terra|sol))?$/.test(id)) return undefined;
   return { effort: "none" as const };
 }

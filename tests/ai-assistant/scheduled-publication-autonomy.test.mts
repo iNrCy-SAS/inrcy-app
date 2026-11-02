@@ -56,6 +56,19 @@ test("exact confirmation, account/actor, unchanged snapshot and native claim all
   const stale = harness(), sp = await stale.propose(); stale.row.payload.changed = true; assert.equal((await stale.apply(sp)).status, "stale_preview"); assert.equal(stale.calls.length, 0);
   const racing = harness(), rp = await racing.propose(); racing.race(); assert.equal((await racing.apply(rp)).status, "stale_preview"); assert.equal(racing.row.status, "running");
 });
+test("a future or conditional approval never dispatches, cancels or reschedules a publication immediately", async () => {
+  for (const operation of ["cancel", "reschedule", "retry"]) {
+    for (const suffix of ["seulement si le client accepte", "après ma confirmation", "dans 2 heures"]) {
+      const h = harness();
+      if (operation === "retry") { h.row.status = "failed"; h.row.attempt_count = 1; }
+      const p = await h.propose(operation), before = JSON.stringify(h.row);
+      assert.equal((await h.apply(p, `Confirme ${p.reference} ${suffix}`)).status, "confirmation_required", `${operation}: ${suffix}`);
+      assert.equal(h.calls.length, 0);
+      assert.equal(JSON.stringify(h.row), before);
+    }
+  }
+});
+
 test("an uncertain native commit is recovered from read-back without repeating work; running or attempted schedules cannot be changed", async () => {
   const h = harness(), p = await h.propose(); h.uncertain(); assert.equal((await h.apply(p)).status, "unknown"); assert.equal((await h.apply(p)).status, "cancelled"); assert.equal(h.calls.length, 1);
   for (const patch of [{ status: "running" }, { attempt_count: 1 }, { scheduled_at: new Date(Date.now() - 1000).toISOString() }]) { const blocked = harness(); Object.assign(blocked.row, patch); assert.equal((await blocked.propose()).status, "blocked"); assert.equal(blocked.calls.length, 0); }

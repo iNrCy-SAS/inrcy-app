@@ -18,6 +18,7 @@ import type {
 } from "./MediaGenerator";
 import MediaModifier from "./MediaModifier";
 import DashboardAssistantTrigger from "./DashboardAssistantTrigger";
+import { useInrAssistantScreen } from "./DashboardAssistantScreenContext";
 import DashboardMobileSelect from "./DashboardMobileSelect";
 import MediaFreeGenerator from "./MediaFreeGenerator";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
@@ -150,7 +151,6 @@ export default function MediaGeneratorModal({
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeConfirmDialogRef = useRef<HTMLElement | null>(null);
   const closeConfirmCancelRef = useRef<HTMLButtonElement | null>(null);
-  const closeConfirmPreviousFocusRef = useRef<HTMLElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const currentResultRef = useRef<MediaGenerationResult | null>(null);
   const closeInFlightRef = useRef(false);
@@ -170,6 +170,13 @@ export default function MediaGeneratorModal({
   const activeMediaType = studioTab === "generate"
     ? freeMediaType
     : mediaTypeByTab[studioTab];
+
+  useInrAssistantScreen(open ? {
+    action: "generator",
+    step: currentResult ? "results" : "media",
+    pendingChanges: hasWorkspaceDraft,
+    ...(currentResult ? { selection: { kind: "media", id: currentResult.item.id } as const } : {}),
+  } : null);
 
   useEffect(() => setMounted(true), []);
 
@@ -526,7 +533,8 @@ export default function MediaGeneratorModal({
 
   useEffect(() => {
     if (!closeConfirmOpen) return;
-    closeConfirmPreviousFocusRef.current =
+    const dialog = dialogRef.current;
+    const previousFocus =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
@@ -535,10 +543,9 @@ export default function MediaGeneratorModal({
     });
     return () => {
       window.cancelAnimationFrame(frame);
-      if (dialogRef.current?.isConnected) {
-        closeConfirmPreviousFocusRef.current?.focus?.({ preventScroll: true });
+      if (dialog?.isConnected) {
+        previousFocus?.focus({ preventScroll: true });
       }
-      closeConfirmPreviousFocusRef.current = null;
     };
   }, [closeConfirmOpen]);
 

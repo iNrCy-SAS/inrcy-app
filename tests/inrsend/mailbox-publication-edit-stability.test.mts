@@ -41,8 +41,10 @@ test("iNrSend keeps publication edit mode open during background history refresh
 });
 
 test("background refreshes cannot overwrite image or video edits in progress", () => {
-  const guardedHydrationEffects = mailbox.match(
-    /detailsItem\.source !== "app_events" \|\|\s*detailsEditMode/g,
+  const media = readFileSync(new URL("../../app/dashboard/mails/_hooks/useMailboxPublicationMedia.ts", import.meta.url), "utf8");
+  const video = readFileSync(new URL("../../app/dashboard/mails/_hooks/useMailboxPublicationVideo.ts", import.meta.url), "utf8");
+  const guardedHydrationEffects = [mailbox, media, video].join("\n").match(
+    /detailsItem\??\.source !== "app_events" \|\|\s*detailsEditMode/g,
   );
 
   assert.ok(

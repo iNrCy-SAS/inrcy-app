@@ -167,7 +167,6 @@ export default function usePublishImageController({
   setActiveImageChannel,
   activeImageKeyByChannel,
   setActiveImageKeyByChannel,
-  isDraggingImage,
   setIsDraggingImage,
   hasVideoMedia,
   setImgError,
@@ -175,8 +174,6 @@ export default function usePublishImageController({
   setActiveCard,
   setPublicationMediaType,
   setChannelMediaModes,
-  preservePublishScroll,
-  restorePublishScroll,
   syncPersistentWorkspaceImages,
 }: UsePublishImageControllerParams) {
   const i18nT = useTranslations("booster");
@@ -204,11 +201,6 @@ export default function usePublishImageController({
     channel,
   ];
 
-  const setSynchronizedActiveChannel = (channel: ChannelKey) => {
-    setActiveCard(channel);
-    setActiveImageChannel(channel);
-  };
-
   const imageKeys = useMemo(
     () => images.map((file) => makeImageKey(file)),
     [images],
@@ -225,27 +217,15 @@ export default function usePublishImageController({
     [imageKeys, imagePreviews],
   );
 
+  // Serialized values keep equivalent arrays/metadata from resynchronizing the
+  // editor on every parent render while keeping all synchronization inputs explicit.
+  const imageEditorInputKey = JSON.stringify({ imageKeys, selectedChannels, imageMetaByKey });
+  const selectedChannelsKey = JSON.stringify(selectedChannels);
+  const imageKeysKey = JSON.stringify(imageKeys);
   useEffect(() => {
-    setChannelImageEditors((prev) =>
-      syncChannelImageEditors({
-        previous: prev,
-        imageKeys,
-        selectedChannels,
-        imageMetaByKey,
-      }),
-    );
-  }, [
-    imageKeys.join("|"),
-    selectedChannels.join("|"),
-    Object.keys(imageMetaByKey)
-      .sort()
-      .map(
-        (key) =>
-          `${key}:${imageMetaByKey[key]?.width || 0}x${imageMetaByKey[key]?.height || 0}`,
-      )
-      .join("|"),
-    setChannelImageEditors,
-  ]);
+    const inputs = JSON.parse(imageEditorInputKey) as Pick<Parameters<typeof syncChannelImageEditors>[0], "imageKeys" | "selectedChannels" | "imageMetaByKey">;
+    setChannelImageEditors((previous) => syncChannelImageEditors({ previous, ...inputs }));
+  }, [imageEditorInputKey, setChannelImageEditors]);
 
   useEffect(() => {
     if (!imageAdapterChannels.length) {
@@ -266,9 +246,10 @@ export default function usePublishImageController({
   ]);
 
   useEffect(() => {
+    const channels = JSON.parse(selectedChannelsKey) as ChannelKey[];
     setActiveImageKeyByChannel((prev) => {
       const next = { ...prev };
-      for (const channel of selectedChannels) {
+      for (const channel of channels) {
         const available = channelImageEditors[channel]?.imageKeys || [];
         if (!available.length) {
           delete next[channel];
@@ -279,14 +260,14 @@ export default function usePublishImageController({
         }
       }
       for (const key of Object.keys(next) as ChannelKey[]) {
-        if (!selectedChannels.includes(key)) delete next[key];
+        if (!channels.includes(key)) delete next[key];
       }
       return next;
     });
   }, [
-    selectedChannels.join("|"),
+    selectedChannelsKey,
     channelImageEditors,
-    imageKeys.join("|"),
+    imageKeysKey,
     setActiveImageKeyByChannel,
   ]);
 
@@ -296,6 +277,7 @@ export default function usePublishImageController({
     }
   }, [images.length, useImagesForAI, setUseImagesForAI]);
 
+  const activeImageSelectionKey = activeImageKeyByChannel[activeImageChannel];
   useEffect(() => {
     const node = previewStageRef.current;
     if (!node || typeof ResizeObserver === "undefined") return;
@@ -313,7 +295,7 @@ export default function usePublishImageController({
     return () => observer.disconnect();
   }, [
     activeImageChannel,
-    activeImageKeyByChannel[activeImageChannel],
+    activeImageSelectionKey,
     images.length,
     previewStageRef,
   ]);
@@ -1209,7 +1191,6 @@ export default function usePublishImageController({
     });
     setActiveImageKeyByChannel((prev) => {
       const currentKeys = channelImageEditors[channel]?.imageKeys || [];
-      const exists = currentKeys.includes(imageKey);
       if (prev[channel] !== imageKey) return prev;
       const nextKeys = currentKeys.filter((key) => key !== imageKey);
       return {

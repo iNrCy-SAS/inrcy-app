@@ -40,7 +40,9 @@ const digest = (value: unknown) => createHash("sha256").update(stableGoogleBusin
 
 test("partial profile edits preserve unrelated fields, secondary phones and midnight hours", () => {
   assert.deepEqual(buildGoogleBusinessProfilePatch(editable,{...editable,description:"New description"}),{location:{profile:{description:"New description"}},updateMask:["profile.description"]});
-  assert.deepEqual(buildGoogleBusinessProfilePatch(editable,{primaryPhone:"+33456789123"}).updateMask,["phoneNumbers.primaryPhone"]);
+  const phonePatch = buildGoogleBusinessProfilePatch(editable,{primaryPhone:"+33456789123",additionalPhones:[]});
+  assert.deepEqual(phonePatch.updateMask,["phoneNumbers"]);
+  assert.deepEqual(phonePatch.location,{phoneNumbers:{primaryPhone:"+33456789123",additionalPhones:["+33987654321"]}});
   assert.deepEqual(buildGoogleBusinessProfilePatch(editable,editable).updateMask,[]);
   assert.throws(()=>buildGoogleBusinessProfilePatch(editable,{websiteUri:"javascript:alert(1)"}),/invalide/);
   assert.throws(()=>buildGoogleBusinessProfilePatch(editable,{description:"x".repeat(751)}),/trop longue/);

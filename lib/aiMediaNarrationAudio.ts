@@ -106,13 +106,22 @@ function statusFromError(error: unknown) {
   if (Number.isFinite(explicit) && explicit >= 100 && explicit <= 599)
     return explicit;
   const match = String(source?.message || error || "").match(
-    /\b(429|500|502|503|504)\b/
+    /\b(400|429|500|502|503|504)\b/
   );
   return match ? Number(match[1]) : 0;
 }
 
 function retryable(error: unknown) {
-  return [429, 500, 502, 503, 504].includes(statusFromError(error));
+  const status = statusFromError(error);
+  if ([429, 500, 502, 503, 504].includes(status)) return true;
+  // Gemini can label a transient synthesis failure as HTTP 400 even for our
+  // unary request. Retry only its explicit retryable audio-completion message;
+  // malformed requests and policy refusals must still fail immediately.
+  const message = error instanceof Error ? error.message : String(error);
+  return status === 400
+    && /audio stream could not be completed/i.test(message)
+    && /please retry your request/i.test(message)
+    && !/content_blocked|\bsafety\b|\bblocked\b|\bprohibited\b/i.test(message);
 }
 
 function delay(ms: number, signal?: AbortSignal) {
@@ -245,6 +254,7 @@ export async function generateAiMediaNarrationAudio(args: {
         const interaction = await ai.interactions.create(
           {
             model,
+            stream: false,
             input: [
               "INSTRUCTION DE JEU — ne prononce pas cette ligne :",
               `Voix ${

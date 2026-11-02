@@ -290,8 +290,6 @@ export function createCrmNavigationActions({
     const clientName = buildDisplayName(c);
     const clientEmail = (c.email || "").trim();
     const clientAddress = buildFullCrmAddress(c.address, c.postal_code, c.city);
-    const billingAddress = buildFullCrmAddress(c.billing_address || c.address, c.postal_code, c.city);
-    const deliveryAddress = buildFullCrmAddress(c.delivery_address || c.address, c.postal_code, c.city);
     const params = new URLSearchParams();
     if (clientName) params.set("clientName", clientName);
     if (clientEmail) params.set("clientEmail", clientEmail);

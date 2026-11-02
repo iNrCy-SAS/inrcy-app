@@ -1,5 +1,7 @@
 "use client";
 import { useInrAssistantScreen } from "../_components/DashboardAssistantScreenContext";
+import { useInrAssistantRefresh } from "../_hooks/useInrAssistantRefresh";
+import MediaLibraryVideo from "./MediaLibraryVideo";
 
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
@@ -423,7 +425,7 @@ export default function MediaLibraryClient() {
     ) || (item.media_type === "image" && ["queued", "processing", "failed_retryable"].includes(String(item.processing_status || ""))),
   );
 
-  const loadItems = useCallback(async (options?: { silent?: boolean }) => {
+  const loadItems = useCallback(async (options?: { silent?: boolean; canApply?: () => boolean }) => {
     const sequence = ++loadSequenceRef.current;
     const revision = metadataRevisionRef.current;
     const accountId = getActiveBrowserUserId();
@@ -450,7 +452,7 @@ export default function MediaLibraryClient() {
         throw new Error(json?.error || i18nT("library_load_failed"));
 
       // A GET started before a successful edit must never restore the old metadata.
-      if (!isCurrentRequest() || revision !== metadataRevisionRef.current) return;
+      if (!isCurrentRequest() || revision !== metadataRevisionRef.current || options?.canApply?.() === false) return false;
       const nextItems = (json.items ?? []) as MediaItem[];
       setItems(nextItems);
       setSelectedItemIds((prev) => {
@@ -473,12 +475,20 @@ export default function MediaLibraryClient() {
           stats: nextStats,
         });
       }
+      if (options?.canApply) setPreviewItem(current => current ? nextItems.find(item => item.id === current.id) ?? null : null);
+      return true;
     } catch (e: any) {
-      if (isCurrentRequest() && revision === metadataRevisionRef.current) setError(getClientUserFacingErrorMessage(e, i18nT("library_load_failed")));
+      if (isCurrentRequest() && revision === metadataRevisionRef.current && options?.canApply?.() !== false) setError(getClientUserFacingErrorMessage(e, i18nT("library_load_failed")));
+      return false;
     } finally {
       if (isCurrentRequest()) setLoading(false);
     }
   }, [activeFilter, i18nT, search, typeFilter]);
+
+  useInrAssistantRefresh({ topics: ["media"], blocked: uploading || importOpen || Boolean(savingId) || metadataEditingKeys.size > 0 || metadataSavingKeys.size > 0 || Boolean(optimizerItem), refresh: async ({ canApply }) => {
+    invalidateModuleSnapshot(MODULE_SNAPSHOT_KEYS.mediaLibraryDefault);
+    return loadItems({ silent: true, canApply });
+  } });
 
   useEffect(() => {
     void loadItems({ silent: Boolean(initialSnapshot) });
@@ -495,6 +505,7 @@ export default function MediaLibraryClient() {
   useEffect(() => {
     if (!importOpen) return;
     const dialog = importDialogRef.current;
+    const trigger = importTriggerRef.current;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     dialog?.querySelector<HTMLElement>("button:not([disabled])")?.focus();
@@ -508,7 +519,7 @@ export default function MediaLibraryClient() {
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     };
     document.addEventListener("keydown", onKeyDown);
-    return () => { document.removeEventListener("keydown", onKeyDown); document.body.style.overflow = previousOverflow; importTriggerRef.current?.focus(); };
+    return () => { document.removeEventListener("keydown", onKeyDown); document.body.style.overflow = previousOverflow; trigger?.focus(); };
   }, [importOpen]);
 
   useEffect(() => {
@@ -1225,7 +1236,7 @@ export default function MediaLibraryClient() {
                   const isSelected = selectedItemIds.has(item.id);
                   const detailsOpen = expandedItemIds.has(item.id);
                   const isSaving = savingId === item.id || metadataSavingKeys.has(item.id + ":title") || metadataSavingKeys.has(item.id + ":tags");
-                  const downloadUrl = buildMediaDownloadUrl(item.signed_url);
+                  const downloadUrl = item.is_active === false ? null : buildMediaDownloadUrl(item.signed_url);
                   return (
                   <article
                     key={item.id}
@@ -1248,17 +1259,21 @@ export default function MediaLibraryClient() {
                       <button
                         type="button"
                         className={styles.mediaRowPreview}
+                        disabled={item.is_active === false || !item.signed_url}
                         onClick={(event) => {
                           event.stopPropagation();
                           setPreviewItem(item);
                         }}
                         aria-label={item.media_type === "audio" ? i18nT("library_audio_preview", { name: item.title || item.original_file_name || i18nT("media_sans_titre_e77f1871") }) : i18nT("agrandir_le_media_55f536e4")}
                       >
-                        {item.media_type === "audio" ? (
+                        {item.is_active === false || !item.signed_url ? (
+                          <div className={styles.noPreview}>{i18nT("apercu_indisponible_d0ce704a")}</div>
+                        ) : item.media_type === "audio" ? (
                           <span className={styles.mediaRowAudioThumb} aria-hidden="true">🎙</span>
                         ) : item.media_type === "video" ? (
-                          <video
+                          <MediaLibraryVideo
                             src={item.signed_url || undefined}
+                            unavailableLabel={i18nT("apercu_indisponible_d0ce704a")}
                             className={styles.mediaRowThumb}
                             muted
                             playsInline
@@ -1280,7 +1295,7 @@ export default function MediaLibraryClient() {
                     <div className={styles.mediaRowMain}>
                         <MediaMetadataField field="title" value={item.title || ""} disabled={isSaving || bulkDeleting} onSave={(field, value) => saveMetadata(item.id, field, value)} onEditingChange={(editing) => setMetadataEditing(item.id, "title", editing)} />
                         <div className={styles.mediaRowExtra}>
-                        {item.media_type === "audio" && item.signed_url ? <audio className={styles.mediaRowAudioPlayer} src={item.signed_url} controls preload="none" aria-label={i18nT("library_audio_preview", { name: item.title || item.original_file_name || i18nT("media_sans_titre_e77f1871") })} /> : null}
+                        {item.is_active !== false && item.media_type === "audio" && item.signed_url ? <audio className={styles.mediaRowAudioPlayer} src={item.signed_url} controls preload="none" aria-label={i18nT("library_audio_preview", { name: item.title || item.original_file_name || i18nT("media_sans_titre_e77f1871") })} /> : null}
                         {item.imageRecovery ? (
                           <span className={styles.optimizationBadge} title={i18nT("image_recovery_notice")}>{i18nT("image_recovery_badge")}</span>
                         ) : item.media_type === "image" && item.processing_status === "failed_terminal" ? (
@@ -1585,7 +1600,7 @@ export default function MediaLibraryClient() {
         sourceItem={optimizerItem}
         origin="mediatheque"
         onClose={() => setOptimizerItem(null)}
-        onLibraryChanged={() => loadItems({ silent: true })}
+        onLibraryChanged={async () => { await loadItems({ silent: true }); }}
       />
 
       {helperOpen ? (
@@ -1684,8 +1699,9 @@ export default function MediaLibraryClient() {
                   <small>{i18nT("library_audio_duration")} : {formatDuration(previewItem.duration_seconds)}</small>
                 </div>
               ) : previewItem.media_type === "video" ? (
-                <video
+                <MediaLibraryVideo
                   src={previewItem.signed_url || undefined}
+                  unavailableLabel={i18nT("apercu_indisponible_d0ce704a")}
                   controls
                   className={styles.previewMedia}
                 />

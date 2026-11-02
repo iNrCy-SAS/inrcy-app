@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const { user, errorResponse, activeUserId } = await requireUser();
+    const { errorResponse, activeUserId } = await requireUser();
     if (errorResponse) return errorResponse;
 
     const rateLimited = await enforceRateLimit({

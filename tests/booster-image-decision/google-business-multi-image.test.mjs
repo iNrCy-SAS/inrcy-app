@@ -39,7 +39,7 @@ test("Google Business selects every uploaded image by default like the other cha
 
 test("Booster no longer shows Google Business single-photo warnings", async () => {
   const [panel, modal, warningModals, shared] = await Promise.all([
-    read("app/dashboard/booster/publier/components/PublishImagesPanel.tsx"),
+    read("app/dashboard/booster/publier/components/PublishValidationBoard.tsx"),
     read("app/dashboard/booster/publier/PublishModal.tsx"),
     read("app/dashboard/booster/publier/components/PublishWarningModals.tsx"),
     read("app/dashboard/booster/publier/publishModal.shared.tsx"),

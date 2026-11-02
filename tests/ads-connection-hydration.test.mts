@@ -4,7 +4,7 @@ import test from "node:test";
 import ts from "typescript";
 import { adsAssociationDisplayReady, emptyAdsConnectionSnapshots } from "../lib/adsConnectionSnapshot.ts";
 
-const source = ts.createSourceFile("AdsClient.tsx", readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const source = ts.createSourceFile("AdsClient.tsx", ["AdsClient.tsx", "useAdsExternalConnections.ts", "adsClientHttp.ts"].map((file) => readFileSync(new URL(`../app/dashboard/ads/${file}`, import.meta.url), "utf8")).join("\n"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 function findNode(predicate: (node: ts.Node) => boolean, file = source): ts.Node {
   let result: ts.Node | undefined;
   function visit(node: ts.Node) {
@@ -19,7 +19,7 @@ function actual(name: string, scope: Record<string, unknown>, file = source) {
   const node = findNode((candidate) => ts.isFunctionDeclaration(candidate) && candidate.name?.text === name
     || ts.isVariableDeclaration(candidate) && candidate.name.getText(file) === name, file);
   const declaration = ts.isFunctionDeclaration(node);
-  const expression = declaration ? node.getText(file)
+  const expression = declaration ? node.getText(file).replace(/^export /, "")
     : (node as ts.VariableDeclaration).initializer!.getText(file);
   const compiled = ts.transpileModule(declaration ? expression : `const actual = ${expression};`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },

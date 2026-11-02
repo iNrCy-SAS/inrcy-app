@@ -18,21 +18,6 @@ function normalizeLocationName(name: string): string {
   return name;
 }
 
-async function fetchJsonOrThrow(r: Response, label: string) {
-  const raw = await r.text().catch(() => "");
-  let j: any = {};
-  try {
-    j = raw ? JSON.parse(raw) : {};
-  } catch {
-    j = {};
-  }
-  if (!r.ok) {
-    const msg = j?.error?.message || j?.error_description || raw || `${label} error`;
-    throw new Error(`${label} (${r.status}): ${msg}`);
-  }
-  return j;
-}
-
 export async function gmbListLocations(accessToken: string, accountName: string) {
   return listAllGoogleBusinessLocations(accessToken, accountName);
 }
@@ -103,10 +88,6 @@ export async function gmbFetchDailyMetrics(accessToken: string, locationName: st
   endpointUrl.searchParams.set("dailyRange.end_date.day", String(endDate.day));
 
   const endpoint = endpointUrl.toString();
-  const requestMeta = {
-    dailyMetrics: [...dailyMetrics],
-    dailyRange: { start_date: startDate, end_date: endDate },
-  };
 
   const r = await fetch(endpoint, {
     method: "GET",

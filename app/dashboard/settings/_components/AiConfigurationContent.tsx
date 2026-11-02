@@ -14,7 +14,7 @@ import {
 } from "@/lib/browserAccountCache";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabaseClient";
 import { APP_LANGUAGE_OPTIONS, APP_LANGUAGE_STORAGE_KEY, type AppLanguageCode, normalizeAppLanguage } from "@/lib/appLanguage";
@@ -577,6 +577,17 @@ export default function AiConfigurationContent({
     opacity: saving || voiceBusy ? 0.7 : 1,
   };
 
+  const onConfigurationLoaded = useEffectEvent((input: Omit<Parameters<typeof resolveCompatibleAiConfiguration>[0], "edition">) => {
+    const nextForm = resolveCompatibleAiConfiguration({ ...input, edition });
+    setForm(nextForm);
+    savedFormSignatureRef.current = configurationSignature(nextForm);
+    loadSucceededRef.current = true;
+  });
+  const onConfigurationLoadFailed = useEffectEvent((error: unknown) => {
+    loadSucceededRef.current = false;
+    setError(getClientUserFacingErrorMessage(error, i18nT("ai_configuration_load_failed")));
+  });
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -635,19 +646,14 @@ export default function AiConfigurationContent({
           );
         }
 
-        const nextForm = resolveCompatibleAiConfiguration({
+        onConfigurationLoaded({
           local,
           businessProfile,
-          edition,
           appDefaultLanguage,
           useDbLanguage,
         });
-        setForm(nextForm);
-        savedFormSignatureRef.current = configurationSignature(nextForm);
-        loadSucceededRef.current = true;
       } catch (e) {
-        loadSucceededRef.current = false;
-        setError(getClientUserFacingErrorMessage(e, i18nT("ai_configuration_load_failed")));
+        onConfigurationLoadFailed(e);
       } finally {
         setLoading(false);
       }

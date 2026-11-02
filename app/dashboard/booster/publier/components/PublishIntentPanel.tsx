@@ -119,7 +119,6 @@ export default function PublishIntentPanel({
   actionsContainer,
   styles,
   isMobile,
-  stepNumber,
   theme,
   idea,
   setIdea,
@@ -165,7 +164,6 @@ export default function PublishIntentPanel({
   defaultAiPreferredEngine,
   onAiPreferredEngineChange,
   onGenerate,
-  onOpenAiConfiguration,
   onVoiceBusyChange,
 }: PublishIntentPanelProps) {
   const i18nT = useTranslations("booster");

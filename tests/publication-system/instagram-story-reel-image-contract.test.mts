@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -326,7 +328,7 @@ test("validation and scheduled review keep Story warnings and Pinterest board de
     /const instagramStoryAlsoPublished =[\s\S]*?channel === "instagram" && instagramStoryEnabled;/,
   );
   assert.doesNotMatch(
-    modal,
+    [modal, submission].join("\n"),
     /const instagramMediaOnly =[\s\S]*?resolveChannelMediaMode\(channel\) !== "none";/,
   );
   assert.match(modal, /instagram_review_media_only_warning/);
@@ -344,7 +346,7 @@ test("validation and scheduled review keep Story warnings and Pinterest board de
 
 test("new Instagram format settings survive immediate and scheduled durable dispatch", () => {
   assert.ok(
-    (modal.match(/instagramPublicationSettings:/g) || []).length >= 2,
+    (submission.match(/instagramPublicationSettings:/g) || []).length >= 2,
     "immediate and scheduled payloads must both carry the setting",
   );
   assert.match(ingress, /instagramPublicationSettings: body\.instagramPublicationSettings/);

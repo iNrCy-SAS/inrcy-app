@@ -6,6 +6,7 @@ import ts from "typescript";
 import * as mediaModels from "../../lib/aiMediaModelCatalog.ts";
 import * as mediaTransport from "../../lib/aiMediaGenerationTransport.ts";
 import * as mediaRecovery from "../../lib/aiMediaGenerationRecovery.ts";
+import * as clientRequestRules from "../../lib/mediaGenerationClientRequest.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
 
 import type { MediaGenerationRequest } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
@@ -76,6 +77,7 @@ function hookRuntime() {
     if (specifier === "@/lib/aiMediaGenerationContracts") {
       return { shouldConnectAiMediaVideoScenes };
     }
+    if (specifier === "@/lib/mediaGenerationClientRequest") return clientRequestRules;
     if (specifier === "@/lib/aiMediaModelCatalog") return mediaModels;
     if (specifier === "@/lib/aiMediaGenerationTransport") return mediaTransport;
     if (specifier === "@/lib/aiMediaGenerationRecovery") return mediaRecovery;

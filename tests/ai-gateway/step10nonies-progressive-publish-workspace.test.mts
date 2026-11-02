@@ -1,3 +1,5 @@
+import { readFileSync as readDraftSessionSource } from "node:fs";
+const draftSession = readDraftSessionSource(new URL("../../app/dashboard/booster/publier/publicationDraftSession.ts", import.meta.url), "utf8");
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -5,6 +7,8 @@ import { resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const read = (rel: string) => readFileSync(resolve(ROOT, rel), "utf8");
+
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
 
 test("Step 10 nonies keeps advanced publishing blocks behind an explicit creation mode", () => {
   const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
@@ -17,7 +21,7 @@ test("Step 10 nonies keeps advanced publishing blocks behind an explicit creatio
   assert.match(modal, /creationMode === "ai" && workflowSteps\?\.intention/);
   assert.match(modal, /showContentWorkspace && workflowSteps/);
   assert.match(modal, /<PublishContentEditorPanel/);
-  assert.doesNotMatch(modal, /<PublishImagesPanel/);
+  assert.doesNotMatch([modal, generationController].join("\n"), /<PublishImagesPanel/);
   assert.match(modal, /<PublishMediaPoolPanel/);
   assert.match(modal, /<PublishValidationBoard/);
   assert.match(modal, /<PublishFooterActions/);
@@ -49,16 +53,16 @@ test("Step 10 nonies protects current branch work before changing mode or regene
   assert.match(modal, /Vos canaux et vos médias seront conservés/);
   // Targeted adjustment already confirms its scope in the two-step dialog.
   // Replacing all content must still ask for explicit confirmation.
-  assert.match(modal, /if \(hasWrittenChannelContent && !contentAdjustment\)/);
-  assert.match(modal, /i18nT\("generer_de_nouveaux_contenus_8a601a4e"\)/);
+  assert.match(generationController, /if \(hasWrittenChannelContent && !contentAdjustment\)/);
+  assert.match(generationController, /i18nT\("generer_de_nouveaux_contenus_8a601a4e"\)/);
 });
 
 test("Step 10 nonies restores a saved creation mode and closes every branch on reset", () => {
   const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
 
-  assert.match(modal, /inferBoosterCreationMode\(\{/);
-  assert.match(modal, /setCreationMode\(nextCreationMode\)/);
-  assert.match(modal, /setContentWorkspaceOpen\([\s\S]*nextCreationMode === "manual"/);
+  assert.match(draftSession, /inferBoosterCreationMode\(\{/);
+  assert.match(draftSession, /setCreationMode\(nextCreationMode\)/);
+  assert.match(draftSession, /setContentWorkspaceOpen\([\s\S]*nextCreationMode === "manual"/);
   assert.match(modal, /setCreationMode\(null\)/);
   assert.match(modal, /setContentWorkspaceOpen\(false\)/);
   assert.match(modal, /clearChannelCreationWork\(\)/);

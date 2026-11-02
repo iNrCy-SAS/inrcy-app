@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const client = readFileSync(new URL("../../app/dashboard/agent/AgentClient.tsx", import.meta.url), "utf8");
+const ideasEditor = readFileSync(new URL("../../app/dashboard/agent/_components/AgentPublicationIdeasEditor.tsx", import.meta.url), "utf8");
 const route = readFileSync(new URL("../../app/api/agent/publication-ideas/route.ts", import.meta.url), "utf8");
 const lifecycle = readFileSync(new URL("../../lib/inrAgentPublicationIdeaLifecycle.ts", import.meta.url), "utf8");
 const migration = readFileSync(new URL(
@@ -11,13 +12,14 @@ const migration = readFileSync(new URL(
 ), "utf8");
 
 test("les cartes affichent une aide condensée et se déplacent comme les médias Booster", () => {
-  assert.match(client, /<details className=\{styles\.publicationIdeasHelp\}>/);
-  assert.match(client, /publication_ideas_help_consumption/);
-  assert.match(client, /publication_ideas_help_fallback/);
-  assert.match(client, /draggable=\{canReorder\}/);
-  assert.match(client, /onDrop=\{\(event\) => \{/);
-  assert.match(client, /publication_idea_move_previous/);
-  assert.match(client, /publication_idea_move_next/);
+  assert.match(ideasEditor, /<details className=\{styles\.publicationIdeasHelp\}>/);
+  assert.match(ideasEditor, /publication_ideas_help_consumption/);
+  assert.match(ideasEditor, /publication_ideas_help_fallback/);
+  assert.match(ideasEditor, /draggable=\{canReorder\}/);
+  assert.match(ideasEditor, /onDrop=\{\(event\) => \{/);
+  assert.match(ideasEditor, /publication_idea_move_previous/);
+  assert.match(ideasEditor, /publication_idea_move_next/);
+  assert.match(client, /<AgentPublicationIdeasEditor[\s\S]*?movePublicationIdea=\{movePublicationIdea\}/);
 });
 
 test("le déplacement manuel persiste la file et la lecture la restitue dans cet ordre", () => {

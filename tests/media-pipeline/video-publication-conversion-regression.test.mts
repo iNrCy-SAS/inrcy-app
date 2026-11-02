@@ -1,3 +1,4 @@
+import { readVideoNormalizationWorkerSource } from "./video-worker-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -31,7 +32,7 @@ test("une publication peut produire un MP4 canonique H.264/AAC", () => {
 });
 
 test("le worker accepte soit l'original prouvÃ©, soit le canonique crÃ©Ã©", () => {
-  const worker = read("lib/mediaVideoNormalizationWorker.ts");
+  const worker = readVideoNormalizationWorkerSource();
   assert.match(worker, /const canonicalPublicationReady = Boolean\(outputs\.canonical\)/);
   assert.match(
     worker,

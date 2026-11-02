@@ -166,7 +166,7 @@ test("YouTube explique les 400 et réduit les métriques incompatibles", () => {
 });
 
 test("les suppressions Instagram refusées par les permissions restent un résultat attendu", () => {
-  const instagram = read("lib/inrsend/publicationChannelActions.ts");
+  const instagram = read("lib/inrsend/instagramPublicationDeletion.ts");
   assert.match(instagram, /instagram_delete_remote_unsupported/);
   assert.match(instagram, /log\.info\("instagram_delete_remote_unsupported"/);
   assert.match(instagram, /log\.warn\("instagram_delete_attempt_failed"/);

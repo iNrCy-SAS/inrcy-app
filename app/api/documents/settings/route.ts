@@ -8,7 +8,7 @@ function safeObj(value: unknown): Record<string, unknown> {
 }
 
 export async function GET() {
-  const { supabase, user, errorResponse, activeUserId } = await requireUser();
+  const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const { data, error } = await supabase
@@ -26,7 +26,7 @@ export async function GET() {
 }
 
 export async function PATCH(req: Request) {
-  const { supabase, user, errorResponse, activeUserId } = await requireUser();
+  const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const body = await req.json().catch(() => ({}));

@@ -116,7 +116,6 @@ function LinkIcon() {
 export default function PublishChannelSelector({
   actionsContainer,
   connectionsPending = false,
-  styles,
   isMobile,
   companyName,
   connected,

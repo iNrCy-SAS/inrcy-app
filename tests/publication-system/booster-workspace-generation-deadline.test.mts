@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -13,6 +15,7 @@ const workspaceHook = read(
   "app/dashboard/booster/publier/usePersistentMediaWorkspace.ts",
 );
 const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
+const generation = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
 const generationRoute = read("app/api/booster/generate/route.ts");
 const sharedGeneration = read("lib/boosterPublishGeneration.ts");
 const transcriptionRoute = read("app/api/booster/transcribe/route.ts");
@@ -51,38 +54,40 @@ test("waitForIdle is followed by one authoritative source-readiness snapshot", (
   );
 });
 
-test("generation targets 30 seconds but keeps a 105-second safety window without fake waits", () => {
-  assert.match(modal, /BOOSTER_GENERATION_TARGET_MS = 30_000/);
+test("generation applies its 105-second safety window without fake waits", () => {
+  assert.match(generation, /Date\.now\(\) \+ BOOSTER_GENERATION_SAFETY_BUDGET_MS/);
   assert.match(
-    modal,
+    generation,
     /BOOSTER_GENERATION_SAFETY_BUDGET_MS\s*=\s*105_000/,
   );
-  assert.doesNotMatch(modal, /await sleep\(320\)|await sleep\(650\)/);
-  assert.doesNotMatch(modal, /transcribeVideoAudioForAI\(/);
-  const mediaReadinessIndex = modal.indexOf(
+  assert.doesNotMatch([modal, submission].join("\n"), /await sleep\(320\)|await sleep\(650\)/);
+  assert.doesNotMatch([modal, submission].join("\n"), /transcribeVideoAudioForAI\(/);
+  assert.doesNotMatch(generation, /await sleep\(320\)|await sleep\(650\)/);
+  assert.doesNotMatch(generation, /transcribeVideoAudioForAI\(/);
+  const mediaReadinessIndex = generation.indexOf(
     'await waitForPersistentWorkspaceReadiness(',
   );
-  const deadlineStartIndex = modal.indexOf(
+  const deadlineStartIndex = generation.indexOf(
     'const generationDeadlineAt =\n        Date.now() + BOOSTER_GENERATION_SAFETY_BUDGET_MS',
   );
-  const requestBuildIndex = modal.indexOf('const generationPayload = {');
+  const requestBuildIndex = generation.indexOf('const generationPayload = {');
   assert.ok(mediaReadinessIndex >= 0);
   assert.ok(deadlineStartIndex > mediaReadinessIndex);
   assert.ok(requestBuildIndex > deadlineStartIndex);
 });
 
 test("video preparation never holds Generate beyond the shared grace window", () => {
-  assert.match(modal, /BOOSTER_VIDEO_AI_PREPARATION_GRACE_MS = 12_000/);
+  assert.match(generation, /BOOSTER_VIDEO_AI_PREPARATION_GRACE_MS = 12_000/);
   assert.match(
-    modal,
+    generation,
     /waitForPersistentWorkspaceReadiness\([\s\S]*?"generate"[\s\S]*?Math\.max\(1_000, mediaPreparationDeadlineAt - Date\.now\(\)\)/,
   );
   assert.match(
-    modal,
+    generation,
     /videoAiPreparationReady = await Promise\.race\(\[[\s\S]*?preparation[\s\S]*?mediaPreparationDeadlineAt - Date\.now\(\)/,
   );
   assert.doesNotMatch(
-    modal,
+    generation,
     /heavyVideoNeedsCanonical\s*\?\s*await preparation/,
   );
 });

@@ -1,3 +1,4 @@
+import { readVideoNormalizationWorkerSource } from "./video-worker-sources.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -95,7 +96,7 @@ test("le worker ne refile que les sorties demandées après son snapshot", () =>
 
 test("la queue et le worker protègent durablement la course AI vers publication", async () => {
   const queue = await read("lib/mediaVideoNormalizationQueue.ts");
-  const worker = await read("lib/mediaVideoNormalizationWorker.ts");
+  const worker = readVideoNormalizationWorkerSource();
 
   assert.match(queue, /mergeVideoPreparationRequest/);
   assert.match(queue, /select\("payload,updated_at"\)/);

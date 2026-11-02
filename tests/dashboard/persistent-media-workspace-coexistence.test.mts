@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -36,7 +38,7 @@ const intentPanel = read(
   "app/dashboard/booster/publier/components/PublishIntentPanel.tsx",
 );
 const imagesPanel = read(
-  "app/dashboard/booster/publier/components/PublishImagesPanel.tsx",
+  "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx",
 );
 
 test("image and video mutations stay current independently", () => {
@@ -277,28 +279,30 @@ test("publication keeps its media guidance without duplicating it in the intent 
   assert.match(shared, /BOOSTER_GENERATION_MEDIA_OPTIMIZATION_LABEL/);
   assert.match(shared, /BOOSTER_PUBLICATION_MEDIA_OPTIMIZATION_LABEL/);
   assert.doesNotMatch(intentPanel, /getLocalizedBoosterMediaOptimization/);
-  assert.match(imagesPanel, /getLocalizedBoosterMediaOptimization\("publication", runtimeT\)/);
+  assert.match(imagesPanel, /getLocalizedBoosterImageLimits\(runtimeT\)/);
+  assert.match(imagesPanel, /getLocalizedBoosterVideoLimits\(runtimeT\)/);
+  assert.match(imagesPanel, /title=\{kind === "image" \? imageHelp : videoHelp\}/);
 });
 
 test("publish, schedule and channel failures use each family's real presence", () => {
   assert.match(
-    publishModal,
+    submission,
     /workspaceCarriesImagesForPublish\s*=\s*mediaPipelineCutoverEnabled && images\.length > 0/,
   );
   assert.match(
-    publishModal,
+    submission,
     /workspaceCarriesVideoForPublish\s*=\s*mediaPipelineCutoverEnabled && Boolean\(videoFile\)/,
   );
   assert.match(
-    publishModal,
+    submission,
     /workspaceCarriesImagesForSchedule\s*=\s*mediaPipelineCutoverEnabled && images\.length > 0/,
   );
   assert.match(
-    publishModal,
+    submission,
     /workspaceCarriesVideoForSchedule\s*=\s*mediaPipelineCutoverEnabled && Boolean\(videoFile\)/,
   );
   assert.doesNotMatch(
-    publishModal,
+    [publishModal, submission].join("\n"),
     /workspaceCarries(?:Images|Video)For(?:Publish|Schedule)[\s\S]{0,100}publicationMediaType/,
   );
   assert.match(
@@ -331,27 +335,27 @@ test("publish and schedule settle once, then freeze only their required families
   );
 
   assert.match(
-    publishModal,
+    submission,
     /settledWorkspaceStates = persistentMediaWorkspaceEnabled[\s\S]{0,400}tolerateFailures: true[\s\S]{0,220}buildFinalReviewItems\([\s\S]{0,140}settledWorkspaceStates/,
   );
   assert.match(
-    publishModal,
+    submission,
     /mediaTypes: requestedWorkspaceMediaTypes,[\s\S]{0,80}tolerateFailures: true/,
   );
   assert.match(
-    publishModal,
+    submission,
     /requiredPublishMediaTypes[\s\S]{0,180}hasAnyImagePublish[\s\S]{0,180}hasAnyVideoPublish/,
   );
   assert.match(
-    publishModal,
+    submission,
     /waitForPersistentWorkspaceReadiness\([\s\S]{0,800}requiredPublishMediaTypes/,
   );
   assert.match(
-    publishModal,
+    submission,
     /requiredScheduleMediaTypes[\s\S]{0,180}hasAnyImagePublish[\s\S]{0,180}hasAnyVideoPublish/,
   );
   assert.match(
-    publishModal,
+    submission,
     /waitForPersistentWorkspaceReadiness\([\s\S]{0,800}requiredScheduleMediaTypes/,
   );
   assert.match(

@@ -32,6 +32,7 @@ test("document navigation keeps a canonical owned-record destination without arb
 test("direct module opening is distinct from quoted, conditional, ambiguous and record-specific requests", () => {
   for (const [request, destination] of [
     ["Ouvre les préférences de l’application et indique mes notifications sans rien modifier.", "preferences"],
+    ["Ouvre les préférences générales.", "preferences"], ["Emmène-moi dans les paramètres généraux.", "preferences"],
     ["Ouvre les préférences et indique si les emails sont activés.", "preferences"],
     ["Ouvre le module iNr’CRM pour moi.", "crm"], ["Open my calendar", "calendar"],
   ]) assert.deepEqual(getDirectInrAssistantNavigationRequest(request), { destination, instructionQuote: request });
@@ -80,4 +81,23 @@ test("PDF export accepts only a current document command and never an arbitrary 
   assert.equal(parseInrAssistantClientContext({ screen: { ...screen, selection: { kind: "contact", id: "a" } } })?.screen?.availableCommands, undefined);
   const response = await readInrAssistantResponse(Response.json({ message: "PDF demandé", uiCommand: command }), () => {});
   assert.deepEqual(response.payload?.uiCommand, command);
+});
+
+test("media and statistics downloads cross the client boundary only as bounded typed identifiers", async () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  const second = "22222222-2222-4222-8222-222222222222";
+  const media = { command: "download_media", selection: { kind: "media", id }, mediaIds: [id, second], pathname: "/dashboard/mediatheque" };
+  const report = { command: "download_stats_report", selection: { kind: "stats_report", id }, reportId: id };
+  for (const command of [media, report]) {
+    assert.deepEqual(parseInrAssistantUiCommand(command), command);
+    const response = await readInrAssistantResponse(Response.json({ message: "Téléchargement demandé", uiCommand: { ...command, url: "https://foreign.invalid/private" } }), () => {});
+    assert.deepEqual(response.payload?.uiCommand, command);
+    assert.equal(JSON.stringify(response).includes("foreign.invalid"), false);
+  }
+  for (const invalid of [
+    { ...media, mediaIds: [id, id] }, { ...media, mediaIds: [] }, { ...media, mediaIds: Array(26).fill(id) },
+    { ...media, pathname: "/api/admin" }, { ...media, selection: { kind: "media", id: second } },
+    { ...report, reportId: "../private.pdf" }, { ...report, selection: { kind: "stats_report", id: second } },
+  ]) assert.equal(parseInrAssistantUiCommand(invalid), null);
+  for (const text of ["Télécharge mon bilan PDF", "Exporte le rapport PDF", "Télécharge les statistiques en PDF"]) assert.equal(isInrAssistantScreenCommandRequest(text), false);
 });

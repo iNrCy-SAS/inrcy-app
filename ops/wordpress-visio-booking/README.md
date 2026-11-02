@@ -18,7 +18,16 @@ Le bouton « Je choisirai plus tard » ferme la modale tout en laissant un rappe
 
 ## Installation
 
-Créer une archive contenant le dossier de l’extension, puis l’installer dans **Extensions > Ajouter une extension > Téléverser une extension**. Activer ensuite **iNrCy — Rendez-vous visio après inscription**.
+Depuis la racine du dépôt, construire l’archive avec les sources actuelles :
+
+```sh
+node scripts/build-wordpress-visio-booking.mjs
+node scripts/build-wordpress-visio-booking.mjs --check
+```
+
+Le livrable est `ops/inrcy-visio-booking.zip`. Il contient le dossier `inrcy-visio-booking/` avec les fichiers PHP, JavaScript, CSS, README et le logo. Le manifeste `ops/inrcy-visio-booking.manifest.json` indique la version et les empreintes SHA-256 de l’archive et de chaque fichier. À sources identiques, l’archive est identique ; `--check` refuse un livrable absent ou périmé sans modifier de fichier. Après chaque modification des sources, reconstruire et vérifier les deux livrables avant livraison.
+
+Installer le ZIP vérifié dans **Extensions > Ajouter une extension > Téléverser une extension**, puis activer **iNrCy — Rendez-vous visio après inscription**. La construction locale ne modifie aucun site WordPress.
 
 À l’installation, l’affichage public est désactivé. Dans **Réglages > Rendez-vous visio iNrCy**, le bouton de test ouvre le formulaire avec la modale uniquement pour un administrateur WordPress connecté. Les autres visiteurs conservent le parcours actuel.
 

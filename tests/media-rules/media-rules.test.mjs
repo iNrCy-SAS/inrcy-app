@@ -86,7 +86,8 @@ test("les points d’entrée média utilisent les règles partagées", () => {
 
   const delegatedFiles = [
     "app/dashboard/booster/publier/usePublishImageController.ts",
-    "app/dashboard/mails/MailboxClient.tsx",
+    "app/dashboard/mails/_hooks/useMailboxPublicationMedia.ts",
+    "app/dashboard/mails/_hooks/useMailboxPublicationVideo.ts",
   ];
 
   for (const file of delegatedFiles) {
@@ -102,6 +103,8 @@ test("les points d’entrée média utilisent les règles partagées", () => {
 test("anciennes limites médias supprimées des outils de publication", () => {
   const files = [
     "app/dashboard/mails/MailboxClient.tsx",
+    "app/dashboard/mails/_hooks/useMailboxPublicationMedia.ts",
+    "app/dashboard/mails/_hooks/useMailboxPublicationVideo.ts",
     "app/dashboard/mediatheque/MediaLibraryClient.tsx",
     "app/dashboard/admin/image-bank/ImageBankAdminClient.tsx",
     "app/api/media-library/upload/route.ts",

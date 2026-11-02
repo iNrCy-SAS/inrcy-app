@@ -1,3 +1,5 @@
+import { readFileSync as readDraftSessionSource } from "node:fs";
+const draftSession = readDraftSessionSource(new URL("../../app/dashboard/booster/publier/publicationDraftSession.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -215,7 +217,7 @@ test("Booster persiste le brouillon avant Generate, Modifier ou Retoucher", () =
   assert.match(videoTool, /await preparePublicationDraftForStudio\(\)/);
   assert.match(videoTool, /mediaType: "video"/);
   assert.match(videoTool, /videoTransformedVariants/);
-  assert.match(source, /return savedDraftId \|\| null/);
+  assert.match(draftSession, /return savedDraftId \|\| null/);
   assert.match(source, /returnHref: draftState\.returnHref/);
   assert.match(source, /setPendingStudioReturn\(result\)/);
   assert.match(source, /loadedPublicationDraftId !== expectedDraftId/);
@@ -260,18 +262,16 @@ test("iNrSend conserve l’éditeur monté dans Studio et garde la restauration 
   const videoToolStart = source.indexOf(
     "async function openPublicationVideoRetoucher",
   );
-  const filesStart = source.indexOf(
-    "function addPublicationPickedFiles",
-  );
+  const restoreEffectStart = source.indexOf("\n  useEffect(() => {", videoToolStart);
   assert.ok(
     generatorStart > 0 &&
       imageToolStart > generatorStart &&
       videoToolStart > imageToolStart &&
-      filesStart > videoToolStart,
+      restoreEffectStart > videoToolStart,
   );
   const generator = source.slice(generatorStart, imageToolStart);
   const imageTool = source.slice(imageToolStart, videoToolStart);
-  const videoTool = source.slice(videoToolStart, filesStart);
+  const videoTool = source.slice(videoToolStart, restoreEffectStart);
   assert.match(generator, /tab: "generate"/);
   assert.match(generator, /openStudio\(href\)/);
   assert.match(imageTool, /openStudio\(href\)/);

@@ -1,7 +1,10 @@
+import { readAgentScheduleSource } from "./schedule-sources.mjs";
+import { readAgentPublicationPreparationSource } from "./prepare-publication-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
+import ts from "typescript";
 import {
   INR_AGENT_EDITORIAL_MIN_SLOTS_FOR_VIDEO,
   INR_AGENT_EDITORIAL_VIDEO_RATIO,
@@ -57,7 +60,7 @@ test("iNrAgent matérialise l'horizon choisi selon les créneaux et critères", 
 test("les thèmes éditoriaux enrichis traversent réglages, prompts et médias", () => {
   const settings = read("lib/inrAgentSettings.ts");
   const config = read("app/dashboard/agent/_lib/agent.config.ts");
-  const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
+  const prepare = readAgentPublicationPreparationSource();
   const mediaRequest = read("lib/inrAgentMediaRequest.ts");
 
   for (const theme of [
@@ -148,11 +151,11 @@ test("le plan est durable, dédupliqué et protège les quotas lors d'un changem
 });
 
 test("la préparation transmet les médias choisis jusqu'à Booster et à l'agenda", () => {
-  const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
+  const prepare = readAgentPublicationPreparationSource();
   const regenerate = read("app/api/agent/actions/regenerate-channel/route.ts");
   const server = read("lib/inrAgentEditorialPlanServer.ts");
   const messages = read("messages/fr-FR/agent.json");
-  const schedule = read("app/api/agent/actions/schedule/route.ts");
+  const schedule = readAgentScheduleSource();
   const preview = read("app/dashboard/agent/_lib/agent.publish-preview.ts");
   const scheduleItems = read(
     "app/dashboard/agent/_lib/agent.schedule-items.ts"
@@ -235,7 +238,7 @@ test("les publications instantanées rattrapent le ratio sans vidéos consécuti
 });
 
 test("le direct applique le mix partagé et bannit YouTube d'une image", () => {
-  const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
+  const prepare = readAgentPublicationPreparationSource();
 
   assert.match(prepare, /loadInstantMediaMixState/);
   const instantMix = read("lib/inrAgentInstantMediaState.ts");
@@ -254,7 +257,7 @@ test("le direct applique le mix partagé et bannit YouTube d'une image", () => {
 
 test("les médias générés remplissent leur format avant l’adaptation iNrAgent sans rognage supplémentaire", () => {
   const normalizer = read("lib/aiMediaNormalizer.ts");
-  const schedule = read("app/api/agent/actions/schedule/route.ts");
+  const schedule = readAgentScheduleSource();
   const execute = read("app/api/agent/actions/execute/route.ts");
   const client = read("app/dashboard/agent/AgentClient.tsx");
 
@@ -334,8 +337,8 @@ test("la publication iNrAgent reste manuelle, notifiée et protégée en profond
   const settings = read("lib/inrAgentSettings.ts");
   const config = read("app/dashboard/agent/_lib/agent.config.ts");
   const client = read("app/dashboard/agent/AgentClient.tsx");
-  const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
-  const schedule = read("app/api/agent/actions/schedule/route.ts");
+  const prepare = readAgentPublicationPreparationSource();
+  const schedule = readAgentScheduleSource();
   const editorial = read("lib/inrAgentEditorialPlanServer.ts");
   const notices = read("lib/inrAgentValidationNoticePolicy.ts");
   const scheduledCron = read(
@@ -379,7 +382,7 @@ test("la publication iNrAgent reste manuelle, notifiée et protégée en profond
 test("les CTA iNrAgent restent structurés et possèdent une destination réelle", () => {
   const ctaPreferences = read("lib/boosterCtaPreferences.ts");
   const ctaDefaults = read("lib/boosterCtaDefaultsServer.ts");
-  const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
+  const prepare = readAgentPublicationPreparationSource();
   const execute = read("app/api/agent/actions/execute/route.ts");
   const preview = read("app/dashboard/agent/_lib/agent.publish-preview.ts");
 
@@ -432,10 +435,17 @@ test("les réglages globaux et les automatisations sont enregistrés atomiquemen
 test("les réglages restent compacts et l'activation passe par l'accueil de l'agent", () => {
   const client = read("app/dashboard/agent/AgentClient.tsx");
   const styles = read("app/dashboard/agent/agent.module.css");
-  const settingsModal = client.slice(
-    client.indexOf("{settingsAutomation && settingsConfig && ("),
-    client.indexOf("{publishMediaModal ? (")
-  );
+  const tree = ts.createSourceFile("AgentClient.tsx", client, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const settingsSections: string[] = [];
+  function visit(node: ts.Node) {
+    if (ts.isJsxExpression(node) && node.expression?.getText(tree).startsWith("settingsAutomation && settingsConfig &&")) {
+      settingsSections.push(node.getText(tree));
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  assert.equal(settingsSections.length, 1, "inspect exactly the active automation settings dialog");
+  const settingsModal = settingsSections[0];
 
   assert.match(
     settingsModal,

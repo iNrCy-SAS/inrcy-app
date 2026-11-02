@@ -42,7 +42,7 @@ function getDraftSavedAt(payload: Record<string, unknown>, createdAt: unknown) {
 
 export async function GET(req: Request) {
   try {
-    const { supabase, user, errorResponse, activeUserId } = await requireUser();
+    const { supabase, errorResponse, activeUserId } = await requireUser();
     if (errorResponse) return errorResponse;
 
     const url = new URL(req.url);
@@ -121,7 +121,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { supabase, user, errorResponse, activeUserId } = await requireUser();
+    const { supabase, errorResponse, activeUserId } = await requireUser();
     if (errorResponse) return errorResponse;
     const userId = activeUserId;
     const body = await req.json().catch(() => ({}));

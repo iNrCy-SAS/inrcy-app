@@ -60,9 +60,9 @@ test("la navigation iNr’ADS envoie le suivi vers le nouvel onglet iNr’Send",
   // The shared folder navigator provides mobile and desktop with the same
   // total and error instead of maintaining a separate mobile menu.
   assert.equal((mailbox.match(/adsTab=\{adsEnabled \? \{[^}]*count: adsCampaignCount, countError: adsCampaignCountError/g) || []).length, 1);
-  for (const filename of ["FolderTabs.tsx", "MobileFoldersMenu.tsx"]) {
-    const tabs = readFileSync(new URL(`../app/dashboard/mails/_components/${filename}`, import.meta.url), "utf8");
-    assert.match(tabs, /title=\{adsTab\.countError \|\| "ADS"\}/);
-    assert.match(tabs, /adsTab\.countError \? "—" : adsTab\.count \?\? "…"/);
-  }
+  // FolderTabs is the shared navigator mounted for both viewport sizes.
+  assert.match(mailbox, /<FolderTabs/);
+  const tabs = readFileSync(new URL("../app/dashboard/mails/_components/FolderTabs.tsx", import.meta.url), "utf8");
+  assert.match(tabs, /title=\{adsTab\.countError \|\| "ADS"\}/);
+  assert.match(tabs, /adsTab\.countError \? "—" : adsTab\.count \?\? "…"/);
 });

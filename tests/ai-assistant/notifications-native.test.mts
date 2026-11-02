@@ -4,6 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import * as commands from "../../lib/inrAssistantCommandRegistry.ts";
+import * as generalPreferences from "../../lib/generalPreferences.ts";
 
 type Row = Record<string, unknown>;
 type SettingsRuntime = { createInrAssistantSettingsTools(options: unknown): {
@@ -39,6 +40,7 @@ function harness(options: { existing?: Row | null; readError?: boolean; forbidde
     "@/lib/requireUser": { requireUser: async () => ({ user: { id: "actor" }, activeUserId: "active", errorResponse: options.forbidden ? Response.json({}, { status: 401 }) : null }) },
     ai: { tool: (value: unknown) => value, jsonSchema: (value: unknown) => value },
     "./inrAssistantCommandRegistry.ts": commands,
+    "./generalPreferences.ts": generalPreferences,
   };
   function load<T>(path: string): T {
     const compiled = ts.transpileModule(readFileSync(new URL(`../../${path}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;

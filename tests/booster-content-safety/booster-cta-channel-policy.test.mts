@@ -7,6 +7,8 @@ function read(path: string) {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
 
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
+
 test("each publication channel has an explicit CTA capability policy", () => {
   const cta = read("lib/boosterCta.ts");
 
@@ -117,7 +119,7 @@ test("website defaults use the canonical Site Web URL", () => {
 
   for (const source of [publishNow, inrSend]) {
     assert.match(source, /siteWebUrl/);
-    assert.doesNotMatch(source, /inrcySiteUrl|inrcy_site_configs/);
+    assert.doesNotMatch([source, generationController].join("\n"), /inrcySiteUrl|inrcy_site_configs/);
     assert.match(source, /getPreferredWebsiteUrlForChannel/);
   }
   assert.doesNotMatch(
@@ -160,7 +162,7 @@ test("the Booster editor repairs stale CTA drafts and never displays a fake fall
   );
   assert.match(foundations, /applySafePreferredCta\(\{/);
   assert.match(foundations, /normalizeBoosterPostCtaForChannel\(/);
-  assert.match(modal, /sanitizePostsForEditor\(versions, ctaDefaults\)/);
+  assert.match(generationController, /sanitizePostsForEditor\(versions, ctaDefaults\)/);
   assert.match(modal, /prefillConfiguredChannelCtas\(/);
   assert.match(foundations, /normalizeBoosterPostCtaForChannel\(/);
   assert.match(shared, /isBoosterCtaLabelCompatibleWithMode\(mode, normalized\.cta\)/);

@@ -67,13 +67,13 @@ export function useCrmContactLifecycleEffects({
       setServerQuery(query.trim());
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [query]);
+  }, [query, setServerQuery]);
 
   useEffect(() => {
     mobileAppendNextRef.current = false;
     setExpandedMobileContactId(null);
     setPage(1);
-  }, [pageSize, serverQuery, categoryFilter, typeFilter, departmentFilter, importantOnly]);
+  }, [pageSize, serverQuery, categoryFilter, typeFilter, departmentFilter, importantOnly, mobileAppendNextRef, setExpandedMobileContactId, setPage]);
 
   useEffect(() => {
     const append = isResponsive && mobileAppendNextRef.current && page > 1;
@@ -97,6 +97,7 @@ export function useCrmContactLifecycleEffects({
     departmentFilter,
     importantOnly,
     initialSnapshotAvailable,
+    mobileAppendNextRef,
   ]);
 
   useEffect(() => {
@@ -110,7 +111,7 @@ export function useCrmContactLifecycleEffects({
       }
       return next;
     });
-  }, [mergeContactWithLocalState]);
+  }, [mergeContactWithLocalState, setContacts, setSelectedContactsById]);
 
   useEffect(() => {
     if (contacts.length === 0 || selectedContactIds.size === 0) return;
@@ -124,7 +125,7 @@ export function useCrmContactLifecycleEffects({
       }
       return changed ? next : prev;
     });
-  }, [contacts, selectedContactIds]);
+  }, [contacts, selectedContactIds, setSelectedContactsById]);
 }
 
 export function useCrmFloatingUiEffects({
@@ -176,7 +177,7 @@ export function useCrmFloatingUiEffects({
     };
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
-  }, [actionsOpen]);
+  }, [actionsOpen, actionsRef, setActionsOpen]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -187,7 +188,7 @@ export function useCrmFloatingUiEffects({
     };
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
-  }, []);
+  }, [statsRef, setStatsOpen]);
 
   useEffect(() => {
     if (!exportOpen) return;
@@ -199,7 +200,7 @@ export function useCrmFloatingUiEffects({
     };
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
-  }, [exportOpen]);
+  }, [exportOpen, exportRef, setExportOpen]);
 
   useEffect(() => {
     if (!headerSearchOpen) return;
@@ -211,7 +212,7 @@ export function useCrmFloatingUiEffects({
     };
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
-  }, [headerSearchOpen]);
+  }, [headerSearchOpen, headerSearchRef, setHeaderSearchOpen]);
 
   useEffect(() => {
     if (!desktopFiltersOpen) return;
@@ -223,7 +224,7 @@ export function useCrmFloatingUiEffects({
     };
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
-  }, [desktopFiltersOpen]);
+  }, [desktopFiltersOpen, desktopFiltersRef, setDesktopFiltersOpen]);
 
   useEffect(() => {
     if (!headerSearchOpen) return;
@@ -232,14 +233,14 @@ export function useCrmFloatingUiEffects({
       headerSearchInputRef.current?.select();
     }, 10);
     return () => window.clearTimeout(timer);
-  }, [headerSearchOpen]);
+  }, [headerSearchOpen, headerSearchInputRef]);
 
   useEffect(() => {
     if (isResponsive) return;
     setHeaderSearchOpen(false);
     setMobileFiltersOpen(false);
     setExpandedMobileContactId(null);
-  }, [isResponsive]);
+  }, [isResponsive, setHeaderSearchOpen, setMobileFiltersOpen, setExpandedMobileContactId]);
 
   useEffect(() => {
     if (isResponsive) {
@@ -247,7 +248,7 @@ export function useCrmFloatingUiEffects({
     } else {
       setHeaderSearchOpen(false);
     }
-  }, [isResponsive]);
+  }, [isResponsive, setDesktopFiltersOpen, setHeaderSearchOpen]);
 }
 
 export function useCrmTableViewportEffects({
@@ -310,7 +311,7 @@ export function useCrmTableViewportEffects({
       ro?.disconnect();
       window.removeEventListener("resize", recompute);
     };
-  }, [isResponsive, loading, page, pageSize, visibleContacts.length, showDesktopEmptyMessage]);
+  }, [isResponsive, loading, page, pageSize, visibleContacts.length, showDesktopEmptyMessage, tableWrapRef, setDesktopRowHeight]);
 
 
   useEffect(() => {
@@ -341,5 +342,5 @@ export function useCrmTableViewportEffects({
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [isResponsive, loading, contacts.length, total, pageCount]);
+  }, [isResponsive, loading, contacts.length, total, pageCount, mobileLoadMoreRef, tableWrapRef, mobileAppendNextRef, setPage]);
 }

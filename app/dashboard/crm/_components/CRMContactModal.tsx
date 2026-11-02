@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import { useEffect, useLayoutEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useLayoutEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import styles from "../crm.module.css";
 import type { Category, ContactType, CrmDraft } from "../crm.types";
 import { useUnsavedExitGuard } from "../../_hooks/useUnsavedExitGuard";

@@ -14,7 +14,16 @@ import type { LinkedInAdsCampaignGroup } from "../lib/adsLinkedInPreflightPolicy
 
 const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
 const source = ts.createSourceFile("AdsClient.tsx", client, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+function actualPlanProjection(scope: Record<string, unknown>) {
+  const file = ts.createSourceFile("adsCampaignPlanClient.ts", readFileSync(new URL("../lib/adsCampaignPlanClient.ts", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
+  const node = file.statements.find((candidate): candidate is ts.FunctionDeclaration => ts.isFunctionDeclaration(candidate) && candidate.name?.text === "projectAdsCampaignPlan");
+  assert.ok(node);
+  const code = ts.transpileModule(node.getText(file).replace(/^export /, ""), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  return new Function(...Object.keys(scope), code + "\nreturn projectAdsCampaignPlan;")(...Object.values(scope));
+}
+
 function actualFunction(name: string, scope: Record<string, unknown>) {
+  if (name === "applyCampaignPlan") scope = { ...scope, projectAdsCampaignPlan: actualPlanProjection(scope) };
   let node: ts.FunctionDeclaration | undefined;
   function visit(candidate: ts.Node) { if (ts.isFunctionDeclaration(candidate) && candidate.name?.text === name) node = candidate; ts.forEachChild(candidate, visit); }
   visit(source); assert.ok(node, name);

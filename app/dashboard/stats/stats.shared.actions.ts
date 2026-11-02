@@ -1,5 +1,5 @@
 import { type DecisionResult } from "@/lib/decision/decisionEngine";
-import { type ActionKey, type CapturedLeads, type CubeKey, type CubeModel, type Overview, type StatsTranslator } from "./stats.shared.types";
+import { type CapturedLeads, type CubeKey, type CubeModel, type Overview, type StatsTranslator } from "./stats.shared.types";
 import { fmtInt, safeNum } from "./stats.shared.core";
 import { computeOpportunity30, getGmbTotals, isIntentQuery, pageKind } from "./stats.shared.opportunity";
 import { getSocialMetrics, isLinkedInStatsPartial } from "./stats.shared.quality";
@@ -280,24 +280,6 @@ export function recommendAction(cubeKey: CubeKey, ov: Overview, qualityScore: nu
       pill: t("connexion_a33c58f5"),
     };
   }
-
-  const effortMap: Partial<Record<ActionKey, CubeModel["action"]["effort"] | undefined>> = {
-    booster_publier: { level: "faible", label: t("effort_faible_5_min_e034d335") },
-    propulser_action: { level: "moyen", label: t("effort_moyen_10_15_min_33514efc") },
-    fideliser_action: { level: "moyen", label: t("effort_moyen_10_15_min_33514efc") },
-    booster_avis: { level: "moyen", label: t("effort_moyen_10_min_beff4f02") },
-    booster_promotion: { level: "moyen", label: t("effort_moyen_15_min_121017e1") },
-    fideliser_informer: { level: "moyen", label: t("effort_moyen_15_min_121017e1") },
-    fideliser_satisfaction: { level: "faible", label: t("effort_faible_3_min_25abc8a8") },
-    fideliser_remercier: { level: "faible", label: t("effort_faible_2_min_57b40ff4") },
-    connect: undefined,
-    loading: undefined,
-  };
-
-  const attachEffort = (a: CubeModel["action"]): CubeModel["action"] => {
-    if (a.key === "connect") return a;
-    return { ...a, effort: effortMap[a.key] };
-  };
 
   const opp30 = computeOpportunity30(cubeKey, ov);
 

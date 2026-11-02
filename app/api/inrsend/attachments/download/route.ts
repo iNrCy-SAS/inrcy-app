@@ -13,7 +13,7 @@ function encodeContentDisposition(filename: string) {
 }
 
 export async function GET(req: Request) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   try {

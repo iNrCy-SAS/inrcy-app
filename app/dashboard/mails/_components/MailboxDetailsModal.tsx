@@ -584,7 +584,9 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     () => (open ? getTiktokAutoPollTarget(detailsItem) : null),
     [open, detailsItem],
   );
-  const detailsMailProvider = String(detailsItem?.provider || detailsItem?.payload?.provider || "").trim();
+  const tiktokPollPublicationId = tiktokAutoPollTarget?.publicationId;
+  const tiktokPollCheckedAt = tiktokAutoPollTarget?.checkedAt;
+  const tiktokPollStatusFetchFailed = tiktokAutoPollTarget?.statusFetchFailed;
 
   const refreshPublicationStatus = React.useCallback(async (silent = false) => {
     const requestedPublicationId = activePublicationId;
@@ -611,7 +613,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
       if (activePublicationIdRef.current !== requestedPublicationId) return null;
       if (!silent) setDetailsActionSuccess(i18nT("publication_status_updated"));
       return json;
-    } catch (error) {
+    } catch {
       if (!silent) {
         setDetailsActionError(i18nT("publication_status_refresh_failed"));
       }
@@ -809,14 +811,14 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   }, [activePublicationId, detailsItem?.source, open, refreshPublicationStatus]);
 
   React.useEffect(() => {
-    if (!open || !tiktokAutoPollTarget || tiktokRetrying || tiktokStatusChecking || tiktokCancelling) return;
+    if (!open || !tiktokPollPublicationId || tiktokRetrying || tiktokStatusChecking || tiktokCancelling) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let resumeRequested = false;
     const startedAt = Date.now();
-    const lastCheckedAt = Date.parse(tiktokAutoPollTarget.checkedAt || "");
-    const initialIntervalMs = tiktokAutoPollTarget.statusFetchFailed ? 60_000 : 20_000;
+    const lastCheckedAt = Date.parse(tiktokPollCheckedAt || "");
+    const initialIntervalMs = tiktokPollStatusFetchFailed ? 60_000 : 20_000;
     const initialDelay = Number.isFinite(lastCheckedAt)
       ? Math.max(3_000, initialIntervalMs - Math.max(0, Date.now() - lastCheckedAt))
       : 8_000;
@@ -848,7 +850,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
       let nextDelay = Date.now() - startedAt >= 5 * 60_000 ? 60_000 : 20_000;
       try {
         const res = await fetch(
-          `/api/inrsend/publications/${encodeURIComponent(tiktokAutoPollTarget.publicationId)}/tiktok/status`,
+          `/api/inrsend/publications/${encodeURIComponent(tiktokPollPublicationId)}/tiktok/status`,
           { method: "POST", headers: { "Content-Type": "application/json" } },
         );
         const json = await res.json().catch(() => ({}));
@@ -896,10 +898,10 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   }, [
     open,
     refreshHistory,
-    tiktokAutoPollTarget?.checkedAt,
-    tiktokAutoPollTarget?.publicationId,
+    tiktokPollCheckedAt,
+    tiktokPollPublicationId,
     tiktokAutoPollTarget?.publishId,
-    tiktokAutoPollTarget?.statusFetchFailed,
+    tiktokPollStatusFetchFailed,
     tiktokCancelling,
     tiktokRetrying,
     tiktokStatusChecking,
@@ -924,7 +926,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
         setDetailsActionSuccess(i18nT("tiktok_status_result", { status: statusLabel }));
       }
       await refreshHistory?.();
-    } catch (e: any) {
+    } catch {
       setDetailsActionError(i18nT("tiktok_status_check_failed"));
     } finally {
       setTiktokStatusChecking(false);
@@ -958,7 +960,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
       if (!res.ok || json?.ok === false) throw new Error(json?.error || json?.message || "tiktok_retry_failed");
       setDetailsActionSuccess(i18nT("tiktok_retry_started"));
       await refreshHistory?.();
-    } catch (e: any) {
+    } catch {
       setDetailsActionError(i18nT("tiktok_retry_failed"));
     } finally {
       setTiktokRetrying(false);
@@ -997,7 +999,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
       }
       setDetailsActionSuccess(i18nT("publication_annulee_dans_inrsend_le_suivi_f4a9fbdb"));
       await refreshHistory?.();
-    } catch (e: any) {
+    } catch {
       setDetailsActionError(i18nT("tiktok_cancel_failed"));
     } finally {
       setTiktokCancelling(false);
@@ -1302,7 +1304,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     });
     if (ok) setPublicationEditDirty(false);
     return ok;
-  }, [detailsActionBusy, detailsEditMode, publicationEditDirty]);
+  }, [detailsActionBusy, detailsEditMode, i18nT, publicationEditDirty]);
 
   const requestClose = React.useCallback(async () => {
     const ok = await confirmDiscardPublicationEdit();

@@ -1,3 +1,4 @@
+import { readAgentPublicationPreparationSource } from "./prepare-publication-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -12,20 +13,14 @@ import {
 } from "../../lib/inrAgentSettings.ts";
 
 const agentClient = readFileSync(
-  new URL("../../app/dashboard/agent/AgentClient.tsx", import.meta.url),
+  new URL("../../app/dashboard/agent/_components/AgentPublicationIdeasEditor.tsx", import.meta.url),
   "utf8",
 );
 const agentStyles = readFileSync(
   new URL("../../app/dashboard/agent/agent.module.css", import.meta.url),
   "utf8",
 );
-const preparePublishRoute = readFileSync(
-  new URL(
-    "../../app/api/agent/actions/prepare-publish/route.ts",
-    import.meta.url,
-  ),
-  "utf8",
-);
+const preparePublishRoute = readAgentPublicationPreparationSource();
 
 test("iNrAgent starts with 6 idea fields and enforces a strict maximum of 12", () => {
   assert.equal(INR_AGENT_PUBLICATION_IDEA_INITIAL_ITEMS, 6);
@@ -107,7 +102,7 @@ test("every publication idea field reuses the shared application microphone", ()
 
   assert.match(
     agentClient,
-    /import MediaSubjectVoiceButton from "\.\.\/_components\/MediaSubjectVoiceButton"/,
+    /import MediaSubjectVoiceButton from "\.\.\/\.\.\/_components\/MediaSubjectVoiceButton"/,
   );
   assert.match(ideasUi, /className=\{styles\.publicationIdeaTextareaWrap\}/);
   assert.match(ideasUi, /<MediaSubjectVoiceButton/);

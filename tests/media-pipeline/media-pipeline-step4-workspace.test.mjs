@@ -1,3 +1,7 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
+import { readFileSync as readDraftSessionSource } from "node:fs";
+const draftSession = readDraftSessionSource(new URL("../../app/dashboard/booster/publier/publicationDraftSession.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -84,18 +88,17 @@ test("les brouillons conservent la référence et la publication archive le work
   const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
   assert.match(modal, /mediaWorkspaceId,/);
   assert.match(modal, /mediaWorkspaceClientKey,/);
-  assert.match(modal, /adoptMediaWorkspace\(/);
-  assert.match(modal, /linkPersistentWorkspaceDraft\(savedDraftId\)/);
-  assert.match(modal, /archivePersistentMediaWorkspace\(\)/);
+  assert.match(draftSession, /adoptMediaWorkspace\(/);
+  assert.match(draftSession, /linkPersistentWorkspaceDraft\(savedDraftId\)/);
+  assert.match(submission, /archivePersistentMediaWorkspace\(\)/);
 });
 
 test("l'ancien pipeline reste présent pour publier et programmer", () => {
-  const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
   const shared = read(
     "app/dashboard/booster/publier/publishModal.shared.tsx",
   );
-  assert.match(modal, /uploadOriginalImagesForPublication\(/);
-  assert.match(modal, /uploadPublicationVideoForPublish\(\)/);
+  assert.match(submission, /uploadOriginalImagesForPublication\(/);
+  assert.match(submission, /uploadPublicationVideoForPublish\(\)/);
   assert.match(shared, /universal image upload fallback/);
   assert.match(shared, /universal video upload fallback/);
 });

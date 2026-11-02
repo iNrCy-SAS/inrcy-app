@@ -1,3 +1,4 @@
+import { readAgentScheduleSource } from "./schedule-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -9,7 +10,7 @@ const read = (relativePath: string) =>
 
 const snapshot = read("lib/scheduledPublicationMediaSnapshot.ts");
 const scheduleRoute = read("app/api/agent/scheduled-actions/route.ts");
-const agentScheduleRoute = read("app/api/agent/actions/schedule/route.ts");
+const agentScheduleRoute = readAgentScheduleSource();
 const asyncPublication = read("lib/boosterAsyncPublication.ts");
 
 test("a Booster schedule snapshots its workspace media before it is accepted", () => {

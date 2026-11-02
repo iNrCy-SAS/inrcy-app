@@ -108,10 +108,11 @@ export default function XSettingsContent({
   }, []);
 
   useEffect(() => {
+    const connectionRevision = connectionRevisionRef;
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      connectionRevisionRef.current++;
+      connectionRevision.current++;
     };
   }, []);
 

@@ -5,6 +5,7 @@ import ts from "typescript";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as transport from "../../lib/aiMediaGenerationTransport.ts";
 import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
+import { assertAiMediaFreeExactNarrationFits } from "../../lib/aiMediaFreeGenerationPrompt.ts";
 
 function route() {
   let reservations = 0;
@@ -19,7 +20,7 @@ function route() {
     ["@/lib/aiMediaGenerationPublicErrors", publicErrors],
     ["@/lib/aiGatewayAccountGuard", { AiGatewayAccountLimitError: TestError, AiGatewayGuardUnavailableError: TestError }],
     ["@/lib/aiMediaGenerationPrompt", { AI_MEDIA_PROMPT_VERSION: "test" }],
-    ["@/lib/aiMediaFreeGenerationPrompt", { AI_MEDIA_FREE_PROMPT_VERSION: "test-free" }],
+    ["@/lib/aiMediaFreeGenerationPrompt", { AI_MEDIA_FREE_PROMPT_VERSION: "test-free", assertAiMediaFreeExactNarrationFits }],
     ["@/lib/aiMediaGenerationQuota", {
       AiMediaGenerationQuotaError: TestError,
       createAiMediaRequestFingerprint: () => "test-fingerprint",

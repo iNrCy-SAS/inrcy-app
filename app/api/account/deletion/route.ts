@@ -42,10 +42,6 @@ type SubscriptionRow = {
   native_will_renew?: boolean | null;
 };
 
-function normalize(value: unknown): string {
-  return String(value || "").trim().toLowerCase();
-}
-
 function isFuture(value: string | null | undefined) {
   if (!value) return false;
   const date = new Date(value.length === 10 ? `${value}T23:59:59.999Z` : value);

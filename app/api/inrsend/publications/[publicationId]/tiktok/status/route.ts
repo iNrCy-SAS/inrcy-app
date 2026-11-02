@@ -695,7 +695,7 @@ async function persistTiktokStatus({
 
 async function handler(_request: Request, context: { params: Promise<{ publicationId: string }> }) {
   try {
-    const { user, errorResponse, activeUserId } = await requireUser();
+    const { errorResponse, activeUserId } = await requireUser();
     if (errorResponse) return errorResponse;
 
     const params = await context.params;

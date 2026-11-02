@@ -10,8 +10,11 @@ import { createInrAssistantMemory, InrAssistantMemoryConflictError, InrAssistant
 import { recordCurrentAccountDiagnosticError, runWithAccountDiagnosticContext } from "@/lib/observability/accountDiagnostics";
 import { parseInrAssistantActivity, type InrAssistantActivity } from "@/lib/inrAssistantActivity";
 import { AssistantAttachmentError, parseAssistantAttachments } from "@/lib/inrAssistantAttachments";
-import { assistantTurnAttachments, loadAssistantFileContexts, inspectAssistantTaskState, saveAssistantTaskState, type AssistantFileContext } from "@/lib/inrAssistantAttachmentStorage";
+import { assistantTurnAttachments, loadAssistantFileContexts, inspectAssistantTaskState, saveAssistantTaskState, loadAssistantReplyReplay, saveAssistantReplyReplay, type AssistantFileContext } from "@/lib/inrAssistantAttachmentStorage";
 import { continueInrAssistantTask, type InrAssistantTaskState } from "@/lib/inrAssistantTaskPolicy";
+import { loadAssistantMediaAttachmentOriginal, claimAssistantMediaAttachmentImport } from "@/lib/inrAssistantAttachmentStorage";
+import { assistantRefreshTopics, parseInrAssistantRefresh } from "@/lib/inrAssistantRefresh";
+import { INR_ASSISTANT_UNCERTAIN_STATUSES } from "@/lib/inrAssistantCommandRegistry";
 
 export const runtime = "nodejs";
 export const maxDuration = 800;
@@ -123,7 +126,8 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     }
     if (begun.available && begun.existing && !begun.claimed) {
       if (begun.turn?.status === "completed" && begun.turn.assistantText) {
-        return NextResponse.json({ message: begun.turn.assistantText, conversationId, turnId, memorySaved: true,
+        const replay = await loadAssistantReplyReplay(attachmentScope, begun.turn);
+        return NextResponse.json({ ...replay, message: begun.turn.assistantText, conversationId, turnId, memorySaved: true,
           requestId, accountId: auth.activeUserId }, { headers });
       }
       // A concurrent request owns this turn. Never start a second paid answer or
@@ -184,9 +188,26 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
       }
     }
     const clientContext = parseInrAssistantClientContext((body as { clientContext?: unknown }).clientContext);
-    if (continuation?.task.receipts.some(receipt => ["executing_unconfirmed", "unknown", "saved_unconfirmed"].includes(receipt.status))) {
+    if (continuation?.task.receipts.some(receipt => INR_ASSISTANT_UNCERTAIN_STATUSES.has(receipt.status))) {
       throw Object.assign(new Error("Une action précédente a été interrompue sans résultat vérifiable. Consultez l’outil concerné avant une nouvelle demande."), { code: "assistant_task_state_unavailable" });
     }
+    // A continuation only keeps the original server-bound attachment grant.
+    // New files on "Continue" cannot expand it, even over multiple turns.
+    const mediaImportSource = continuation ? continuation.task.mediaImportSource
+      : turnAttachments.some(file => file.kind === "image" || file.kind === "video") ? { turnId, createdAt: begun.turn!.createdAt } : undefined;
+    let importAttachments = continuation ? [] : turnAttachments;
+    if (continuation?.task.requiredTools.includes("importMediaAttachment")) {
+      if (!mediaImportSource) throw Object.assign(new Error("La source des fichiers de cette tâche ne peut pas être vérifiée."), { code: "assistant_task_state_unavailable" });
+      importAttachments = await assistantTurnAttachments(attachmentScope, mediaImportSource);
+      if (!importAttachments.some(file => file.kind === "image" || file.kind === "video")) throw Object.assign(new Error("Les fichiers de cette tâche ne peuvent pas être vérifiés."), { code: "assistant_task_state_unavailable" });
+      fileContexts = await loadAssistantFileContexts(attachmentScope, importAttachments);
+    }
+    const bindMediaImportSource = (task: InrAssistantTaskState): InrAssistantTaskState => {
+      const bound = { ...task };
+      delete bound.mediaImportSource;
+      if (mediaImportSource) bound.mediaImportSource = mediaImportSource;
+      return bound;
+    };
     const [edition, accountContext] = await Promise.all([
       getDashboardEditionForAccountId(auth.activeUserId),
       loadInrAssistantContext({ supabase: auth.supabase, accountId: auth.activeUserId }),
@@ -201,7 +222,7 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
         expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), outcome: "failed",
         requiredTools: [], receipts: [], question: "",
       };
-      if (!await saveAssistantTaskState(attachmentScope, { turnId, createdAt: begun.turn!.createdAt }, initial)) {
+      if (!await saveAssistantTaskState(attachmentScope, { turnId, createdAt: begun.turn!.createdAt }, bindMediaImportSource(initial))) {
         throw Object.assign(new Error("Le suivi initial de la tâche ne peut pas être enregistré."), { code: "assistant_task_checkpoint_unavailable" });
       }
     }
@@ -209,10 +230,13 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
       accountId: auth.activeUserId, actorUserId: auth.authUserId, displayName: auth.activeAccount?.displayName ?? "",
       edition, accountContext, clientContext, messages, requestId, request, supabase: auth.supabase, signal: request.signal,
       memory, turnId, ...(fileContexts.length ? { fileContexts } : {}),
+      mediaAttachments: importAttachments.filter(file => file.kind === "image" || file.kind === "video").map(({ id, name, kind, size }) => ({ id, name, kind: kind as "image" | "video", size })),
+      resolveMediaAttachment: async id => { const file = importAttachments.find(item => item.id === id); return file ? loadAssistantMediaAttachmentOriginal(attachmentScope, file) : null; },
+      claimMediaAttachmentImport: async id => { const file = importAttachments.find(item => item.id === id); return file ? claimAssistantMediaAttachmentImport(attachmentScope, file) : false; },
       ...(continuation ? { actionInstruction: continuation.instruction, taskContext: continuation.task } : {}),
       ...(taskIntent ? { taskIntent } : {}),
       onTaskCheckpoint: async state => {
-        const saved = await saveAssistantTaskState(attachmentScope, { turnId, createdAt: begun.turn!.createdAt }, state);
+        const saved = await saveAssistantTaskState(attachmentScope, { turnId, createdAt: begun.turn!.createdAt }, bindMediaImportSource(state));
         if (!saved) throw Object.assign(new Error("Le suivi de la tâche n’a pas pu être enregistré."), { code: "assistant_task_checkpoint_unavailable" });
       },
       ...(onActivity ? { onActivity } : {}),
@@ -223,9 +247,14 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
       // recognize work that completed after this original instruction.
       actionStartedAt: continuation?.task.startedAt ?? begun.turn?.createdAt,
     });
-    const { taskState, ...publicReply } = reply;
-    const taskSaved = taskState ? await saveAssistantTaskState(attachmentScope, {turnId,createdAt:begun.turn!.createdAt}, taskState) : true;
+    const { taskState, ...replyData } = reply;
+    const refresh = parseInrAssistantRefresh({ accountId: auth.activeUserId, turnId, topics: assistantRefreshTopics(taskState?.receipts ?? []) });
+    const publicReply = { ...replyData, ...(refresh ? { refresh } : {}) };
+    const taskSaved = taskState ? await saveAssistantTaskState(attachmentScope, {turnId,createdAt:begun.turn!.createdAt}, bindMediaImportSource(taskState)) : true;
     if (!taskSaved && taskState && ["partial","needs_input","processing"].includes(taskState.outcome)) publicReply.message += "\n\nLe suivi de cette tâche n’a pas pu être enregistré. Vérifiez les résultats dans les outils avant toute nouvelle action ; les étapes déjà confirmées y sont conservées.";
+    if (!await saveAssistantReplyReplay(attachmentScope, begun.turn!, publicReply)) {
+      throw Object.assign(new Error("La réponse ne peut pas être conservée pour une reprise fiable."), { code: "assistant_reply_unavailable" });
+    }
     const completed = claimed ? await memory.completeTurn({ ...identity, assistantText: publicReply.message.slice(0, INR_ASSISTANT_MEMORY_MAX_REPLY_CHARS) }) : null;
     console.info("[assistant.task]", { requestId, outcome: reply.outcome ?? "completed", taskSaved });
     return NextResponse.json({ ...publicReply, conversationId, turnId, memorySaved: Boolean(completed?.ok), requestId, accountId: auth.activeUserId }, { headers });
@@ -233,7 +262,7 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     if (claimed && memory && identity) await memory.failTurn(identity).catch(() => undefined);
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "assistant_unavailable";
     const invalid = error instanceof InrAssistantInputError || error instanceof InrAssistantMemoryInputError || error instanceof InrAssistantMemoryConflictError || error instanceof AssistantAttachmentError && error.code !== "attachment_unavailable";
-    const limit = code === "ai_gateway_account_limit_reached";
+    const limit = code === "ai_gateway_account_limit_reached" || code === "assistant_monthly_budget_reached";
     const message = error instanceof AssistantAttachmentError ? "Le fichier joint ne peut pas être lu. Joignez-le à nouveau ou essayez un autre fichier." : invalid || limit
       ? (error as Error).message
       : code === "assistant_task_state_unavailable" || code === "assistant_task_checkpoint_unavailable"

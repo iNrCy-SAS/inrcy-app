@@ -75,12 +75,11 @@ test("final audit uses safe integer render dimensions for channel targets", asyn
   const controller = await read(
     "app/dashboard/booster/publier/usePublishImageController.ts",
   );
-  const panel = await read(
-    "app/dashboard/booster/publier/components/PublishImagesPanel.tsx",
-  );
+
 
   assert.match(matrix, /getBoosterImageRenderDimensions/);
   assert.match(matrix, /Math\.ceil\(baseWidth \/ targetRatio - 1e-9\)/);
   assert.match(controller, /getBoosterImageRenderDimensions/);
-  assert.match(panel, /getBoosterImageRenderDimensions/);
+  assert.match(controller, /return getBoosterImageRenderDimensions\(\{/);
+  assert.match(controller, /targetRatio: activeEditorSequenceTargetRatio/);
 });

@@ -5,7 +5,7 @@ import { getSimpleFrenchErrorMessage } from '@/lib/userFacingErrors';
 
 export async function POST() {
   try {
-    const { user, errorResponse, activeUserId } = await requireUser();
+    const { errorResponse, activeUserId } = await requireUser();
     if (errorResponse) return errorResponse;
     const rows = await syncSitePresenceIntegrations(activeUserId);
     return NextResponse.json({ ok: true, rows });

@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -7,51 +9,13 @@ const ROOT = process.cwd();
 const read = (relativePath: string) =>
   readFileSync(path.join(ROOT, relativePath), "utf8");
 
-const escapeRegExp = (value: string) =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const cssDeclarations = (
-  source: string,
-  selector: string,
-  property: string,
-) => {
-  const rulePattern = /([^{}]+)\{([^{}]*)\}/g;
-  const declarationPattern = new RegExp(
-    `${escapeRegExp(property)}\\s*:\\s*([^;]+);`,
-    "g",
-  );
-  const values: string[] = [];
-  const sourceWithoutComments = source.replace(/\/\*[\s\S]*?\*\//g, "");
-
-  for (const rule of sourceWithoutComments.matchAll(rulePattern)) {
-    const selectors = rule[1].split(",").map((value) => value.trim());
-    if (!selectors.includes(selector)) continue;
-
-    for (const declaration of rule[2].matchAll(declarationPattern)) {
-      values.push(declaration[1].trim());
-    }
-  }
-
-  assert.ok(
-    values.length > 0,
-    `Expected ${selector} to declare ${property}`,
-  );
-  return values;
-};
-
-const lastCssDeclaration = (
-  source: string,
-  selector: string,
-  property: string,
-) => cssDeclarations(source, selector, property).at(-1)!;
-
 test("Booster keeps media limits by the media controls without repeating them above the intention fields", () => {
   const shared = read("app/dashboard/booster/publier/publishModal.shared.tsx");
   const intent = read(
     "app/dashboard/booster/publier/components/PublishIntentPanel.tsx",
   );
   const media = read(
-    "app/dashboard/booster/publier/components/PublishImagesPanel.tsx",
+    "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx",
   );
 
   assert.match(
@@ -60,7 +24,9 @@ test("Booster keeps media limits by the media controls without repeating them ab
   );
   assert.match(shared, /BOOSTER_PUBLICATION_MEDIA_OPTIMIZATION_LABEL/);
   assert.doesNotMatch(intent, /getLocalizedBoosterMediaOptimization\("generation", runtimeT\)/);
-  assert.match(media, /getLocalizedBoosterMediaOptimization\("publication", runtimeT\)/);
+  assert.match(media, /getLocalizedBoosterImageLimits\(runtimeT\)/);
+  assert.match(media, /getLocalizedBoosterVideoLimits\(runtimeT\)/);
+  assert.match(media, /title=\{kind === "image" \? imageHelp : videoHelp\}/);
 });
 
 test("the publication balance highlights successes and keeps independent processing and failure quotas", () => {
@@ -98,7 +64,6 @@ test("Pinterest derives its account URL for settings, the immediate balance and 
   const settings = read(
     "app/dashboard/settings/_components/PinterestSettingsContent.tsx",
   );
-  const publishModal = read("app/dashboard/booster/publier/PublishModal.tsx");
   const inrSend = read(
     "app/dashboard/mails/_components/MailboxDetailsModal.tsx",
   );
@@ -113,9 +78,9 @@ test("Pinterest derives its account URL for settings, the immediate balance and 
     /value=\{settings\.publicProfileUrl \|\| settings\.profileUrl\}/,
   );
   assert.match(settings, /onSaved=\{\(url\) => \{[\s\S]*?publicProfileUrl: url, profileUrl: url/);
-  assert.match(publishModal, /status\?live=1/g);
-  assert.match(publishModal, /recoveredPinterestHref/);
-  assert.match(publishModal, /channelLinks = \{ \.\.\.options\?\.retryPreviousSummary\?\.channelLinks, \.\.\.Object\.fromEntries/);
+  assert.match(submission, /status\?live=1/g);
+  assert.match(submission, /recoveredPinterestHref/);
+  assert.match(submission, /channelLinks = \{ \.\.\.options\?\.retryPreviousSummary\?\.channelLinks, \.\.\.Object\.fromEntries/);
   assert.match(inrSend, /status\?live=1/);
   assert.match(inrSend, /activeChannelAccountHref/);
   assert.match(inrSend, /t\("ouvrir_le_compte_72c79948"\)/);

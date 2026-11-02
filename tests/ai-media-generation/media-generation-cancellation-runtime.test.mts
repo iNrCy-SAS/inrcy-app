@@ -6,6 +6,7 @@ import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as models from "../../lib/aiMediaModelCatalog.ts";
 import * as transport from "../../lib/aiMediaGenerationTransport.ts";
 import * as recovery from "../../lib/aiMediaGenerationRecovery.ts";
+import * as clientRequestRules from "../../lib/mediaGenerationClientRequest.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
 import type { MediaGenerationRequest, MediaGenerationResult } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
 
@@ -87,6 +88,7 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
     if (id === "react") return react;
     if (id === "@/lib/multicompte/constants") return { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" };
     if (id === "@/lib/aiMediaGenerationContracts") return contracts;
+    if (id === "@/lib/mediaGenerationClientRequest") return clientRequestRules;
     if (id === "@/lib/aiMediaModelCatalog") return models;
     if (id === "@/lib/aiMediaGenerationTransport") return transport;
     if (id === "@/lib/aiMediaGenerationRecovery") return recovery;

@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -62,8 +64,8 @@ test("Google Business partage les 75 Mo et conserve seulement ses règles métie
 
 test("les progressions parlent de préparation et jamais de compression", () => {
   const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
-  assert.match(modal, /Préparation des médias/);
-  assert.doesNotMatch(modal, /Compression des médias/);
+  assert.match(submission, /Préparation des médias/);
+  assert.doesNotMatch([modal, submission].join("\n"), /Compression des médias/);
 });
 
 test("la publication durable et iNrSend restent auto-récupérants", () => {

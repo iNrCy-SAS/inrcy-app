@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -7,6 +9,7 @@ function read(path: string) {
 }
 
 const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
+const generation = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
 const workspace = read(
   "app/dashboard/booster/publier/usePersistentMediaWorkspace.ts",
 );
@@ -23,28 +26,28 @@ const migrationVerification = read(
 const boosterMetrics = read("app/api/booster/metrics/route.ts");
 const propulserMetrics = read("app/api/propulser/metrics/route.ts");
 
-test("generation targets 30 seconds and starts local captures for every accepted video", () => {
-  assert.match(modal, /BOOSTER_GENERATION_TARGET_MS = 30_000/);
+test("generation applies its safety deadline and starts local captures for every accepted video", () => {
+  assert.match(generation, /Date\.now\(\) \+ BOOSTER_GENERATION_SAFETY_BUDGET_MS/);
   assert.match(
-    modal,
+    generation,
     /BOOSTER_GENERATION_SAFETY_BUDGET_MS\s*=\s*105_000/,
   );
-  assert.match(modal, /generationDeadlineAt/);
-  assert.match(modal, /controller\.abort\(\)/);
+  assert.match(generation, /generationDeadlineAt/);
+  assert.match(generation, /controller\.abort\(\)/);
   assert.match(
     modal,
     /Les captures locales commencent dès l'insertion de toute vidéo acceptée\.[\s\S]*getOrPrepareVideoFramesForAI\(videoFile\)/,
   );
   assert.match(
-    modal,
+    generation,
     /settleOptionalMediaEnrichment\([\s\S]{0,120}getOrPrepareVideoFramesForAI\(videoFile\)[\s\S]{0,100}BOOSTER_LOCAL_MEDIA_ENRICHMENT_BUDGET_MS/,
   );
-  assert.doesNotMatch(modal, /INR_MEDIA_VIDEO_COMPRESSION_TRIGGER_BYTES/);
+  assert.doesNotMatch([modal, submission].join("\n"), /INR_MEDIA_VIDEO_COMPRESSION_TRIGGER_BYTES/);
   assert.match(
-    modal,
+    generation,
     /useWorkspaceMediaForAI:[\s\S]*?unifiedMediaConsumptionClientAvailable[\s\S]*?Boolean\(readyMediaWorkspaceId\)/,
   );
-  assert.match(modal, /imagesForAI:\s*mediaPipelineCutoverEnabled \? \[\] : imagesForAI/);
+  assert.match(generation, /imagesForAI:\s*mediaPipelineCutoverEnabled \? \[\] : imagesForAI/);
   assert.match(
     generationRoute,
     /routeStartedAt \+ BOOSTER_GENERATION_SAFETY_BUDGET_MS/,
@@ -65,21 +68,21 @@ test("the click path waits for upload then performs one source-readiness snapsho
   assert.match(modal, /await waitForPersistentWorkspaceIdle/);
   assert.match(modal, /await verifyPersistentWorkspaceSources/);
   assert.match(modal, /return activeWorkspaceId/);
-  assert.doesNotMatch(modal, /preparePersistentAiMedia/);
-  assert.doesNotMatch(modal, /preparePersistentPublicationMedia/);
+  assert.doesNotMatch([modal, submission].join("\n"), /preparePersistentAiMedia/);
+  assert.doesNotMatch([modal, submission].join("\n"), /preparePersistentPublicationMedia/);
 });
 
 test("publication isolates red channels and dispatches the ready subset for one or ten channels", () => {
-  assert.match(modal, /const preflightFailedChannels = reviewItems/);
+  assert.match(submission, /const preflightFailedChannels = reviewItems/);
   assert.match(
-    modal,
+    submission,
     /const publishableChannels = reviewItems[\s\S]*item\.blockers\.length === 0/,
   );
-  assert.match(modal, /Préparation des médias/);
-  assert.doesNotMatch(modal, /Préparation de la vidéo/);
-  assert.match(modal, /mediaPreparationProgress/);
-  assert.match(modal, /mapProgressRange\(progress, 0, 100, 23, 39\)/);
-  assert.match(modal, /preflightFailedChannels,/);
+  assert.match(submission, /Préparation des médias/);
+  assert.doesNotMatch([modal, submission].join("\n"), /Préparation de la vidéo/);
+  assert.match(submission, /mediaPreparationProgress/);
+  assert.match(submission, /mapProgressRange\(progress, 0, 100, 23, 39\)/);
+  assert.match(submission, /preflightFailedChannels,/);
   assert.match(
     publishRoute,
     /after\(async \(\) => \{[\s\S]*Promise\.allSettled\([\s\S]*queuedChannelRows\.map/,

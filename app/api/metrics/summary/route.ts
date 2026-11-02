@@ -1,5 +1,4 @@
-import { isMetaChannelPilotEnabledForActorAndAccount, isMetaChannelPilotEnabledForAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
-import { withoutThreadsData } from "@/lib/stats/metaPilotData";
+import { isMetaChannelPilotEnabledForActorAndAccount } from "@/lib/metaChannelRolloutServer";
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabaseServer';
 import { resolveActiveInrcyAccountId } from '@/lib/multicompte/server';

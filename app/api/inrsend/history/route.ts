@@ -405,20 +405,6 @@ function stripWorkflowPrefix(value: string) {
     .trim();
 }
 
-function campaignTitleFromFolder(folder: Folder, subject: string) {
-  const safeSubject = safeS(subject, "(sans objet)");
-  if (folder === "offres") return `Offre — ${safeSubject}`;
-  if (folder === "recoltes") return `Récolte — ${safeSubject}`;
-  if (folder === "informations") return `Information — ${safeSubject}`;
-  if (folder === "suivis") return `Suivi — ${safeSubject}`;
-  if (folder === "enquetes") return `Enquête — ${safeSubject}`;
-  if (folder === "propulsions") return safeSubject;
-  if (folder === "fidelisations") return safeSubject;
-  if (folder === "factures") return `Envoi facture — ${safeSubject}`;
-  if (folder === "devis") return `Envoi devis — ${safeSubject}`;
-  return `Campagne — ${safeSubject}`;
-}
-
 function normalizeChannelCandidates(candidates: any[]): string[] {
   const seen = new Set<string>();
   return candidates

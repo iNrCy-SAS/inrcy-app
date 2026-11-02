@@ -460,7 +460,7 @@ async function handleFinalizeUpload(
 }
 
 export async function POST(request: NextRequest) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   try {

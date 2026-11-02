@@ -171,7 +171,7 @@ test("Google Search crée la campagne en pause sans liaison d’image rejetée p
 
 test("l’UI ne promet pas de média pour les formats sans média et signale l’échec", () => {
   const generator = readFileSync(new URL("../app/dashboard/ads/AdsCampaignAutoMediaGenerator.tsx", import.meta.url), "utf8");
-  const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  const client = ["../app/dashboard/ads/AdsClient.tsx", "../lib/adsCampaignPlanClient.ts"].map((file) => readFileSync(new URL(file, import.meta.url), "utf8")).join("\n");
   assert.match(generator, /shouldGenerateAdsMedia/);
   assert.match(generator, /aucun média n’a été généré/);
   assert.match(client, /iNr’Studio n’a pas pu créer le média/);
@@ -182,7 +182,7 @@ test("l’UI ne promet pas de média pour les formats sans média et signale l�
 });
 
 test("les campagnes visuelles gardent leur aperçu et Google Search n’annonce pas d’image publiée", () => {
-  const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  const client = ["../app/dashboard/ads/AdsClient.tsx", "../lib/adsCampaignPlanClient.ts"].map((file) => readFileSync(new URL(file, import.meta.url), "utf8")).join("\n");
   const css = readFileSync(new URL("../app/dashboard/ads/ads.module.css", import.meta.url), "utf8");
   assert.match(client, /const attachedCampaignMediaUrl = googleSearchMedia \? draft\.imageUrl : draft\.creativeUrl \|\| draft\.imageUrl/);
   assert.match(client, /<CampaignMediaPreview key=\{/);

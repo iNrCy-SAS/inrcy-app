@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -312,7 +314,7 @@ test("les contrats UI du hotfix excluent réellement un canal et ne codent plus 
   assert.doesNotMatch(modal, /TikTok a accepté l’envoi/);
   assert.doesNotMatch(modal, /statut TikTok dans iNrSend/);
   assert.match(publish, /const deselectChannel = \(key: ChannelKey\)/);
-  assert.match(publish, /options\?\.channels !== undefined/);
+  assert.match(submission, /options\?\.channels !== undefined/);
   assert.match(route, /preflightFailuresByChannel/);
   assert.match(route, /resp\.safeTextFallback === true/);
   assert.match(facebook, /getProviderCreateFailureSafety/);

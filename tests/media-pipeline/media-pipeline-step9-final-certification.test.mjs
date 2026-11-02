@@ -1,10 +1,15 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
+import { createQaExecutionPlan } from "../../scripts/qa-plan.mjs";
 
 const ROOT = process.cwd();
 const read = (file) => readFileSync(resolve(ROOT, file), "utf8");
+
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
 
 test("le rapport SQL final est global et strictement en lecture seule", () => {
   const sql = read(
@@ -56,14 +61,17 @@ test("le cron image reste espacé et le worker vidéo tourne chaque minute", () 
 
 test("la QA finale rejoue le pipeline et les modules voisins", () => {
   const pkg = JSON.parse(read("package.json"));
-  assert.match(pkg.scripts["qa:media-pipeline:step9"], /qa:media-pipeline:step8/);
-  assert.match(pkg.scripts["qa:media-pipeline:step9"], /audit:media-pipeline:step9/);
-  assert.match(pkg.scripts["qa:media-pipeline:step9"], /test:media-pipeline:step9/);
-  assert.match(pkg.scripts["certify:media-pipeline"], /qa:booster-images/);
-  assert.match(pkg.scripts["certify:media-pipeline"], /test:pinterest/);
-  assert.match(pkg.scripts["certify:media-pipeline"], /test:multicompte/);
-  assert.match(pkg.scripts["certify:media-pipeline"], /test:inrsend/);
-  assert.match(pkg.scripts["certify:media-pipeline:full"], /typecheck/);
+  const plans = JSON.parse(read("scripts/qa-plans.json"));
+  const plan = (name) => createQaExecutionPlan(name, pkg.scripts, plans);
+  const step9 = plan("qa:media-pipeline:step9");
+  for (const suite of [...plan("qa:media-pipeline:step8"), "audit:media-pipeline:step9", "test:media-pipeline:step9"]) {
+    assert.ok(step9.includes(suite), `step9 must include ${suite}`);
+  }
+  const certification = plan("certify:media-pipeline");
+  for (const suite of [...plan("qa:booster-images"), "test:pinterest", "test:multicompte", "test:inrsend"]) {
+    assert.ok(certification.includes(suite), `certification must include ${suite}`);
+  }
+  assert.ok(plan("certify:media-pipeline:full").includes("typecheck"));
 });
 
 test("la procédure couvre les six phases et les trois niveaux de rollback", () => {
@@ -89,7 +97,6 @@ test("les scripts de contrôle vérifient le palier local et le palier déployé
 });
 
 test("le clic immédiat absorbe l'upload dans Générer, Publier et Programmer", () => {
-  const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
   const workspaceHook = read(
     "app/dashboard/booster/publier/usePersistentMediaWorkspace.ts",
   );
@@ -100,19 +107,19 @@ test("le clic immédiat absorbe l'upload dans Générer, Publier et Programmer",
   assert.match(workspaceHook, /const waitForIdle = useCallback/);
   assert.match(workspaceHook, /Envoi du média/);
   assert.match(
-    modal,
+    generationController,
     /readyMediaWorkspaceId\s*=\s*shouldUsePersistentMediaWorkspaceForAi[\s\S]*readyMediaWorkspaceId\s*=\s*await waitForPersistentWorkspaceReadiness\([\s\S]*"generate"/,
   );
   assert.match(
-    modal,
+    submission,
     /readyMediaWorkspaceId\s*=\s*await waitForPersistentWorkspaceReadiness\(\s*"publish"/,
   );
   assert.match(
-    modal,
+    submission,
     /readyMediaWorkspaceId\s*=\s*await waitForPersistentWorkspaceReadiness\(\s*"schedule"/,
   );
   assert.match(
-    modal,
+    submission,
     /unifiedMediaConsumptionClientAvailable && readyMediaWorkspaceId/,
   );
   assert.match(scheduleModal, /PublishExecutionProgress/);

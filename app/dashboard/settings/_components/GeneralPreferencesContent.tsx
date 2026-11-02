@@ -16,6 +16,8 @@ import {
 } from "@/lib/appLanguage";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import AppAppearancePicker from "./AppAppearancePicker";
+import { DEFAULT_GENERAL_PREFERENCES, parseGeneralPreferencesPatch } from "@/lib/generalPreferences";
+import { useInrAssistantRefresh } from "../../_hooks/useInrAssistantRefresh";
 
 type Props = {
   mode?: "page" | "drawer";
@@ -38,12 +40,7 @@ const CLIENT_LANGUAGE_CUSTOM_STORAGE_KEY = "inrcy_client_language_custom_v1";
 const ASIA_BANGKOK_TIMEZONE = "Asia/Bangkok";
 const ASIA_SHANGHAI_TIMEZONE = "Asia/Shanghai";
 
-const initialForm: PreferencesForm = {
-  clientLanguage: "fr",
-  timezone: "Europe/Paris",
-  dateFormat: "dd/MM/yyyy",
-  currency: "EUR",
-};
+const initialForm: PreferencesForm = DEFAULT_GENERAL_PREFERENCES;
 
 const selectOption: React.CSSProperties = { color: "#0b1020", background: "#ffffff" };
 
@@ -131,6 +128,18 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const savedPreferencesSignatureRef = useRef("");
+  useInrAssistantRefresh({ topics: ["settings"], blocked: loading || saving || savedPreferencesSignatureRef.current !== "" && savedPreferencesSignatureRef.current !== JSON.stringify(form), refresh: async ({ accountId, canApply }) => {
+    const supabase = createClient();
+    const { data, error: readError } = await supabase.from(TABLE).select("client_language,timezone,date_format,currency").eq("user_id", accountId).maybeSingle();
+    if (readError || !canApply()) return false;
+    // Only saved fields override local/app-language fallbacks.
+    const next = { ...form, ...normalizePartialPreferences(data) };
+    savedPreferencesSignatureRef.current = JSON.stringify(next);
+    setForm(next); setSaved(false); onUnsavedChange?.(false);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+    window.dispatchEvent(new CustomEvent("inrcy:general-preferences-updated", { detail: next }));
+    return true;
+  } });
 
   useEffect(() => {
     if (loading) {
@@ -283,6 +292,7 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
     setSaved(false);
     setError("");
     try {
+      parseGeneralPreferencesPatch(form);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(form));
       markClientLanguageCustom();
 

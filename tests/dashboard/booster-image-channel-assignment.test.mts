@@ -1,3 +1,7 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
+import { readFileSync as readDraftSessionSource } from "node:fs";
+const draftSession = readDraftSessionSource(new URL("../../app/dashboard/booster/publier/publicationDraftSession.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -28,8 +32,11 @@ const publishModal = read("app/dashboard/booster/publier/PublishModal.tsx");
 const imageController = read(
   "app/dashboard/booster/publier/usePublishImageController.ts",
 );
-const imagesPanel = read(
-  "app/dashboard/booster/publier/components/PublishImagesPanel.tsx",
+const validationBoard = read(
+  "app/dashboard/booster/publier/components/PublishValidationBoard.tsx",
+);
+const mediaPool = read(
+  "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx",
 );
 const cardPanel = read(
   "app/dashboard/_components/channel-image-adapter/cards-panel.tsx",
@@ -277,18 +284,15 @@ test("the first channel picker assigns only its target after one pool sync", () 
   assert.match(change, /resolvedTargetChannel/);
 });
 
-test("block 4 exposes reuse and explicit local versus global deletion labels", () => {
-  assert.match(imagesPanel, /imageChannelAction\.kind === "pick"/);
-  assert.match(
-    imagesPanel,
-    /onPickImagesForChannel\(activeImageChannel\)/,
-  );
-  assert.match(
-    imagesPanel,
-    /onUseExistingImagesForChannel\(activeImageChannel\)/,
-  );
-  assert.match(imagesPanel, /i18nT\("retirer_les_images_de_ce_canal_b025e5ef"\)/);
-  assert.match(imagesPanel, /i18nT\("supprimer_partout_dfb790c4"\)/);
+test("the mounted media pool and validation board expose reuse and scoped deletion", () => {
+  assert.match(validationBoard, /availableImages\.map\(\(key\) =>/);
+  assert.match(validationBoard, /onAddImage\(item\.channel,\s*key\)/);
+  assert.match(publishModal, /else if \(mode === "images"[^\n]*assignExistingImagesToChannel\(channel\)/);
+  assert.match(validationBoard, /onToggleImage\(item\.channel, key\)/);
+  assert.match(validationBoard, /wizard_remove_channel_image/);
+  assert.match(mediaPool, /onRemoveImage\(index\)/);
+  assert.match(mediaPool, /wizard_pool_remove_image/);
+  assert.match(publishModal, /onRemoveImage=\{removeImage\}/);
   assert.match(cardPanel, /aria-label=\{`\$\{item\.removeLabel/);
   assert.match(
     cardPanel,
@@ -301,21 +305,26 @@ test("block 4 exposes reuse and explicit local versus global deletion labels", (
 });
 
 test("visible media order is the publish order and supports drag-and-drop", () => {
-  assert.match(imagesPanel, /const orderedImageKeys = \[/);
-  assert.match(imagesPanel, /items=\{orderedImageKeys\.map\(/);
-  assert.doesNotMatch(imagesPanel, /items=\{imageKeys\.map\(/);
-  assert.match(imagesPanel, /onAdapt: \(\) => openImageRetoucher\(activeImageChannel, key\)/);
-  assert.match(imagesPanel, /onModify: \(\) => openImageModifier\(activeImageChannel, key\)/);
+  assert.match(validationBoard, /getSelectedImageKeys\(item\.channel\)\.filter\(\(key\) => imageKeys\.includes\(key\)\)/);
+  assert.match(validationBoard, /keys\.map\(\(key, index\) =>/);
+  assert.doesNotMatch(validationBoard, /imageKeys\.map\(/);
+  assert.match(mediaPool, /onClick=\{\(\) => onRetouchImage\(index\)\}/);
+  assert.match(mediaPool, /onClick=\{\(\) => onModifyImage\(index\)\}/);
+  assert.match(publishModal, /onModifyImage=\{\(index\) => void openInrStudioImageTool\("modify", activeImageChannel, imageKeys\[index\]\)\}/);
+  assert.match(publishModal, /onRetouchImage=\{\(index\) => void openInrStudioImageTool\("retouch", activeImageChannel, imageKeys\[index\]\)\}/);
   assert.match(publishModal, /openInrStudioImageTool = async \(/);
   assert.match(publishModal, /tab: "modify" \| "retouch"/);
   assert.match(publishModal, /let studioFile = sourceFile \|\| null/);
   assert.match(publishModal, /if \(recoveredImage\) \{[\s\S]*?fetch\(recoveredImage\.canonicalUrl/);
   assert.match(publishModal, /source: \{[\s\S]*?file: studioFile,[\s\S]*?url: recoveredImage\?\.canonicalUrl \|\| sourceUrl/);
   assert.match(publishModal, /context: \{[\s\S]*?channel,[\s\S]*?imageKey,/);
-  assert.doesNotMatch(publishModal, /sidebarItems=\{/);
-  assert.match(imagesPanel, /removeImage\(imageKeys\.indexOf\(key\)\)/);
-  assert.match(imagesPanel, /onMoveTo: included/);
-  assert.match(imagesPanel, /moveChannelImageTo\(/);
+  assert.doesNotMatch([publishModal, submission].join("\n"), /sidebarItems=\{/);
+  assert.match(mediaPool, /onRemoveImage\(index\)/);
+  assert.match(validationBoard, /source\?\.channel === channel && source\.key !== key/);
+  assert.match(validationBoard, /onReorderImage\(channel, source\.key, key\)/);
+  assert.match(validationBoard, /onDrop=/);
+  assert.match(validationBoard, /onKeyDown=/);
+  assert.match(validationBoard, /onReorderImage\(item\.channel, key, keys\[nextIndex\]\)/);
 
   assert.match(cardPanel, /draggable=\{canDrag\}/);
   assert.match(cardPanel, /onDragStart=/);
@@ -368,10 +377,10 @@ test("shared order helpers preserve selections while Validation reorders only th
   assert.match(applyEverywhere, /applyReferenceImageOrder\(/);
   assert.match(applyEverywhere, /current\.imageKeys/);
   assert.doesNotMatch(applyEverywhere, /imageKeys\.slice\(\)/);
-  assert.match(
-    imagesPanel,
-    /i18nT\("apply_media_order_everywhere"\)/,
-  );
+  const poolReorder = between(imageController, "const movePoolImageTo", "const moveChannelImage =");
+  assert.match(poolReorder, /imageKeys: applyReferenceImageOrder\(nextKeys, editor\.imageKeys\)/);
+  assert.match(mediaPool, /onReorderImage\(sourceKey, targetKey\)/);
+  assert.match(publishModal, /onReorderImage=\{movePoolImageTo\}/);
   assert.match(
     publishModal,
     /onReorderImage=\{moveChannelImageTo\}/,
@@ -402,12 +411,12 @@ test("drafts and scheduled publications preserve channel imageKeys mappings", ()
   assert.doesNotMatch(draftSettings, /imageKeysForChannel\.sort/);
 
   assert.match(
-    publishModal,
+    draftSession,
     /imageSettingsByChannel: getDraftImageSettingsByChannel\(\)/,
   );
 
   const schedule = between(
-    publishModal,
+    submission,
     "const scheduleGroups",
     "setChannels((prev) =>",
   );

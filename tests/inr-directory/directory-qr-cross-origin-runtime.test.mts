@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 import ts from "typescript";
 import { createInrBadgeQrMatrix } from "../../lib/inrBadgeQr.ts";
 import { extractInrBadgeUserIdFromSlug } from "../../lib/inrBadge.ts";

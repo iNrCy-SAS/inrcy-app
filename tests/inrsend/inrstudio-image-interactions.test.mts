@@ -27,11 +27,12 @@ test("iNrSend keeps Studio interactions beside the baked image", () => {
   const mailbox = read("app/dashboard/mails/MailboxClient.tsx");
   const types = read("app/dashboard/mails/_lib/mailboxPhase1.tsx");
 
-  assert.match(mailbox, /withMediaImageInteractions\(dimensions, item\)/);
+  const media = read("app/dashboard/mails/_hooks/useMailboxPublicationMedia.ts");
+  assert.match(media, /withMediaImageInteractions\(dimensions, item\)/);
   assert.match(mailbox, /imageMeta: asset\.imageMeta \|\| null/g);
   assert.match(types, /interactions\?: ImageInteractions/g);
   assert.doesNotMatch(
-    mailbox,
+    media,
     /withMediaImageInteractions\([^)]*transform\.overlay/,
   );
 });

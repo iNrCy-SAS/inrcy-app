@@ -10,7 +10,7 @@ import { stripTemplateSignatureBlock } from "@/lib/mailTemplateCleanup";
 // Returns: rendered { subject, body_text, ctx, links }
 export async function POST(req: Request) {
   try {
-    const { supabase, user, errorResponse, activeUserId } = await requireUser();
+    const { supabase, errorResponse, activeUserId } = await requireUser();
     if (errorResponse) return errorResponse;
     const userId = activeUserId;
 

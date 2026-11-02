@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
@@ -160,12 +160,19 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     return (data as SubscriptionData | null) ?? null;
   }, []);
 
+  const onSubscriptionLoadFailed = useEffectEvent(() => {
+    setError(i18nT("impossible_de_charger_votre_abonnement_01091210"));
+  });
+  const onCheckoutReturned = useEffectEvent(() => {
+    setMessage(i18nT("paiement_enregistre_la_synchronisation_de_votre_d53f480e"));
+  });
+
   useEffect(() => {
     let active = true;
     setLoading(true);
     loadSubscription()
       .catch(() => {
-        if (active) setError(i18nT("impossible_de_charger_votre_abonnement_01091210"));
+        if (active) onSubscriptionLoadFailed();
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -231,7 +238,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
 
   useEffect(() => {
     if (checkoutState !== "success") return;
-    setMessage(i18nT("paiement_enregistre_la_synchronisation_de_votre_d53f480e"));
+    onCheckoutReturned();
     const target = parseCheckoutReturnTarget(new URLSearchParams({
       checkout_plan: checkoutPlan ?? "", billing: checkoutBilling ?? "",
     }));

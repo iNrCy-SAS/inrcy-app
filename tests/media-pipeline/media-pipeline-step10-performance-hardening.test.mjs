@@ -1,3 +1,4 @@
+import { readVideoNormalizationWorkerSource } from "./video-worker-sources.mjs";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -5,6 +6,7 @@ import test from "node:test";
 
 const ROOT = process.cwd();
 const read = (file) => readFileSync(resolve(ROOT, file), "utf8");
+const submission = read("app/dashboard/booster/publier/publicationSubmission.ts");
 
 test("les limites et formats source correspondent au contrat produit", () => {
   const rules = read("lib/mediaRules.ts");
@@ -89,7 +91,7 @@ test("les sources partent en parallèle sans préparation lourde et les MP4 dire
   assert.match(hook, /target:\s*"workspace_source"/);
   assert.match(hook, /prepareAiMedia/);
   assert.match(hook, /preparePublicationMedia/);
-  assert.doesNotMatch(modal, /directOriginalAvailable/);
+  assert.doesNotMatch([modal, submission].join("\n"), /directOriginalAvailable/);
   assert.match(
     modal,
     /mediaPipelineCutoverV1:\s*true,[\s\S]{0,100}allowOriginalVideoFallback:\s*false/,
@@ -107,7 +109,7 @@ test("les sources partent en parallèle sans préparation lourde et les MP4 dire
 
 test("l'original reste publiable et les incidents d'extraction sont rejoués", () => {
   const missions = read("lib/boosterMediaPipelineMissions.ts");
-  const worker = read("lib/mediaVideoNormalizationWorker.ts");
+  const worker = readVideoNormalizationWorkerSource();
   const failurePlan = read("lib/mediaVideoNormalizationFailurePlan.ts");
   const videoMissions = missions.slice(
     missions.indexOf("BOOSTER_VIDEO_PREPARATION_KEYS"),

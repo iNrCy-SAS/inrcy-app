@@ -13,6 +13,7 @@ type Fixture = {
   deliveries?: Array<Record<string, unknown>>;
   missingPublication?: boolean;
   authDenied?: boolean;
+  xDeleteError?: Error;
 };
 
 function runtime(options: Fixture = {}) {
@@ -75,6 +76,8 @@ function runtime(options: Fixture = {}) {
     "@/lib/oauthCrypto": { tryDecryptToken: () => { nativeCalls.push("decrypt"); return "synthetic-access"; } },
     "@/lib/metaGraphApi": { buildMetaGraphUrl: (path: string) => `https://graph.facebook.com/v25.0/${path}` },
     "@/lib/threadsPublish": { threadsDeletePost: async (args: unknown) => { nativeCalls.push(["threads-delete", args]); return { ok: true }; } },
+    "@/lib/xOAuth": { getXAccessToken: async (args: unknown) => { nativeCalls.push(["x-auth", args]); return { accessToken: "synthetic-x-access" }; } },
+    "@/lib/xPublish": { deleteXPost: async (args: unknown) => { nativeCalls.push(["x-delete", args]); if (options.xDeleteError) throw options.xDeleteError; } },
     "@/lib/apiUserFacingErrors": { jsonUserFacingError: (error: unknown, opts: { status: number; code?: string }) => Response.json({ ok: false, error: String(error), code: opts.code }, { status: opts.status }) },
     "@/lib/observability/sentry": { captureApiException: (...args: unknown[]) => { nativeCalls.push(["unexpected-exception", ...args]); } },
     "@/lib/channelPublishDiagnostics": { getPublishChannelUserMessage: (_channel: string, error: Error) => error.message, logPublishChannelFailure: () => undefined },
@@ -179,6 +182,30 @@ test("Unauthenticated and unknown-owned Instagram publications cannot change ano
     const fixture = runtime(options); assert.equal((await fixture.run()).status, expected);
     assert.deepEqual(fixture.writes, []); assert.deepEqual(fixture.nativeCalls, []);
   }
+});
+
+test("X deletion with no saved or supplied remote ID returns not found before tokens, remote calls or history writes", async () => {
+  for (const result of [{ ok: false, status: "failed" }, { ok: true }, {}]) {
+    const fixture = runtime({ channel: "x", result });
+    const response = await fixture.run();
+    assert.equal(response.status, 404);
+    assert.equal((await response.json()).code, "publication_external_id_missing");
+    assert.deepEqual(fixture.nativeCalls, []);
+    assert.deepEqual(fixture.writes, []);
+    assert.deepEqual(fixture.state, fixture.before);
+  }
+});
+
+test("X deletion keeps confirmed deletion idempotent and retains real provider failures", async () => {
+  const deleted = runtime({ channel: "x", result: { deleted: true, status: "deleted" } });
+  assert.equal((await deleted.run()).status, 200);
+  assert.deepEqual(deleted.nativeCalls, []);
+  assert.deepEqual(deleted.writes, []);
+  const failed = runtime({ channel: "x", result: { ok: true, external_id: "123456" }, xDeleteError: new Error("provider unavailable") });
+  assert.equal((await failed.run()).status, 500);
+  assert.deepEqual(failed.writes, []);
+  assert.equal(failed.nativeCalls.filter((call: any) => call[0] === "x-delete").length, 1);
+  assert.ok(failed.nativeCalls.some((call: any) => call[0] === "unexpected-exception"));
 });
 
 test("Pure Instagram capabilities distinguish published IDs from containers and local or confirmed deletions", () => {

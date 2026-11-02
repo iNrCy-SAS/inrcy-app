@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -70,7 +72,7 @@ test("generation and publication expose only the universal media label", () => {
     ),
     "utf8",
   );
-  assert.doesNotMatch(modal, /Compression des médias/);
-  assert.match(modal, /"Préparation des médias"/);
-  assert.doesNotMatch(modal, /Préparation de la vidéo/);
+  assert.doesNotMatch([modal, submission].join("\n"), /Compression des médias/);
+  assert.match(submission, /"Préparation des médias"/);
+  assert.doesNotMatch([modal, submission].join("\n"), /Préparation de la vidéo/);
 });

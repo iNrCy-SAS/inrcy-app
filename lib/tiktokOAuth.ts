@@ -1,6 +1,7 @@
 import "server-only";
 
 import { asRecord, asString } from "@/lib/tsSafe";
+import { queryTikTokCreatorInfo } from "./tiktokCreatorInfo.ts";
 
 export const TIKTOK_DEFAULT_SCOPES = [
   "user.info.basic",
@@ -85,22 +86,7 @@ export async function fetchTiktokUserInfo(accessToken: string) {
 }
 
 export async function fetchTiktokCreatorInfo(accessToken: string) {
-  const res = await fetch("https://open.tiktokapis.com/v2/post/publish/creator_info/query/", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json; charset=UTF-8",
-    },
-    cache: "no-store",
-  });
-  const data: unknown = await res.json().catch(() => ({}));
-  const rec = asRecord(data);
-  const error = asRecord(rec["error"]);
-  const code = asString(error["code"]);
-  if (!res.ok || (code && code !== "ok")) {
-    throw new Error(asString(error["message"]) || code || `TikTok creator info HTTP ${res.status}`);
-  }
-  return asRecord(rec["data"]);
+  return queryTikTokCreatorInfo(accessToken);
 }
 
 export async function refreshTiktokAccessToken(refreshToken: string) {

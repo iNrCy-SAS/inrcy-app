@@ -163,10 +163,11 @@ test("Calendar write paths invalidate the exact resource, including insert confl
 
 test("the full synchronizer seeds complete listings and records writes while Meet polling stays fresh", () => {
   const source = readFileSync("lib/visioBookingGoogle.ts", "utf8");
+  const client = readFileSync("lib/visioGoogleCalendarClient.ts", "utf8");
   assert.match(source, /return googleCalendarEventCache\.run\(\(\) =>\s*googleAccessTokenCache\.run/);
-  assert.match(source, /\} while \(pageToken\);\s*for \(const event of events\) \{\s*googleCalendarEventCache\.remember\(input\.calendarId, event\)/);
-  assert.match(source, /calendarEventMutationTarget\(path, init\?\.method, init\?\.body\)/);
-  assert.match(source, /googleCalendarEventCache\.invalidate\(mutation\.resultCalendarId, mutation\.eventId\)/);
-  assert.match(source, /googleCalendarEventCache\.remember\(mutation\.resultCalendarId, payload\)/);
+  assert.match(client, /\} while \(pageToken\);\s*for \(const event of events\) \{\s*googleCalendarEventCache\.remember\(input\.calendarId, event\)/);
+  assert.match(client, /calendarEventMutationTarget\(path, init\?\.method, init\?\.body\)/);
+  assert.match(client, /googleCalendarEventCache\.invalidate\(mutation\.resultCalendarId, mutation\.eventId\)/);
+  assert.match(client, /googleCalendarEventCache\.remember\(mutation\.resultCalendarId, payload\)/);
   assert.match(source, /getCalendarEvent\(calendarId, eventId, \{ fresh: true \}\)/);
 });

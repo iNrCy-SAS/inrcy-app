@@ -6,17 +6,19 @@ import { resolve } from "node:path";
 const ROOT = resolve(import.meta.dirname, "../..");
 const read = (rel: string) => readFileSync(resolve(ROOT, rel), "utf8");
 
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
+
 test("Booster retries a recoverable provider failure automatically with a fresh request", () => {
   const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
 
-  assert.match(modal, /getAutomaticAiRetryEngine/);
-  assert.match(modal, /executeGenerationRequestWithRecovery\(selectedAiPreferredEngine\)/);
-  assert.match(modal, /return await executeGenerationRequest\(engine\)/);
-  assert.match(modal, /isAutomaticBoosterGenerationRetryEligible/);
-  assert.doesNotMatch(modal, /\[429, 502, 503, 504\]\.includes\(response\.status\)/);
-  assert.match(modal, /executeGenerationRequestWithRecovery\(retryEngine\)/);
-  assert.match(modal, /i18nT\("generation_engine_retry"/);
-  assert.match(modal, /i18nT\("value_n_a_pas_repondu_au_e653b7e3"/);
+  assert.match(generationController, /getAutomaticAiRetryEngine/);
+  assert.match(generationController, /executeGenerationRequestWithRecovery\(selectedAiPreferredEngine\)/);
+  assert.match(generationController, /return await executeGenerationRequest\(engine\)/);
+  assert.match(generationController, /isAutomaticBoosterGenerationRetryEligible/);
+  assert.doesNotMatch([modal, generationController].join("\n"), /\[429, 502, 503, 504\]\.includes\(response\.status\)/);
+  assert.match(generationController, /executeGenerationRequestWithRecovery\(retryEngine\)/);
+  assert.match(generationController, /i18nT\("generation_engine_retry"/);
+  assert.match(generationController, /i18nT\("value_n_a_pas_repondu_au_e653b7e3"/);
 });
 
 test("Automatic retry never changes the saved preferred engine", () => {
@@ -25,7 +27,7 @@ test("Automatic retry never changes the saved preferred engine", () => {
 
   assert.match(engines, /getAutomaticAiRetryEngine/);
   assert.match(engines, /primary === "openai" \? "google" : "openai"/);
-  assert.doesNotMatch(modal, /setSelectedAiPreferredEngine\(retryEngine\)/);
+  assert.doesNotMatch([modal, generationController].join("\n"), /setSelectedAiPreferredEngine\(retryEngine\)/);
 });
 
 test("Multimodal provider-specific 400/409/422 errors remain eligible for another engine", () => {
@@ -39,11 +41,11 @@ test("Multimodal provider-specific 400/409/422 errors remain eligible for anothe
   assert.equal((gateway.match(/classifyAiAttemptFallback\(error, hasImages\)/g) || []).length, 2);
 });
 
-test("Media generation switches provider instead of retrying the same failing model", () => {
+test("Booster generation switches provider instead of retrying the same failing model", () => {
   const generation = read("lib/boosterPublishGeneration.ts");
 
   assert.match(
     generation,
-    /retries: mode === "repair" \|\| Boolean\(args\.imagesForAI\?\.length\) \? 0 : 1/,
+    /retries: 0/,
   );
 });

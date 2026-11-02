@@ -1,3 +1,5 @@
+import { readFileSync as readDraftSessionSource } from "node:fs";
+const draftSession = readDraftSessionSource(new URL("../../app/dashboard/booster/publier/publicationDraftSession.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -49,7 +51,7 @@ test("Booster selects every newly confirmed connected channel without overriding
   );
   assert.match(publishModal, /applyConnectedChannels\(nextConnected\)/);
   assert.match(publishModal, /manuallyControlledChannelsRef\.current\.add\(key\)/);
-  assert.match(publishModal, /draftChannelsRestoredRef\.current = true;[\s\S]*setChannels\(nextChannels\)/);
+  assert.match(draftSession, /draftChannelsRestoredRef\.current = true;[\s\S]*setChannels\(nextChannels\)/);
 });
 
 test("notification and iNrAgent badges hydrate from account-scoped caches before background refresh", () => {

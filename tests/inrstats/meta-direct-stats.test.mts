@@ -58,6 +58,60 @@ test("Instagram direct and legacy tokens use their respective versioned hosts", 
   assert.equal(instagramAuth.resolveInstagramAuthMode({}), "facebook_login");
 });
 
+for (const [label, sinceIso, untilIso, adjusted] of [
+  ["Paris autumn clock change", "2026-09-29T22:00:00Z", "2026-10-29T23:00:00Z", true],
+  ["Paris spring clock change", "2026-03-01T23:00:00Z", "2026-03-31T22:00:00Z", false],
+  ["ordinary thirty-day range", "2026-09-01T00:00:00Z", "2026-10-01T00:00:00Z", false],
+  ["seven-day autumn range", "2026-10-22T22:00:00Z", "2026-10-29T23:00:00Z", false],
+] as const) test(`Instagram respects the real 30-day seconds limit through ${label} without adding unique counts`, async () => {
+  const metrics = load("lib/metaInsights.ts", { "@/lib/instagramAuthMode": instagramAuth });
+  const requestedStart = new Date(sinceIso), requestedEnd = new Date(untilIso), urls: URL[] = [];
+  await withFetch(async input => {
+    const url = new URL(String(input)); urls.push(url);
+    if (Number(url.searchParams.get("until")) - Number(url.searchParams.get("since")) > 2_592_000) return Response.json({ error: { message: "(#100) There cannot be more than 30 days (2592000 s) between since and until." } }, { status: 400 });
+    const metric = url.searchParams.get("metric");
+    return Response.json({ data: metric === "views" || metric === "accounts_engaged" ? [{ name: metric, total_value: { value: metric === "views" ? 0 : 120 } }] : [] });
+  }, async () => {
+    const snapshot = await metrics.igFetchDailyInsights("fixture-token", "business-17", requestedStart, requestedEnd, "instagram_login");
+    assert.equal(snapshot.error, undefined);
+    assert.equal(snapshot.totals.views, 0, "A reported zero remains a measured zero");
+    assert.equal(snapshot.totals.accounts_engaged, 120, "Unique accounts come from one provider window, never summed chunks");
+    assert.equal(snapshot.daily.length, 0, "No fabricated daily values for a range total");
+    assert.deepEqual(snapshot.raw.requestedRange, { since: requestedStart.toISOString(), until: requestedEnd.toISOString() });
+    assert.deepEqual(snapshot.raw.effectiveRange, snapshot.range);
+    assert.equal(snapshot.range.until, requestedEnd.toISOString());
+    assert.equal(snapshot.range.since, adjusted ? "2026-09-29T23:00:00.000Z" : requestedStart.toISOString());
+    assert.deepEqual(snapshot.raw.rangeAdjustment, adjusted ? { reason: "instagram_max_30_day_window", trimmedStartSeconds: 3600 } : null);
+  });
+  assert.ok(urls.every(url => Number(url.searchParams.get("until")) - Number(url.searchParams.get("since")) <= 2_592_000));
+  assert.equal(urls.filter(url => url.searchParams.get("metric") === "accounts_engaged").length, 1);
+});
+
+test("Instagram profile and website counters use the total_value form required by the live provider", async () => {
+  const metrics = load("lib/metaInsights.ts", { "@/lib/instagramAuthMode": instagramAuth });
+  await withFetch(async input => {
+    const url = new URL(String(input)), metric = url.searchParams.get("metric");
+    if (metric !== "profile_views" && metric !== "website_clicks") return Response.json({ data: [] });
+    assert.equal(url.searchParams.get("metric_type"), "total_value");
+    return Response.json({ data: [{ name: metric, total_value: { value: metric === "profile_views" ? 8 : 3 } }] });
+  }, async () => {
+    const snapshot = await metrics.igFetchDailyInsights("fixture-token", "business-17", start, end);
+    assert.equal(snapshot.totals.profile_views, 8);
+    assert.equal(snapshot.totals.website_clicks, 3);
+  });
+});
+
+test("a ninety-day Instagram request is not silently replaced by a thirty-day observation", async () => {
+  const metrics = load("lib/metaInsights.ts", { "@/lib/instagramAuthMode": instagramAuth });
+  await withFetch(async () => Response.json({ error: { message: "Provider range unavailable" } }, { status: 400 }), async () => {
+    const snapshot = await metrics.igFetchDailyInsights("fixture-token", "business-17", new Date("2026-07-01T00:00:00Z"), end);
+    assert.ok(snapshot.error);
+    assert.deepEqual(snapshot.totals, {});
+    assert.equal(snapshot.raw.rangeAdjustment, null);
+    assert.equal(snapshot.range.since, "2026-07-01T00:00:00.000Z");
+  });
+});
+
 test("Threads account periods preserve true zero, missing metrics, daily views and current audience", () => {
   const snapshot = threads.normalizeThreadsInsights([
     { name: "views", values: [{ value: 11, end_time: "2026-09-02T00:00:00Z" }, { value: 9, end_time: "2026-09-03T00:00:00Z" }, { value: 99, end_time: "2026-10-02T00:00:00Z" }] },

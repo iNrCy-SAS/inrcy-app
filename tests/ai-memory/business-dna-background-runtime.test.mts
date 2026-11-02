@@ -15,6 +15,7 @@ import { withoutThreadsData } from "../../lib/stats/metaPilotData.ts";
 import { buildBusinessDnaWorkspaceSavePatch } from "../../lib/businessDnaManualAnalysisJob.ts";
 import * as businessLocationAutofill from "../../lib/businessLocationAutofill.ts";
 import * as professionalBusinessIdentity from "../../lib/professionalBusinessIdentity.ts";
+import { normalizeBusinessDnaAnalysisResponse } from "../../lib/businessDnaAnalysisResponse.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const ACCOUNT = "00000000-0000-4000-8000-000000000011";
@@ -255,12 +256,14 @@ async function harness(options: HarnessOptions = {}) {
       after: (callback: () => Promise<void>) => { afterCallbacks.push(callback); } },
     "@/lib/apiUserFacingErrors": { jsonUserFacingError: (_error: unknown, config: { fallback: string; status: number }) => Response.json({ user_message: config.fallback }, { status: config.status }) },
     "@/lib/aiGatewayClient": { aiGenerateJSON: async (args: Record<string, unknown>) => {
+      assert.equal(args.normalizeResponseBeforeValidation, normalizeBusinessDnaAnalysisResponse, "primary and optional completion use the bounded vocabulary normalizer");
       if (options.autofillProfile) assert.ok(String(args.input).includes('"companyName":"Entreprise réelle"'), "the first AI call uses the identity recovered in this analysis");
       assert.equal(args.engine, "anthropic"); providerCalls++; providerStarted(); await providerGate;
       if (options.providerFailure || (options.completionFailure && providerCalls > 1)) throw new Error("Provider unavailable");
       return { businessKnowledge: { services: ["Service nouveau"] }, memory: { values: ["Qualité"] } };
     } },
     "@/lib/aiGatewayPolicy": { createAiOperationBudget },
+    "@/lib/businessDnaAnalysisResponse": { normalizeBusinessDnaAnalysisResponse },
     "@/lib/aiEnginePreference": { normalizeAiPreferredEngine: (value: unknown) => value },
     "@/lib/businessDnaAnalysisDepth": { getBusinessDnaAnalysisDepthGaps: () => options.completionFailure ? ["values"] : [], mergeBusinessDnaAnalysisDrafts: (value: unknown) => value },
     "@/lib/aiMemory": memoryLib,

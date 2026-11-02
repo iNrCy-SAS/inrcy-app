@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type MutableRefObject } from "react";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import { useRouter, useSearchParams } from "next/navigation";
 import stylesDash from "../../../dashboard.module.css";
@@ -89,7 +89,9 @@ export default function EnqueterModal({
   }, []);
 
 
-  useEffect(() => {
+  // A template selection initializes the editor; refreshed context for the same
+  // template must not replace text the professional has already edited.
+  const onTemplateSelectionChanged = useEffectEvent(() => {
     if (!selected) return;
     if (restoredWorkflowKeyRef.current) return;
     setAiContentGenerated(false);
@@ -120,7 +122,8 @@ export default function EnqueterModal({
     return () => {
       cancelled = true;
     };
-  }, [selected?.key]);
+  });
+  useEffect(() => onTemplateSelectionChanged(), [selected?.key]);
 
 
 
@@ -498,13 +501,7 @@ const messageTextareaStyle: CSSProperties = {
   display: "block",
 };
 
-const aiHintStyle: CSSProperties = {
-  color: "rgba(255,255,255,0.58)",
-  fontSize: 11,
-  fontWeight: 750,
-  lineHeight: 1.25,
-  maxWidth: 220,
-};
+
 
 const footerStyle: CSSProperties = {
   display: "flex",

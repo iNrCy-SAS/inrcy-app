@@ -87,6 +87,7 @@ const COPY: Record<string, ErrorCopy> = {
 /** Never render an arbitrary API/provider message or diagnostic identifier. */
 export function dashboardAssistantErrorCopy(locale: string, code?: unknown, status?: number): string {
   const copy = COPY[locale.toLowerCase().split("-")[0]] || COPY.fr;
+  if (code === "assistant_monthly_budget_reached") return locale.toLowerCase().startsWith("fr") ? "Votre compte a atteint sa limite mensuelle iNrAssist. L’assistance IA reprendra au début du mois prochain. La navigation et l’utilisation directe des outils restent disponibles." : "Your account has reached its monthly iNrAssist limit. AI assistance resumes at the start of next month. Navigation and direct use of your tools remain available.";
   if (code === "assistant_memory_unavailable") return copy.memory;
   if (code === "ai_gateway_account_limit_reached" || code === "quota_exceeded") return copy.limit;
   if (code === "auth_required" || status === 401) return copy.session;

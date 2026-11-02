@@ -13,6 +13,8 @@ function read(path: string) {
 
 const requestId = "bg_20260807_mobile_recovery_1234";
 
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
+
 test("un résultat n'est récupéré que pour son reçu exact", () => {
   const generatedContent = {
     generatedAt: "2026-08-07T15:15:45.000Z",
@@ -70,24 +72,23 @@ test("un reçu incomplet, ancien ou invalide n'est jamais injecté dans l'édite
 });
 
 test("le renforcement reste isolé du moteur et des parcours de publication", () => {
-  const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
   const generationRoute = read("app/api/booster/generate/route.ts");
   const recoveryRoute = read("app/api/booster/generation-result/route.ts");
   const recoveryClient = read("lib/boosterGenerationRecoveryClient.ts");
 
-  assert.match(modal, /fetch\("\/api\/booster\/generate"/);
-  assert.match(modal, /executeGenerationRequestWithRecovery/);
+  assert.match(generationController, /fetch\("\/api\/booster\/generate"/);
+  assert.match(generationController, /executeGenerationRequestWithRecovery/);
   assert.match(
-    modal,
+    generationController,
     /const recoveryWorkspace = await ensurePersistentMediaWorkspace\(\)/,
   );
   assert.match(
-    modal,
+    generationController,
     /recovery receipt workspace unavailable/,
   );
-  assert.match(modal, /response:\s*null,[\s\S]*responseJson:\s*recovery\.payload/);
+  assert.match(generationController, /response:\s*null,[\s\S]*responseJson:\s*recovery\.payload/);
   assert.match(
-    modal,
+    generationController,
     /Aucun nouvel appel IA n[’']a été lancé/,
   );
   assert.match(generationRoute, /boosterGenerationReceipt/);

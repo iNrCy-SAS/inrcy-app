@@ -50,7 +50,6 @@ export default function DashboardActionButton({ action, className }: DashboardAc
 
   const internalHref = action.href?.startsWith("/") ? action.href : null;
   const actionKey = internalHref ? `navigate:${internalHref}` : null;
-  const pending = Boolean(actionKey && pendingKey === actionKey);
   const loadingVisible = Boolean(actionKey && isVisible(actionKey));
 
   useEffect(() => {

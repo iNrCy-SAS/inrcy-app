@@ -6,10 +6,6 @@ const MAX_ROWS_TO_SCAN = 2000;
 
 type JsonRecord = Record<string, unknown>;
 
-function asRecord(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
-}
-
 function normalizeSafeSegment(value: string, fallback: string) {
   const safe = String(value || "")
     .normalize("NFD")

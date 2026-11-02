@@ -3,6 +3,20 @@ const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 const date = (value: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(text(value)) && Number.isFinite(Date.parse(text(value))) && new Date(text(value)).toISOString().slice(0, 10) === text(value);
 export const commercialDocumentRow = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
 
+/** Persist the same tax rates shown by the editor, without changing its source or a saved document. */
+export function commercialDocumentLinesForEditor<T extends { vatRate: number }>(lines: readonly T[], vatDispense: boolean): T[] {
+  return lines.map(line => vatDispense && line.vatRate !== 0 ? { ...line, vatRate: 0 } : line);
+}
+
+/** Keep the server's explicit completion details visible instead of showing only its generic error. */
+export function commercialDocumentCompletionError(value: unknown, fallback: string): string {
+  const result = commercialDocumentRow(value);
+  const missingFields = Array.isArray(result.missingFields)
+    ? [...new Set(result.missingFields.filter((field): field is string => typeof field === "string").map(field => field.trim()).filter(Boolean))].slice(0, 10)
+    : [];
+  return missingFields.length ? `À compléter : ${missingFields.join(" · ")}.` : text(result.error) || fallback;
+}
+
 /** Native editor prerequisites, checked again on the server without inventing values. */
 export function commercialDocumentMissingFields(kind: "devis" | "facture", payload: Row): string[] {
   const missing = new Set<string>();

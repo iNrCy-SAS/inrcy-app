@@ -8,6 +8,8 @@ import {
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getQueuedBusinessDnaManualAnalysisJobs } from "@/lib/businessDnaManualAnalysisJobs";
 import { BUSINESS_DNA_AUTOMATIC_LEASE_SECONDS, BUSINESS_DNA_AUTOMATIC_REQUEST_TIMEOUT_MS } from "@/lib/businessDnaAnalysisTiming";
+import { log } from "@/lib/observability/logger";
+import { getRequestId } from "@/lib/observability/request";
 
 export const runtime = "nodejs";
 export const maxDuration = 390;
@@ -87,6 +89,14 @@ export async function POST(request: Request) {
     { p_lease_seconds: BUSINESS_DNA_AUTOMATIC_LEASE_SECONDS },
   );
   if (error) {
+    const requestId = getRequestId(request);
+    const code = String(error.code || "");
+    log.error("business_dna_claim_failed", {
+      route: "/api/cron/business-dna-analysis", stage: "claim", status_code: 503,
+      error_code: /^[a-z0-9_]{1,40}$/i.test(code) ? code : "unknown_failure",
+      migration_required: schemaMissing(error),
+      request_id: requestId && /^[0-9a-f-]{36}$/i.test(requestId) ? requestId : undefined,
+    });
     return NextResponse.json(
       {
         ok: false,

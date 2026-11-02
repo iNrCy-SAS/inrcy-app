@@ -119,7 +119,7 @@ test("the Google synchronizer enables the scope only for its full reconciliation
     source.indexOf("async function readFreeBusy"),
   );
   assert.match(fullSync, /googleAccessTokenCache\.run\(\(\) => performVisioTeamCalendarSync\(input\)\)/);
-  assert.match(source, /if \(response\.status === 401 && retryUnauthorized\) \{[\s\S]*?getGoogleAccessToken\(true\)/);
+  assert.match(readFileSync("lib/visioGoogleCalendarClient.ts", "utf8"), /if \(response\.status === 401 && retryUnauthorized\) \{[\s\S]*?getGoogleAccessToken\(true\)/);
   assert.match(fullSync, /\[visio-team-calendar-sync\]\[stage\]/);
   assert.match(source, /TEAM_MIRROR_DEFAULT_PAST_DAYS = 30/);
   assert.match(source, /TEAM_MIRROR_DEFAULT_FUTURE_DAYS = 365/);

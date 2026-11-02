@@ -3,13 +3,15 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const client = readFileSync("app/dashboard/mails/MailboxClient.tsx", "utf8");
+const media = readFileSync("app/dashboard/mails/_hooks/useMailboxPublicationVideo.ts", "utf8");
 const foundations = readFileSync(
   "app/dashboard/mails/_lib/mailboxPublicationVideo.foundations.ts",
   "utf8",
 );
 
-test("MailboxClient delegates publication video foundations without moving React orchestration", () => {
+test("publication video foundations remain pure and are shared by the component and its video controller", () => {
   assert.match(client, /from "\.\/_lib\/mailboxPublicationVideo\.foundations"/);
+  assert.match(media, /from "\.\.\/_lib\/mailboxPublicationVideo\.foundations"/);
   assert.match(foundations, /export type PublicationEditVideoState/);
   assert.match(foundations, /export type CampaignDistributionNotice/);
   assert.match(foundations, /export function normalizeBoosterChannelKeyForVideo/);
@@ -22,10 +24,11 @@ test("MailboxClient delegates publication video foundations without moving React
   assert.doesNotMatch(client, /function readPublicationVideoMetadata/);
 });
 
-test("the component still owns all calls and state using the extracted helpers", () => {
-  assert.match(client, /useState<Record<string, PublicationEditVideoState>>/);
+test("the publication media controller owns media state while the component keeps campaign state", () => {
+  assert.match(client, /useMailboxPublicationMedia\(/);
+  assert.match(media, /useState<Record<string, PublicationEditVideoState>>/);
   assert.match(client, /useState<CampaignDistributionNotice \| null>/);
-  assert.match(client, /attachmentToVideoPayload\(videoCandidate\)/);
-  assert.match(client, /readPublicationVideoMetadata\(file, previewUrl\)/);
-  assert.match(client, /normalizeBoosterChannelKeyForVideo\(channel/);
+  assert.match(media, /attachmentToVideoPayload\(videoCandidate\)/);
+  assert.match(media, /readPublicationVideoMetadata\(file, previewUrl\)/);
+  assert.match(media, /normalizeBoosterChannelKeyForVideo\(channel/);
 });

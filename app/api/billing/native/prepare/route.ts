@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { type BillingCycle } from "@/lib/subscriptionOffers";
 
 export const runtime = "nodejs";

@@ -7,6 +7,7 @@ import { enforceAiContentLengthForEdition } from "./aiContentLength.ts";
 import { decodeAiInstructionSections, encodeAiInstructionSections } from "./aiInstructionSections.ts";
 import { INR_ASSISTANT_ACCOUNT_GUIDES } from "./inrAssistantGuidesAccount.ts";
 import { DASHBOARD_CHANNEL_CREATE_HREF_BY_KEY } from "../app/dashboard/dashboard.channel-setup.ts";
+import { requireUser } from "./requireUser";
 
 type Row = Record<string, unknown>;
 type Change = { field: string; mode: "append" | "replace"; text: string | null; items: string[] | null };
@@ -101,9 +102,10 @@ function hours(value: string) {
 }
 
 /** Only reversible business fields; no OAuth, account IDs, provider settings, billing or arbitrary URLs. */
-export function createInrAssistantBusinessTools(options: { request: Request; accountId: string; supabase: Pick<SupabaseClient, "from">; edition: DashboardEdition; currentUserMessage: string }) {
+export function createInrAssistantBusinessTools(options: { request: Request; accountId: string; actorUserId?: string; supabase: Pick<SupabaseClient, "from">; edition: DashboardEdition; currentUserMessage: string; canStartWork?: () => boolean }) {
   const { request, accountId, supabase, edition, currentUserMessage } = options;
-  if (!accountId || accountId.length > 180 || !["standard", "premium", "founder"].includes(edition) || typeof currentUserMessage !== "string") throw new Error("Invalid assistant business scope.");
+  if (!accountId || accountId.length > 180 || !["basic", "standard", "premium", "founder"].includes(edition) || typeof currentUserMessage !== "string") throw new Error("Invalid assistant business scope.");
+  const scope = async () => { if (request.signal.aborted || options.canStartWork?.() === false) return false; const auth = await requireUser(); return !auth.errorResponse && auth.activeUserId === accountId && (!options.actorUserId || auth.authUserId === options.actorUserId); };
   let dnaWrite: Promise<BusinessResult> | undefined;
   let configurationWrite: Promise<BusinessResult> | undefined;
   const failure = (nextAction: BusinessResult["nextAction"], status: BusinessResult["status"] = "unavailable"): BusinessResult => ({ ok: false, status, message: status === "needs_instruction" ? "Précisez dans votre demande actuelle les informations à enregistrer. Aucune modification n’a été effectuée." : "La modification n’a pas pu être confirmée. Ouvrez l’outil pour vérifier les informations avant de réessayer.", nextAction });
@@ -117,6 +119,7 @@ export function createInrAssistantBusinessTools(options: { request: Request; acc
         if (dnaWrite) return dnaWrite;
         dnaWrite = (async (): Promise<BusinessResult> => {
           try {
+            if (!await scope()) return failure(DNA_LINK);
             const { GET, PUT } = await import("@/app/api/ai-memory/route");
             const beforeResponse = await GET();
             const before = record(await beforeResponse.json());
@@ -136,6 +139,7 @@ export function createInrAssistantBusinessTools(options: { request: Request; acc
               } else if (String(target[change.field]).length > DNA_TEXT_LIMITS[change.field]) throw new Error("Le texte complet dépasse sa limite.");
             }
             if (Object.keys(dayPatch).length) businessPatch.weeklySchedule = { days: dayPatch };
+            if (!await scope()) return failure(DNA_LINK);
             const response = await PUT(localRequest(request, "PUT", { ...(Object.keys(memoryPatch).length ? { memory: memoryPatch } : {}), ...(Object.keys(businessPatch).length ? { businessKnowledge: businessPatch } : {}) }));
             const saved = record(await response.json());
             if (!response.ok || saved.ok !== true) return failure(DNA_LINK);
@@ -154,6 +158,7 @@ export function createInrAssistantBusinessTools(options: { request: Request; acc
         if (configurationWrite) return configurationWrite;
         configurationWrite = (async (): Promise<BusinessResult> => {
           try {
+            if (!await scope()) return failure(CONFIG_LINK);
             const extraColumns = input.changes.filter(change => change.field === "likedExample" || change.field === "likedExample2").map(change => CONFIG_COLUMNS[change.field]);
             const read = await supabase.from("business_profiles").select(["user_id", "ai_custom_instructions", "updated_at", ...extraColumns].join(",")).eq("user_id", accountId).maybeSingle();
             const currentProfile = record(read.data);
@@ -173,6 +178,7 @@ export function createInrAssistantBusinessTools(options: { request: Request; acc
               if (change.field === "socialLength") patch.ai_length = value === "long" || value === "deep" ? "detailed" : value === "adapted" ? "medium" : value;
             }
             if (input.changes.some(change => change.field === "instructions" || change.field === "forbiddenStyle")) patch.ai_custom_instructions = encodeAiInstructionSections(instructionSections);
+            if (!await scope()) return failure(CONFIG_LINK);
             let update = supabase.from("business_profiles").update({ ...patch, updated_at: new Date().toISOString() }).eq("user_id", accountId);
             if (typeof currentProfile.updated_at === "string") update = update.eq("updated_at", currentProfile.updated_at);
             else if (currentProfile.updated_at === null) update = update.is("updated_at", null);
@@ -188,10 +194,10 @@ export function createInrAssistantBusinessTools(options: { request: Request; acc
     }),
     guideChannelConnection: tool({ strict: true,
       description: "Donner le parcours officiel vérifié pour créer/connecter/reconnecter un canal. Ne change aucun état de connexion, jeton ou droit. Le pro ouvre le lien Mes canaux dans l’application en gardant cette conversation puis suit Connecter/Reconnecter et l’autorisation officielle. Jamais de mot de passe ou de code dans le chat.",
-      inputSchema: jsonSchema<{ channel: string }>({ type: "object", properties: { channel: { type: "string", enum: ["facebook", "instagram", "linkedin", "gmb", "tiktok", "youtube_shorts", "x", "pinterest", "site_web", "mails", "inr_search", "inrbadge", "threads"] } }, required: ["channel"], additionalProperties: false }),
+      inputSchema: jsonSchema<{ channel: string }>({ type: "object", properties: { channel: { type: "string", enum: ["facebook", "instagram", "linkedin", "gmb", "tiktok", "youtube_shorts", "x", "pinterest", "site_web", "mails", "inr_search", "inr_directory", "inrbadge", "threads"] } }, required: ["channel"], additionalProperties: false }),
       execute: async input => {
         const row = record(input);
-        const guideId: Record<string, string> = { facebook: "channel-facebook", instagram: "channel-instagram", linkedin: "channel-linkedin", gmb: "channel-google-business", tiktok: "channel-tiktok-youtube-x", youtube_shorts: "channel-tiktok-youtube-x", x: "channel-tiktok-youtube-x", pinterest: "channel-pinterest", site_web: "channel-site-web", mails: "channel-mails", inr_search: "channel-inrsearch-badge-threads", inrbadge: "channel-inrsearch-badge-threads", threads: "channel-inrsearch-badge-threads" };
+        const guideId: Record<string, string> = { facebook: "channel-facebook", instagram: "channel-instagram", linkedin: "channel-linkedin", gmb: "channel-google-business", tiktok: "channel-tiktok-youtube-x", youtube_shorts: "channel-tiktok-youtube-x", x: "channel-tiktok-youtube-x", pinterest: "channel-pinterest", site_web: "channel-site-web", mails: "channel-mails", inr_search: "channel-inrsearch-badge-threads", inr_directory: "channel-inrsearch-badge-threads", inrbadge: "channel-inrsearch-badge-threads", threads: "channel-inrsearch-badge-threads" };
         if (Object.keys(row).length !== 1 || typeof row.channel !== "string" || !Object.hasOwn(guideId, row.channel)) throw new Error("Canal invalide.");
         const guide = INR_ASSISTANT_ACCOUNT_GUIDES.find(item => item.id === guideId[row.channel as string]);
         const createHref = DASHBOARD_CHANNEL_CREATE_HREF_BY_KEY[row.channel as keyof typeof DASHBOARD_CHANNEL_CREATE_HREF_BY_KEY];

@@ -1,3 +1,7 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
+import { readFileSync as readDraftSessionSource } from "node:fs";
+const draftSession = readDraftSessionSource(new URL("../../app/dashboard/booster/publier/publicationDraftSession.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -5,6 +9,8 @@ import test from "node:test";
 
 const ROOT = process.cwd();
 const read = (file) => readFileSync(resolve(ROOT, file), "utf8");
+
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
 
 test("la migration étape 8 est additive et prépare les lectures de publication", () => {
   const sql = read("ops/sql/2026-07-29_media_pipeline_step8_legacy_cutover.sql");
@@ -84,33 +90,32 @@ test("Booster n'envoie plus de médias historiques quand le cutover client est a
   const controller = read("app/dashboard/booster/publier/usePublishImageController.ts");
   assert.match(modal, /isLegacyMediaTransportCutoverClientEnabled/);
   assert.match(modal, /const mediaPipelineCutoverEnabled = legacyMediaCutoverClientAvailable/);
-  assert.match(modal, /mediaPipelineCutoverV1:\s*mediaPipelineCutoverEnabled/);
+  assert.match(submission, /mediaPipelineCutoverV1:\s*mediaPipelineCutoverEnabled/);
   assert.match(
-    modal,
+    generationController,
     /mediaWorkspaceExpected:[\s\S]*shouldUsePersistentMediaWorkspaceForAi[\s\S]*Boolean\(readyMediaWorkspaceId\)/,
   );
   assert.match(
-    modal,
+    generationController,
     /useWorkspaceMediaForAI:[\s\S]*shouldUsePersistentMediaWorkspaceForAi/,
   );
-  assert.match(modal, /imagesForAI:\s*mediaPipelineCutoverEnabled \? \[\] : imagesForAI/);
-  assert.match(modal, /shouldBuildImageFallbackPayload/);
-  assert.match(modal, /shouldBuildVideoFallbackPayload/);
-  assert.match(modal, /workspaceCarriesImagesForPublish/);
-  assert.match(modal, /workspaceCarriesVideoForPublish/);
-  assert.match(modal, /channelSettings:\s*buildChannelImageSettingsPayload\(\)/);
+  assert.match(generationController, /imagesForAI:\s*mediaPipelineCutoverEnabled \? \[\] : imagesForAI/);
+  assert.match(submission, /shouldBuildImageFallbackPayload/);
+  assert.match(submission, /shouldBuildVideoFallbackPayload/);
+  assert.match(submission, /workspaceCarriesImagesForPublish/);
+  assert.match(submission, /workspaceCarriesVideoForPublish/);
+  assert.match(submission, /channelSettings:\s*buildChannelImageSettingsPayload\(\)/);
   assert.match(controller, /buildChannelImageSettingsPayload/);
   assert.doesNotMatch(controller, /buildChannelImageSettingsPayload[\s\S]{0,250}uploadPreparedImages/);
 });
 
 test("les brouillons réutilisent le workspace sans upload doublon", () => {
-  const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
   const workspaceRoute = read("app/api/media-pipeline/workspace/route.ts");
   const client = read("lib/mediaWorkspaceClient.ts");
-  assert.match(modal, /loadMediaPublicationWorkspace\(/);
-  assert.match(modal, /mediaPipelineCutoverEnabled && mediaWorkspaceId/);
-  assert.match(modal, /\? await uploadPublicationDraftImages\(\)/);
-  assert.match(modal, /\? null\s*:\s*await buildPublicationDraftVideoPayload\(\)/);
+  assert.match(draftSession, /loadMediaPublicationWorkspace\(/);
+  assert.match(draftSession, /mediaPipelineCutoverEnabled && mediaWorkspaceId/);
+  assert.match(draftSession, /\? await uploadPublicationDraftImages\(\)/);
+  assert.match(draftSession, /\? null\s*:\s*await buildPublicationDraftVideoPayload\(\)/);
   assert.match(workspaceRoute, /createSafeStorageSignedUrl/);
   assert.match(workspaceRoute, /client_media_key/);
   assert.match(workspaceRoute, /publicUrl/);
@@ -139,7 +144,7 @@ test("le retrait reste réversible par flags sans supprimer les anciennes routes
   const publish = read("app/api/booster/publish-now/route.ts");
   assert.match(policy, /MEDIA_PIPELINE_LEGACY_CUTOVER_V1/);
   assert.match(policy, /NEXT_PUBLIC_MEDIA_PIPELINE_LEGACY_CUTOVER_V1/);
-  assert.match(modal, /uploadPreparedImages/);
+  assert.match(submission, /uploadPreparedImages/);
   assert.match(modal, /uploadPublicationVideoForPublish/);
   assert.match(publish, /normalizeVideoPayload\(body\.video\)/);
   assert.match(publish, /!strictMediaCutover/);

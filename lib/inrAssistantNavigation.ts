@@ -46,6 +46,7 @@ const PANEL_NAMES: Readonly<Record<string, string>> = {
   site_web: "Site web", site_inrcy: "Site web", gmb: "Google Business", facebook: "Facebook",
   instagram: "Instagram", threads: "Threads", linkedin: "LinkedIn", tiktok: "TikTok",
   youtube_shorts: "YouTube", pinterest: "Pinterest", x: "X", inr_search: "iNr’Search",
+  inr_directory: "iNr’Annuaire",
   trustpilot: "iNr’Search", inrbadge: "iNr’Badge",
 };
 

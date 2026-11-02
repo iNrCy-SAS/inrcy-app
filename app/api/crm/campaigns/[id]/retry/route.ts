@@ -15,7 +15,7 @@ async function getRouteId(ctx: any) {
 }
 
 async function retryCampaignHandler(req: Request, ctx: any) {
-  const { supabase, user, errorResponse, activeUserId } = await requireUser();
+  const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const rateLimited = await enforceRateLimit({

@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 const ALLOWED_REASONS = new Set(["opt_out", "blacklist", "hard_bounce", "complaint"]);
 
 export async function GET() {
-  const { supabase, user, errorResponse, activeUserId } = await requireUser();
+  const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const { data, error } = await supabase
@@ -23,7 +23,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const body = await req.json().catch(() => ({}));
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const url = new URL(req.url);

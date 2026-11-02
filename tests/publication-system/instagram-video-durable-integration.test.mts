@@ -35,10 +35,11 @@ const instagramBranch = sliceBetween(
   'if (ch === "linkedin")',
 );
 const continuationHelper = sliceBetween(
-  route,
+  read("app/api/booster/publish-now/publishNow.continuations.ts"),
   "async function queueInstagramVideoContinuation",
-  "async function getTiktokAccessToken",
+  "async function queueInstagramRateLimitRetry",
 );
+assert.match(route, /clearAsyncFailureContext: \(\) => \{ asyncFailureContext = null; \}/);
 const dispatchJob = sliceBetween(
   cron,
   "async function dispatchChannelJob",
@@ -125,7 +126,7 @@ test("processing phases durably queue a fast 202 continuation and release the wo
     'status: "queued"',
     "await setDelivery",
     "await failExecutionIdempotencyLock",
-    "asyncFailureContext = null",
+    "clearAsyncFailureContext()",
     "status: 202",
   ]);
   assert.match(continuationHelper, /instagramVideoNextPollAt/);

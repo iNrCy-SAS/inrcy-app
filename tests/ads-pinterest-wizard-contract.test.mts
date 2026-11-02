@@ -100,7 +100,7 @@ test("le passage au ciblage automatique exige un accord avant de retirer les sig
 });
 
 test("le studio présente les choix Pinterest utiles et les champs remplis par l’IA", () => {
-  const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  const client = ["../app/dashboard/ads/AdsClient.tsx", "../lib/adsCampaignPlanClient.ts"].map((file) => readFileSync(new URL(file, import.meta.url), "utf8")).join("\n");
 
   const controls = readFileSync(new URL("../app/dashboard/ads/PinterestAdsCampaignControls.tsx", import.meta.url), "utf8");
   for (const label of [
@@ -142,7 +142,7 @@ test("le studio présente les choix Pinterest utiles et les champs remplis par l
 });
 
 test("les zones Pinterest ne sont ajoutées que par un choix explicite dans le compte associé", () => {
-  const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  const client = ["../app/dashboard/ads/AdsClient.tsx", "../lib/adsCampaignPlanClient.ts"].map((file) => readFileSync(new URL(file, import.meta.url), "utf8")).join("\n");
   const search = client.slice(client.indexOf("function PinterestLocationSearch("), client.indexOf("function GoogleAdCopyField("));
   assert.match(search, /\/api\/ads\/pinterest\/targeting\?query=/);
   assert.match(search, /response\.selectedAccountId !== accountId/);

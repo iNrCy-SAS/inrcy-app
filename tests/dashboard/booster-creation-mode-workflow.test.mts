@@ -1,3 +1,7 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
+import { readFileSync as readDraftSessionSource } from "node:fs";
+const draftSession = readDraftSessionSource(new URL("../../app/dashboard/booster/publier/publicationDraftSession.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -72,7 +76,7 @@ test("Booster combines channels and creation mode in preparation and keeps both 
 
 test("mode switching removes only branch work and preserves shared media", () => {
   const start = modal.indexOf("const onSelectCreationMode");
-  const end = modal.indexOf("const onGenerate", start);
+  const end = modal.indexOf("const onDuplicateContentToAllChannels", start);
   assert.ok(start >= 0 && end > start);
   const switchSource = modal.slice(start, end);
 
@@ -93,11 +97,11 @@ test("the obsolete manual branch button is removed from the AI intention panel",
 });
 
 test("creation mode is persisted and forwarded without duplicating the publish engine", () => {
-  assert.match(modal, /payload: \{\s*status: "draft",\s*creationMode,/);
+  assert.match(draftSession, /payload: \{\s*status: "draft",\s*creationMode,/);
   assert.match(
-    modal,
+    submission,
     /const result = await trackEvent\("publish", \{[\s\S]{0,300}creationMode,/,
   );
-  assert.match(modal, /publishPayload: \{\s*creationMode,/);
+  assert.match(submission, /publishPayload: \{\s*creationMode,/);
   assert.equal((modal.match(/<PublishFooterActions/g) || []).length, 1);
 });

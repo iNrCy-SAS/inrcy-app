@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import styles from "./MediaGenerator.module.css";
 
@@ -720,15 +720,16 @@ export default function MediaSubjectVoiceButton({
     await startMediaRecording(platform.canUseLivePreview, sessionId);
   };
 
+  const onVoiceUnmount = useEffectEvent(() => {
+    restoreLiveDraft();
+    mountedRef.current = false;
+    transcriptionAbortRef.current?.abort();
+    transcriptionAbortRef.current = null;
+    cancelSession(currentSessionIdRef.current);
+  });
   useEffect(() => {
     mountedRef.current = true;
-    return () => {
-      restoreLiveDraft();
-      mountedRef.current = false;
-      transcriptionAbortRef.current?.abort();
-      transcriptionAbortRef.current = null;
-      cancelSession(currentSessionIdRef.current);
-    };
+    return () => onVoiceUnmount();
   }, []);
 
   const recording = state === "recording";

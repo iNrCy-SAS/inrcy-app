@@ -100,8 +100,11 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [globalError, setGlobalError] = useState("");
+  const [globalError, setGlobalError] = useState<string | { loadError: unknown }>("");
   const [logoError, setLogoError] = useState("");
+  // Localize a load failure at render time; a language change must not reload a draft.
+  const globalErrorMessage = typeof globalError === "string" ? globalError
+    : getClientUserFacingErrorMessage(globalError.loadError, i18nT("profile_load_failed"));
 
   useEffect(() => {
     let active = true;
@@ -147,9 +150,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
       } catch (error) {
         console.error(error);
         if (active) {
-          setGlobalError(
-            getClientUserFacingErrorMessage(error, i18nT("profile_load_failed")),
-          );
+          setGlobalError({ loadError: error });
         }
       } finally {
         if (active) setLoading(false);
@@ -566,7 +567,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
         )}
       </section>
 
-      {globalError ? <div style={errorBannerStyle}>{globalError}</div> : null}
+      {globalErrorMessage ? <div style={errorBannerStyle}>{globalErrorMessage}</div> : null}
       {saved ? <div style={successBannerStyle}>{i18nT("profil_enregistre_d21b6a7e")}</div> : null}
 
       {!loading && showActions ? (

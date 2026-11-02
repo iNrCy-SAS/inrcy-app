@@ -6,7 +6,7 @@ import { readTiktokSettingsWithOAuth } from "@/lib/tiktokRouteStorage";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 
 export async function GET() {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const [{ tiktok }, states] = await Promise.all([

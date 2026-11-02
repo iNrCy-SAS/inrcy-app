@@ -2,7 +2,9 @@
 
 import { useTranslations } from "next-intl";
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { useInrAssistantRefresh } from "../../_hooks/useInrAssistantRefresh";
 import { createInrBadgeQrMatrix } from "@/lib/inrBadgeQr";
 import { createInrBadgeQrTrackingUrl, type InrBadgeProfileSummary } from "@/lib/inrBadge";
 import { effectiveInrBadgeShareSettings } from "@/lib/inrBadgeEditionPolicy";
@@ -431,36 +433,6 @@ function FieldToggle({
   );
 }
 
-function FieldSelect({
-  label,
-  value,
-  options,
-  helper,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  value: string | number;
-  options: Array<{ value: string | number; label: string }>;
-  helper?: string;
-  disabled?: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label style={{ ...selectRowStyle, opacity: disabled ? 0.55 : 1 }}>
-      <span style={{ minWidth: 0 }}>
-        <strong style={toggleTitleStyle}>{label}</strong>
-        {helper ? <small style={toggleHelperStyle}>{helper}</small> : null}
-      </span>
-      <select value={String(value)} disabled={disabled} onChange={(event) => onChange(event.target.value)} style={selectStyle}>
-        {options.map((option) => (
-          <option key={String(option.value)} value={String(option.value)}>{option.label}</option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function ThemeChoice({
   id,
   label,
@@ -530,9 +502,35 @@ export default function InrBadgeSettingsContent({
   const [mailAccounts, setMailAccounts] = useState<MailAccountOption[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [extractingLogoTheme, setExtractingLogoTheme] = useState(false);
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [pendingSaves, setPendingSaves] = useState(0);
+  const pendingSavesRef = useRef(0);
+  const saveRevision = useRef(0);
+  const assistantReadOnly = useRef(false);
+  const trackSave = useCallback(async (save: () => Promise<void>) => {
+    saveRevision.current++;
+    pendingSavesRef.current++;
+    setPendingSaves(count => count + 1);
+    try { await save(); } finally { pendingSavesRef.current--; setPendingSaves(count => count - 1); }
+  }, []);
+  useInrAssistantRefresh({ topics: ["settings", "channels"], scopeKey: storageKey, blocked: loadingSettings || pendingSaves > 0 || extractingLogoTheme, refresh: async ({ accountId, canApply }) => {
+    if (trim(profile.userId) && trim(profile.userId) !== accountId) return false;
+    const revision = saveRevision.current;
+    const response = await fetch("/api/inrbadge/settings", { cache: "no-store", credentials: "include" });
+    const data = await response.json();
+    if (!response.ok || !data.settings || !canApply() || pendingSavesRef.current > 0 || revision !== saveRevision.current || accountId !== getActiveBrowserUserId()) return false;
+    const next = effectiveInrBadgeShareSettings(normalizeInrBadgeShareSettings(data.settings), dashboardEdition);
+    assistantReadOnly.current = true;
+    setSettings(next);
+    saveBadgeSettings(storageKey, next, appointmentSettings, selectedMailAccountId);
+    return true;
+  } });
 
   useEffect(() => {
     let cancelled = false;
+    const accountId = getActiveBrowserUserId();
+    const revision = saveRevision.current;
+    setLoadingSettings(true);
     const localSettings = effectiveInrBadgeShareSettings(loadShareSettings(storageKey), dashboardEdition);
     const localAppointmentSettings = loadAppointmentSettings(storageKey);
     const localTheme = loadThemeSettings(storageKey);
@@ -552,7 +550,7 @@ export default function InrBadgeSettingsContent({
         const accountsJson = accountsRes
           ? await accountsRes.json().catch(() => null) as { mailAccounts?: unknown } | null
           : null;
-        if (cancelled) return;
+        if (cancelled || revision !== saveRevision.current || accountId !== getActiveBrowserUserId()) return;
 
         if (accountsRes?.ok) {
           const nextAccounts = Array.isArray(accountsJson?.mailAccounts)
@@ -577,6 +575,8 @@ export default function InrBadgeSettingsContent({
         saveThemeSettings(storageKey, serverTheme);
       } catch {
         // On garde les réglages locaux en secours.
+      } finally {
+        if (!cancelled && accountId === getActiveBrowserUserId()) setLoadingSettings(false);
       }
     };
 
@@ -590,26 +590,9 @@ export default function InrBadgeSettingsContent({
     const next = normalizeInrBadgeShareSettings({ ...settings, [key]: value });
     setSettings(next);
     saveBadgeSettings(storageKey, next, appointmentSettings, selectedMailAccountId);
-    void persistBadgeSettings(next, selectedMailAccountId);
+    void trackSave(() => persistBadgeSettings(next, selectedMailAccountId));
     setNotice(i18nT("reglages_inr_badge_enregistres_aa47bf78"));
     window.setTimeout(() => setNotice(null), 1800);
-  };
-
-  const updateAppointmentSettings = (patch: Partial<AppointmentSettings>) => {
-    const next = normalizeInrBadgeAppointmentSettings({ ...appointmentSettings, ...patch });
-    setAppointmentSettings(next);
-    saveBadgeSettings(storageKey, settings, next, selectedMailAccountId);
-    void persistBadgeSettings(settings, selectedMailAccountId);
-    setNotice(i18nT("reglages_de_prise_de_rdv_enregistres_cf14d8ac"));
-    window.setTimeout(() => setNotice(null), 1800);
-  };
-
-  const toggleWeekday = (day: number) => {
-    const exists = appointmentSettings.weekdays.includes(day);
-    const nextWeekdays = exists
-      ? appointmentSettings.weekdays.filter((item) => item !== day)
-      : [...appointmentSettings.weekdays, day];
-    updateAppointmentSettings({ weekdays: nextWeekdays });
   };
 
   const company = trim(profile.companyLegalName) || "Votre entreprise";
@@ -624,7 +607,7 @@ export default function InrBadgeSettingsContent({
     setTheme(nextTheme);
     saveThemeSettings(storageKey, nextTheme);
     try {
-      await persistBadgeTheme(nextTheme);
+      await trackSave(() => persistBadgeTheme(nextTheme));
       setNotice(successMessage);
     } catch {
       setNotice("Impossible d’enregistrer le thème pour le moment.");
@@ -714,16 +697,18 @@ export default function InrBadgeSettingsContent({
     const nextId = trim(value);
     setSelectedMailAccountId(nextId);
     saveBadgeSettings(storageKey, settings, appointmentSettings, nextId);
-    void persistBadgeSettings(settings, nextId);
+    void trackSave(() => persistBadgeSettings(settings, nextId));
   };
 
   useEffect(() => {
+    // An assistant reread updates the view only; never persist a full-form fallback from it.
+    if (assistantReadOnly.current) { assistantReadOnly.current = false; return; }
     if (standardMode) return;
     if (email || !fallbackMailAccountId || selectedMailAccountExists) return;
     setSelectedMailAccountId(fallbackMailAccountId);
     saveBadgeSettings(storageKey, settings, appointmentSettings, fallbackMailAccountId);
-    void persistBadgeSettings(settings, fallbackMailAccountId);
-  }, [appointmentSettings, email, fallbackMailAccountId, selectedMailAccountExists, settings, standardMode, storageKey]);
+    void trackSave(() => persistBadgeSettings(settings, fallbackMailAccountId));
+  }, [appointmentSettings, email, fallbackMailAccountId, selectedMailAccountExists, settings, standardMode, storageKey, trackSave]);
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
@@ -1242,22 +1227,7 @@ const selectStyle: CSSProperties = {
   fontWeight: 800,
 };
 
-const weekdayGridStyle: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 7, marginTop: 9 };
-const weekdayButtonStyle: CSSProperties = { ...smallButtonStyle, padding: "8px 10px", borderRadius: 12 };
-const weekdayActiveStyle: CSSProperties = { ...weekdayButtonStyle, background: "linear-gradient(135deg, rgba(139,92,246,0.95), rgba(14,165,233,0.78))", border: "1px solid rgba(255,255,255,0.18)" };
-
 const toggleTitleStyle: CSSProperties = { display: "block", fontSize: 13, color: "rgba(255,255,255,0.94)" };
 const toggleHelperStyle: CSSProperties = { display: "block", marginTop: 3, fontSize: 11, color: "rgba(226,232,240,0.62)", lineHeight: 1.35 };
-
-const previewOverlayStyle: CSSProperties = { position: "fixed", inset: 0, zIndex: 1200, display: "grid", placeItems: "center", padding: 16 };
-const previewBackdropStyle: CSSProperties = { position: "absolute", inset: 0, border: "none", background: "rgba(2,6,23,0.72)", cursor: "pointer" };
-const previewModalStyle: CSSProperties = { position: "relative", zIndex: 1, width: "min(100%, 560px)", maxHeight: "calc(100vh - 32px)", overflow: "auto", borderRadius: 24, padding: 14, border: "1px solid rgba(255,255,255,0.12)", background: "linear-gradient(180deg, rgba(9,16,32,0.96), rgba(15,23,42,0.98))", boxShadow: "0 30px 90px rgba(0,0,0,0.45)" };
-const downloadModalStyle: CSSProperties = { ...previewModalStyle, width: "min(100%, 440px)" };
-const previewModalHeaderStyle: CSSProperties = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 };
-const previewCloseButtonStyle: CSSProperties = { ...smallButtonStyle, whiteSpace: "nowrap" };
-const previewPhoneShellStyle: CSSProperties = { width: "min(100%, 390px)", margin: "0 auto", padding: 10, borderRadius: 30, background: "linear-gradient(180deg, rgba(2,6,23,0.98), rgba(15,23,42,0.98))", border: "1px solid rgba(255,255,255,0.10)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.07), 0 20px 60px rgba(0,0,0,0.35)" };
-const downloadActionsStyle: CSSProperties = { display: "grid", gap: 10 };
-const downloadActionButtonStyle: CSSProperties = { display: "grid", gap: 4, width: "100%", textAlign: "left", borderRadius: 18, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.05)", color: "#fff", padding: "14px 16px", cursor: "pointer" };
-const previewIframeStyle: CSSProperties = { width: "100%", height: 760, border: "none", borderRadius: 22, background: "#08111f" };
 
 const noticeStyle: CSSProperties = { position: "sticky", bottom: 10, justifySelf: "center", padding: "9px 12px", borderRadius: 999, background: "rgba(16,185,129,0.18)", border: "1px solid rgba(16,185,129,0.32)", color: "#d1fae5", fontSize: 12, fontWeight: 800 };

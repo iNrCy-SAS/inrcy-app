@@ -13,6 +13,7 @@ import * as sensitiveText from "../../lib/aiMediaSensitiveText.ts";
 import { AiJsonResponseNormalizationError } from "../../lib/aiJsonResponseNormalization.ts";
 import * as generationTransport from "../../lib/aiMediaGenerationTransport.ts";
 import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
+import { assertAiMediaFreeExactNarrationFits } from "../../lib/aiMediaFreeGenerationPrompt.ts";
 
 const quoteOutput = ts.transpileModule(readFileSync(new URL("../../lib/aiMediaCreditQuoteServer.ts", import.meta.url), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -69,7 +70,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
     ["@/lib/aiMediaGenerationContracts", contracts],
     ["@/lib/aiMediaCreditQuoteServer", quoteRecord.exports],
     ["@/lib/aiMediaGenerationPrompt", { AI_MEDIA_PROMPT_VERSION: "test-version" }],
-    ["@/lib/aiMediaFreeGenerationPrompt", { AI_MEDIA_FREE_PROMPT_VERSION: "test-free-version" }],
+    ["@/lib/aiMediaFreeGenerationPrompt", { AI_MEDIA_FREE_PROMPT_VERSION: "test-free-version", assertAiMediaFreeExactNarrationFits }],
     ["@/lib/aiMediaGenerationQuota", {
       AiMediaGenerationQuotaError: QuotaError,
       createAiMediaRequestFingerprint,
@@ -175,6 +176,33 @@ test("les créations libres passent par la même authentification avant tout dé
   assert.equal(response.status, 401);
   assert.equal(route.reservationCalls.length, 0);
   assert.equal(route.generationCalls.length, 0);
+});
+
+test("exact narration exceeding duration is rejected before reservation or AI work, in JSON and streaming", async () => {
+  for (const streamed of [false, true]) {
+    for (const exact of [{ spokenScript: "Bonjour ".repeat(40) }, { freePrompt: `Un atelier. Voix off : « ${"Bonjour ".repeat(40)} »` }, { spokenScript: "你".repeat(100), freePrompt: "Une scène en chinois." }, { freePrompt: `En chinois. Voix off : « ${"你".repeat(100)} »` }]) {
+      const route = loadRoute();
+      const raw = await route.post(body({ kind: "video", videoEngine: "grok-lite", durationSeconds: 4, withNarration: true, ...exact }), streamed ? {
+        headers: { "Content-Type": "application/json", Accept: generationTransport.AI_MEDIA_GENERATION_STREAM_TYPE },
+      } : {});
+      const response = await generationTransport.readAiMediaGenerationResponse(raw, () => {});
+      assert.equal(response.status, 422);
+      assert.equal((response.payload as Record<string, unknown>).code, "AI_MEDIA_EXACT_NARRATION_TOO_LONG");
+      assert.equal(route.reservationCalls.length, 0);
+      assert.equal(route.generationCalls.length, 0);
+      assert.equal(route.paidCalls(), 0);
+      assert.equal(route.failureCalls.length, 0);
+    }
+  }
+});
+
+test("narration preflight preserves exact text and leaves silent or character requests to their existing pipeline", () => {
+  for (const overrides of [{ spokenScript: "Bonjour, bienvenue !" }, { spokenScript: "", freePrompt: 'Voix off : « ' + "Bonjour ".repeat(40) + ' »' }, { spokenScript: "Bonjour ".repeat(40), teamVideoSpeechMode: "characters" }]) {
+    const input = contracts.normalizeAiMediaGenerationRequest(body({ kind: "video", videoEngine: "grok-lite", durationSeconds: 4, withNarration: true, ...overrides }));
+    const before = JSON.stringify(input);
+    assert.doesNotThrow(() => assertAiMediaFreeExactNarrationFits(input));
+    assert.equal(JSON.stringify(input), before);
+  }
 });
 
 test("an unavailable requested profile logo releases the reservation without paid work or a saved result", async () => {

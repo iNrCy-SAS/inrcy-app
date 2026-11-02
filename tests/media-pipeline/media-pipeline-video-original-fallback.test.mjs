@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -15,17 +17,17 @@ test("strict scheduling requires the workspace master while rollback keeps compa
   ]);
   const publish = `${publishRoute}\n${channelContext}`;
 
-  assert.doesNotMatch(modal, /startBackgroundVideoPrewarm/);
-  assert.doesNotMatch(modal, /directOriginalAvailable/);
-  assert.match(modal, /generateMissingVideoVariants:\s*false/);
+  assert.doesNotMatch([modal, submission].join("\n"), /startBackgroundVideoPrewarm/);
+  assert.doesNotMatch([modal, submission].join("\n"), /directOriginalAvailable/);
+  assert.match(submission, /generateMissingVideoVariants:\s*false/);
   assert.match(
     modal,
     /mediaPipelineCutoverV1:\s*true,[\s\S]{0,100}allowOriginalVideoFallback:\s*false/,
   );
-  assert.doesNotMatch(modal, /prepareCutoverVideoVariants/);
-  const immediatePublish = modal.slice(
-    modal.indexOf("const runPublish = async"),
-    modal.indexOf("const onSavePublicationDraft = async"),
+  assert.doesNotMatch([modal, submission].join("\n"), /prepareCutoverVideoVariants/);
+  const immediatePublish = submission.slice(
+    submission.indexOf("const runPublish = async"),
+    submission.indexOf("const performSchedulePublication = async"),
   );
   assert.doesNotMatch(
     immediatePublish,

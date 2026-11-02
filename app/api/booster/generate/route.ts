@@ -323,7 +323,6 @@ const allowedThemes: BoosterTheme[] = [
   "autre",
 ];
 const allowedStyles: BoosterStyle[] = ["sobre", "equilibre", "dynamique"];
-const siteChannels = new Set<BoosterChannels>(["site_web", "inr_search"]);
 const AI_IMAGE_MAX_COUNT = 5;
 const AI_REFERENCE_MAX_COUNT = AI_IMAGE_MAX_COUNT + 3;
 const AI_IMAGE_MAX_DATA_URL_LENGTH = 3_500_000;

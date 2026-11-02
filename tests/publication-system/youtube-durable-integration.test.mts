@@ -32,10 +32,11 @@ const youtubeBranch = sliceBetween(
   'if (ch === "tiktok")',
 );
 const continuationHelper = sliceBetween(
-  route,
+  read("app/api/booster/publish-now/publishNow.continuations.ts"),
   "async function queueYoutubeUploadContinuation",
-  "async function getTiktokAccessToken",
+  "async function persistPinterestVideoCheckpoint",
 );
+assert.match(route, /clearAsyncFailureContext: \(\) => \{ asyncFailureContext = null; \}/);
 const cronDispatch = sliceBetween(
   cron,
   "async function dispatchChannelJob",
@@ -79,7 +80,7 @@ test("YouTube continuations return 202 and release the current worker lock", () 
     'status: "queued"',
     'await setDelivery("youtube_shorts"',
     "await failExecutionIdempotencyLock",
-    "asyncFailureContext = null",
+    "clearAsyncFailureContext()",
     "status: 202",
   ]);
   assert.match(continuationHelper, /youtubeUploadNextRunAt/);

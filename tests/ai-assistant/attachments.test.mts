@@ -11,6 +11,8 @@ import * as pdf from "../../lib/pdfTextExtraction.ts";
 import { assistantMessagesWithFiles } from "../../lib/inrAssistantAttachmentPrompt.ts";
 import type * as Storage from "../../lib/inrAssistantAttachmentStorage.ts";
 import * as taskPolicy from "../../lib/inrAssistantTaskPolicy.ts";
+import * as replyReplay from "../../lib/inrAssistantReplyReplay.ts";
+import { getInrAssistantNavigation } from "../../lib/inrAssistantUiCommands.ts";
 
 const scope = { accountId: "11111111-1111-4111-8111-111111111111", actorUserId: "22222222-2222-4222-8222-222222222222", conversationId: "33333333-3333-4333-8333-333333333333" };
 const now = new Date();
@@ -26,7 +28,7 @@ function harness(options: { readFailure?: boolean } = {}) {
       return bytes ? { data: new Response(new Uint8Array(bytes)).body, error: null } : { data: null, error: { originalError: Response.json({ statusCode: "404", code: "NoSuchKey" }, { status: 400 }) } };
     } }),
     upload: async (path: string, data: Buffer, options: { upsert: boolean; contentType: string }) => {
-      assert.equal(options.upsert, path.endsWith(".task.json")); assert.equal(options.contentType, "application/json");
+      assert.equal(options.upsert, /\.(?:task|reply)\.json$/.test(path)); assert.equal(options.contentType, "application/json");
       calls.push({ operation: "write", bucket, path }); const key = `${bucket}/${path}`;
       if (objects.has(key) && !options.upsert) return { error: { statusCode: "409" } };
       objects.set(key, Buffer.from(data)); return { error: null };
@@ -43,6 +45,8 @@ function harness(options: { readFailure?: boolean } = {}) {
     "./inrAssistantMemory.ts": { inrAssistantMemoryCutoff: () => cutoff.toISOString(), sanitizeInrAssistantMemoryText:(value:unknown,max:number)=>String(value).slice(0,max) },
     "./inrAssistantAttachments.ts": policy, "./aiOfficeDocumentText.ts": office, "./pdfTextExtraction.ts": pdf,
     "./inrAssistantTaskPolicy.ts": taskPolicy,
+    "./inrAssistantReplyReplay.ts": replyReplay,
+    "./mediaImageNormalizer.ts": { normalizeImageAiPreviewBuffer: async ({ buffer }: { buffer: Buffer }) => ({ aiPreview: { buffer } }) },
     sharp: { default: sharp },
   };
   const source = readFileSync(new URL("../../lib/inrAssistantAttachmentStorage.ts", import.meta.url), "utf8");
@@ -55,6 +59,34 @@ function harness(options: { readFailure?: boolean } = {}) {
   return { api: moduleRecord.exports as typeof Storage, objects, calls };
 }
 const code = (value: string) => (error: unknown) => Boolean(error && typeof error === "object" && "code" in error && error.code === value);
+
+test("UI replay envelopes persist validated UI fields only and reject expired or mismatched scopes", async () => {
+  const h = harness();
+  const navigation = getInrAssistantNavigation("media")!;
+  assert.equal(await h.api.saveAssistantReplyReplay(scope, turn, { navigation, outcome: "processing", taskState: { approvalToken: "private" }, media: { url: "https://example.invalid?token=secret" }, accountId: "forged" }), true);
+  assert.deepEqual(await h.api.loadAssistantReplyReplay(scope, turn), { navigation, outcome: "processing" });
+  const key = [...h.objects.keys()].find(key => key.endsWith(".reply.json"))!;
+  const stored = h.objects.get(key)!.toString();
+  assert.doesNotMatch(stored, /private|secret|forged|taskState/);
+  const saved = JSON.parse(stored);
+  saved.actorUserId = "99999999-9999-4999-8999-999999999999";
+  h.objects.set(key, Buffer.from(JSON.stringify(saved)));
+  assert.equal(await h.api.loadAssistantReplyReplay(scope, turn), null);
+  saved.actorUserId = scope.actorUserId; saved.expiresAt = Date.now() - 1;
+  h.objects.set(key, Buffer.from(JSON.stringify(saved)));
+  assert.equal(await h.api.loadAssistantReplyReplay(scope, turn), null);
+  saved.expiresAt = Date.now() + 31 * 60_000;
+  h.objects.set(key, Buffer.from(JSON.stringify(saved)));
+  assert.equal(await h.api.loadAssistantReplyReplay(scope, turn), null);
+});
+
+test("UI replay rejects provider URLs and handles legacy missing envelopes without an executor", async () => {
+  const h = harness();
+  assert.equal(await h.api.loadAssistantReplyReplay(scope, turn), null);
+  assert.equal(await h.api.saveAssistantReplyReplay(scope, turn, { navigation: { ...getInrAssistantNavigation("media"), href: "https://evil.invalid" }, uiCommand: { command: "delete_document", selection: { kind: "quote", id: "document_123" } } }), true);
+  assert.equal(h.calls.filter(call => call.operation === "write").length, 0);
+  assert.equal(await harness({ readFailure: true }).api.loadAssistantReplyReplay(scope, turn), null);
+});
 
 test("execution journal distinguishes absent, unavailable, invalid and expired proof", async () => {
   const h = harness();
@@ -73,6 +105,26 @@ test("execution journal distinguishes absent, unavailable, invalid and expired p
   h.objects.set(key, Buffer.from("{broken")); assert.equal((await h.api.inspectAssistantTaskState(scope, turn)).status, "invalid");
 });
 
+test("private import sources survive journal saves and reject malformed or expanded source capabilities", async () => {
+  const h = harness();
+  const task: taskPolicy.InrAssistantTaskState = { version: 1, instruction: "Importe ces deux images.", question: "", actionRequestId: "action_import_001",
+    startedAt: now.toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(), outcome: "partial", requiredTools: ["importMediaAttachment"],
+    requiredCalls: { importMediaAttachment: 2 }, receipts: [], mediaImportSource: { ...turn } };
+  assert.equal(await h.api.saveAssistantTaskState(scope, turn, task), true);
+  assert.deepEqual(JSON.parse(JSON.stringify((await h.api.loadAssistantTaskState(scope, turn))?.mediaImportSource)), turn);
+  assert.equal(await h.api.loadAssistantTaskState({ ...scope, accountId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, turn), null);
+  const key = [...h.objects.keys()].find(path => path.endsWith(".task.json"))!;
+  const saved = JSON.parse(h.objects.get(key)!.toString());
+  const writes = h.calls.filter(call => call.operation === "write").length;
+  for (const source of [null, [], {}, { ...turn, turnId: "../different-turn" }, { ...turn, createdAt: "2026-10-30/../private" },
+    { ...turn, createdAt: "not-a-date" }, { ...turn, createdAt: "x".repeat(1000) }, { ...turn, path: "private/file" }, { ...turn, token: "invented-grant" }]) {
+    saved.task.mediaImportSource = source; h.objects.set(key, Buffer.from(JSON.stringify(saved)));
+    assert.equal((await h.api.inspectAssistantTaskState(scope, turn)).status, "invalid");
+    assert.equal(await h.api.saveAssistantTaskState(scope, turn, { ...task, mediaImportSource: source } as taskPolicy.InrAssistantTaskState), false);
+  }
+  assert.equal(h.calls.filter(call => call.operation === "write").length, writes);
+});
+
 test("private approval capabilities survive journal compaction and oversized capabilities are rejected", async () => {
   const h = harness();
   const task: taskPolicy.InrAssistantTaskState = { version: 1, instruction: "界".repeat(4000), question: "界".repeat(2000), actionRequestId: "action_checkpoint_001", startedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(), outcome: "needs_input", requiredTools: ["confirmCalendarAppointment"], receipts: [{ tool: "confirmCalendarAppointment", ok: false, status: "needs_confirmation", message: "界".repeat(500), approvalToken: "synthetic_".repeat(1800), approvalReference: "IA-0123456789ab", approvalKind: "calendar" }] };
@@ -81,6 +133,13 @@ test("private approval capabilities survive journal compaction and oversized cap
   assert.equal(restored.receipts[0].approvalToken, task.receipts[0].approvalToken); assert.equal(restored.receipts[0].approvalReference, "IA-0123456789ab"); assert.equal(restored.receipts[0].approvalKind, "calendar");
   assert.ok([...h.objects.values()].every(value => value.length <= 32_000));
   const key = [...h.objects.keys()].find(key => key.endsWith(".task.json"))!; const saved = JSON.parse(h.objects.get(key)!.toString());
+  for (const kind of ["google_business_profile", "media_delete", "publication_lifecycle"]) {
+    saved.task.receipts[0].approvalKind = kind; h.objects.set(key, Buffer.from(JSON.stringify(saved)));
+    assert.equal((await h.api.loadAssistantTaskState(scope, turn))?.receipts[0].approvalKind, kind);
+  }
+  saved.task.receipts[0].approvalKind = "arbitrary_action"; h.objects.set(key, Buffer.from(JSON.stringify(saved)));
+  assert.equal((await h.api.inspectAssistantTaskState(scope, turn)).status, "invalid");
+  saved.task.receipts[0].approvalKind = "calendar";
   saved.task.instruction = "Confirme ce rendez-vous."; saved.task.receipts[0].approvalToken = "x".repeat(24_001); h.objects.set(key, Buffer.from(JSON.stringify(saved)));
   assert.equal((await h.api.inspectAssistantTaskState(scope, turn)).status, "invalid");
 });
@@ -181,6 +240,28 @@ test("turn attachment bindings cannot change on retry, including a turn initiall
   const empty = { ...turn, turnId: "55555555-5555-4555-8555-555555555555" };
   await h.api.assistantTurnAttachments(scope, empty, undefined, true);
   await assert.rejects(h.api.assistantTurnAttachments(scope, empty, [ref], true), code("attachment_conflict"));
+});
+
+test("finalized media attachments retain the exact private original for an explicit scoped library import", async () => {
+  const h = harness(), bytes = await sharp({ create: { width: 2, height: 2, channels: 3, background: "red" } }).png().toBuffer();
+  const prepared = await h.api.prepareAssistantAttachment(scope, { name: "photo.png", type: "image/png", size: bytes.length });
+  h.objects.set(`${policy.ASSISTANT_ATTACHMENT_BUCKET}/${prepared.upload.path}`, bytes);
+  assert.equal(await h.api.loadAssistantMediaAttachmentOriginal(scope, prepared.attachment), null, "prepared alone is not a finalized attachment");
+  assert.equal(await h.api.claimAssistantMediaAttachmentImport(scope, prepared.attachment), false);
+  const ready = await h.api.finalizeAssistantAttachment(scope, prepared.attachment);
+  const original = await h.api.loadAssistantMediaAttachmentOriginal(scope, ready);
+  assert.ok(original); assert.equal(original.mimeType, "image/png"); assert.deepEqual(original.bytes, bytes);
+  assert.ok(h.objects.has(`${policy.ASSISTANT_ATTACHMENT_BUCKET}/${prepared.upload.path}`));
+  const claims = await Promise.all([h.api.claimAssistantMediaAttachmentImport(scope, ready), h.api.claimAssistantMediaAttachmentImport(scope, ready)]);
+  assert.deepEqual(claims.sort(), [false, true], "only one request can import the attachment");
+  assert.equal(await h.api.claimAssistantMediaAttachmentImport(scope, ready), false);
+  await assert.rejects(() => h.api.claimAssistantMediaAttachmentImport({ ...scope, actorUserId: "99999999-9999-4999-8999-999999999999" }, ready));
+  await assert.rejects(() => h.api.loadAssistantMediaAttachmentOriginal({ ...scope, actorUserId: "99999999-9999-4999-8999-999999999999" }, ready));
+  await assert.rejects(() => h.api.loadAssistantMediaAttachmentOriginal({ ...scope, accountId: "99999999-9999-4999-8999-999999999999" }, ready));
+  const document = await h.api.prepareAssistantAttachment(scope, { name: "notes.txt", type: "text/plain", size: 4 });
+  assert.equal(await h.api.loadAssistantMediaAttachmentOriginal(scope, document.attachment), null);
+  h.objects.delete(`${policy.ASSISTANT_ATTACHMENT_BUCKET}/${prepared.upload.path}`);
+  assert.equal(await h.api.loadAssistantMediaAttachmentOriginal(scope, ready), null, "legacy originals are never reconstructed from AI previews");
 });
 
 test("media library selection queries the active owner and rejects foreign rows before Storage access", async () => {

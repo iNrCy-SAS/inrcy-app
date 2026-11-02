@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const source = readFileSync(
-  new URL("../../app/dashboard/_components/UserMenu.tsx", import.meta.url),
+  new URL("../../app/dashboard/_components/DashboardTopbar.tsx", import.meta.url),
   "utf8",
 );
 const responsiveSource = readFileSync(
@@ -15,11 +15,12 @@ const dashboardClientSource = readFileSync(
   "utf8",
 );
 
-test("the desktop account menu leaves the four workspace tools in their dedicated navigation", () => {
-  assert.match(source, /closeAndOpen\("preferences"\)/);
-  assert.doesNotMatch(source, /closeAndOpen\("profil"\)/);
-  assert.doesNotMatch(source, /closeAndOpen\("(?:ia|ai_memory)"\)/);
-  assert.doesNotMatch(source, /closeAndNavigate\("\/dashboard(?:\?action=channels|\/generer-media)"\)/);
+test("the desktop account entry consolidates settings and leaves workspace tools in their dedicated navigation", () => {
+  assert.match(source, /data-dashboard-action="account"/);
+  assert.match(source, /setUserMenuOpen\(false\); openPanel\("compte"\)/);
+  assert.doesNotMatch(source, /openPanel\("(?:preferences|profil|ia|ai_memory)"\)/);
+  assert.doesNotMatch(source, /onNavigateCta\("\/dashboard(?:\?action=channels|\/generer-media)"\)/);
+  assert.match(dashboardClientSource, /<DashboardTopbar/);
 });
 
 test("the mobile space menu consolidates account settings without repeating cockpit setup", () => {

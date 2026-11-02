@@ -44,7 +44,9 @@ test("les idées Publier ont leur raccourci et leur espace distincts des réglag
   assert.match(client, /setSettingsKey\(null\);\s*setPublicationIdeasDraft\(configs\.publish\.publicationIdeas\);\s*setPublicationIdeasOpen\(true\)/);
   assert.match(client, /publicationIdeasOpen \? styles\.publicationIdeasWorkspace : ""/);
   assert.match(client, /display: publicationIdeasOpen \? "none" : undefined/);
-  assert.match(client, /\{publicationIdeasOpen \? \(\s*<section className=\{styles\.publicationIdeasPanel\}>/);
+  assert.match(client, /\{publicationIdeasOpen \? \(\s*<AgentPublicationIdeasEditor/);
+  const ideasEditor = read("app/dashboard/agent/_components/AgentPublicationIdeasEditor.tsx");
+  assert.match(ideasEditor, /<section className=\{styles\.publicationIdeasPanel\}>/);
   assert.doesNotMatch(client, /className=\{styles\.settingsPublishTabs\}/);
   assert.match(
     styles,

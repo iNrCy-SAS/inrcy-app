@@ -37,7 +37,6 @@ test("the local upload dialog stays above the settings drawer", () => {
 
 test("creation and edition surfaces preserve separate image and video choices", () => {
   const surfaces = [
-    ["app/dashboard/booster/publier/components/PublishImagesPanel.tsx", "booster-publication-local-media-choice"],
     ["app/dashboard/ads/AdsClient.tsx", "ads-local-media-choice"],
     ["app/dashboard/agent/AgentClient.tsx", "agent-local-media-choice"],
     ["app/dashboard/mails/_components/MailboxDetailsModal.tsx", "mailbox-image-publication-local-media-choice"],
@@ -48,6 +47,14 @@ test("creation and edition surfaces preserve separate image and video choices", 
     assert.match(source, /LocalMediaUploadChoice/, surface);
     assert.ok(source.includes(testId), `${surface}: ${testId}`);
   }
+  // Publication now exposes distinct controls in the mounted image/video pool.
+  const pool = read("app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx");
+  const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
+  assert.match(pool, /onClick=\{kind === "image" \? onPickImages : onPickVideo\}/);
+  assert.match(pool, /actions\("image"\)/);
+  assert.match(pool, /actions\("video"\)/);
+  assert.match(modal, /onPickImages=\{\(\) => \{ pendingDirectMediaDestinationRef\.current = \{ kind: "publication" \}; onPickImagesClick\(\); \}\}/);
+  assert.match(modal, /onPickVideo=\{\(\) => onPickVideoClick\(\{ kind: "publication" \}\)\}/);
   const intent = read("app/dashboard/booster/publier/components/PublishIntentPanel.tsx");
   const picker = read("app/dashboard/booster/publier/components/PublishReferencePicker.tsx");
   assert.match(intent, /<PublishReferencePicker/);

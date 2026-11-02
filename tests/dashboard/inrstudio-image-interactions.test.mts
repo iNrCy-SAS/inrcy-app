@@ -97,7 +97,7 @@ test("workspace, draft reload and server probe retain interactions without a vis
   assert.match(controller, /source_metadata: nextMetaByKey\[makeImageKey\(file\)\]/);
   assert.match(controller, /image_interactions: imageMetaByKey\[makeImageKey\(file\)\]\?\.interactions/);
   assert.match(controller, /normalizeImageInteractions\(interactionsByKey\?\.\[key\]\)/);
-  assert.match(publish, /restorePublicationDraftImages\(imageDrafts, payload\.imageInteractionsByKey\)/);
+  assert.match(read("app/dashboard/booster/publier/publicationDraftSession.ts"), /restorePublicationDraftImages\(imageDrafts, payload\.imageInteractionsByKey\)/);
   assert.match(publish, /next\[makeImageKey\(file\)\] = \{\s*\.\.\.next\[makeImageKey\(file\)\]/);
   assert.equal((workspace.match(/\.\.\.\(interactions \? \{ interactions \} : \{\}\)/g) || []).length, 2);
   assert.match(read("app/api/booster/publish-now/route.ts"), /siteMediaMetadata\.imageInteractions = siteImageInteractions/);

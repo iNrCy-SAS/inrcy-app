@@ -1692,11 +1692,6 @@
   transition: transform .16s ease, border-color .16s ease, background .16s ease;
 }
 
-.allStatsActionCard:hover {
-  transform: translateY(-1px);
-  border-color: rgba(125, 211, 252, 0.26);
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.11), rgba(157, 78, 255, 0.12));
-}
 
 .allStatsActionMain {
   display: grid;
@@ -1763,14 +1758,7 @@
     scroll-snap-align: start;
   }
 
-  .allStatsHero,
-  .channelStatsHeader {
-    grid-template-columns: 1fr;
-  }
 
-  .allStatsKpis {
-    justify-content: flex-start;
-  }
 
   .allStatsActionCard {
     grid-template-columns: 1fr;
@@ -2590,9 +2578,6 @@
     overscroll-behavior: contain !important;
   }
 
-  .allStatsActions::-webkit-scrollbar {
-    width: 6px;
-  }
 
   .allStatsActions::-webkit-scrollbar-thumb {
     background: rgba(125, 211, 252, 0.25);
@@ -3005,18 +2990,8 @@
     padding: 10px 12px !important;
   }
 
-  .allStatsChannelButton {
-    gap: 0 !important;
-  }
 
-  .allStatsMetrics span {
-    min-height: 46px !important;
-    padding: 7px 9px !important;
-  }
 
-  .allStatsRecommendedAction {
-    justify-items: center !important;
-  }
 
   .allStatsGoButton {
     min-width: 64px !important;
@@ -3181,10 +3156,6 @@
     padding-bottom: 0 !important;
   }
 
-  .allStatsMetrics {
-    grid-area: metrics !important;
-    width: 100% !important;
-  }
 
   .allStatsRecommendedAction {
     grid-area: action !important;
@@ -4469,22 +4440,8 @@
     overscroll-behavior: contain !important;
   }
 
-  .statsPanel,
-  .allStatsPanel {
-    min-height: 0 !important;
-  }
 
-  .allStatsPanel {
-    height: 100% !important;
-    max-height: 100% !important;
-    display: flex !important;
-    flex-direction: column !important;
-    overflow: hidden !important;
-  }
 
-  .allStatsHero {
-    flex: 0 0 auto !important;
-  }
 
   .allStatsActions {
     flex: 1 1 auto !important;
@@ -4682,11 +4639,6 @@
     overflow-x: hidden !important;
   }
 
-  .statsPanel {
-    height: 100% !important;
-    min-height: 0 !important;
-    overflow: hidden !important;
-  }
 
   .allStatsPanel {
     height: 100% !important;
@@ -5102,13 +5054,6 @@
     align-items: start !important;
   }
 
-  .statsRail,
-  .statsPanel,
-  .allStatsPanel {
-    height: auto !important;
-    max-height: none !important;
-    overflow: visible !important;
-  }
 }
 
 
@@ -5267,9 +5212,6 @@
     -webkit-line-clamp: 1 !important;
   }
 
-  .allStatsMetrics {
-    gap: 6px !important;
-  }
 
   .allStatsMetrics span {
     height: 34px !important;
@@ -5907,9 +5849,6 @@
     min-height: 84px !important;
   }
 
-  .channelStatsPanel .lectureBusinessContent {
-    min-width: 0 !important;
-  }
 
   .channelStatsPanel .bullets {
     gap: 4px !important;
@@ -5917,12 +5856,6 @@
     line-height: 1.18 !important;
   }
 
-  .channelStatsPanel .bullets li {
-    display: -webkit-box !important;
-    -webkit-line-clamp: 2 !important;
-    -webkit-box-orient: vertical !important;
-    overflow: hidden !important;
-  }
 
   .channelStatsPanel .channelInlineActionStack {
     gap: 8px !important;
@@ -5933,11 +5866,6 @@
     padding: 8px 12px !important;
   }
 
-  .channelStatsPanel .channelInlineActionStack .channelInlineGoButton {
-    width: 62px !important;
-    min-width: 62px !important;
-    height: 40px !important;
-  }
 }
 
 @media (min-width: 901px) and (max-height: 820px) {
@@ -6047,15 +5975,6 @@
     grid-template-rows: minmax(0, 1.16fr) minmax(0, 0.92fr) minmax(40px, auto) minmax(84px, 0.56fr) !important;
   }
 
-  .channelStatsPanel .detailTopRow,
-  .channelStatsPanel .blockRow {
-    min-height: 0 !important;
-    height: 100% !important;
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
-    align-items: stretch !important;
-    gap: 8px !important;
-  }
 
   .channelStatsPanel .detailTopRow > .block,
   .channelStatsPanel .blockRow > .block,
@@ -6065,12 +5984,6 @@
     overflow: hidden !important;
   }
 
-  .channelStatsPanel .metricOverviewBlock,
-  .channelStatsPanel .provenanceCompactBlock,
-  .channelStatsPanel .blockRow > .block {
-    display: flex !important;
-    flex-direction: column !important;
-  }
 
   .channelStatsPanel .metricOverviewBlock .metricMiniGrid {
     flex: 1 1 auto !important;
@@ -6078,12 +5991,6 @@
     align-content: stretch !important;
   }
 
-  .channelStatsPanel .provenanceCompactBlock .donutWrap,
-  .channelStatsPanel .qualityRow {
-    flex: 1 1 auto !important;
-    min-height: 0 !important;
-    align-items: center !important;
-  }
 
   .channelStatsPanel .lectureBusinessActionBlock,
   .channelStatsPanel .cubeBody > .block:last-child {
@@ -6216,12 +6123,6 @@
     line-height: 1.05 !important;
   }
 
-  .channelStatsPanel .provenanceCompactBlock .donutWrap,
-  .channelStatsPanel .qualityRow {
-    flex: 1 1 auto !important;
-    min-height: 0 !important;
-    align-items: center !important;
-  }
 
   .channelStatsPanel .qualityRow {
     gap: 10px !important;
@@ -6817,9 +6718,6 @@
     line-height: 1.25 !important;
   }
 
-  .channelStatsPanel .bullets li {
-    -webkit-line-clamp: 3 !important;
-  }
 
   .lectureBusinessToolCol,
   .lectureBusinessEffortCol {

@@ -834,10 +834,25 @@
     "automaticPublicationShort": "Published automatically when business details are complete.",
     "waitingHint": "Keep connecting your channels. This channel will be published automatically when business details are complete.",
     "missingInformation": "Missing information",
-    "activate": "Activate", "deactivate": "Deactivate", "published": "Published", "pending": "Activated — awaiting business details", "inactive": "Not activated",
-    "completeDna": "Complete business details", "pendingDescription": "Activation is saved. Publication is waiting for missing business details.", "automaticPublication": "The channel will be published automatically once business details are complete. You will not need to return to channels.",
-    "yourCompany": "Your business", "loadFailed": "This channel could not be loaded. Please try again shortly.", "saveFailed": "Activation could not be saved. Please try again.", "unavailable": "This channel is not available with this account’s current access.",
-    "fields": { "company": "Business name", "contact": "A public contact: phone, email or connected channel", "profession": "Profession", "city": "Business location city", "postalCode": "Business location postcode" }
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "published": "Published",
+    "pending": "Activated — awaiting business details",
+    "inactive": "Not activated",
+    "completeDna": "Complete business details",
+    "pendingDescription": "Activation is saved. Publication is waiting for missing business details.",
+    "automaticPublication": "The channel will be published automatically once business details are complete. You will not need to return to channels.",
+    "yourCompany": "Your business",
+    "loadFailed": "This channel could not be loaded. Please try again shortly.",
+    "saveFailed": "Activation could not be saved. Please try again.",
+    "unavailable": "This channel is not available with this account’s current access.",
+    "fields": {
+      "company": "Business name",
+      "contact": "A public contact: phone, email or connected channel",
+      "profession": "Profession",
+      "city": "Business location city",
+      "postalCode": "Business location postcode"
+    }
   },
   "channelBubble": {
     "instagramProfessionalRequired": "An Instagram Business or Creator account is required to connect.",
@@ -1098,7 +1113,8 @@
       "description": "Description",
       "storefrontAddress": "Address",
       "regularHours": "Regular opening hours",
-      "specialHours": "Special opening hours and closures"
+      "specialHours": "Special opening hours and closures",
+      "categories": "Categories"
     },
     "days": {
       "MONDAY": "Monday",
@@ -1128,6 +1144,21 @@
     "closeDayEditor": "Close time slots",
     "periodNumber": "Period {current} / {total}",
     "doneDay": "Done",
-    "midnight": "Until midnight (24:00)"
+    "midnight": "Until midnight (24:00)",
+    "categories": {
+      "primary": "Primary category",
+      "additional": "Additional categories",
+      "placeholder": "Search for a category…",
+      "hint": "Type the start of the name, then select a Google category.",
+      "selectResult": "Select a Google suggestion or cancel the search.",
+      "searching": "Searching…",
+      "noResults": "No category found. Try a different name prefix.",
+      "error": "Unable to read Google categories.",
+      "more": "Show more",
+      "remove": "Remove {name}",
+      "cancelSearch": "Cancel search",
+      "maximum": "Up to nine additional categories.",
+      "review": "Changing a category may require Google to verify your business again."
+    }
   }
 }

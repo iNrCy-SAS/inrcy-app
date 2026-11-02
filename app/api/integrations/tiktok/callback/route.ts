@@ -6,7 +6,7 @@ import { encryptToken } from "@/lib/oauthCrypto";
 import { clearAllToolCaches } from "@/lib/statsCache";
 import { withCurrentConnectionVersion } from "@/lib/connectionVersions";
 import { safeInternalPath, verifyOAuthState } from "@/lib/security";
-import { asRecord, asString } from "@/lib/tsSafe";
+import { asString } from "@/lib/tsSafe";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import {
   buildTiktokProfileUrl,

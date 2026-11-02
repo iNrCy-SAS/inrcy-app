@@ -1,3 +1,4 @@
+import { readVideoNormalizationWorkerSource } from "./video-worker-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -19,7 +20,7 @@ test("Booster conserve un fallback canonique sans ancien aperçu vidéo IA", () 
 
 test("les extractions bornées publient une progression durable", () => {
   const normalizer = read("lib/mediaVideoNormalizer.ts");
-  const worker = read("lib/mediaVideoNormalizationWorker.ts");
+  const worker = readVideoNormalizationWorkerSource();
   assert.match(normalizer, /FFMPEG_DERIVATIVE_TIMEOUT_MS/);
   assert.match(normalizer, /extractFrame/);
   assert.match(normalizer, /extractAudioTrack/);

@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -87,11 +89,11 @@ test("a partial preparation can continue only when failures are isolated by chan
 test("immediate publication defers video work while scheduling keeps one recovery", async () => {
   const modal = await read("app/dashboard/booster/publier/PublishModal.tsx");
   assert.match(modal, /options\?\.generateMissingVideoVariants === false/);
-  assert.doesNotMatch(modal, /startBackgroundVideoPrewarm/);
-  assert.doesNotMatch(modal, /prepareCutoverVideoVariants/);
-  const immediatePublish = modal.slice(
-    modal.indexOf("const runPublish = async"),
-    modal.indexOf("const onSavePublicationDraft = async"),
+  assert.doesNotMatch([modal, submission].join("\n"), /startBackgroundVideoPrewarm/);
+  assert.doesNotMatch([modal, submission].join("\n"), /prepareCutoverVideoVariants/);
+  const immediatePublish = submission.slice(
+    submission.indexOf("const runPublish = async"),
+    submission.indexOf("const performSchedulePublication = async"),
   );
   assert.doesNotMatch(
     immediatePublish,
@@ -102,7 +104,7 @@ test("immediate publication defers video work while scheduling keeps one recover
     /shouldRetryVideoVariantGeneration[\s\S]*generateMissingVideoVariants:\s*true/,
   );
   assert.match(modal, /generateMissingVideoVariants:\s*true/);
-  assert.match(modal, /allowPartialChannelFailures:\s*true/);
+  assert.match(submission, /allowPartialChannelFailures:\s*true/);
   assert.match(modal, /canContinueWithIsolatedVideoPreparationFailures/);
   assert.match(
     immediatePublish,
@@ -118,9 +120,6 @@ test("duration-invalid channels turn red before dispatch and are reported as fai
   const layer = await read(
     "app/dashboard/_components/DashboardBoosterModalLayer.tsx",
   );
-  const mediaPanel = await read(
-    "app/dashboard/booster/publier/components/PublishImagesPanel.tsx",
-  );
   const validationBoard = await read(
     "app/dashboard/booster/publier/components/PublishValidationBoard.tsx",
   );
@@ -132,20 +131,17 @@ test("duration-invalid channels turn red before dispatch and are reported as fai
   assert.match(shared, /durationValidation\.message/);
   assert.match(shared, /durationValidation\.reason/);
   assert.match(shared, /mediaBlockers\.push\(message\)/);
-  assert.match(modal, /const preflightFailedChannels = reviewItems/);
-  assert.match(modal, /item\.blockerCodes\?\.\[0\]/);
+  assert.match(submission, /const preflightFailedChannels = reviewItems/);
+  assert.match(submission, /item\.blockerCodes\?\.\[0\]/);
   assert.match(
     modal,
-    /tone:\s*reviewItem\?\.mediaBlockers\?\.length[\s\S]*\("blocked" as const\)/,
+    /<PublishValidationBoard\s+items=\{publishReadinessItems\}/,
   );
+  assert.match(modal, /const publishReadinessItems = buildFinalReviewItems\(\s*buildPreparedPostsByChannel\(\)/);
   assert.match(validationBoard, /item\.mediaBlockerCodes\?\.length \? "blocked"/);
-  assert.match(
-    mediaPanel,
-    /if \(readinessTone === "blocked"\) return "blocked"/,
-  );
-  assert.match(mediaPanel, /role="alert"/);
-  assert.match(mediaPanel, /i18nT\("media_incompatible_pour_value_20130e10"/);
-  assert.match(mediaPanel, /activeMediaBlockers\.map/);
+  assert.match(validationBoard, /<ReviewStatus tone=\{mediaTone\}/);
+  assert.match(validationBoard, /aria-describedby=\{id\} aria-controls=\{id\}/);
+  assert.match(validationBoard, /messages\.map\(\(message\) =>/);
   assert.match(validationBoard, /messages=\{mediaMessages\}/);
   assert.match(validationBoard, /\.\.\.mediaBlockers, \.\.\.mediaWarnings/);
   assert.match(validationBoard, /role="tooltip"/);

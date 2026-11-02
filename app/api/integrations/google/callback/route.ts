@@ -88,7 +88,7 @@ export async function GET(req: Request) {
       return res;
     }
 
-    const { supabase, user, authUserId, errorResponse } = await requireUser();
+    const { supabase, authUserId, errorResponse } = await requireUser();
     if (errorResponse) {
       oauthCallbackEvent(req, { provider: "google", outcome: "not_authenticated", error: "not_authenticated", return_to: returnTo });
       return fail("not_authenticated");

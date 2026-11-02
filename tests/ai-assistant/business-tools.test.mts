@@ -16,7 +16,7 @@ const instruction = "Ajoute mes prestations et remplis mon ADN avec ma mission e
 const configInstruction = "Modifie ma configuration IA : mets un ton chaleureux et ajoute mes consignes.";
 const change = (field: string, text: string | null, items: string[] | null = null, mode = "replace") => ({ field, mode, text, items });
 
-function harness(options: { instruction?: string; edition?: "standard" | "premium" | "founder"; foreignAccount?: boolean; writeError?: boolean; conflict?: boolean; missingBusiness?: boolean } = {}) {
+function harness(options: { instruction?: string; edition?: "basic" | "standard" | "premium" | "founder"; foreignAccount?: boolean; foreignScope?: boolean; foreignActor?: boolean; interrupted?: boolean; writeError?: boolean; conflict?: boolean; missingBusiness?: boolean } = {}) {
   const calls: { stage: string; body?: Row; request?: Request; filters?: Array<[string, unknown]> }[] = [];
   let memory = normalizeAiMemory({ mission: "Mission conservée", values: ["Respect"], referenceDocuments: [{ id: "doc-a", name: "Privé", path: "private/path", bucket: "private" }] });
   let business = normalizeAiBusinessKnowledge({ description: "Ancienne description", services: ["Entretien"], strengths: ["Savoir-faire"], weeklySchedule: { days: { tuesday: { open: true, allDay: false, slots: [{ start: "09:00", end: "17:00" }] } } } });
@@ -44,6 +44,7 @@ function harness(options: { instruction?: string; edition?: "standard" | "premiu
     return builder;
   } };
   const stubs: Record<string, unknown> = {
+    "./requireUser": { requireUser: async () => ({ activeUserId: options.foreignScope ? "other" : accountId, authUserId: options.foreignActor ? "other" : "actor" }) },
     "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (schema: unknown, config: object) => ({ schema, ...config }) },
     "./aiContentLength.ts": { enforceAiContentLengthForEdition },
     "./aiInstructionSections.ts": { decodeAiInstructionSections, encodeAiInstructionSections },
@@ -65,7 +66,7 @@ function harness(options: { instruction?: string; edition?: "standard" | "premiu
   const record = { exports: {} };
   vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, { Request, Response, Headers, Date, console })((name: string) => { assert.ok(name in stubs, name); return stubs[name]; }, record, record.exports);
   const runtime = record.exports as typeof BusinessTools;
-  const tools = runtime.createInrAssistantBusinessTools({ request: new Request("https://app.inrcy.test/api/assistant/chat", { headers: { cookie: "session=synthetic", authorization: "Bearer synthetic" } }), accountId, supabase: supabase as never, edition: options.edition || "standard", currentUserMessage: options.instruction ?? instruction });
+  const tools = runtime.createInrAssistantBusinessTools({ request: new Request("https://app.inrcy.test/api/assistant/chat", { headers: { cookie: "session=synthetic", authorization: "Bearer synthetic" } }), accountId, actorUserId: "actor", supabase: supabase as never, edition: options.edition || "standard", currentUserMessage: options.instruction ?? instruction, canStartWork: () => !options.interrupted });
   return { tools: tools as unknown as Record<keyof typeof tools, Tool>, calls, profile, memory: () => memory, business: () => business };
 }
 
@@ -167,4 +168,19 @@ test("channel guidance returns a named official in-app link and never changes OA
   assert.equal(h.calls.length, 0);
   await assert.rejects(() => h.tools.guideChannelConnection.execute({ channel: "facebook", url: "https://evil.invalid", accountId: "foreign" }));
   await assert.rejects(() => h.tools.guideChannelConnection.execute({ channel: "__proto__" }));
+});
+
+test("Basic manual DNA/configuration work while foreign actors, accounts and interrupted requests cannot write", async () => {
+  const basic = harness({ edition: "basic" });
+  assert.equal((await basic.tools.updateBusinessDna.execute({ instructionQuote: instruction, changes: [change("mission", "Mission Basic")] })).status, "updated");
+  const config = harness({ edition: "basic", instruction: configInstruction });
+  assert.equal((await config.tools.updateAiConfiguration.execute({ instructionQuote: configInstruction, changes: [change("tone", "warm")] })).status, "updated");
+  for (const variant of [{ foreignScope: true }, { foreignActor: true }, { interrupted: true }]) {
+    const h = harness(variant);
+    assert.equal((await h.tools.updateBusinessDna.execute({ instructionQuote: instruction, changes: [change("mission", "Never saved")] })).ok, false);
+    assert.equal(h.calls.length, 0);
+    const c = harness({ ...variant, instruction: configInstruction });
+    assert.equal((await c.tools.updateAiConfiguration.execute({ instructionQuote: configInstruction, changes: [change("tone", "warm")] })).ok, false);
+    assert.equal(c.calls.length, 0);
+  }
 });

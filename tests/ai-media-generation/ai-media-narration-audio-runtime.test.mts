@@ -17,6 +17,7 @@ type AudioRequest = {
 };
 
 type ProviderRequest = {
+  stream?: false;
   input: string;
   generation_config: { speech_config: Array<{ voice: string; language: string }> };
 };
@@ -179,6 +180,36 @@ test("une erreur fournisseur temporaire conserve sa relance puis son commit", as
   ]);
   assert.equal(harness.reservation.state, "committed");
 });
+
+const incompleteAudioMessage = "400 The audio stream could not be completed. Please retry your request, or try your request in unary mode if streaming continues to fail.";
+
+test("the explicit transient Gemini audio 400 retries unary without changing the voice or transcript", async () => {
+  const harness = runtime({ providerErrors: [new Error(incompleteAudioMessage)] });
+  const audio = await harness.api.generateAiMediaNarrationAudio(request);
+  assert.equal(audio.mimeType, "audio/wav");
+  assert.equal(harness.requests.length, 2);
+  assert.equal(harness.requests[0].stream, false);
+  assert.deepEqual(harness.requests[1], harness.requests[0]);
+  assert.ok(harness.requests[1].input.endsWith(request.narration.script));
+  assert.deepEqual(harness.events, ["construct", "reserve", "generate", "generate", "commit"]);
+});
+
+test("audio-completion retries stop at the existing three-attempt bound and release the reservation", async () => {
+  const harness = runtime({ providerErrors: Array.from({ length: 3 }, () => new Error(incompleteAudioMessage)) });
+  await assert.rejects(harness.api.generateAiMediaNarrationAudio(request), /ai_media_narration_failed/);
+  assert.equal(harness.requests.length, 3);
+  assert.equal(harness.reservation.state, "rolled_back");
+  assert.equal(harness.events.filter((event) => event === "commit").length, 0);
+});
+
+for (const message of ["400 Invalid voice", `400 content_blocked SAFETY ${incompleteAudioMessage}`]) {
+  test(`a permanent or policy TTS failure is not retried: ${message.slice(0, 30)}`, async () => {
+    const harness = runtime({ providerErrors: [Object.assign(new Error(message), { status: 400 })] });
+    await assert.rejects(harness.api.generateAiMediaNarrationAudio(request), /ai_media_narration_failed/);
+    assert.equal(harness.requests.length, 1);
+    assert.equal(harness.reservation.state, "rolled_back");
+  });
+}
 
 for (const durationSeconds of [8, 16, 24] as const) {
   test(`le TTS transmet intégralement le script et la durée ${durationSeconds} s`, async () => {

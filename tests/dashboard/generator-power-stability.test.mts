@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
 
 const dashboardClientSource = readFileSync(
   new URL("../../app/dashboard/DashboardClient.tsx", import.meta.url),
@@ -76,10 +77,17 @@ test("connection revalidation never commits an intermediate gauge value", () => 
     dashboardClientSource,
     /const \[generatorPowerRevalidating, setGeneratorPowerRevalidating\] = useState\(false\);/,
   );
-  assert.match(
-    dashboardClientSource,
-    /const refreshOfficialChannelStates = useCallback\(async \(\) => \{[\s\S]*setGeneratorPowerRevalidating\(true\)[\s\S]*finishPowerRevalidation/,
-  );
+  const tree = ts.createSourceFile("DashboardClient.tsx", dashboardClientSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let refreshCallback: ts.Expression | undefined;
+  const visit = (node: ts.Node) => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === "refreshOfficialChannelStates" && node.initializer && ts.isCallExpression(node.initializer)) {
+      refreshCallback = node.initializer.arguments[0];
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  assert.ok(refreshCallback, "the canonical refresh callback must exist");
+  assert.match(refreshCallback.getText(tree), /setGeneratorPowerRevalidating\(true\)[\s\S]*finishPowerRevalidation/);
   assert.match(
     dashboardClientSource,
     /const generatorPowerReady =[\s\S]*&& !generatorPowerRevalidating;/,

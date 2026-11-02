@@ -1,3 +1,7 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
+import { readFileSync as readDraftSessionSource } from "node:fs";
+const draftSession = readDraftSessionSource(new URL("../../app/dashboard/booster/publier/publicationDraftSession.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -13,6 +17,8 @@ const videoController = () =>
 const modal = () => read("app/dashboard/booster/publier/PublishModal.tsx");
 const shared = () =>
   read("app/dashboard/booster/publier/publishModal.shared.tsx");
+
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
 
 test("insertion image : la source part directement au workspace sans conversion Vercel", () => {
   assert.doesNotMatch(imageController(), /convertHeicOrHeifImageFile/);
@@ -31,11 +37,11 @@ test("insertion image : la source part directement au workspace sans conversion 
 });
 
 test("baseline génération : les médias IA sont préparés avant /api/booster/generate", () => {
-  const source = modal();
+  const source = generationController;
   assert.match(source, /getOrPrepareAiImagePayload/);
   assert.match(source, /getOrPrepareVideoFramesForAI/);
-  assert.match(source, /buildBoosterGenerationRequest/);
-  assert.match(source, /fetch\("\/api\/booster\/generate"/);
+  assert.match(generationController, /buildBoosterGenerationRequest/);
+  assert.match(generationController, /fetch\("\/api\/booster\/generate"/);
   assert.match(
     read("lib/boosterGenerationTransportClient.ts"),
     /transport:\s*"multipart"/,
@@ -43,17 +49,17 @@ test("baseline génération : les médias IA sont préparés avant /api/booster/
 });
 
 test("baseline publication immédiate prépare les médias avant trackEvent publish", () => {
-  const source = modal();
+  const source = submission;
   const uploadImageIndex = source.indexOf("uploadOriginalImagesForPublication(");
   const uploadVideoIndex = source.indexOf("uploadPublicationVideoForPublish()");
   const publishIndex = source.indexOf('trackEvent("publish"');
   assert.ok(uploadImageIndex >= 0 && uploadImageIndex < publishIndex);
   assert.ok(uploadVideoIndex >= 0 && uploadVideoIndex < publishIndex);
-  assert.match(source, /preparePublicationVideoVariants\(/);
+  assert.match(submission, /preparePublicationVideoVariants\(/);
 });
 
 test("baseline programmation prépare les mêmes médias avant scheduled-actions", () => {
-  const source = modal();
+  const source = submission;
   const scheduleIndex = source.indexOf("postBoosterScheduledAction(");
   assert.ok(scheduleIndex >= 0, "La route de programmation doit exister");
   const beforeSchedule = source.slice(Math.max(0, scheduleIndex - 16000), scheduleIndex);
@@ -64,9 +70,8 @@ test("baseline programmation prépare les mêmes médias avant scheduled-actions
 });
 
 test("baseline brouillon persiste puis restaure images et vidéo", () => {
-  const source = modal();
-  assert.match(source, /uploadPublicationDraftImages\(\)/);
-  assert.match(source, /buildPublicationDraftVideoPayload\(\)/);
+  assert.match(draftSession, /uploadPublicationDraftImages\(\)/);
+  assert.match(draftSession, /buildPublicationDraftVideoPayload\(\)/);
   assert.match(imageController(), /restorePublicationDraftImages/);
   assert.match(videoController(), /normalizeRestoredVideoVariants/);
 });

@@ -55,6 +55,7 @@ import { formatStableStatsValue, hasCommittedStatsSnapshot } from "./stats.clien
 import { Cube } from "./stats.ui";
 import { useDashboardViewerAccess } from "@/app/dashboard/_components/DashboardViewerAccessProvider";
 import { useDashboardEdition } from "@/app/dashboard/_components/DashboardEditionProvider";
+import { useInrAssistantRefresh } from "../_hooks/useInrAssistantRefresh";
 
 type StatsClientProps = {
   initialInrSearch?: {
@@ -171,7 +172,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     setOfficialChannelConnectionStatuses,
   });
 
-  const { handleSharedStatsRefresh } = useStatsDataController({
+  const { handleSharedStatsRefresh, refreshAssistantSnapshot } = useStatsDataController({
     period,
     refreshNonce,
     dailyBootReady,
@@ -196,6 +197,8 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     setInrSearchStats,
     includeMailStats: !standardMode,
   });
+
+  useInrAssistantRefresh({ topics: ["stats", "channels"], accountId: activeAccountId, blocked: isRefreshing || isGeneratingReport || !dailyBootReady, refresh: ({ canApply }) => refreshAssistantSnapshot(canApply) });
 
   const bulkStatsReady = summaryHydrated && !summaryOpp.loading;
   const inrBadgeStatsReady = hasCommittedStatsSnapshot(inrBadgeStats);

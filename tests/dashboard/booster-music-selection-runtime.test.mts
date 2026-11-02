@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
-import { chromium, type Locator, type Page } from "playwright";
+import { chromium, type Locator, type Page } from "@playwright/test";
 import ts from "typescript";
 import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 import { normalizeMediaSoundtrackByChannel } from "../../lib/mediaSoundtrackSelection.ts";
@@ -247,7 +247,7 @@ test("the actual Contents format row places inline music next to Meta formats on
 });
 
 test("actual Booster payloads preserve per-channel draft choices and filter publish or schedule music to generated Meta media",()=>{
- const source=ts.createSourceFile("PublishModal.tsx",read("app/dashboard/booster/publier/PublishModal.tsx"),ts.ScriptTarget.ES2022,true,ts.ScriptKind.TSX);
+ const source=ts.createSourceFile("BoosterDraftAndSubmission.tsx",[read("app/dashboard/booster/publier/PublishModal.tsx"),read("app/dashboard/booster/publier/publicationDraftSession.ts"),read("app/dashboard/booster/publier/publicationSubmission.ts"),read("app/dashboard/booster/publier/publicationSubmissionPayload.ts")].join("\n"),ts.ScriptTarget.ES2022,true,ts.ScriptKind.TSX);
  const contexts=new Map<string,ts.ObjectLiteralExpression>(),expressions=new Map<string,ts.Expression>();let restoration:ts.Expression|undefined;
  const visit=(node:ts.Node)=>{
   if(ts.isVariableDeclaration(node)&&node.initializer){const name=node.name.getText(source);if(name==="nextSoundtrackByChannel")restoration=node.initializer;if(["channelUsesGeneratedSoundtrack","canConfigureChannelSoundtrack","getPublicationSoundtracks"].includes(name))expressions.set(name,node.initializer)}

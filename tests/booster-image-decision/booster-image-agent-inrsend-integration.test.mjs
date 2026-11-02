@@ -1,3 +1,4 @@
+import { readAgentScheduleSource } from "../inragent/schedule-sources.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -7,7 +8,7 @@ const read = (path) => readFile(new URL(`../../${path}`, import.meta.url), "utf8
 test("iNrAgent immediate and scheduled publications use the shared intelligent image matrix", async () => {
   const [execute, schedule, helper] = await Promise.all([
     read("app/api/agent/actions/execute/route.ts"),
-    read("app/api/agent/actions/schedule/route.ts"),
+    readAgentScheduleSource(),
     read("lib/boosterImageServerPreparation.ts"),
   ]);
 
@@ -26,7 +27,7 @@ test("iNrAgent immediate and scheduled publications use the shared intelligent i
 
 test("iNrSend edit restarts from the preserved original without cumulative crop", async () => {
   const [client, publishRoute, publishFoundations, details] = await Promise.all([
-    read("app/dashboard/mails/MailboxClient.tsx"),
+    read("app/dashboard/mails/_hooks/useMailboxPublicationMedia.ts"),
     read("app/api/booster/publish-now/route.ts"),
     read("app/api/booster/publish-now/publishNow.foundations.ts"),
     read("app/dashboard/mails/_components/MailboxDetailsModal.tsx"),
@@ -39,7 +40,7 @@ test("iNrSend edit restarts from the preserved original without cumulative crop"
 });
 
 test("iNrAgent scheduled publication keeps Pinterest image parity and includes video pins", async () => {
-  const schedule = await read("app/api/agent/actions/schedule/route.ts");
+  const schedule = await readAgentScheduleSource();
   assert.match(schedule, /\| "pinterest"\s*\| "x";/);
   assert.match(schedule, /pinterest: "pinterest"/);
   assert.match(schedule, /if \(mode === "video"\) return channelHasVideo\(channel\)/);

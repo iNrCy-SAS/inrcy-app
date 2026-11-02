@@ -1,3 +1,4 @@
+import { readAgentScheduleSource } from "../inragent/schedule-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -35,7 +36,7 @@ const cron = read("app/api/cron/booster-publications/route.ts");
 const pinterestPublish = read("lib/pinterestPublish.ts");
 const inrsendActions = read("lib/inrsend/publicationChannelActions.ts");
 const agentExecute = read("app/api/agent/actions/execute/route.ts");
-const agentSchedule = read("app/api/agent/actions/schedule/route.ts");
+const agentSchedule = readAgentScheduleSource();
 const scheduledPublication = read("lib/inrAgentScheduledPublication.ts");
 const pinterestBranch = sliceBetween(
   route,
@@ -48,10 +49,11 @@ const durableVideoBranch = sliceBetween(
   'if (mediaModeByChannel[ch] !== "images")',
 );
 const continuationHelper = sliceBetween(
-  route,
+  read("app/api/booster/publish-now/publishNow.continuations.ts"),
   "async function queuePinterestVideoContinuation",
-  "async function getTiktokAccessToken",
+  "\n  return {",
 );
+assert.match(route, /clearAsyncFailureContext: \(\) => \{ asyncFailureContext = null; \}/);
 const cronDispatch = sliceBetween(
   cron,
   "async function dispatchChannelJob",
@@ -130,7 +132,7 @@ test("Pinterest waiting is polled inside the short request budget before durable
     'status: "queued"',
     'await setDelivery("pinterest"',
     "await failExecutionIdempotencyLock",
-    "asyncFailureContext = null",
+    "clearAsyncFailureContext()",
     "status: 202",
   ]);
   assert.match(continuationHelper, /pinterestVideoNextPollAt/);

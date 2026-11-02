@@ -87,8 +87,8 @@ test("the business DNA workspace clears profile and activity warnings immediatel
   const completionHook = read(
     "app/dashboard/_hooks/useDashboardCompletionChecks.ts",
   );
-  const combinedProfile = read(
-    "app/dashboard/settings/_components/ProfileAndActivityContent.tsx",
+  const dnaContent = read(
+    "app/dashboard/settings/_components/AiMemoryContent.tsx",
   );
 
   assert.match(
@@ -101,8 +101,8 @@ test("the business DNA workspace clears profile and activity warnings immediatel
   );
   assert.match(completionHook, /const markProfileCompleted = useCallback/);
   assert.match(completionHook, /const markActivityCompleted = useCallback/);
-  assert.match(combinedProfile, /onProfileSaved=\{onProfileSaved\}/);
-  assert.match(combinedProfile, /onActivitySaved=\{onActivitySaved\}/);
+  assert.match(dnaContent, /onProfileSaved=\{onProfileSaved\}/);
+  assert.match(dnaContent, /onActivitySaved=\{onActivitySaved\}/);
 });
 
 test("account creation and password completion no longer create launch state", () => {

@@ -14,7 +14,7 @@ import {
 } from "@/lib/aiMediaGenerationContracts";
 import { classifyAiMediaGenerationError, getAiMediaGenerationPublicError } from "@/lib/aiMediaGenerationPublicErrors";
 import { AI_MEDIA_PROMPT_VERSION } from "@/lib/aiMediaGenerationPrompt";
-import { AI_MEDIA_FREE_PROMPT_VERSION } from "@/lib/aiMediaFreeGenerationPrompt";
+import { AI_MEDIA_FREE_PROMPT_VERSION, assertAiMediaFreeExactNarrationFits } from "@/lib/aiMediaFreeGenerationPrompt";
 import {
   AiMediaGenerationQuotaError,
   completeAiMediaGeneration,
@@ -336,6 +336,12 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
       compatibleRequestBody,
     );
     context.requestId = normalizedRequest.requestId;
+
+    try { assertAiMediaFreeExactNarrationFits(normalizedRequest); }
+    catch (error) {
+      if (error instanceof AiMediaRequestValidationError) return publicGenerationError(error);
+      throw error;
+    }
 
     // Une image n'a aucune durée vidéo à autoriser. Éviter cette lecture
     // Supabase sur son chemin critique raccourcit chaque génération d'image.

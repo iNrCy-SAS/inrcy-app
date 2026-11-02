@@ -1,3 +1,4 @@
+import { readAgentPublicationPreparationSource } from "../inragent/prepare-publication-sources.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -11,6 +12,7 @@ import {
 
 const root = process.cwd();
 const read = (path: string) => readFileSync(join(root, path), "utf8");
+const draftSession = read("app/dashboard/booster/publier/publicationDraftSession.ts");
 const fingerprint = "a".repeat(64);
 const reference = {
   schemaVersion: 1 as const,
@@ -19,6 +21,8 @@ const reference = {
   preparationVersion: 1,
   sourceFingerprint: fingerprint,
 };
+
+const generationController = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
 
 test("la référence vidéo iNrSend est strictement normalisée", () => {
   assert.deepEqual(normalizeVideoAiContextReference(reference), reference);
@@ -78,7 +82,7 @@ test("une modification du même brouillon conserve la référence, un remplaceme
 });
 
 test("iNrAgent transmet la référence persistante au brouillon iNrSend", () => {
-  const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
+  const prepare = readAgentPublicationPreparationSource();
   const actions = read("app/api/agent/actions/route.ts");
 
   assert.match(prepare, /buildVideoAiContextReference\(/);
@@ -92,16 +96,16 @@ test("la génération cutover conserve la référence et un fallback local born�
   const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
 
   assert.match(
-    modal,
+    generationController,
     /hasVideoForGeneration &&[\s\S]*videoFile &&[\s\S]*!videoAiContextRef[\s\S]*settleOptionalMediaEnrichment/,
   );
   assert.doesNotMatch(
-    modal,
+    [modal, generationController].join("\n"),
     /hasVideoForGeneration &&[\s\S]{0,180}!videoAiContextRef &&[\s\S]{0,80}!mediaPipelineCutoverEnabled/,
   );
-  assert.match(modal, /contextRef: videoAiContextRef/);
-  assert.match(modal, /i18nT\("generation_video_analysis_reused"\)/);
-  assert.match(modal, /videoAiContextReferenceAliases\(videoAiContextRef\)/);
+  assert.match(generationController, /contextRef: videoAiContextRef/);
+  assert.match(generationController, /i18nT\("generation_video_analysis_reused"\)/);
+  assert.match(draftSession, /videoAiContextReferenceAliases\(videoAiContextRef\)/);
 
   const generate = read("app/api/booster/generate/route.ts");
   assert.match(generate, /workspace_ai_video_deadline_exceeded/);

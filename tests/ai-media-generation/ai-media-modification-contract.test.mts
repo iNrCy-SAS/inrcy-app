@@ -459,7 +459,7 @@ test("la consigne Modifier Image conserve jusqu'à 1 200 caractères de bout en 
   const hook = readFileSync(
     path.resolve("app/dashboard/_hooks/useMediaGeneration.ts"),
     "utf8"
-  );
+  ) + "\n" + readFileSync(path.resolve("lib/mediaGenerationClientRequest.ts"), "utf8");
   const promptSource = readFileSync(
     path.resolve("lib/aiMediaModificationPrompt.ts"),
     "utf8"

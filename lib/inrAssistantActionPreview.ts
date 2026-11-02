@@ -46,8 +46,17 @@ export function hasAssistantActionApproval(message: string, quote: string, refer
   // Data quoted by the pro must not turn into an instruction to execute it.
   const unquoted = message.replace(/```[\s\S]*?(?:```|$)|`[^`]*`|«[^»]*»|“[^”]*”|"[^"]*"|^>.*$/gm, " ");
   if (!unquoted.includes(quote)) return false;
-  const normalized = message.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  if (/\b(?:comment|pourquoi|explique|imagine|suppose|si je|si on|si tu|ne pas|not|never)\b|\bne\b.{0,60}\bpas\b|n[’'](?:applique|execute|envoie)|\b(?:applique|confirme|execute|valide)\s+pas\b|\b(?:demain|plus tard|si possible plus tard)\b/.test(normalized)) return false;
+  const normalized = unquoted.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  // A negation remains a veto even after an auxiliary request to read/explain.
+  if (/\b(?:ne pas|not|never)\b|\bne\b.{0,60}\bpas\b|n[’'](?:applique|execute|envoie)|\b(?:applique|confirme|execute|valide)\s+pas\b/.test(normalized)) return false;
+  const referenceEnd = normalized.indexOf(reference.toLowerCase()) + reference.length;
+  const following = normalized.slice(referenceEnd);
+  // "Confirme IA-... et indique si ..." approves now and asks a separate
+  // read. A condition on the approval itself must never authorize a write.
+  const readClause = following.search(/\b(?:et|puis|ensuite|and|then)\s+(?:dis(?:[ -]moi)?|indique\w*|explique\w*|montre\w*|affiche\w*|lis|liste\w*|verifie\w*|tell|show|explain|check|read)\b/);
+  const approval = normalized.slice(0, referenceEnd) + (readClause < 0 ? following : following.slice(0, readClause));
+  if (/\b(?:comment|pourquoi|explique|imagine|suppose|si|if|quand|when|lorsque|unless|until|apres|after|avant|before)\b|\blorsqu['’]|\b(?:a condition|sous reserve|une fois)\b/.test(approval)) return false;
+  if (/\b(?:demain|plus tard|tout a l['’]heure|ce soir|cet apres.midi|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|tomorrow|later)\b|\b(?:dans|in)\s+(?:\d+|un|une|deux|trois|quelques)\s*(?:secondes?|minutes?|heures?|jours?|semaines?|mois|seconds?|hours?|days?)\b|\b(?:a|vers|at)\s+\d{1,2}\s*(?:h|:)|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/.test(approval)) return false;
   return /\b(?:confirme|valide|applique|execute|autorise)\b/.test(quote.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase());
 }
 export function calendarEventFingerprint(row: RecordValue) {

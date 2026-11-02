@@ -3,7 +3,7 @@ import test from "node:test";
 import { resolveAiMediaEditorialReasoning } from "../../lib/aiGatewayReasoning.ts";
 
 test("media copy retains output budget on gateway and direct GPT-5.6 paths", () => {
-  for (const feature of ["media.image", "media.video"]) {
+  for (const feature of ["media.image", "media.video", "agent.stats-report"]) {
     for (const model of ["openai/gpt-5.6-luna", "gpt-5.6-luna", "openai/gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.6"]) {
       assert.deepEqual(resolveAiMediaEditorialReasoning(feature, model), { effort: "none" });
     }
@@ -20,7 +20,7 @@ test("does not send unsupported reasoning options to another provider or workflo
 });
 
 test("the Gemini media fallback uses its supported low effort to leave room for complete JSON", () => {
-  for (const feature of ["media.image", "media.video"]) {
+  for (const feature of ["media.image", "media.video", "agent.stats-report"]) {
     assert.deepEqual(resolveAiMediaEditorialReasoning(feature, "google/gemini-3-flash"), { effort: "low" });
   }
 });

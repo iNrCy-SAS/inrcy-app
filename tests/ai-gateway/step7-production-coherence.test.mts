@@ -1,3 +1,4 @@
+import { readAgentPublicationPreparationSource } from "../inragent/prepare-publication-sources.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -19,7 +20,7 @@ test("matrix/full live QA goes through the real production generation pipeline",
 });
 
 test("iNrAgent sends the selected image into shared AI media understanding", () => {
-  const route = read("app/api/agent/actions/prepare-publish/route.ts");
+  const route = readAgentPublicationPreparationSource();
 
   assert.match(route, /prepareAgentSelectedImageForAI/);
   assert.match(route, /imagesForAI:\s*args\.imagesForAI/);
@@ -50,7 +51,7 @@ test("full live QA certifies all nine supported languages", () => {
 });
 
 test("iNrAgent reuses Booster cached professional and publication context", () => {
-  const route = read("app/api/agent/actions/prepare-publish/route.ts");
+  const route = readAgentPublicationPreparationSource();
 
   assert.match(route, /getBoosterGenerationContext/);
   assert.match(route, /const \{ profile, business, recentPublications \}/);

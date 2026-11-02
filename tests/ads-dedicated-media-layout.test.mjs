@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 
 const css = await readFile(new URL("../app/dashboard/ads/ads.module.css", import.meta.url), "utf8");
 const image = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="#2455aa"/><rect x="5" y="5" width="590" height="390" fill="none" stroke="white" stroke-width="10"/></svg>')}`;

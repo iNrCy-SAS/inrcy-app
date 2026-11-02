@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type ComponentPropsWithoutRef } from "react";
+import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState, type ChangeEvent, type ComponentPropsWithoutRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -19,7 +19,7 @@ import type { MediaGenerationResult } from "@/app/dashboard/_hooks/useMediaGener
 import { uploadFileToMediaLibrary } from "@/lib/mediaLibraryUploadClient";
 import PreparedAdsNativeControls, { type PreparedNativeReadiness } from "./PreparedAdsNativeControls";
 import XAdsLocationPicker from "./XAdsLocationPicker";
-import { createReviewedPausedCampaign, preparedNativeBlockerLabel, preparedNativeBlockerStep, preparedXCopyWithDestination, PREPARED_TIKTOK_CTA_LABELS } from "@/lib/adsPreparedNativeClient";
+import { createReviewedPausedCampaign, preparedNativeBlockerLabel, preparedNativeBlockerStep, PREPARED_TIKTOK_CTA_LABELS } from "@/lib/adsPreparedNativeClient";
 import { xAdsResourcesConsentKey, type XAdsResources } from "@/lib/adsXResources";
 import { TIKTOK_TRAFFIC_GEOGRAPHY_CONTEXT } from "@/lib/adsTikTokResources";
 import { linkedInAdsConnectionErrorMessage } from "@/lib/adsLinkedInConnectionDisplay";
@@ -34,7 +34,6 @@ import {
   type AdsCampaignInput,
   type AdsChannelId,
   type AdsCreationMode,
-  type AdsDraftAccountChannel,
   type AdsProvider,
 } from "@/lib/adsValidation";
 import { ADS_LIVE_PUBLISH_CONFIRMATION, ADS_PAUSED_PUBLISH_CONFIRMATION, unsupportedAdsConnectorReason } from "@/lib/adsPublishMode";
@@ -55,10 +54,9 @@ import {
   META_ADS_FEED_IMAGE_REQUIREMENTS,
   META_ADS_STORY_REEL_IMAGE_REQUIREMENTS,
 } from "@/lib/adsCampaignMediaPolicy";
-import { isPossiblyTruncatedLinkedInSignal, presentAdsCampaignRationale, type AdsCampaignPlan } from "@/lib/adsCampaignPlan";
+import { presentAdsCampaignRationale, type AdsCampaignPlan } from "@/lib/adsCampaignPlan";
 import { assessAdsChannelDraft, type AdsChannelDraft } from "@/lib/adsChannelDrafts";
 import {
-  adsChannelWizardSettingsFromBrief,
   defaultAdsChannelWizardSettings,
   LINKEDIN_WIZARD_FORMATS,
   PINTEREST_WIZARD_OBJECTIVES,
@@ -70,7 +68,6 @@ import {
   type TikTokWizardSettings,
   type XWizardSettings,
 } from "@/lib/adsChannelWizardSettings";
-import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
 import { preparePinterestTargetingTransition } from "@/lib/adsPinterestTargetingTransition";
 import {
   adsDraftHasKeywordsStep,
@@ -109,7 +106,7 @@ import LinkedInAdsLocationPicker from "./LinkedInAdsLocationPicker";
 import LinkedInAdsAudience from "./LinkedInAdsAudience";
 import { LinkedInAdsBudget, LinkedInAdsCallToAction, LinkedInAdsDistribution, LinkedInAdsEffectiveSummary, LINKEDIN_CTA_LABELS } from "./LinkedInAdsDelivery";
 import { defaultLinkedInDeliverySettings, LINKEDIN_IMAGE_OBJECTIVES, type LinkedInDeliverySettings } from "@/lib/adsLinkedInCampaignSettings";
-import { linkedInCallToActionFromLabel, type LinkedInAudienceSuggestion } from "@/lib/adsLinkedInAudienceSuggestions";
+import { type LinkedInAudienceSuggestion } from "@/lib/adsLinkedInAudienceSuggestions";
 import { defaultGoogleDeliverySettings, googleSearchLocalIssue, type GoogleDeliverySettings } from "@/lib/adsGoogleCampaignSettings";
 import { googleAdsResourcesConsentKey, type GoogleAdsAccountResources } from "@/lib/adsGoogleResources";
 import { GoogleAdsBidding, GoogleAdsGeography, GoogleAdsKeywords, GoogleAdsRSAFields, GoogleAdsBudget, GoogleAdsMeasurement, GoogleAdsEffectiveSummary } from "./GoogleAdsCampaignControls";
@@ -128,6 +125,9 @@ import { defaultPreparedDeliverySettings, plannedNativeCalendar, type PreparedDe
 import { preparedAdsReviewDetails } from "@/lib/adsPreparedReview";
 import { tikTokAdsResourcesConsentKey, type TikTokAdsResources } from "@/lib/adsTikTokResources";
 import { PreparedAdsBudget, PreparedAdsBidding, PreparedAdsEffectiveSummary, preparedAdsBudgetLabel } from "./PreparedAdsCampaignControls";
+import useAdsExternalConnections, { EXTERNAL_CHANNELS, isExternalChannel, type ExternalChannelId, type ExternalAdsAccount, type ExternalConnectorStatus } from "./useAdsExternalConnections";
+import { readJson, type AdsApiRequestError } from "./adsClientHttp";
+import { projectAdsCampaignPlan, nativeBriefCopy, nativeWizardObjective, nativeWizardGenericObjective, nativeWizardMediaStrategy } from "@/lib/adsCampaignPlanClient";
 import styles from "./ads.module.css";
 
 type StoredCampaign = StoredAdsCampaign;
@@ -198,38 +198,6 @@ type AccountResponse = {
   error?: string;
 };
 
-const EXTERNAL_CHANNELS = ["linkedin", "tiktok", "pinterest", "x"] as const;
-type ExternalChannelId = (typeof EXTERNAL_CHANNELS)[number];
-type ExternalAdsAccount = {
-  id: string;
-  name: string;
-  currency?: string | null;
-  status?: string;
-  eligibleToAssociate?: boolean | null;
-  canManageCampaigns?: boolean;
-  canServeCampaigns?: boolean;
-};
-type ExternalAccountsCacheEntry = {
-  accounts: ExternalAdsAccount[];
-  choice: string;
-  loaded: boolean;
-  failed: boolean;
-};
-type ExternalConnectorStatus = {
-  load: "idle" | "loading" | "ready" | "error";
-  configured: boolean;
-  connected: boolean;
-  status: string;
-  selectedAccountId: string;
-  selectedAccountName: string;
-  scopes?: string[];
-  missingScopes?: string[];
-  selectedAccountCanManage?: boolean;
-  selectedAccountCanServe?: boolean;
-  publicationEnabled?: boolean;
-  error: string;
-};
-
 type LinkedInCampaignGroupOption = LinkedInAdsCampaignGroup;
 
 type LinkedInOrganizationOption = {
@@ -277,25 +245,6 @@ function linkedInOrganizationLabel(organization: LinkedInOrganizationOption): st
   return `${organization.name?.trim() || "Page LinkedIn"} · ID ${id} · ${role}`;
 }
 
-function isExternalChannel(value: unknown): value is ExternalChannelId {
-  return typeof value === "string" && EXTERNAL_CHANNELS.some((channel) => channel === value);
-}
-
-function externalStatusFromSnapshot(snapshot: AdsConnectionSnapshot): ExternalConnectorStatus {
-  return {
-    load: snapshot.status === "unknown" ? "idle" : "ready",
-    configured: true,
-    connected: snapshot.status === "connected",
-    status: snapshot.status,
-    selectedAccountId: snapshot.accountId,
-    selectedAccountName: snapshot.accountLabel,
-    selectedAccountCanManage: false,
-    selectedAccountCanServe: false,
-    publicationEnabled: false,
-    error: "",
-  };
-}
-
 function externalStatusDisplay(status: ExternalConnectorStatus): { label: string; tone: string } {
   // A remote refresh must not temporarily hide the durable Ads association.
   if ((status.load === "idle" || status.load === "loading" || status.load === "error") && status.status === "unknown") return { label: "Vérification…", tone: "loading" };
@@ -305,8 +254,6 @@ function externalStatusDisplay(status: ExternalConnectorStatus): { label: string
   if (status.connected) return { label: "Compte à associer", tone: "select-account" };
   return { label: "À connecter", tone: "disconnected" };
 }
-
-const EXTERNAL_DISCONNECT_CHANNELS: readonly ExternalChannelId[] = ["linkedin", "pinterest", "tiktok", "x"];
 
 // Every channel can be prepared here. Publication is enabled only for the
 // deliberately supported connector paths and the readiness returned by each platform.
@@ -402,15 +349,6 @@ const META_PLACEMENT_OPTIONS: { value: AdsCampaignInput["metaPlacements"][number
   { value: "messenger", label: "Messenger", format: "bientôt", disabled: true },
 ];
 
-const BID_STRATEGY_OPTIONS: { value: AdsCampaignInput["bidStrategy"]; label: string }[] = [
-  { value: "maximize_conversions", label: "Maximiser les conversions" },
-  { value: "maximize_clicks", label: "Maximiser les clics" },
-  { value: "maximize_value", label: "Maximiser la valeur" },
-  { value: "target_cpa", label: "Préparer un coût par prospect cible" },
-  { value: "target_roas", label: "Préparer un ROAS cible" },
-  { value: "manual_review", label: "À valider avec mon expert" },
-];
-
 const MEDIA_STRATEGY_OPTIONS: { value: AdsCampaignInput["mediaStrategy"]; label: string }[] = [
   { value: "search_text", label: "Annonces textuelles" },
   { value: "image", label: "Images" },
@@ -487,19 +425,6 @@ function newDraft(provider: AdsChannelId): AdsCampaignInput {
   };
 }
 
-function nativeBriefCopy(brief: AdsChannelDraft) {
-  switch (brief.channel) {
-    case "linkedin":
-      return { message: brief.creative.introText, headline: brief.creative.headline, media: brief.creative.mediaBrief, destination: brief.creative.destinationUrl };
-    case "tiktok":
-      return { message: brief.creative.adText, headline: brief.creative.adText, media: brief.creative.videoBrief, destination: brief.creative.destinationUrl };
-    case "pinterest":
-      return { message: brief.creative.pinDescription, headline: brief.creative.pinTitle, media: brief.creative.visualBrief, destination: brief.creative.destinationUrl };
-    case "x":
-      return { message: brief.creative.postText, headline: brief.creative.postText, media: brief.creative.mediaBrief, destination: brief.creative.destinationUrl };
-  }
-}
-
 const NATIVE_BRIEF_TERMS: Record<string, string> = {
   BRAND_AWARENESS: "Notoriété", WEBSITE_VISIT: "Visites du site", ENGAGEMENT: "Engagement",
   VIDEO_VIEW: "Vues vidéo", LEAD_GENERATION: "Prospects", WEBSITE_CONVERSION: "Conversions du site",
@@ -519,33 +444,10 @@ const NATIVE_BRIEF_TERMS: Record<string, string> = {
   audiences: "Audiences existantes", conversions: "Conversions", clicks: "Clics", views: "Vues",
 };
 
-function nativeWizardObjective(settings: AdsChannelWizardSettings): string {
-  return settings.channel === "x" ? settings.objective : settings.objectiveType;
-}
-
 function nativeWizardFormat(settings: AdsChannelWizardSettings): string {
   return settings.channel === "pinterest"
     ? settings.intendedPromotionType === "CATALOG" ? "Catalogue" : nativeBriefTerm(settings.creativeType || "REGULAR")
     : nativeBriefTerm(settings.format);
-}
-
-function nativeWizardGenericObjective(settings: AdsChannelWizardSettings): AdsCampaignInput["objective"] {
-  const objective = nativeWizardObjective(settings);
-  if (["BRAND_AWARENESS", "REACH", "AWARENESS", "reach"].includes(objective)) return "awareness";
-  if (["LEAD_GENERATION", "LEADS"].includes(objective)) return "leads";
-  if (["WEBSITE_CONVERSION", "WEB_CONVERSIONS", "SALES", "website_conversions"].includes(objective)) return "sales";
-  if (["ENGAGEMENT", "VIDEO_VIEW", "VIDEO_VIEWS", "VIDEO_COMPLETION", "engagement", "video_views"].includes(objective)) return "engagement";
-  return "website_traffic";
-}
-
-function nativeWizardMediaStrategy(settings: AdsChannelWizardSettings): AdsCampaignInput["mediaStrategy"] {
-  if (settings.channel === "tiktok") return "video";
-  if (settings.channel === "pinterest") {
-    if (settings.intendedPromotionType === "CATALOG") return "product_feed";
-    return settings.creativeType === "VIDEO" || settings.creativeType === "MAX_VIDEO" ? "video" : "image";
-  }
-  if (settings.channel === "x" && settings.format === "text") return "search_text";
-  return settings.format === "video" || settings.format === "SINGLE_VIDEO" ? "video" : "image";
 }
 
 function nativeBriefTerm(value: string) {
@@ -702,39 +604,6 @@ function applyDraftEdit(current: AdsCampaignInput, next: Partial<AdsCampaignInpu
     if (brief.channel === "tiktok" || brief.channel === "x") updated.headlines = [updated.primaryText, ...updated.headlines.slice(1)];
   }
   return { ...updated, channelDraft };
-}
-
-type AdsApiRequestError = Error & {
-  code?: string;
-  requestId?: string;
-  status?: number;
-};
-
-async function readJson(response: Response) {
-  const data = await response.json().catch(() => ({})) as Record<string, unknown>;
-  if (!response.ok) {
-    const message = String(data.error || "Le service est momentanément indisponible. Réessayez dans un instant.");
-    const error = new Error(
-      /migration|stockage|relation .* does not exist/i.test(message)
-        ? "L’enregistrement des campagnes sera bientôt disponible. Vous pouvez déjà préparer vos messages."
-        : message,
-    ) as AdsApiRequestError;
-    error.code = typeof data.code === "string" ? data.code : undefined;
-    error.requestId = typeof data.requestId === "string" ? data.requestId : undefined;
-    error.status = response.status;
-    throw error;
-  }
-  return data;
-}
-
-async function readAdsConnectionStatus(response: Response) {
-  if (!response.ok) {
-    const data = await response.clone().json().catch(() => ({})) as Record<string, unknown>;
-    // A provider error can carry a confirmed revocation. Do not preserve an
-    // old green snapshot when the server explicitly reports that disconnection.
-    if (data.connected === false && ["needs_update", "needs_reconnect", "disconnected"].includes(String(data.status))) return data;
-  }
-  return readJson(response);
 }
 
 function editableList(items: string[]) { return items.join("\n"); }
@@ -1230,20 +1099,17 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const providerAccountsCache = useRef<Partial<Record<AdsProvider, AccountResponse>>>({});
   const providerAccountsFetchedRevision = useRef<Record<AdsProvider, number>>({ meta: -1, google: -1 });
   const [configAction, setConfigAction] = useState<AdsConfigAction>(null);
-  const [externalStatuses, setExternalStatuses] = useState<Record<ExternalChannelId, ExternalConnectorStatus>>({
-    linkedin: externalStatusFromSnapshot(initialConnections.linkedin), tiktok: externalStatusFromSnapshot(initialConnections.tiktok),
-    pinterest: externalStatusFromSnapshot(initialConnections.pinterest), x: externalStatusFromSnapshot(initialConnections.x),
-  });
+  const {
+    externalStatuses, externalAccounts, externalAccountChoice, externalAccountsLoading,
+    externalAccountsLoadFailed, externalAction, externalError, setExternalError,
+    refreshExternalStatus, loadExternalAccounts, associateExternalAccount, disconnectExternalChannel,
+    clearExternalAccountsCache, cancelExternalAccountsLoad, stopExternalAccountsLoading,
+    hydrateExternalChannel, selectExternalAccount, mergeExternalStatus, externalAccountsLoaded,
+  } = useAdsExternalConnections({ initialChannel, initialConnections, setConnectionSnapshots });
   const [openaiAccountReady, setOpenaiAccountReady] = useState(false);
   const [openaiLiveReady, setOpenaiLiveReady] = useState(false);
   const [openaiReadinessMessage, setOpenaiReadinessMessage] = useState("");
   const [openaiLiveReadinessMessage, setOpenaiLiveReadinessMessage] = useState("");
-  const [externalAccounts, setExternalAccounts] = useState<ExternalAdsAccount[]>([]);
-  const [externalAccountChoice, setExternalAccountChoice] = useState(initialConnections[initialChannel].accountId);
-  const [externalAccountsLoading, setExternalAccountsLoading] = useState(false);
-  const [externalAccountsLoadFailed, setExternalAccountsLoadFailed] = useState(false);
-  const [externalAction, setExternalAction] = useState<"associate" | "disconnect" | null>(null);
-  const [externalError, setExternalError] = useState("");
   const [linkedInPreflight, setLinkedInPreflight] = useState<LinkedInAdsPreflightResponse | null>(null);
   const [linkedInPreflightLoad, setLinkedInPreflightLoad] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [linkedInPreflightError, setLinkedInPreflightError] = useState("");
@@ -1258,14 +1124,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const linkedInManualGroupId = useRef<string | null>(null);
   const linkedInPlanEndIsExplicit = useRef(true);
   const linkedInResourcesLoader = useRef<(force?: boolean, geoQueryOverride?: string) => Promise<void>>(async () => undefined);
-  const externalAccountsRequest = useRef(0);
-  const externalAccountsCache = useRef<Record<ExternalChannelId, ExternalAccountsCacheEntry>>({
-    linkedin: { accounts: [], choice: initialConnections.linkedin.accountId, loaded: false, failed: false },
-    pinterest: { accounts: [], choice: initialConnections.pinterest.accountId, loaded: false, failed: false },
-    tiktok: { accounts: [], choice: initialConnections.tiktok.accountId, loaded: false, failed: false },
-    x: { accounts: [], choice: initialConnections.x.accountId, loaded: false, failed: false },
-  });
-  const externalStatusRequests = useRef<Record<ExternalChannelId, number>>({ linkedin: 0, pinterest: 0, tiktok: 0, x: 0 });
   const [busy, setBusy] = useState<CampaignBusyAction>(null);
   const [draftsRevision, setDraftsRevision] = useState(0);
   const demoSubmissionRef = useRef(false);
@@ -1452,13 +1310,14 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     return () => abort.abort();
   }, [creating, channelId, googleResourceAccountId, googleResourcesRevision]);
 
+  const googleLocationsKey = JSON.stringify(draft.targetLocations);
   const googleGeoKey = JSON.stringify({ accountId: googleResourceAccountId, locations: draft.targetLocations });
   const googleGeoReady = googleGeoState.key === googleGeoKey && googleGeoState.status === "ready";
   useEffect(() => {
-    if (!creating || channelId !== "google" || draft.campaignType !== "search" || !googleResourceAccountId || !draft.targetLocations.length
+    if (!creating || channelId !== "google" || draft.campaignType !== "search" || !googleResourceAccountId || !(JSON.parse(googleLocationsKey) as string[]).length
       || googleResolvedGeoKey.current === googleGeoKey) return;
     const abort = new AbortController();
-    const expectedLocations = JSON.stringify(draft.targetLocations);
+    const expectedLocations = googleLocationsKey;
     setGoogleGeoState({ key: googleGeoKey, status: "loading", error: "" });
     setConfirmedSpend(false); linkedInLaunchConsent.current = null;
     void fetch(`/api/ads/google/geography?locations=${encodeURIComponent(expectedLocations)}`, { cache: "no-store", signal: abort.signal }).then(readJson).then((result) => {
@@ -1481,7 +1340,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       setGoogleGeoState({ key: googleGeoKey, status: "error", error: error instanceof Error ? error.message : "Les zones Google Ads n’ont pas pu être vérifiées." });
     });
     return () => abort.abort();
-  }, [creating, channelId, draft.campaignType, googleResourceAccountId, googleGeoKey, googleGeoRevision, configuredAccountId]);
+  }, [creating, channelId, draft.campaignType, googleResourceAccountId, googleGeoKey, googleLocationsKey, googleGeoRevision, configuredAccountId]);
 
   const preparedDelivery = draft.preparedDeliverySettings || defaultPreparedDeliverySettings();
   const preparedOnlyChannel = channelId === "x" || channelId === "tiktok";
@@ -1572,13 +1431,17 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setDirty(true);
   }, [creating, channelId, openaiResourceAccountId, draft.adAccountId]);
   const openaiLocationsKey = JSON.stringify(draft.targetLocations);
+  // Read the staged search text when a search/context request starts, not per keystroke.
+  const onOpenaiResourcesRequested = useEffectEvent((accountId: string, locationsKey: string, signal: AbortSignal) => {
+    const url = `/api/ads/openai/resources?accountId=${encodeURIComponent(accountId)}&queries=${encodeURIComponent(JSON.stringify(JSON.parse(locationsKey)))}${openaiGeoQuery.trim().length >= 2 ? `&q=${encodeURIComponent(openaiGeoQuery.trim())}` : ""}`;
+    return fetch(url, { cache: "no-store", signal }).then(readJson);
+  });
   useEffect(() => {
     if (!creating || channelId !== "openai" || !openaiResourceAccountId) return;
     const abort = new AbortController();
     setOpenaiResources(null); setOpenaiResourcesLoad("loading"); setOpenaiResourcesError("");
     setConfirmedSpend(false); linkedInLaunchConsent.current = null;
-    const url = `/api/ads/openai/resources?accountId=${encodeURIComponent(openaiResourceAccountId)}&queries=${encodeURIComponent(JSON.stringify(JSON.parse(openaiLocationsKey)))}${openaiGeoQuery.trim().length >= 2 ? `&q=${encodeURIComponent(openaiGeoQuery.trim())}` : ""}`;
-    void fetch(url, { cache: "no-store", signal: abort.signal }).then(readJson).then((value) => {
+    void onOpenaiResourcesRequested(openaiResourceAccountId, openaiLocationsKey, abort.signal).then((value) => {
       if (abort.signal.aborted) return;
       const resources = value as OpenaiAdsResources;
       if (resources.selectedAccountId !== openaiResourceAccountId || resources.account?.id !== openaiResourceAccountId) throw new Error("Le compte ChatGPT Ads a changé. Revérifiez la connexion.");
@@ -1775,9 +1638,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     ? accounts.find((account) => account.id === configuredAccountId && account.provider === channelId && adsAccountCanBeAssociated(account))
     : undefined;
   const associatedAccountName = configuredAdvertiserAccount?.name || configuredAccountLabel || (configuredAccountId ? `Compte ${configuredAccountId}` : "");
-  const configuredAdvertiserAccountUrl = configuredAccountId && isAdsProvider(channelId)
-    ? getAdsAdvertiserAccountUrl(channelId, configuredAccountId)
-    : null;
   const metaNeedsInstagramIdentity = channelId === "meta" && metaPlacementsNeedInstagramIdentity(draft.metaPlacements);
   const configuredMetaPage = channelId === "meta"
     ? pages.find((page) => page.id === configuredPageId)
@@ -1860,58 +1720,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     if (pilotChannelsEnabled || isAdsPublicChannel("openai")) void refreshOpenaiStatus();
   }, [pilotChannelsEnabled, refreshOpenaiStatus]);
 
-  const refreshExternalStatus = useCallback(async (channel: ExternalChannelId, options?: { silent?: boolean }) => {
-    const requestId = ++externalStatusRequests.current[channel];
-    setExternalStatuses((current) => ({
-      ...current,
-      [channel]: {
-        ...current[channel],
-        load: options?.silent && current[channel].load === "ready" ? "ready" : "loading",
-        publicationEnabled: channel === "linkedin" ? false : current[channel].publicationEnabled,
-        error: "",
-      },
-    }));
-    try {
-      const data = await readAdsConnectionStatus(await fetch(`/api/ads/${channel}/status`, { cache: "no-store" }));
-      if (requestId !== externalStatusRequests.current[channel]) return;
-      const status = typeof data.status === "string" ? data.status : "disconnected";
-      const selectedAccountId = typeof data.selectedAccountId === "string" ? data.selectedAccountId : "";
-      const selectedAccountName = typeof data.selectedAccountName === "string" ? data.selectedAccountName
-        : typeof data.selectedAccountLabel === "string" ? data.selectedAccountLabel : "";
-      const scopes = Array.isArray(data.scopes) ? data.scopes.filter((scope): scope is string => typeof scope === "string") : [];
-      const missingScopes = Array.isArray(data.missingScopes) ? data.missingScopes.filter((scope): scope is string => typeof scope === "string") : [];
-      setExternalStatuses((current) => ({
-        ...current,
-        [channel]: {
-          load: "ready",
-          configured: data.configured !== false && status !== "not_configured" && status !== "configuration_missing",
-          connected: data.connected === true,
-          status,
-          selectedAccountId,
-          selectedAccountName,
-          scopes,
-          missingScopes,
-          selectedAccountCanManage: data.selectedAccountCanManage === true,
-          selectedAccountCanServe: data.selectedAccountCanServe === true,
-          publicationEnabled: data.publicationEnabled === true,
-          error: "",
-        },
-      }));
-      setConnectionSnapshots((current) => ({ ...current, [channel]: {
-        status: status === "connected" ? "connected" : status === "needs_update" || status === "needs_reconnect" ? "needs_update" : "disconnected",
-        accountId: selectedAccountId,
-        accountLabel: selectedAccountName,
-        pageId: "",
-      } }));
-    } catch (error) {
-      if (requestId !== externalStatusRequests.current[channel]) return;
-      setExternalStatuses((current) => ({
-        ...current,
-        [channel]: { ...current[channel], load: "error", error: error instanceof Error ? error.message : "État indisponible." },
-      }));
-    }
-  }, []);
-
   useEffect(() => {
     if ((pilotChannelsEnabled || isAdsPublicChannel(channelId)) && isExternalChannel(channelId) && externalStatuses[channelId].load === "idle") void refreshExternalStatus(channelId);
   }, [channelId, externalStatuses, pilotChannelsEnabled, refreshExternalStatus]);
@@ -1931,12 +1739,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setConfirmedDestinationUrl("");
     setNotice("");
     if (params.has("connection")) {
-      externalAccountsCache.current[callbackChannel] = {
-        accounts: [],
-        choice: "",
-        loaded: false,
-        failed: false,
-      };
+      clearExternalAccountsCache(callbackChannel);
       void refreshExternalStatus(callbackChannel);
       if (params.get("connection") === "error") {
         const reason = params.get("reason");
@@ -1950,7 +1753,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       params.delete("reason");
       window.history.replaceState(window.history.state, "", `${window.location.pathname}?${params.toString()}`);
     }
-  }, [pilotChannelsEnabled, refreshExternalStatus]);
+  }, [pilotChannelsEnabled, refreshExternalStatus, clearExternalAccountsCache, setExternalError]);
 
   useEffect(() => {
     if (!initialConnection) return;
@@ -1962,113 +1765,24 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
   }, [initialConnection]);
 
-  const loadExternalAccounts = useCallback(async (channel: ExternalChannelId, persistedAccountId: string, force = false) => {
-    const cached = externalAccountsCache.current[channel];
-    if (cached.loaded && !force) {
-      setExternalAccounts(cached.accounts);
-      setExternalAccountChoice(cached.choice || persistedAccountId);
-      setExternalAccountsLoadFailed(cached.failed);
-      setExternalAccountsLoading(false);
-      return;
-    }
-    const requestId = ++externalAccountsRequest.current;
-    setExternalAccountsLoading(true);
-    setExternalAccountsLoadFailed(false);
-    try {
-      const data = await readJson(await fetch(`/api/ads/${channel}/accounts`, { cache: "no-store" }));
-      if (requestId !== externalAccountsRequest.current) return;
-      const nextAccounts = Array.isArray(data.accounts)
-        ? data.accounts.filter((account): account is ExternalAdsAccount => account && typeof account === "object" && typeof account.id === "string" && typeof account.name === "string")
-        : [];
-      const storedChoice = externalAccountsCache.current[channel].choice;
-      const nextChoice = nextAccounts.some((account) => account.id === storedChoice)
-        ? storedChoice : typeof data.selectedAccountId === "string" ? data.selectedAccountId : persistedAccountId;
-      externalAccountsCache.current[channel] = { accounts: nextAccounts, choice: nextChoice, loaded: true, failed: false };
-      setExternalAccounts(nextAccounts);
-      setExternalAccountChoice(nextChoice);
-      setExternalStatuses((current) => ({
-        ...current,
-        [channel]: {
-          ...current[channel],
-          selectedAccountCanManage: data.selectedAccountCanManage === true,
-          selectedAccountCanServe: data.selectedAccountCanServe === true,
-          // Account discovery does not own LinkedIn's rollout authorization.
-          publicationEnabled: channel === "linkedin"
-            ? current[channel].publicationEnabled
-            : data.publicationEnabled === true,
-        },
-      }));
-      setExternalError("");
-    } catch (error) {
-      if (requestId === externalAccountsRequest.current) {
-        externalAccountsCache.current[channel] = { ...cached, failed: true };
-        setExternalAccountsLoadFailed(true);
-        setExternalError(error instanceof Error ? error.message : "Comptes indisponibles.");
-        void refreshExternalStatus(channel, { silent: true });
-      }
-    } finally {
-      if (requestId === externalAccountsRequest.current) setExternalAccountsLoading(false);
-    }
-  }, [refreshExternalStatus]);
-
+  const activeExternalConnected = isExternalChannel(channelId) && externalStatuses[channelId].connected;
+  const activeExternalAccountId = isExternalChannel(channelId) ? externalStatuses[channelId].selectedAccountId : "";
   useEffect(() => {
     if (!isExternalChannel(channelId) || (!pilotChannelsEnabled && !isAdsPublicChannel(channelId))) return;
-    if (!externalStatuses[channelId].connected) { setExternalAccountsLoading(false); return; }
-    void loadExternalAccounts(channelId, externalStatuses[channelId].selectedAccountId);
-    return () => { externalAccountsRequest.current += 1; };
-  }, [channelId, pilotChannelsEnabled, externalStatuses.linkedin.connected, externalStatuses.linkedin.selectedAccountId, externalStatuses.pinterest.connected, externalStatuses.pinterest.selectedAccountId, externalStatuses.tiktok.connected, externalStatuses.tiktok.selectedAccountId, externalStatuses.x.connected, externalStatuses.x.selectedAccountId, loadExternalAccounts]);
-
-  async function associateExternalAccount() {
-    if (!isExternalChannel(channelId) || !externalAccountChoice || externalAction) return;
-    setExternalAction("associate");
-    setExternalError("");
-    try {
-      await readJson(await fetch(`/api/ads/${channelId}/accounts`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId: externalAccountChoice }),
-      }));
-      externalAccountsCache.current[channelId] = {
-        ...externalAccountsCache.current[channelId],
-        choice: externalAccountChoice,
-      };
-      await refreshExternalStatus(channelId);
-    } catch (error) {
-      setExternalError(error instanceof Error ? error.message : "Association impossible.");
-    } finally {
-      setExternalAction(null);
-    }
-  }
-
-  async function disconnectExternalChannel() {
-    if (!isExternalChannel(channelId) || !EXTERNAL_DISCONNECT_CHANNELS.includes(channelId) || externalAction) return;
-    setExternalAction("disconnect");
-    setExternalError("");
-    try {
-      await readJson(await fetch(`/api/ads/${channelId}/disconnect`, { method: "POST" }));
-      externalAccountsCache.current[channelId] = { accounts: [], choice: "", loaded: false, failed: false };
-      setExternalAccounts([]);
-      setExternalAccountChoice("");
-      await refreshExternalStatus(channelId);
-    } catch (error) {
-      setExternalError(error instanceof Error ? error.message : "Déconnexion impossible.");
-    } finally {
-      setExternalAction(null);
-    }
-  }
+    if (!activeExternalConnected) { stopExternalAccountsLoading(); return; }
+    void loadExternalAccounts(channelId, activeExternalAccountId);
+    return () => { cancelExternalAccountsLoad(); };
+  }, [channelId, pilotChannelsEnabled, activeExternalConnected, activeExternalAccountId, loadExternalAccounts, cancelExternalAccountsLoad, stopExternalAccountsLoading]);
 
   function selectChannel(index: number) {
     const nextIndex = ((index % CHANNEL_CATALOG.length) + CHANNEL_CATALOG.length) % CHANNEL_CATALOG.length;
     setChannelIndex(nextIndex);
     const next = CHANNEL_CATALOG[nextIndex].id;
     if (next === channelId) return;
-    externalAccountsRequest.current += 1;
+    cancelExternalAccountsLoad();
     if (isExternalChannel(next)) {
-      const cached = externalAccountsCache.current[next];
       const locked = !pilotChannelsEnabled && !isAdsPublicChannel(next);
-      setExternalAccounts(locked ? [] : cached.accounts);
-      setExternalAccountChoice(locked ? "" : cached.choice || externalStatuses[next].selectedAccountId);
-      setExternalAccountsLoadFailed(!locked && cached.failed);
-      setExternalAccountsLoading(!locked && externalStatuses[next].connected && !cached.loaded);
-      setExternalError("");
+      hydrateExternalChannel(next, locked);
     }
     setLinkedInAudienceSuggestions([]); setLinkedInAudiencePending(0);
     linkedInPreflightContext.current++;
@@ -2732,128 +2446,11 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     if (channelId === "linkedin") { setLinkedInPreflight(null); setLinkedInPreflightLoad("idle"); linkedInAutomaticLoadKey.current = ""; setLinkedInAudienceSuggestions(plan.linkedinTargetingSuggestions || []); setLinkedInAudiencePending((plan.linkedinTargetingSuggestions || []).reduce((count, suggestion) => count + suggestion.terms.length, 0)); }
     setConfirmedDestinationUrl("");
     setMetaMediaFormatStatus({ feed: "empty", story_reel: "empty" });
-    setDraft((current) => {
-      const channelDraft = plan.channelDraft?.channel === current.provider ? plan.channelDraft : undefined;
-      const channelSettings = channelDraft ? adsChannelWizardSettingsFromBrief(channelDraft) : current.channelSettings;
-      const nativeCopy = channelDraft ? nativeBriefCopy(channelDraft) : null;
-      const proposal: AdsCampaignInput = {
-      ...current,
-      creationMode: "inrcy",
-      campaignType: plan.campaignType,
-      objective: plan.objective,
-      conversionGoal: plan.conversionGoal,
-      conversionLocation: plan.conversionLocation,
-      bidStrategy: plan.bidStrategy,
-      name: plan.name || current.name,
-      offer: plan.offer || current.offer,
-      destinationUrl: plan.destinationUrl || current.destinationUrl,
-      urlExpansion: plan.urlExpansion,
-      urlExclusions: plan.urlExclusions,
-      targetLocations: plan.targetLocations,
-      targetAudiences: plan.targetAudiences,
-      languages: plan.languages,
-      googleSearchPartners: plan.googleSearchPartners,
-      googleDisplayExpansion: plan.googleDisplayExpansion,
-      metaAudienceExpansion: false,
-      metaPlacements: plan.metaPlacements,
-      trackingParameters: plan.trackingParameters,
-      primaryText: plan.primaryText.trim() || plan.descriptions.filter(Boolean).join(" ") || plan.offer || current.primaryText,
-      // A fresh analysis must never inherit an unrelated media attachment.
-      // Only Studio acceptance or an explicit later user choice supplies one.
-      imageUrl: plan.imageUrl,
-      metaCreativeAssets: { feedImageUrl: "", storyReelImageUrl: "" },
-      creativeUrl: plan.creativeUrl,
-      creativeType: plan.creativeType,
-      mediaStrategy: plan.mediaStrategy,
-      mediaBrief: plan.mediaBrief,
-      callToAction: plan.callToAction || current.callToAction,
-      headlines: plan.headlines.length ? plan.headlines : current.headlines,
-      descriptions: plan.descriptions.length ? plan.descriptions : current.descriptions,
-      keywords: channelId === "meta" || channelId === "openai" || channelId === "tiktok" || channelDraft?.channel === "x" && channelDraft.targetingMode !== "keywords" || channelDraft?.channel === "pinterest" && channelDraft.targetingMode === "automatic"
-        ? []
-        : plan.keywords.length ? plan.keywords : current.keywords,
-      negativeKeywords: plan.negativeKeywords,
-      channelDraft,
-      channelSettings,
-      ...(channelId === "x" || channelId === "tiktok" ? {
-        preparedDeliverySettings: plan.preparedDeliverySuggestion || defaultPreparedDeliverySettings(),
-        dailyBudgetEuros: plan.preparedBudgetSuggestion?.dailyEuros ?? current.dailyBudgetEuros,
-        endDate: plan.preparedBudgetSuggestion?.endAt?.slice(0, 10) || current.endDate,
-      } : {}),
-      ...(channelId === "meta" ? {
-        metaDeliverySettings: plan.metaDeliverySuggestion || defaultMetaDeliverySettings(), metaGeoTargets: [],
-        dailyBudgetEuros: plan.metaBudgetSuggestion?.dailyEuros ?? current.dailyBudgetEuros,
-        endDate: plan.metaBudgetSuggestion?.endAt?.slice(0, 10) || current.endDate,
-        callToAction: META_CALL_TO_ACTION_LABELS[(plan.metaDeliverySuggestion || defaultMetaDeliverySettings()).callToAction],
-      } : {}),
-      ...(channelId === "openai" ? {
-        openaiDeliverySettings: plan.openaiDeliverySuggestion || defaultOpenaiDeliverySettings(),
-        openaiBidEuros: plan.openaiBidSuggestion ?? 1,
-        dailyBudgetEuros: plan.openaiBudgetSuggestion?.dailyEuros ?? current.dailyBudgetEuros,
-        endDate: plan.openaiBudgetSuggestion?.endAt?.slice(0, 10) || current.endDate,
-      } : {}),
-      ...(channelId === "pinterest" ? {
-        pinterestDeliverySettings: plan.pinterestDeliverySuggestion || defaultPinterestDeliverySettings(channelSettings?.channel === "pinterest" ? channelSettings.objectiveType : "CONSIDERATION"),
-        dailyBudgetEuros: plan.pinterestBudgetSuggestion?.dailyEuros ?? current.dailyBudgetEuros,
-        endDate: plan.pinterestBudgetSuggestion?.endAt?.slice(0, 10) || current.endDate,
-      } : {}),
-      ...(channelId === "google" ? {
-        googleDeliverySettings: plan.googleDeliverySettings || defaultGoogleDeliverySettings(),
-        dailyBudgetEuros: plan.googleBudgetSuggestion?.dailyEuros ?? current.dailyBudgetEuros,
-        endDate: plan.googleBudgetSuggestion?.endDate || current.endDate,
-      } : {}),
-      ...(channelDraft?.channel === "linkedin" ? {
-        linkedinGeoTargets: [],
-        linkedinDeliverySettings: {
-          ...defaultLinkedInDeliverySettings(),
-          locationType: plan.linkedinDeliverySuggestion?.locationType || "recent_or_permanent",
-          placements: plan.linkedinDeliverySuggestion?.placements || { audienceNetwork: false, audienceExpansion: false },
-          callToAction: linkedInCallToActionFromLabel(plan.callToAction),
-          bidding: plan.linkedinDeliverySuggestion?.bidding || { strategy: "maximum_delivery", amountEuros: null },
-          budget: {
-            type: plan.linkedinBudgetSuggestion?.type || "daily",
-            totalEuros: plan.linkedinBudgetSuggestion?.totalEuros ?? null,
-            startAt: plan.linkedinDeliverySuggestion?.budget.startAt || null,
-            endAt: plan.linkedinDeliverySuggestion?.budget.endAt || new Date(current.endDate + "T23:59:00").toISOString(),
-          },
-        },
-        ...(plan.linkedinDeliverySuggestion?.budget.endAt ? {
-          endDate: new Date(plan.linkedinDeliverySuggestion.budget.endAt).toLocaleDateString("sv-SE"),
-        } : {}),
-      } : {}),
-      };
-      if (channelDraft?.channel === "linkedin") {
-        Object.assign(proposal, prepareLinkedInPlanForGroup(proposal, {
-          groups: linkedInPreflight?.campaignGroups || [],
-          manualGroupId: linkedInManualGroupId.current,
-          endIsExplicit: plan.linkedinCalendarConstraints?.endIsExplicit !== false,
-        }));
-      }
-      if (!channelDraft || !nativeCopy) return proposal;
-      // For prepared-only channels, the audited native brief is the source of
-      // truth for fields that the model could otherwise contradict or invent.
-      return {
-        ...proposal,
-        name: channelDraft.name,
-        objective: channelSettings ? nativeWizardGenericObjective(channelSettings) : proposal.objective,
-        mediaStrategy: channelSettings ? nativeWizardMediaStrategy(channelSettings) : proposal.mediaStrategy,
-        conversionLocation: channelSettings?.channel === "tiktok" && channelSettings.destinationKind === "instant_form"
-          ? "instant_form" : channelSettings?.channel === "linkedin" && channelSettings.objectiveType === "LEAD_GENERATION"
-            ? "instant_form" : "website",
-        dailyBudgetEuros: ["pinterest", "x", "tiktok"].includes(channelDraft.channel) ? proposal.dailyBudgetEuros : channelDraft.channel === "linkedin" && (plan.linkedinBudgetSuggestion?.type === "total" || channelDraft.budget.period === "lifetime") ? current.dailyBudgetEuros : channelDraft.budget.amount,
-        targetLocations: channelDraft.audience.locationBriefs,
-        destinationUrl: nativeCopy.destination,
-        primaryText: channelDraft.channel === "x" && channelSettings?.channel === "x" && channelSettings.format === "text"
-          ? preparedXCopyWithDestination(nativeCopy.message, nativeCopy.destination, proposal.trackingParameters) : nativeCopy.message,
-        mediaBrief: nativeCopy.media,
-        headlines: nativeCopy.headline
-          ? channelDraft.channel === "pinterest" ? [nativeCopy.headline] : [nativeCopy.headline, ...plan.headlines.filter((headline) => headline !== nativeCopy.headline)].slice(0, 15)
-          : proposal.headlines,
-        descriptions: channelDraft.channel === "linkedin"
-          ? proposal.descriptions
-          : [nativeCopy.message, ...plan.descriptions.filter((description) => description !== nativeCopy.message)].slice(0, 4),
-      };
-    });
+    setDraft((current) => projectAdsCampaignPlan(current, plan, {
+      channelId,
+      linkedInCampaignGroups: linkedInPreflight?.campaignGroups || [],
+      linkedInManualGroupId: linkedInManualGroupId.current,
+    }));
     if (channelId === "linkedin") {
       linkedInGeoDismissedUrns.current.clear();
       linkedInGeoChoices.current = {};
@@ -3279,15 +2876,14 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
             : "Associez un compte Pinterest Ads avant de lancer la campagne.");
         }
         accountName = String(connection.selectedAccountName || account.name || account.id);
-        setExternalStatuses((current) => ({ ...current, pinterest: {
-          ...current.pinterest,
+        mergeExternalStatus("pinterest", {
           load: "ready",
           connected: true,
           status: "connected",
           selectedAccountId: accountId,
           selectedAccountName: accountName,
           error: "",
-        } }));
+        });
         if (validatePreparedCampaign) {
           const resources = await readJson(await fetch("/api/ads/pinterest/resources", { cache: "no-store" })) as PinterestAdsResources;
           if (resources.selectedAccountId !== accountId || accountId !== launchDraft.adAccountId || resources.account?.id !== accountId) throw new Error("Le compte Pinterest Ads a changé. Relisez le récapitulatif avant de valider à nouveau.");
@@ -3333,8 +2929,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
             : "Associez un compte LinkedIn Ads avant de lancer la campagne.");
         }
         accountName = String(connection.selectedAccountName || account.name || account.id);
-        setExternalStatuses((current) => ({ ...current, linkedin: {
-          ...current.linkedin,
+        mergeExternalStatus("linkedin", {
           load: "ready",
           connected: true,
           status: "connected",
@@ -3343,7 +2938,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           selectedAccountCanManage: true,
           selectedAccountCanServe: connection.selectedAccountCanServe === true,
           error: "",
-        } }));
+        });
         setLinkedInPreflightLoad("loading");
         setLinkedInPreflightError("");
         let preflight: LinkedInAdsPreflightResponse | null = null;
@@ -3691,6 +3286,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     router.replace(`/dashboard/ads?channel=${encodeURIComponent(campaign.provider)}&editCampaign=${encodeURIComponent(campaign.id)}`, { scroll: false });
   }
 
+  const onRouteDraftLoaded = useEffectEvent((campaign: StoredCampaign) => reopen(campaign));
+
   // A draft opened from iNr’Send returns straight to the validation step.
   // This request is scoped again on the server to the active establishment.
   useEffect(() => {
@@ -3701,7 +3298,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       .then((result) => {
         const campaign = result.campaign as StoredCampaign | undefined;
         if (!campaign || campaign.status !== "draft") throw new Error("Seuls les brouillons non publiés peuvent être modifiés dans le studio.");
-        reopen(campaign);
+        onRouteDraftLoaded(campaign);
       })
       .catch((error) => setNotice(error instanceof Error ? error.message : "Impossible d’ouvrir ce brouillon."));
   }, [initialEditCampaignId]);
@@ -4215,18 +3812,15 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       accounts={externalAccounts}
       accountChoice={externalAccountChoice}
       accountsLoading={externalAccountsLoading}
-      accountsLoaded={externalAccountsCache.current[externalSettingsChannel].loaded}
+      accountsLoaded={externalAccountsLoaded(externalSettingsChannel)}
       accountsLoadFailed={externalAccountsLoadFailed}
       action={externalAction}
       error={externalError}
-      onSelectAccount={(id) => {
-        externalAccountsCache.current[externalSettingsChannel].choice = id;
-        setExternalAccountChoice(id);
-      }}
+      onSelectAccount={(id) => selectExternalAccount(externalSettingsChannel, id)}
       onRefreshStatus={() => void refreshExternalStatus(externalSettingsChannel)}
       onRefreshAccounts={() => void loadExternalAccounts(externalSettingsChannel, externalStatuses[externalSettingsChannel].selectedAccountId, true)}
-      onAssociateAccount={() => void associateExternalAccount()}
-      onDisconnect={() => void disconnectExternalChannel()}
+      onAssociateAccount={() => void associateExternalAccount(channelId)}
+      onDisconnect={() => void disconnectExternalChannel(channelId)}
     />
     <OpenaiAdsConnectionSettings
       active={channelId === "openai"}

@@ -1,4 +1,4 @@
-import { isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { isMetaChannelPilotEnabledForActorAndAccount } from "@/lib/metaChannelRolloutServer";
 import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";

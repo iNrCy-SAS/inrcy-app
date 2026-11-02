@@ -64,17 +64,18 @@ export default function PreparedAdsNativeControls(props: Props) {
     }
   }, [active, connected, provider, selectedAccountId, resourcesKey, draftKey, tikTokResources, xResources]);
   useEffect(() => {
-    if (!active || !connected || provider !== "x" || !selectedAccountId || !draft.targetLocations.length) return;
+    const requestedLocations = JSON.parse(locationKey) as string[];
+    if (!active || !connected || provider !== "x" || !selectedAccountId || !requestedLocations.length) return;
     const abort = new AbortController();
     setGeo({ key: geoKey, value: null, error: "" });
     void fetch(`/api/ads/x/geography?accountId=${encodeURIComponent(selectedAccountId)}&queries=${encodeURIComponent(locationKey)}`, { cache: "no-store", signal: abort.signal }).then(read).then((body) => {
       const value = body as unknown as XAdsGeography;
       if (value.selectedAccountId !== selectedAccountId || value.complete !== true || value.publicationEnabled !== false || !Array.isArray(value.resolutions)
-        || value.resolutions.length !== draft.targetLocations.length || value.resolutions.some((row, index) => row.query !== draft.targetLocations[index] || !normalizeXAdsGeoTargets(row.options))) throw new Error("Les zones X doivent être revérifiées.");
+        || value.resolutions.length !== requestedLocations.length || value.resolutions.some((row, index) => row.query !== requestedLocations[index] || !normalizeXAdsGeoTargets(row.options))) throw new Error("Les zones X doivent être revérifiées.");
       if (!abort.signal.aborted) setGeo({ key: geoKey, value, error: "" });
     }).catch((error) => { if (!abort.signal.aborted) setGeo({ key: geoKey, value: null, error: error instanceof Error ? error.message : "Les zones X sont indisponibles." }); });
     return () => abort.abort();
-  }, [active, connected, provider, selectedAccountId, locationKey, geoKey, revision, draft.targetLocations.length]);
+  }, [active, connected, provider, selectedAccountId, locationKey, geoKey, revision]);
   useEffect(() => {
     if (!active || provider !== "x" || geo.key !== geoKey || !geo.value || !xResources || !draft.xNativeSelections) return;
     const targets = geo.value.resolutions.map((row) => {
@@ -89,10 +90,13 @@ export default function PreparedAdsNativeControls(props: Props) {
   }, [active, provider, geo, geoKey, xResources, locationKey, draft.xNativeSelections]);
   const videoUrl = draft.creativeType === "video" ? draft.creativeUrl || "" : "";
   const thumbnailMediaId = draft.tiktokNativeSelections?.thumbnailMediaId || "";
+  const hasTikTokNativeSelections = Boolean(draft.tiktokNativeSelections);
   useEffect(() => {
-    if (!active || !connected || provider !== "tiktok" || !draft.tiktokNativeSelections || !ownedPreparedVideoId(videoUrl) || thumbnailMediaId) return;
+    // Only a video/identity availability change starts work. Apply to the latest draft.
+    const selections = callbacks.current.draft.tiktokNativeSelections;
+    if (!active || !connected || provider !== "tiktok" || !hasTikTokNativeSelections || !selections || !ownedPreparedVideoId(videoUrl) || thumbnailMediaId) return;
     const cached = thumbnailCache.current.get(videoUrl);
-    if (cached) { callbacks.current.onChange({ tiktokNativeSelections: { ...draft.tiktokNativeSelections, thumbnailMediaId: cached } }); return; }
+    if (cached) { callbacks.current.onChange({ tiktokNativeSelections: { ...selections, thumbnailMediaId: cached } }); return; }
     const abort = new AbortController();
     setThumbnailState({ url: videoUrl, loading: true, error: "" });
     void prepareOwnedTikTokThumbnail(videoUrl, abort.signal).then(async (frame) => {
@@ -110,7 +114,7 @@ export default function PreparedAdsNativeControls(props: Props) {
       setThumbnailState({ url: videoUrl, loading: false, error: "" });
     }).catch((error) => { if (!abort.signal.aborted) setThumbnailState({ url: videoUrl, loading: false, error: error instanceof Error ? error.message : "La miniature n’a pas pu être préparée." }); });
     return () => abort.abort();
-  }, [active, connected, provider, selectedAccountId, videoUrl, thumbnailMediaId, Boolean(draft.tiktokNativeSelections), revision]);
+  }, [active, connected, provider, selectedAccountId, videoUrl, thumbnailMediaId, hasTikTokNativeSelections, revision]);
   useEffect(() => {
     const state = { draftKey, check: null, error: "" };
     setCheckState(state); callbacks.current.onReadiness(state);

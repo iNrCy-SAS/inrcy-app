@@ -12,6 +12,9 @@ export type InstagramDailyMetrics = {
   totals: Record<string, number>;
   daily: Array<{ date: string; values: Record<string, number> }>;
   raw?: {
+    requestedRange?: { since: string; until: string };
+    effectiveRange?: { since: string; until: string };
+    rangeAdjustment?: { reason: "instagram_max_30_day_window"; trimmedStartSeconds: number } | null;
     supportedMetrics?: { account?: string[]; media?: string[] };
     unsupportedMetrics?: { account?: string[]; media?: string[] };
     metricErrors?: { account?: Record<string, string>; media?: Record<string, string> };
@@ -29,8 +32,6 @@ const IG_ACCOUNT_DAY_METRICS = [
   "online_followers",
   // Legacy metrics, still available for some accounts/API versions.
   "impressions",
-  "profile_views",
-  "website_clicks",
   "phone_call_clicks",
   "email_contacts",
   "text_message_clicks",
@@ -38,6 +39,8 @@ const IG_ACCOUNT_DAY_METRICS = [
 ] as const;
 
 const IG_ACCOUNT_TOTAL_VALUE_METRICS = [
+  "profile_views",
+  "website_clicks",
   "accounts_engaged",
   "total_interactions",
   "likes",
@@ -48,11 +51,6 @@ const IG_ACCOUNT_TOTAL_VALUE_METRICS = [
   "profile_links_taps",
   "views",
   "content_views",
-] as const;
-
-const IG_ACCOUNT_METRICS = [
-  ...IG_ACCOUNT_DAY_METRICS,
-  ...IG_ACCOUNT_TOTAL_VALUE_METRICS,
 ] as const;
 
 const IG_MEDIA_METRICS = [
@@ -188,8 +186,21 @@ export async function igFetchDailyInsights(
   end: Date,
   authMode: InstagramAuthMode = "facebook_login"
 ): Promise<InstagramDailyMetrics> {
-  const since = Math.floor(start.getTime() / 1000);
+  const requestedSince = Math.floor(start.getTime() / 1000);
   const until = Math.floor(end.getTime() / 1000);
+  const maximumRangeSeconds = 30 * 86_400;
+  // Thirty Paris calendar days spanning the autumn clock change last 30 days
+  // plus one hour. Graph rejects every account metric above 2,592,000 seconds.
+  // Keep one honest rolling 30-day request: splitting unique-range totals such
+  // as accounts_engaged and summing them would count the same account twice.
+  // Longer historical ranges remain explicit provider errors, not 30-day totals
+  // mislabeled as a 90-day observation.
+  const duration = until - requestedSince;
+  const since = duration > maximumRangeSeconds && duration <= maximumRangeSeconds + 3_600
+    ? until - maximumRangeSeconds
+    : requestedSince;
+  const requestedRange = { since: start.toISOString(), until: end.toISOString() };
+  const effectiveRange = { since: new Date(since * 1000).toISOString(), until: new Date(until * 1000).toISOString() };
 
   const byDay = new Map<string, Record<string, number>>();
   const supportedMetrics: string[] = [];
@@ -237,11 +248,14 @@ export async function igFetchDailyInsights(
 
 
   return {
-    range: { since: start.toISOString(), until: end.toISOString() },
+    range: effectiveRange,
     totals,
     daily: daily.filter(row => Boolean(row.date)),
     ...(supportedMetrics.length ? {} : { error: "Les statistiques Instagram ne sont pas disponibles pour ce compte ou cette période." }),
     raw: {
+      requestedRange,
+      effectiveRange,
+      rangeAdjustment: since !== requestedSince ? { reason: "instagram_max_30_day_window", trimmedStartSeconds: since - requestedSince } : null,
       supportedMetrics: { account: supportedMetrics },
       unsupportedMetrics: { account: unsupportedMetrics },
       metricErrors: { account: metricErrors },

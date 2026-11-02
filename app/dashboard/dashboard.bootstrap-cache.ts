@@ -4,7 +4,7 @@ import { buildBubbleAccessMap, createDefaultBubbleAccessMap, type AppBubbleAcces
 import type { ModuleStatus, Ownership } from "./dashboard.types";
 import type { InrstatsChannelBlock } from "@/lib/inrstats/channelBlocks";
 import type { InrBadgeProfileSummary } from "@/lib/inrBadge";
-import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
+export { isConnectionStatus } from "./dashboard.connection-projection";
 
 export const FORCED_SERVER_CACHE_CHECK_DEDUP_MS = 30_000;
 export const AUTO_DAILY_REFRESH_DEDUP_MS = 5 * 60_000;
@@ -283,9 +283,6 @@ export function writeCachedDashboardChannelState(state: Record<string, any>) {
   }
 }
 
-export function isConnectionStatus(value: unknown): value is ConnectionDisplayStatus {
-  return value === "connected" || value === "disconnected" || value === "needs_update";
-}
 
 export function isOwnership(value: unknown): value is Ownership {
   return value === "none" || value === "rented" || value === "sold";

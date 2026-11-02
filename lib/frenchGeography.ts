@@ -114,7 +114,8 @@ function normalizePostalCode(value: unknown) {
   return String(value ?? "").replace(/\D/g, "").slice(0, 5);
 }
 
-export function resolveFrenchGeography(postalCode: unknown, city = ""): FrenchGeography | null {
+export function resolveFrenchGeography(postalCode: unknown, city?: string): FrenchGeography | null;
+export function resolveFrenchGeography(postalCode: unknown): FrenchGeography | null {
   const postal = normalizePostalCode(postalCode);
   if (postal.length !== 5) return null;
 

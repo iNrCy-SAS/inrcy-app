@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -77,11 +79,12 @@ test("Publier préfère le canonique privé tout en conservant les variantes his
 
 test("Booster joint le workspace aux trois actions sans retirer l'ancien filet", () => {
   const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
+const generation = read("app/dashboard/booster/publier/useBoosterGeneration.ts");
   assert.match(modal, /isUnifiedMediaConsumptionClientEnabled/);
-  assert.match(modal, /const generationPayload = \{[\s\S]*mediaWorkspaceId:/);
-  assert.match(modal, /trackEvent\("publish", \{[\s\S]*mediaWorkspaceId:/);
-  assert.match(modal, /publishPayload: \{[\s\S]*mediaWorkspaceId:/);
-  assert.match(modal, /uploadPreparedImages/);
+  assert.match(generation, /const generationPayload = \{[\s\S]*mediaWorkspaceId:/);
+  assert.match(submission, /trackEvent\("publish", \{[\s\S]*mediaWorkspaceId:/);
+  assert.match(submission, /publishPayload: \{[\s\S]*mediaWorkspaceId:/);
+  assert.match(submission, /uploadPreparedImages/);
   assert.match(modal, /uploadPublicationVideoForPublish/);
   assert.match(modal, /preparePublicationVideoVariants/);
 });

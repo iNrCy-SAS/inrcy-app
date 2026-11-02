@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -96,7 +98,7 @@ test("Booster exposes one primary Facebook format plus optional Stories", () => 
 
 test("immediate, scheduled and single-channel continuation payloads keep the Facebook mode", () => {
   assert.ok(
-    (modal.match(/facebookPublicationSettings:/g) || []).length >= 2,
+    (submission.match(/facebookPublicationSettings:/g) || []).length >= 2,
     "immediate and scheduled payloads must carry the setting",
   );
   assert.match(ingress, /facebookPublicationSettings: body\.facebookPublicationSettings/);
@@ -110,7 +112,7 @@ test("immediate, scheduled and single-channel continuation payloads keep the Fac
 
 test("Facebook Reel and Story require media and use per-image timing for their 9:16 music videos", () => {
   assert.match(
-    modal,
+    submission,
     /publishableChannels\.includes\("facebook"\)[\s\S]*?facebookPublicationPlacement === "reel" \|\| facebookStoryEnabled[\s\S]*?facebookMode === "none"/,
   );
   assert.match(

@@ -10,8 +10,8 @@ const channelsSource = readFileSync(
   new URL("../app/dashboard/_components/DashboardChannelsSection.tsx", import.meta.url),
   "utf8",
 );
-const campaignChoicesSource = readFileSync(
-  new URL("../app/dashboard/_components/DashboardCampaignChoices.tsx", import.meta.url),
+const modulesSource = readFileSync(
+  new URL("../app/dashboard/_components/DashboardModulesCard.tsx", import.meta.url),
   "utf8",
 );
 const adsServerSource = readFileSync(new URL("../lib/adsServer.ts", import.meta.url), "utf8");
@@ -24,9 +24,9 @@ const adsCallbackSource = readFileSync(
 test("iNr’ADS ouvre Meta, Google, Pinterest et ChatGPT Ads aux professionnels Premium et conserve le verrou pilote des autres canaux", () => {
   assert.match(dashboardClientSource, /isAdmin=\{isAdmin\}/);
   assert.match(channelsSource, /adsPilotEnabled inrAgentEnabled/);
-  assert.match(campaignChoicesSource, /adsComingSoon/);
-  assert.match(campaignChoicesSource, /campaign-ads-coming-soon/);
-  assert.match(campaignChoicesSource, /À venir/);
+  assert.match(modulesSource, /path: "\/dashboard\/ads"[^\n]*premiumOnly: true, unavailable: !adsPilotEnabled/);
+  assert.match(modulesSource, /disabled=\{Boolean\(standardMode && tool\.premiumOnly\) \|\| tool\.unavailable/);
+  assert.match(modulesSource, /onClick=\{standardMode && tool\.premiumOnly \? \(\) => startPanelOpening\("abonnement"\)/);
   assert.match(adsServerSource, /isAdsPilotAdmin/);
   assert.match(adsServerSource, /getDashboardEditionForAccountId\(activeUserId\)/);
   assert.match(adsServerSource, /isAdsChannelUserAllowed/);

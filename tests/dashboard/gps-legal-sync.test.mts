@@ -6,16 +6,18 @@ import test from "node:test";
 const root = process.cwd();
 const read = (relativePath: string) => readFileSync(join(root, relativePath), "utf8");
 
-test("the GPS opens the exact guide selected from search or the article tabs", () => {
-  const client = read("app/dashboard/gps/GpsClient.tsx");
-  const css = read("app/dashboard/gps/gps.module.css");
-
-  assert.match(client, /activeArticleId/);
-  assert.match(client, /openSection\(hit\.sectionId, hit\.article\.id\)/);
-  assert.match(client, /role="tablist"/);
-  assert.match(client, /setActiveArticleId\(article\.id\)/);
-  assert.match(css, /\.articleTabs \{/);
-  assert.match(css, /overflow-x: auto/);
+test("legacy GPS links open unified help and search selects the matching guide", () => {
+  const page = read("app/dashboard/gps/page.tsx");
+  const guide = read("app/dashboard/_components/DashboardUsageGuide.tsx");
+  const model = read("app/dashboard/_components/dashboardUsageGuideModel.ts");
+  assert.match(page, /redirect\("\/dashboard\?help=1"\)/);
+  assert.match(guide, /const current = content\[selection\]/);
+  assert.match(guide, /searchTerms\.every\(term => searchable\.includes\(term\)\)/);
+  assert.match(guide, /onClick=\{\(\) => select\(theme\)\}/);
+  assert.match(guide, /onChange=\{select\}/);
+  assert.match(guide, /setSelection\(next\)/);
+  assert.match(guide, /headingRef\.current\?\.focus/);
+  assert.match(model, /getGpsSectionsForEdition\(edition, metaPilotEnabled\)/);
 });
 
 test("the GPS documents onboarding, legal settings, media optimization and mobile recovery", () => {

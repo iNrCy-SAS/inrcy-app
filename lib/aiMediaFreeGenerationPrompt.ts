@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { AI_MEDIA_FORMAT_SPECS, AiMediaRequestValidationError, type AiMediaGenerationRequest } from "./aiMediaGenerationContracts.ts";
+import { AI_MEDIA_FORMAT_SPECS, AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS, AiMediaRequestValidationError, type AiMediaGenerationRequest } from "./aiMediaGenerationContracts.ts";
 import { buildAiMediaBusinessDnaPayload } from "./aiMediaBusinessDna.ts";
 import type { AiMediaPromptBuilderArgs } from "./aiMediaPromptShared.ts";
 import type { AiVideoProviderGenerationArgs } from "./aiVideoProviderTypes.ts";
@@ -152,6 +152,20 @@ export function getAiMediaFreeSpeechBudget(durationSeconds = 8, language = "fr",
     unit: nonSpaceScript ? "caractères prononcés" : "mots",
     units: nonSpaceScript ? Array.from(text.replace(/[^\p{L}\p{N}]/gu, "")).length : text.split(/\s+/u).filter(Boolean).length,
   };
+}
+
+/** Reject impossible exact voice-over before reserving credits or preparing an AI plan. */
+export function assertAiMediaFreeExactNarrationFits(request: AiMediaGenerationRequest) {
+  if (!usesSeparateAiMediaFreeVoiceover(request)) return;
+  const explicit = typeof request.spokenScript === "string";
+  const script = explicit ? request.spokenScript! : request.freePrompt?.match(/(?:voix\s*off|narration|texte\s+(?:prononc[ée]|[àa]\s+dire))\s*(?:exacte?\s*)?[:=]\s*[«“"]([^»”"]+)[»”"]/i)?.[1]?.trim();
+  // An explicit empty script means silence, including when an old quote remains in the brief.
+  if (!script?.trim()) return;
+  const language = resolveAiMediaFreeSpeechLanguage(request.freePrompt || "", script);
+  const budget = getAiMediaFreeSpeechBudget(request.durationSeconds || 8, language, script);
+  if (script.length > (explicit ? AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS : 620) || budget.units > budget.maxUnits) {
+    throw new AiMediaRequestValidationError("ai_media_exact_narration_too_long");
+  }
 }
 
 /** Explicit language wins over profile defaults, including for quoted speech. */

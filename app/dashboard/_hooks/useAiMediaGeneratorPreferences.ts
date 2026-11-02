@@ -62,7 +62,7 @@ export default function useAiMediaGeneratorPreferences() {
         setPreferences(nextPreferences);
         setLoaded(true);
       })
-      .catch((caught) => {
+      .catch(() => {
         if (controller.signal.aborted) return;
         if (requestEpoch !== accountEpochRef.current) return;
         setError("load");
@@ -76,10 +76,12 @@ export default function useAiMediaGeneratorPreferences() {
   }, [accountEpoch]);
 
   useEffect(() => {
+    // Keep the live collection: PATCH requests can be added after this effect mounts.
+    const patchControllers = patchControllersRef.current;
     const handleActiveAccountChange = () => {
       accountEpochRef.current += 1;
-      for (const controller of patchControllersRef.current) controller.abort();
-      patchControllersRef.current.clear();
+      for (const controller of patchControllers) controller.abort();
+      patchControllers.clear();
       setSavingBlockIds(new Set());
       setAccountEpoch(accountEpochRef.current);
     };
@@ -93,8 +95,8 @@ export default function useAiMediaGeneratorPreferences() {
         ACTIVE_INRCY_ACCOUNT_EVENT,
         handleActiveAccountChange,
       );
-      for (const controller of patchControllersRef.current) controller.abort();
-      patchControllersRef.current.clear();
+      for (const controller of patchControllers) controller.abort();
+      patchControllers.clear();
     };
   }, []);
 
@@ -141,7 +143,7 @@ export default function useAiMediaGeneratorPreferences() {
         }));
         setLoaded(true);
         return true;
-      } catch (caught) {
+      } catch {
         if (controller.signal.aborted) return false;
         if (requestEpoch === accountEpochRef.current) setError("save");
         return false;

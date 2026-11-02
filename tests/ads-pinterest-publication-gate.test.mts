@@ -10,8 +10,11 @@ import { adsIncompleteLaunchMessage, adsIncompleteLaunchSteps } from "../lib/ads
 import { ADS_LIVE_PUBLISH_CONFIRMATION, ADS_PAUSED_PUBLISH_CONFIRMATION } from "../lib/adsPublishMode.ts";
 import { parseAdsCampaignInput, type AdsCampaignInput } from "../lib/adsValidation.ts";
 
-const source = ts.createSourceFile("AdsClient.tsx", readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const source = ts.createSourceFile("AdsClient.tsx", ["AdsClient.tsx", "useAdsExternalConnections.ts"].map((file) => readFileSync(new URL(`../app/dashboard/ads/${file}`, import.meta.url), "utf8")).join("\n"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 function actualFunction(name: string, scope: Record<string, unknown>) {
+  if (name !== "mergeExternalStatus" && scope.setExternalStatuses && !scope.mergeExternalStatus) {
+    scope = { ...scope, mergeExternalStatus: actualFunction("mergeExternalStatus", { setExternalStatuses: scope.setExternalStatuses }) };
+  }
   let declaration: ts.FunctionDeclaration | undefined;
   const visit = (node: ts.Node) => { if (ts.isFunctionDeclaration(node) && node.name?.text === name) declaration = node; ts.forEachChild(node, visit); };
   visit(source);

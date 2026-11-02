@@ -1,3 +1,4 @@
+import { readAgentPublicationPreparationSource } from "../inragent/prepare-publication-sources.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -7,7 +8,7 @@ function read(relativePath: string) {
 }
 
 const generation = read("lib/boosterPublishGeneration.ts");
-const agentRoute = read("app/api/agent/actions/prepare-publish/route.ts");
+const agentRoute = readAgentPublicationPreparationSource();
 const boosterRoute = read("app/api/booster/generate/route.ts");
 const liveQaRoute = read("app/api/internal/ai-live-qa/route.ts");
 

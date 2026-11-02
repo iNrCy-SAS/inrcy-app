@@ -1,3 +1,4 @@
+import { readVideoNormalizationWorkerSource } from "./video-worker-sources.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -258,7 +259,7 @@ test("un workspace source-only inconnu se prÃ©chauffe puis s'auto-rÃ©pare du
     vercelConfig,
   ] = await Promise.all([
     readFile(path.join(ROOT, "lib/mediaVideoNormalizer.ts"), "utf8"),
-    readFile(path.join(ROOT, "lib/mediaVideoNormalizationWorker.ts"), "utf8"),
+    readVideoNormalizationWorkerSource(),
     readFile(path.join(ROOT, "lib/mediaWorkspaceConsumption.ts"), "utf8"),
     readFile(
       path.join(

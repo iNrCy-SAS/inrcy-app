@@ -1,3 +1,5 @@
+import { readFileSync as readSubmissionSource } from "node:fs";
+const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -63,7 +65,7 @@ test("the site iframe eagerly loads every image in a media carousel", async () =
 test("Booster, iNrAgent and iNrSend keep Original as the untouched default", async () => {
   const [
     publishModal,
-    publishImagesPanel,
+    imageController,
     shared,
     agent,
     mailbox,
@@ -72,7 +74,7 @@ test("Booster, iNrAgent and iNrSend keep Original as the untouched default", asy
     adapterModal,
   ] = await Promise.all([
     read("app/dashboard/booster/publier/PublishModal.tsx"),
-    read("app/dashboard/booster/publier/components/PublishImagesPanel.tsx"),
+    read("app/dashboard/booster/publier/usePublishImageController.ts"),
     read("app/dashboard/booster/publier/publishModal.shared.tsx"),
     read("app/dashboard/agent/AgentClient.tsx"),
     read("app/dashboard/mails/MailboxClient.tsx"),
@@ -83,14 +85,14 @@ test("Booster, iNrAgent and iNrSend keep Original as the untouched default", asy
 
   assert.match(publishModal, /next\[channel\] = "original"/);
   assert.doesNotMatch(
-    publishModal,
+    [publishModal, submission].join("\n"),
     /next\[channel\] = getRecommendedVideoFormatForSource/,
   );
   assert.match(shared, /getBoosterImageSafetyBackgroundMode/);
   assert.doesNotMatch(shared, /ctx\.filter = "blur/);
-  assert.match(publishImagesPanel, /getChannelSafetyBackgroundMode/);
-  assert.doesNotMatch(publishImagesPanel, /backgroundMode:\s*["']blur["']/);
-  assert.doesNotMatch(publishImagesPanel, /blurBackground:\s*true/);
+  assert.match(imageController, /getBoosterImageSafetyBackgroundMode/);
+  assert.doesNotMatch(imageController, /backgroundMode:\s*["']blur["']/);
+  assert.doesNotMatch(imageController, /blurBackground:\s*true/);
   assert.match(
     agent,
     /function getCurrentVideoSettings\(\)[\s\S]*format: normalizeVideoFormat\([\s\S]*rawSettings\?\.format \|\| currentPublishMediaRecord\?\.videoFormat/,

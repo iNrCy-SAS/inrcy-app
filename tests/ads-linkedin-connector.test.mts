@@ -238,7 +238,7 @@ test("LinkedIn Ads and organic LinkedIn keep distinct OAuth, callback, storage a
 
 test("LinkedIn UI uses the complete Ads management consent and reports the dedicated rollout gate", () => {
   const settings = source("app/dashboard/ads/ExternalAdsConnectionSettings.tsx");
-  const client = source("app/dashboard/ads/AdsClient.tsx");
+  const client = source("app/dashboard/ads/AdsClient.tsx") + "\n" + source("app/dashboard/ads/useAdsExternalConnections.ts");
   const start = source("app/api/ads/linkedin/start/route.ts");
   const status = source("app/api/ads/linkedin/status/route.ts");
 

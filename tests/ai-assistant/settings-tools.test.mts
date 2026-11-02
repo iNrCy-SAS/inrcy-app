@@ -5,10 +5,12 @@ import vm from "node:vm";
 import ts from "typescript";
 import type * as Settings from "../../lib/inrAssistantSettingsTools.ts";
 import * as commandRegistry from "../../lib/inrAssistantCommandRegistry.ts";
+import * as generalPreferences from "../../lib/generalPreferences.ts";
 type Row = Record<string, unknown>;
 type Definition = { execute(input: unknown): Promise<Row> };
-function harness(options: { message?: string; edition?: "standard" | "premium" | "founder"; foreign?: boolean; partial?: boolean; unavailable?: boolean } = {}) {
+function harness(options: { message?: string; edition?: "basic" | "standard" | "premium" | "founder"; foreign?: boolean; partial?: boolean; unavailable?: boolean } = {}) {
   const records: Record<string, Row> = {
+    general: { ok: true, source: "saved", preferences: { clientLanguage: "fr", timezone: "Europe/Paris", dateFormat: "dd/MM/yyyy", currency: "EUR", secret: "PRIVATE" } },
     calendar: { ok: true, selectedMailAccountId: "mail-a", sendConfirmationOnSave: false, reminderOffsetsMinutes: [1440, 120], accounts: [{ secret: "PRIVATE" }] },
     notifications: { preferences: { in_app_enabled: true, email_enabled: true, performance_enabled: false, action_enabled: true, information_enabled: true, digest_every_hours: 48, user_id: "PRIVATE_ACCOUNT" } },
     documents: { ok: true, settings: { quote: { validityDays: 30, mention: "Merci" }, invoice: { dueDays: 30 }, internalSecret: "PRIVATE" } },
@@ -22,6 +24,7 @@ function harness(options: { message?: string; edition?: "standard" | "premium" |
     ...Object.fromEntries(["PUT", "POST", "PATCH"].map(method => [method, async (request: Request) => {
       const body = await request.json() as Row; calls.push({ target, method, body, request });
       if (!options.partial) {
+        if (target === "general") Object.assign(records[target].preferences as Row, body.preferences);
         if (target === "notifications") records[target].preferences = body;
         else if (target === "badge") records[target].settings = body.settings;
         else if (target === "calendar") Object.assign(records[target], body);
@@ -38,9 +41,11 @@ function harness(options: { message?: string; edition?: "standard" | "premium" |
   });
   const stubs: Record<string, unknown> = {
     "./inrAssistantCommandRegistry.ts": commandRegistry,
+    "./generalPreferences.ts": generalPreferences,
     "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (value: unknown) => value },
     "./requireUser": { requireUser: async () => ({ activeUserId: options.foreign ? "foreign" : "active", errorResponse: null }) },
     "@/app/api/calendar/settings/route": route("calendar"), "@/app/api/notifications/preferences/route": route("notifications"),
+    "@/app/api/preferences/general/route": route("general"),
     "@/app/api/documents/settings/route": route("documents"), "@/app/api/inrbadge/settings/route": route("badge"),
     "@/app/api/media-generation/preferences/route": route("studio"), "@/app/api/integrations/tiktok/settings/route": route("tiktok"),
   };
@@ -118,4 +123,28 @@ test("Badge preserves existing hidden toggles and documents use native partial s
 test("native normalized/refused values are reported as partial instead of falsely saved", async () => {
   const h = harness({ partial: true });
   assert.equal((await h.tools.updateToolSettings.execute(change("notifications", "Désactive les notifications par email.", "email_enabled", false))).status, "partial");
+});
+
+test("general preferences use supported UI values and preserve omitted saved settings in Basic", async () => {
+  const message = "Modifie mes préférences générales : mets la devise en CHF.";
+  const h = harness({ message, edition: "basic" });
+  const read = await h.tools.readToolSettings.execute({ tool: "general" });
+  assert.equal(read.status, "read"); assert.ok(read.allowedValues);
+  assert.equal((await h.tools.updateToolSettings.execute(change("general", message, "currency", "CHF"))).status, "saved");
+  assert.equal((h.records.general.preferences as Row).timezone, "Europe/Paris");
+  assert.equal(h.calls.find(call => call.method === "PATCH")?.body?.accountId, "active");
+  const invalid = harness({ message });
+  assert.equal((await invalid.tools.updateToolSettings.execute(change("general", message, "currency", "BTC"))).ok, false);
+  assert.equal(invalid.calls.some(call => call.method !== "GET"), false);
+  const basic = harness({ message: "Active le rendez-vous sur iNrBadge.", edition: "basic" });
+  assert.equal((await basic.tools.readToolSettings.execute({ tool: "calendar" })).ok, false);
+  assert.equal((await basic.tools.readToolSettings.execute({ tool: "documents" })).ok, false);
+  assert.equal((await basic.tools.updateToolSettings.execute(change("badge", "Active le rendez-vous sur iNrBadge.", "appointment", true))).status, "not_included");
+});
+
+test("general language and date labels shown in the native form route to general settings", async () => {
+  for (const [message, field, value] of [["Mets la langue client en anglais", "clientLanguage", "en"], ["Change la langue de mes clients en allemand", "clientLanguage", "de"], ["Modifie le format des dates", "dateFormat", "yyyy-MM-dd"]]) {
+    const h = harness({ message, edition: "basic" });
+    assert.equal((await h.tools.updateToolSettings.execute(change("general", message, field, value))).status, "saved");
+  }
 });

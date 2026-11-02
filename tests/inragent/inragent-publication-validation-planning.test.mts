@@ -1,3 +1,4 @@
+import { readAgentScheduleSource } from "./schedule-sources.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -23,7 +24,7 @@ test("le planning lit la validation de l'action et se recharge à son ouverture"
   const scheduleItems = read("app/dashboard/agent/_lib/agent.schedule-items.ts");
   const modal = read("app/dashboard/agent/_components/AgentActionModals.tsx");
   const styles = read("app/dashboard/agent/agent.module.css");
-  const scheduleRoute = read("app/api/agent/actions/schedule/route.ts");
+  const scheduleRoute = readAgentScheduleSource();
 
   assert.match(scheduleRoute, /status: "scheduled",[\s\S]*?validated_at: automaticExecution/);
   assert.match(client, /const selectedPublicationValidationState = publicationValidationState\(/);

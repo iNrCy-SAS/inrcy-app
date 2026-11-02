@@ -1,3 +1,4 @@
+import { readAgentScheduleSource } from "./schedule-sources.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
@@ -165,7 +166,7 @@ test("the review UI exposes independent content and media regeneration controls"
 });
 
 test("scheduled and immediate execution preserve channel-specific regenerated videos", () => {
-  const schedule = read("app/api/agent/actions/schedule/route.ts");
+  const schedule = readAgentScheduleSource();
   const execute = read("app/api/agent/actions/execute/route.ts");
 
   assert.match(schedule, /publishPayload\.videoByChannel/);

@@ -10,7 +10,7 @@ import { getEffectiveThreadsMediaMode, getThreadsPublicationModeIssue } from "..
 
 const read = (file: string) => readFileSync(new URL("../../" + file, import.meta.url), "utf8");
 const compile = (source: string) => ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
-const source = ts.createSourceFile("PublishModal.tsx", read("app/dashboard/booster/publier/PublishModal.tsx"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const source = ts.createSourceFile("BoosterDraftAndSubmission.tsx", [read("app/dashboard/booster/publier/PublishModal.tsx"), read("app/dashboard/booster/publier/publicationDraftSession.ts"),read("app/dashboard/booster/publier/publicationSubmission.ts"),read("app/dashboard/booster/publier/publicationSubmissionPayload.ts")].join("\n"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 function find<T extends ts.Node>(predicate: (node: ts.Node) => node is T): T[] {
   const found: T[] = [];
   const visit = (node: ts.Node) => { if (predicate(node)) found.push(node); ts.forEachChild(node, visit); };
