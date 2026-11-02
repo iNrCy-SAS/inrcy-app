@@ -5,6 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { INR_ASSISTANT_ACTION_COVERAGE, INR_ASSISTANT_COVERAGE_FAMILIES, discoverInrAssistantActionCoverage } from "../../lib/inrAssistantActionCoverage.ts";
+import { parseInrAssistantUiCommand } from "../../lib/inrAssistantUiCommands.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 test("each implemented capability names real tool definitions and every native route exists", () => {
@@ -66,4 +67,21 @@ test("the catalogue distinguishes guides, drafts, irreversible work and unavaila
   assert.equal(byId.get("studio.generate")?.family, "media");
   assert.match(byId.get("mail.history")!.limits, /pas les messages reçus/);
   assert.match(byId.get("studio.generate")!.limits, /IMAGE uniquement/);
+});
+
+test("native Ads and video capabilities are current-form prefills accepted by the actual command parser", () => {
+  const byId = new Map(INR_ASSISTANT_ACTION_COVERAGE.map(entry => [entry.id, entry]));
+  for (const [id, command, kind, patch] of [
+    ["ads.form", "configure_ads_draft", "campaign", { name: "Atelier", primaryText: "Notre service", step: "creative" }],
+    ["studio.video-native", "configure_video_retouch", "media", { format: "9_16", adaptationMode: "safe_frame" }],
+  ] as const) {
+    const entry = byId.get(id)!;
+    assert.equal(entry.availability, "implemented");
+    assert.equal(entry.mode, "prefill");
+    assert.deepEqual(entry.tools, ["runScreenCommand"]);
+    assert.match(entry.limits, /déjà ouvert/);
+    assert.match(entry.limits, /sauvegarde.*séparé/);
+    assert.ok(parseInrAssistantUiCommand({ command, selection: { kind, id: "native_preview" }, revision: "rev_1", patch }));
+    assert.equal(parseInrAssistantUiCommand({ command, selection: { kind, id: "native_preview" }, revision: "rev_1", patch: { ...patch, save: true } }), null);
+  }
 });
