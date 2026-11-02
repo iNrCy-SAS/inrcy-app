@@ -166,3 +166,19 @@ test("advice can inspect CRM, campaign, scheduled publication and advertising re
   assert.equal("manageAdvertisingCampaign" in r.advertisingTools,false);
   assert.deepEqual(h.executions,[]);
 });
+
+test("document templates expose a bounded reader while form preparation retains explicit goal, edition and actor gates", () => {
+  const h = harness(), args = { ...h.context.args, edition: "founder" as const };
+  const base = { args, families: new Set<Parameters<typeof h.build>[0] extends never ? never : "commercial">(["commercial"]), latestRequest: "Liste mes modèles de devis" };
+  const read = h.build({ ...base, canExecute: false });
+  assert.ok(Object.hasOwn(read.additionalTools, "readCommercialTemplates"));
+  assert.ok(!Object.hasOwn(read.additionalTools, "prepareCommercialDocumentForm"));
+  const prepare = h.build({ ...base, latestRequest: "Applique le modèle de devis", requiredTools: ["prepareCommercialDocumentForm"] });
+  assert.ok(Object.hasOwn(prepare.additionalTools, "prepareCommercialDocumentForm"));
+  for (const scope of [{ ...args, edition: "premium" as const }, { ...args, actorUserId: undefined }, { ...args, supabase: undefined }]) {
+    const denied = h.build({ ...base, args: scope, requiredTools: ["prepareCommercialDocumentForm"] });
+    assert.ok(!Object.hasOwn(denied.additionalTools, "prepareCommercialDocumentForm"));
+    assert.ok(!Object.hasOwn(denied.additionalTools, "readCommercialTemplates"));
+  }
+  assert.deepEqual(h.executions, []);
+});

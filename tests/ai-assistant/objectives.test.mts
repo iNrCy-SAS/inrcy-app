@@ -46,6 +46,20 @@ test("a requested statistics report targets the paginated report reader rather t
   assert.equal(inrAssistantObjectives("Consulte mes statistiques.")[0].tool, "readStatsSnapshots");
 });
 
+test("document template reads retain their own paginated objective and only advance returned offsets", () => {
+  const plan = inrAssistantObjectives("Liste tous mes modèles de devis.");
+  assert.equal(plan.length, 1); assert.equal(plan[0].tool, "readCommercialTemplates"); assert.equal(plan[0].exhaustive, true);
+  const budget = createInrAssistantReadBudget();
+  for (const offset of [0, 8, 16]) {
+    const attempt = budget.start("readCommercialTemplates", { kind: "quote", query: null, offset }); assert.ok(attempt);
+    budget.finish(attempt, { ok: true, nextOffset: offset + 8 });
+  }
+  assert.equal(budget.start("readCommercialTemplates", { kind: "quote", query: null, offset: 32 }), null);
+  assert.equal(budget.start("readCommercialTemplates", { kind: "invoice", query: null, offset: 24 }), null);
+  const final = budget.start("readCommercialTemplates", { kind: "quote", query: null, offset: 24 }); assert.ok(final);
+  budget.finish(final, { ok: true, nextOffset: null }); assert.equal(budget.available("readCommercialTemplates"), false);
+});
+
 test("publication reader aliases retain the distinction between history, drafts and prepared content", () => {
   const recent = inrAssistantObjectives("Consulte mes dernières publications.")[0];
   assert.equal(inrAssistantReadMatchesObjective(recent, "readPublicationWorkspace", { view: "history", recordId: null }), true);

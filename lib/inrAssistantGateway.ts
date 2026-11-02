@@ -33,7 +33,7 @@ import type { InrAssistantTaskState, InrAssistantTaskOutcome, InrAssistantAction
 import { inrAssistantRequiredCalls, inrAssistantGoalCompleted, inrAssistantTaskTrackingLimit, compactInrAssistantTaskReceipts, inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantTaskPolicy.ts";
 import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsAction, inrAssistantPlanAllowsRead, inrAssistantReadMatchesObjective, inrAssistantObjectiveFamily, inrAssistantObjectiveLabel, createInrAssistantReadBudget } from "./inrAssistantObjectives.ts";
 import { inrAssistantUiActionsFromToolResult, INR_ASSISTANT_MAX_UI_ACTIONS, type InrAssistantUiAction } from "./inrAssistantUiActions.ts";
-import { inrAssistantUiSteps, rebindInrAssistantUiStep, type InrAssistantUiStep } from "./inrAssistantUiTask.ts";
+import { inrAssistantUiSteps, rebindInrAssistantUiStep, inrAssistantUiStepAcceptsAction, inrAssistantUiStepTool, isInrAssistantUiTaskTool, INR_ASSISTANT_UI_TASK_TOOLS, type InrAssistantUiStep } from "./inrAssistantUiTask.ts";
 import { compactInrAssistantRejectedToolContext } from "./inrAssistantRejectedToolContext.ts";
 import { discoverInrAssistantActionCoverage, INR_ASSISTANT_COVERAGE_FAMILIES } from "./inrAssistantActionCoverage.ts";
 import { deriveInrAssistantStudioDraft, isInrAssistantStudioDraftRequest, parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "./inrAssistantStudioDraft.ts";
@@ -148,7 +148,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const appliedUi = new Set((uiResumeRequested || args.taskIntent === "check_status" ? args.browserStepResults ?? [] : []).filter(result => result.status === "applied" && uiSteps.some(step => step.id === result.stepId && step.source)).map(result => result.stepId));
   const statusOnly = Boolean(args.taskContext && args.actionInstruction && (args.taskIntent === "check_status" || args.taskContext.outcome === "processing" && !uiSteps.length));
   const navigationRequested = isInrAssistantNavigationRequest(args.taskContext ? spokenRequest : latestRequest);
-  const screenCommandRequested = uiSteps.some(step => step.command !== "navigateApplication" && !step.actions?.length && !appliedUi.has(step.id));
+  const screenCommandRequested = uiSteps.some(step => inrAssistantUiStepTool(step) === "runScreenCommand" && !step.actions?.length && !appliedUi.has(step.id));
   const draftOnly = isInrAssistantStudioDraftRequest(latestRequest);
   const insertRequest = requestsStudioInsertion(spokenRequest);
   if (!args.actionInstruction && !draftOnly && (shortAffirmation(spokenRequest) || insertRequest)) {
@@ -226,7 +226,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   }
   for(const objective of objectives) if(objective.kind==="read" && !requiredTools.includes(objective.tool)) requiredTools.push(objective.tool);
   if (navigationRequested) requiredTools.push("navigateApplication");
-  if (screenCommandRequested || uiSteps.some(step => step.command !== "navigateApplication")) requiredTools.push("runScreenCommand");
+  for (const step of uiSteps) if (!requiredTools.includes(inrAssistantUiStepTool(step))) requiredTools.push(inrAssistantUiStepTool(step));
   const requiredCalls = { ...inrAssistantRequiredCalls(latestRequest), ...args.taskContext?.requiredCalls };
   if (uiSteps.length) for (const name of Object.keys(requiredCalls)) {
     if (!requiredTools.includes(name)) delete requiredCalls[name];
@@ -264,7 +264,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const readBudget = createInrAssistantReadBudget();
   const readObjectiveAtStart = new Map<string, string>();
   const previewActionNames = new Set(["previewCalendarAction","previewScheduledPublicationAction","previewGoogleBusinessProfileUpdate","previewMediaDeletion","previewPublicationLifecycleAction","previewIndividualMail","previewCommercialDocumentAction"]);
-  const observedActionNames = new Set([...Object.keys(INR_ASSISTANT_COMMANDS),"navigateApplication","runScreenCommand","previewCampaignAudience",...previewActionNames,"applyCalendarAction","applyScheduledPublicationAction"]);
+  const observedActionNames = new Set([...Object.keys(INR_ASSISTANT_COMMANDS),...INR_ASSISTANT_UI_TASK_TOOLS,"previewCampaignAudience",...previewActionNames,"applyCalendarAction","applyScheduledPublicationAction"]);
   const privateApprovals=new Map(receipts.flatMap(receipt=>receipt.approvalReference && receipt.approvalToken && receipt.approvalKind?[[receipt.approvalReference,{token:receipt.approvalToken,kind:receipt.approvalKind}] as const]:[]));
   const resolvePreview=(reference:string)=>privateApprovals.get(reference)?.token??null;
   let navigation: InrAssistantNavigation | undefined;
@@ -363,9 +363,9 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
               const queuedActions=inrAssistantUiActionsFromToolResult(result.toolCallId,output);
               if(uiActions.length+queuedActions.length>INR_ASSISTANT_MAX_UI_ACTIONS) throw new InrAssistantInputError("La limite d’actions à transmettre au navigateur est atteinte. Les actions restantes n’ont pas été transmises.");
               const uiStep = uiStepCalls.get(result.toolCallId);
-              if (uiStep && queuedActions.some(action => uiStep.command === "navigateApplication" ? action.type === "navigate" : action.type === "command" && action.command.command === uiStep.command)) uiStep.actions = queuedActions;
+              if (uiStep && queuedActions.some(action => inrAssistantUiStepAcceptsAction(uiStep, action))) uiStep.actions = queuedActions;
               uiActions.push(...queuedActions);
-              if (result.toolName === "navigateApplication" && output.ok === true && output.navigation && typeof output.navigation === "object") {
+              if (["navigateApplication", "prepareCommercialDocumentForm"].includes(result.toolName) && output.ok === true && output.navigation && typeof output.navigation === "object") {
                 const target=parseInrAssistantNavigation(output.navigation);
                 if(target) navigation=target;
               }
@@ -403,7 +403,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     observe(); return receiptsChanged;
   };
   const checkpoint = async () => {
-    if(!args.onTaskCheckpoint || !uiSteps.length && !requiredTools.some(name=>!["navigateApplication","runScreenCommand"].includes(name))) return;
+    if(!args.onTaskCheckpoint || !uiSteps.length && !requiredTools.some(name=>!isInrAssistantUiTaskTool(name))) return;
     try {await args.onTaskCheckpoint(taskState(inrAssistantTaskOutcome(requiredTools,receipts,"",requiredCalls),""));}
     catch {checkpointFailed=true;throw new InrAssistantInputError("La reprise de la tâche n’a pas pu être enregistrée. Aucune opération supplémentaire n’a été lancée.");}
   };
@@ -414,26 +414,27 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
       const next = mutationTail.then(async () => {
         if(checkpointFailed) throw new InrAssistantInputError("La tâche doit être vérifiée avant de poursuivre.");
         if(!inrAssistantPlanAllowsAction(objectives,name,receipts,appliedUi)) return {ok:false,status:"blocked",message:"Une étape explicitement demandée doit être terminée avant cette action."};
-        if(["navigateApplication","runScreenCommand","prepareMediaDownload","prepareStatsReportDownload"].includes(name) && uiActions.length>INR_ASSISTANT_MAX_UI_ACTIONS-2) return {ok:false,status:"blocked",message:"La limite d’actions du navigateur est atteinte. Cette action n’a pas été transmise."};
+        if((isInrAssistantUiTaskTool(name) || ["prepareMediaDownload","prepareStatsReportDownload"].includes(name)) && uiActions.length>INR_ASSISTANT_MAX_UI_ACTIONS-2) return {ok:false,status:"blocked",message:"La limite d’actions du navigateur est atteinte. Cette action n’a pas été transmise."};
         const options=input[1] && typeof input[1] === "object"?input[1] as {toolCallId?:string}:{};
         const toolCallId=options.toolCallId??name+'-'+receipts.length;
-        if (["runScreenCommand", "navigateApplication"].includes(name) && uiSteps.length) {
+        if (isInrAssistantUiTaskTool(name) && uiSteps.length) {
           const data = input[0] && typeof input[0] === "object" ? input[0] as Record<string, unknown> : {};
           const clauseKey = (value: string) => value.replace(/[,.!?;:]+$/g, "").trim();
           const quotedClauses = typeof data.instructionQuote === "string" ? inrAssistantRequestClauses(data.instructionQuote).map(clauseKey) : [];
-          const command = name === "navigateApplication" ? name : data.command;
+          const command = name === "runScreenCommand" ? data.command : name;
           const step = uiSteps.find(candidate => candidate.command === command && !candidate.actions?.length && !appliedUi.has(candidate.id) && quotedClauses.includes(clauseKey(candidate.instruction)));
           if (!step || !uiReady(step)) return { ok: false, status: "deferred", message: "Cette étape d’écran est déjà transmise ou attend une étape précédente. Aucune nouvelle commande n’a été envoyée." };
+          if (step.afterStepId && !step.screen) return { ok: false, status: "deferred", message: "Le formulaire de cette étape attend le retour vérifié de la transition précédente." };
           if (step.screen && (step.screen.pathname !== args.clientContext?.screen?.pathname || step.screen.revision !== args.clientContext.screen.revision || JSON.stringify(step.screen.selection) !== JSON.stringify(args.clientContext.screen.selection)
             || !args.clientContext.screen.availableCommands?.some(command => command === step.command))) return { ok: false, status: "blocked", message: "Le formulaire a changé depuis la demande initiale. Renouvelez votre demande sur le formulaire actuel." };
           uiStepCalls.set(toolCallId, step);
         }
         // Persist before business side effects, then after the verified result.
         // A surviving marker requires reconciliation, never blind replay.
-        const mutating=!previewActionNames.has(name) && !["navigateApplication","runScreenCommand"].includes(name);
+        const mutating=!previewActionNames.has(name) && !isInrAssistantUiTaskTool(name);
         const marker:InrAssistantActionReceipt={tool:name,ok:false,status:"executing_unconfirmed",message:"Opération commencée ; résultat à vérifier avant toute nouvelle tentative."};
         if(mutating) {
-          if(!requiredTools.some(goal=>!["navigateApplication","runScreenCommand"].includes(goal))) requiredTools.push(name);
+          if(!requiredTools.some(goal=>!isInrAssistantUiTaskTool(goal))) requiredTools.push(name);
           receipts.push(marker); await checkpoint();
         }
         let output:unknown;
@@ -547,7 +548,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   let continuationMessages = messages;
   const rejectedToolCallIds = new Set<string>();
   let continuingSystem = system;
-  const taskState = (outcome:InrAssistantTaskOutcome,question:string):InrAssistantTaskState => ({version:1,instruction:args.taskContext?.instruction ?? latestRequest,...(uiSteps.length?{uiSteps:uiSteps.map(step=>({...step}))}:{}),actionRequestId:args.actionRequestId??args.requestId,startedAt:args.actionStartedAt??new Date(started).toISOString(),expiresAt:new Date(started+(outcome==="processing"?24*60:30)*60_000).toISOString(),outcome,requiredTools:requiredTools.filter(name=>!["navigateApplication","runScreenCommand"].includes(name)),...(Object.keys(requiredCalls).length?{requiredCalls}:{}),receipts:compactInrAssistantTaskReceipts(receipts.filter(receipt=>!["navigateApplication","runScreenCommand"].includes(receipt.tool)),requiredTools,requiredCalls),question:question.slice(-2000)});
+  const taskState = (outcome:InrAssistantTaskOutcome,question:string):InrAssistantTaskState => ({version:1,instruction:args.taskContext?.instruction ?? latestRequest,...(uiSteps.length?{uiSteps:uiSteps.map(step=>({...step}))}:{}),actionRequestId:args.actionRequestId??args.requestId,startedAt:args.actionStartedAt??new Date(started).toISOString(),expiresAt:new Date(started+(outcome==="processing"?24*60:30)*60_000).toISOString(),outcome,requiredTools:requiredTools.filter(name=>!isInrAssistantUiTaskTool(name)),...(Object.keys(requiredCalls).length?{requiredCalls}:{}),receipts:compactInrAssistantTaskReceipts(receipts.filter(receipt=>!isInrAssistantUiTaskTool(receipt.tool)),requiredTools,requiredCalls),question:question.slice(-2000)});
   const finishReply = (reply: InrAssistantReply): InrAssistantReply => {
     if (draftOnly) {
       const draft = studioDraftState.value ?? deriveInrAssistantStudioDraft(latestRequest, reply.message);
@@ -559,14 +560,14 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
       if (!receipts.some(r=>r.tool === name && r.status === result.status)) receipts.push({tool:name,ok:result.ok,status:result.status,message:result.message,...(result.draftId?{draftId:result.draftId}:{}),toolUrl:result.toolUrl});
     }
     if (mediaState.result && !receipts.some(r=>r.tool === "generateMedia" || r.tool === "modifyMedia")) receipts.push({tool:requiredTools.includes("modifyMedia")?"modifyMedia":"generateMedia",ok:mediaState.result.ok,status:mediaState.result.status,message:mediaState.result.message,requestId:mediaState.result.requestId,...(mediaState.result.media?.id?{id:mediaState.result.media.id}:{})});
-    const businessRequired=requiredTools.filter(name=>!["navigateApplication","runScreenCommand"].includes(name));
+    const businessRequired=requiredTools.filter(name=>!isInrAssistantUiTaskTool(name));
     if(!uiSteps.length && !businessRequired.length && (navigationRequested || screenCommandRequested)) return {...reply,...(navigation?{navigation}:{}),...(uiCommand?{uiCommand}:{}),...(uiActions.length?{uiActions}:{}),outcome:navigation || uiCommand?"processing":"needs_input"};
-    let outcome = inrAssistantTaskOutcome(businessRequired,receipts.filter(receipt=>!["navigateApplication","runScreenCommand"].includes(receipt.tool)),reply.message,requiredCalls);
+    let outcome = inrAssistantTaskOutcome(businessRequired,receipts.filter(receipt=>!isInrAssistantUiTaskTool(receipt.tool)),reply.message,requiredCalls);
     const pendingUi = uiSteps.filter(step => !appliedUi.has(step.id));
     if (pendingUi.length) outcome = args.browserStepResults?.some(result => ["failed", "cancelled"].includes(result.status)) ? "blocked" : "partial";
     success = outcome === "completed";
     if (!requiredTools.length && !uiSteps.length) return verifiedHandoffMessage ? {...reply,needsHuman:true,handoffSummary:verifiedHandoffMessage,outcome:"blocked"} : reply;
-    const label=(name:string)=>name==="navigateApplication"?"ouvrir l’outil demandé":name==="runScreenCommand"?"appliquer l’étape d’écran demandée":inrAssistantObjectiveLabel(name);
+    const label=(name:string)=>name==="navigateApplication"?"ouvrir l’outil demandé":isInrAssistantUiTaskTool(name)?"appliquer l’étape d’écran demandée":inrAssistantObjectiveLabel(name);
     const remaining = businessRequired.filter(name=>!inrAssistantGoalCompleted(name,receipts,requiredCalls));
     const completed = businessRequired.filter(name=>inrAssistantGoalCompleted(name,receipts,requiredCalls) && !receipts.some(receipt=>receipt.tool===name && INR_ASSISTANT_PENDING_STATUSES.has(receipt.status)));
     const unfinished=businessRequired.filter(name=>!completed.includes(name));
@@ -715,10 +716,10 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
           prepareStep: ({ stepNumber, messages: stepMessages }) => {
             // A UI-only request can also contain reads that are not durable
             // business goals. Opening its module must not suppress those reads.
-            const goalsDone = requiredTools.some(name=>!["navigateApplication","runScreenCommand"].includes(name)) && requiredTools.every(name=>inrAssistantGoalCompleted(name,receipts,requiredCalls)) && objectives.every((_,index)=>inrAssistantObjectiveCompleted(objectives,index,receipts,appliedUi)) && (!statusOnly || [...readCounts.keys()].some(name=>requiredTools.some(goal=>INR_ASSISTANT_COMMANDS[goal]?.statusReader===name)));
+            const goalsDone = requiredTools.some(name=>!isInrAssistantUiTaskTool(name)) && requiredTools.every(name=>inrAssistantGoalCompleted(name,receipts,requiredCalls)) && objectives.every((_,index)=>inrAssistantObjectiveCompleted(objectives,index,receipts,appliedUi)) && (!statusOnly || [...readCounts.keys()].some(name=>requiredTools.some(goal=>INR_ASSISTANT_COMMANDS[goal]?.statusReader===name)));
             const awaitsBrowser = !statusOnly && uiSteps.some(step => step.actions?.length && !appliedUi.has(step.id)) && !uiSteps.some(step => !step.actions?.length && !appliedUi.has(step.id) && uiReady(step));
             const answerOnly = awaitsBrowser || goalsDone || stepNumber >= maxCalls-1 || llmCalls >= maxCalls-1;
-            const activeTools = answerOnly ? [] : Object.keys(tools).filter(name => !(name === "navigateApplication" && navigation) && readBudget.available(name) && inrAssistantPlanAllowsAction(objectives,name,receipts,appliedUi) && inrAssistantPlanAllowsRead(objectives,name,receipts,appliedUi) && !(name === "runScreenCommand" && uiSteps.length && !uiSteps.some(step => !step.actions?.length && !appliedUi.has(step.id) && uiReady(step))) && !(INR_ASSISTANT_COMMANDS[name] && requiredTools.includes(name) && inrAssistantGoalCompleted(name,receipts,requiredCalls)) && !(args.taskContext && inrAssistantGoalCompleted(name,args.taskContext.receipts,requiredCalls))) as Array<keyof typeof tools>;
+            const activeTools = answerOnly ? [] : Object.keys(tools).filter(name => !(name === "navigateApplication" && navigation) && readBudget.available(name) && inrAssistantPlanAllowsAction(objectives,name,receipts,appliedUi) && inrAssistantPlanAllowsRead(objectives,name,receipts,appliedUi) && !(isInrAssistantUiTaskTool(name) && uiSteps.length && !uiSteps.some(step => inrAssistantUiStepTool(step) === name && !step.actions?.length && !appliedUi.has(step.id) && uiReady(step))) && !(INR_ASSISTANT_COMMANDS[name] && requiredTools.includes(name) && inrAssistantGoalCompleted(name,receipts,requiredCalls)) && !(args.taskContext && inrAssistantGoalCompleted(name,args.taskContext.receipts,requiredCalls))) as Array<keyof typeof tools>;
             if (stepNumber === 0 && continuationMessages === messages && !answerOnly && !args.taskContext && !navigation) return { activeTools };
             // Keep call/result pairs intact and discard only earlier chat text.
             // After a guide or DNA lookup, creation remains possible in step 2;

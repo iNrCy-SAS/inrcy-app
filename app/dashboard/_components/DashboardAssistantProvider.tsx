@@ -226,9 +226,14 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     const epoch = execution.epoch;
     const mountedRevisions = new Map<string, string>();
     const committedScreens = new Map<InrAssistantUiCommand, InrAssistantUiPostScreen>();
+    const committedNavigations = new Map<InrAssistantNavigation, InrAssistantUiPostScreen>();
     const rememberDocumentRevision = (navigation: InrAssistantNavigation) => {
-      const revision = screenRef.current.screen?.revision;
+      const screen = screenRef.current.screen;
+      const revision = screen?.revision;
       if (navigation.documentId && revision) mountedRevisions.set(`${navigation.destination === "quotes" ? "quote" : "invoice"}:${navigation.documentId}`, revision);
+      if (navigation.documentPrefill && screen?.documentPrefill && screen.selection && revision) {
+        committedNavigations.set(navigation, { pathname: screenRef.current.pathname, selection: screen.selection, revision, documentPrefill: screen.documentPrefill });
+      }
     };
     const isCurrent = () => {
       const scope = navigationScopeRef.current;
@@ -238,6 +243,14 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     const mounted = (navigation: InrAssistantNavigation) => {
       const target = new URL(navigation.href, "https://inrcy.local"), current = screenRef.current;
       if (current.pathname !== target.pathname) return false;
+      if (navigation.documentPrefill) {
+        const screen = current.screen;
+        return Boolean(screen?.selection && screen.revision && screen.selection.kind === navigation.documentPrefill.kind
+          && JSON.stringify(screen.documentPrefill) === JSON.stringify(navigation.documentPrefill)
+          && [...screenHandlers.current.values()].filter(entry => entry.actorUserId === actorUserId && entry.activeAccountId === activeAccountId
+            && entry.handler.command === "export_document_pdf" && entry.handler.selection.kind === screen.selection!.kind
+            && entry.handler.selection.id === screen.selection!.id && entry.handler.revision === screen.revision).length === 1);
+      }
       if (navigation.documentId) {
         const kind = navigation.destination === "quotes" ? "quote" : "invoice";
         return current.screen?.selection?.id === navigation.documentId && current.screen.selection.kind === kind
@@ -249,9 +262,14 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     };
     const navigate = async (navigation: InrAssistantNavigation) => {
       if (!isCurrent()) return false;
-      if (mounted(navigation)) { rememberDocumentRevision(navigation); return true; }
       const starting = screenRef.current;
       const target = new URL(navigation.href, "https://inrcy.local");
+      const startingParams = new URLSearchParams(starting.query);
+      // An older hydration marker cannot prove a newly requested application,
+      // and the native hook deliberately does not reapply an unchanged href.
+      if (navigation.documentPrefill && (mounted(navigation) || starting.pathname === target.pathname
+        && [...target.searchParams].every(([key, value]) => startingParams.get(key) === value))) return false;
+      if (mounted(navigation)) { rememberDocumentRevision(navigation); return true; }
       const leftForAnotherTarget = () => {
         const current = screenRef.current;
         const routeChanged = current.pathname !== starting.pathname || current.query !== starting.query;
@@ -278,7 +296,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
       return executeScreenCommand(value.command === "export_document_pdf" && revision ? { ...value, revision } : value, screen => committedScreens.set(value, screen));
     };
     try { return await runInrAssistantUiActions(actions, { isCurrent, navigate, command, onResult, beforeAction,
-      postScreen: action => action.type === "command" ? committedScreens.get(action.command) : undefined }); }
+      postScreen: action => action.type === "command" ? committedScreens.get(action.command) : committedNavigations.get(action.navigation) }); }
     finally { execution.busy = false; }
   }, [actorUserId, activeAccountId, requestNavigation, router, revealNavigationDestination, executeScreenCommand]);
   const insertStudioDraft = useCallback(async (value: InrAssistantStudioDraft) => {

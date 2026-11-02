@@ -3,6 +3,8 @@ import test from "node:test";
 import { inrAssistantUiSteps, parseInrAssistantUiSteps, bindInrAssistantUiSteps, rebindInrAssistantUiStep } from "../../lib/inrAssistantUiTask.ts";
 import { resolveInrAssistantUiTaskResults } from "../../lib/inrAssistantUiTaskContinuation.ts";
 import { inrAssistantUiActionsFromToolResult, type InrAssistantUiResult } from "../../lib/inrAssistantUiActions.ts";
+import { getInrAssistantDocumentPrefillNavigation } from "../../lib/inrAssistantDocumentUiCommands.ts";
+import { inrAssistantUiStepResult } from "../../lib/inrAssistantUiTask.ts";
 
 const screen = { pathname: "/dashboard/ads", tool: "Ads", selection: { kind: "campaign" as const, id: "campaign_1" }, revision: "rev_1", availableCommands: ["configure_ads_draft" as const] };
 const instruction = "Renomme cette campagne publicitaire en Offre été, puis crée un contact CRM Alice.";
@@ -69,4 +71,41 @@ test("a requested document PDF in mail is a scoped preparation step and never a 
   assert.deepEqual(plan.map(step => step.command), ["prepare_document_mail"]); assert.ok(parseInrAssistantUiSteps(plan));
   assert.deepEqual(inrAssistantUiSteps(message), []);
   for (const denied of ["Lis ce texte : '" + message + "'", "Si je confirme, " + message, "Ne prépare pas un mail avec le PDF de ce devis."]) assert.deepEqual(inrAssistantUiSteps(denied, context), []);
+});
+
+test("PDF to composer then save/send binds only the acknowledged next form and never grants mail delivery", () => {
+  const doc = { pathname: "/dashboard/devis/new", tool: "Devis", selection: { kind: "quote" as const, id: source.turnId }, revision: "doc_1", pendingChanges: false, documentVersion: "2026-11-02T12:00:00.000Z", availableCommands: ["prepare_document_mail" as const] };
+  const message = "Prépare un mail avec le PDF de ce devis pour client@example.invalid, puis modifie l’objet de ce mail en Devis, puis sauvegarde ce brouillon de mail, puis envoie ce mail.";
+  const plan = inrAssistantUiSteps(message, { source: "untrusted_client", screen: doc });
+  assert.deepEqual(plan.map(step => step.command), ["prepare_document_mail", "configure_mail_draft", "save_mail_draft", "send_mail_draft"]);
+  assert.ok(parseInrAssistantUiSteps(plan));
+  assert.ok(plan.slice(1).every(step => !step.screen && step.afterStepId === plan[0].id));
+  const batch = inrAssistantUiActionsFromToolResult("mail-transition", { ok: true, uiCommand: { command: "prepare_document_mail", selection: doc.selection, revision: doc.revision, expectedUpdatedAt: "2026-11-02T12:00:00.000Z", recipient: "client@example.invalid" } });
+  const state = bindInrAssistantUiSteps([{ ...plan[0], actions: batch }, ...plan.slice(1)], batch, source);
+  const mail = { pathname: "/dashboard/mails", tool: "Mails", selection: { kind: "mail" as const, id: "mail_INSTANCE" }, revision: "mail_1", availableCommands: ["configure_mail_draft" as const] };
+  const result = inrAssistantUiStepResult(state[0], [{ actionId: batch[0].id, source: "browser_reported", status: "applied", postScreen: mail }]);
+  const resumed = rebindInrAssistantUiStep(state, [result], { source: "untrusted_client", screen: mail });
+  assert.equal(resumed[1].screen?.revision, "mail_1"); assert.equal(resumed[2].screen, undefined);
+  assert.ok(parseInrAssistantUiSteps(resumed));
+  for (const current of [{ ...mail, revision: "manual_edit" }, { ...mail, availableCommands: [] }, { ...mail, selection: { ...mail.selection, id: "another" } }])
+    assert.equal(rebindInrAssistantUiStep(state, [result], { source: "untrusted_client", screen: current })[1].screen, undefined);
+  assert.equal(rebindInrAssistantUiStep(state, [{ stepId: plan[0].id, status: "applied" }], { source: "untrusted_client", screen: mail })[1].screen, undefined);
+});
+
+test("a document conversion waits for exact committed prefill metadata before the requested PDF step", () => {
+  const message = "Convertis le devis DEV-001 en facture, puis exporte le PDF de cette facture.";
+  const plan = inrAssistantUiSteps(message);
+  assert.deepEqual(plan.map(step => step.command), ["prepareCommercialDocumentForm", "export_document_pdf"]);
+  const prefill = { operation: "convert_quote" as const, kind: "invoice" as const, sourceId: source.turnId, expectedUpdatedAt: "2026-11-02T12:00:00.000Z" };
+  const navigation = getInrAssistantDocumentPrefillNavigation(prefill);
+  const batch = inrAssistantUiActionsFromToolResult("convert", { ok: true, navigation });
+  assert.equal(batch.length, 1);
+  const state = bindInrAssistantUiSteps([{ ...plan[0], actions: batch }, plan[1]], batch, source);
+  assert.ok(parseInrAssistantUiSteps(state));
+  const screen = { pathname: "/dashboard/factures/new", tool: "Factures", selection: { kind: "invoice" as const, id: "preview_new" }, revision: "preview_2", documentPrefill: prefill, availableCommands: ["export_document_pdf" as const] };
+  const result = inrAssistantUiStepResult(state[0], [{ actionId: batch[0].id, source: "browser_reported", status: "applied", postScreen: screen }]);
+  assert.deepEqual(result.postScreen?.documentPrefill, prefill);
+  assert.equal(rebindInrAssistantUiStep(state, [result], { source: "untrusted_client", screen })[1].screen?.revision, "preview_2");
+  for (const wrong of [{ ...screen, documentPrefill: undefined }, { ...screen, documentPrefill: { ...prefill, sourceId: "22222222-2222-4222-8222-222222222222" } }])
+    assert.equal(inrAssistantUiStepResult(state[0], [{ actionId: batch[0].id, source: "browser_reported", status: "applied", postScreen: wrong }]).postScreen, undefined);
 });

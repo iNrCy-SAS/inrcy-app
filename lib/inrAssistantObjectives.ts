@@ -1,6 +1,6 @@
 import { inrAssistantActionObjectives, inrAssistantRequiredCalls, inrAssistantRequestClauses, inrAssistantRoutingText, inrAssistantClauseIsAdvice, inrAssistantGoalCompleted, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
 import { INR_ASSISTANT_COMMANDS, type InrAssistantCommandFamily } from "./inrAssistantCommandRegistry.ts";
-import type { InrAssistantUiStep } from "./inrAssistantUiTask.ts";
+import { inrAssistantUiStepTool, type InrAssistantUiStep } from "./inrAssistantUiTask.ts";
 /** A plan is bookkeeping, never authority to execute a native command. */
 export type InrAssistantObjective = {
     id: string;
@@ -26,6 +26,7 @@ const readers: Array<{
     { tool: "readScheduledPublications", family: "publication", label: "consulter les publications programmées", matches: /(?:publication|post).{0,50}(?:programm|planifi)|(?:programm|planifi).{0,50}(?:publication|post)/ },
     { tool: "readPublicationWorkspace", family: "publication", label: "retrouver les brouillons de publication", matches: /(?:brouillon|proposition|historique).{0,50}(?:publication|post)|(?:publication|post).{0,50}(?:brouillon|proposition|historique)/ },
     { tool: "getRecentPublications", family: "publication", label: "consulter les publications demandées", matches: /publication|\bposts?\b/ },
+    { tool: "readCommercialTemplates", family: "commercial", label: "consulter les modèles de documents", matches: /(?:modele|template).{0,60}(?:devis|facture|document)|(?:devis|facture|document).{0,60}(?:modele|template)/ },
     { tool: "readCommercialDocuments", family: "commercial", label: "lire les documents commerciaux", matches: /devis|facture|document commercial/ },
     { tool: "listIndividualMailboxes", family: "workspace", label: "consulter les boîtes expéditrices", matches: /boites?|expediteurs?/ },
     { tool: "readIndividualMailHistory", family: "workspace", label: "consulter l’historique des mails envoyés", matches: /(?:historique|envoyes).{0,45}(?:mail|courriel)|(?:mail|courriel).{0,45}(?:historique|envoyes)/ },
@@ -48,7 +49,7 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
     for (const [clauseIndex, clause] of clauses.entries()) {
         const screenStep = uiSteps.find(step => step.instruction === clause);
         if (screenStep) {
-            plan.push({ id: screenStep.id, kind: "ui", tool: screenStep.command === "navigateApplication" ? "navigateApplication" : "runScreenCommand", instruction: clause, count: 1 });
+            plan.push({ id: screenStep.id, kind: "ui", tool: inrAssistantUiStepTool(screenStep), instruction: clause, count: 1 });
             continue;
         }
         const mutations = actions.filter(action => action.instruction === inrAssistantRoutingText(clause));
@@ -74,6 +75,7 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
     return plan;
 }
 export function inrAssistantObjectiveFamily(tool: string): InrAssistantCommandFamily | undefined {
+    if (tool === "prepareCommercialDocumentForm") return "commercial";
     return INR_ASSISTANT_COMMANDS[tool]?.family ?? readers.find(reader => reader.tool === tool)?.family;
 }
 export function inrAssistantObjectiveLabel(tool: string): string {
@@ -119,6 +121,7 @@ export function inrAssistantPlanAllowsAction(plan: InrAssistantObjective[], tool
 const prerequisiteReaders: Record<string, string[]> = {
     manageCrmContact: ["searchCrmContacts", "readCrmContact"],
     prepareCommercialDocument: ["searchCrmContacts", "readCrmContact", "readCommercialDocuments"],
+    prepareCommercialDocumentForm: ["readCommercialTemplates", "readCommercialDocuments"],
     updateCommercialDocument: ["readCommercialDocuments"],
     finalizeCommercialDocument: ["readCommercialDocuments"],
     manageAdvertisingCampaign: ["readAdvertisingCampaigns"],
@@ -164,7 +167,7 @@ type ReadAttempt = {
 export function createInrAssistantReadBudget() {
     const attempts = new Map<string, ReadAttempt[]>();
     const row = (value: unknown): Record<string, unknown> => value && typeof value === "object" ? value as Record<string, unknown> : {};
-    const paginated = new Set(["searchMedia", "listIndividualMailboxes", "readIndividualMailHistory", "discoverCapabilities", "readStatsReports", "readScheduledPublications", "readPublicationWorkspace", "readAdvertisingCampaigns", "readAttachedDocument"]);
+    const paginated = new Set(["searchMedia", "listIndividualMailboxes", "readIndividualMailHistory", "discoverCapabilities", "readStatsReports", "readScheduledPublications", "readPublicationWorkspace", "readAdvertisingCampaigns", "readAttachedDocument", "readCommercialTemplates"]);
     const sameSearch = (left: Record<string, unknown>, right: Record<string, unknown>) => [...new Set([...Object.keys(left), ...Object.keys(right)])].filter(key => key !== "offset" && key !== "page").every(key => JSON.stringify(left[key] ?? null) === JSON.stringify(right[key] ?? null));
     return {
         available(name: string) {

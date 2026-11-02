@@ -1,3 +1,4 @@
+import * as mailLifecycle from "../../lib/inrAssistantMailLifecycle.ts";
 import * as mediaCommands from "../../lib/inrAssistantMediaUiCommands.ts";
 import * as mailAttachments from "../../lib/inrAssistantMailAttachments.ts";
 import assert from "node:assert/strict";
@@ -31,7 +32,7 @@ function harness(options: { message?: string; auth?: boolean; account?: string; 
     "./dashboardEditionServer": { getDashboardEditionForAccountId: async () => options.edition ?? "founder" },
     "./accountSubscriptionAccess": { getActiveSubscriptionAccountIds: async () => new Set(options.subscription === false ? [] : ["account-A"]) },
     "./inrAssistantUiCommands.ts": commands, "./inrAssistantDocumentUiCommands.ts": documentCommands, "./inrAssistantActionClause.ts": clauses,
-    "./inrAssistantMediaUiCommands.ts": mediaCommands, "./inrAssistantMailAttachments.ts": mailAttachments,
+    "./inrAssistantMailLifecycle.ts": mailLifecycle, "./inrAssistantMediaUiCommands.ts": mediaCommands, "./inrAssistantMailAttachments.ts": mailAttachments,
   };
   function load<T>(name: string): T {
     const source = ts.transpileModule(readFileSync(new URL(`../../lib/${name}.ts`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;

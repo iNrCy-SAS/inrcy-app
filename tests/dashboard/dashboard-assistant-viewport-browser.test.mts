@@ -37,6 +37,9 @@ const sources = {
   "@/lib/inrAssistantStudioDraft": compile("lib/inrAssistantStudioDraft.ts"),
   "@/lib/inrAssistantStudioHandoff": compile("lib/inrAssistantStudioHandoff.ts"),
   "./inrAssistantNavigation.ts": compile("lib/inrAssistantNavigation.ts"),
+  "./inrAssistantUiPostScreen.ts": compile("lib/inrAssistantUiPostScreen.ts"),
+  "./inrAssistantActionClause.ts": compile("lib/inrAssistantActionClause.ts"),
+  "./inrAssistantRequestClauses.ts": compile("lib/inrAssistantRequestClauses.ts"),
   "./inrAssistantDocumentUiCommands.ts": compile("lib/inrAssistantDocumentUiCommands.ts"),
   "./inrAssistantMailLifecycle.ts": compile("lib/inrAssistantMailLifecycle.ts"),
   "./inrAssistantMailCompose.ts": compile("lib/inrAssistantMailCompose.ts"),
@@ -47,6 +50,7 @@ const sources=${JSON.stringify(sources)}, loaded={};
 function require(name) {
   if(name.endsWith('.css')) return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
   if(name==='./inrAssistantStudioDraft.ts') return require('@/lib/inrAssistantStudioDraft');
+  if(name==='./inrAssistantClientContext.ts') return require('@/lib/inrAssistantClientContext');
   if(name==='./inrAssistantUiCommands.ts') return require('@/lib/inrAssistantUiCommands');
   if(name==='next-intl') return {useLocale:()=> 'fr-FR'};
   if(name==='next/image') return {__esModule:true,default:props=>require('react').createElement('img',props)};

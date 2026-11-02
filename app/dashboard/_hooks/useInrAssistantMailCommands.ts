@@ -37,7 +37,9 @@ export function useInrAssistantMailCommands(options: Options) {
     for (const name of JSON.parse(serialized) as Command["command"][]) {
       const target = { selection: { kind: "mail" as const, id }, revision };
       const placeholder: Command = name === "configure_mail_draft" ? { ...target, command: name, patch: {} } : { ...target, command: name };
-      register(`${instance}:${name}`, { ...placeholder, pathname, run: async (stillCurrent, incoming, scopeCurrent) => {
+      register(`${instance}:${name}`, { ...placeholder, pathname,
+        getCommittedScreen: () => ({ pathname, selection: { kind: "mail", id }, revision: current.current.revision }),
+        run: async (stillCurrent, incoming, scopeCurrent) => {
         if (incoming.command !== name || !stillCurrent() || pending.current || current.current.revision !== revision || !current.current.options.enabled) return false;
         const command = incoming as Command, state = current.current;
         const guard = () => scopeCurrent() && current.current.revision === revision && current.current.options.open;

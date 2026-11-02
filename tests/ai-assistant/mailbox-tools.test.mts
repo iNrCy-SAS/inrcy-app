@@ -139,7 +139,7 @@ test("a committed local composer edit and Continue never authorize an implicit s
   h.saved.set(preview.reference, preview.token);
   const instruction = `Modifie le texte du mail ouvert en Nouveau message, puis envoie ce mail à ${TO} avec ses pièces jointes.`;
   const uiSteps = inrAssistantUiSteps(instruction, { source: "untrusted_client", screen: { pathname: "/dashboard/mails", tool: "Mails", selection: { kind: "mail", id: "compose_1" }, revision: "compose_1_rev_0", availableCommands: ["configure_mail_draft"] } });
-  assert.equal(uiSteps.length, 1);
+  assert.deepEqual(uiSteps.map(step => step.command), ["configure_mail_draft", "send_mail_draft"]);
   const now = new Date().toISOString();
   const state: InrAssistantTaskState = { version: 1, instruction, actionRequestId: "composer_followup_1", startedAt: now, expiresAt: new Date(Date.now() + 60_000).toISOString(), outcome: "partial", requiredTools: ["sendIndividualMail"], receipts: [], question: "Continuer", uiSteps };
   const resumed = continueInrAssistantTask("Continuer", state, Date.now(), "continue");

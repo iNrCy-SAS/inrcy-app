@@ -6,10 +6,12 @@ import test from "node:test";
 import { chromium, type Page } from "@playwright/test";
 import ts from "typescript";
 import { getInrAssistantNavigation } from "../../lib/inrAssistantUiCommands.ts";
+import { getInrAssistantDocumentPrefillNavigation, type InrAssistantDocumentPrefill } from "../../lib/inrAssistantDocumentUiCommands.ts";
 import { inrAssistantUiActionsFromToolResult, type InrAssistantUiAction, type InrAssistantUiResult } from "../../lib/inrAssistantUiActions.ts";
 
 type UiFixture = Window & {
-  assistantProps: { screen: { availableCommands: string[]; selection: { id: string }; selectedMediaIds?: string[]; revision: string; pendingChanges?: boolean }; onUiActions: (actions: InrAssistantUiAction[]) => Promise<InrAssistantUiResult[]> };
+  documentPrefill?: InrAssistantDocumentPrefill;
+  assistantProps: { screen: { availableCommands: string[]; selection: { id: string }; selectedMediaIds?: string[]; revision: string; pendingChanges?: boolean; documentPrefill?: InrAssistantDocumentPrefill }; onUiActions: (actions: InrAssistantUiAction[]) => Promise<InrAssistantUiResult[]> };
   result: InrAssistantUiResult[]; requestedHref: string; pdfBuilds: string[]; exports: unknown[];
   fixtureScope: { account: string; documentId: string; selectedMediaIds: string[]; text: string; blocked: boolean }; allowNavigation: boolean; deferPdf: boolean; deferDownload: boolean;
   releaseDownload: () => void; requests: Array<{ url: string; body: string }>;
@@ -81,7 +83,7 @@ const sources = {
   "preview": compile("app/dashboard/_hooks/useInrAssistantDocumentPreview.ts"),
   "document-mail": compile("app/dashboard/_hooks/useInrAssistantDocumentMail.ts"),
   "document-mail-preparation": compile("app/dashboard/_documents/documentMailPreparation.ts"),
-  ...Object.fromEntries(["inrAssistantMailLifecycle", "inrAssistantUiPostScreen", "inrAssistantDocumentUiCommands", "inrAssistantNativeMediaOptimization", "mediaLibraryOptimizationPolicy", "mediaRules", "inrAssistantMailAttachments", "inrAssistantMailCompose", "inrAssistantMediaUiCommands", "inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
+  ...Object.fromEntries(["inrAssistantActionClause", "inrAssistantRequestClauses", "inrAssistantMailLifecycle", "inrAssistantUiPostScreen", "inrAssistantDocumentUiCommands", "inrAssistantNativeMediaOptimization", "mediaLibraryOptimizationPolicy", "mediaRules", "inrAssistantMailAttachments", "inrAssistantMailCompose", "inrAssistantMediaUiCommands", "inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
 };
 const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
 const fixture = `
@@ -136,7 +138,7 @@ HTMLAnchorElement.prototype.click=function(){window.exports.push({id:window.fixt
 const React=require('react'),screen=require('./DashboardAssistantScreenContext'),command=require('./DashboardAssistantCommandContext');
 function Document(){
  const serverVersion={accountId:window.fixtureScope.account,documentId:window.fixtureScope.documentId,updatedAt:'2026-11-02T12:00:00.000Z'};
- const preview=require('preview').useInrAssistantDocumentPreview('quote',window.fixtureScope.documentId,{text:window.fixtureScope.text},false,{isFinalized:true,serverVersion});
+ const preview=require('preview').useInrAssistantDocumentPreview('quote',window.fixtureScope.documentId,{text:window.fixtureScope.text},false,{isFinalized:true,serverVersion,prefill:window.documentPrefill});
  const id=preview.selection.id;
  command.useInrAssistantDocumentPdf(preview.selection,async()=>{window.pdfBuilds.push(id);if(window.deferPdf)await new Promise(resolve=>window.releasePdf=resolve);return new Blob(['PDF fixture'],{type:'application/pdf'})},'devis',preview.revision);
  require('document-mail').useInrAssistantDocumentMail({selection:preview.selection,revision:preview.revision,serverVersion,enabled:preview.canPrepareMail,prepare:async(value,isCurrent)=>{
@@ -848,5 +850,40 @@ test("document mail handoff refuses a cancelled guard, changed account, wrong do
       assert.equal(await page.evaluate(() => (window as unknown as UiFixture).requests.length), 0);
       await page.close();
     }
+  } finally { await browser.close(); }
+});
+
+test("document template navigation waits for the exact native hydration marker and committed preview", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page);
+    const prefill: InrAssistantDocumentPrefill = { operation: "apply_template", kind: "quote", sourceId: A, expectedUpdatedAt: "2026-11-02T12:00:00.000Z" };
+    const navigation = getInrAssistantDocumentPrefillNavigation(prefill);
+    const batch = inrAssistantUiActionsFromToolResult("template-hydration", { ok: true, navigation });
+    assert.equal(batch.length, 1);
+    await page.evaluate(batch => (window as unknown as UiFixture).startActions(batch), batch);
+    await page.waitForFunction(() => Boolean((window as unknown as UiFixture).requestedHref));
+    await page.evaluate(() => (window as unknown as UiFixture).mountTarget());
+    await page.waitForFunction(() => Boolean((window as unknown as UiFixture).assistantProps.screen.revision));
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result), null, "URL and mounted empty form do not prove template hydration");
+    await page.evaluate(prefill => { const f = window as unknown as UiFixture; f.documentPrefill = { ...prefill, sourceId: "22222222-2222-4222-8222-222222222222" }; f.renderFixture(); }, prefill);
+    await page.waitForFunction(() => Boolean((window as unknown as UiFixture).documentPrefill));
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result), null, "another template cannot satisfy this signed navigation");
+    await page.evaluate(prefill => { const f = window as unknown as UiFixture; f.documentPrefill = prefill; f.renderFixture(); }, prefill);
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    const result = await page.evaluate(() => (window as unknown as UiFixture).result[0]);
+    assert.equal(result.status, "applied"); assert.deepEqual(result.postScreen?.documentPrefill, prefill);
+    assert.ok(result.postScreen?.revision); assert.equal(result.postScreen?.selection.kind, "quote");
+    assert.deepEqual(await page.evaluate(() => (window as unknown as UiFixture).pdfBuilds), []);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).requests.length), 0, "hydration acknowledgement is not a saved document or sent mail");
+    const repeated = inrAssistantUiActionsFromToolResult("another-application", { ok: true, navigation });
+    await page.evaluate(batch => (window as unknown as UiFixture).startActions(batch), repeated);
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "failed", "an old hydration marker cannot prove that a later request reapplied a template");
+    await page.evaluate(() => { const f = window as unknown as UiFixture; delete f.documentPrefill; f.renderFixture(); });
+    await page.waitForFunction(() => !(window as unknown as UiFixture).assistantProps.screen.documentPrefill);
+    await page.evaluate(batch => (window as unknown as UiFixture).startActions(batch), inrAssistantUiActionsFromToolResult("same-href-no-marker", { ok: true, navigation }));
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "failed", "the unchanged native href cannot reapply the edited form either");
   } finally { await browser.close(); }
 });

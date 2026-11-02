@@ -26,6 +26,7 @@ import * as uiActions from "../../lib/inrAssistantUiActions.ts";
 import * as actionCoverage from "../../lib/inrAssistantActionCoverage.ts";
 import * as commandRegistry from "../../lib/inrAssistantCommandRegistry.ts";
 import * as uiCommands from "../../lib/inrAssistantUiCommands.ts";
+import { getInrAssistantDocumentPrefillNavigation } from "../../lib/inrAssistantDocumentUiCommands.ts";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
 import type * as ToolRegistry from "../../lib/inrAssistantToolRegistry.ts";
 import type { InrAssistantMediaResult } from "../../lib/inrAssistantMediaTools.ts";
@@ -1528,4 +1529,31 @@ test("recovery stays unfinished after an ordinary status read and requires verif
     assert.equal(reply.taskState?.receipts.some(receipt => receipt.tool === "getAccountDiagnostics" && receipt.status === "read"), mode === "complete");
     assert.equal(h.crmExecutions.length, 0); assert.equal(h.mediaExecutions, 0); assert.equal(h.publicationExecutions.length, 0);
   }
+});
+
+test("native document prefill is a UI objective and subsequent PDF waits for its exact committed form", async () => {
+  const instruction = "Convertis le devis DEV-001 en facture, puis exporte le PDF de cette facture.";
+  const prefill = { operation: "convert_quote" as const, kind: "invoice" as const, sourceId: "11111111-1111-4111-8111-111111111111", expectedUpdatedAt: "2026-11-02T12:00:00.000Z" };
+  const navigation = getInrAssistantDocumentPrefillNavigation(prefill);
+  let preparations = 0, exports = 0;
+  const prepare = { tool: "prepareCommercialDocumentForm", input: { instructionQuote: "Convertis le devis DEV-001 en facture" } };
+  const exportCall = { tool: "runScreenCommand", input: { command: "export_document_pdf", instructionQuote: "Exporte le PDF de cette facture" } };
+  const field = jsonSchema<{ instructionQuote: string; command?: string }>({ type: "object", properties: { instructionQuote: { type: "string" }, command: { type: "string" } }, required: ["instructionQuote"] });
+  const documentNativeFactory = () => ({ prepareCommercialDocumentForm: tool({ inputSchema: field, execute: async () => { preparations++; return { ok: true, status: "navigation_requested", navigation }; } }) });
+  const screen = { pathname: "/dashboard/factures/new", tool: "Factures", selection: { kind: "invoice" as const, id: "preview_invoice" }, revision: "new_1", documentPrefill: prefill, availableCommands: ["export_document_pdf" as const] };
+  const extraTools = { runScreenCommand: tool({ inputSchema: field, execute: async () => { exports++; return { ok: true, uiCommand: { command: "export_document_pdf", selection: screen.selection, revision: screen.revision } }; } }) };
+  const h = harness({ documentNativeFactory, extraTools, parallelPlan: [prepare, exportCall] });
+  const initial = await h.runtime.generateInrAssistantReply({ ...basic, actorUserId: "actor-a", edition: "founder", supabase: {} as never, messages: [{ role: "user", content: instruction }] });
+  assert.equal(preparations, 1); assert.equal(exports, 0); assert.equal(initial.uiActions?.length, 1); assert.equal(initial.outcome, "partial");
+  assert.deepEqual(Array.from(initial.taskState?.requiredTools ?? []), []);
+  const state = structuredClone(initial.taskState!);
+  state.uiSteps = uiTask.bindInrAssistantUiSteps(state.uiSteps!, initial.uiActions!, { turnId: randomUUID(), createdAt: new Date().toISOString() });
+  for (const acknowledged of [false, true]) {
+    const before: number = exports;
+    const resumed = harness({ documentNativeFactory, extraTools, plan: [exportCall] });
+    const reply = await resumed.runtime.generateInrAssistantReply({ ...basic, actorUserId: "actor-a", edition: "founder", supabase: {} as never, taskContext: state, actionInstruction: instruction, taskIntent: "continue", clientContext: { source: "untrusted_client", screen }, browserStepResults: acknowledged ? [{ stepId: state.uiSteps![0].id, status: "applied", postScreen: screen }] : [], messages: [{ role: "user", content: "Continuer" }] });
+    assert.equal(exports, before + (acknowledged ? 1 : 0)); assert.equal(reply.uiActions?.length ?? 0, acknowledged ? 1 : 0);
+    assert.equal(reply.outcome, "partial", "a requested PDF handoff still waits for its browser result");
+  }
+  assert.equal(preparations, 1, "the hydrated conversion is never replayed");
 });
