@@ -48,7 +48,7 @@ test("native mail lifecycle requires a current explicit request and exact mounte
   const screen: InrAssistantClientScreen = { pathname: "/dashboard/mails", tool: "iNrSend", selection: { kind: "mail", id: "mail_local" }, revision: "mail_local_2", availableCommands: [...mailLifecycle.INR_ASSISTANT_MAIL_LIFECYCLE] };
   for (const [command, request] of [["save_mail_draft", "Enregistre ce mail en brouillon"], ["send_mail_draft", "Envoie ce mail"], ["open_mail_schedule", "Programme ce mail"]] as const) {
     const input = { command, instructionQuote: request };
-    const run = async (message = request, options: Parameters<typeof harness>[1] = { screen }, patch = input) => harness(message, options).runScreenCommand.execute!(patch, execution) as Promise<{ ok: boolean; uiCommand?: unknown }>;
+    const run = async (message = request, options: Parameters<typeof harness>[1] = { screen }, patch = input) => await harness(message, options).runScreenCommand.execute!(patch, execution) as { ok: boolean; uiCommand?: unknown };
     const result = await run(); assert.equal(result.ok, true, command);
     assert.deepEqual(commands.parseInrAssistantUiCommand(result.uiCommand), { command, selection: screen.selection, revision: screen.revision });
     for (const options of [{ screen, foreign: true }, { screen, expired: true }, { screen: { ...screen, availableCommands: [] } }, { screen: { ...screen, revision: undefined } }, { screen: { ...screen, pathname: "/dashboard/ads" } }]) assert.equal((await run(request, options)).ok, false);
