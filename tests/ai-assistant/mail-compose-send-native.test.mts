@@ -29,7 +29,7 @@ function harness(mode = "accepted", provider = "gmail", campaign = false) {
     bulkConfirmationMessage: () => "Bulk", getBulkCampaignFolder: () => "mails", isBusinessMailFolder: () => true,
     folderFromTrack: () => "mails", providerSendEndpoint: (value: string) => `/api/inbox/${value}/send`,
     setSendBusy() {}, setToast() {}, setDraftId(value: unknown) { assert.equal(value, null); }, setAssistantConsumedSnapshot(value: unknown) { assert.equal(value, "snapshot-exact"); },
-    setComposeOpen() { resets++; }, resetCompose() { resets++; }, updateFolder() { resets++; }, loadHistory: async () => {},
+    setComposeOpen() { resets++; }, resetCompose() { resets++; }, updateFolder() { resets++; }, loadHistory: async () => { if (mode === "slow-history") await new Promise(() => {}); },
     fetch: async (url: string, init: RequestInit) => {
       posts.push({ url, body: JSON.parse(String(init.body)) });
       if (mode === "unknown") throw new Error("Transport lost after submit");
@@ -40,15 +40,51 @@ function harness(mode = "accepted", provider = "gmail", campaign = false) {
   const source = [sourceNode("app/dashboard/mails/MailboxClient.tsx", "doSend"), sourceNode("app/dashboard/mails/_components/MailboxComposeModal.tsx", "requestSend")].join("\n");
   const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const run = vm.runInNewContext(`(function(){${compiled}; return requestSend;})()`, scope) as (execution: unknown) => Promise<void>;
-  return { run: () => run({ isCurrent: () => current, started: () => { starts++; }, accepted: (kind: string) => { accepted.push(kind); } }), confirmations, posts, accepted, starts: () => starts, resets: () => resets, attachments };
+  return { run: () => run({ isCurrent: () => current, started: () => { starts++; }, accepted: (kind: string) => { accepted.push(kind); } }), manual: () => run(undefined), confirmations, posts, accepted, starts: () => starts, resets: () => resets, attachments };
 }
 test("native exact compose sends only after current confirmation with its PDF and source link preserved", async () => {
   for (const provider of ["gmail", "microsoft", "imap"]) {
     const h = harness("accepted", provider); await h.run();
     assert.equal(h.confirmations.length, 1); assert.equal(h.posts.length, 1); assert.equal(h.starts(), 1); assert.deepEqual(h.accepted, ["accepted"]);
     const body = h.posts[0].body as Row; assert.deepEqual(body.attachments, h.attachments); assert.equal(body.sourceDocSaveId, "doc-owned");
+    assert.equal(body.sendItemId, undefined, "Assistant outgoing history cannot overwrite a concurrently edited draft");
     assert.equal(body.to, "alice@example.test"); assert.equal(body.html, "<p>Bonjour Alice</p>"); assert.equal(h.resets(), 0);
   }
+});
+
+test("manual provider sending retains its native history behavior", async () => {
+  const h = harness(); await h.manual();
+  assert.equal((h.posts[0].body as Row).sendItemId, "draft-owned");
+  assert.equal(h.confirmations.length, 0); assert.equal(h.resets(), 3);
+});
+
+test("accepted individual and campaign sends do not wait for a slow history refresh", { timeout: 2000 }, async () => {
+  for (const campaign of [false, true]) {
+    const h = harness("slow-history", "gmail", campaign); await h.run();
+    assert.deepEqual(h.accepted, [campaign ? "queued" : "accepted"]);
+    assert.equal(h.posts.length, 1);
+  }
+});
+
+test("verified native draft save acknowledges without awaiting history refresh", { timeout: 2000 }, async () => {
+  let saved = false, accepted = false, refreshed = false;
+  const scope = {
+    assistantComposeConsumed: false, attachBusy: false,
+    supabase: { auth: { getUser: async () => ({ data: { user: { id: "owned" } } }) } },
+    resolveActiveBrowserUserId: (id: string) => id, getBulkCampaignFolder: () => "mails", pendingTrack: null,
+    readWorkflowCampaignState: () => null, workflowReturnKey: null, selectedAccountId: "mailbox-owned", selectedAccount: { provider: "gmail" },
+    to: "alice@example.test", subject: "Exact", text: "Bonjour", html: "", composeType: "mail", composeRecipientHints: [],
+    normalizeComposeRecipientHints: () => [], normalizeRichMailHtmlForSend: () => "<p>Bonjour</p>",
+    composeSourceDocSaveId: null, composeSourceDocType: null, composeSourceDocNumber: null, composeTemplateKey: null,
+    serializeComposeAttachments: () => [], composeAttachments: [], draftId: null, lastSavedComposeSnapshot: null,
+    persistInrAssistantMailDraft: async (input: { payload: Row }) => { assert.equal(input.payload.user_id, "owned"); saved = true; return "verified-draft"; },
+    setDraftId: (id: string) => assert.equal(id, "verified-draft"), setComposeSavedSnapshotFromCurrent() {}, setToast() {}, i18nT: (key: string) => key,
+    loadHistory: async () => { refreshed = true; await new Promise(() => {}); },
+  };
+  const source = ts.transpileModule(sourceNode("app/dashboard/mails/MailboxClient.tsx", "saveDraft"), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const run = vm.runInNewContext(`(function(){${source};return saveDraft;})()`, scope);
+  await run({ isCurrent: () => true, started() {}, accepted() { accepted = true; } });
+  assert.equal(saved, true); assert.equal(accepted, true); assert.equal(refreshed, true);
 });
 test("refused confirmation, changed compose and unresolved placeholders cannot send", async () => {
   for (const mode of ["refused", "edited", "placeholder"]) { const h = harness(mode); await h.run(); assert.equal(h.posts.length, 0); assert.equal(h.starts(), 0); assert.deepEqual(h.accepted, []); }

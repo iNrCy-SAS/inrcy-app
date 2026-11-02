@@ -2258,7 +2258,7 @@ export default function MailboxClient({
       if (!assistant.isCurrent()) return;
       assistant.accepted("saved", savedId);
       setDraftId(savedId); setComposeSavedSnapshotFromCurrent(); setToast(i18nT("draft_saved"));
-      await loadHistory();
+      void loadHistory();
       return;
     }
 
@@ -2682,7 +2682,7 @@ export default function MailboxClient({
           setDraftId(null);
           setAssistantConsumedSnapshot(currentComposeSnapshot);
           setToast(i18nT("accepte_par_la_messagerie_d_envoi_ac2abd25"));
-          await loadHistory();
+          void loadHistory();
           return;
         }
 
@@ -2771,7 +2771,9 @@ export default function MailboxClient({
         text: text || "",
         html: normalizeRichMailHtmlForSend(text, html),
         type: composeType,
-        ...(draftId ? { sendItemId: draftId } : {}),
+        // The provider's legacy history update has no draft version guard.
+        // Preserve the original draft and append outgoing history for assistant sends.
+        ...(draftId && !assistant ? { sendItemId: draftId } : {}),
         attachments: serializeComposeAttachments(composeAttachments),
         sourceDocSaveId: composeSourceDocSaveId || undefined,
         sourceDocType: composeSourceDocType || undefined,
@@ -2800,7 +2802,7 @@ export default function MailboxClient({
         setDraftId(null);
         setAssistantConsumedSnapshot(currentComposeSnapshot);
         setToast(i18nT("accepte_par_la_messagerie_d_envoi_ac2abd25"));
-        await loadHistory();
+        void loadHistory();
         return;
       }
 
