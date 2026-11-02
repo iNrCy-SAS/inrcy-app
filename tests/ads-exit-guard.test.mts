@@ -90,7 +90,9 @@ test("quitter invalide une réponse d’analyse tardive sans réécrire le parco
     let reject!: (reason: Error) => void;
     const response = new Promise<Response>((resolve, rejectResponse) => { complete = resolve; reject = rejectResponse; });
     const writes: string[] = [];
+    const adsFormGeneration = { current: 0 };
     const scope: Record<string, unknown> = {
+      adsFormGeneration,
       planGenerationRevision: { current: 0 }, planResponseReceived: { current: false },
       planProgressTarget: { current: 0 }, planProgressValue: { current: 0 }, completedAnalysisStagesValue: { current: 0 },
       channelId: "google", draft: { destinationUrl: "https://example.test" }, analysisMode: "free", guidedAnalysisObjective: "",
@@ -108,6 +110,7 @@ test("quitter invalide une réponse d’analyse tardive sans réécrire le parco
     const close = actualFunction(client, functions[1], scope);
     const pending = generate();
     close();
+    assert.equal(adsFormGeneration.current, 1, "closing also invalidates the active native form generation");
     const writesAtClose = writes.length;
     if (failure) reject(new Error("Réponse tardive"));
     else complete(Response.json({ plan: { campaignType: "search", rationale: "Analyse terminée" } }));

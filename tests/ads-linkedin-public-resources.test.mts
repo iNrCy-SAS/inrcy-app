@@ -4,6 +4,7 @@ import test from "node:test";
 import ts from "typescript";
 import * as projection from "../lib/adsProviderResources.ts";
 import * as tracking from "../app/api/ads/campaigns/[id]/trackingPolicy.ts";
+import * as draftVersion from "../lib/adsDraftVersion.ts";
 
 const secret = "private-upload-capability";
 const resources = {
@@ -44,6 +45,7 @@ function getRuntime(route: "list" | "detail") {
   const modules = new Map<string, unknown>([
     ["next/server", { NextResponse: { json: (body: unknown, init: ResponseInit = {}) => Response.json(body, init) } }],
     ["@/lib/adsProviderResources", projection],
+    ["@/lib/adsDraftVersion", draftVersion],
     ["@/lib/adsServer", { requirePremiumAdsUser: async () => ({ user: { authUserId: "owner", activeUserId: "owner" } }), isAdsPilotAdmin: async () => true, isAdsChannelUserAllowed: async () => true }],
     ["@/lib/adsValidation", { normalizeStoredAdsCampaignDraft: (draft: unknown) => draft, isAdsChannelId: () => true }],
     ["@/lib/supabaseAdmin", { supabaseAdmin: { from: () => query } }],
