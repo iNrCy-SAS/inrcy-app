@@ -161,14 +161,16 @@ for (const testCase of selectedCases) {
   } catch (error) { failure = { name: error?.name || 'Error', code: error?.code || 'evaluation_failed', status: Number(error?.statusCode) || null }; }
   const counts = Object.fromEntries([...new Set(activeCase.calls.map(call => call.tool))].map(name => [name, activeCase.calls.filter(call => call.tool === name).length]));
   const missing = Object.entries(testCase.calls).filter(([name, count]) => (counts[name] || 0) < count).map(([name]) => name);
-  const forbidden = activeCase.calls.filter(call => testCase.forbidden?.includes(call.tool) || testCase.readOnly && MUTATIONS.has(call.tool)).map(call => call.tool);
+  const forbidden = activeCase.calls.filter(call => testCase.forbidden?.includes(call.tool) ||
+    MUTATIONS.has(call.tool) && (testCase.readOnly || !Object.hasOwn(testCase.calls, call.tool))).map(call => call.tool);
+  const excessiveMutations = Object.entries(testCase.calls).filter(([name, count]) => MUTATIONS.has(name) && (counts[name] || 0) > count).map(([name]) => name);
   const oneOfMissing = testCase.oneOf && !testCase.oneOf.some(name => counts[name]);
   const contacts = activeCase.calls.filter(call => call.tool === 'manageCrmContact' && call.input.action === 'create');
   const expectedNames = testCase.calls.manageCrmContact === 2 ? ['alice', 'bob'] : testCase.calls.manageCrmContact === 1 ? ['alice'] : [];
   const missingContacts = expectedNames.filter(name => !contacts.some(call => String(call.input.reference).toLowerCase().includes(name)));
   const inventedRecipients = contacts.flatMap(call => Object.values(call.input.fields || {}).filter(value => typeof value === 'string' && value.includes('@') && !testCase.prompt.includes(value)));
-  const passed = !failure && (!live || !missing.length && !forbidden.length && !oneOfMissing && !missingContacts.length && !inventedRecipients.length);
-  results.push({ id: testCase.id, prompt: testCase.prompt, passed, counts, missing, forbidden, missingContacts, inventedRecipients, oneOfMissing: Boolean(oneOfMissing), calls: activeCase.calls, reply, failure });
+  const passed = !failure && (!live || !missing.length && !forbidden.length && !excessiveMutations.length && !oneOfMissing && !missingContacts.length && !inventedRecipients.length);
+  results.push({ id: testCase.id, prompt: testCase.prompt, passed, counts, missing, forbidden, excessiveMutations, missingContacts, inventedRecipients, oneOfMissing: Boolean(oneOfMissing), calls: activeCase.calls, reply, failure });
   const report = { mode: live ? 'real_models_synthetic_effects' : 'offline_schema_validation', source: 'current working tree', tests: results.length, passed: results.filter(item => item.passed).length,
     realCustomerOperations: 0, realDatabaseCalls: 0, apiCalls, estimatedUsd: costEstimate, limits: { maxCalls, maxUsd },
     modelOverride: modelOverride || null,
