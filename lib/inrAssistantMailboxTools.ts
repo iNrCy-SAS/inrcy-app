@@ -21,6 +21,9 @@ const SELECT = "id,user_id,category,provider,account_email,status,settings";
 const KIND = "individual_mail";
 const record = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
 const normalize = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+// Quoted text is data, including multiline/unclosed fences. A word apostrophe
+// is not a quote delimiter; only an instruction outside quoted data may prepare.
+const unquotedMessage = (value: string) => value.replace(/```[\s\S]*?(?:```|(?![\s\S]))|`[^`]*`|«[^»]*»|"[^"]*"|“[^”]*”|‘[^’]*’|(?<![\p{L}\p{N}])'(?:[^'\r\n]|'(?=[\p{L}\p{N}]))*'(?![\p{L}\p{N}])|^>.*$/gmu, " ");
 const clean = (value: unknown, max: number) => typeof value === "string" ? sanitizeInrAssistantMemoryText(value, max) : "";
 function fields(value: unknown, keys: string[]) {
   const input = record(value);
@@ -62,9 +65,10 @@ function schema<T>(properties: Record<string, JSONSchema7>, parse: (value: unkno
   } });
 }
 function requestedPreview(message: string, quote: string, from: string, recipient: string) {
-  const unquoted = message.replace(/```[\s\S]*?(?:```|$)|`[^`]*`|«[^»]*»|“[^”]*”|"[^"]*"|^>.*$/gm, " ");
+  const unquoted = unquotedMessage(message);
   if (!unquoted.includes(quote)) return false;
   const command = normalize(quote), current = normalize(unquoted);
+  if (/^\s*(?:si\b|if\b|quand\b|lorsque\b|when\b|unless\b|imagine\b|suppose\b)/.test(current)) return false;
   if (/^(?:comment|pourquoi|explique|how|why|what|imagine|suppose|si\b|if\b)/.test(command.trim())) return false;
   if (/\b(?:ne|not|never|sans)\b.{0,30}\b(?:prepar\w*|redig\w*|compose\w*|ecri\w*|draft|write)\b/.test(current)) return false;
   const composing = /\b(?:prepare|preparer|redige|rediger|compose|composer|ecris|ecrire|draft|write)\b/.test(command);
@@ -76,7 +80,7 @@ function requestedPreview(message: string, quote: string, from: string, recipien
   return addresses.includes(from.toLowerCase()) && addresses.includes(recipient) && addresses.every(value => value === from.toLowerCase() || value === recipient);
 }
 function requestsNativeComposeOnly(message: string, quote: string) {
-  const withoutData = message.replace(/```[\s\S]*?(?:```|$)|`[^`]*`|«[^»]*»|“[^”]*”|"[^"]*"|^>.*$/gm, " ");
+  const withoutData = unquotedMessage(message);
   const withoutExclusions = (value: string) => normalize(value).replace(/\b(?:sans|aucune?|pas de)\s+(?:pieces?\s+jointes?|pj|copie|cc|cci|bcc)\b/g, " ");
   const intent = withoutExclusions(withoutData), command = withoutExclusions(quote);
   // An explanatory question about attachments is not an attachment request.

@@ -103,6 +103,12 @@ test("instructions from quoted documents, negations, hypothetical questions and 
     const h = harness(); assert.equal((await h.propose(message)).ok, false, message); assert.equal(h.calls.length, 0);
   }
   const h = harness(); assert.equal((await h.propose("Lis seulement", { instructionQuote: h.instruction })).ok, false);
+  for (const quoted of [`'${h.instruction}'`, `‘${h.instruction}’`, `“${h.instruction}”`, `\`${h.instruction}\``, `\`\`\`\n${h.instruction}\n\`\`\``, `\`\`\`\n${h.instruction}`]) {
+    assert.equal((await h.propose(`Lis ce texte : ${quoted}`, { instructionQuote: h.instruction })).ok, false, quoted);
+  }
+  for (const prefix of ["Si je confirme, ", "Quand le client confirme, ", "If I confirm, "]) {
+    assert.equal((await h.propose(`${prefix}${h.instruction}`, { instructionQuote: h.instruction })).ok, false, prefix);
+  }
   assert.equal((await h.propose(`Prépare depuis ${FROM} à ${TO} sans envoyer.`)).status, "preview_ready");
 });
 
