@@ -106,13 +106,19 @@ test("save action ref always uses the last committed form and is removed on unmo
     const page = await browser.newPage();
     await setup(page, ["onSavePublicationDraft"], "saveDraftActionRef.current = onSavePublicationDraft", [...contextBindings("savePublicationDraft"), "savePublicationDraft", "saveDraftActionRef"], `
       window.saved=[];window.saveRef={current:null};window.configure({idea:'first',selectedChannels:['facebook'],saveDraftActionRef:window.saveRef,savePublicationDraft:(context,options)=>{window.saved.push({idea:context.idea,channels:context.selectedChannels,options});return Promise.resolve()}});
-    `);
+    `, `createElement('output',{id:'committed-form'},JSON.stringify({idea,channels:selectedChannels}))`);
     await page.waitForFunction("typeof window.saveRef.current === 'function'");
     await page.evaluate("window.saveRef.current({updateRoute:false})");
-    await page.evaluate("window.configure({idea:'edited',selectedChannels:['instagram']})");
+    await page.evaluate("window.configure({idea:'edited',selectedChannels:['instagram']});window.saveRef.current({updateRoute:true})");
+    assert.deepEqual(await page.evaluate("window.saved"), [
+      { idea: "first", channels: ["facebook"], options: { updateRoute: false } },
+      { idea: "first", channels: ["facebook"], options: { updateRoute: true } },
+    ], "a scheduled render must not expose uncommitted form values");
+    await page.waitForFunction("document.querySelector('#committed-form')?.textContent === JSON.stringify({idea:'edited',channels:['instagram']})");
     await page.evaluate("window.saveRef.current({updateRoute:true})");
     assert.deepEqual(await page.evaluate("window.saved"), [
       { idea: "first", channels: ["facebook"], options: { updateRoute: false } },
+      { idea: "first", channels: ["facebook"], options: { updateRoute: true } },
       { idea: "edited", channels: ["instagram"], options: { updateRoute: true } },
     ]);
     await page.evaluate("window.unmount()");
