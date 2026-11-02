@@ -1,6 +1,7 @@
 "use client";
 import { useInrAssistantDocumentPreview } from "../../_hooks/useInrAssistantDocumentPreview";
-import { useDocumentUnsavedChanges } from "../../_hooks/useDocumentUnsavedChanges";
+import { useDocumentUnsavedChanges, type DocumentSaveVersion } from "../../_hooks/useDocumentUnsavedChanges";
+import { prepareDocumentMail } from "../../_documents/documentMailPreparation";
 import { useInrAssistantDocumentPdf } from "../../_components/DashboardAssistantCommandContext";
 
 import { useLocale, useTranslations } from "next-intl";
@@ -540,6 +541,7 @@ export default function NewDevisPage() {
     silent?: boolean;
     asFinalized?: boolean;
     targetStatus?: DocRecord["status"];
+    onSavedVersion?: (version: DocumentSaveVersion) => void;
   }) => {
     if (!profile) {
       setFormMessage({ type: "error", text: "Les informations de votre entreprise ne sont pas encore disponibles. Réessayez dans un instant." });
@@ -665,6 +667,7 @@ export default function NewDevisPage() {
     if (savedId) {
       if (!documentEdits.markSaved(saveVersion, savedId)) return null;
       setCurrentSaveId(savedId);
+      options?.onSavedVersion?.({ ...saveVersion, documentId: savedId });
     }
     const savedVersion = documentEdits.captureSave();
     if (options?.asFinalized) {
@@ -1011,80 +1014,41 @@ export default function NewDevisPage() {
   useInrAssistantDocumentPdf(assistantDocument.selection, buildPdfBlob, "devis", assistantDocument.revision);
 
   const uploadPdfAndOpenCompose = async (to: string, filename: string) => {
-    const {
-      data: { user },
-      error: userErr,
-    } = await supabase.auth.getUser();
+    const started = documentEdits.captureSave();
+    const initialPreview = assistantDocument.captureRevision();
+    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    if (!documentEdits.isUnchanged(started) || !assistantDocument.isCurrentRevision(initialPreview)) return;
     if (userErr || !user) {
-      setFormMessage({
-        type: "error",
-        text: i18nT("vous_devez_etre_connecte_pour_envoyer_0bc75018"),
-      });
+      setFormMessage({ type: "error", text: i18nT("vous_devez_etre_connecte_pour_envoyer_0bc75018") });
       return;
     }
-
+    const accountId = resolveActiveBrowserUserId(user.id);
+    const saved: { version: DocumentSaveVersion | null } = { version: null };
     setFinalizing(true);
-    const docSaveId = await saveDraft({
-      silent: true,
-      asFinalized: true,
-      targetStatus: "envoye",
-    });
-    if (!docSaveId) {
-      setFinalizing(false);
-      setFormMessage({
-        type: "error",
-        text: i18nT("veuillez_d_abord_sauvegarder_ce_devis_fb5f0187"),
+    try {
+      const docSaveId = await saveDraft({
+        silent: true, asFinalized: true, targetStatus: "envoye",
+        onSavedVersion: version => { saved.version = version; },
       });
-      return;
-    }
-
-    const pdfBlob = await buildPdfBlob();
-    if (!pdfBlob) {
-      setFinalizing(false);
-      setFormMessage({
-        type: "error",
-        text: i18nT("impossible_de_generer_le_pdf_de_397b9dee"),
+      if (!docSaveId || !saved.version || !documentEdits.isUnchanged(saved.version)) return;
+      await waitForDomUpdate();
+      if (!documentEdits.isUnchanged(saved.version)) return;
+      if (!assistantDocument.isSameContent(initialPreview, ["number", "isFinalized", "finalizedAt"])) return;
+      const preview = assistantDocument.captureRevision();
+      const persistedNumber = String(JSON.parse(saved.version.signature).number || "");
+      const mailTexts = buildDocumentMailTexts("devis", clientExchangePreferences, clientName, persistedNumber);
+      const result = await prepareDocumentMail({
+        accountId, documentId: docSaveId, kind: "devis", number: persistedNumber,
+        filename, recipient: to, clientName, ...mailTexts,
+        isCurrent: () => !!saved.version && documentEdits.isUnchanged(saved.version) && assistantDocument.isCurrentRevision(preview),
+        buildPdf: buildPdfBlob,
+        upload: (key, pdf) => supabase.storage.from(ATTACH_BUCKET).upload(key, pdf, { contentType: "application/pdf", upsert: false }),
+        requestNavigation: documentEdits.requestNavigation, navigate: path => router.push(path),
       });
-      return;
-    }
-
-    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const key = `${resolveActiveBrowserUserId(user.id)}/devis/${Date.now()}_${safeName}`;
-
-    const { error: upErr } = await supabase.storage
-      .from(ATTACH_BUCKET)
-      .upload(key, pdfBlob, { contentType: "application/pdf", upsert: true });
-
-    if (upErr) {
-      console.error(upErr);
-      setFinalizing(false);
-      setFormMessage({
-        type: "error",
-        text: i18nT("impossible_de_preparer_ce_devis_pour_b40dc8d8"),
-      });
-      return;
-    }
-
-    const params = new URLSearchParams();
-    params.set("compose", "1");
-    params.set("to", to);
-    params.set("attachKey", key);
-    params.set("attachName", safeName);
-    if (clientName?.trim()) params.set("clientName", clientName.trim());
-    params.set("type", "devis");
-    params.set("docSaveId", docSaveId);
-    params.set("docType", "devis");
-    params.set("docNumber", number || safeName.replace(/\.pdf$/i, ""));
-    const mailTexts = buildDocumentMailTexts(
-      "devis",
-      clientExchangePreferences,
-      clientName,
-      number || safeName.replace(/\.pdf$/i, ""),
-    );
-    params.set("subject", mailTexts.subject);
-    params.set("text", mailTexts.text);
-    await documentEdits.requestNavigation(() => router.push(`/dashboard/mails?${params.toString()}`));
-    setFinalizing(false);
+      if (result === "pdf_failed" || result === "upload_failed" || result === "invalid_recipient") {
+        setFormMessage({ type: "error", text: i18nT("impossible_de_preparer_ce_devis_pour_b40dc8d8") });
+      }
+    } finally { setFinalizing(false); }
   };
 
   const addCurrentClientToCrm = async () => {

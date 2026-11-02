@@ -5,7 +5,7 @@ import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { useDashboardUnsavedNavigation } from "../_components/DashboardUnsavedNavigationProvider";
 
-type SaveVersion = {
+export type DocumentSaveVersion = {
   accountId: string | null;
   documentId: string;
   generation: number;
@@ -30,17 +30,20 @@ export function useDocumentUnsavedChanges(documentId: string, snapshot: Record<s
     setBaseline(previous => ({ ...previous, signature: null }));
   }, []);
 
-  const captureSave = useCallback((persistedFields: Record<string, unknown> = {}): SaveVersion => ({
+  const captureSave = useCallback((persistedFields: Record<string, unknown> = {}): DocumentSaveVersion => ({
     accountId: current.current.accountId, documentId: current.current.documentId, generation: generation.current,
     signature: JSON.stringify({ ...JSON.parse(current.current.signature), ...persistedFields }),
   }), []);
 
-  const isCurrentSave = useCallback((version: SaveVersion) =>
+  const isCurrentSave = useCallback((version: DocumentSaveVersion) =>
     version.accountId === getActiveBrowserUserId() &&
     version.documentId === current.current.documentId &&
     version.generation === generation.current, []);
 
-  const markSaved = useCallback((version: SaveVersion, savedId: string) => {
+  const isUnchanged = useCallback((version: DocumentSaveVersion, persistedFields: Record<string, unknown> = {}) =>
+    isCurrentSave(version) && current.current.signature === JSON.stringify({ ...JSON.parse(version.signature), ...persistedFields }), [isCurrentSave]);
+
+  const markSaved = useCallback((version: DocumentSaveVersion, savedId: string) => {
     if (!savedId || !isCurrentSave(version)) return false;
     setBaseline({ key: JSON.stringify([version.accountId, savedId]), signature: version.signature });
     // A caller may immediately finalize a newly created draft before React commits its ID.
@@ -50,7 +53,7 @@ export function useDocumentUnsavedChanges(documentId: string, snapshot: Record<s
 
   // Finalization may assign an official number/status; acknowledge only those fields,
   // never unrelated edits made while its request was pending.
-  const markPersistedFields = useCallback((version: SaveVersion, fields: Record<string, unknown>) => {
+  const markPersistedFields = useCallback((version: DocumentSaveVersion, fields: Record<string, unknown>) => {
     if (!isCurrentSave(version)) return false;
     setBaseline(previous => previous.signature === null ? previous : {
       ...previous, signature: JSON.stringify({ ...JSON.parse(previous.signature), ...fields }),
@@ -88,5 +91,5 @@ export function useDocumentUnsavedChanges(documentId: string, snapshot: Record<s
     return () => window.removeEventListener("beforeunload", beforeUnload);
   }, []);
 
-  return { dirty, markHydrated, captureSave, isCurrentSave, markSaved, markPersistedFields, requestNavigation };
+  return { dirty, markHydrated, captureSave, isCurrentSave, isUnchanged, markSaved, markPersistedFields, requestNavigation };
 }
