@@ -24,24 +24,7 @@ const MEDIA = "30000000-0000-4000-8000-000000000001", DRAFT = "40000000-0000-400
 const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
 type Row = Record<string, unknown>;
 
-test("completed CRM objective releases its real mutation schema before the required publication read", async t => {
-  const h = harness({ crmThenRead: true });
-  const reply = await h.runtime.generateInrAssistantReply({ accountId: ACCOUNT, actorUserId: ACTOR, displayName: "Entreprise Toitures", edition: "premium",
-    requestId: randomUUID(), actionRequestId: `${ACCOUNT}_${randomUUID()}`, request: new Request("https://app.inrcy.com/api/assistant/chat"),
-    supabase: { from() { assert.fail("No real customer data access"); } } as never,
-    messages: [{ role: "user", content: "Crée un contact CRM nommé Alice, puis consulte les dernières publications Facebook." }],
-  });
-  assert.equal(reply.outcome, "completed");
-  assert.equal(h.actionExecutions, 1);
-  assert.equal(h.providerCalls.length, 3);
-  const names = (index: number) => (h.providerCalls[index].tools ?? []).filter(tool => tool.type === "function").map(tool => tool.name);
-  assert.ok(names(0).includes("manageCrmContact"));
-  assert.equal(names(1).includes("manageCrmContact"), false);
-  assert.ok(names(1).includes("getRecentPublications"));
-  const providerBytes = h.providerCalls.map(params => bytes({ prompt: params.prompt, tools: params.tools }) + 1024);
-  assert.ok(providerBytes.every(value => value <= 32_000));
-  t.diagnostic(JSON.stringify({ providerBytes, savedContacts: h.actionExecutions }));
-});
+
 
 /** Only local schema factories/public guides run; no action executor, DB or paid provider. */
 function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: boolean; guideFollowup?: boolean; dnaFollowup?: boolean; dnaLanguage?: "fr" | "zh"; actionThenInputError?: boolean; ctaPartialThenInputError?: boolean } = {}) {
@@ -504,4 +487,23 @@ test("every professional page and legacy alias has a reviewed guide and public i
   for (const route of ["/dashboard/admin", "/dashboard/admin/users", "/dashboard/settings/invented", "/api/private", "/equipe/agenda"]) {
     assert.equal(getAssistantInternalDestination(route), undefined);
   }
+});
+
+test("completed CRM objective releases its real mutation schema before the required publication read", async t => {
+  const h = harness({ crmThenRead: true });
+  const reply = await h.runtime.generateInrAssistantReply({ accountId: ACCOUNT, actorUserId: ACTOR, displayName: "Entreprise Toitures", edition: "premium",
+    requestId: randomUUID(), actionRequestId: `${ACCOUNT}_${randomUUID()}`, request: new Request("https://app.inrcy.com/api/assistant/chat"),
+    supabase: { from() { assert.fail("No real customer data access"); } } as never,
+    messages: [{ role: "user", content: "Crée un contact CRM nommé Alice, puis consulte les dernières publications Facebook." }],
+  });
+  assert.equal(reply.outcome, "completed");
+  assert.equal(h.actionExecutions, 1);
+  assert.equal(h.providerCalls.length, 3);
+  const names = (index: number) => (h.providerCalls[index].tools ?? []).filter(tool => tool.type === "function").map(tool => tool.name);
+  assert.ok(names(0).includes("manageCrmContact"));
+  assert.equal(names(1).includes("manageCrmContact"), false);
+  assert.ok(names(1).includes("getRecentPublications"));
+  const providerBytes = h.providerCalls.map(params => bytes({ prompt: params.prompt, tools: params.tools }) + 1024);
+  assert.ok(providerBytes.every(value => value <= 32_000));
+  t.diagnostic(JSON.stringify({ providerBytes, savedContacts: h.actionExecutions }));
 });
