@@ -2,7 +2,7 @@
 
 import { useMailboxHistory } from "./_hooks/useMailboxHistory";
 import { useInrAssistantMailCommands } from "../_hooks/useInrAssistantMailCommands";
-import { persistInrAssistantMailDraft } from "@/lib/inrAssistantMailDraftPersistence";
+import { inrAssistantMailDraftVersion, persistInrAssistantMailDraft, type InrAssistantMailDraftVersion } from "@/lib/inrAssistantMailDraftPersistence";
 import type { InrAssistantMailExecution } from "@/lib/inrAssistantMailLifecycle";
 import { mergeInrAssistantMailAttachments } from "@/lib/inrAssistantMailAttachments";
 import { useMailboxCrmRecipients } from "./_hooks/useMailboxCrmRecipients";
@@ -311,7 +311,9 @@ export default function MailboxClient({
 
   // Compose
   const [composeOpen, setComposeOpen] = useState(false);
-  const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftId, setDraftIdState] = useState<string | null>(null);
+  const [draftServerVersion, setDraftServerVersion] = useState<InrAssistantMailDraftVersion | null>(null);
+  const setDraftId = useCallback((id: string | null) => { setDraftIdState(id); setDraftServerVersion(null); }, []);
   const [composeType, setComposeType] = useState<SendType>("mail");
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
@@ -1994,7 +1996,7 @@ export default function MailboxClient({
     };
 
     run();
-  }, [router, searchParams, standardMode]);
+  }, [router, searchParams, setDraftId, standardMode]);
 
   const onScheduledMailEditLoaded = useEffectEvent((editId: string, action: any) => {
     const payload = asScheduledRecord(action.payload);
@@ -2254,10 +2256,10 @@ export default function MailboxClient({
     };
 
     if (assistant) {
-      const savedId = await persistInrAssistantMailDraft({ supabase, accountId: userId, draftId, payload: draftPayload, baseline: lastSavedComposeSnapshot, isCurrent: assistant.isCurrent, onWriteStarted: assistant.started });
+      const saved = await persistInrAssistantMailDraft({ supabase, accountId: userId, draftId, expectedVersion: draftServerVersion, payload: draftPayload, baseline: lastSavedComposeSnapshot, isCurrent: assistant.isCurrent, onWriteStarted: assistant.started });
       if (!assistant.isCurrent()) return;
-      assistant.accepted("saved", savedId);
-      setDraftId(savedId); setComposeSavedSnapshotFromCurrent(); setToast(i18nT("draft_saved"));
+      assistant.accepted("saved", saved.id);
+      setDraftId(saved.id); setDraftServerVersion({ id: saved.id, accountId: userId, updatedAt: saved.updatedAt }); setComposeSavedSnapshotFromCurrent(); setToast(i18nT("draft_saved"));
       void loadHistory();
       return;
     }
@@ -2303,24 +2305,24 @@ export default function MailboxClient({
 
     if (draftId) {
       let usedLegacyFallback = false;
-      let { error } = await supabase
+      let { data: savedVersion, error } = await supabase
         .from("send_items")
-        .update(draftPayload as any)
+        .update({ ...draftPayload, updated_at: new Date().toISOString() } as any)
         .eq("id", draftId)
-        .eq("user_id", userId);
+        .eq("user_id", userId).select("id,updated_at").maybeSingle();
       if (error && isMissingDraftStateColumn(error)) {
-        ({ error } = await supabase
+        ({ data: savedVersion, error } = await supabase
           .from("send_items")
-          .update(metadataPayload)
+          .update({ ...metadataPayload, updated_at: new Date().toISOString() })
           .eq("id", draftId)
-          .eq("user_id", userId));
+          .eq("user_id", userId).select("id,updated_at").maybeSingle());
       }
       if (error && isMissingDraftMetadataColumn(error)) {
-        ({ error } = await supabase
+        ({ data: savedVersion, error } = await supabase
           .from("send_items")
-          .update(legacyPayload)
+          .update({ ...legacyPayload, updated_at: new Date().toISOString() })
           .eq("id", draftId)
-          .eq("user_id", userId));
+          .eq("user_id", userId).select("id,updated_at").maybeSingle());
         usedLegacyFallback = !error;
       }
       if (error) {
@@ -2338,6 +2340,7 @@ export default function MailboxClient({
           : i18nT("draft_saved"),
       );
       setComposeSavedSnapshotFromCurrent();
+      setDraftServerVersion(!usedLegacyFallback ? inrAssistantMailDraftVersion({ ...savedVersion, user_id: userId }) : null);
       await loadHistory();
       return;
     }
@@ -2346,20 +2349,20 @@ export default function MailboxClient({
     let { data, error } = await supabase
       .from("send_items")
       .insert(draftPayload as any)
-      .select("id")
+      .select("id,updated_at")
       .single();
     if (error && isMissingDraftStateColumn(error)) {
       ({ data, error } = await supabase
         .from("send_items")
         .insert(metadataPayload)
-        .select("id")
+        .select("id,updated_at")
         .single());
     }
     if (error && isMissingDraftMetadataColumn(error)) {
       ({ data, error } = await supabase
         .from("send_items")
         .insert(legacyPayload)
-        .select("id")
+        .select("id,updated_at")
         .single());
       usedLegacyFallback = !error;
     }
@@ -2374,6 +2377,7 @@ export default function MailboxClient({
     }
     if (data?.id) {
       setDraftId(data.id);
+      setDraftServerVersion(!usedLegacyFallback ? inrAssistantMailDraftVersion({ ...data, user_id: userId }) : null);
       setToast(
         usedLegacyFallback
           ? i18nT("draft_saved_advanced_unavailable")
@@ -3627,6 +3631,7 @@ export default function MailboxClient({
       if (openWorkflowCampaignDraft(it, raw)) return;
       setComposeOpen(true);
       setDraftId(it.id);
+      setDraftServerVersion(inrAssistantMailDraftVersion(raw));
       const draftState =
         raw.draft_state && typeof raw.draft_state === "object" && !Array.isArray(raw.draft_state)
           ? (raw.draft_state as Record<string, any>)
