@@ -91,6 +91,7 @@ for (const area of ["devis", "factures"]) test(`${area}: loaded defaults use the
   const listeners = new Map<string, () => void>();
   const props = {
     searchParams: new URLSearchParams(), setDocumentsSettings() {}, applyDocumentDefaults: () => applied.push("old VAT"),
+    documentEdits: { dirty: false },
   };
   const source = selectedStatements(`${area}/new/page.tsx`, ["onDocumentSettingsLoaded"], "const loadSettings");
   const run = compile(source, props, { ...h, fetch: () => new Promise<Response>(resolve => pending.push(resolve)), normalizeInrDocumentsSettings: (value: unknown) => value,
@@ -104,8 +105,11 @@ for (const area of ["devis", "factures"]) test(`${area}: loaded defaults use the
   assert.equal(pending.length, 1); assert.equal(applied.length, 1);
   listeners.get("settings-updated")!(); assert.equal(pending.length, 2);
   pending[1](Response.json({ settings: {} })); await settle(); assert.equal(applied.length, 2);
+  props.documentEdits = { dirty: true }; render();
+  listeners.get("settings-updated")!();
+  pending[2](Response.json({ settings: {} })); await settle(); assert.equal(applied.length, 2, "late defaults must not overwrite a local edit");
   listeners.get("settings-updated")!(); h.unmount();
-  pending[2](Response.json({ settings: {} })); await settle(); assert.equal(applied.length, 2); assert.equal(listeners.size, 0);
+  pending[3](Response.json({ settings: {} })); await settle(); assert.equal(applied.length, 2); assert.equal(listeners.size, 0);
 });
 
 type SavedRow = { id: string; payload: { marker: string } };
@@ -129,6 +133,7 @@ for (const area of ["devis", "factures"]) test(`${area}: requested save changes 
     searchParams: new URLSearchParams({ saveId: "save-a" }), supabase: database("account-a", pending),
     applyDraftSnapshot: (snapshot: unknown) => applied.push(snapshot), setCurrentSaveId: (id: unknown) => selected.push(id),
     setFormMessage: (message: unknown) => messages.push(message), i18nT: (key: string) => `fr:${key}`,
+    documentEdits: { requestNavigation: async (action: () => void) => { action(); return true; } },
   };
   const source = selectedStatements(`${area}/new/page.tsx`, ["onRequestedSaveLoadFailed", "onRequestedSaveLoaded"], "const loadRequestedSave");
   const run = compile(source, props, { ...h, SAVES_TYPE: area, resolveActiveBrowserUserId: (id: string) => id });

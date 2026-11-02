@@ -1,5 +1,6 @@
 "use client";
 import { useInrAssistantDocumentPreview } from "../../_hooks/useInrAssistantDocumentPreview";
+import { useDocumentUnsavedChanges } from "../../_hooks/useDocumentUnsavedChanges";
 import { useInrAssistantDocumentPdf } from "../../_components/DashboardAssistantCommandContext";
 
 import { useLocale, useTranslations } from "next-intl";
@@ -242,6 +243,7 @@ export default function NewDevisPage() {
     });
 
   const applyDocumentDefaults = (settings: InrDocumentsSettings) => {
+    documentEdits.markHydrated();
     setOperationCategory(
       settings.common
         .operationCategory as (typeof OPERATION_CATEGORY_OPTIONS)[number]["key"],
@@ -262,7 +264,7 @@ export default function NewDevisPage() {
 
   const onDocumentSettingsLoaded = useEffectEvent((nextSettings: InrDocumentsSettings, applyDefaults: boolean) => {
     setDocumentsSettings(nextSettings);
-    if (applyDefaults) applyDocumentDefaults(nextSettings);
+    if (applyDefaults && !documentEdits.dirty) applyDocumentDefaults(nextSettings);
   });
 
   useEffect(() => {
@@ -298,10 +300,12 @@ export default function NewDevisPage() {
     };
   }, [searchParams]);
 
-  useEffect(() => {
+  const initializeDocument = useEffectEvent(() => {
+    documentEdits.markHydrated();
     setNumber(generateNumber("DEV"));
     setDocDateISO(new Date().toISOString().slice(0, 10));
-  }, []);
+  });
+  useEffect(() => { initializeDocument(); }, []);
 
   useDocumentProfileLoader({
     supabase,
@@ -424,9 +428,11 @@ export default function NewDevisPage() {
     setFormMessage({ type: "error", text: missing ? i18nT("devis_introuvable_d3cb961f") : i18nT("impossible_de_reouvrir_ce_devis_61080602") });
   });
   const onRequestedSaveLoaded = useEffectEvent((data: { id: string; payload: DevisDraft["snapshot"] }) => {
-    applyDraftSnapshot(data.payload);
-    setCurrentSaveId(data.id);
-    setFormMessage({ type: "success", text: i18nT("devis_reouvert_depuis_inrsend_7453e560") });
+    void documentEdits.requestNavigation(() => {
+      applyDraftSnapshot(data.payload);
+      setCurrentSaveId(data.id);
+      setFormMessage({ type: "success", text: i18nT("devis_reouvert_depuis_inrsend_7453e560") });
+    });
   });
 
   useEffect(() => {
@@ -542,6 +548,7 @@ export default function NewDevisPage() {
     const nowISO = new Date().toISOString();
     const finalNumber = number || generateNumber("DEV");
     if (!number) setNumber(finalNumber);
+    const saveVersion = documentEdits.captureSave({ number: finalNumber });
 
     const normalizedEmail = (clientEmail || "").trim();
     if (normalizedEmail && !isValidEmail(normalizedEmail)) {
@@ -616,6 +623,7 @@ export default function NewDevisPage() {
     } = await supabase.auth.getUser();
     if (userErr || !user) return;
 
+    if (!documentEdits.isCurrentSave(saveVersion)) return null;
     const autoName =
       (clientName || "").trim() ||
       (clientEmail || "").trim() ||
@@ -643,7 +651,7 @@ export default function NewDevisPage() {
 
     const { data: savedRows, error } = await saveMutation.select("id,updated_at");
 
-    if (error) {
+    if (error || !savedRows?.[0]?.id) {
       console.error(error);
       setFormMessage({
         type: "error",
@@ -654,9 +662,14 @@ export default function NewDevisPage() {
 
     const savedId =
       (savedRows?.[0] as { id?: string } | undefined)?.id || currentSaveId;
-    if (savedId) setCurrentSaveId(savedId);
+    if (savedId) {
+      if (!documentEdits.markSaved(saveVersion, savedId)) return null;
+      setCurrentSaveId(savedId);
+    }
+    const savedVersion = documentEdits.captureSave();
     if (options?.asFinalized) {
       if (!savedId) return;
+      const finalizeVersion = documentEdits.captureSave();
       const expectedUpdatedAt = (savedRows?.[0] as { updated_at?: string } | undefined)?.updated_at;
       const response = await fetch("/api/devis/finalize", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -667,11 +680,13 @@ export default function NewDevisPage() {
         setFormMessage({ type: "error", text: commercialDocumentCompletionError(result, "La finalisation du devis ne peut pas être confirmée. Vérifiez sa sauvegarde avant de réessayer.") });
         return;
       }
+      if (!documentEdits.isCurrentSave(finalizeVersion)) return null;
       setIsFinalized(true);
       setFinalizedAt(String(result.finalizedAt));
     }
 
     await refreshSaves();
+    if (!documentEdits.isCurrentSave(savedVersion)) return null;
     if (!options?.silent) {
       setDocumentsTab("saves");
       setDraftsOpen(true);
@@ -685,6 +700,7 @@ export default function NewDevisPage() {
   };
 
   const applyDraftSnapshot = (s: DevisDraft["snapshot"]) => {
+    documentEdits.markHydrated();
     const legacyBilling = splitFrenchAddress(
       s.billingAddress || s.clientAddress || "",
     );
@@ -777,15 +793,17 @@ export default function NewDevisPage() {
       return;
     }
 
-    router.push(
+    await documentEdits.requestNavigation(() => router.push(
       `/dashboard/factures/new?fromDevisSaveId=${encodeURIComponent(devisSaveId)}`,
-    );
+    ));
   };
 
   const openDraft = (d: DevisDraft) => {
-    applyDraftSnapshot(d.snapshot);
-    setCurrentSaveId(d.id);
-    setDraftsOpen(false);
+    void documentEdits.requestNavigation(() => {
+      applyDraftSnapshot(d.snapshot);
+      setCurrentSaveId(d.id);
+      setDraftsOpen(false);
+    });
   };
 
   const deleteDraft = async (id: string) => {
@@ -890,6 +908,7 @@ export default function NewDevisPage() {
   };
 
   const applyTemplateSnapshot = (s: DevisDraft["snapshot"]) => {
+    documentEdits.markHydrated();
     setCurrentSaveId("");
     setIsFinalized(false);
     setFinalizedAt("");
@@ -972,6 +991,14 @@ export default function NewDevisPage() {
     return exportDocumentPreviewPdf(el, styles, waitForDomUpdate);
   };
 
+  const documentEdits = useDocumentUnsavedChanges(currentSaveId, {
+    number, docDateISO, clientName, billingAddress, billingPostalCode, billingCity,
+    deliveryAddress, deliveryPostalCode, deliveryCity, sameAddresses, providerOverride,
+    clientEmail, clientSiren, clientVatNumber, clientType, operationCategory,
+    serviceDateMode, serviceDate, servicePeriodStart, servicePeriodEnd, purchaseOrderReference,
+    depositKind, depositValue, paymentMethod, paymentDetails, notes, quoteMention, validityDays,
+    lines, discountKind, discountValue, discountDetails,
+  });
   const assistantDocument = useInrAssistantDocumentPreview("quote", currentSaveId, {
     clientExchangePreferences, documentUiLocale,
     number, docDateISO, clientName, billingAddress, billingPostalCode, billingCity,
@@ -980,7 +1007,7 @@ export default function NewDevisPage() {
     serviceDateMode, serviceDate, servicePeriodStart, servicePeriodEnd, purchaseOrderReference,
     depositKind, depositValue, paymentMethod, paymentDetails, notes, quoteMention, validityDays,
     lines, discountKind, discountValue, discountDetails, isFinalized, finalizedAt, documentsSettings,
-  });
+  }, documentEdits.dirty);
   useInrAssistantDocumentPdf(assistantDocument.selection, buildPdfBlob, "devis", assistantDocument.revision);
 
   const uploadPdfAndOpenCompose = async (to: string, filename: string) => {
@@ -1056,7 +1083,7 @@ export default function NewDevisPage() {
     );
     params.set("subject", mailTexts.subject);
     params.set("text", mailTexts.text);
-    router.push(`/dashboard/mails?${params.toString()}`);
+    await documentEdits.requestNavigation(() => router.push(`/dashboard/mails?${params.toString()}`));
     setFinalizing(false);
   };
 
@@ -1202,7 +1229,7 @@ export default function NewDevisPage() {
                   variant: "danger",
                 });
                 if (!ok) return;
-
+                documentEdits.markHydrated();
                 // CRM
                 setSelectedCrmContactId("");
                 setCrmOpen(false);
@@ -1255,7 +1282,7 @@ export default function NewDevisPage() {
             <button
               type="button"
               className={`${styles.closeBtn} ${styles.toolbarBtn} ${styles.switchBtnFactures}`}
-              onClick={() => router.push("/dashboard/factures/new")}
+              onClick={() => void documentEdits.requestNavigation(() => router.push("/dashboard/factures/new"))}
             >
               {i18nT("factures_da35e4f2")}{" "}</button>
             <button
@@ -1267,7 +1294,7 @@ export default function NewDevisPage() {
             <button
               type="button"
               className={`${styles.closeBtn} ${styles.toolbarBtn}`}
-              onClick={() => router.push("/dashboard")}
+              onClick={() => void documentEdits.requestNavigation(() => router.push("/dashboard"))}
             >
               {i18nT("fermer_5ab4ec64")}{" "}</button>
           </div>
@@ -1467,9 +1494,9 @@ export default function NewDevisPage() {
                               <button
                                 type="button"
                                 onClick={() =>
-                                  router.push(
+                                  void documentEdits.requestNavigation(() => router.push(
                                     `/dashboard/factures/new?fromDevisSaveId=${encodeURIComponent(d.id)}`,
-                                  )
+                                  ))
                                 }
                               >
                                 {i18nT("facture_8c62da5d")}{" "}</button>
@@ -1548,7 +1575,7 @@ export default function NewDevisPage() {
                           >
                             <button
                               type="button"
-                              onClick={() => applyTemplateSnapshot(d.snapshot)}
+                              onClick={() => void documentEdits.requestNavigation(() => applyTemplateSnapshot(d.snapshot))}
                             >
                               {i18nT("utiliser_fb5e43ce")}{" "}</button>
                             <button

@@ -122,7 +122,13 @@ test("the actual invoice finalization handler presents returned missing fields w
   const end = source.indexOf("\n  const openDraft", start);
   const compiled = ts.transpileModule(`${source.slice(start, end)} result = finalizeInvoice("doc-1");`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText;
   const messages: Array<{ type: string; text: string }> = [];
+  const currentVersion = { documentId: "doc-1" };
   const context: Record<string, unknown> = {
+    documentEdits: {
+      captureSave: () => currentVersion,
+      isCurrentSave: (version: unknown) => { assert.equal(version, currentVersion); return true; },
+      markPersistedFields: () => assert.fail("A failed finalization must not acknowledge edits"),
+    },
     fetch: async () => ({ ok: false, json: async () => ({ error: "Complétez les champs manquants avant de figer le document.", missingFields: ["Code postal", "Ville"] }) }),
     commercialDocumentCompletionError, getSimpleFrenchErrorMessage: (value: unknown) => typeof value === "object" && value && "message" in value ? value.message : String(value),
     setFinalizing: () => undefined, setFormMessage: (message: { type: string; text: string }) => messages.push(message),

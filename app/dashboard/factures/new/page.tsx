@@ -1,5 +1,6 @@
 "use client";
 import { useInrAssistantDocumentPreview } from "../../_hooks/useInrAssistantDocumentPreview";
+import { useDocumentUnsavedChanges } from "../../_hooks/useDocumentUnsavedChanges";
 import { useInrAssistantDocumentPdf } from "../../_components/DashboardAssistantCommandContext";
 
 import { useLocale, useTranslations } from "next-intl";
@@ -254,6 +255,7 @@ export default function NewFacturePage() {
     });
 
   const applyDocumentDefaults = (settings: InrDocumentsSettings) => {
+    documentEdits.markHydrated();
     setOperationCategory(
       settings.common
         .operationCategory as (typeof OPERATION_CATEGORY_OPTIONS)[number]["key"],
@@ -292,7 +294,7 @@ export default function NewFacturePage() {
 
   const onDocumentSettingsLoaded = useEffectEvent((nextSettings: InrDocumentsSettings, applyDefaults: boolean) => {
     setDocumentsSettings(nextSettings);
-    if (applyDefaults) applyDocumentDefaults(nextSettings);
+    if (applyDefaults && !documentEdits.dirty) applyDocumentDefaults(nextSettings);
   });
 
   useEffect(() => {
@@ -332,7 +334,8 @@ export default function NewFacturePage() {
   }, [searchParams]);
 
   // Init client-only (évite mismatch SSR/CSR)
-  useEffect(() => {
+  const initializeDocument = useEffectEvent(() => {
+    documentEdits.markHydrated();
     // Numéro + dates
     setNumber(generateNumber("FAC"));
 
@@ -342,7 +345,8 @@ export default function NewFacturePage() {
     const dd = new Date();
     dd.setDate(dd.getDate() + 30);
     setDueDate(dd.toISOString().slice(0, 10));
-  }, []);
+  });
+  useEffect(() => { initializeDocument(); }, []);
 
   useDocumentProfileLoader({
     supabase,
@@ -505,6 +509,7 @@ export default function NewFacturePage() {
   }, [refreshSaves]);
 
   const applyDraftSnapshot = (s: FactureDraft["snapshot"]) => {
+    documentEdits.markHydrated();
     const legacyBilling = splitFrenchAddress(
       s.billingAddress || s.clientAddress || "",
     );
@@ -601,9 +606,11 @@ export default function NewFacturePage() {
     setFormMessage({ type: "error", text: missing ? i18nT("facture_introuvable_ab2a4359") : i18nT("impossible_de_reouvrir_cette_facture_b35f4a6b") });
   });
   const onRequestedSaveLoaded = useEffectEvent((data: { id: string; payload: FactureDraft["snapshot"] }) => {
-    applyDraftSnapshot(data.payload);
-    setCurrentSaveId(data.id);
-    setFormMessage({ type: "success", text: i18nT("facture_reouverte_depuis_inrsend_d05c29b9") });
+    void documentEdits.requestNavigation(() => {
+      applyDraftSnapshot(data.payload);
+      setCurrentSaveId(data.id);
+      setFormMessage({ type: "success", text: i18nT("facture_reouverte_depuis_inrsend_d05c29b9") });
+    });
   });
 
   useEffect(() => {
@@ -655,6 +662,8 @@ export default function NewFacturePage() {
     setFormMessage({ type: "error", text: missing ? i18nT("devis_introuvable_pour_la_conversion_b075b89b") : i18nT("impossible_de_charger_ce_devis_pour_37592632") });
   });
   const onDevisConversionLoaded = useEffectEvent((devis: DevisSnapshot, devisSaveId: string, invoiceDateISO: string, dueDateISO: string) => {
+      void documentEdits.requestNavigation(() => {
+        documentEdits.markHydrated();
         setCurrentSaveId("");
         setIsFinalized(false);
         setFinalizedAt("");
@@ -778,6 +787,7 @@ export default function NewFacturePage() {
           type: "success",
           text: i18nT("facture_preremplie_depuis_le_devis_value_dbbc57b2", { value0: devis.number || "sélectionné" }),
         });
+      });
       });
 
   useEffect(() => {
@@ -906,6 +916,7 @@ export default function NewFacturePage() {
     const nowISO = new Date().toISOString();
     const finalNumber = number || generateNumber("FAC");
     if (!number) setNumber(finalNumber);
+    const saveVersion = documentEdits.captureSave({ number: finalNumber });
 
     const normalizedEmail = (clientEmail || "").trim();
     if (normalizedEmail && !isValidEmail(normalizedEmail)) {
@@ -985,6 +996,7 @@ export default function NewFacturePage() {
     } = await supabase.auth.getUser();
     if (userErr || !user) return;
 
+    if (!documentEdits.isCurrentSave(saveVersion)) return null;
     const autoName =
       (clientName || "").trim() ||
       (clientEmail || "").trim() ||
@@ -1012,7 +1024,7 @@ export default function NewFacturePage() {
 
     const { data: savedRows, error } = await saveMutation.select("id");
 
-    if (error) {
+    if (error || !savedRows?.[0]?.id) {
       console.error(error);
       setFormMessage({
         type: "error",
@@ -1023,9 +1035,14 @@ export default function NewFacturePage() {
 
     const savedId =
       (savedRows?.[0] as { id?: string } | undefined)?.id || currentSaveId;
-    if (savedId) setCurrentSaveId(savedId);
+    if (savedId) {
+      if (!documentEdits.markSaved(saveVersion, savedId)) return null;
+      setCurrentSaveId(savedId);
+    }
+    const savedVersion = documentEdits.captureSave();
 
     await refreshSaves();
+    if (!documentEdits.isCurrentSave(savedVersion)) return null;
     if (!options?.silent) {
       setDocumentsTab("saves");
       setDraftsOpen(true);
@@ -1126,6 +1143,7 @@ export default function NewFacturePage() {
   };
 
   const applyTemplateSnapshot = (s: FactureDraft["snapshot"]) => {
+    documentEdits.markHydrated();
     const now = new Date();
     const invoiceDateISO = now.toISOString().slice(0, 10);
 
@@ -1288,6 +1306,8 @@ export default function NewFacturePage() {
       | "envoye"
       | "paye" = "en_attente_paiement",
   ) => {
+    const finalizeVersion = documentEdits.captureSave();
+    if (finalizeVersion.documentId !== docSaveId || !documentEdits.isCurrentSave(finalizeVersion)) return null;
     setFinalizing(true);
     try {
       const res = await fetch("/api/factures/finalize", {
@@ -1317,6 +1337,7 @@ export default function NewFacturePage() {
           ? json.finalizedAt
           : new Date().toISOString();
 
+      if (!documentEdits.markPersistedFields(finalizeVersion, { number: officialNumber, status: nextStatus })) return null;
       setCurrentSaveId(docSaveId);
       setNumber(officialNumber);
       setStatus(nextStatus);
@@ -1343,9 +1364,11 @@ export default function NewFacturePage() {
   };
 
   const openDraft = (d: FactureDraft) => {
-    applyDraftSnapshot(d.snapshot);
-    setCurrentSaveId(d.id);
-    setDraftsOpen(false);
+    void documentEdits.requestNavigation(() => {
+      applyDraftSnapshot(d.snapshot);
+      setCurrentSaveId(d.id);
+      setDraftsOpen(false);
+    });
   };
 
   const deleteDraft = async (id: string) => {
@@ -1387,6 +1410,14 @@ export default function NewFacturePage() {
     return exportDocumentPreviewPdf(el, styles, waitForDomUpdate);
   };
 
+  const documentEdits = useDocumentUnsavedChanges(currentSaveId, {
+    number, invoiceDate, dueDate, clientName, billingAddress, billingPostalCode, billingCity,
+    deliveryAddress, deliveryPostalCode, deliveryCity, sameAddresses, providerOverride,
+    clientEmail, clientSiren, clientVatNumber, clientType, operationCategory,
+    serviceDateMode, serviceDate, servicePeriodStart, servicePeriodEnd, purchaseOrderReference,
+    depositKind, depositValue, vatOnDebits, lateFeeRate, fixedRecoveryFee40, documentKind,
+    status, paymentMethod, paymentDetails, notes, invoiceMention, lines, discountKind, discountValue, discountDetails,
+  });
   const assistantDocument = useInrAssistantDocumentPreview("invoice", currentSaveId, {
     clientExchangePreferences, documentUiLocale,
     number, invoiceDate, dueDate, clientName, billingAddress, billingPostalCode, billingCity,
@@ -1396,7 +1427,7 @@ export default function NewFacturePage() {
     depositKind, depositValue, vatOnDebits, lateFeeRate, fixedRecoveryFee40, documentKind,
     status, paymentMethod, paymentDetails, notes, invoiceMention, lines, discountKind, discountValue,
     discountDetails, isFinalized, finalizedAt, documentsSettings,
-  });
+  }, documentEdits.dirty);
   useInrAssistantDocumentPdf(assistantDocument.selection, buildPdfBlob, "facture", assistantDocument.revision);
 
   const uploadPdfAndOpenCompose = async (to: string, filename?: string) => {
@@ -1474,7 +1505,7 @@ export default function NewFacturePage() {
     );
     params.set("subject", mailTexts.subject);
     params.set("text", mailTexts.text);
-    router.push(`/dashboard/mails?${params.toString()}`);
+    await documentEdits.requestNavigation(() => router.push(`/dashboard/mails?${params.toString()}`));
   };
 
   const paymentLabel = getDocumentPaymentLabel(clientExchangePreferences.clientLanguage, paymentMethod);
@@ -1540,7 +1571,7 @@ export default function NewFacturePage() {
                   variant: "danger",
                 });
                 if (!ok) return;
-
+                documentEdits.markHydrated();
                 setSelectedCrmContactId("");
                 setCrmOpen(false);
                 setFieldErrors({});
@@ -1621,7 +1652,7 @@ export default function NewFacturePage() {
             <button
               type="button"
               className={`${styles.closeBtn} ${styles.toolbarBtn} ${styles.switchBtnDevis}`}
-              onClick={() => router.push("/dashboard/devis/new")}
+              onClick={() => void documentEdits.requestNavigation(() => router.push("/dashboard/devis/new"))}
             >
               {i18nT("devis_f7622f90")}{" "}</button>
             <button
@@ -1633,7 +1664,7 @@ export default function NewFacturePage() {
             <button
               type="button"
               className={`${styles.closeBtn} ${styles.toolbarBtn}`}
-              onClick={() => router.push("/dashboard")}
+              onClick={() => void documentEdits.requestNavigation(() => router.push("/dashboard"))}
             >
               {i18nT("fermer_5ab4ec64")}{" "}</button>
           </div>
@@ -1912,7 +1943,7 @@ export default function NewFacturePage() {
                           >
                             <button
                               type="button"
-                              onClick={() => applyTemplateSnapshot(d.snapshot)}
+                              onClick={() => void documentEdits.requestNavigation(() => applyTemplateSnapshot(d.snapshot))}
                             >
                               {i18nT("utiliser_fb5e43ce")}{" "}</button>
                             <button
