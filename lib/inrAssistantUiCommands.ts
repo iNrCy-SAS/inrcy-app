@@ -5,7 +5,7 @@ import { parseInrAssistantAdsPatch, isInrAssistantAdsSaveRequest, isInrAssistant
 export { INR_ASSISTANT_ADS_STEPS } from "./inrAssistantAdsUiCommands.ts";
 export type { InrAssistantAdsPatch } from "./inrAssistantAdsUiCommands.ts";
 import { parseInrAssistantMailPatch, inrAssistantMailRecipientRequested, type InrAssistantMailCommand } from "./inrAssistantMailCompose.ts";
-import { parseInrAssistantDocumentMailCommand, parseInrAssistantDocumentTemplateCommand, getInrAssistantDocumentPrefillNavigation, type InrAssistantDocumentMailCommand, type InrAssistantDocumentTemplateCommand, type InrAssistantDocumentPrefill } from "./inrAssistantDocumentUiCommands.ts";
+import { parseInrAssistantDocumentMailCommand, parseInrAssistantDocumentTemplateCommand, isInrAssistantDocumentTemplateInstruction, getInrAssistantDocumentPrefillNavigation, type InrAssistantDocumentMailCommand, type InrAssistantDocumentTemplateCommand, type InrAssistantDocumentPrefill } from "./inrAssistantDocumentUiCommands.ts";
 
 /** Shared public destinations. These commands navigate; they never grant business permissions. */
 export const INR_ASSISTANT_NAVIGATION = {
@@ -126,8 +126,9 @@ export function isInrAssistantNavigationRequest(message: string): boolean {
   return /\b(?:ouvre|ouvrez|ouvrir|affiche|affichez|afficher|montre|montrez|montrer|emmene|emmenez|emmener|amene|amenez|amener|conduis|conduisez|conduire|navigate|open|show)\b|\b(?:va|allez|aller|go)\s+(?:dans|sur|a|au|aux|to)\b/.test(text);
 }
 
-export function isInrAssistantScreenCommandRequest(message: string, command?: "export_document_pdf" | "prepare_document_mail" | "save_ads_draft" | InrAssistantNativeCommand["command"] | InrAssistantMediaUiCommand["command"] | InrAssistantMailLifecycleCommand["command"]): boolean {
+export function isInrAssistantScreenCommandRequest(message: string, command?: "export_document_pdf" | "prepare_document_mail" | "create_document_template" | "save_ads_draft" | InrAssistantNativeCommand["command"] | InrAssistantMediaUiCommand["command"] | InrAssistantMailLifecycleCommand["command"]): boolean {
   const text = navigationRequestText(message);
+  if (command === "create_document_template") return isInrAssistantDocumentTemplateInstruction(message, "create");
   if (command && INR_ASSISTANT_MAIL_LIFECYCLE.includes(command as InrAssistantMailLifecycleCommand["command"])) return isInrAssistantMailLifecycleRequest(text, command);
   if (!command && isInrAssistantMailLifecycleRequest(text)) return true;
   if (command === "save_ads_draft") return isInrAssistantAdsSaveRequest(text);

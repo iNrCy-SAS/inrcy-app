@@ -4,6 +4,7 @@ import { inrAssistantStandardCommands } from "./inrAssistantStandardRouting.ts";
 import { INR_ASSISTANT_COMMANDS, INR_ASSISTANT_PENDING_STATUSES, INR_ASSISTANT_UNCERTAIN_STATUSES, isInrAssistantAcceptedReceipt, inrAssistantSettingTargets, requestsInrAssistantSettingsChange } from "./inrAssistantCommandRegistry.ts";
 import { inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantRequestClauses.ts";
 import type { InrAssistantUiStep } from "./inrAssistantUiTask.ts";
+import { isInrAssistantDocumentTemplateInstruction } from "./inrAssistantDocumentUiCommands.ts";
 export { inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantRequestClauses.ts";
 
 export type InrAssistantTaskOutcome = "completed" | "partial" | "needs_input" | "processing" | "blocked" | "failed";
@@ -64,6 +65,7 @@ function requiredToolsForClause(message: string, mediaContext: boolean): string[
   const standardCommands = inrAssistantStandardCommands(t);
   if (standardCommands) return standardCommands;
   if (requestsInrAssistantSettingsChange(message)) return ["updateToolSettings"];
+  if (isInrAssistantDocumentTemplateInstruction(message, "create") || isInrAssistantDocumentTemplateInstruction(message, "delete")) return ["applyCommercialTemplateAction"];
   if (/\bfacture\b/.test(t) && /\b(?:marque|marquer|passe|passer|declare)\b/.test(t) && /\bpayee?\b/.test(t)) return ["applyCommercialDocumentAction"];
   if (/\b(?:annule\w*|arret\w*|stop|cancel)\b/.test(t) && /generat|creation/.test(t) && /media|image|video/.test(t)) return ["cancelMediaGeneration"];
   if (permitsInrAssistantMediaAction(message, "generate", "image") || permitsInrAssistantMediaAction(message, "generate", "video")) result.push("generateMedia");

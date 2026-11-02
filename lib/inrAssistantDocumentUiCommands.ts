@@ -1,5 +1,14 @@
 import { inrAssistantMaskQuotedText } from "./inrAssistantActionClause.ts";
 
+/** Shared intent only. Native tools still require a current clause, owned source,
+ * exact version and professional confirmation before persisting a template. */
+export function isInrAssistantDocumentTemplateInstruction(value: string, operation: "create" | "delete") {
+  const intent = inrAssistantMaskQuotedText(value).normalize("NFD").replace(/\p{M}/gu, "").replace(/’/g, "'").toLowerCase();
+  return !/\b(?:comment|pourquoi|explique\w*|imagine|si|quand|lorsque|demain|if|when|why|how|ne|pas|jamais|sans|not|never)\b|\bn'|\bapres.{0,35}(?:confirmation|accord)\b/.test(intent)
+    && /\b(?:modele|template)\b/.test(intent)
+    && (operation === "create" ? /\b(?:cree\w*|enregistre\w*|sauvegard\w*|create|save)\b/.test(intent) : /\b(?:supprime\w*|efface\w*|delete|remove)\b/.test(intent));
+}
+
 /** Intent only; callers still verify the source, current clause, account and version. */
 export function isInrAssistantDocumentPrefillInstruction(value: string, operation: "convert_quote" | "apply_template") {
   const intent = inrAssistantMaskQuotedText(value).normalize("NFD").replace(/\p{M}/gu, "").replace(/’/g, "'").toLowerCase();

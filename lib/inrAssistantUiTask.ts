@@ -7,11 +7,12 @@ import { inrAssistantUiPostScreenMatchesAction, type InrAssistantUiPostScreen } 
 import { isInrAssistantDocumentPrefillInstruction } from "./inrAssistantDocumentUiCommands.ts";
 
 type ScreenCommand = NonNullable<Parameters<typeof isInrAssistantScreenCommandRequest>[1]>;
-export const INR_ASSISTANT_UI_TASK_TOOLS = ["navigateApplication", "runScreenCommand", "prepareCommercialDocumentForm"] as const;
+export const INR_ASSISTANT_UI_TASK_TOOLS = ["navigateApplication", "runScreenCommand", "prepareCommercialDocumentForm", "prepareCurrentDocumentTemplate"] as const;
 export function isInrAssistantUiTaskTool(name: string): boolean {
   return INR_ASSISTANT_UI_TASK_TOOLS.some(tool => tool === name);
 }
 export function inrAssistantUiStepTool(step: InrAssistantUiStep): typeof INR_ASSISTANT_UI_TASK_TOOLS[number] {
+  if (step.command === "create_document_template") return "prepareCurrentDocumentTemplate";
   return step.command === "navigateApplication" || step.command === "prepareCommercialDocumentForm" ? step.command : "runScreenCommand";
 }
 
@@ -30,12 +31,13 @@ export type InrAssistantUiStepResult = { stepId: string; status: "applied" | "pe
 const followupCapabilities: Partial<Record<InrAssistantUiStep["command"], ScreenCommand[]>> = {
   select_video_source: ["configure_video_retouch", "save_video_retouch"],
   configure_video_retouch: ["save_video_retouch"],
+  configure_ads_draft: ["save_ads_draft"],
   configure_mail_draft: ["save_mail_draft", "send_mail_draft", "open_mail_schedule"],
   save_mail_draft: ["configure_mail_draft", "send_mail_draft", "open_mail_schedule"],
 };
 const transitionCapabilities: Partial<Record<InrAssistantUiStep["command"], ScreenCommand[]>> = {
   prepare_document_mail: ["configure_mail_draft", "save_mail_draft", "send_mail_draft", "open_mail_schedule"],
-  prepareCommercialDocumentForm: ["export_document_pdf"],
+  prepareCommercialDocumentForm: ["export_document_pdf", "create_document_template"],
 };
 const documentFormRequest = (message: string) => isInrAssistantDocumentPrefillInstruction(message, "convert_quote") || isInrAssistantDocumentPrefillInstruction(message, "apply_template");
 

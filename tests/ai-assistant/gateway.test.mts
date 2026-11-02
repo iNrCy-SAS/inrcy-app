@@ -1557,3 +1557,22 @@ test("native document prefill is a UI objective and subsequent PDF waits for its
   }
   assert.equal(preparations, 1, "the hydrated conversion is never replayed");
 });
+
+test("current-document template waits for its confirmed browser result before a later CRM write", async () => {
+  const clause = "Crée un modèle nommé Rénovation depuis ce devis";
+  const instruction = `${clause}, puis crée un contact CRM nommé Alice.`;
+  const screen = { pathname: "/dashboard/devis/new", tool: "Devis", selection: { kind: "quote" as const, id: "preview_template" }, revision: "doc_1", availableCommands: ["create_document_template" as const] };
+  let handed = 0;
+  const command = { command: "create_document_template", selection: screen.selection, revision: screen.revision, templateName: "Rénovation" };
+  const documentNativeFactory = () => ({ prepareCurrentDocumentTemplate: tool({ inputSchema: jsonSchema<{ instructionQuote: string }>({ type: "object", properties: { instructionQuote: { type: "string" } }, required: ["instructionQuote"] }), execute: async () => { handed++; return { ok: true, status: "ui_requested", uiCommand: command }; } }) });
+  const call = { tool: "prepareCurrentDocumentTemplate", input: { instructionQuote: clause } };
+  const create = { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } };
+  const h = harness({ documentNativeFactory, crmIds: contactIds, parallelPlan: [call, create] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, actorUserId: "actor-a", edition: "founder", supabase: {} as never, clientContext: { source: "untrusted_client", screen }, messages: [{ role: "user", content: instruction }] });
+  assert.equal(handed, 1); assert.equal(reply.uiActions?.length, 1); assert.equal(h.crmExecutions.length, 0); assert.equal(reply.outcome, "partial");
+  assert.deepEqual(Array.from(reply.taskState!.requiredTools), ["manageCrmContact"]);
+  const state = structuredClone(reply.taskState!); state.uiSteps = uiTask.bindInrAssistantUiSteps(state.uiSteps!, reply.uiActions!, { turnId: randomUUID(), createdAt: new Date().toISOString() });
+  const resumed = harness({ documentNativeFactory, crmIds: contactIds, plan: [create] });
+  const result = await resumed.runtime.generateInrAssistantReply({ ...basic, actorUserId: "actor-a", edition: "founder", supabase: {} as never, clientContext: { source: "untrusted_client", screen }, taskContext: state, actionInstruction: instruction, taskIntent: "continue", browserStepResults: [{ stepId: state.uiSteps![0].id, status: "applied", postScreen: screen }], messages: [{ role: "user", content: "Continuer" }] });
+  assert.equal(resumed.crmExecutions.length, 1); assert.equal(handed, 1); assert.equal(result.outcome, "completed");
+});

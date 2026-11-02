@@ -214,10 +214,12 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
       currentUserMessage: latestRequest, currentApprovalMessage: spokenRequest, resolvePreview, canStartWork: () => remainingTimeMs() > 15_000 };
     const selected: Record<string, unknown> = {};
     const pick = (available: Record<string, unknown>, names: string[]) => { for (const name of names) if (available[name]) selected[name] = available[name]; };
-    if (args.edition === "founder" && (families.has("commercial") || requiredTools.includes("applyCommercialDocumentAction"))) {
+    if (args.edition === "founder" && (families.has("commercial") || requiredTools.some(name => ["applyCommercialDocumentAction", "applyCommercialTemplateAction", "prepareCurrentDocumentTemplate"].includes(name)))) {
       const available = createInrAssistantDocumentNativeTools({ ...scope, clientContext: args.clientContext });
       pick(available, ["readCommercialTemplates",
         ...(canExecute && requiredTools.includes("prepareCommercialDocumentForm") ? ["prepareCommercialDocumentForm"] : []),
+        ...(canExecute && requiredTools.includes("prepareCurrentDocumentTemplate") ? ["prepareCurrentDocumentTemplate"] : []),
+        ...(canExecute && requiredTools.includes("applyCommercialTemplateAction") ? ["previewCommercialTemplateAction", ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest) ? ["applyCommercialTemplateAction"] : [])] : []),
         ...(canExecute && requiredTools.includes("applyCommercialDocumentAction") ? ["previewCommercialDocumentAction", ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest) ? ["applyCommercialDocumentAction"] : [])] : [])]);
     }
     if (/idees?/.test(topic) && /agent|publication|editorial/.test(topic) && args.edition !== "basic") pick(createInrAssistantAgentTools(scope), ["readPublicationIdeas", ...(requiredTools.includes("managePublicationIdeas") ? ["managePublicationIdeas"] : [])]);

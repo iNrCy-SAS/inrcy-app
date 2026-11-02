@@ -109,3 +109,14 @@ test("a document conversion waits for exact committed prefill metadata before th
   for (const wrong of [{ ...screen, documentPrefill: undefined }, { ...screen, documentPrefill: { ...prefill, sourceId: "22222222-2222-4222-8222-222222222222" } }])
     assert.equal(inrAssistantUiStepResult(state[0], [{ actionId: batch[0].id, source: "browser_reported", status: "applied", postScreen: wrong }]).postScreen, undefined);
 });
+
+test("native Ads save and current-document template retain ordered UI objectives without phantom business writes", () => {
+  const ads = inrAssistantUiSteps("Renomme cette campagne publicitaire en Été, puis sauvegarde ce brouillon publicitaire.", { source: "untrusted_client", screen: { ...screen, availableCommands: ["configure_ads_draft", "save_ads_draft"] } });
+  assert.deepEqual(ads.map(step => step.command), ["configure_ads_draft", "save_ads_draft"]); assert.ok(parseInrAssistantUiSteps(ads));
+  const doc = { pathname: "/dashboard/devis/new", tool: "Devis", selection: { kind: "quote" as const, id: "preview_open" }, revision: "doc_current_1", availableCommands: ["create_document_template" as const] };
+  const message = "Crée un modèle nommé Rénovation depuis ce devis.";
+  const templates = inrAssistantUiSteps(message, { source: "untrusted_client", screen: doc });
+  assert.deepEqual(templates.map(step => step.command), ["create_document_template"]); assert.ok(parseInrAssistantUiSteps(templates));
+  for (const rejected of ["Comment créer un modèle depuis ce devis ?", "Si je confirme, " + message, "Lis ce texte : '" + message + "'", "Ne crée pas de modèle depuis ce devis."])
+    assert.deepEqual(inrAssistantUiSteps(rejected, { source: "untrusted_client", screen: doc }), []);
+});

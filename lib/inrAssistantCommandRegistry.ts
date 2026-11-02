@@ -55,6 +55,7 @@ export const INR_ASSISTANT_COMMANDS: Record<string, Command> = {
   prepareCommercialDocument: { family:"commercial",label:"préparer le devis ou la facture",clarification:/client|contact|prestation|ligne|produit|prix|quantite|tva|taxe|echeance|date|devis|facture/,batchObject:"devis|factures?" },
   finalizeCommercialDocument: { family:"commercial",label:"finaliser le devis ou la facture" },
   applyCommercialDocumentAction: { family:"commercial",label:"enregistrer le statut manuel payé de la facture après confirmation" },
+  applyCommercialTemplateAction: { family:"commercial",label:"créer ou supprimer le modèle après confirmation" },
   updateCommercialDocument: { family:"commercial",label:"compléter le devis ou la facture",clarification:/client|contact|prestation|ligne|produit|prix|quantite|tva|taxe|echeance|date|devis|facture/ },
   confirmCalendarAppointment: { family:"workspace",label:"confirmer le rendez-vous" },
   prepareAdvertisingCampaign: { family:"advertising",label:"préparer la campagne publicitaire",clarification:/budget|date|canal|objectif|cible|zone|contenu|campagne/,batchObject:"campagnes?" },

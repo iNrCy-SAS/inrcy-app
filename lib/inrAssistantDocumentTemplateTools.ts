@@ -9,7 +9,7 @@ import { getActiveSubscriptionAccountIds } from "./accountSubscriptionAccess";
 import { matchesInrAssistantActionClause, inrAssistantMaskQuotedText } from "./inrAssistantActionClause.ts";
 import { assistantActionFingerprint, createAssistantActionPreview, hasAssistantActionApproval, verifyAssistantActionPreview } from "./inrAssistantActionPreview.ts";
 import { createCommercialTemplateSnapshot } from "./commercialDocumentTemplate.ts";
-import { parseInrAssistantDocumentTemplateCommand } from "./inrAssistantDocumentUiCommands.ts";
+import { parseInrAssistantDocumentTemplateCommand, isInrAssistantDocumentTemplateInstruction } from "./inrAssistantDocumentUiCommands.ts";
 const row = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const normalize = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").replace(/’/g, "'").toLowerCase();
 const text = (value: unknown, max = 180): value is string => typeof value === "string" && !!value.trim() && value.length <= max;
@@ -21,11 +21,7 @@ function explicitTemplateName(message: string, name: string) {
   return quotedOrNamed || !/^(?:depuis|de|du|des|ce|cette|a partir|from)\b/.test(normalize(name)) && new RegExp(`\\b(?:modele|template)\\s+${escaped}(?=$|[\\s,.!?;])`).test(input);
 }
 function direct(message: string, quote: string, operation: "create" | "delete") {
-  return matchesInrAssistantActionClause(message, quote, (current, clause) => [current, clause].every(value => {
-    const intent = normalize(inrAssistantMaskQuotedText(value));
-    return !/\b(?:comment|pourquoi|explique\w*|imagine|si|quand|lorsque|demain|if|when|why|how|ne|pas|jamais|sans|not|never)\b|\bn'|\bapres.{0,35}(?:confirmation|accord)\b/.test(intent) &&
-      /\b(?:modele|template)\b/.test(intent) && (operation === "create" ? /\b(?:cree\w*|enregistre\w*|sauvegard\w*|create|save)\b/.test(intent) : /\b(?:supprime\w*|efface\w*|delete|remove)\b/.test(intent));
-  }));
+  return matchesInrAssistantActionClause(message, quote, (current, clause) => [current, clause].every(value => isInrAssistantDocumentTemplateInstruction(value, operation)));
 }
 type Preview = { operation: "create" | "delete"; kind: "quote" | "invoice"; sourceId: string; expectedUpdatedAt: string; reference: string; templateName: string | null; instructionQuote: string };
 type Apply = { reference: string; instructionQuote: string };

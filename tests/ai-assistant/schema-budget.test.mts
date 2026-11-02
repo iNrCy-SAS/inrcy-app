@@ -152,7 +152,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
         if (/^\.\.\/messages\/fr-FR\/[a-zA-Z-]+\.json$/.test(id)) return { default: JSON.parse(readFileSync(resolve(dirname(path), id), "utf8")) };
         const target = resolve(dirname(path), id.endsWith(".ts") ? id : `${id}.ts`);
         const name = basename(target);
-        assert.ok(/^inrAssistant[A-Za-z.]+\.ts$/.test(name) || ["mediaLibraryAudio.ts", "commercialDocumentDraft.ts", "commercialDocumentValidation.ts", "commercialDocumentUpdate.ts", "inrAgentSettings.ts", "inrAgentMonthSchedule.ts", "siteWebChannel.ts", "subscriptionOffers.ts", "boosterPublicationPolicy.ts", "boosterChannelRules.ts", "boosterPublicationOutcome.ts", "aiContentLength.ts", "aiInstructionSections.ts", "dashboard.channel-setup.ts", "aiChannelCtaPreferences.ts", "boosterWhatsappCta.ts", "generalPreferences.ts", "googleBusinessProfile.ts", "channelPublicUrl.ts", "instagramCapabilities.ts"].includes(name), `Unexpected dependency ${id}`);
+        assert.ok(/^inrAssistant[A-Za-z.]+\.ts$/.test(name) || ["commercialDocumentTemplate.ts", "mediaLibraryAudio.ts", "commercialDocumentDraft.ts", "commercialDocumentValidation.ts", "commercialDocumentUpdate.ts", "inrAgentSettings.ts", "inrAgentMonthSchedule.ts", "siteWebChannel.ts", "subscriptionOffers.ts", "boosterPublicationPolicy.ts", "boosterChannelRules.ts", "boosterPublicationOutcome.ts", "aiContentLength.ts", "aiInstructionSections.ts", "dashboard.channel-setup.ts", "aiChannelCtaPreferences.ts", "boosterWhatsappCta.ts", "generalPreferences.ts", "googleBusinessProfile.ts", "channelPublicUrl.ts", "instagramCapabilities.ts"].includes(name), `Unexpected dependency ${id}`);
         return load(target);
       }
       assert.fail(`Unexpected schema dependency ${id}`);
@@ -507,4 +507,24 @@ test("completed CRM objective releases its real mutation schema before the requi
   const providerBytes = h.providerCalls.map(params => bytes({ prompt: params.prompt, tools: params.tools }) + 1024);
   assert.ok(providerBytes.every(value => value <= 32_000));
   t.diagnostic(JSON.stringify({ providerBytes, savedContacts: h.actionExecutions }));
+});
+
+test("native Ads and document-template workflows fit the real provider schema budget", async t => {
+  const fixtures = [
+    { name: "ads-open", edition: "premium" as const, prompt: "Modifie le budget quotidien du brouillon publicitaire ouvert à 20 euros.", expected: "runScreenCommand", screen: { pathname: "/dashboard/ads", tool: "Ads", selection: { kind: "campaign" as const, id: "ads_editor" }, revision: "ads_editor_1", availableCommands: ["configure_ads_draft", "save_ads_draft"] as const } },
+    { name: "template-current", edition: "founder" as const, prompt: "Crée un modèle nommé Rénovation depuis ce devis.", expected: "prepareCurrentDocumentTemplate", screen: { pathname: "/dashboard/devis/new", tool: "Devis", selection: { kind: "quote" as const, id: "preview_quote" }, revision: "preview_1", availableCommands: ["create_document_template"] as const } },
+    { name: "template-delete", edition: "founder" as const, prompt: "Supprime le modèle de devis Rénovation.", expected: "previewCommercialTemplateAction", screen: { pathname: "/dashboard", tool: "Accueil" } },
+  ];
+  for (const fixture of fixtures) {
+    const h = harness();
+    await h.runtime.generateInrAssistantReply({ accountId: ACCOUNT, actorUserId: ACTOR, displayName: "Entreprise Exemple", edition: fixture.edition,
+      requestId: randomUUID(), request: new Request("https://fixture.invalid/api/assistant/chat"), supabase: { from() { assert.fail("No customer database"); } } as never,
+      clientContext: { source: "untrusted_client", screen: { ...fixture.screen, availableCommands: fixture.screen.availableCommands ? [...fixture.screen.availableCommands] : undefined } }, messages: [{ role: "user", content: fixture.prompt }] });
+    assert.ok(h.providerCalls.length > 0, fixture.name);
+    const names = h.providerCalls.flatMap(call => (call.tools ?? []).filter(tool => tool.type === "function").map(tool => tool.name));
+    assert.ok(names.includes(fixture.expected), `${fixture.name}: ${fixture.expected} must actually reach the provider`);
+    const providerBytes = h.providerCalls.map(call => bytes({ prompt: call.prompt, tools: call.tools }) + 1024);
+    assert.ok(providerBytes.every(value => value <= 32_000), fixture.name);
+    t.diagnostic(JSON.stringify({ scenario: fixture.name, providerBytes }));
+  }
 });

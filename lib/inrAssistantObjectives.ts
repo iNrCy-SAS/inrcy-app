@@ -75,7 +75,7 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
     return plan;
 }
 export function inrAssistantObjectiveFamily(tool: string): InrAssistantCommandFamily | undefined {
-    if (tool === "prepareCommercialDocumentForm") return "commercial";
+    if (["prepareCommercialDocumentForm", "prepareCurrentDocumentTemplate"].includes(tool)) return "commercial";
     return INR_ASSISTANT_COMMANDS[tool]?.family ?? readers.find(reader => reader.tool === tool)?.family;
 }
 export function inrAssistantObjectiveLabel(tool: string): string {
@@ -122,6 +122,7 @@ const prerequisiteReaders: Record<string, string[]> = {
     manageCrmContact: ["searchCrmContacts", "readCrmContact"],
     prepareCommercialDocument: ["searchCrmContacts", "readCrmContact", "readCommercialDocuments"],
     prepareCommercialDocumentForm: ["readCommercialTemplates", "readCommercialDocuments"],
+    applyCommercialTemplateAction: ["readCommercialTemplates", "readCommercialDocuments"],
     updateCommercialDocument: ["readCommercialDocuments"],
     finalizeCommercialDocument: ["readCommercialDocuments"],
     manageAdvertisingCampaign: ["readAdvertisingCampaigns"],

@@ -263,7 +263,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const readCounts = new Map<string,number>();
   const readBudget = createInrAssistantReadBudget();
   const readObjectiveAtStart = new Map<string, string>();
-  const previewActionNames = new Set(["previewCalendarAction","previewScheduledPublicationAction","previewGoogleBusinessProfileUpdate","previewMediaDeletion","previewPublicationLifecycleAction","previewIndividualMail","previewCommercialDocumentAction"]);
+  const previewActionNames = new Set(["previewCalendarAction","previewScheduledPublicationAction","previewGoogleBusinessProfileUpdate","previewMediaDeletion","previewPublicationLifecycleAction","previewIndividualMail","previewCommercialDocumentAction","previewCommercialTemplateAction"]);
   const observedActionNames = new Set([...Object.keys(INR_ASSISTANT_COMMANDS),...INR_ASSISTANT_UI_TASK_TOOLS,"previewCampaignAudience",...previewActionNames,"applyCalendarAction","applyScheduledPublicationAction"]);
   const privateApprovals=new Map(receipts.flatMap(receipt=>receipt.approvalReference && receipt.approvalToken && receipt.approvalKind?[[receipt.approvalReference,{token:receipt.approvalToken,kind:receipt.approvalKind}] as const]:[]));
   const resolvePreview=(reference:string)=>privateApprovals.get(reference)?.token??null;
@@ -421,7 +421,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
           const data = input[0] && typeof input[0] === "object" ? input[0] as Record<string, unknown> : {};
           const clauseKey = (value: string) => value.replace(/[,.!?;:]+$/g, "").trim();
           const quotedClauses = typeof data.instructionQuote === "string" ? inrAssistantRequestClauses(data.instructionQuote).map(clauseKey) : [];
-          const command = name === "runScreenCommand" ? data.command : name;
+          const command = name === "runScreenCommand" ? data.command : name === "prepareCurrentDocumentTemplate" ? "create_document_template" : name;
           const step = uiSteps.find(candidate => candidate.command === command && !candidate.actions?.length && !appliedUi.has(candidate.id) && quotedClauses.includes(clauseKey(candidate.instruction)));
           if (!step || !uiReady(step)) return { ok: false, status: "deferred", message: "Cette étape d’écran est déjà transmise ou attend une étape précédente. Aucune nouvelle commande n’a été envoyée." };
           if (step.afterStepId && !step.screen) return { ok: false, status: "deferred", message: "Le formulaire de cette étape attend le retour vérifié de la transition précédente." };

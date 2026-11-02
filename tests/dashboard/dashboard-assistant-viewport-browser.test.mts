@@ -40,6 +40,7 @@ const sources = {
   "./inrAssistantUiPostScreen.ts": compile("lib/inrAssistantUiPostScreen.ts"),
   "./inrAssistantActionClause.ts": compile("lib/inrAssistantActionClause.ts"),
   "./inrAssistantRequestClauses.ts": compile("lib/inrAssistantRequestClauses.ts"),
+  "./inrAssistantAdsUiCommands.ts": compile("lib/inrAssistantAdsUiCommands.ts"),
   "./inrAssistantDocumentUiCommands.ts": compile("lib/inrAssistantDocumentUiCommands.ts"),
   "./inrAssistantMailLifecycle.ts": compile("lib/inrAssistantMailLifecycle.ts"),
   "./inrAssistantMailCompose.ts": compile("lib/inrAssistantMailCompose.ts"),

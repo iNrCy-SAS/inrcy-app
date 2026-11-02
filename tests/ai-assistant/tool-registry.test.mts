@@ -182,3 +182,18 @@ test("document templates expose a bounded reader while form preparation retains 
   }
   assert.deepEqual(h.executions, []);
 });
+
+test("saved template mutations use their own signed preview while current form templates use a browser handoff", () => {
+  const h = harness(), args = { ...h.context.args, edition: "founder" as const };
+  for (const instruction of ["Crée un modèle nommé Rénovation depuis le devis DEV-001.", "Supprime le modèle de devis Rénovation."])
+    assert.deepEqual(routing.inrAssistantRequiredTools(instruction), ["applyCommercialTemplateAction"]);
+  const preview = h.build({ args, families: new Set(["commercial"]), requiredTools: ["applyCommercialTemplateAction"] });
+  assert.ok(Object.hasOwn(preview.additionalTools, "previewCommercialTemplateAction"));
+  assert.ok(!Object.hasOwn(preview.additionalTools, "applyCommercialTemplateAction"));
+  const approved = h.build({ args, requiredTools: ["applyCommercialTemplateAction"], spokenRequest: "Confirme IA-ABCDEF123456" });
+  assert.ok(Object.hasOwn(approved.additionalTools, "applyCommercialTemplateAction"));
+  const current = h.build({ args, requiredTools: ["prepareCurrentDocumentTemplate"] });
+  assert.ok(Object.hasOwn(current.additionalTools, "prepareCurrentDocumentTemplate"));
+  assert.ok(!Object.hasOwn(current.additionalTools, "applyCommercialTemplateAction"));
+  assert.ok(!Object.hasOwn(h.build({ args, canExecute: false, requiredTools: ["prepareCurrentDocumentTemplate", "applyCommercialTemplateAction"] }).additionalTools, "prepareCurrentDocumentTemplate"));
+});
