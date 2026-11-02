@@ -174,6 +174,47 @@ test("attachment reset and actor/account changes invalidate the current upload r
   } finally { await browser.close(); }
 });
 
+test("real attachment hook accepts native audio from device and the audio library without generating or interpreting it", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(), errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    const audio = compile("lib/mediaLibraryAudio.ts"), attachment = compile("lib/inrAssistantAttachments.ts");
+    const policy = `(()=>{const audio={exports:{}};new Function('module','exports',${JSON.stringify(audio)})(audio,audio.exports);const policy={exports:{}};new Function('require','module','exports',${JSON.stringify(attachment)})(name=>{if(name==='./mediaLibraryAudio.ts')return audio.exports;throw Error(name)},policy,policy.exports);return policy.exports})()`;
+    await setup(page, "app/dashboard/_hooks/useAssistantAttachments.ts", `
+      window.requests=[];window.transfers=[];window.account='account-a';
+      const ref={id:'11111111-1111-4111-8111-111111111111',token:'fixture-token',name:'recording.mp3',kind:'audio',size:12};
+      window.fetch=async(url,options)=>{const body=JSON.parse(options.body);window.requests.push({url,body});
+        if(body.action==='prepare')return Response.json({accountId:window.account,prepared:[{attachment:ref,upload:{path:'private/audio',token:'upload-fixture',contentType:'audio/mpeg'}}]});
+        return Response.json({accountId:window.account,attachments:[body.action==='library'?{...ref,id:'22222222-2222-4222-8222-222222222222',name:'library.mp3'}:ref]});
+      };
+      function Harness(){window.hook=require('subject').useAssistantAttachments({accountId:window.account,actorUserId:'actor-a',locale:'fr',ensureConversation:()=> 'conversation'});return React.createElement('output',null,JSON.stringify({attachments:window.hook.attachments,mode:window.hook.libraryMode,open:window.hook.libraryOpen}));}
+      root.render(React.createElement(Harness));
+    `, `{
+      '@/lib/supabaseClient':{createClient:()=>({storage:{from:bucket=>({uploadToSignedUrl:async(path,token,file)=>{window.transfers.push({bucket,path,token,name:file.name,size:file.size,type:file.type});return {error:null}}})}})},
+      '@/lib/browserAccountCache':{getActiveBrowserUserId:()=>window.account},
+      '@/lib/inrAssistantAttachments':${policy},
+      '../_components/dashboardAssistantAttachmentCopy':{assistantAttachmentErrorCopy:()=> 'attachment-error'}
+    }`);
+    await page.waitForFunction("Boolean(window.hook)");
+    await page.evaluate("window.hook.addDevice([new File(['ID3fixture12'],'recording.mp3',{type:'audio/mpeg'})])");
+    await page.waitForFunction("window.hook.attachments.length === 1");
+    assert.equal(await page.evaluate("window.hook.attachments[0].kind"), "audio");
+    assert.equal(await page.evaluate("window.transfers.length"), 1);
+    await page.evaluate("window.hook.selectAudioLibrary()");
+    await page.waitForFunction("window.hook.libraryOpen && window.hook.libraryMode === 'audio'");
+    await page.evaluate("window.hook.addLibrary(['22222222-2222-4222-8222-222222222222'])");
+    await page.waitForFunction("window.hook.attachments.length === 2");
+    await page.evaluate("window.hook.addDevice([new File([new Uint8Array(3*1024*1024+1)],'too-big.mp3',{type:'audio/mpeg'})])");
+    await page.waitForFunction("window.hook.error === 'attachment-error'");
+    assert.equal(await page.evaluate("window.transfers.length"), 1, "oversize audio never reaches storage");
+    assert.deepEqual(await page.evaluate("window.requests.map(value=>value.body.action)"), ["prepare", "finalize", "library"]);
+    await page.evaluate("window.hook.selectLibrary()");
+    await page.waitForFunction("window.hook.libraryMode === 'visual'");
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
 test("a checkout reply from an invalidated account closes its tab without navigating", async () => {
   const browser = await chromium.launch({ headless: true });
   try {

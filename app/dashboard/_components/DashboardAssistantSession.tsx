@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useLocale } from "next-intl";
 import Image from "next/image";
 import dynamic from "next/dynamic";
+import type { MediaLibraryAudioPickerProps } from "./MediaLibraryPickerModal";
 import { createPortal } from "react-dom";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { parseInrAssistantClientContext, parseInrAssistantRequestId, type InrAssistantClientError, type InrAssistantClientScreen } from "@/lib/inrAssistantClientContext";
@@ -11,7 +12,7 @@ import { readInrAssistantResponse } from "@/lib/inrAssistantClientStream";
 import { dispatchInrAssistantRefresh } from "@/lib/inrAssistantRefresh";
 import { getInrAssistantContextualHelp } from "@/lib/inrAssistantContextualHelp";
 import type { InrAssistantActivity } from "@/lib/inrAssistantActivity";
-import { ASSISTANT_ATTACHMENT_ACCEPT, ASSISTANT_ATTACHMENT_MAX_COUNT, ASSISTANT_ATTACHMENT_MAX_BYTES, ASSISTANT_ATTACHMENT_VIDEO_MAX_BYTES } from "@/lib/inrAssistantAttachments";
+import { ASSISTANT_ATTACHMENT_ACCEPT, ASSISTANT_ATTACHMENT_MAX_COUNT, ASSISTANT_ATTACHMENT_MAX_BYTES, ASSISTANT_ATTACHMENT_VIDEO_MAX_BYTES, ASSISTANT_ATTACHMENT_AUDIO_MAX_BYTES } from "@/lib/inrAssistantAttachments";
 import type { InrAssistantUiCommand } from "@/lib/inrAssistantUiCommands";
 import { inrAssistantBusinessProgressAfterUi, inrAssistantUiActionsFromToolResult, type InrAssistantUiAction, type InrAssistantUiResult } from "@/lib/inrAssistantUiActions";
 import { deriveInrAssistantStudioDraft, parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "@/lib/inrAssistantStudioDraft";
@@ -26,6 +27,7 @@ import { TURN_ID_PATTERN, sessionStorageKey, storedMessages, requestMessages, re
 import styles from "./DashboardAssistantProvider.module.css";
 
 const MediaLibraryPickerModal = dynamic(() => import("./MediaLibraryPickerModal"), { ssr: false });
+const MediaLibraryAudioPickerModal = dynamic<MediaLibraryAudioPickerProps>(() => import("./MediaLibraryPickerModal").then(({ default: Picker }) => function AudioPicker(props: MediaLibraryAudioPickerProps) { return <Picker {...props} />; }), { ssr: false });
 const POSITION_STORAGE_KEY = "inrcy_assistant_position_v1";
 const COLLABORATION_AGENTS = {
   publications: { name: "Agent Publications", image: "/agent/agent-publications.webp" },
@@ -495,6 +497,7 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
           {files.menuOpen ? <div className={styles.attachmentMenu} role="group" aria-label={attachmentCopy.attach}>
             <button type="button" onClick={files.selectDevice}>{attachmentCopy.device}</button>
             <button type="button" onClick={files.selectLibrary}>{attachmentCopy.library}</button>
+            <button type="button" onClick={files.selectAudioLibrary}>{attachmentCopy.audioLibrary}</button>
             <small>{attachmentCopy.limits}</small>
           </div> : null}
           <button type="button" className={styles.attachButton} aria-label={attachmentCopy.attach} title={attachmentCopy.attach} aria-expanded={files.menuOpen} disabled={pending || files.busy || files.attachments.length >= ASSISTANT_ATTACHMENT_MAX_COUNT} onClick={() => files.setMenuOpen(value => !value)}>
@@ -505,11 +508,15 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
           </button>
           </div>
         </form>
-        {files.libraryOpen ? createPortal(<div className={styles.pickerLayer}><MediaLibraryPickerModal open multiple maxSelection={ASSISTANT_ATTACHMENT_MAX_COUNT - files.attachments.length} title={attachmentCopy.library} confirmLabel={attachmentCopy.add} subtitle={attachmentCopy.limits}
-          maxImageBytes={ASSISTANT_ATTACHMENT_MAX_BYTES} maxVideoBytes={ASSISTANT_ATTACHMENT_VIDEO_MAX_BYTES}
-          getItemDisabledReason={item => Number(item.size_bytes) > (item.media_type === "video" ? ASSISTANT_ATTACHMENT_VIDEO_MAX_BYTES : ASSISTANT_ATTACHMENT_MAX_BYTES) ? attachmentCopy.limits : undefined}
+        {files.libraryOpen ? createPortal(<div className={styles.pickerLayer}>{files.libraryMode === "audio" ? <MediaLibraryAudioPickerModal open accept="audio" multiple maxSelection={ASSISTANT_ATTACHMENT_MAX_COUNT - files.attachments.length} title={attachmentCopy.audioLibrary} confirmLabel={attachmentCopy.add} subtitle={attachmentCopy.limits}
+          maxImageBytes={ASSISTANT_ATTACHMENT_AUDIO_MAX_BYTES}
+          getItemDisabledReason={item => Number(item.size_bytes) > ASSISTANT_ATTACHMENT_AUDIO_MAX_BYTES ? attachmentCopy.limits : undefined}
           onClose={() => { files.setLibraryOpen(false); composerRef.current?.focus(); }}
-          onConfirm={items => files.addLibrary(items.map(item => item.id))} /></div>, portalTarget || document.body) : null}
+          onConfirm={items => files.addLibrary(items.map(item => item.id))} /> : <MediaLibraryPickerModal open multiple maxSelection={ASSISTANT_ATTACHMENT_MAX_COUNT - files.attachments.length} title={attachmentCopy.library} confirmLabel={attachmentCopy.add} subtitle={attachmentCopy.limits}
+          maxImageBytes={ASSISTANT_ATTACHMENT_MAX_BYTES} maxVideoBytes={ASSISTANT_ATTACHMENT_VIDEO_MAX_BYTES}
+          getItemDisabledReason={item => Number(item.size_bytes) > (item.media_type === "video" ? ASSISTANT_ATTACHMENT_VIDEO_MAX_BYTES : item.media_type === "audio" ? ASSISTANT_ATTACHMENT_AUDIO_MAX_BYTES : ASSISTANT_ATTACHMENT_MAX_BYTES) ? attachmentCopy.limits : undefined}
+          onClose={() => { files.setLibraryOpen(false); composerRef.current?.focus(); }}
+          onConfirm={items => files.addLibrary(items.map(item => item.id))} />}</div>, portalTarget || document.body) : null}
       </div>
     </dialog>, portalTarget || document.body) : null;
 }

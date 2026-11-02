@@ -50,7 +50,7 @@ type MediaLibraryPickerCommonProps = {
   getItemDisabledReason?: (item: MediaLibraryPickerSelectionItem) => string | undefined;
   onClose: () => void;
 };
-type MediaLibraryAudioPickerProps = MediaLibraryPickerCommonProps & {
+export type MediaLibraryAudioPickerProps = MediaLibraryPickerCommonProps & {
   accept: "audio";
   onConfirm: (items: MediaLibraryPickerAudioItem[]) => void | Promise<void>;
 };

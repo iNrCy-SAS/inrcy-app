@@ -46,14 +46,14 @@ function harness() {
     }
     assert.equal(path, "/api/media-library/upload");
     if (body.mode === "prepare") {
-      const file = body.files[0], storagePath = `users/${ACCOUNT}/image/import-${file.client_id}.png`;
+      const file = body.files[0], audio = file.type.startsWith("audio/"), storagePath = `users/${ACCOUNT}/${audio ? "audio" : "image"}/import-${file.client_id}.${audio ? "mp3" : "png"}`;
       preparedFiles.set(storagePath, file.client_id);
       return Response.json({ ok: true, items: [{ client_id: file.client_id, bucket: "inrcy-pro-media", storage_path: storagePath, token: "private-upload-token", content_type: file.type }] });
     }
     assert.equal(body.mode, "finalize");
     const attachmentId = preparedFiles.get(body.uploads[0].storage_path)!;
     const importedId = attachmentId === ATTACHMENT ? IMPORTED : attachmentId.replace(/^./, "6");
-    records.set(importedId, { ...record(importedId), source: body.source });
+    records.set(importedId, { ...record(importedId), source: body.source, storage_path: body.uploads[0].storage_path, media_type: body.uploads[0].mime_type.startsWith("audio/") ? "audio" : body.uploads[0].mime_type.startsWith("video/") ? "video" : "image" });
     return Response.json({ ok: true, results: [{ ok: true, id: importedId }] });
   };
   const bytes = Buffer.from("exact-file-original");
@@ -68,7 +68,7 @@ function harness() {
     "@/app/api/media-library/items/route": { DELETE: native }, "@/app/api/media-library/upload/route": { POST: native },
   });
   const create = (message: string, edition = "standard", currentApprovalMessage?: string) => runtime.createInrAssistantMediaLibraryTools({ accountId: ACCOUNT, actorUserId: ACTOR, edition, request: new Request("https://app.test/api/assistant/chat", { headers: { cookie: "session", "x-account-id": "forged" } }), supabase: db, currentUserMessage: message, currentApprovalMessage, resolvePreview: (reference: string) => previews.get(reference) ?? null,
-    mediaAttachments: attachments, resolveMediaAttachment: async (id: string) => { const file = attachments.find(item => item.id === id); assert.ok(file); return noOriginal ? null : { ...file, mimeType: file.kind === "image" ? "image/png" : "video/mp4", bytes }; },
+    mediaAttachments: attachments, resolveMediaAttachment: async (id: string) => { const file = attachments.find(item => item.id === id); assert.ok(file); return noOriginal ? null : { ...file, mimeType: file.kind === "image" ? "image/png" : file.kind === "audio" ? "audio/mpeg" : "video/mp4", bytes }; },
     claimMediaAttachmentImport: async (id: string) => { assert.ok(attachments.some(item => item.id === id)); if (importClaims.has(id)) return false; importClaims.add(id); return true; } });
   const propose = async (ids = [MEDIA]) => {
     const message = "Supprime ces médias de ma médiathèque.", result = await create(message).previewMediaDeletion.execute({ mediaIds: ids, instructionQuote: message });
@@ -125,6 +125,22 @@ test("attachment import transfers the exact original through native prepare/fina
   assert.equal(result.status, "imported"); assert.equal(result.id, IMPORTED); assert.equal(h.calls.length, 2);
   assert.deepEqual(h.uploads[0], h.bytes); assert.doesNotMatch(JSON.stringify(result), /private-upload-token|storage_path|bytes|token/);
   assert.equal((await h.create(message).importMediaAttachment.execute(input)).status, "already_processed"); assert.equal(h.calls.length, 2);
+});
+
+test("explicit audio imports use the same owned native pipeline and match audio-only groups exactly", async () => {
+  const h = harness();
+  const audio = { ...h.attachment, id: "70000000-0000-4000-8000-000000000007", name: "recording.mp3", kind: "audio" };
+  const second = { ...audio, id: "80000000-0000-4000-8000-000000000008", name: "other.mp3" };
+  h.setAttachments([h.attachment, audio, second]);
+  const request = "Importe ces deux fichiers audio dans ma médiathèque.", tools = h.create(request);
+  assert.equal((await tools.importMediaAttachment.execute({ attachmentId: h.attachment.id, instructionQuote: request })).status, "needs_instruction");
+  for (const file of [audio, second]) assert.equal((await tools.importMediaAttachment.execute({ attachmentId: file.id, instructionQuote: request })).status, "imported");
+  assert.equal(h.uploads.length, 2); h.uploads.forEach(bytes => assert.deepEqual(bytes, h.bytes));
+  assert.ok(h.calls.filter(call => call.body.mode === "prepare").every(call => (call.body.files as Array<{ type: string }>)[0].type === "audio/mpeg"));
+  assert.equal((await h.create(request).importMediaAttachment.execute({ attachmentId: audio.id, instructionQuote: request })).status, "already_processed");
+  assert.equal(h.uploads.length, 2);
+  const invalid = "Importe ces trois fichiers audio dans ma médiathèque.";
+  assert.equal((await h.create(invalid).importMediaAttachment.execute({ attachmentId: audio.id, instructionQuote: invalid })).status, "needs_instruction");
 });
 
 test("attachment import rejects foreign/unavailable originals and quoted instructions", async () => {

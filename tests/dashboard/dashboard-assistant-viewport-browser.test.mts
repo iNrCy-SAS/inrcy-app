@@ -28,6 +28,7 @@ const sources = {
   "./dashboardAssistantTaskCopy": compile("app/dashboard/_components/dashboardAssistantTaskCopy.ts"),
   "./DashboardAssistantScreenContext": compile("app/dashboard/_components/DashboardAssistantScreenContext.tsx"),
   "./DashboardAssistantCommandContext": compile("app/dashboard/_components/DashboardAssistantCommandContext.tsx"),
+  "./mediaLibraryAudio.ts": compile("lib/mediaLibraryAudio.ts"),
   "./inrAssistantMediaUiCommands.ts": compile("lib/inrAssistantMediaUiCommands.ts"),
   "@/lib/inrAssistantUiCommands": compile("lib/inrAssistantUiCommands.ts"),
   "@/lib/inrAssistantUiActions": compile("lib/inrAssistantUiActions.ts"),

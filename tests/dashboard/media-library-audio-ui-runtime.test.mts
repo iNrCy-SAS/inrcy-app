@@ -45,6 +45,7 @@ function libraryHarness() {
     if (id === "next/link") return { default: "a" };
     if (id.endsWith("DashboardAssistantTrigger")) return { default: "assistant-trigger" };
     if (id.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen(value: typeof assistantScreen) { assistantScreen = value; } };
+    if (id.endsWith("useInrAssistantLibraryOptimization")) return { useInrAssistantLibraryOptimization: () => ({ busy: false, message: "" }) };
     if (id.endsWith("useInrAssistantRefresh")) return { useInrAssistantRefresh() {} };
     if (id === "@/lib/supabaseClient") return { createClient: () => ({ storage: { from: () => ({ uploadToSignedUrl: async (_path: string, _token: string, file: File) => { transfers.push(file); return { error: null }; } }) } }) };
     if (id === "@/lib/universalMediaUploadClient") return { isUniversalMediaUploadEnabled: () => true, uploadFileToPreparedUniversalIntent: () => { throw new Error("Audio must bypass the visual upload pipeline"); } };

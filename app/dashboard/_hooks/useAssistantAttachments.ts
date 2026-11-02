@@ -11,6 +11,7 @@ export function useAssistantAttachments({ accountId, actorUserId, locale, ensure
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryMode, setLibraryMode] = useState<"visual" | "audio">("visual");
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRef = useRef<{ controller: AbortController; revision: number } | null>(null);
   const revisionRef = useRef(0);
@@ -66,8 +67,9 @@ export function useAssistantAttachments({ accountId, actorUserId, locale, ensure
       }
     }
   };
-  return { attachments, setAttachments, busy, error, menuOpen, setMenuOpen, libraryOpen, setLibraryOpen, inputRef, reset,
+  return { attachments, setAttachments, busy, error, menuOpen, setMenuOpen, libraryOpen, setLibraryOpen, libraryMode, inputRef, reset,
     selectDevice: () => { ensureConversation(); setMenuOpen(false); inputRef.current?.click(); },
-    selectLibrary: () => { ensureConversation(); setMenuOpen(false); setLibraryOpen(true); },
+    selectLibrary: () => { ensureConversation(); setLibraryMode("visual"); setMenuOpen(false); setLibraryOpen(true); },
+    selectAudioLibrary: () => { ensureConversation(); setLibraryMode("audio"); setMenuOpen(false); setLibraryOpen(true); },
     addDevice: (files: File[]) => add(files), addLibrary: (ids: string[]) => add(null, ids) };
 }

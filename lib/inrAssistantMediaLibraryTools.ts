@@ -35,12 +35,12 @@ function permits(message: string, quote: unknown, verb: RegExp) {
 }
 function selectsImportAttachment(quote: string, attachment: MediaAttachment, attachments: MediaAttachment[]) {
   const text = normalize(quote.replace(/```[\s\S]*?(?:```|$)|`[^`]*`|«[^»]*»|“[^”]*”|"[^"]*"|^>.*$/gm, " "));
-  const groups = [...text.matchAll(/\b(?:(?:ces|les)(?:\s+(deux|trois|quatre|\d+))?|(?:tous|toutes)\s+(?:les|ces))\s+(images|photos|videos|fichiers|medias|pieces\s+jointes|pj)\b/g)];
+  const groups = [...text.matchAll(/\b(?:(?:ces|les)(?:\s+(deux|trois|quatre|\d+))?|(?:tous|toutes)\s+(?:les|ces))\s+(images|photos|videos|fichiers\s+audio|audios|sons|fichiers|medias|pieces\s+jointes|pj)\b/g)];
   if (groups.length) {
     if (/\b(?:sauf|except|hormis)\b/.test(text)) return false;
     const counts: Record<string, number> = { deux: 2, trois: 3, quatre: 4 };
     const candidates = groups.map(match => {
-      const kind = /^(?:images|photos)$/.test(match[2]) ? "image" : match[2] === "videos" ? "video" : null;
+      const kind = /^(?:images|photos)$/.test(match[2]) ? "image" : match[2] === "videos" ? "video" : /^(?:audios|sons|fichiers\s+audio)$/.test(match[2]) ? "audio" : null;
       return { files: attachments.filter(file => !kind || file.kind === kind), count: match[1] ? counts[match[1]] ?? Number(match[1]) : null };
     });
     if (candidates.some(group => group.count !== null && group.count !== group.files.length)) return false;
@@ -82,7 +82,7 @@ export function createInrAssistantMediaLibraryTools(options: {
     if (records.some(item => item.user_id !== accountId || !ids.includes(String(item.id)) || item.source === "ai_media_generation_draft" || item.bucket_name !== "inrcy-pro-media" || typeof item.storage_path !== "string" || !item.storage_path.startsWith(`users/${accountId}/`) || item.storage_path.includes("..") || item.storage_path.includes("\\"))) throw new Error("Média non admissible");
     return records;
   };
-  const availableAttachments = () => (options.mediaAttachments ?? []).filter(item => UUID.test(item.id) && ["image", "video"].includes(item.kind)).slice(0, 4);
+  const availableAttachments = () => (options.mediaAttachments ?? []).filter(item => UUID.test(item.id) && ["image", "video", "audio"].includes(item.kind)).slice(0, 4);
   const attempts = new Map<string, Promise<Row>>();
   const once = (key: string, action: () => Promise<Row>) => {
     if (!attempts.has(key)) attempts.set(key, action().catch(() => fail("unknown", "Le résultat doit être vérifié dans Mes médias avant une nouvelle tentative.")));
@@ -92,12 +92,12 @@ export function createInrAssistantMediaLibraryTools(options: {
   const quoteSchema = { type: "string", minLength: 1, maxLength: 1200 } as const;
   return {
     listImportableMediaAttachments: tool({ strict: true,
-      description: "Lister les images/vidéos jointes à la demande ACTUELLE qui peuvent être importées dans Mes médias. Aucun historique ni fichier externe, aucun import déclenché. Utiliser ces IDs dans importMediaAttachment.",
+      description: "Lister les images/vidéos/fichiers audio MP3-WAV joints à la demande ACTUELLE qui peuvent être importées dans Mes médias. Aucun historique ni fichier externe, aucun import déclenché. Utiliser ces IDs dans importMediaAttachment.",
       inputSchema: jsonSchema<Record<string, never>>({ type: "object", properties: {}, additionalProperties: false }),
       execute: async () => !await scope() ? fail("blocked", "L’import doit être autorisé pour le compte actif.") : { ok: true, status: "read", attachments: availableAttachments().map(({ id, name, kind, size }) => ({ id, name, kind, size })), nextAction: LINK, untrustedContent: true },
     }),
     importMediaAttachment: tool({ strict: true,
-      description: "Importer dans Mes médias l’ORIGINAL d’une image/vidéo jointe sur ordre explicite. Choisir son ID via listImportableMediaAttachments ; plusieurs fichiers exigent leur nom ou un groupe explicite (ces deux images, toutes les vidéos, tous les fichiers joints). Respecter type et nombre exacts, sinon demander quels fichiers. Pipeline natif, aucune publication/génération ni URL source inventée ou aperçu compressé.",
+      description: "Importer dans Mes médias l’ORIGINAL d’une image/vidéo ou d’un audio MP3-WAV joint sur ordre explicite. Choisir son ID via listImportableMediaAttachments ; plusieurs fichiers exigent leur nom ou un groupe explicite (ces deux images, toutes les vidéos, ces deux fichiers audio, tous les fichiers joints). Respecter type et nombre exacts, sinon demander quels fichiers. Pipeline natif, aucune publication/génération ni URL source inventée ou aperçu compressé.",
       inputSchema: jsonSchema<{ attachmentId: string; instructionQuote: string }>({ type: "object", properties: { attachmentId: { type: "string", format: "uuid" }, instructionQuote: quoteSchema }, required: ["attachmentId", "instructionQuote"], additionalProperties: false }),
       execute: async input => {
         const attachments = availableAttachments(), attachment = attachments.find(item => item.id === input.attachmentId);
@@ -130,7 +130,7 @@ export function createInrAssistantMediaLibraryTools(options: {
           const result = row(await response.json()), item = row(Array.isArray(result.results) ? result.results[0] : null);
           if (!response.ok || result.ok !== true || item.ok !== true || !UUID.test(String(item.id))) return fail("unknown", "L’enregistrement n’est pas confirmé. Vérifiez Mes médias avant une nouvelle tentative.");
           const records = await owned([String(item.id)]);
-          if (records.length !== 1 || records[0].source !== source) return fail("saved_unconfirmed", "Le fichier a été transmis ; sa présence dans Mes médias reste à vérifier.");
+          if (records.length !== 1 || records[0].source !== source || records[0].media_type !== original.kind) return fail("saved_unconfirmed", "Le fichier a été transmis ; sa présence dans Mes médias reste à vérifier.");
           return { ok: true, status: "imported", id: item.id, mediaId: item.id, message: "Le fichier original est importé et vérifié dans Mes médias. Aucun contenu publié.", nextAction: LINK };
         });
       },

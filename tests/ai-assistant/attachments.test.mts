@@ -20,6 +20,7 @@ const now = new Date();
 const cutoff = new Date(now); cutoff.setUTCMonth(cutoff.getUTCMonth() - 2);
 const turn = { turnId: "44444444-4444-4444-8444-444444444444", createdAt: now.toISOString() };
 function harness(options: { readFailure?: boolean } = {}) {
+  const audioValidations: Array<{ mimeType: string; size: number }> = [];
   const objects = new Map<string, Buffer>(); const calls: Array<{ operation: string; path?: string; bucket: string }> = [];
   const storage = { from(bucket: string) { return {
     createSignedUploadUrl: async (path: string, options: { upsert: boolean }) => { assert.equal(options.upsert, false); calls.push({ operation: "prepare", bucket, path }); return { data: { token: "one-object-upload" }, error: null }; },
@@ -49,6 +50,7 @@ function harness(options: { readFailure?: boolean } = {}) {
     "./inrAssistantUiTask.ts": uiTask,
     "./inrAssistantReplyReplay.ts": replyReplay,
     "./mediaImageNormalizer.ts": { normalizeImageAiPreviewBuffer: async ({ buffer }: { buffer: Buffer }) => ({ aiPreview: { buffer } }) },
+    "./mediaLibraryAudioValidation.ts": { validateMediaLibraryAudioBuffer: async ({ buffer, mimeType, signal }: { buffer: Buffer; mimeType: string; signal: AbortSignal }) => { audioValidations.push({ mimeType, size: buffer.length }); assert.ok(signal); if (buffer.toString("ascii", 0, 3) !== "ID3") throw new Error("native_audio_unreadable"); return { mimeType, durationSeconds: 2 }; } },
     sharp: { default: sharp },
   };
   const source = readFileSync(new URL("../../lib/inrAssistantAttachmentStorage.ts", import.meta.url), "utf8");
@@ -58,7 +60,7 @@ function harness(options: { readFailure?: boolean } = {}) {
     process: { env: { INRCY_ASSISTANT_ATTACHMENT_SECRET: "synthetic-signing-key-not-a-real-credential" } } })((name: string) => {
     assert.ok(name in dependencies, `Unexpected dependency ${name}`); return dependencies[name];
   }, moduleRecord, moduleRecord.exports);
-  return { api: moduleRecord.exports as typeof Storage, objects, calls };
+  return { api: moduleRecord.exports as typeof Storage, objects, calls, audioValidations };
 }
 const code = (value: string) => (error: unknown) => Boolean(error && typeof error === "object" && "code" in error && error.code === value);
 
@@ -315,4 +317,45 @@ test("cleanup only removes dated expired objects from the dedicated private buck
   assert.equal(await h.api.cleanupAssistantAttachments(cutoff.toISOString()), 1);
   assert.ok(h.objects.has("inrcy-pro-media/2020-01-01/library.jpg"));
   assert.ok(h.calls.filter(call => call.operation === "remove").every(call => call.bucket === bucket && call.path?.startsWith("2020-01-01/")));
+});
+
+test("audio attachments reuse native MP3/WAV format and 3 MiB limits without widening document/video bounds", () => {
+  for (const [name, type, mime] of [["sample.wav", "audio/x-wav", "audio/wav"], ["sample.mp3", "audio/mp3", "audio/mpeg"], ["sample.mp3", "", "audio/mpeg"]]) {
+    const parsed = policy.assistantAttachmentFile({ name, type, size: policy.ASSISTANT_ATTACHMENT_AUDIO_MAX_BYTES });
+    assert.equal(parsed.kind, "audio"); assert.equal(parsed.mime, mime);
+  }
+  assert.throws(() => policy.assistantAttachmentFile({ name: "sample.mp3", type: "audio/mpeg", size: policy.ASSISTANT_ATTACHMENT_AUDIO_MAX_BYTES + 1 }), code("attachment_limit"));
+  for (const file of [{ name: "sample.ogg", type: "audio/ogg" }, { name: "sample.mp3", type: "video/mp4" }, { name: "sample.wav", type: "text/plain" }]) assert.throws(() => policy.assistantAttachmentFile({ ...file, size: 100 }), code("attachment_invalid"));
+  assert.equal(policy.ASSISTANT_ATTACHMENT_TOTAL_BYTES, 20 * 1024 * 1024);
+  assert.equal(policy.ASSISTANT_ATTACHMENT_MAX_COUNT, 4);
+});
+
+test("validated audio preserves its exact private original for one native import and never sends audio/transcription to the model", async () => {
+  const h = harness(), bytes = Buffer.from("ID3-fixture-original-audio");
+  const prepared = await h.api.prepareAssistantAttachment(scope, { name: "recording.mp3", type: "audio/mpeg", size: bytes.length });
+  h.objects.set(`${policy.ASSISTANT_ATTACHMENT_BUCKET}/${prepared.upload.path}`, bytes);
+  assert.equal(await h.api.loadAssistantMediaAttachmentOriginal(scope, prepared.attachment), null, "a prepared object alone is not finalized");
+  const ready = await h.api.finalizeAssistantAttachment(scope, prepared.attachment);
+  assert.equal(ready.kind, "audio"); assert.equal(h.audioValidations.length, 1);
+  const contexts = await h.api.loadAssistantFileContexts(scope, [ready]);
+  assert.equal(contexts[0].kind, "audio"); assert.equal(contexts[0].image, undefined); assert.equal(contexts[0].text, undefined);
+  assert.match(contexts[0].note, /Aucun son écouté, aucune transcription/);
+  const modelInput = assistantMessagesWithFiles([{ role: "user", content: "Importe ce fichier dans Mes médias." }], contexts);
+  assert.ok(Array.isArray(modelInput[0].content));
+  assert.ok(modelInput[0].content.every(part => typeof part === "object" && part.type === "text"));
+  assert.doesNotMatch(JSON.stringify(modelInput), /fixture-original-audio|private-upload|\.upload\./);
+  const original = await h.api.loadAssistantMediaAttachmentOriginal(scope, ready);
+  assert.deepEqual(original?.bytes, bytes); assert.equal(original?.mimeType, "audio/mpeg");
+  assert.equal(await h.api.claimAssistantMediaAttachmentImport(scope, ready), true);
+  assert.equal(await h.api.claimAssistantMediaAttachmentImport(scope, ready), false);
+  await assert.rejects(h.api.loadAssistantMediaAttachmentOriginal({ ...scope, accountId: "99999999-9999-4999-8999-999999999999" }, ready));
+});
+
+test("audio failing native validation cannot be finalized or claimed for import", async () => {
+  const h = harness(), bytes = Buffer.from("not an audio file");
+  const prepared = await h.api.prepareAssistantAttachment(scope, { name: "bad.mp3", type: "audio/mpeg", size: bytes.length });
+  h.objects.set(`${policy.ASSISTANT_ATTACHMENT_BUCKET}/${prepared.upload.path}`, bytes);
+  await assert.rejects(h.api.finalizeAssistantAttachment(scope, prepared.attachment), code("attachment_unreadable"));
+  assert.equal(await h.api.claimAssistantMediaAttachmentImport(scope, prepared.attachment), false);
+  assert.equal(await h.api.loadAssistantMediaAttachmentOriginal(scope, prepared.attachment), null);
 });
