@@ -27,7 +27,7 @@ const readers: Array<{
     { tool: "readCommunicationRecords", family: "workspace", label: "consulter les campagnes ou rendez-vous", matches: /campagne|mail|newsletter|courriel|agenda|rendez.vous|\brdv\b/ },
     { tool: "searchCrmContacts", family: "commercial", label: "retrouver les contacts demandés", matches: /\bcrm\b|contact|client|prospect/ },
     { tool: "getBusinessDna", family: "business", label: "lire l’ADN de l’entreprise", matches: /\badn\b|\bdna\b|mission|prestations|services de (?:mon|notre) entreprise/ },
-    { tool: "searchMedia", family: "media", label: "rechercher les médias demandés", matches: /mediatheque|medias?|images?|photos?|videos?|visuels?|flyers?|logos?/ },
+    { tool: "searchMedia", family: "media", label: "rechercher les médias demandés", matches: /mediatheque|medias?|images?|photos?|videos?|audios?|\bsons?\b|visuels?|flyers?|logos?/ },
     { tool: "readStatsReports", family: "workspace", label: "consulter les rapports de statistiques", matches: /(?:rapports?|bilans?).{0,60}(?:stats|statistiq)|(?:stats|statistiq).{0,60}(?:rapports?|bilans?)/ },
     { tool: "readStatsSnapshots", family: "workspace", label: "consulter les statistiques", matches: /stats|statistiq|resultats?|performances?|impressions?/ },
     { tool: "readGoogleReviews", family: "workspace", label: "consulter les avis", matches: /\bavis\b|reputation|reviews?/ },

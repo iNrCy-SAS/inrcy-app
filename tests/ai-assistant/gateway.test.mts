@@ -1475,3 +1475,17 @@ test("two edits of one form wait for separate commits and reject manual edits af
   }
 });
 
+
+
+test("audio attachment groups count only the requested sounds beside an unrelated image", async () => {
+  const audios = importAttachmentIds.map((id, index) => ({ id, name: 'sound-' + index + '.mp3', kind: "audio" as const, size: 10 }));
+  const mediaAttachments = [...audios, { id: "30000000-0000-4000-8000-000000000003", name: "unrelated.png", kind: "image" as const, size: 10 }];
+  for (const message of ["Importe ces deux fichiers audio dans Mes médias.", "Importe tous les audios dans Mes médias.", "Importe ces sons dans ma médiathèque."]) {
+    const fixture = importFixture(), h = harness({ mediaLibraryFactory: fixture.factory, plan: importPlan });
+    const result = await h.runtime.generateInrAssistantReply({ ...basic, actorUserId: importAttachmentIds[0], edition: "basic", supabase: {} as never, mediaAttachments, messages: [{ role: "user", content: message }] });
+    assert.equal(result.outcome, "completed", message);
+    assert.equal(result.taskState?.requiredCalls?.importMediaAttachment, 2, message);
+    assert.deepEqual(fixture.writes, importAttachmentIds);
+    assert.equal(result.taskState?.receipts.filter(receipt => receipt.ok && receipt.tool === "importMediaAttachment").length, 2);
+  }
+});

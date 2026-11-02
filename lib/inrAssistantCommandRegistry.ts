@@ -16,7 +16,7 @@ export const INR_ASSISTANT_COMMANDS: Record<string, Command> = {
   setNativeChannelActivation: { family:"business", label:"modifier l’activation du canal" },
   updateChannelPublicUrl: { family:"business", label:"enregistrer le lien public du canal" },
   applyGoogleBusinessProfileUpdate: { family:"business", label:"modifier la fiche Google après confirmation" },
-  importMediaAttachment: { family:"media", label:"importer la pièce jointe en médiathèque", batchObject:"medias?|images?|photos?|videos?|fichiers?|pieces? jointes?" },
+  importMediaAttachment: { family:"media", label:"importer la pièce jointe en médiathèque", batchObject:"medias?|images?|photos?|videos?|audios?|sons?|fichiers?|pieces? jointes?" },
   prepareMediaDownload: { family:"media", label:"télécharger les médias" },
   applyMediaDeletion: { family:"media", label:"supprimer les médias après confirmation" },
   editPreparedPublication: { family:"publication", label:"modifier la proposition de l’agent" },

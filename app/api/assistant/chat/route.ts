@@ -223,12 +223,12 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     // A continuation only keeps the original server-bound attachment grant.
     // New files on "Continue" cannot expand it, even over multiple turns.
     const mediaImportSource = continuation ? continuation.task.mediaImportSource
-      : turnAttachments.some(file => file.kind === "image" || file.kind === "video") ? { turnId, createdAt: begun.turn!.createdAt } : undefined;
+      : turnAttachments.some(file => file.kind === "image" || file.kind === "video" || file.kind === "audio") ? { turnId, createdAt: begun.turn!.createdAt } : undefined;
     let importAttachments = continuation ? [] : turnAttachments;
     if (continuation?.task.requiredTools.includes("importMediaAttachment")) {
       if (!mediaImportSource) throw Object.assign(new Error("La source des fichiers de cette tâche ne peut pas être vérifiée."), { code: "assistant_task_state_unavailable" });
       importAttachments = await assistantTurnAttachments(attachmentScope, mediaImportSource);
-      if (!importAttachments.some(file => file.kind === "image" || file.kind === "video")) throw Object.assign(new Error("Les fichiers de cette tâche ne peuvent pas être vérifiés."), { code: "assistant_task_state_unavailable" });
+      if (!importAttachments.some(file => file.kind === "image" || file.kind === "video" || file.kind === "audio")) throw Object.assign(new Error("Les fichiers de cette tâche ne peuvent pas être vérifiés."), { code: "assistant_task_state_unavailable" });
       fileContexts = await loadAssistantFileContexts(attachmentScope, importAttachments);
     }
     const bindMediaImportSource = (task: InrAssistantTaskState): InrAssistantTaskState => {
@@ -259,7 +259,7 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
       accountId: auth.activeUserId, actorUserId: auth.authUserId, displayName: auth.activeAccount?.displayName ?? "",
       edition, accountContext, clientContext, messages, requestId, request, supabase: auth.supabase, signal: request.signal,
       memory, turnId, ...(fileContexts.length ? { fileContexts } : {}),
-      mediaAttachments: importAttachments.filter(file => file.kind === "image" || file.kind === "video").map(({ id, name, kind, size }) => ({ id, name, kind: kind as "image" | "video", size })),
+      mediaAttachments: importAttachments.filter(file => file.kind === "image" || file.kind === "video" || file.kind === "audio").map(({ id, name, kind, size }) => ({ id, name, kind: kind as "image" | "video" | "audio", size })),
       resolveMediaAttachment: async id => { const file = importAttachments.find(item => item.id === id); return file ? loadAssistantMediaAttachmentOriginal(attachmentScope, file) : null; },
       claimMediaAttachmentImport: async id => { const file = importAttachments.find(item => item.id === id); return file ? claimAssistantMediaAttachmentImport(attachmentScope, file) : false; },
       ...(continuation ? { actionInstruction: continuation.instruction, taskContext: continuation.task } : {}),

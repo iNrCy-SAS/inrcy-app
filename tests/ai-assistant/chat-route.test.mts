@@ -1236,3 +1236,22 @@ test("UI status reconciliation never hides an additional executed business recei
     if (!hasBusinessReceipt) assert.match((await response.json()).message, /réception d’un fichier sur disque n’est pas vérifiée/);
   }
 });
+
+
+test("audio-only import continuations retain the original private files and reject newly supplied audio", async () => {
+  const h = importContinuationHarness();
+  const audios: attachmentPolicy.AssistantAttachment[] = initialImportFiles.map((file, index) => ({ ...file, kind: "audio", name: "sound-" + index + ".mp3" }));
+  const instruction = "Importe ces deux fichiers audio dans Mes médias.";
+  assert.equal((await h.post(request({ conversationId, turnId, attachments: audios, messages: [{ role: "user", content: instruction }] }))).status, 200);
+  const added = { ...audios[0], id: "10000000-0000-4000-8000-000000000003", name: "later.mp3", token: "private-later-audio" };
+  const response = await h.post(request({ conversationId, turnId: randomUUID(), attachments: [added], taskIntent: "continue", messages: [{ role: "user", content: "Continue" }] }));
+  assert.equal(response.status, 200); assert.equal(h.gatewayCalls.length, 2);
+  for (const args of h.gatewayCalls) {
+    assert.deepEqual([...args.mediaAttachments].map(file => ({ id: file.id, kind: file.kind })), audios.map(file => ({ id: file.id, kind: "audio" })));
+    assert.equal((await args.resolveMediaAttachment(audios[0].id))?.id, audios[0].id);
+    assert.equal(await args.resolveMediaAttachment(added.id), null);
+  }
+  assert.equal(h.gatewayCalls[1].actionInstruction, instruction);
+  assert.equal(h.gatewayCalls[1].taskContext?.mediaImportSource?.turnId, turnId.toLowerCase());
+  assert.doesNotMatch(JSON.stringify(await response.json()), /mediaImportSource|private-later|private-original/);
+});

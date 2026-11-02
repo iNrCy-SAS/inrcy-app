@@ -1,7 +1,7 @@
 /** Intent vocabulary only. Each executor still verifies the original instruction. */
 export function inrAssistantStandardCommands(text: string): string[] | null {
-  const media = /\b(?:medias?|mediatheque|images?|photos?|videos?|fichiers?|pieces? jointes?)\b/.test(text);
-  if (media && /\b(?:import\w*|ajout\w*|enregistr\w*|sauvegard\w*)\b/.test(text) && /mediatheque|bibliotheque|piece jointe|fichier joint/.test(text) && !/gener\w*|creer|cree\b|\btags?\b|titre|metadonnee/.test(text)) return ["importMediaAttachment"];
+  const media = /\b(?:medias?|mediatheque|images?|photos?|videos?|audios?|sons?|fichiers?|pieces? jointes?)\b/.test(text);
+  if (media && /\b(?:import\w*|ajout\w*|enregistr\w*|sauvegard\w*)\b/.test(text) && /mediatheque|mes medias|bibliotheque|piece jointe|fichier joint/.test(text) && !/gener\w*|creer|cree\b|\btags?\b|titre|metadonnee/.test(text)) return ["importMediaAttachment"];
   if (media && /\b(?:telecharg\w*|download|export\w*)\b/.test(text)) return ["prepareMediaDownload"];
   if (media && /\b(?:supprim\w*|effac\w*|delete)\b/.test(text) && !/publications?|posts?|canaux|brouillon/.test(text)) return ["applyMediaDeletion"];
   if (/\bidees?\b/.test(text) && /agent|publication|editorial/.test(text) && /\b(?:ajout\w*|retir\w*|supprim\w*|remplac\w*|reinitialis\w*|reordonn\w*|reorganis\w*|ordonn\w*|classe\w*|activ\w*|desactiv\w*|suspend\w*|mets|place)\b/.test(text)) return ["managePublicationIdeas"];

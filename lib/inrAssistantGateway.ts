@@ -240,8 +240,9 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     const attachments = args.mediaAttachments ?? [];
     const named = attachments.filter(file => latestRequest.toLowerCase().includes(file.name.toLowerCase())).length;
     const text = inrAssistantRoutingText(latestRequest);
-    const plural = text.match(/\b(?:ces|les|tous les|toutes les)\s+(?:medias|images|photos|videos|fichiers|pieces jointes)\b/)?.[0];
-    const selected = plural ? attachments.filter(file => /\b(?:images|photos)\b/.test(plural) ? file.kind === "image" : /\bvideos\b/.test(plural) ? file.kind === "video" : true).length : 1;
+    const plural = text.match(/\b(?:(?:ces|les)(?:\s+(?:deux|trois|quatre|\d+))?|(?:tous|toutes)\s+(?:les|ces))\s+(images|photos|videos|fichiers\s+audio|audios|sons|fichiers|medias|pieces\s+jointes|pj)\b/)?.[1];
+    const selectedKind = plural && /^(?:images|photos)$/.test(plural) ? "image" : plural === "videos" ? "video" : plural && /^(?:audios|sons|fichiers\s+audio)$/.test(plural) ? "audio" : null;
+    const selected = plural ? attachments.filter(file => selectedKind === null || file.kind === selectedKind).length : 1;
     const count = Math.max(requiredCalls.importMediaAttachment ?? 1, named, selected);
     if (count > 1) requiredCalls.importMediaAttachment = count;
   }
