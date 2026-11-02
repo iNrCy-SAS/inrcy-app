@@ -171,6 +171,30 @@ test("the actual invoice finalizer cannot apply a late A response after switchin
   assert.deepEqual(busy, [true, false]);
 });
 
+test("the actual invoice finalizer stops its caller when A changes to B during the final list refresh", async () => {
+  let currentId = "A", releaseRefresh!: () => void;
+  const assigned: unknown[] = [];
+  const refresh = new Promise<void>(resolve => { releaseRefresh = resolve; });
+  const context = {
+    documentEdits: {
+      captureSave: () => ({ documentId: currentId }),
+      isCurrentSave: (version: { documentId: string }) => version.documentId === currentId,
+      markPersistedFields: () => true,
+    },
+    fetch: async () => ({ ok: true, json: async () => ({ number: "A-OFFICIAL", status: "envoye", finalizedAt: "2026-11-02T12:00:00Z" }) }),
+    setFinalizing() {}, setCurrentSaveId: (id: string) => assigned.push(id),
+    setNumber: (number: string) => assigned.push(number), setStatus() {}, setIsFinalized() {}, setFinalizedAt() {},
+    refreshSaves: () => refresh,
+  };
+  const factory = new Function(...Object.keys(context), compile("return " + initializer("factures", "finalizeInvoice")));
+  const pending = factory(...Object.values(context))("A");
+  // Let the server response apply to A, then change the screen during refreshSaves.
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(assigned, ["A", "A-OFFICIAL"]);
+  currentId = "B"; releaseRefresh();
+  assert.equal(await pending, null, "the caller must not build or send a PDF after its document changed");
+});
+
 test("account switching uses the native confirmation and rejects old account/save/dialog results", async () => {
   const browser = await chromium.launch({ headless: true });
   try {

@@ -1344,6 +1344,7 @@ export default function NewFacturePage() {
       setIsFinalized(true);
       setFinalizedAt(nextFinalizedAt);
       await refreshSaves();
+      if (!documentEdits.isCurrentSave(finalizeVersion)) return null;
 
       return {
         docSaveId,
