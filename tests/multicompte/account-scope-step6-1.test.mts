@@ -20,8 +20,10 @@ const publicationActions = read("lib/inrsend/publicationChannelActions.ts");
 
 test("les brouillons Mails ne retombent plus sur l'UID AUTH", () => {
   assert.doesNotMatch(mailbox, /\.eq\("user_id", \(await supabase\.auth\.getUser\(\)\)\.data\?\.user\?\.id/);
-  assert.match(mailbox, /\.update\(draftPayload as any\)[\s\S]*?\.eq\("id", draftId\)[\s\S]*?\.eq\("user_id", userId\)/);
-  assert.match(mailbox, /\.update\(legacyPayload\)[\s\S]*?\.eq\("id", draftId\)[\s\S]*?\.eq\("user_id", userId\)/);
+  for (const payload of ["draftPayload", "metadataPayload", "legacyPayload"]) {
+    const scopedUpdate = new RegExp(`\\.from\\("send_items"\\)\\s*\\.update\\(\\{\\s*\\.\\.\\.${payload},\\s*updated_at:\\s*new Date\\(\\)\\.toISOString\\(\\)\\s*\\}(?: as any)?\\)\\s*\\.eq\\("id", draftId\\)\\s*\\.eq\\("user_id", userId\\)`);
+    assert.match(mailbox, scopedUpdate, `${payload}: versioned update retains the exact draft and active establishment filters`);
+  }
 });
 
 test("les destinataires de campagne Mails sont lus dans l'établissement actif", () => {
