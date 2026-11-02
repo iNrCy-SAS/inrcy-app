@@ -48,6 +48,7 @@ const sources = {
   "react-dom": packageSource("react-dom", "react-dom.production.js"), "react-dom/client": packageSource("react-dom", "react-dom-client.production.js"), scheduler: packageSource("scheduler", "scheduler.production.js"),
   pool: compile("app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx"),
   studio: compile("app/dashboard/generer-media/MediaGeneratorStudioClient.tsx"),
+  "@/lib/studioVideoRetouchPersistence": compile("lib/studioVideoRetouchPersistence.ts"),
   session: compile("app/dashboard/_hooks/useInrStudioSession.tsx"),
   "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
   "./MediaModifier": compile("app/dashboard/_components/MediaModifier.tsx"),

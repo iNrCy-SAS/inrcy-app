@@ -69,17 +69,28 @@ for (const area of ["devis", "factures"]) test(`${area}: React delayed defaults 
     const page = await browser.newPage();
     const source = statements(`${area}/new/page.tsx`, ["onDocumentSettingsLoaded"], "const loadSettings");
     await mount(page, source, `
-      window.props={searchParams:new URLSearchParams(),setDocumentsSettings(){},applyDocumentDefaults:()=>window.applied.push('initial VAT')};
+      window.settings=[];window.ready=[];
+      window.props={searchParams:new URLSearchParams(),setDocumentsSettings:value=>window.settings.push(value),setDocumentSettingsReady:value=>window.ready.push(value),documentEdits:{dirty:false},applyDocumentDefaults:()=>window.applied.push('initial VAT')};
       window.env={fetch:()=>new Promise(resolve=>window.requests.push(payload=>resolve(Response.json(payload)))),normalizeInrDocumentsSettings:value=>value,INRDOCUMENTS_SETTINGS_UPDATED_EVENT:'fixture-settings',window};
-    `, ["searchParams", "setDocumentsSettings", "applyDocumentDefaults"], ["fetch", "normalizeInrDocumentsSettings", "INRDOCUMENTS_SETTINGS_UPDATED_EVENT", "window"]);
+    `, ["searchParams", "setDocumentsSettings", "setDocumentSettingsReady", "documentEdits", "applyDocumentDefaults"], ["fetch", "normalizeInrDocumentsSettings", "INRDOCUMENTS_SETTINGS_UPDATED_EVENT", "window"]);
     await update(page, "window.props.applyDocumentDefaults=()=>window.applied.push('current VAT')");
     assert.equal(await page.evaluate("window.requests.length"), 1);
     await page.evaluate("window.requests[0]({settings:{}})");
     await page.waitForFunction("window.applied.length === 1");
     assert.deepEqual(await page.evaluate("window.applied"), ["current VAT"]);
+    assert.deepEqual(await page.evaluate("window.ready"), [true]);
     await update(page, "window.props.applyDocumentDefaults=()=>window.applied.push('overwritten edit')");
     assert.equal(await page.evaluate("window.requests.length"), 1);
     assert.equal(await page.evaluate("window.applied.length"), 1);
+    await page.evaluate("window.dispatchEvent(new Event('fixture-settings'))");
+    assert.equal(await page.evaluate("window.requests.length"), 2);
+    await update(page, "window.props.documentEdits={dirty:true}");
+    await page.evaluate("window.requests[1]({settings:{revision:'updated-settings'}})");
+    await page.waitForFunction("window.ready.length === 2");
+    assert.deepEqual(await page.evaluate("window.settings"), [{}, {revision: "updated-settings"}]);
+    assert.deepEqual(await page.evaluate("window.ready"), [true, true]);
+    assert.deepEqual(await page.evaluate("window.applied"), ["current VAT"], "A late settings response must not overwrite a now-dirty form");
+    assert.equal(await page.evaluate("window.requests.length"), 2, "Editing the form does not request settings again");
     await page.evaluate("window.unmount()");
   } finally { await browser.close(); }
 });

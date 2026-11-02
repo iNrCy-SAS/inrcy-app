@@ -68,6 +68,7 @@ type FixtureWindow = Window & { studioFixture: { start(kind?: string): void; pro
 const nativeSources = {
   ...modules,
   studio: compile(read("app/dashboard/generer-media/MediaGeneratorStudioClient.tsx")),
+  "@/lib/studioVideoRetouchPersistence": compile(read("lib/studioVideoRetouchPersistence.ts")),
   "@/app/dashboard/_components/MediaGeneratorModal": compile(read("app/dashboard/_components/MediaGeneratorModal.tsx")),
   "./MediaFreeGenerator": compile(read("app/dashboard/_components/MediaFreeGenerator.tsx")),
   "./MediaModifier": compile(read("app/dashboard/_components/MediaModifier.tsx")),
