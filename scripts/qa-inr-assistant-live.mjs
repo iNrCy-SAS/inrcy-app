@@ -137,7 +137,7 @@ function loadHarness() {
     },
   };
   vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, {
-    __evaluation: evaluation, URL, Request, Response, Headers, TextEncoder, AbortSignal, setTimeout, clearTimeout, console,
+    __evaluation: evaluation, URL, URLSearchParams, Request, Response, Headers, TextEncoder, AbortSignal, setTimeout, clearTimeout, console,
   })(createRequire(file), record, record.exports);
   return record.exports.harness;
 }

@@ -57,3 +57,16 @@ test("full and compact prompts retain bounded screen hints without accepting bro
     assert.match(prompt, /discoverCapabilities/);
   }
 });
+
+test("all 25 explicitly selected media IDs survive full and compact prompts as valid JSON", () => {
+  const selectedMediaIds = Array.from({ length: 25 }, (_, index) => `10000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`);
+  for (const compact of [false, true]) {
+    const prompt = buildInrAssistantSystemPrompt("Atelier", undefined, undefined, "premium", {
+      screen: { pathname: "/dashboard/mediatheque", selectedMediaIds },
+    }, false, compact);
+    const json = prompt.match(/Indications du navigateur[^\n]+ : (\{.*\})\. Utilise/);
+    assert.ok(json, "Browser guidance must remain a complete serialized record");
+    assert.deepEqual(JSON.parse(json[1]).screen.selectedMediaIds, selectedMediaIds);
+    assert.ok(json[1].length <= 2400);
+  }
+});
