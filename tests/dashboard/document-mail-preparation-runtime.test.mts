@@ -123,10 +123,10 @@ for (const domain of ["devis", "factures"]) {
       const stages = ["auth", "save", ...(domain === "factures" ? ["finalize"] : []), "dom", "pdf", "upload", "navigation"];
       for (const stage of stages) for (const change of ["document", "account", "edit", "preferences"]) {
         const page = await browser.newPage(); await mount(page, domain);
-        await page.evaluate(stage => { const w = window as MailFixture; w.block = stage; void w.run().then(() => { w.done = true; }); }, stage);
-        await page.waitForFunction(stage => (window as MailFixture).stage === stage, stage);
-        await page.evaluate(change => { const w = window as MailFixture; if (change === "document") w.load("B"); else if (change === "account") w.account = "account-B"; else if (change === "edit") w.change(); else w.locale(); }, change);
-        if (change !== "account") await page.waitForFunction(change => { const s = (window as MailFixture).state; return change === "document" ? s.id === "B" : change === "edit" ? s.form.clientName === "Edited" : s.locale === "en"; }, change);
+        await page.evaluate(stage => { const w = window as unknown as MailFixture; w.block = stage; void w.run().then(() => { w.done = true; }); }, stage);
+        await page.waitForFunction(stage => (window as unknown as MailFixture).stage === stage, stage);
+        await page.evaluate(change => { const w = window as unknown as MailFixture; if (change === "document") w.load("B"); else if (change === "account") w.account = "account-B"; else if (change === "edit") w.change(); else w.locale(); }, change);
+        if (change !== "account") await page.waitForFunction(change => { const s = (window as unknown as MailFixture).state; return change === "document" ? s.id === "B" : change === "edit" ? s.form.clientName === "Edited" : s.locale === "en"; }, change);
         await page.evaluate("window.release()"); await page.waitForFunction("window.done");
         assert.deepEqual(await page.evaluate("window.navigations"), [], `${domain}/${stage}/${change}`);
         if (["auth", "save", "finalize", "dom", "pdf"].includes(stage)) assert.equal(await page.evaluate("window.events.includes('upload')"), false, `${domain}/${stage}/${change}: no stale upload`);
