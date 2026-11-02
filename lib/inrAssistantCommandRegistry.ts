@@ -48,11 +48,13 @@ export const INR_ASSISTANT_COMMANDS: Record<string, Command> = {
   prepareCalendarAppointment: { family:"workspace",label:"préparer le rendez-vous",clarification:/date|heure|jour|quand|duree|client|contact|objet|titre/,batchObject:"rendez.vous|rdv" },
   updateCalendarAppointment: { family:"workspace",label:"modifier le rendez-vous",clarification:/date|heure|jour|quand|duree|client|contact|objet|titre/,batchObject:"rendez.vous|rdv" },
   cancelCalendarAppointment: { family:"workspace",label:"annuler le rendez-vous",batchObject:"rendez.vous|rdv" },
+  rejectCalendarAppointment: { family:"workspace",label:"refuser la demande de rendez-vous après confirmation",batchObject:"rendez.vous|rdv" },
   replyToGoogleReview: { family:"workspace",label:"répondre à l’avis Google",clarification:/reponse|texte|contenu|avis/,batchObject:"avis|reviews?" },
   manageCrmContact: { family:"commercial",label:"modifier la fiche CRM",clarification:/nom|prenom|email|e-mail|telephone|societe|entreprise|adresse|contact|client|prospect/,batchObject:"contacts?|clients?|prospects?" },
   mergeCrmContacts: { family:"commercial",label:"fusionner les contacts" },
   prepareCommercialDocument: { family:"commercial",label:"préparer le devis ou la facture",clarification:/client|contact|prestation|ligne|produit|prix|quantite|tva|taxe|echeance|date|devis|facture/,batchObject:"devis|factures?" },
   finalizeCommercialDocument: { family:"commercial",label:"finaliser le devis ou la facture" },
+  applyCommercialDocumentAction: { family:"commercial",label:"enregistrer le statut manuel payé de la facture après confirmation" },
   updateCommercialDocument: { family:"commercial",label:"compléter le devis ou la facture",clarification:/client|contact|prestation|ligne|produit|prix|quantite|tva|taxe|echeance|date|devis|facture/ },
   confirmCalendarAppointment: { family:"workspace",label:"confirmer le rendez-vous" },
   prepareAdvertisingCampaign: { family:"advertising",label:"préparer la campagne publicitaire",clarification:/budget|date|canal|objectif|cible|zone|contenu|campagne/,batchObject:"campagnes?" },
@@ -92,6 +94,8 @@ export function inrAssistantSettingTargets(message: string): InrAssistantSetting
  * preference ("ne veux plus recevoir") is not a denial of the change itself. */
 export function requestsInrAssistantSettingsChange(message: string, target?: InrAssistantSettingTarget): boolean {
   const text=unquotedInrAssistantIntent(message);
+  // A specific event's reminders are not the account-wide calendar defaults.
+  if (/\brappels?\b/.test(text) && /\b(?:ce|cet|mon|le|du)\s+(?:rendez.vous|rdv)\b/.test(text) && !/\b(?:tous|defaut|global|reglages|parametres)\b/.test(text)) return false;
   if (/^(?:comment|pourquoi|explique|how|why|what|est.ce que (?:je|on|nous)\b|(?:je|on|nous) (?:peux|peut|pouvons|pourrais|pourrait|pourrions)\b|est.il possible\b|si\b|imagine\b|suppose\b|souviens.toi\b|rappelle.toi\b)/.test(text) || /\b(?:comment|how).{0,40}(?:modifi|chang|regl|configur)/.test(text)) return false;
   if (/\b(?:ne |n['’]|sans |do not |don't ).{0,35}(?:modif|chang|regl|configur|activ|enregistr|coup)/.test(text)) return false;
   const targets=inrAssistantSettingTargets(message);

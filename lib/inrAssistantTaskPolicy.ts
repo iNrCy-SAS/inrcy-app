@@ -7,7 +7,7 @@ import type { InrAssistantUiStep } from "./inrAssistantUiTask.ts";
 export { inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantRequestClauses.ts";
 
 export type InrAssistantTaskOutcome = "completed" | "partial" | "needs_input" | "processing" | "blocked" | "failed";
-export type InrAssistantActionReceipt = { tool: string; ok: boolean; status: string; message: string; id?: string; draftId?: string; requestId?: string; scheduledActionId?: string; eventId?: string; recordId?: string; publicationId?: string; toolUrl?: string; /** Private capability, never sent to the model or client. */ approvalToken?: string; approvalReference?: string; approvalKind?: "calendar" | "scheduled_publication" | "google_business_profile" | "media_delete" | "publication_lifecycle" | "individual_mail" };
+export type InrAssistantActionReceipt = { tool: string; ok: boolean; status: string; message: string; id?: string; draftId?: string; requestId?: string; scheduledActionId?: string; eventId?: string; recordId?: string; publicationId?: string; toolUrl?: string; /** Private capability, never sent to the model or client. */ approvalToken?: string; approvalReference?: string; approvalKind?: "calendar" | "scheduled_publication" | "google_business_profile" | "media_delete" | "publication_lifecycle" | "individual_mail" | "commercial_document" };
 export type InrAssistantTaskState = {
   version: 1; instruction: string; actionRequestId: string; startedAt: string; expiresAt: string;
   outcome: InrAssistantTaskOutcome; requiredTools: string[]; requiredCalls?: Record<string, number>; receipts: InrAssistantActionReceipt[]; question: string;
@@ -64,6 +64,7 @@ function requiredToolsForClause(message: string, mediaContext: boolean): string[
   const standardCommands = inrAssistantStandardCommands(t);
   if (standardCommands) return standardCommands;
   if (requestsInrAssistantSettingsChange(message)) return ["updateToolSettings"];
+  if (/\bfacture\b/.test(t) && /\b(?:marque|marquer|passe|passer|declare)\b/.test(t) && /\bpayee?\b/.test(t)) return ["applyCommercialDocumentAction"];
   if (/\b(?:annule\w*|arret\w*|stop|cancel)\b/.test(t) && /generat|creation/.test(t) && /media|image|video/.test(t)) return ["cancelMediaGeneration"];
   if (permitsInrAssistantMediaAction(message, "generate", "image") || permitsInrAssistantMediaAction(message, "generate", "video")) result.push("generateMedia");
   if (hasInrAssistantMediaSubject(message, "image") && permitsInrAssistantMediaAction(message, "modify")) result.push("modifyMedia");
@@ -99,9 +100,10 @@ function requiredToolsForClause(message: string, mediaContext: boolean): string[
   if (/\bap-[a-f0-9]{12}\b/.test(t) && /\b(?:envoie|envoyer|diffuse|send|confirme)\b/.test(t)) result.push("dispatchCampaignAudience");
   if (/\b(?:campagne|mail|newsletter)\b/.test(t) && /expediteur|boite|adresse d.envoi/.test(t) && /\b(?:choisis|selectionne|utilise|mets|change|modifie)\b/.test(t)) result.push("selectCampaignMailbox");
   if (/\b(?:agenda|rendez.vous|rdv|calendar)\b/.test(t)) {
-    if (/\b(?:annule|annuler|supprime|cancel)\b/.test(t)) result.push("cancelCalendarAppointment");
+    if (/\b(?:refuse\w*|rejette\w*|rejeter)\b/.test(t)) result.push("rejectCalendarAppointment");
+    else if (/\b(?:annule|annuler|supprime|cancel)\b/.test(t)) result.push("cancelCalendarAppointment");
     else if (/\b(?:confirme\w*|valide\w*|accepte\w*|finalise\w*)\b/.test(t)) result.push("confirmCalendarAppointment");
-    else if (/\b(?:modifi\w*|deplac\w*|report\w*|change\w*)\b/.test(t)) result.push("updateCalendarAppointment");
+    else if (/\b(?:modifi\w*|deplac\w*|report\w*|change\w*|invite\w*)\b/.test(t) || /\b(?:rappels?|invites?)\b/.test(t) && /\b(?:ajoute\w*|active\w*|reactive\w*|desactive\w*|coupe\w*|utilise\w*|choisis|selectionne\w*)\b/.test(t)) result.push("updateCalendarAppointment");
     else if (/\b(?:prepare\w*|cree|ajoute|planifie)\b/.test(t)) result.push("prepareCalendarAppointment");
   }
   if (/\b(?:ads|publicitaire|publicite)\b/.test(t) && /\b(?:prepare\w*|cree\w*|pause|arret|arrete|suspend|modifi\w*|change\w*|supprime|reprend)\b/.test(t)) result.push(/\b(?:pause|arret|arrete|suspend|modifi\w*|change\w*|supprime|reprend)\b/.test(t)?"manageAdvertisingCampaign":"prepareAdvertisingCampaign");

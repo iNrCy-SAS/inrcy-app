@@ -61,6 +61,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   extraTools?:Record<string,unknown>;
   settingsTools?:Record<string,unknown>;
   calendarFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
+  documentNativeFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   mediaLibraryFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   channelActionFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   statsFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
@@ -152,6 +153,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantCampaignTools.ts": { createInrAssistantCampaignTools: () => ({}) },
     "./inrAssistantMailboxTools.ts": { createInrAssistantMailboxTools: (args:Record<string,unknown>) => options.mailboxFactory?.(args) ?? {} },
     "./inrAssistantDocumentTools.ts": { createInrAssistantDocumentTools: () => ({}) },
+    "./inrAssistantDocumentNativeTools.ts": { createInrAssistantDocumentNativeTools: (args:Record<string,unknown>) => options.documentNativeFactory?.(args)??{} },
     "./inrAssistantCalendarTools.ts": { createInrAssistantCalendarTools: (args:Record<string,unknown>) => options.calendarFactory?.(args)??{} },
     "./inrAssistantScheduledPublicationTools.ts": { createInrAssistantScheduledPublicationTools: () => ({}) },
     "./inrAssistantAttachmentTools.ts": { createInrAssistantAttachmentTools: () => ({}) },
@@ -1241,6 +1243,24 @@ test("status checks resolve only the same recorded media job and expose no creat
   assert.equal(result.outcome,matching?"completed":"processing");assert.equal(h.mediaExecutions,0);
   assert.ok(h.generations.every(call=>!(call.params.tools??[]).some(tool=>tool.type==="function"&&tool.name==="generateMedia")));
  }
+});
+
+test("paid invoice preview stays private and its exact current approval completes only manual status", async () => {
+  const reference = "IA-ABCDEF012345", token = "PRIVATE-INVOICE-STATUS-CAPABILITY";
+  const inputSchema = jsonSchema({ type: "object", properties: {}, additionalProperties: false });
+  const first = harness({ plan: [{ tool: "previewCommercialDocumentAction" }], documentNativeFactory: () => ({ previewCommercialDocumentAction: tool({ inputSchema, execute: async () => ({ ok: true, status: "preview_ready", reference, token, approvalKind: "commercial_document", message: `Confirme ${reference} pour marquer la facture payée, aucun encaissement.` }) }) }) });
+  const initial = "Marque la facture F-42 comme payée.";
+  const preview = await first.runtime.generateInrAssistantReply({ ...basic, actorUserId: "actor-a", edition: "founder", supabase: {} as never, messages: [{ role: "user", content: initial }] });
+  assert.equal(preview.outcome, "needs_input"); assert.equal(preview.taskState?.receipts[0].approvalKind, "commercial_document");
+  assert.equal(preview.taskState?.receipts[0].approvalToken, token); assert.doesNotMatch(JSON.stringify(first.generations), /PRIVATE-INVOICE/);
+  const confirmation = `Confirme ${reference}`, effective = taskPolicy.continueInrAssistantTask(confirmation, preview.taskState)!;
+  assert.ok(effective); let executions = 0;
+  const next = harness({ plan: [{ tool: "applyCommercialDocumentAction" }], documentNativeFactory: args => ({ applyCommercialDocumentAction: tool({ inputSchema, execute: async () => {
+    assert.equal(args.currentApprovalMessage, confirmation); assert.equal((args.resolvePreview as (value: string) => string | null)(reference), token);
+    executions++; return { ok: true, status: "updated", paymentCollected: false, message: "Statut manuel payé enregistré, sans encaissement." };
+  } }) }) });
+  const done = await next.runtime.generateInrAssistantReply({ ...basic, actorUserId: "actor-a", edition: "founder", supabase: {} as never, messages: [{ role: "user", content: confirmation }], taskContext: preview.taskState, actionInstruction: effective });
+  assert.equal(done.outcome, "completed"); assert.equal(executions, 1); assert.doesNotMatch(JSON.stringify(next.generations), /PRIVATE-INVOICE/);
 });
 
 test("navigation returns a browser request without a durable business task or resume button",async()=>{

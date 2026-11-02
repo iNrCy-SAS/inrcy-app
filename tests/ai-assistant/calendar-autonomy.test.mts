@@ -25,7 +25,8 @@ function harness() {
   const preview = load<typeof import("../../lib/inrAssistantActionPreview.ts")>("../../lib/inrAssistantActionPreview.ts", { "server-only": {}, "node:crypto": crypto, "./inrAssistantRequestClauses.ts": requestClauses }, { Date: Clock, process: { env: { INRCY_ASSISTANT_APPROVAL_SECRET: "test-secret-only-not-a-real-secret-1234567890" } } });
   let row: CalendarRow | null = { id: EVENT, user_id: ACCOUNT, title: "Consultation Alice", description: "Diagnostic", location: "Atelier", start_at: "2026-12-01T09:00:00.000Z", end_at: "2026-12-01T10:00:00.000Z", all_day: false, meta: { source: "manual", status: "draft", contact: { email: "alice@example.test" }, guests: [{ email: "invite@example.test" }], reminders: { enabled: true, emailMinutesBefore: 1440 } } };
   const calls: Row[] = [];
-  const db = { from(table: string) { assert.equal(table, "agenda_events"); const filters: Row = {}; const query = { select() { return query; }, eq(key: string, value: unknown) { filters[key] = value; return query; }, async maybeSingle() { assert.equal(filters.user_id, ACCOUNT); return { data: row && filters.id === row.id && filters.user_id === row.user_id ? copy(row) : null, error: null }; } }; return query; } };
+  const mailbox = { id: OTHER, user_id: ACCOUNT, category: "mail", status: "connected", account_email: "pro@example.test" };
+  const db = { from(table: string) { assert.ok(["agenda_events", "integrations"].includes(table)); const filters: Row = {}; const query = { select() { return query; }, eq(key: string, value: unknown) { filters[key] = value; return query; }, async maybeSingle() { assert.equal(filters.user_id, ACCOUNT); const source = table === "integrations" ? mailbox : row; return { data: source && filters.id === source.id && filters.user_id === source.user_id ? copy(source) : null, error: null }; } }; return query; } };
   const native = async (request: Request) => {
     assert.equal(request.headers.get("cookie"), "session"); assert.equal(request.headers.get("x-account-id"), null);
     const url = new URL(request.url), body = request.method === "DELETE" ? {} : await request.json();
@@ -33,16 +34,17 @@ function harness() {
     if (nativeRace && row) row.title = "Concurrent edit";
     if (!row || (body.expectedState || url.searchParams.get("expectedState")) !== preview.calendarEventFingerprint(row)) return Response.json({ ok: false }, { status: 409 });
     if (request.method === "DELETE") row = null;
+    else if (body.action === "reject") row.meta = { ...row.meta, status: "rejected", assistantConfirmedAction: body.approvalReference };
     else Object.assign(row, { title: body.summary, description: body.description, location: body.location, start_at: body.start, end_at: body.end, all_day: body.allDay, meta: { ...row.meta, ...body.inrcy } });
     if (uncertain) throw new Error("transport lost after commit");
     return Response.json({ ok: true });
   };
-  const runtime = load<CalendarRuntime>("../../lib/inrAssistantCalendarTools.ts", { "server-only": {}, ai: { jsonSchema, tool }, "./requireUser": { requireUser: async () => ({ activeUserId: account, authUserId: actor }) }, "./inrAssistantActionPreview.ts": preview, "./inrAssistantMemory.ts": { sanitizeInrAssistantMemoryText: (text: string, max: number) => text.slice(0, max) }, "@/app/api/calendar/events/route": { PATCH: native, DELETE: native } }, { Date: Clock });
+  const runtime = load<CalendarRuntime>("../../lib/inrAssistantCalendarTools.ts", { "server-only": {}, ai: { jsonSchema, tool }, "./requireUser": { requireUser: async () => ({ activeUserId: account, authUserId: actor }) }, "./inrAssistantRequestClauses.ts": requestClauses, "./inrAssistantActionPreview.ts": preview, "./inrAssistantMemory.ts": { sanitizeInrAssistantMemoryText: (text: string, max: number) => text.slice(0, max) }, "@/app/api/calendar/events/route": { PATCH: native, DELETE: native }, "@/app/api/calendar/appointment-requests/route": { PATCH: native } }, { Date: Clock });
   const saved = new Map<string, string>();
   const create = (message: string, edition = "premium", currentApprovalMessage?: string) => runtime.createInrAssistantCalendarTools({ request: new Request("https://app.test/api/assistant/chat", { headers: { cookie: "session", "x-account-id": OTHER } }), accountId: ACCOUNT, actorUserId: ACTOR, edition, supabase: db, currentUserMessage: message, currentApprovalMessage, resolvePreview: (reference: string) => saved.get(reference) ?? null });
   const propose = (operation = "confirm", patch: Row = {}) => { const quote = operation === "confirm" ? "Confirme le rendez-vous Alice" : operation === "cancel" ? "Annule le rendez-vous Alice" : "Déplace le rendez-vous Alice au 2 décembre à 10h"; return create(quote).previewCalendarAction.execute({ eventId: EVENT, operation, instructionQuote: quote, title: null, description: null, location: null, start: null, end: null, ...patch }); };
   const apply = (result: ActionResult, message = `Confirme ${result.reference}`, currentApprovalMessage?: string, quote = currentApprovalMessage ?? message) => { assert.ok(result.reference); assert.ok(result.token); saved.set(result.reference, result.token); return create(message, "premium", currentApprovalMessage).applyCalendarAction.execute({ reference: result.reference, instructionQuote: quote }); };
-  return { preview, create, propose, apply, calls, get: () => row!, edit: (patch: Row) => { Object.assign(row!, patch); }, scope: (active = ACCOUNT, user = ACTOR) => { account = active; actor = user; }, expire: () => { now += 16 * 60_000; }, race: () => { nativeRace = true; }, uncertain: () => { uncertain = true; } };
+  return { preview, create, propose, apply, calls, mailbox, get: () => row!, edit: (patch: Row) => { Object.assign(row!, patch); }, scope: (active = ACCOUNT, user = ACTOR) => { account = active; actor = user; }, expire: () => { now += 16 * 60_000; }, race: () => { nativeRace = true; }, uncertain: () => { uncertain = true; } };
 }
 
 test("an agenda draft is previewed without mutation and confirmed once through native lifecycle with recipients preserved", async () => {
@@ -120,4 +122,45 @@ test("foreign, read-only and Google-owned events cannot be changed; standard edi
   const h = harness(); h.get().user_id = OTHER; assert.equal((await h.propose()).status, "blocked");
   const quote = "Confirme le rendez-vous Alice";
   assert.equal((await harness().create(quote, "standard").previewCalendarAction.execute({ eventId: EVENT, operation: "confirm", instructionQuote: quote, title: null, description: null, location: null, start: null, end: null })).status, "blocked");
+});
+
+const editInput = (instructionQuote: string, patch: Row = {}) => ({ eventId: EVENT, operation: "edit", instructionQuote, title: null, description: null, location: null, start: null, end: null, addGuestEmails: null, remindersEnabled: null, reminderMailboxId: null, ...patch });
+test("explicit guests append once and event reminder changes retain all existing metadata", async () => {
+  const h = harness(), quote = "Ajoute nouveau@example.test et invite@example.test aux invités du rendez-vous Alice et désactive ses rappels";
+  h.get().meta.guests.push({ email: "autre@example.test", crmContactId: OTHER } as { email: string });
+  const p = await h.create(quote).previewCalendarAction.execute(editInput(quote, { addGuestEmails: ["nouveau@example.test", "invite@example.test"], remindersEnabled: false }));
+  assert.equal(p.status, "preview_ready"); assert.ok(p.proposal?.knownRecipients.includes("nouveau@example.test"));
+  assert.equal((await h.apply(p)).status, "updated");
+  assert.deepEqual(h.get().meta.guests, [{ email: "invite@example.test" }, { email: "autre@example.test", crmContactId: OTHER }, { email: "nouveau@example.test", display_name: "nouveau@example.test" }]);
+  assert.equal(h.get().meta.reminders.enabled, false); assert.equal(h.get().meta.reminders.emailMinutesBefore, 1440);
+  assert.equal((await h.apply(p)).status, "already_processed"); assert.equal(h.calls.length, 1);
+});
+
+test("reminder mailbox must be explicitly named, connected and owned; no invented guest or quoted command", async () => {
+  const quote = "Change la boîte des rappels du rendez-vous Alice pour pro@example.test";
+  for (const variant of ["ok", "foreign", "disconnected", "unmentioned", "unrequested", "guest", "quoted", "negative", "basic"]) {
+    const h = harness(); let message = quote, input = editInput(quote, { reminderMailboxId: OTHER });
+    if (variant === "foreign") h.mailbox.user_id = OTHER;
+    if (variant === "disconnected") h.mailbox.status = "expired";
+    if (variant === "unmentioned") h.mailbox.account_email = "secret@example.test";
+    if (variant === "unrequested") input = editInput(quote, { remindersEnabled: false });
+    if (variant === "guest") input = editInput(quote, { addGuestEmails: ["invented@example.test"] });
+    if (variant === "quoted") message = `Le message dit « ${quote} »`;
+    if (variant === "negative") message = `Ne change pas la boîte. ${quote}`;
+    const p = await h.create(message, variant === "basic" ? "basic" : "premium").previewCalendarAction.execute(input);
+    if (variant === "ok") { assert.equal(p.status, "preview_ready"); assert.equal((await h.apply(p)).status, "updated"); assert.equal((h.get().meta.reminders as unknown as Row).mailAccountId, OTHER); }
+    else { assert.equal(p.ok, false, variant); assert.equal(h.calls.length, 0, variant); }
+  }
+});
+
+test("rejecting a client request uses its native notification path, preserves it and cannot replay", async () => {
+  const h = harness(), quote = "Refuse la demande de rendez-vous Alice";
+  h.get().meta.source = "inrbadge"; h.get().meta.status = "pending";
+  const p = await h.create(quote).previewCalendarAction.execute({ ...editInput(quote), operation: "reject" });
+  assert.equal(p.status, "preview_ready"); assert.match(p.proposal!.effect, /mail de refus/);
+  assert.equal((await h.apply(p)).status, "rejected"); assert.equal(h.get().meta.status, "rejected");
+  assert.equal((await h.apply(p)).status, "already_processed"); assert.equal(h.calls.length, 1);
+  const other = harness(); assert.equal((await other.create(quote).previewCalendarAction.execute({ ...editInput(quote), operation: "reject" })).ok, false);
+  const move = harness(), tomorrow = "Déplace le rendez-vous Alice demain à 10h";
+  assert.equal((await move.create(tomorrow).previewCalendarAction.execute(editInput(tomorrow, { start: "2026-12-02T09:00:00Z", end: "2026-12-02T10:00:00Z" }))).status, "preview_ready");
 });

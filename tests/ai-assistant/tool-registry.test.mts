@@ -136,6 +136,24 @@ test("the registry keeps write gates while allowing scoped reader construction",
   }
 });
 
+test("invoice status and event reminder goals expose only their native scoped confirmation tools", () => {
+  const h = harness();
+  const message = "Marque la facture F-42 comme payée";
+  assert.deepEqual(routing.inrAssistantRequiredTools(message), ["applyCommercialDocumentAction"]);
+  assert.deepEqual(routing.inrAssistantRequiredTools("Refuse la demande de rendez-vous Alice"), ["rejectCalendarAppointment"]);
+  assert.deepEqual(routing.inrAssistantRequiredTools("Désactive les rappels de ce rendez-vous"), ["updateCalendarAppointment"]);
+  assert.deepEqual(routing.inrAssistantRequiredTools("Désactive les rappels par défaut de tous les rendez-vous"), ["updateToolSettings"]);
+  assert.deepEqual(routing.inrAssistantRequiredTools("Ajoute alice@example.test aux invités du rendez-vous"), ["updateCalendarAppointment"]);
+  for (const edition of ["basic", "standard", "premium", "founder"] as const) {
+    const registry = h.build({ args: { ...h.context.args, edition }, latestRequest: message, requiredTools: ["applyCommercialDocumentAction"], families: new Set(["commercial"]) });
+    assert.equal(Object.hasOwn(registry.additionalTools, "previewCommercialDocumentAction"), edition === "founder");
+    assert.equal(Object.hasOwn(registry.additionalTools, "applyCommercialDocumentAction"), false);
+  }
+  const approved = h.build({ args: { ...h.context.args, edition: "founder" }, latestRequest: message, spokenRequest: "Confirme IA-123456ABCDEF", requiredTools: ["applyCommercialDocumentAction"] });
+  assert.ok(Object.hasOwn(approved.additionalTools, "applyCommercialDocumentAction"));
+  assert.deepEqual(h.executions, []);
+});
+
 test("advice can inspect CRM, campaign, scheduled publication and advertising readers without exposing their writes",()=>{
   const h=harness();
   const r=h.build({canExecute:false,families:new Set(["workspace","commercial","publication","advertising"]),latestRequest:"Pourquoi ma campagne mail ne fonctionne pas ? Vérifie mon CRM et mes publications programmées ainsi que mes ADS.",requiredTools:[]});

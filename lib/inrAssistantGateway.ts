@@ -257,7 +257,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const readCounts = new Map<string,number>();
   const readBudget = createInrAssistantReadBudget();
   const readObjectiveAtStart = new Map<string, string>();
-  const previewActionNames = new Set(["previewCalendarAction","previewScheduledPublicationAction","previewGoogleBusinessProfileUpdate","previewMediaDeletion","previewPublicationLifecycleAction","previewIndividualMail"]);
+  const previewActionNames = new Set(["previewCalendarAction","previewScheduledPublicationAction","previewGoogleBusinessProfileUpdate","previewMediaDeletion","previewPublicationLifecycleAction","previewIndividualMail","previewCommercialDocumentAction"]);
   const observedActionNames = new Set([...Object.keys(INR_ASSISTANT_COMMANDS),"navigateApplication","runScreenCommand","previewCampaignAudience",...previewActionNames,"applyCalendarAction","applyScheduledPublicationAction"]);
   const privateApprovals=new Map(receipts.flatMap(receipt=>receipt.approvalReference && receipt.approvalToken && receipt.approvalKind?[[receipt.approvalReference,{token:receipt.approvalToken,kind:receipt.approvalKind}] as const]:[]));
   const resolvePreview=(reference:string)=>privateApprovals.get(reference)?.token??null;
@@ -308,7 +308,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   let checkpointFailed = false;
   const seenToolResults=new Set<string>();
   const resultToolName=(name:string, output:Record<string,unknown>):string => {
-    if(name === "applyCalendarAction") return ({confirm:"confirmCalendarAppointment",update:"updateCalendarAppointment",cancel:"cancelCalendarAppointment"} as Record<string,string>)[String(output.action)]??name;
+    if(name === "applyCalendarAction") return ({confirm:"confirmCalendarAppointment",update:"updateCalendarAppointment",cancel:"cancelCalendarAppointment",reject:"rejectCalendarAppointment"} as Record<string,string>)[String(output.action)]??name;
     if(name === "applyScheduledPublicationAction") return ({reschedule:"updateScheduledPublication",cancel:"cancelScheduledPublication",retry:"retryScheduledPublication"} as Record<string,string>)[String(output.action)]??name;
     return name;
   };
@@ -433,7 +433,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
         if(output && typeof output === "object") {
           const raw=output as Record<string,unknown>;
           if(previewActionNames.has(name) && typeof raw.token === "string") {
-            if(raw.token.length<=24000 && typeof raw.reference === "string" && /^IA-[A-F0-9]{12}$/.test(raw.reference) && ["calendar","scheduled_publication","google_business_profile","media_delete","publication_lifecycle","individual_mail"].includes(String(raw.approvalKind))) privateApprovals.set(raw.reference,{token:raw.token,kind:raw.approvalKind as NonNullable<InrAssistantActionReceipt["approvalKind"]>});
+            if(raw.token.length<=24000 && typeof raw.reference === "string" && /^IA-[A-F0-9]{12}$/.test(raw.reference) && ["calendar","scheduled_publication","google_business_profile","media_delete","publication_lifecycle","individual_mail","commercial_document"].includes(String(raw.approvalKind))) privateApprovals.set(raw.reference,{token:raw.token,kind:raw.approvalKind as NonNullable<InrAssistantActionReceipt["approvalKind"]>});
             const {token:_privateToken,...safe}=raw; output=safe;
           }
         }

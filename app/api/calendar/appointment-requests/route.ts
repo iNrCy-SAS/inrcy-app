@@ -5,6 +5,7 @@ import { optionalEnv } from "@/lib/env";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTxMail } from "@/lib/txMailer";
 import { sendMailFromIntegration } from "@/lib/inrsend/sendMailFromIntegration";
+import { calendarEventFingerprint } from "@/lib/inrAssistantActionPreview";
 import {
   buildClientExchangePreferences,
   formatClientDateOnly,
@@ -320,19 +321,21 @@ export async function PATCH(req: Request) {
   const id = searchParams.get("id");
   if (!id) return bad("id requis");
 
-  const body = (await req.json().catch(() => ({}))) as { action?: string };
+  const body = (await req.json().catch(() => ({}))) as { action?: string; expectedState?: string; approvalReference?: string };
   const action = String(body.action || "").toLowerCase();
   if (action !== "reject") return bad("Action invalide");
+  if (body.approvalReference !== undefined && (typeof body.approvalReference !== "string" || !/^IA-[A-F0-9]{12}$/.test(body.approvalReference) || !body.expectedState)) return bad("Référence de validation invalide");
 
   const { data: current, error: currentError } = await supabase
     .from("agenda_events")
-    .select("id,title,description,location,start_at,end_at,meta")
+    .select("id,user_id,title,description,location,start_at,end_at,all_day,meta")
     .eq("id", id)
     .eq("user_id", activeUserId)
     .maybeSingle();
 
   if (currentError) return jsonUserFacingError(currentError, { status: 500, extra: { ok: false } });
   if (!current) return bad("Demande introuvable", 404);
+  if (body.expectedState !== undefined && (typeof body.expectedState !== "string" || body.expectedState !== calendarEventFingerprint(current))) return bad("La demande a changé depuis l’aperçu.", 409);
   if (!isPendingInrBadgeRequest(current.meta)) return bad("Cette demande n'est plus à valider", 409);
 
   const rejectedAt = new Date().toISOString();
@@ -340,15 +343,24 @@ export async function PATCH(req: Request) {
     ...safeObj(current.meta),
     status: "rejected",
     rejectedAt,
+    ...(body.approvalReference ? { assistantConfirmedAction: body.approvalReference } : {}),
   };
 
-  const { error } = await supabase
+  let update = supabase
     .from("agenda_events")
     .update({ meta: nextMeta })
     .eq("id", id)
     .eq("user_id", activeUserId);
+  // Claim this exact pending request before attempting the native email. The
+  // same guard also protects clicks in two tabs, not only assistant previews.
+  for (const field of ["title", "description", "location", "start_at", "end_at", "all_day", "meta"] as const) {
+    const value = current[field];
+    update = value == null ? update.is(field, null) : update.eq(field, field === "meta" ? JSON.stringify(value) : value);
+  }
+  const { data: claimed, error } = await update.select("id").maybeSingle();
 
   if (error) return jsonUserFacingError(error, { status: 500, extra: { ok: false } });
+  if (!claimed?.id) return bad("La demande a changé. Actualisez avant de refuser.", 409);
 
   let rejectionMailSent = false;
   try {
@@ -366,7 +378,8 @@ export async function PATCH(req: Request) {
       .from("agenda_events")
       .update({ meta: { ...nextMeta, rejectionMailSent: true, rejectionMailSentAt: new Date().toISOString() } })
       .eq("id", id)
-      .eq("user_id", activeUserId);
+      .eq("user_id", activeUserId)
+      .eq("meta", JSON.stringify(nextMeta));
 
     if (metaUpdateError) {
       console.warn("[calendar-appointment-requests] rejection mail meta update failed", metaUpdateError);

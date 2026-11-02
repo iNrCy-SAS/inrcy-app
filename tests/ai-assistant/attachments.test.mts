@@ -152,7 +152,7 @@ test("private approval capabilities survive journal compaction and oversized cap
   assert.equal(restored.receipts[0].approvalToken, task.receipts[0].approvalToken); assert.equal(restored.receipts[0].approvalReference, "IA-0123456789ab"); assert.equal(restored.receipts[0].approvalKind, "calendar");
   assert.ok([...h.objects.values()].every(value => value.length <= 32_000));
   const key = [...h.objects.keys()].find(key => key.endsWith(".task.json"))!; const saved = JSON.parse(h.objects.get(key)!.toString());
-  for (const kind of ["google_business_profile", "media_delete", "publication_lifecycle", "individual_mail"]) {
+  for (const kind of ["google_business_profile", "media_delete", "publication_lifecycle", "individual_mail", "commercial_document"]) {
     saved.task.receipts[0].approvalKind = kind; h.objects.set(key, Buffer.from(JSON.stringify(saved)));
     assert.equal((await h.api.loadAssistantTaskState(scope, turn))?.receipts[0].approvalKind, kind);
   }

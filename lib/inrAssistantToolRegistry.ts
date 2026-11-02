@@ -17,6 +17,7 @@ import { createInrAssistantWorkspaceActionTools } from "./inrAssistantWorkspaceA
 import { createInrAssistantInsightsTools } from "./inrAssistantInsightsTools.ts";
 import { createInrAssistantCommercialTools } from "./inrAssistantCommercialTools.ts";
 import { createInrAssistantDocumentTools } from "./inrAssistantDocumentTools.ts";
+import { createInrAssistantDocumentNativeTools } from "./inrAssistantDocumentNativeTools.ts";
 import { createInrAssistantCalendarTools } from "./inrAssistantCalendarTools.ts";
 import { createInrAssistantScheduledPublicationTools } from "./inrAssistantScheduledPublicationTools.ts";
 import { createInrAssistantCommunicationTools } from "./inrAssistantCommunicationTools.ts";
@@ -161,7 +162,7 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
   const documentTools = args.supabase && families.has("commercial") && /devis|facture|document commercial/.test(routingTopic)
     ? (()=>{const available=createInrAssistantDocumentTools({request:args.request,accountId:args.accountId,supabase:args.supabase!,edition:args.edition,currentUserMessage:latestRequest,actionRequestId:args.actionRequestId??args.requestId,clientContext:args.clientContext,canStartWork:()=>remainingTimeMs()>15000});
       return {readCommercialDocuments:available.readCommercialDocuments,...(canExecute && requiredTools.includes("finalizeCommercialDocument")?{finalizeCommercialDocument:available.finalizeCommercialDocument}:{}),...(canExecute && requiredTools.includes("updateCommercialDocument")?{updateCommercialDocument:available.updateCommercialDocument}:{})};})() : {};
-  const calendarLifecycle = requiredTools.some(name=>["confirmCalendarAppointment","updateCalendarAppointment","cancelCalendarAppointment"].includes(name));
+  const calendarLifecycle = requiredTools.some(name=>["confirmCalendarAppointment","updateCalendarAppointment","cancelCalendarAppointment","rejectCalendarAppointment"].includes(name));
   const calendarTools=canExecute && args.supabase && args.actorUserId && calendarLifecycle
     ? (()=>{const available=createInrAssistantCalendarTools({request:args.request,accountId:args.accountId,actorUserId:args.actorUserId!,supabase:args.supabase!,edition:args.edition,currentUserMessage:latestRequest,currentApprovalMessage:spokenRequest,canStartWork:()=>remainingTimeMs()>15000,resolvePreview});
       return {previewCalendarAction:available.previewCalendarAction,...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?{applyCalendarAction:available.applyCalendarAction}:{})};})() : {};
@@ -213,6 +214,10 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
       currentUserMessage: latestRequest, currentApprovalMessage: spokenRequest, resolvePreview, canStartWork: () => remainingTimeMs() > 15_000 };
     const selected: Record<string, unknown> = {};
     const pick = (available: Record<string, unknown>, names: string[]) => { for (const name of names) if (available[name]) selected[name] = available[name]; };
+    if (canExecute && args.edition === "founder" && requiredTools.includes("applyCommercialDocumentAction")) {
+      const available = createInrAssistantDocumentNativeTools({ ...scope, clientContext: args.clientContext });
+      pick(available, ["previewCommercialDocumentAction", ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest) ? ["applyCommercialDocumentAction"] : [])]);
+    }
     if (/idees?/.test(topic) && /agent|publication|editorial/.test(topic) && args.edition !== "basic") pick(createInrAssistantAgentTools(scope), ["readPublicationIdeas", ...(requiredTools.includes("managePublicationIdeas") ? ["managePublicationIdeas"] : [])]);
     if (requiredTools.some(name => ["setNativeChannelActivation","updateChannelPublicUrl","applyGoogleBusinessProfileUpdate"].includes(name)) || /google business|fiche google|profil google/.test(topic)) {
       const available = createInrAssistantChannelActionTools(scope);
