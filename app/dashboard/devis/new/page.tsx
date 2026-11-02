@@ -2,7 +2,7 @@
 import { useInrAssistantDocumentPreview } from "../../_hooks/useInrAssistantDocumentPreview";
 import { useInrAssistantDocumentPdf } from "../../_components/DashboardAssistantCommandContext";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import DashboardAssistantTrigger from "../../_components/DashboardAssistantTrigger";
 
 
@@ -89,6 +89,7 @@ import {
 
 export default function NewDevisPage() {
   const i18nT = useTranslations("documents");
+  const documentUiLocale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -972,6 +973,7 @@ export default function NewDevisPage() {
   };
 
   const assistantDocument = useInrAssistantDocumentPreview("quote", currentSaveId, {
+    clientExchangePreferences, documentUiLocale,
     number, docDateISO, clientName, billingAddress, billingPostalCode, billingCity,
     deliveryAddress, deliveryPostalCode, deliveryCity, sameAddresses, profile, providerOverride,
     clientEmail, clientSiren, clientVatNumber, clientType, vatDispense, operationCategory,

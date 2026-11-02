@@ -169,3 +169,17 @@ for (const page of ["factures", "devis"]) {
     assert.equal(exports, 0);
   });
 }
+
+for (const page of ["factures", "devis"]) {
+  test(`${page}: PDF revision includes the live client exchange preferences and UI locale`, () => {
+    const source = readFileSync(new URL(`../../app/dashboard/${page}/new/page.tsx`, import.meta.url), "utf8");
+    const parsed = ts.createSourceFile(page, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
+    const calls: ts.CallExpression[] = [];
+    const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && node.expression.getText(parsed) === "useInrAssistantDocumentPreview") calls.push(node); ts.forEachChild(node, visit); };
+    visit(parsed); assert.equal(calls.length, 1);
+    const snapshot = calls[0].arguments[2]; assert.ok(ts.isObjectLiteralExpression(snapshot));
+    const fields = snapshot.properties.map(property => property.name?.getText(parsed));
+    assert.ok(fields.includes("clientExchangePreferences")); assert.ok(fields.includes("documentUiLocale"));
+    assert.match(source, /const documentUiLocale = useLocale\(\)/);
+  });
+}
