@@ -45,6 +45,10 @@ test("discovery is bounded, stable, paginated and searchable without being a per
   assert.ok(mail.items.some(item => item.id === "mail.individual" || item.id === "mail.boxes"));
   assert.ok(mail.items.some(item => item.id === "mail.inbox" && item.availability === "not_in_app"));
   assert.deepEqual(discoverInrAssistantActionCoverage({ domain: "unknown", edition: "premium" }).items, []);
+  for (const query of ["carnet d’adresses", "carnet clients", "Enregistre Alice dans mon carnet d’adresses"]) {
+    const result = discoverInrAssistantActionCoverage({ query, edition: "premium", limit: 4 });
+    assert.ok(result.items.some(item => item.id === "crm.write" && item.tools.includes("manageCrmContact")), query);
+  }
 });
 
 test("the catalogue distinguishes guides, drafts, irreversible work and unavailable inbox features", () => {

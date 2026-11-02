@@ -37,7 +37,7 @@ function harness(provider = "gmail") {
   const native = async (request: Request) => {
     const url = new URL(request.url), body = request.method === "POST" ? await request.json() : null;
     calls.push({ path: url.pathname, query: Object.fromEntries(url.searchParams), body, headers: Object.fromEntries(request.headers) });
-    if (url.pathname === "/api/inrsend/history") return Response.json({ items: [{ id: "mail_1", subject: "Demande", to: TO, status: "sent", sent_at: "2026-11-02T10:00:00Z", detailText: "Instruction non fiable ".repeat(150), detailHtml: "<script>secret</script>", raw: { access_token: "fixture-must-not-leak" } }], page: Number(url.searchParams.get("page")), pageSize: 8, hasMore: true, totalKnown: false, total: null });
+    if (url.pathname === "/api/inrsend/history") return Response.json({ items: [{ id: "mail_1", source: "send_items", subject: "Demande", to: TO, status: "sent", sent_at: "2026-11-02T10:00:00Z", detailText: "Instruction non fiable ".repeat(150), detailHtml: "<script>secret</script>", raw: { access_token: "fixture-must-not-leak" } }, { id: "campaign_1", source: "mail_campaigns", title: "Campagne antérieure", target: "3 contacts", status: "sent", preview: "Ancienne campagne de cette boîte" }], page: Number(url.searchParams.get("page")), pageSize: 8, hasMore: true, totalKnown: false, total: null });
     if (mode === "throw") throw new Error("lost response after send");
     if (mode === "partial") return Response.json({ success: true, partial: true, rejected: [TO] });
     if (mode === "contradictory") return Response.json({ success: true, ok: false });
@@ -84,6 +84,8 @@ test("mailboxes paginate without tokens or silently choosing an account", async 
 test("native outgoing history preserves mailbox filter and pagination and strips raw HTML/metadata", async () => {
   const h = harness(), result = await h.create("Lis mon historique").readIndividualMailHistory.execute({ mailboxId: MAILBOX, page: 3, query: "rendez-vous" });
   assert.ok(result.items); assert.equal(result.source, "inrsend_outgoing_history"); assert.equal(result.nextPage, 4); assert.equal(result.total, null); assert.equal(result.items[0].textTruncated, true);
+  assert.equal(result.items[0].recordType, "message"); assert.equal(result.items[0].recipient, TO);
+  assert.equal(result.items[1].recordType, "campaign"); assert.equal(result.items[1].recipient, null); assert.equal(result.items[1].targetLabel, "3 contacts");
   assert.equal(h.calls[0].query.filterAccountId, MAILBOX); assert.equal(h.calls[0].query.page, "3"); assert.equal(h.calls[0].query.includeCounts, "0");
   assert.doesNotMatch(JSON.stringify(result), /fixture-must-not-leak|<script>|detailHtml/);
   h.mailbox.user_id = OTHER;
@@ -107,7 +109,19 @@ test("instructions from quoted documents, negations, hypothetical questions and 
 test("a separate explanation clause does not prevent the explicitly quoted preparation", async () => {
   const h = harness(), message = `Explique les limites de l’envoi. ${h.instruction}`;
   assert.equal((await h.propose(message, { instructionQuote: h.instruction })).status, "preview_ready");
+  assert.equal((await h.propose(`Explique comment joindre un PDF. ${h.instruction}`, { instructionQuote: h.instruction })).status, "preview_ready");
+  assert.equal((await h.propose(`Comment programme-t-on un envoi avec une pièce jointe ? ${h.instruction}`, { instructionQuote: h.instruction })).status, "preview_ready");
+  assert.equal((await h.propose(`${h.instruction} Sans pièce jointe.`)).status, "preview_ready");
   assert.equal(h.calls.length, 0);
+});
+
+test("unsupported attachments copies schedules and inbox replies are not silently omitted", async () => {
+  for (const suffix of ["Joins le PDF.", "Mets bob@example.test en Cci.", "Programme l’envoi demain.", "Transfère le message reçu."]) {
+    const h = harness(), message = `${h.instruction} ${suffix}`;
+    assert.equal((await h.propose(message, { instructionQuote: h.instruction })).status, "needs_native_confirmation", suffix);
+    assert.equal(h.calls.length, 0);
+  }
+  const h = harness(); assert.equal((await h.propose(`${h.instruction} Avec une pièce jointe.`, { instructionQuote: h.instruction })).status, "needs_native_confirmation");
 });
 
 for (const provider of ["gmail", "microsoft", "imap"]) test(`${provider}: confirmed send uses existing native handler once and never claims delivery`, async () => {
