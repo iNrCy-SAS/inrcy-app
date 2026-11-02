@@ -1,3 +1,5 @@
+import * as mediaCommands from "../../lib/inrAssistantMediaUiCommands.ts";
+import * as mailAttachments from "../../lib/inrAssistantMailAttachments.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -29,6 +31,7 @@ function harness(options: { message?: string; auth?: boolean; account?: string; 
     "./dashboardEditionServer": { getDashboardEditionForAccountId: async () => options.edition ?? "founder" },
     "./accountSubscriptionAccess": { getActiveSubscriptionAccountIds: async () => new Set(options.subscription === false ? [] : ["account-A"]) },
     "./inrAssistantUiCommands.ts": commands, "./inrAssistantDocumentUiCommands.ts": documentCommands, "./inrAssistantActionClause.ts": clauses,
+    "./inrAssistantMediaUiCommands.ts": mediaCommands, "./inrAssistantMailAttachments.ts": mailAttachments,
   };
   function load<T>(name: string): T {
     const source = ts.transpileModule(readFileSync(new URL(`../../lib/${name}.ts`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -36,6 +39,7 @@ function harness(options: { message?: string; auth?: boolean; account?: string; 
     new Function("require", "module", "exports", source)((name: string) => { assert.ok(name in deps, name); return deps[name]; }, mod, mod.exports); return mod.exports;
   }
   deps["./inrAssistantDocumentMailTools"] = load<typeof MailRuntime>("inrAssistantDocumentMailTools");
+  deps["./inrAssistantMediaUiTools.ts"] = load("inrAssistantMediaUiTools");
   const screen = { pathname: "/dashboard/factures/new", tool: "Factures", selection: { kind: "invoice", id: ID }, pendingChanges: false, revision: "preview_1", documentVersion: VERSION, availableCommands: ["prepare_document_mail"], ...options.screen };
   const tools = load<typeof UiRuntime>("inrAssistantUiTools").createInrAssistantUiTools({ accountId: "account-A", supabase: db,
     currentUserMessage: options.message ?? message, clientContext: parseInrAssistantClientContext({ screen }),

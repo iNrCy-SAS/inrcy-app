@@ -28,7 +28,9 @@ export function useInrAssistantLibraryOptimization(options: { target: Target | n
   const id = target?.id;
   useEffect(() => {
     if (!id || pathname !== "/dashboard/mediatheque") return;
-    register(instance, { command: "optimize_media", selection: { kind: "media", id }, revision, pathname, run: async (stillCurrent, command, scopeCurrent) => {
+    register(instance, { command: "optimize_media", selection: { kind: "media", id }, revision, pathname,
+      getCommittedScreen: () => ({ pathname, selection: { kind: "media", id: current.current.options.target!.id }, revision: current.current.revision }),
+      run: async (stillCurrent, command, scopeCurrent) => {
       if (command.command !== "optimize_media" || pending.current || !stillCurrent() || current.current.options.blocked || command.revision !== current.current.revision) return false;
       const capturedRevision = current.current.revision;
       const isCurrent = () => mounted.current && scopeCurrent() && current.current.revision === capturedRevision && !current.current.options.blocked;

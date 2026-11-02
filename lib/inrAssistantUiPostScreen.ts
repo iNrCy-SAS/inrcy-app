@@ -18,6 +18,7 @@ export function parseInrAssistantUiPostScreen(value: unknown): InrAssistantUiPos
 export function inrAssistantUiPostScreenMatchesAction(action: InrAssistantUiAction, screen: InrAssistantUiPostScreen): boolean {
   if (action.type !== "command" || !("revision" in action.command) || !action.command.revision) return false;
   const command = action.command;
+  if (command.command === "prepare_document_mail") return screen.pathname === "/dashboard/mails" && screen.selection.kind === "mail";
   const permitted = parseInrAssistantClientContext({ screen: { ...screen, availableCommands: [command.command] } })?.screen;
   return permitted?.availableCommands?.includes(command.command) === true
     && command.selection.kind === screen.selection.kind && command.selection.id === screen.selection.id;

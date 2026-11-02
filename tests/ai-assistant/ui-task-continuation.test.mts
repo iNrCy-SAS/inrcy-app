@@ -59,3 +59,14 @@ test("video source then format then save is a bounded pending plan, not prematur
   assert.equal(video.availableCommands.length, 1, "planning never advertises a nonexistent mounted capability");
   assert.equal(inrAssistantUiSteps("Enregistre la vidéo.", { source: "untrusted_client", screen: video }).length, 0, "a save cannot be borrowed without its preceding source/retouch step");
 });
+
+
+test("a requested document PDF in mail is a scoped preparation step and never a download or standalone send", () => {
+  const message = "Prépare un mail avec le PDF de ce devis pour client@example.invalid.";
+  const document = { pathname: "/dashboard/devis/new", tool: "Devis", selection: { kind: "quote" as const, id: "11111111-1111-4111-8111-111111111111" }, revision: "doc_1", pendingChanges: false, documentVersion: "2026-11-02T12:00:00.000Z", availableCommands: ["export_document_pdf", "prepare_document_mail"] as const };
+  const context = { source: "untrusted_client" as const, screen: { ...document, availableCommands: [...document.availableCommands] } };
+  const plan = inrAssistantUiSteps(message, context);
+  assert.deepEqual(plan.map(step => step.command), ["prepare_document_mail"]); assert.ok(parseInrAssistantUiSteps(plan));
+  assert.deepEqual(inrAssistantUiSteps(message), []);
+  for (const denied of ["Lis ce texte : '" + message + "'", "Si je confirme, " + message, "Ne prépare pas un mail avec le PDF de ce devis."]) assert.deepEqual(inrAssistantUiSteps(denied, context), []);
+});

@@ -1,5 +1,6 @@
 import * as rejectedToolContext from "../../lib/inrAssistantRejectedToolContext.ts";
 import * as uiTask from "../../lib/inrAssistantUiTask.ts";
+import * as clientScreen from "../../lib/inrAssistantClientContext.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -1488,4 +1489,19 @@ test("audio attachment groups count only the requested sounds beside an unrelate
     assert.deepEqual(fixture.writes, importAttachmentIds);
     assert.equal(result.taskState?.receipts.filter(receipt => receipt.ok && receipt.tool === "importMediaAttachment").length, 2);
   }
+});
+
+
+test("document mail preparation stays an acknowledged UI handoff without phantom download or send goals", async () => {
+  const instruction = "Prépare un mail avec le PDF de ce devis pour client@example.invalid.";
+  const command = { command: "prepare_document_mail", selection: { kind: "quote", id: "11111111-1111-4111-8111-111111111111" }, revision: "doc_1", expectedUpdatedAt: "2026-11-02T12:00:00.000Z", recipient: "client@example.invalid" };
+  const screen = { pathname: "/dashboard/devis/new", tool: "Devis", selection: command.selection, revision: command.revision, pendingChanges: false, documentVersion: command.expectedUpdatedAt, availableCommands: ["export_document_pdf", "prepare_document_mail"] };
+  let executions = 0;
+  const definition = tool({ inputSchema: jsonSchema<{ command: string; instructionQuote: string }>({ type: "object", properties: { command: { type: "string" }, instructionQuote: { type: "string" } }, required: ["command", "instructionQuote"] }), execute: async () => { executions++; return { ok: true, status: "ui_action_requested", message: "Ouverture du composeur demandée.", uiCommand: command }; } });
+  const h = harness({ extraTools: { runScreenCommand: definition }, plan: [{ tool: "runScreenCommand", input: { command: command.command, instructionQuote: instruction } }] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "founder", clientContext: clientScreen.parseInrAssistantClientContext({ screen }), messages: [{ role: "user", content: instruction }] });
+  assert.equal(executions, 1); assert.equal(reply.uiActions?.length, 1); assert.equal(reply.outcome, "partial");
+  assert.deepEqual(reply.taskState?.uiSteps?.map(step => step.command), ["prepare_document_mail"]);
+  assert.ok(!reply.taskState?.requiredTools.some(name => ["sendIndividualMail", "previewIndividualMail", "prepareMediaDownload"].includes(name)));
+  assert.equal(reply.taskState?.receipts.length, 0, "a queued browser command is not a saved or sent mail");
 });

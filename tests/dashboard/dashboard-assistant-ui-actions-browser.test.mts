@@ -19,6 +19,7 @@ type UiFixture = Window & {
   deferOptimization: boolean; releaseOptimization: () => void; optimizationRefreshes: number;
   videoLoads: string[]; videoSaves: number; deferVideoLoad: boolean; deferVideoSave: boolean; releaseVideoLoad: () => void; releaseVideoSave: () => void; replaceNativeSource: (id: string) => void;
   authCallback: (event: string, session: null) => void; releasePdf: () => void;
+  allowMailMount: boolean; mailUploads: string[];
   mailAttachments: Array<{ bucket: string; path: string; name: string; type: string; size: number }>;
 };
 
@@ -49,6 +50,8 @@ const sources = {
   "library-optimization": compile("app/dashboard/_hooks/useInrAssistantLibraryOptimization.ts"),
   "video-native": compile("app/dashboard/_hooks/useInrAssistantVideoCommands.ts"),
   "preview": compile("app/dashboard/_hooks/useInrAssistantDocumentPreview.ts"),
+  "document-mail": compile("app/dashboard/_hooks/useInrAssistantDocumentMail.ts"),
+  "document-mail-preparation": compile("app/dashboard/_documents/documentMailPreparation.ts"),
   ...Object.fromEntries(["inrAssistantUiPostScreen", "inrAssistantDocumentUiCommands", "inrAssistantNativeMediaOptimization", "mediaLibraryOptimizationPolicy", "mediaRules", "inrAssistantMailAttachments", "inrAssistantMailCompose", "inrAssistantMediaUiCommands", "inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
 };
 const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
@@ -93,9 +96,16 @@ window.fetch=async(url,init)=>{
 HTMLAnchorElement.prototype.click=function(){window.exports.push({id:window.fixtureScope.documentId,href:this.href})};
 const React=require('react'),screen=require('./DashboardAssistantScreenContext'),command=require('./DashboardAssistantCommandContext');
 function Document(){
- const preview=require('preview').useInrAssistantDocumentPreview('quote',window.fixtureScope.documentId,{text:window.fixtureScope.text});
+ const serverVersion={accountId:window.fixtureScope.account,documentId:window.fixtureScope.documentId,updatedAt:'2026-11-02T12:00:00.000Z'};
+ const preview=require('preview').useInrAssistantDocumentPreview('quote',window.fixtureScope.documentId,{text:window.fixtureScope.text},false,{isFinalized:true,serverVersion});
  const id=preview.selection.id;
  command.useInrAssistantDocumentPdf(preview.selection,async()=>{window.pdfBuilds.push(id);if(window.deferPdf)await new Promise(resolve=>window.releasePdf=resolve);return new Blob(['PDF fixture'],{type:'application/pdf'})},'devis',preview.revision);
+ require('document-mail').useInrAssistantDocumentMail({selection:preview.selection,revision:preview.revision,serverVersion,enabled:preview.canPrepareMail,prepare:async(value,isCurrent)=>{
+   const result=await require('document-mail-preparation').prepareDocumentMail({accountId:window.fixtureScope.account,documentId:id,kind:'devis',number:'DEV-001',filename:'DEV-001.pdf',recipient:value.recipient,clientName:'Client',subject:'Votre devis',text:'Voici le PDF',isCurrent,
+     verifyDocument:async()=>true,buildPdf:async()=>new Blob(['PDF fixture'],{type:'application/pdf'}),upload:async key=>{window.mailUploads=(window.mailUploads||[]).concat(key);return {error:null}},
+     requestNavigation:async callback=>{if(!window.allowNavigation)return false;callback();return true},navigate:href=>router.push(href)});
+   return result==='opened';
+ }});
  return React.createElement('output',{id:'mounted-document'},id);
 }
 function Library(){
@@ -141,7 +151,7 @@ function MailDraft(){
  window.editNative=value=>setSubject(value);window.nativeState={to,subject,text,html};window.mailAttachments=composeAttachments;
  return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
 }
-function Fixture(){const[,render]=React.useState(0);window.renderFixture=()=>render(n=>n+1);return React.createElement(require('provider').default,null,React.createElement(window.fixtureScope.pathname==='/dashboard/mails'?MailDraft:window.fixtureScope.pathname==='/dashboard/ads'?AdsDraft:window.fixtureScope.pathname==='/dashboard/generer-media'?VideoDraft:window.fixtureScope.pathname==='/dashboard/mediatheque'?Library:Document))}
+function Fixture(){const[,render]=React.useState(0);window.renderFixture=()=>render(n=>n+1);return React.createElement(require('provider').default,null,window.fixtureScope.pathname==='/dashboard/mails'&&window.allowMailMount===false?null:React.createElement(window.fixtureScope.pathname==='/dashboard/mails'?MailDraft:window.fixtureScope.pathname==='/dashboard/ads'?AdsDraft:window.fixtureScope.pathname==='/dashboard/generer-media'?VideoDraft:window.fixtureScope.pathname==='/dashboard/mediatheque'?Library:Document))}
 window.mountTarget=()=>{const url=new URL(window.requestedHref,location.origin);window.fixtureScope={...window.fixtureScope,pathname:url.pathname,query:url.search.slice(1),documentId:url.searchParams.get('saveId')};window.renderFixture()};
 window.startActions=actions=>{window.result=null;window.assistantProps.onUiActions(actions,undefined,window.deferClaim?()=>new Promise(resolve=>window.releaseClaim=()=>resolve(true)):undefined).then(value=>window.result=value)};
 require('react-dom/client').createRoot(document.getElementById('root')).render(React.createElement(Fixture));
@@ -506,6 +516,7 @@ test("library optimization uses native queue/worker/readback, preserves source a
     await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).optimizationRefreshes), 1);
+    assert.deepEqual(await page.evaluate(() => (window as unknown as UiFixture).result[0].postScreen), { pathname: "/dashboard/mediatheque", selection: { kind: "media", id: A }, revision: screen.revision });
     assert.match(await page.locator("#optimization-state").textContent() || "", /copie optimisée.*vérifiée/);
     const requests = await page.evaluate(() => (window as unknown as UiFixture).requests);
     assert.equal(requests.filter(row => row.url === "/api/media-library/optimization").length, 1);
@@ -537,6 +548,57 @@ test("late native optimization completion cannot acknowledge another selected so
       assert.equal(await page.evaluate(() => (window as unknown as UiFixture).requests.some(row => row.url.endsWith("22222222-2222-4222-8222-222222222222"))), false);
       assert.equal(await page.evaluate(() => (window as unknown as UiFixture).optimizationRefreshes || 0), 0);
       if (mode === "account") assert.equal(await page.locator("#optimization-state").evaluate(node => JSON.parse(node.textContent!).message), "");
+      await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
+
+test("document mail handoff waits for the exact native composer mount and reports no send", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page);
+    await page.waitForFunction(() => (window as unknown as UiFixture).assistantProps.screen.availableCommands.includes("prepare_document_mail"));
+    const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+    const batch = inrAssistantUiActionsFromToolResult("document-mail", { ok: true, uiCommand: { command: "prepare_document_mail", selection: screen.selection, revision: screen.revision, expectedUpdatedAt: "2026-11-02T12:00:00.000Z", recipient: "client@example.invalid" } });
+    await page.evaluate(batch => { const f = window as unknown as UiFixture; f.allowMailMount = false; f.startActions(batch); }, batch);
+    await page.waitForFunction(() => Boolean((window as unknown as UiFixture).requestedHref));
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result), null, "router.push alone is not a mounted composer");
+    await page.evaluate(() => (window as unknown as UiFixture).mountTarget());
+    await page.waitForFunction(() => !(window as unknown as UiFixture).assistantProps.screen.availableCommands?.length);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result), null, "the URL alone is not a committed native form");
+    await page.evaluate(() => { const f = window as unknown as UiFixture; f.allowMailMount = true; f.renderFixture(); });
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    const result = await page.evaluate(() => (window as unknown as UiFixture).result[0]);
+    assert.equal(result.status, "applied"); assert.equal(result.postScreen?.pathname, "/dashboard/mails"); assert.equal(result.postScreen?.selection.kind, "mail"); assert.ok(result.postScreen?.revision);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).mailUploads.length), 1);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).requests.length), 0, "no save or send request is made by the handoff");
+  } finally { await browser.close(); }
+});
+
+test("document mail handoff refuses a cancelled guard, changed account, wrong document or substituted recipient", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const mode of ["guard", "account", "document", "recipient", "route"]) {
+      const page = await browser.newPage(); await setup(page);
+      await page.waitForFunction(() => (window as unknown as UiFixture).assistantProps.screen.availableCommands.includes("prepare_document_mail"));
+      const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+      const batch = inrAssistantUiActionsFromToolResult("document-mail-" + mode, { ok: true, uiCommand: { command: "prepare_document_mail", selection: screen.selection, revision: screen.revision, expectedUpdatedAt: "2026-11-02T12:00:00.000Z", recipient: "client@example.invalid" } });
+      await page.evaluate(({ batch, mode }) => { const f = window as unknown as UiFixture; if (mode === "guard") f.allowNavigation = false; f.startActions(batch); }, { batch, mode });
+      if (mode !== "guard") {
+        await page.waitForFunction(() => Boolean((window as unknown as UiFixture).requestedHref));
+        await page.evaluate(mode => { const f = window as unknown as UiFixture; const url = new URL(f.requestedHref, location.origin);
+          if (mode === "account") { f.fixtureScope.account = "account-b"; window.dispatchEvent(new Event("fixture-account-change")); }
+          if (mode === "document") url.searchParams.set("docSaveId", "22222222-2222-4222-8222-222222222222");
+          if (mode === "recipient") url.searchParams.set("to", "other@example.invalid");
+          if (mode === "route") url.pathname = "/dashboard/ads";
+          f.requestedHref = url.pathname + url.search; f.mountTarget();
+        }, mode);
+      }
+      await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      assert.notEqual(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied", mode);
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].postScreen), undefined, mode);
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).requests.length), 0);
       await page.close();
     }
   } finally { await browser.close(); }

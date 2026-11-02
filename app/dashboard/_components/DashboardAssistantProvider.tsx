@@ -177,6 +177,41 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     };
     try {
       const applied = await entry.handler.run(stillCurrent, command, scopeCurrent);
+      if (applied && command.command === "prepare_document_mail") {
+        // The document handler confirms only router.push. Wait for the exact
+        // native composer to commit before acknowledging the screen handoff.
+        return await new Promise<boolean>(resolve => {
+          const finish = (result: boolean) => { clearTimeout(timer); uiTargetWaiters.current.delete(check); resolve(result); };
+          const check = () => {
+            const scope = navigationScopeRef.current, current = screenRef.current;
+            if (!scope.allowed || scope.actorUserId !== actorUserId || scope.activeAccountId !== activeAccountId
+              || (getActiveBrowserUserId() || activeAccountId) !== activeAccountId) return finish(false);
+            if (current.pathname === entry.handler.pathname) {
+              if (current.screen?.selection?.kind !== command.selection.kind || current.screen.selection.id !== command.selection.id
+                || current.screen.revision !== command.revision) finish(false);
+              return;
+            }
+            if (current.pathname !== "/dashboard/mails") return finish(false);
+            const params = new URLSearchParams(current.query);
+            const kind = command.selection.kind === "quote" ? "devis" : "facture";
+            const folder = kind === "devis" ? "devis" : "factures";
+            if (params.get("compose") !== "1" || params.get("docSaveId") !== command.selection.id || params.get("docType") !== kind
+              || params.get("to")?.toLowerCase() !== command.recipient.toLowerCase()
+              || !params.get("attachKey")?.startsWith(`${activeAccountId}/${folder}/`)) return finish(false);
+            const mounted = current.screen;
+            if (mounted?.selection?.kind !== "mail" || !mounted.revision || !mounted.availableCommands?.includes("configure_mail_draft")) return;
+            const handlers = [...screenHandlers.current.values()].filter(candidate => candidate.actorUserId === actorUserId
+              && candidate.activeAccountId === activeAccountId && candidate.handler.command === "configure_mail_draft"
+              && candidate.handler.selection.kind === "mail" && candidate.handler.selection.id === mounted.selection!.id
+              && "revision" in candidate.handler && candidate.handler.revision === mounted.revision);
+            if (handlers.length !== 1) return;
+            onCommittedScreen?.({ pathname: current.pathname, selection: mounted.selection, revision: mounted.revision });
+            finish(true);
+          };
+          const timer = setTimeout(() => finish(false), 30_000);
+          uiTargetWaiters.current.add(check); check();
+        });
+      }
       if (applied && scopeCurrent()) {
         const committed = entry.handler.getCommittedScreen?.();
         if (committed) onCommittedScreen?.(committed);
