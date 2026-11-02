@@ -1,8 +1,9 @@
 import type { DashboardEdition } from "./dashboardEdition.ts";
+import type { InrAssistantCommandFamily } from "./inrAssistantCommandRegistry.ts";
 
 export type InrAssistantCoverageMode = "read" | "open" | "prefill" | "execute" | "needs_pro_confirmation";
 export type InrAssistantActionCoverage = {
-  id: string; domain: string; label: string;
+  id: string; domain: string; family: InrAssistantCommandFamily; label: string;
   availability: "implemented" | "native_only" | "not_in_app";
   mode: InrAssistantCoverageMode; tools: readonly string[]; nativeRoutes: readonly string[];
   editions: readonly DashboardEdition[]; limits: string;
@@ -11,8 +12,16 @@ const ALL: readonly DashboardEdition[] = ["basic", "standard", "premium", "found
 const AGENTS: readonly DashboardEdition[] = ["standard", "premium", "founder"];
 const PREMIUM: readonly DashboardEdition[] = ["premium", "founder"];
 const ACCOUNTING: readonly DashboardEdition[] = ["founder"];
+export const INR_ASSISTANT_COVERAGE_FAMILIES: Readonly<Record<string, InrAssistantCommandFamily>> = {
+  crm: "commercial", documents: "commercial", calendar: "workspace", mail: "workspace", campaigns: "workspace",
+  publication: "publication", schedule: "publication", agents: "management", ads: "advertising", channels: "business",
+  reputation: "workspace", stats: "workspace", business: "business", studio: "media", media: "media", account: "management",
+  navigation: "workspace", support: "workspace",
+};
 function entry(id: string, domain: string, label: string, mode: InrAssistantCoverageMode, tools: string[], nativeRoutes: string[], editions: readonly DashboardEdition[], limits: string, availability: InrAssistantActionCoverage["availability"] = "implemented"): InrAssistantActionCoverage {
-  return { id, domain, label, availability, mode, tools, nativeRoutes, editions, limits };
+  const family = INR_ASSISTANT_COVERAGE_FAMILIES[domain];
+  if (!family) throw new Error(`Unknown assistant capability domain: ${domain}`);
+  return { id, domain, family, label, availability, mode, tools, nativeRoutes, editions, limits };
 }
 
 /** Discovery and support content, not authorization or a generic API executor.

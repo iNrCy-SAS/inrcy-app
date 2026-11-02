@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { INR_ASSISTANT_ACTION_COVERAGE, discoverInrAssistantActionCoverage } from "../../lib/inrAssistantActionCoverage.ts";
+import { INR_ASSISTANT_ACTION_COVERAGE, INR_ASSISTANT_COVERAGE_FAMILIES, discoverInrAssistantActionCoverage } from "../../lib/inrAssistantActionCoverage.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 test("each implemented capability names real tool definitions and every native route exists", () => {
@@ -21,6 +21,7 @@ test("each implemented capability names real tool definitions and every native r
   for (const entry of INR_ASSISTANT_ACTION_COVERAGE) {
     assert.ok(!ids.has(entry.id), entry.id); ids.add(entry.id);
     assert.ok(entry.limits.trim(), entry.id);
+    assert.equal(entry.family, INR_ASSISTANT_COVERAGE_FAMILIES[entry.domain]);
     if (entry.availability === "implemented") assert.ok(entry.tools.length > 0, entry.id);
     if (entry.availability === "not_in_app") assert.equal(entry.tools.length, 0, entry.id);
     for (const name of entry.tools) assert.ok(tools.has(name), `${entry.id}: undeclared ${name}`);
@@ -56,6 +57,9 @@ test("the catalogue distinguishes guides, drafts, irreversible work and unavaila
   assert.equal(byId.get("crm.merge")?.availability, "not_in_app");
   assert.equal(byId.get("publication.execute")?.mode, "execute");
   assert.equal(byId.get("mail.history")?.mode, "read");
+  assert.equal(byId.get("mail.history")?.family, "workspace");
+  assert.equal(byId.get("documents.finalize")?.family, "commercial");
+  assert.equal(byId.get("studio.generate")?.family, "media");
   assert.match(byId.get("mail.history")!.limits, /pas les messages reçus/);
   assert.match(byId.get("studio.generate")!.limits, /IMAGE uniquement/);
 });
