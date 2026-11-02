@@ -166,11 +166,12 @@ for (const testCase of selectedCases) {
   const excessiveMutations = Object.entries(testCase.calls).filter(([name, count]) => MUTATIONS.has(name) && (counts[name] || 0) > count).map(([name]) => name);
   const oneOfMissing = testCase.oneOf && !testCase.oneOf.some(name => counts[name]);
   const contacts = activeCase.calls.filter(call => call.tool === 'manageCrmContact' && call.input.action === 'create');
+  const orderViolation = testCase.id === 'write-then-read' && activeCase.calls.findIndex(call => testCase.oneOf.includes(call.tool)) < activeCase.calls.findIndex(call => call.tool === 'manageCrmContact');
   const expectedNames = testCase.calls.manageCrmContact === 2 ? ['alice', 'bob'] : testCase.calls.manageCrmContact === 1 ? ['alice'] : [];
   const missingContacts = expectedNames.filter(name => !contacts.some(call => String(call.input.reference).toLowerCase().includes(name)));
   const inventedRecipients = contacts.flatMap(call => Object.values(call.input.fields || {}).filter(value => typeof value === 'string' && value.includes('@') && !testCase.prompt.includes(value)));
-  const passed = !failure && (!live || !missing.length && !forbidden.length && !excessiveMutations.length && !oneOfMissing && !missingContacts.length && !inventedRecipients.length);
-  results.push({ id: testCase.id, prompt: testCase.prompt, passed, counts, missing, forbidden, excessiveMutations, missingContacts, inventedRecipients, oneOfMissing: Boolean(oneOfMissing), calls: activeCase.calls, reply, failure });
+  const passed = !failure && (!live || !missing.length && !forbidden.length && !excessiveMutations.length && !oneOfMissing && !orderViolation && !missingContacts.length && !inventedRecipients.length);
+  results.push({ id: testCase.id, prompt: testCase.prompt, passed, counts, missing, forbidden, excessiveMutations, missingContacts, inventedRecipients, orderViolation, oneOfMissing: Boolean(oneOfMissing), calls: activeCase.calls, reply, failure });
   const report = { mode: live ? 'real_models_synthetic_effects' : 'offline_schema_validation', source: 'current working tree', tests: results.length, passed: results.filter(item => item.passed).length,
     realCustomerOperations: 0, realDatabaseCalls: 0, apiCalls, estimatedUsd: costEstimate, limits: { maxCalls, maxUsd },
     modelOverride: modelOverride || null,
