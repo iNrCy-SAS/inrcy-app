@@ -9,9 +9,10 @@ import { getInrAssistantNavigation } from "../../lib/inrAssistantUiCommands.ts";
 import { inrAssistantUiActionsFromToolResult, type InrAssistantUiAction, type InrAssistantUiResult } from "../../lib/inrAssistantUiActions.ts";
 
 type UiFixture = Window & {
-  assistantProps: { screen: { availableCommands: string[]; selection: { id: string } } };
+  assistantProps: { screen: { availableCommands: string[]; selection: { id: string }; selectedMediaIds?: string[] } };
   result: InrAssistantUiResult[]; requestedHref: string; pdfBuilds: string[]; exports: unknown[];
-  fixtureScope: { account: string; documentId: string }; allowNavigation: boolean; deferPdf: boolean;
+  fixtureScope: { account: string; documentId: string; selectedMediaIds: string[] }; allowNavigation: boolean; deferPdf: boolean; deferDownload: boolean;
+  releaseDownload: () => void; requests: Array<{ url: string; body: string }>;
   startActions: (actions: InrAssistantUiAction[]) => void; mountTarget: () => void; renderFixture: () => void;
   authCallback: (event: string, session: null) => void; releasePdf: () => void;
 };
@@ -32,7 +33,7 @@ const sources = {
 const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
 const fixture = `
 const sources=${JSON.stringify(sources)},loaded={};
-window.fixtureScope={actor:'actor-a',account:'account-a',pathname:'/dashboard/devis/new',query:'saveId=${A}',documentId:'${A}'};
+window.fixtureScope={actor:'actor-a',account:'account-a',pathname:location.pathname.endsWith('/mediatheque')?'/dashboard/mediatheque':'/dashboard/devis/new',query:'saveId=${A}',documentId:'${A}',selectedMediaIds:['${A}','${B}']};
 window.exports=[];window.pdfBuilds=[];window.requests=[];window.allowNavigation=true;window.deferNavigation=true;
 const router={push(href){window.requestedHref=href;if(!window.deferNavigation)window.mountTarget()}};
 function require(name){
@@ -53,12 +54,12 @@ function require(name){
  if(!sources[name])throw Error('Unexpected UI fixture module '+name);
  const module=loaded[name]={exports:{}};new Function('require','module','exports',sources[name])(require,module,module.exports);return module.exports;
 }
-window.fetch=async(url,init)=>{window.requests.push({url,body:init?.body});return new Response(JSON.stringify({ok:true,downloadUrl:'/api/media-library/download?bundle=test'}),{headers:{'Content-Type':'application/json'}})};
+window.fetch=async(url,init)=>{window.requests.push({url,body:init?.body});if(window.deferDownload)await new Promise(resolve=>window.releaseDownload=resolve);return new Response(JSON.stringify({ok:true,downloadUrl:'/api/media-library/download?bundle=test'}),{headers:{'Content-Type':'application/json'}})};
 HTMLAnchorElement.prototype.click=function(){window.exports.push({id:window.fixtureScope.documentId,href:this.href})};
 const React=require('react'),screen=require('./DashboardAssistantScreenContext'),command=require('./DashboardAssistantCommandContext');
 function Document(){
  const id=window.fixtureScope.documentId;
- screen.useInrAssistantScreen({selection:{kind:'quote',id},availableCommands:['export_document_pdf']});
+ screen.useInrAssistantScreen(window.fixtureScope.pathname==='/dashboard/mediatheque'?{selectedMediaIds:window.fixtureScope.selectedMediaIds}:{selection:{kind:'quote',id},availableCommands:['export_document_pdf']});
  command.useInrAssistantDocumentPdf({kind:'quote',id},async()=>{window.pdfBuilds.push(id);if(window.deferPdf)await new Promise(resolve=>window.releasePdf=resolve);return new Blob(['PDF fixture'],{type:'application/pdf'})},'devis');
  return React.createElement('output',{id:'mounted-document'},id);
 }
@@ -68,11 +69,11 @@ window.startActions=actions=>{window.result=null;window.assistantProps.onUiActio
 require('react-dom/client').createRoot(document.getElementById('root')).render(React.createElement(Fixture));
 `;
 const actions = inrAssistantUiActionsFromToolResult("pdf-b", { ok: true, navigation: getInrAssistantNavigation("quotes", B), uiCommand: { command: "export_document_pdf", selection: { kind: "quote", id: B } } });
-async function setup(page: Page) {
+async function setup(page: Page, library = false) {
   await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: '<html><body><div id="root"></div></body></html>' }) : route.abort());
-  await page.goto("https://fixture.invalid/dashboard/devis/new");
+  await page.goto(library ? "https://fixture.invalid/dashboard/mediatheque" : "https://fixture.invalid/dashboard/devis/new");
   await page.addScriptTag({ content: fixture });
-  await page.waitForFunction(() => Boolean((window as unknown as UiFixture).assistantProps?.screen?.availableCommands?.length));
+  await page.waitForFunction(() => Boolean((window as unknown as UiFixture).assistantProps?.screen?.availableCommands?.length || (window as unknown as UiFixture).assistantProps?.screen?.selectedMediaIds?.length));
 }
 
 test("real React provider waits for B to mount and exports B once, never initial A", async () => {
@@ -131,6 +132,27 @@ test("selection change during asynchronous PDF build prevents stale download", a
     await page.evaluate(() => (window as unknown as UiFixture).releasePdf());
     await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).exports.length), 0);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "failed");
+  } finally { await browser.close(); }
+});
+
+test("real provider downloads all checked media and rejects a changed selection during preparation", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, true);
+    const selected = inrAssistantUiActionsFromToolResult("selection", { ok: true, uiCommand: { command: "download_media", selection: { kind: "media", id: A }, mediaIds: [A, B], pathname: "/dashboard/mediatheque", selectionMode: "current" } });
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), selected);
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.deepEqual(await page.evaluate(() => JSON.parse((window as unknown as UiFixture).requests[0].body).ids), [A, B]);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).exports.length), 1);
+    await page.evaluate(() => { (window as unknown as UiFixture).deferDownload = true; });
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), selected);
+    await page.waitForFunction(() => Boolean((window as unknown as UiFixture).releaseDownload));
+    await page.evaluate(id => { (window as unknown as UiFixture).fixtureScope.selectedMediaIds = [id]; (window as unknown as UiFixture).renderFixture(); }, B);
+    await page.waitForFunction(() => (window as unknown as UiFixture).assistantProps.screen.selectedMediaIds?.length === 1);
+    await page.evaluate(() => (window as unknown as UiFixture).releaseDownload());
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).exports.length), 1, "Late ZIP must not be downloaded for the old selection");
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "failed");
   } finally { await browser.close(); }
 });

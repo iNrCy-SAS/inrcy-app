@@ -1,4 +1,5 @@
 import { parseInrAssistantNavigation, parseInrAssistantUiCommand, type InrAssistantNavigation, type InrAssistantUiCommand, type InrAssistantTaskProgress } from "./inrAssistantUiCommands.ts";
+import type { InrAssistantClientContext } from "./inrAssistantClientContext.ts";
 
 /** Ordered effects of one server response. This is not a business authorization. */
 export type InrAssistantUiAction =
@@ -10,7 +11,25 @@ export type InrAssistantUiResult = {
   status: "applied" | "handed_to_browser" | "failed" | "cancelled";
 };
 export const INR_ASSISTANT_MAX_UI_ACTIONS = 24;
+export function inrAssistantUiSuccessStatus(action: InrAssistantUiAction): "applied" | "handed_to_browser" {
+  return action.type === "command" && ["export_document_pdf", "download_media", "download_stats_report"].includes(action.command.command) ? "handed_to_browser" : "applied";
+}
 const ID = /^[a-zA-Z0-9_-]{1,100}$/;
+
+/** Bind deictic library requests to the checked IDs, not merely another owned set. */
+export function bindInrAssistantUiActionsToScreen(actions: InrAssistantUiAction[], context: InrAssistantClientContext | null, request: string): InrAssistantUiAction[] | null {
+  const screen = context?.screen;
+  const selectedRequest = /\b(?:selection|selectionn\w*|coch\w*|selected|checked)\b/.test(request.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase());
+  if (screen?.pathname !== "/dashboard/mediatheque" || !selectedRequest) return actions;
+  const bound: InrAssistantUiAction[] = [];
+  for (const action of actions) {
+    if (action.type !== "command" || action.command.command !== "download_media") { bound.push(action); continue; }
+    const ids = screen.selectedMediaIds;
+    if (screen.selectionOverflow || !ids?.length || ids.length !== action.command.mediaIds.length || !action.command.mediaIds.every(id => ids.includes(id))) return null;
+    bound.push({ ...action, command: { ...action.command, selectionMode: "current" } });
+  }
+  return bound;
+}
 
 export function parseInrAssistantUiActions(value: unknown): InrAssistantUiAction[] | null {
   if (!Array.isArray(value) || value.length > INR_ASSISTANT_MAX_UI_ACTIONS) return null;
@@ -86,7 +105,7 @@ export async function runInrAssistantUiActions(actions: InrAssistantUiAction[], 
       try {
         const claimed = ports.beforeAction ? await ports.beforeAction(action) : true;
         const applied = claimed && ports.isCurrent() && (action.type === "navigate" ? await ports.navigate(action.navigation) : await ports.command(action.command));
-        status = !ports.isCurrent() ? "cancelled" : !applied ? "failed" : action.type === "navigate" ? "applied" : "handed_to_browser";
+        status = !ports.isCurrent() ? "cancelled" : !applied ? "failed" : inrAssistantUiSuccessStatus(action);
       } catch { status = ports.isCurrent() ? "failed" : "cancelled"; }
     }
     if (status === "failed" || status === "cancelled") stopped = true;

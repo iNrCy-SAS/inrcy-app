@@ -15,7 +15,7 @@ import { continueInrAssistantTask, type InrAssistantTaskState } from "@/lib/inrA
 import { loadAssistantMediaAttachmentOriginal, claimAssistantMediaAttachmentImport } from "@/lib/inrAssistantAttachmentStorage";
 import { assistantRefreshTopics, parseInrAssistantRefresh } from "@/lib/inrAssistantRefresh";
 import { INR_ASSISTANT_UNCERTAIN_STATUSES } from "@/lib/inrAssistantCommandRegistry";
-import { inrAssistantUiActionsFromToolResult, parseInrAssistantUiActions } from "@/lib/inrAssistantUiActions";
+import { bindInrAssistantUiActionsToScreen, inrAssistantUiActionsFromToolResult, parseInrAssistantUiActions } from "@/lib/inrAssistantUiActions";
 import { createInrAssistantUiReceiptToken, loadInrAssistantUiResults } from "@/lib/inrAssistantUiReceipts";
 
 export const runtime = "nodejs";
@@ -162,7 +162,8 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
           const previousReply = await loadAssistantReplyReplay(attachmentScope, previous);
           const actions = parseInrAssistantUiActions(previousReply?.uiActions);
           const task = actions?.length ? await inspectAssistantTaskState(attachmentScope, previous) : null;
-          const onlyBrowser = task?.status === "available" && task.task.requiredTools.every(name => ["prepareMediaDownload", "prepareStatsReportDownload", "navigateApplication", "runScreenCommand"].includes(name));
+          const browserTools = ["prepareMediaDownload", "prepareStatsReportDownload", "navigateApplication", "runScreenCommand"];
+          const onlyBrowser = task?.status === "available" && task.task.requiredTools.every(name => browserTools.includes(name)) && task.task.receipts.every(receipt => browserTools.includes(receipt.tool));
           if (actions?.length && onlyBrowser) {
             const results = await loadInrAssistantUiResults(attachmentScope, previous, actions);
             const applied = results.filter(result => result.status === "applied").length;
@@ -270,7 +271,9 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     });
     const { taskState, ...replyData } = reply;
     if (replyData.uiActions !== undefined && !parseInrAssistantUiActions(replyData.uiActions)) throw Object.assign(new Error("Le parcours d’écran dépasse ses limites."), { code: "assistant_ui_plan_invalid" });
-    const uiActions = parseInrAssistantUiActions(replyData.uiActions) ?? inrAssistantUiActionsFromToolResult("legacy", { ok: true, navigation: replyData.navigation, uiCommand: replyData.uiCommand });
+    const unboundUiActions = parseInrAssistantUiActions(replyData.uiActions) ?? inrAssistantUiActionsFromToolResult("legacy", { ok: true, navigation: replyData.navigation, uiCommand: replyData.uiCommand });
+    const uiActions = bindInrAssistantUiActionsToScreen(unboundUiActions, clientContext, messages.at(-1)!.content);
+    if (!uiActions) throw Object.assign(new InrAssistantInputError("La sélection de médias ne peut pas être confirmée. Sélectionnez au maximum 25 médias puis renouvelez la demande."), { code: "assistant_ui_selection_changed" });
     const uiReceiptToken = uiActions.length ? createInrAssistantUiReceiptToken(attachmentScope, begun.turn!, uiActions) : undefined;
     const refresh = parseInrAssistantRefresh({ accountId: auth.activeUserId, turnId, topics: assistantRefreshTopics(taskState?.receipts ?? []) });
     const publicReply = { ...replyData, ...(uiActions.length ? { uiActions, uiReceiptToken } : {}), ...(refresh ? { refresh } : {}) };

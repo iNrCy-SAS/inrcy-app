@@ -130,7 +130,12 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
   const openMediaLibrary = useCallback(() => navigateInternally("/dashboard/mediatheque"), [navigateInternally]);
   const executeScreenCommand = useCallback(async (command: InrAssistantUiCommand) => {
     if (command.command === "download_media" || command.command === "download_stats_report") {
-      const stillCurrent = () => { const scope = navigationScopeRef.current; return scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId && (getActiveBrowserUserId() || activeAccountId) === activeAccountId; };
+      const stillCurrent = () => {
+        const scope = navigationScopeRef.current, current = screenRef.current;
+        const selectionMatches = command.command !== "download_media" || command.selectionMode !== "current" || current.pathname === "/dashboard/mediatheque"
+          && current.screen?.selectedMediaIds?.length === command.mediaIds.length && command.mediaIds.every(id => current.screen?.selectedMediaIds?.includes(id));
+        return selectionMatches && scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId && (getActiveBrowserUserId() || activeAccountId) === activeAccountId;
+      };
       if (!stillCurrent()) return false;
       try {
         let href: string, filename: string;

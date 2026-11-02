@@ -22,6 +22,7 @@ function libraryHarness() {
   let downloadResponse: (() => Promise<Response>) | undefined;
   const downloads: string[] = [];
   const snapshots: unknown[] = [];
+  let assistantScreen: { selectedMediaIds?: string[]; selectionOverflow?: boolean } | null = null;
   const invalidated: string[] = [];
   const transfers: File[] = []; const optimizedTypes: unknown[] = []; const revoked: string[] = [];
   const react = {
@@ -43,7 +44,7 @@ function libraryHarness() {
     if (id === "next-intl") return { useLocale: () => "fr-FR", useTranslations: () => (key: string) => key };
     if (id === "next/link") return { default: "a" };
     if (id.endsWith("DashboardAssistantTrigger")) return { default: "assistant-trigger" };
-    if (id.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
+    if (id.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen(value: typeof assistantScreen) { assistantScreen = value; } };
     if (id.endsWith("useInrAssistantRefresh")) return { useInrAssistantRefresh() {} };
     if (id === "@/lib/supabaseClient") return { createClient: () => ({ storage: { from: () => ({ uploadToSignedUrl: async (_path: string, _token: string, file: File) => { transfers.push(file); return { error: null }; } }) } }) };
     if (id === "@/lib/universalMediaUploadClient") return { isUniversalMediaUploadEnabled: () => true, uploadFileToPreparedUniversalIntent: () => { throw new Error("Audio must bypass the visual upload pipeline"); } };
@@ -100,6 +101,7 @@ function libraryHarness() {
   };
   render();
   return { render, elements, requests, transfers, optimizedTypes, revoked, invalidated, snapshots, downloads,
+    assistantScreen: () => assistantScreen,
     runOpenOverlayEffect() { const effect = effects.find(({ dependencies }) => dependencies?.length === 1 && dependencies[0] === true); assert.ok(effect); return effect.callback(); },
     keyDown(event: unknown) { listeners.get("keydown")?.(event); },
     setAccount(account: string) { activeAccount = account; },
@@ -317,4 +319,27 @@ test("a late metadata response cannot update the newly selected establishment", 
   await saving;
   assert.equal(h.elements("metadata")[0].props.value, audio.title);
   assert.deepEqual(h.invalidated, []);
+});
+
+test("native library checkbox transitions declare the exact assistant multi-selection", () => {
+  const h = libraryHarness();
+  assert.equal(h.assistantScreen()?.selectedMediaIds, undefined);
+  h.selectFirst();
+  assert.deepEqual(h.assistantScreen()?.selectedMediaIds, [audio.id]);
+  const checkboxes = h.elements("input").filter(item => item.props.type === "checkbox");
+  (checkboxes[1].props.onChange as () => void)(); h.render();
+  assert.deepEqual(h.assistantScreen()?.selectedMediaIds, [audio.id, photo.id]);
+  h.selectFirst();
+  assert.deepEqual(h.assistantScreen()?.selectedMediaIds, [photo.id]);
+});
+
+test("selecting more than 25 native library items declares overflow instead of a misleading truncated set", async () => {
+  const h = libraryHarness();
+  const items = Array.from({ length: 26 }, (_, index) => ({ ...photo, id: `image-${index}` }));
+  h.setGetResponse(async () => Response.json({ ok: true, items, stats: { total: 26, images: 26, videos: 0, audios: 0, total_bytes: 1000 } }));
+  await h.refresh();
+  const selectAll = h.elements("button").find(item => item.props["aria-label"] === "tout_selectionner_06f2c1c0");
+  assert.ok(selectAll); (selectAll.props.onClick as () => void)(); h.render();
+  assert.equal(h.assistantScreen()?.selectionOverflow, true);
+  assert.equal(h.assistantScreen()?.selectedMediaIds, undefined);
 });

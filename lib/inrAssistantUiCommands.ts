@@ -29,7 +29,7 @@ export const INR_ASSISTANT_NAVIGATION = {
 export const INR_ASSISTANT_NAVIGATION_DESTINATIONS = Object.keys(INR_ASSISTANT_NAVIGATION) as (keyof typeof INR_ASSISTANT_NAVIGATION)[];
 export type InrAssistantNavigation = { destination: string; href: string; label: string; documentId?: string };
 export type InrAssistantUiCommand = { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string } }
-  | { command: "download_media"; selection: { kind: "media"; id: string }; mediaIds: string[]; pathname: "/dashboard/mediatheque" }
+  | { command: "download_media"; selection: { kind: "media"; id: string }; mediaIds: string[]; pathname: "/dashboard/mediatheque"; selectionMode?: "current" }
   | { command: "download_stats_report"; selection: { kind: "stats_report"; id: string }; reportId: string };
 export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiCommand | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -37,7 +37,7 @@ export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiComman
   const selection = row.selection && typeof row.selection === "object" ? row.selection as Record<string, unknown> : {};
   const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
   if (row.command === "download_media") return row.pathname === "/dashboard/mediatheque" && Array.isArray(row.mediaIds) && row.mediaIds.length > 0 && row.mediaIds.length <= 25 && row.mediaIds.every(id => typeof id === "string" && uuid.test(id)) && new Set(row.mediaIds).size === row.mediaIds.length && selection.kind === "media" && selection.id === row.mediaIds[0]
-    ? { command: "download_media", selection: { kind: "media", id: row.mediaIds[0] as string }, mediaIds: [...row.mediaIds] as string[], pathname: "/dashboard/mediatheque" } : null;
+    ? { command: "download_media", selection: { kind: "media", id: row.mediaIds[0] as string }, mediaIds: [...row.mediaIds] as string[], pathname: "/dashboard/mediatheque", ...(row.selectionMode === "current" ? { selectionMode: "current" } : {}) } : null;
   if (row.command === "download_stats_report") return typeof row.reportId === "string" && uuid.test(row.reportId) && selection.kind === "stats_report" && selection.id === row.reportId
     ? { command: "download_stats_report", selection: { kind: "stats_report", id: row.reportId }, reportId: row.reportId } : null;
   return row.command === "export_document_pdf" && (selection.kind === "quote" || selection.kind === "invoice") && typeof selection.id === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(selection.id)

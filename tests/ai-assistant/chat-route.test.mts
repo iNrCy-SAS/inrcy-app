@@ -1182,3 +1182,18 @@ test("new client attachments cannot expand the original import grant across two 
   assert.ok(h.taskSaves.every(saved => saved.task.mediaImportSource?.turnId === turnId.toLowerCase()));
   assert.ok(h.mediaOriginalReads.every(read => initialImportFiles.some(ref => ref.id === read.id)));
 });
+
+test("UI status reconciliation never hides an additional executed business receipt", async () => {
+  for (const hasBusinessReceipt of [false, true]) {
+    const mediaId = "11111111-1111-4111-8111-111111111111";
+    const actions = uiActions.inrAssistantUiActionsFromToolResult("download", { ok: true, uiCommand: { command: "download_media", selection: { kind: "media", id: mediaId }, mediaIds: [mediaId], pathname: "/dashboard/mediatheque" } });
+    const h = harness({ gatewayReply: args => ({ message: "Téléchargement demandé.", uiActions: actions,
+      taskState: { ...checkpoint(args, [{ tool: "prepareMediaDownload", ok: true, status: "ui_action_requested", message: "Demandé" },
+        ...(hasBusinessReceipt ? [{ tool: "manageCrmContact", ok: true, status: "saved", message: "Contact créé" }] : [])], "processing"), requiredTools: ["prepareMediaDownload"] } }) });
+    await h.post(request({ conversationId, turnId, messages: [{ role: "user", content: "Télécharge ce média" }] }));
+    const response = await h.post(request({ conversationId, turnId: randomUUID(), taskIntent: "check_status", messages: [{ role: "user", content: "Vérifie le statut" }] }));
+    assert.equal(response.status, 200);
+    assert.equal(h.gatewayCalls.length, hasBusinessReceipt ? 2 : 1);
+    if (!hasBusinessReceipt) assert.match((await response.json()).message, /réception d’un fichier sur disque n’est pas vérifiée/);
+  }
+});

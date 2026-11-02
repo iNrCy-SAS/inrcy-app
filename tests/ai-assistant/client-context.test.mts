@@ -21,3 +21,16 @@ test("visible assistant errors contain a recent reference and code, never arbitr
   assert.equal(parseInrAssistantClientContext({ visibleError: { ...visibleError, occurredAt: new Date(now + 5001).toISOString() } }, now), null);
   assert.equal(parseInrAssistantClientContext({ visibleError: { code: "Bearer secret", requestId: "https://secret.example", occurredAt: visibleError.occurredAt } }, now), null);
 });
+
+test("library multi-selection is exact, bounded, route-specific and never truncated", () => {
+  const ids = Array.from({ length: 25 }, (_, index) => `11111111-1111-4111-8111-${String(index).padStart(12, "0")}`);
+  const screen = { pathname: "/dashboard/mediatheque", selectedMediaIds: ids };
+  const context = parseInrAssistantClientContext({ screen });
+  assert.deepEqual(context?.screen?.selectedMediaIds, ids);
+  assert.ok(JSON.stringify(context).length <= 2400);
+  assert.equal(parseInrAssistantClientContext({ screen: { ...screen, pathname: "/dashboard/ads" } })?.screen?.selectedMediaIds, undefined);
+  for (const selectedMediaIds of [[...ids, ids[0]], ["invalid"], [ids[0], ids[0]]]) assert.equal(parseInrAssistantClientContext({ screen: { ...screen, selectedMediaIds } })?.screen?.selectedMediaIds, undefined);
+  const overflow = parseInrAssistantClientContext({ screen: { ...screen, selectionOverflow: true } });
+  assert.equal(overflow?.screen?.selectionOverflow, true);
+  assert.equal(overflow?.screen?.selectedMediaIds, undefined);
+});

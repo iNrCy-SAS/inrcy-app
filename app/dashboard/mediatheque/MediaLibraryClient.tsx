@@ -391,7 +391,6 @@ export default function MediaLibraryClient() {
   const filtersTriggerRef = useRef<HTMLButtonElement>(null);
   const filtersId = useId();
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
-  useInrAssistantScreen(previewItem ? { selection: { kind: "media", id: previewItem.id } } : null);
   const [helperOpen, setHelperOpen] = useState(false);
   const [optimizerItem, setOptimizerItem] = useState<MediaOptimizerItem | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(
@@ -415,6 +414,8 @@ export default function MediaLibraryClient() {
     [items, selectedItemIds],
   );
   const selectedItemCount = selectedItems.length;
+  useInrAssistantScreen({ ...(previewItem ? { selection: { kind: "media", id: previewItem.id } } : {}),
+    ...(selectedItemCount > 25 ? { selectionOverflow: true } : selectedItemCount ? { selectedMediaIds: selectedItems.map(item => item.id) } : {}) });
   const allVisibleItemsSelected =
     items.length > 0 && items.every((item) => selectedItemIds.has(item.id));
   const bulkDeleting = savingId === "__bulk__";
