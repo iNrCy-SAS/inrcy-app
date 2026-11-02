@@ -20,18 +20,22 @@ export function useDocumentUnsavedChanges(documentId: string, snapshot: Record<s
   const signature = JSON.stringify(snapshot);
   const [baseline, setBaseline] = useState({ key, signature: signature as string | null });
   const [serverVersion, setServerVersion] = useState<DocumentServerVersion | null>(null);
+  const [prefillPending, setPrefillPending] = useState<{ accountId: string | null; generation: number } | null>(null);
+  const generation = useRef(0);
   // A newly hydrated document is clean. Reset synchronously, before children/guards commit.
   if (baseline.key !== key || baseline.signature === null) setBaseline({ key, signature });
-  const dirty = baseline.key === key && baseline.signature !== null && baseline.signature !== signature;
+  const dirty = !!prefillPending && !documentId && prefillPending.accountId === accountId && prefillPending.generation === generation.current ||
+    baseline.key === key && baseline.signature !== null && baseline.signature !== signature;
   const current = useRef({ accountId, documentId, signature, dirty });
-  const generation = useRef(0);
   useLayoutEffect(() => { current.current = { accountId, documentId, signature, dirty }; }, [accountId, documentId, signature, dirty]);
 
   const markHydrated = useCallback((version?: DocumentServerVersion) => {
     generation.current++;
+    setPrefillPending(null);
     setServerVersion(version ?? null);
     setBaseline(previous => ({ ...previous, signature: null }));
   }, []);
+  const markPrefilled = useCallback(() => { setPrefillPending({ accountId: getActiveBrowserUserId(), generation: generation.current }); setServerVersion(null); }, []);
 
   const captureSave = useCallback((persistedFields: Record<string, unknown> = {}): DocumentSaveVersion => ({
     accountId: current.current.accountId, documentId: current.current.documentId, generation: generation.current,
@@ -50,6 +54,7 @@ export function useDocumentUnsavedChanges(documentId: string, snapshot: Record<s
     if (!savedId || !isCurrentSave(version)) return false;
     setBaseline({ key: JSON.stringify([version.accountId, savedId]), signature: version.signature });
     setServerVersion(server ?? null);
+    setPrefillPending(null);
     // A caller may immediately finalize a newly created draft before React commits its ID.
     current.current = { ...current.current, documentId: savedId };
     return true;
@@ -97,5 +102,5 @@ export function useDocumentUnsavedChanges(documentId: string, snapshot: Record<s
   }, []);
 
   const knownVersion = !dirty && serverVersion?.documentId === documentId && serverVersion.accountId === accountId && Number.isFinite(Date.parse(serverVersion.updatedAt)) ? serverVersion : null;
-  return { dirty, serverVersion: knownVersion, markHydrated, captureSave, isCurrentSave, isUnchanged, markSaved, markPersistedFields, requestNavigation };
+  return { dirty, generation: generation.current, serverVersion: knownVersion, markHydrated, markPrefilled, captureSave, isCurrentSave, isUnchanged, markSaved, markPersistedFields, requestNavigation };
 }

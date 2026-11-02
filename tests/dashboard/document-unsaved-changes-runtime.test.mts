@@ -54,7 +54,7 @@ async function mount(page: Page, domain = "devis") {
     }
     const React=load('react'),Provider=load('provider').default,guard=load('subject').useDocumentUnsavedChanges;
     const openDraftFactory=new Function('documentEdits','applyDraftSnapshot','setCurrentSaveId','setDraftsOpen',${JSON.stringify(compile("return " + initializer(domain, "openDraft")))});
-    const settingsFactory=new Function('useEffectEvent','documentEdits','setDocumentsSettings','applyDocumentDefaults',${JSON.stringify(compile("return " + initializer(domain, "onDocumentSettingsLoaded")))});
+    const settingsFactory=new Function('useEffectEvent','documentEdits','setDocumentsSettings','applyDocumentDefaults','setDocumentSettingsReady',${JSON.stringify(compile("return " + initializer(domain, "onDocumentSettingsLoaded")))});
     function Editor(){
       const [id,setId]=React.useState(''),[form,setForm]=React.useState({name:'',number:'N1',status:'draft'});
       const [tick,setTick]=React.useState(0);
@@ -64,7 +64,7 @@ async function mount(page: Page, domain = "devis") {
         window.change=patch=>setForm(prev=>({...prev,...patch}));
         window.loadDraft=(nextId,snapshot)=>{edits.markHydrated();setId(nextId);setForm(snapshot)};
         window.openDraft=openDraftFactory(edits,snapshot=>{edits.markHydrated();setForm(snapshot)},setId,()=>{});
-        window.settingsLoaded=settingsFactory(fn=>fn,edits,()=>{},snapshot=>{edits.markHydrated();setForm(snapshot)});
+        window.settingsLoaded=settingsFactory(fn=>fn,edits,()=>{},snapshot=>{edits.markHydrated();setForm(snapshot)},()=>{});
         window.navigate=()=>edits.requestNavigation(()=>window.navigations.push('B'));
         window.switchAccount=()=>edits.requestNavigation(()=>{window.account='account-B';edits.markHydrated();setId('B');setForm({name:'B',number:'N2',status:'draft'})});
         window.rerender=()=>setTick(n=>n+1);
@@ -260,6 +260,6 @@ for (const domain of ["devis", "factures"]) {
     assert.ok(save.indexOf("isCurrentSave(savedVersion)") > save.indexOf("await refreshSaves()"));
     const pdf = initializer(domain, "buildPdfBlob");
     assert.doesNotMatch(pdf, /saveDraft|finalize|requestNavigation|markSaved/);
-    assert.match(initializer(domain, "assistantDocument"), /documentEdits\.dirty, \{ isFinalized, serverVersion: documentEdits\.serverVersion \}\)/);
+    assert.match(initializer(domain, "assistantDocument"), /documentEdits\.dirty, \{ isFinalized, serverVersion: documentEdits\.serverVersion, prefill: assistantPrefill \}\)/);
   });
 }

@@ -1,6 +1,7 @@
 "use client";
 import { useInrAssistantDocumentPreview } from "../../_hooks/useInrAssistantDocumentPreview";
 import { useInrAssistantDocumentMail } from "../../_hooks/useInrAssistantDocumentMail";
+import { useDocumentAssistantPrefill } from "../../_hooks/useDocumentAssistantPrefill";
 import { useDocumentUnsavedChanges, type DocumentSaveVersion, type DocumentServerVersion } from "../../_hooks/useDocumentUnsavedChanges";
 import { prepareDocumentMail } from "../../_documents/documentMailPreparation";
 import { useInrAssistantDocumentPdf } from "../../_components/DashboardAssistantCommandContext";
@@ -101,6 +102,7 @@ export default function NewDevisPage() {
     setSettingsHasUnsavedChanges, requestCloseSettings,
     documentsSettings, setDocumentsSettings,
   } = useDocumentSettingsPanel();
+  const [documentSettingsReady, setDocumentSettingsReady] = useState(false);
 
   // Toujours arriver en haut du module (évite de récupérer le scroll du dashboard)
   useEffect(() => {
@@ -266,13 +268,14 @@ export default function NewDevisPage() {
 
   const onDocumentSettingsLoaded = useEffectEvent((nextSettings: InrDocumentsSettings, applyDefaults: boolean) => {
     setDocumentsSettings(nextSettings);
+    setDocumentSettingsReady(true);
     if (applyDefaults && !documentEdits.dirty) applyDocumentDefaults(nextSettings);
   });
 
   useEffect(() => {
     let cancelled = false;
     const shouldApplyDefaults = !(
-      searchParams.get("saveId") || searchParams.get("docSaveId")
+      searchParams.get("saveId") || searchParams.get("docSaveId") || searchParams.get("templateSaveId")
     );
 
     const loadSettings = async (applyDefaults: boolean) => {
@@ -1007,6 +1010,12 @@ export default function NewDevisPage() {
     depositKind, depositValue, paymentMethod, paymentDetails, notes, quoteMention, validityDays,
     lines, discountKind, discountValue, discountDetails,
   });
+  const assistantPrefill = useDocumentAssistantPrefill({
+    kind: "quote", params: searchParams, supabase, ready: documentSettingsReady && !!profile,
+    documentId: currentSaveId, edits: documentEdits, configurationVersion: JSON.stringify([documentsSettings, vatDispense]),
+    applyTemplate: payload => applyTemplateSnapshot(payload as DevisDraft["snapshot"]),
+    onFailure: () => setFormMessage({ type: "error", text: "La source a changé ou n’est plus accessible. Relisez-la avant de préparer ce document." }),
+  });
   const assistantDocument = useInrAssistantDocumentPreview("quote", currentSaveId, {
     clientExchangePreferences, documentUiLocale,
     number, docDateISO, clientName, billingAddress, billingPostalCode, billingCity,
@@ -1015,7 +1024,7 @@ export default function NewDevisPage() {
     serviceDateMode, serviceDate, servicePeriodStart, servicePeriodEnd, purchaseOrderReference,
     depositKind, depositValue, paymentMethod, paymentDetails, notes, quoteMention, validityDays,
     lines, discountKind, discountValue, discountDetails, isFinalized, finalizedAt, documentsSettings,
-  }, documentEdits.dirty, { isFinalized, serverVersion: documentEdits.serverVersion });
+  }, documentEdits.dirty, { isFinalized, serverVersion: documentEdits.serverVersion, prefill: assistantPrefill });
   useInrAssistantDocumentPdf(assistantDocument.selection, buildPdfBlob, "devis", assistantDocument.revision);
   useInrAssistantDocumentMail({
     selection: assistantDocument.selection, revision: assistantDocument.revision,

@@ -1,6 +1,7 @@
 "use client";
 import { useInrAssistantDocumentPreview } from "../../_hooks/useInrAssistantDocumentPreview";
 import { useInrAssistantDocumentMail } from "../../_hooks/useInrAssistantDocumentMail";
+import { useDocumentAssistantPrefill } from "../../_hooks/useDocumentAssistantPrefill";
 import { useDocumentUnsavedChanges, type DocumentSaveVersion, type DocumentServerVersion } from "../../_hooks/useDocumentUnsavedChanges";
 import { prepareDocumentMail } from "../../_documents/documentMailPreparation";
 import { useInrAssistantDocumentPdf } from "../../_components/DashboardAssistantCommandContext";
@@ -104,6 +105,7 @@ export default function NewFacturePage() {
     setSettingsHasUnsavedChanges, requestCloseSettings,
     documentsSettings, setDocumentsSettings,
   } = useDocumentSettingsPanel();
+  const [documentSettingsReady, setDocumentSettingsReady] = useState(false);
 
   // Toujours arriver en haut du module (évite de récupérer le scroll du dashboard)
   useEffect(() => {
@@ -296,6 +298,7 @@ export default function NewFacturePage() {
 
   const onDocumentSettingsLoaded = useEffectEvent((nextSettings: InrDocumentsSettings, applyDefaults: boolean) => {
     setDocumentsSettings(nextSettings);
+    setDocumentSettingsReady(true);
     if (applyDefaults && !documentEdits.dirty) applyDocumentDefaults(nextSettings);
   });
 
@@ -305,7 +308,7 @@ export default function NewFacturePage() {
       searchParams.get("saveId") ||
       searchParams.get("docSaveId") ||
       searchParams.get("fromDevisSaveId") ||
-      searchParams.get("devisSaveId")
+      searchParams.get("devisSaveId") || searchParams.get("templateSaveId")
     );
 
     const loadSettings = async (applyDefaults: boolean) => {
@@ -667,8 +670,7 @@ export default function NewFacturePage() {
   const onDevisConversionLoadFailed = useEffectEvent((missing: boolean) => {
     setFormMessage({ type: "error", text: missing ? i18nT("devis_introuvable_pour_la_conversion_b075b89b") : i18nT("impossible_de_charger_ce_devis_pour_37592632") });
   });
-  const onDevisConversionLoaded = useEffectEvent((devis: DevisSnapshot, devisSaveId: string, invoiceDateISO: string, dueDateISO: string) => {
-      void documentEdits.requestNavigation(() => {
+  const applyDevisConversionSnapshot = (devis: DevisSnapshot, devisSaveId: string, invoiceDateISO: string, dueDateISO: string) => {
         documentEdits.markHydrated();
         setCurrentSaveId("");
         setIsFinalized(false);
@@ -793,13 +795,16 @@ export default function NewFacturePage() {
           type: "success",
           text: i18nT("facture_preremplie_depuis_le_devis_value_dbbc57b2", { value0: devis.number || "sélectionné" }),
         });
-      });
-      });
+  };
+  const onDevisConversionLoaded = useEffectEvent((devis: DevisSnapshot, devisSaveId: string, invoiceDateISO: string, dueDateISO: string) => {
+    void documentEdits.requestNavigation(() => applyDevisConversionSnapshot(devis, devisSaveId, invoiceDateISO, dueDateISO));
+  });
 
   useEffect(() => {
     const existingSaveId =
       searchParams.get("saveId") || searchParams.get("docSaveId") || "";
     if (existingSaveId) return;
+    if (searchParams.get("assistantPrefill") === "1") return;
 
     const devisSaveId =
       searchParams.get("fromDevisSaveId") ||
@@ -1426,6 +1431,16 @@ export default function NewFacturePage() {
     depositKind, depositValue, vatOnDebits, lateFeeRate, fixedRecoveryFee40, documentKind,
     status, paymentMethod, paymentDetails, notes, invoiceMention, lines, discountKind, discountValue, discountDetails,
   });
+  const assistantPrefill = useDocumentAssistantPrefill({
+    kind: "invoice", params: searchParams, supabase, ready: documentSettingsReady && !!profile,
+    documentId: currentSaveId, edits: documentEdits, configurationVersion: JSON.stringify([documentsSettings, vatDispense]),
+    applyTemplate: payload => applyTemplateSnapshot(payload as FactureDraft["snapshot"]),
+    applyConversion: (payload, sourceId) => {
+      const date = new Date().toISOString().slice(0, 10);
+      applyDevisConversionSnapshot(payload as DevisSnapshot, sourceId, date, dateWithAddedDays(date, documentsSettings.invoice.dueDays));
+    },
+    onFailure: () => setFormMessage({ type: "error", text: "La source a changé ou n’est plus accessible. Relisez-la avant de préparer ce document." }),
+  });
   const assistantDocument = useInrAssistantDocumentPreview("invoice", currentSaveId, {
     clientExchangePreferences, documentUiLocale,
     number, invoiceDate, dueDate, clientName, billingAddress, billingPostalCode, billingCity,
@@ -1435,7 +1450,7 @@ export default function NewFacturePage() {
     depositKind, depositValue, vatOnDebits, lateFeeRate, fixedRecoveryFee40, documentKind,
     status, paymentMethod, paymentDetails, notes, invoiceMention, lines, discountKind, discountValue,
     discountDetails, isFinalized, finalizedAt, documentsSettings,
-  }, documentEdits.dirty, { isFinalized, serverVersion: documentEdits.serverVersion });
+  }, documentEdits.dirty, { isFinalized, serverVersion: documentEdits.serverVersion, prefill: assistantPrefill });
   useInrAssistantDocumentPdf(assistantDocument.selection, buildPdfBlob, "facture", assistantDocument.revision);
   useInrAssistantDocumentMail({
     selection: assistantDocument.selection, revision: assistantDocument.revision,

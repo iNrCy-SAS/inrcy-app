@@ -9,6 +9,7 @@ import { COMMERCIAL_UUID } from "../../lib/commercialDocumentDraft.ts";
 import { commercialDocumentRow } from "../../lib/commercialDocumentValidation.ts";
 import * as commands from "../../lib/inrAssistantCommandRegistry.ts";
 import * as actionClause from "../../lib/inrAssistantActionClause.ts";
+import * as documentCommands from "../../lib/inrAssistantDocumentUiCommands.ts";
 
 const ACCOUNT = "11111111-1111-4111-8111-111111111111", ID = "22222222-2222-4222-8222-222222222222", OTHER = "33333333-3333-4333-8333-333333333333";
 const VERSION = "2026-11-02T10:00:00.000Z";
@@ -76,6 +77,8 @@ function harness(options: { account?: string; owner?: string; type?: string; pay
     "@/app/api/documents/status/route": route,
   });
   type Tool = { execute(input: unknown): Promise<Row> };
+  deps["./inrAssistantDocumentUiCommands.ts"] = documentCommands;
+  deps["./inrAssistantDocumentFormTools.ts"] = load("lib/inrAssistantDocumentFormTools.ts");
   const adapter = load<{ createInrAssistantDocumentNativeTools(options: unknown): { previewCommercialDocumentAction: Tool; applyCommercialDocumentAction: Tool } }>("lib/inrAssistantDocumentNativeTools.ts");
   const tokens = new Map<string, string>();
   const tools = (message: string, overrides: Row = {}) => adapter.createInrAssistantDocumentNativeTools({

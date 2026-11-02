@@ -4,10 +4,11 @@ import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { useInrAssistantScreen } from "../_components/DashboardAssistantScreenContext";
 import type { DocumentServerVersion } from "./useDocumentUnsavedChanges";
+import type { InrAssistantDocumentPrefill } from "@/lib/inrAssistantDocumentUiCommands";
 
 /** A local preview has an identity without saving it. Only its opaque revision leaves
  * the form; client names, lines and prices remain local to the native renderer. */
-export function useInrAssistantDocumentPreview(kind: "quote" | "invoice", savedId: string, snapshot: unknown, pendingChanges = false, mail?: { isFinalized: boolean; serverVersion: DocumentServerVersion | null }) {
+export function useInrAssistantDocumentPreview(kind: "quote" | "invoice", savedId: string, snapshot: unknown, pendingChanges = false, mail?: { isFinalized: boolean; serverVersion: DocumentServerVersion | null; prefill?: InrAssistantDocumentPrefill }) {
   const instance = useId().replace(/[^a-zA-Z0-9_-]/g, "_");
   const signature = JSON.stringify(snapshot);
   const [version, setVersion] = useState({ signature, revision: 0 });
@@ -35,6 +36,6 @@ export function useInrAssistantDocumentPreview(kind: "quote" | "invoice", savedI
   const canPrepareMail = !!savedId && !pendingChanges && mail?.isFinalized === true && mail.serverVersion?.documentId === savedId &&
     mail.serverVersion.accountId === accountId && Number.isFinite(Date.parse(mail.serverVersion.updatedAt));
   useInrAssistantScreen({ selection, revision, availableCommands: canPrepareMail ? ["export_document_pdf", "prepare_document_mail"] : ["export_document_pdf"],
-    pendingChanges: !savedId || pendingChanges, ...(canPrepareMail ? { documentVersion: mail!.serverVersion!.updatedAt } : {}) });
+    pendingChanges: !savedId || pendingChanges, ...(canPrepareMail ? { documentVersion: mail!.serverVersion!.updatedAt } : {}), ...(mail?.prefill ? { documentPrefill: mail.prefill } : {}) });
   return { selection, revision, canPrepareMail, captureRevision, isCurrentRevision, isSameContent };
 }

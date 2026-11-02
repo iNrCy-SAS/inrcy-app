@@ -90,7 +90,7 @@ for (const area of ["devis", "factures"]) test(`${area}: loaded defaults use the
   const h = runtime(), pending: Array<(response: Response) => void> = [], applied: string[] = [];
   const listeners = new Map<string, () => void>();
   const props = {
-    searchParams: new URLSearchParams(), setDocumentsSettings() {}, applyDocumentDefaults: () => applied.push("old VAT"),
+    searchParams: new URLSearchParams(), setDocumentsSettings() {}, setDocumentSettingsReady() {}, applyDocumentDefaults: () => applied.push("old VAT"),
     documentEdits: { dirty: false },
   };
   const source = selectedStatements(`${area}/new/page.tsx`, ["onDocumentSettingsLoaded"], "const loadSettings");

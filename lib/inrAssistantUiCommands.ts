@@ -1,7 +1,7 @@
 import { isInrAssistantMediaUiCommandName, isInrAssistantMediaUiCommandText, parseInrAssistantMediaUiCommand, type InrAssistantMediaUiCommand } from "./inrAssistantMediaUiCommands.ts";
 import { getAssistantInternalDestination } from "./inrAssistantNavigation.ts";
 import { parseInrAssistantMailPatch, inrAssistantMailRecipientRequested, type InrAssistantMailCommand } from "./inrAssistantMailCompose.ts";
-import { parseInrAssistantDocumentMailCommand, type InrAssistantDocumentMailCommand } from "./inrAssistantDocumentUiCommands.ts";
+import { parseInrAssistantDocumentMailCommand, getInrAssistantDocumentPrefillNavigation, type InrAssistantDocumentMailCommand, type InrAssistantDocumentPrefill } from "./inrAssistantDocumentUiCommands.ts";
 
 /** Shared public destinations. These commands navigate; they never grant business permissions. */
 export const INR_ASSISTANT_NAVIGATION = {
@@ -30,7 +30,7 @@ export const INR_ASSISTANT_NAVIGATION = {
   credits: "/dashboard/boutique/recharges", cash: "/dashboard?action=cash",
 } as const;
 export const INR_ASSISTANT_NAVIGATION_DESTINATIONS = Object.keys(INR_ASSISTANT_NAVIGATION) as (keyof typeof INR_ASSISTANT_NAVIGATION)[];
-export type InrAssistantNavigation = { destination: string; href: string; label: string; documentId?: string };
+export type InrAssistantNavigation = { destination: string; href: string; label: string; documentId?: string; documentPrefill?: InrAssistantDocumentPrefill };
 export const INR_ASSISTANT_ADS_STEPS = ["foundations", "bidding", "geography", "targeting", "keywords", "creative", "pinterest_format", "identity", "media", "delivery", "budget", "validation", "analysis"] as const;
 export type InrAssistantAdsPatch = { name?: string; primaryText?: string; step?: typeof INR_ASSISTANT_ADS_STEPS[number] };
 export type InrAssistantVideoPatch = { format?: "original" | "9_16" | "1_1" | "16_9"; adaptationMode?: "safe_frame" | "cover_crop" };
@@ -90,6 +90,10 @@ export function getInrAssistantNavigation(destination: unknown, documentId?: unk
 export function parseInrAssistantNavigation(value: unknown): InrAssistantNavigation | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const input = value as Record<string, unknown>;
+  if (input.documentPrefill) {
+    const target = getInrAssistantDocumentPrefillNavigation(input.documentPrefill);
+    return target && !input.documentId && input.destination === target.destination && input.href === target.href && input.label === target.label ? target : null;
+  }
   const target = getInrAssistantNavigation(input.destination, input.documentId);
   // Do not accept provider/browser supplied URLs or labels, even for known keys.
   return target && input.href === target.href && input.label === target.label ? target : null;

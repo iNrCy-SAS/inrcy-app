@@ -1,5 +1,6 @@
 import { isInrAssistantMediaUiCommandAvailable, type InrAssistantMediaUiCommandName } from "./inrAssistantMediaUiCommands.ts";
 import { getAssistantInternalDestination } from "./inrAssistantNavigation.ts";
+import { parseInrAssistantDocumentPrefill, type InrAssistantDocumentPrefill } from "./inrAssistantDocumentUiCommands.ts";
 
 export type InrAssistantClientError = { code?: string; requestId?: string; occurredAt: string };
 export type InrAssistantClientScreen = {
@@ -8,6 +9,7 @@ export type InrAssistantClientScreen = {
   pendingChanges?: boolean;
   revision?: string;
   documentVersion?: string;
+  documentPrefill?: InrAssistantDocumentPrefill;
   /** Only explicitly checked library items, never arbitrary DOM or ownership claims. */
   selectedMediaIds?: string[];
   selectionOverflow?: boolean;
@@ -59,7 +61,9 @@ export function parseInrAssistantClientContext(value: unknown, now = Date.now())
     const selectionOverflow = rawScreen.pathname === "/dashboard/mediatheque" && rawScreen.selectionOverflow === true;
     const revision = typeof rawScreen.revision === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(rawScreen.revision) ? rawScreen.revision : undefined;
     const documentVersion = selection && ["quote", "invoice"].includes(selection.kind) && typeof rawScreen.documentVersion === "string" && rawScreen.documentVersion.length <= 40 && Number.isFinite(Date.parse(rawScreen.documentVersion)) ? rawScreen.documentVersion : undefined;
-    if (destination) screen = { pathname: rawScreen.pathname, tool: destination.label, ...(action ? { action } : {}), ...(panel ? { panel } : {}), ...(channel ? { channel } : {}), ...(step ? { step } : {}), ...(selection ? { selection } : {}), ...(revision ? { revision } : {}), ...(documentVersion ? { documentVersion } : {}), ...(typeof rawScreen.pendingChanges === "boolean" ? { pendingChanges: rawScreen.pendingChanges } : {}), ...(availableCommands?.length ? { availableCommands } : {}), ...(selectedMediaIds && !selectionOverflow ? { selectedMediaIds } : {}), ...(selectionOverflow ? { selectionOverflow: true } : {}) };
+    const prefill = parseInrAssistantDocumentPrefill(rawScreen.documentPrefill);
+    const documentPrefill = prefill && selection?.kind === prefill.kind && rawScreen.pathname === `/dashboard/${prefill.kind === "quote" ? "devis" : "factures"}/new` ? prefill : undefined;
+    if (destination) screen = { pathname: rawScreen.pathname, tool: destination.label, ...(action ? { action } : {}), ...(panel ? { panel } : {}), ...(channel ? { channel } : {}), ...(step ? { step } : {}), ...(selection ? { selection } : {}), ...(revision ? { revision } : {}), ...(documentVersion ? { documentVersion } : {}), ...(documentPrefill ? { documentPrefill } : {}), ...(typeof rawScreen.pendingChanges === "boolean" ? { pendingChanges: rawScreen.pendingChanges } : {}), ...(availableCommands?.length ? { availableCommands } : {}), ...(selectedMediaIds && !selectionOverflow ? { selectedMediaIds } : {}), ...(selectionOverflow ? { selectionOverflow: true } : {}) };
   }
   const rawError = record(input.visibleError);
   const requestId = parseInrAssistantRequestId(rawError.requestId);
