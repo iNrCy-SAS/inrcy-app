@@ -9,7 +9,7 @@ import { useInrAssistantScreen } from "../_components/DashboardAssistantScreenCo
 
 type NativeDraftOptions = {
   command: InrAssistantNativeCommand["command"];
-  kind: "campaign" | "media";
+  kind: "campaign" | "media" | "mail";
   id?: string | null;
   snapshot: unknown;
   enabled: boolean;
@@ -26,7 +26,7 @@ export function useInrAssistantNativeDraft(options: NativeDraftOptions) {
   const instance = useId().replace(/[^a-zA-Z0-9_-]/g, "_");
   const pathname = usePathname();
   const register = useContext(DashboardAssistantCommandContext);
-  const enabled = options.enabled && pathname === (options.command === "configure_ads_draft" ? "/dashboard/ads" : "/dashboard/generer-media");
+  const enabled = options.enabled && pathname === (options.command === "configure_ads_draft" ? "/dashboard/ads" : options.command === "configure_mail_draft" ? "/dashboard/mails" : "/dashboard/generer-media");
   const signature = JSON.stringify(options.snapshot);
   const [version, setVersion] = useState({ signature, revision: 0 });
   if (version.signature !== signature) setVersion({ signature, revision: version.revision + 1 });
@@ -61,9 +61,10 @@ export function useInrAssistantNativeDraft(options: NativeDraftOptions) {
     // The placeholder patch is never executed: Provider passes the signed incoming command.
     const handler = options.command === "configure_ads_draft"
       ? { command: options.command, selection: { kind: "campaign" as const, id }, revision, patch: {} }
+      : options.command === "configure_mail_draft" ? { command: options.command, selection: { kind: "mail" as const, id }, revision, patch: {} }
       : { command: options.command, selection: { kind: "media" as const, id }, revision, patch: {} };
     register(instance, { ...handler, pathname, run: (stillCurrent, incoming, scopeCurrent) =>
-      incoming.command === "configure_ads_draft" || incoming.command === "configure_video_retouch" ? run(stillCurrent, incoming, scopeCurrent) : Promise.resolve(false) });
+      incoming.command === "configure_ads_draft" || incoming.command === "configure_video_retouch" || incoming.command === "configure_mail_draft" ? run(stillCurrent, incoming, scopeCurrent) : Promise.resolve(false) });
     return () => register(instance, null);
   }, [id, instance, options.command, enabled, pathname, register, revision]);
 }

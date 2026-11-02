@@ -1,6 +1,7 @@
 "use client";
 
 import { useMailboxHistory } from "./_hooks/useMailboxHistory";
+import { useInrAssistantNativeDraft } from "../_hooks/useInrAssistantNativeDraft";
 import { useMailboxCrmRecipients } from "./_hooks/useMailboxCrmRecipients";
 import { useMailboxPublicationMedia } from "./_hooks/useMailboxPublicationMedia";
 
@@ -499,6 +500,25 @@ export default function MailboxClient({
     () => makeComposeSnapshot(),
     [makeComposeSnapshot],
   );
+
+  useInrAssistantNativeDraft({
+    command: "configure_mail_draft", kind: "mail", id: draftId,
+    enabled: composeOpen && !sendBusy && !scheduleBusy && !attachBusy && !scheduledMailEditSaving,
+    snapshot: { currentComposeSnapshot, draftId, scheduledMailEdit },
+    pendingChanges: lastSavedComposeSnapshot !== currentComposeSnapshot,
+    apply: command => {
+      if (command.command !== "configure_mail_draft") return false;
+      const patch = command.patch;
+      if (patch.recipient !== undefined) setTo(patch.recipient);
+      if (patch.subject !== undefined) setSubject(patch.subject);
+      if (patch.bodyText !== undefined) { setText(patch.bodyText); setHtml(""); }
+      return true;
+    },
+    isApplied: command => command.command === "configure_mail_draft"
+      && (command.patch.recipient === undefined || to === command.patch.recipient)
+      && (command.patch.subject === undefined || subject === command.patch.subject)
+      && (command.patch.bodyText === undefined || text === command.patch.bodyText && html === ""),
+  });
 
   function setComposeSavedSnapshotFromCurrent() {
     setLastSavedComposeSnapshot(makeComposeSnapshot());

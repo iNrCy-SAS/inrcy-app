@@ -3,7 +3,7 @@ import { jsonSchema, tool } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireUser } from "./requireUser";
 import type { InrAssistantClientContext } from "./inrAssistantClientContext.ts";
-import { parseInrAssistantUiCommand, isInrAssistantScreenCommandRequest, INR_ASSISTANT_ADS_STEPS } from "./inrAssistantUiCommands.ts";
+import { parseInrAssistantUiCommand, isInrAssistantScreenCommandRequest, INR_ASSISTANT_ADS_STEPS, inrAssistantMailPatchRequested } from "./inrAssistantUiCommands.ts";
 import { getInrAssistantNavigation, INR_ASSISTANT_NAVIGATION_DESTINATIONS, isInrAssistantNavigationRequest } from "./inrAssistantUiCommands.ts";
 
 export function createInrAssistantUiTools(options: { accountId: string; currentUserMessage: string; supabase?: Pick<SupabaseClient, "from">; clientContext?: InrAssistantClientContext | null; canStartWork?: () => boolean }) {
@@ -39,25 +39,27 @@ export function createInrAssistantUiTools(options: { accountId: string; currentU
     }),
     runScreenCommand: tool({
       strict: true,
-      description: "Configurer le formulaire actuellement monté avec configure_ads_draft (nom/texte/étape) ou configure_video_retouch (format/cadrage). Uniquement si la capacité correspondante est déclarée : aucune sauvegarde, dépense, génération ou publication. patch contient seulement les champs demandés, les autres null. Pour ces modifications, documentId/documentKind null. Télécharger le PDF natif. Pour l’aperçu actuellement ouvert, documentId/documentKind null ; il doit déclarer export_document_pdf. Pour un document nommé ou un autre document, lire son ID réel avec readCommercialDocuments puis fournir documentId et documentKind. Le navigateur ouvre cette cible vérifiée, attend son montage, puis exporte ce document exact ; toute navigation refusée arrête l’export. Ne finalise, ne sauvegarde et n’envoie rien. Un téléchargement lancé n’est pas la preuve d’un fichier reçu.",
-      inputSchema: jsonSchema<{ command: "export_document_pdf" | "configure_ads_draft" | "configure_video_retouch"; instructionQuote: string; documentId?: string | null; documentKind?: "quote" | "invoice" | null; patch?: Record<string, unknown> | null }>({ type: "object", properties: {
-        command: { type: "string", enum: ["export_document_pdf", "configure_ads_draft", "configure_video_retouch"] }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 },
+      description: "Configurer le formulaire actuellement monté avec configure_ads_draft (nom/texte/étape) configure_video_retouch (format/cadrage) ou configure_mail_draft (recipient exact, subject, bodyText). Pour mail, seul le composeur déjà ouvert est modifié : aucun envoi ni ajout de pièce jointe. Uniquement si la capacité correspondante est déclarée : aucune sauvegarde, dépense, génération ou publication. patch contient seulement les champs demandés, les autres null. Pour ces modifications, documentId/documentKind null. Télécharger le PDF natif. Pour l’aperçu actuellement ouvert, documentId/documentKind null ; il doit déclarer export_document_pdf. Pour un document nommé ou un autre document, lire son ID réel avec readCommercialDocuments puis fournir documentId et documentKind. Le navigateur ouvre cette cible vérifiée, attend son montage, puis exporte ce document exact ; toute navigation refusée arrête l’export. Ne finalise, ne sauvegarde et n’envoie rien. Un téléchargement lancé n’est pas la preuve d’un fichier reçu.",
+      inputSchema: jsonSchema<{ command: "export_document_pdf" | "configure_ads_draft" | "configure_video_retouch" | "configure_mail_draft"; instructionQuote: string; documentId?: string | null; documentKind?: "quote" | "invoice" | null; patch?: Record<string, unknown> | null }>({ type: "object", properties: {
+        command: { type: "string", enum: ["export_document_pdf", "configure_ads_draft", "configure_video_retouch", "configure_mail_draft"] }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 },
         documentId: { type: ["string", "null"], format: "uuid" }, documentKind: { type: ["string", "null"], enum: ["quote", "invoice", null] },
         patch: { type: ["object", "null"], properties: {
           name: { type: ["string", "null"], maxLength: 100 }, primaryText: { type: ["string", "null"], maxLength: 800 },
           step: { type: ["string", "null"], enum: [...INR_ASSISTANT_ADS_STEPS, null] },
           format: { type: ["string", "null"], enum: ["original", "9_16", "1_1", "16_9", null] },
           adaptationMode: { type: ["string", "null"], enum: ["safe_frame", "cover_crop", null] },
-        }, required: ["name", "primaryText", "step", "format", "adaptationMode"], additionalProperties: false },
+          recipient: { type: ["string", "null"], maxLength: 254 }, subject: { type: ["string", "null"], maxLength: 220 }, bodyText: { type: ["string", "null"], maxLength: 6000 },
+        }, required: ["name", "primaryText", "step", "format", "adaptationMode", "recipient", "subject", "bodyText"], additionalProperties: false },
       }, required: ["command", "instructionQuote", "documentId", "documentKind", "patch"], additionalProperties: false }),
       execute: async input => {
         const screen = options.clientContext?.screen;
-        if (input.command === "configure_ads_draft" || input.command === "configure_video_retouch") {
+        if (input.command === "configure_ads_draft" || input.command === "configure_video_retouch" || input.command === "configure_mail_draft") {
           const command = parseInrAssistantUiCommand({ command: input.command, selection: screen?.selection, revision: screen?.revision, patch: input.patch });
-          const expectedPath = input.command === "configure_ads_draft" ? "/dashboard/ads" : "/dashboard/generer-media";
+          const expectedPath = input.command === "configure_ads_draft" ? "/dashboard/ads" : input.command === "configure_mail_draft" ? "/dashboard/mails" : "/dashboard/generer-media";
           if (!command || command.command !== input.command || input.documentId || input.documentKind || screen?.pathname !== expectedPath || !screen.availableCommands?.includes(input.command)) return { ok: false, status: "needs_details", message: "Ouvrez le formulaire ou la vidéo à modifier et précisez les réglages. Aucun changement n’a été appliqué." };
           if (options.canStartWork?.() === false || !input.instructionQuote?.trim() || !options.currentUserMessage.includes(input.instructionQuote)
             || !isInrAssistantScreenCommandRequest(input.instructionQuote, input.command) || !isInrAssistantScreenCommandRequest(options.currentUserMessage, input.command)) return { ok: false, status: "needs_instruction", message: "Demandez explicitement les changements du formulaire ouvert. Aucun changement n’a été appliqué." };
+          if (command.command === "configure_mail_draft" && !inrAssistantMailPatchRequested(input.instructionQuote, command.patch)) return { ok: false, status: "needs_details", message: "Précisez les champs à modifier et l’adresse exacte si le destinataire doit changer. Aucun message envoyé." };
           const auth = await requireUser();
           if (auth.errorResponse || auth.activeUserId !== options.accountId) return { ok: false, status: "blocked", message: "Le compte actif doit être vérifié." };
           return { ok: true, status: "ui_action_requested", uiCommand: command, message: "Application des réglages demandée au formulaire ouvert. Le navigateur vérifiera sa révision avant modification ; aucune sauvegarde ou publication n’est lancée." };

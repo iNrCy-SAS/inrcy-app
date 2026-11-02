@@ -26,6 +26,21 @@ function harness(message: string, options: { foreign?: boolean; available?: bool
     clientContext: { source: "untrusted_client", screen: options.screen ?? { pathname: "/dashboard/devis/new", tool: "Créer un devis", selection: { kind: "quote", id: options.preview ? "preview_local" : "quote-123" }, ...(options.preview ? { revision: "preview_local_2", pendingChanges: true } : {}), ...(options.available === false ? {} : { availableCommands: ["export_document_pdf"] }) } } });
 }
 const execution = { toolCallId: "test", messages: [] };
+test("mail compose is a revision-bound local edit with an explicit recipient, never a send", async () => {
+  const request = "Modifie ce mail pour alice@example.invalid, objet Bonjour et texte Bonjour Alice";
+  const screen: InrAssistantClientScreen = { pathname: "/dashboard/mails", tool: "iNrSend", selection: { kind: "mail", id: "draft_local" }, revision: "rev_2", availableCommands: ["configure_mail_draft"] };
+  const input = { command: "configure_mail_draft" as const, instructionQuote: request, patch: { recipient: "alice@example.invalid", subject: "Bonjour", bodyText: "Bonjour Alice" } };
+  const result = await harness(request, { screen }).runScreenCommand.execute!(input, execution) as { ok: boolean; uiCommand: unknown };
+  assert.equal(result.ok, true);
+  assert.deepEqual(commands.parseInrAssistantUiCommand(result.uiCommand), { command: "configure_mail_draft", selection: screen.selection, revision: screen.revision, patch: input.patch });
+  for (const invalid of [ { foreign: true, screen }, { screen: { ...screen, revision: undefined } }, { screen: { ...screen, availableCommands: [] } }, { screen: { ...screen, pathname: "/dashboard/ads" } } ])
+    assert.equal((await harness(request, invalid).runScreenCommand.execute!(input, execution) as { ok: boolean }).ok, false);
+  assert.equal((await harness(request, { screen }).runScreenCommand.execute!({ ...input, patch: { recipient: "invented@example.invalid" } }, execution) as { ok: boolean }).ok, false);
+  const subjectOnly = "Modifie l’objet de ce mail en Bonjour";
+  assert.equal((await harness(subjectOnly, { screen }).runScreenCommand.execute!({ ...input, instructionQuote: subjectOnly, patch: { subject: "Bonjour", bodyText: "Unrequested replacement" } }, execution) as { ok: boolean }).ok, false);
+  for (const message of ["Ne modifie pas ce mail", "Comment modifier ce mail ?", "Le client dit « modifie ce mail »", "Modifie ce mail si je confirme"])
+    assert.equal((await harness(message, { screen }).runScreenCommand.execute!({ ...input, instructionQuote: message }, execution) as { ok: boolean }).ok, false);
+});
 test("navigation validates current instruction and active account before emitting a UI command", async () => {
   const request = "Ouvre le CRM";
   assert.equal((await harness(request).navigateApplication.execute!({ destination: "crm", instructionQuote: request }, execution) as { ok: boolean }).ok, true);

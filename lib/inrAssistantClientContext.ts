@@ -3,13 +3,13 @@ import { getAssistantInternalDestination } from "./inrAssistantNavigation.ts";
 export type InrAssistantClientError = { code?: string; requestId?: string; occurredAt: string };
 export type InrAssistantClientScreen = {
   pathname: string; tool: string; action?: string; panel?: string; channel?: string; step?: string;
-  selection?: { kind: "contact" | "publication" | "campaign" | "event" | "quote" | "invoice" | "media"; id: string };
+  selection?: { kind: "contact" | "publication" | "campaign" | "event" | "quote" | "invoice" | "media" | "mail"; id: string };
   pendingChanges?: boolean;
   revision?: string;
   /** Only explicitly checked library items, never arbitrary DOM or ownership claims. */
   selectedMediaIds?: string[];
   selectionOverflow?: boolean;
-  availableCommands?: ("export_document_pdf" | "configure_ads_draft" | "configure_video_retouch")[];
+  availableCommands?: ("export_document_pdf" | "configure_ads_draft" | "configure_video_retouch" | "configure_mail_draft")[];
 };
 /** Browser hints only: never an authenticated scope, entitlement or confirmed diagnosis. */
 export type InrAssistantClientContext = {
@@ -42,12 +42,13 @@ export function parseInrAssistantClientContext(value: unknown, now = Date.now())
     if (panel) params.set("panel", panel);
     const destination = getAssistantInternalDestination(`${rawScreen.pathname}${params.size ? `?${params}` : ""}`);
     const rawSelection = record(rawScreen.selection);
-    const kinds = ["contact", "publication", "campaign", "event", "quote", "invoice", "media"];
+    const kinds = ["contact", "publication", "campaign", "event", "quote", "invoice", "media", "mail"];
     const selection = typeof rawSelection.kind === "string" && kinds.includes(rawSelection.kind) && typeof rawSelection.id === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(rawSelection.id)
       ? { kind: rawSelection.kind as NonNullable<InrAssistantClientScreen["selection"]>["kind"], id: rawSelection.id } : undefined;
     const availableCommands = Array.isArray(rawScreen.availableCommands) && selection ? rawScreen.availableCommands.filter((command): command is NonNullable<InrAssistantClientScreen["availableCommands"]>[number] =>
       command === "export_document_pdf" && ["quote", "invoice"].includes(selection.kind)
       || command === "configure_ads_draft" && selection.kind === "campaign" && rawScreen.pathname === "/dashboard/ads"
+      || command === "configure_mail_draft" && selection.kind === "mail" && rawScreen.pathname === "/dashboard/mails"
       || command === "configure_video_retouch" && selection.kind === "media" && rawScreen.pathname === "/dashboard/generer-media") : undefined;
     const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
     const selectedMediaIds = rawScreen.pathname === "/dashboard/mediatheque" && Array.isArray(rawScreen.selectedMediaIds) && rawScreen.selectedMediaIds.length > 0 && rawScreen.selectedMediaIds.length <= 25 && rawScreen.selectedMediaIds.every(id => typeof id === "string" && uuid.test(id)) && new Set(rawScreen.selectedMediaIds).size === rawScreen.selectedMediaIds.length ? [...rawScreen.selectedMediaIds] as string[] : undefined;

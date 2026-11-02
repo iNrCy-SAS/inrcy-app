@@ -35,6 +35,7 @@ function nativeBridgeSource(file: string) {
 }
 const adsBridge = nativeBridgeSource("app/dashboard/ads/AdsClient.tsx");
 const videoBridge = nativeBridgeSource("app/dashboard/_components/MediaVideoRetoucher.tsx");
+const mailBridge = nativeBridgeSource("app/dashboard/mails/MailboxClient.tsx");
 const sources = {
   react: packageSource("react", "react.production.js"), "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
   "react-dom": packageSource("react-dom", "react-dom.production.js"), "react-dom/client": packageSource("react-dom", "react-dom-client.production.js"), scheduler: packageSource("scheduler", "scheduler.production.js"),
@@ -43,7 +44,7 @@ const sources = {
   "./DashboardAssistantCommandContext": compile("app/dashboard/_components/DashboardAssistantCommandContext.tsx"),
   "native": compile("app/dashboard/_hooks/useInrAssistantNativeDraft.ts"),
   "preview": compile("app/dashboard/_hooks/useInrAssistantDocumentPreview.ts"),
-  ...Object.fromEntries(["inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
+  ...Object.fromEntries(["inrAssistantMailCompose", "inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
 };
 const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
 const fixture = `
@@ -102,13 +103,22 @@ function VideoDraft(){
  window.editNative=value=>setFormat(value); window.nativeState={format,adaptationMode,saved};
  return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
 }
-function Fixture(){const[,render]=React.useState(0);window.renderFixture=()=>render(n=>n+1);return React.createElement(require('provider').default,null,React.createElement(window.fixtureScope.pathname==='/dashboard/ads'?AdsDraft:window.fixtureScope.pathname==='/dashboard/generer-media'?VideoDraft:window.fixtureScope.pathname==='/dashboard/mediatheque'?Library:Document))}
+function MailDraft(){
+ const [to,setTo]=React.useState('original@example.invalid'),[subject,setSubject]=React.useState('Original'),[text,setText]=React.useState('Original text'),[html,setHtml]=React.useState('<p>Original text</p>');
+ const draftId=window.fixtureScope.documentId,composeOpen=true,sendBusy=Boolean(window.fixtureScope.blocked),scheduleBusy=false,attachBusy=false,scheduledMailEditSaving=false,scheduledMailEdit=null;
+ const currentComposeSnapshot=JSON.stringify({to,subject,text,html}),lastSavedComposeSnapshot=null;
+ const useInrAssistantNativeDraft=require('native').useInrAssistantNativeDraft;
+ ${mailBridge.call}
+ window.editNative=value=>setSubject(value);window.nativeState={to,subject,text,html};
+ return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
+}
+function Fixture(){const[,render]=React.useState(0);window.renderFixture=()=>render(n=>n+1);return React.createElement(require('provider').default,null,React.createElement(window.fixtureScope.pathname==='/dashboard/mails'?MailDraft:window.fixtureScope.pathname==='/dashboard/ads'?AdsDraft:window.fixtureScope.pathname==='/dashboard/generer-media'?VideoDraft:window.fixtureScope.pathname==='/dashboard/mediatheque'?Library:Document))}
 window.mountTarget=()=>{const url=new URL(window.requestedHref,location.origin);window.fixtureScope={...window.fixtureScope,pathname:url.pathname,query:url.search.slice(1),documentId:url.searchParams.get('saveId')};window.renderFixture()};
 window.startActions=actions=>{window.result=null;window.assistantProps.onUiActions(actions,undefined,window.deferClaim?()=>new Promise(resolve=>window.releaseClaim=()=>resolve(true)):undefined).then(value=>window.result=value)};
 require('react-dom/client').createRoot(document.getElementById('root')).render(React.createElement(Fixture));
 `;
 const actions = inrAssistantUiActionsFromToolResult("pdf-b", { ok: true, navigation: getInrAssistantNavigation("quotes", B), uiCommand: { command: "export_document_pdf", selection: { kind: "quote", id: B } } });
-async function setup(page: Page, library = false, unsaved = false, native?: "ads" | "generer-media") {
+async function setup(page: Page, library = false, unsaved = false, native?: "ads" | "generer-media" | "mails") {
   await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: '<html><body><div id="root"></div></body></html>' }) : route.abort());
   await page.goto(native ? `https://fixture.invalid/dashboard/${native}` : library ? "https://fixture.invalid/dashboard/mediatheque" : `https://fixture.invalid/dashboard/devis/new${unsaved ? "?new=1" : ""}`);
   await page.addScriptTag({ content: fixture });
@@ -132,6 +142,49 @@ test("real React provider waits for B to mount and exports B once, never initial
     await page.evaluate(() => (window as unknown as UiFixture).renderFixture());
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).exports.length), 1);
     assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test("native mail draft applies committed fields without saving/sending and invalidates stale edits", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, false, "mails");
+    const current = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+    const make = (patch: Record<string, string>) => inrAssistantUiActionsFromToolResult("mail", { ok: true, uiCommand: { command: "configure_mail_draft", selection: { kind: "mail", id: current.selection.id }, revision: current.revision, patch } });
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), make({ subject: "Nouveau sujet" }));
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
+    assert.deepEqual(await page.evaluate(() => (window as unknown as UiFixture).nativeState), { to: "original@example.invalid", subject: "Nouveau sujet", text: "Original text", html: "<p>Original text</p>" });
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), make({ bodyText: "Late obsolete text" }));
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "failed");
+    const updated = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+    const body = inrAssistantUiActionsFromToolResult("mail-body", { ok: true, uiCommand: { command: "configure_mail_draft", selection: { kind: "mail", id: updated.selection.id }, revision: updated.revision, patch: { bodyText: "Bonjour Alice" } } });
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), body);
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
+    assert.deepEqual(await page.evaluate(() => (window as unknown as UiFixture).nativeState), { to: "original@example.invalid", subject: "Nouveau sujet", text: "Bonjour Alice", html: "" });
+    assert.deepEqual(await page.evaluate(() => (window as unknown as UiFixture).requests), []);
+  } finally { await browser.close(); }
+});
+
+test("native mail pending edit is refused if account or form becomes busy before claim", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const mode of ["account", "busy"]) {
+      const page = await browser.newPage(); await setup(page, false, false, "mails");
+      const current = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+      const actions = inrAssistantUiActionsFromToolResult("mail-late", { ok: true, uiCommand: { command: "configure_mail_draft", selection: { kind: "mail", id: current.selection.id }, revision: current.revision, patch: { subject: "Late subject" } } });
+      await page.evaluate(actions => { const f = window as unknown as UiFixture; f.deferClaim = true; f.startActions(actions); }, actions);
+      await page.waitForFunction(() => Boolean((window as unknown as UiFixture).releaseClaim));
+      await page.evaluate(mode => { const f = window as unknown as UiFixture; if (mode === "account") { f.fixtureScope.account = "account-b"; window.dispatchEvent(new Event("fixture-account-change")); } else { f.fixtureScope.blocked = true; f.renderFixture(); } }, mode);
+      await page.waitForTimeout(100);
+      await page.evaluate(() => (window as unknown as UiFixture).releaseClaim());
+      await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), mode === "account" ? "cancelled" : "failed");
+      assert.deepEqual(await page.evaluate(() => (window as unknown as UiFixture).requests), []);
+      await page.close();
+    }
   } finally { await browser.close(); }
 });
 
