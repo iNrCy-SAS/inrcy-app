@@ -102,5 +102,6 @@ export function useDocumentUnsavedChanges(documentId: string, snapshot: Record<s
   }, []);
 
   const knownVersion = !dirty && serverVersion?.documentId === documentId && serverVersion.accountId === accountId && Number.isFinite(Date.parse(serverVersion.updatedAt)) ? serverVersion : null;
-  return { dirty, generation: generation.current, serverVersion: knownVersion, markHydrated, markPrefilled, captureSave, isCurrentSave, isUnchanged, markSaved, markPersistedFields, requestNavigation };
+  // Local-only comparison material; never copy this signature into assistant context.
+  return { dirty, contentSignature: signature, generation: generation.current, serverVersion: knownVersion, markHydrated, markPrefilled, captureSave, isCurrentSave, isUnchanged, markSaved, markPersistedFields, requestNavigation };
 }

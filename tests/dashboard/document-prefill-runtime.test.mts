@@ -51,6 +51,17 @@ async function mount(page: Page, operation: "apply_template" | "convert_quote") 
   page.setDefaultTimeout(5000); await page.waitForFunction("!!window.state");
 }
 for (const operation of ["apply_template", "convert_quote"] as const) {
+  test(`${operation}: an edited form or changed configuration cannot advertise the old hydration as a new receipt`, async () => {
+    const browser = await chromium.launch({ headless: true });
+    try { for (const change of ["edit", "configuration"]) {
+      const page = await browser.newPage(); await mount(page, operation); await page.evaluate("window.ready()"); await page.waitForFunction("!!window.state.source");
+      await page.evaluate(change => { const w = window as unknown as { edit(): void; config(): void }; if (change === "edit") w.edit(); else w.config(); }, change);
+      await page.waitForFunction("!window.state.source"); assert.equal(await page.evaluate("window.operations.length"), 1);
+      await page.evaluate("window.rerender()"); await page.waitForFunction("window.state.tick===1");
+      assert.equal(await page.evaluate("!!window.state.source"), false); assert.equal(await page.evaluate("window.operations.length"), 1);
+      assert.equal(await page.evaluate("window.state.dirty"), true); await page.close();
+    } } finally { await browser.close(); }
+  });
   test(`${operation}: native hydration waits for readiness, acknowledges only committed form, protects unsaved prefill and never repeats on form/settings renders`, async () => {
     const browser = await chromium.launch({ headless: true });
     try {

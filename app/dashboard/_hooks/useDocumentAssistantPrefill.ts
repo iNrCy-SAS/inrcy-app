@@ -25,6 +25,14 @@ export function useDocumentAssistantPrefill(options: {
   const configuration = useRef(options.configurationVersion);
   useLayoutEffect(() => { configuration.current = options.configurationVersion; }, [options.configurationVersion]);
   const [applied, setApplied] = useState<{ source: InrAssistantDocumentPrefill; accountId: string; generation: number; key: string } | null>(null);
+  const [committed, setCommitted] = useState<{ applied: typeof applied; signature: string; configuration: string } | null>(null);
+  const signature = options.edits.contentSignature, generation = options.edits.generation, documentId = options.documentId;
+  const configurationVersion = options.configurationVersion;
+  useLayoutEffect(() => {
+    if (applied && committed?.applied !== applied && !documentId && applied.accountId === getActiveBrowserUserId() && applied.generation === generation) {
+      setCommitted({ applied, signature, configuration: configurationVersion });
+    }
+  }, [applied, committed?.applied, configurationVersion, documentId, generation, signature]);
   const load = useEffectEvent(async (source: InrAssistantDocumentPrefill, key: string, alive: () => boolean) => {
     const started = options.edits.captureSave();
     const startedConfiguration = configuration.current;
@@ -57,6 +65,6 @@ export function useDocumentAssistantPrefill(options: {
     void load(JSON.parse(serialized), serialized, () => active).catch(() => { if (active) onFailure(); });
     return () => { active = false; };
   }, [serialized, options.ready]);
-  return applied && applied.key === serialized && !options.documentId && applied.accountId === getActiveBrowserUserId() &&
-    applied.generation === options.edits.generation ? applied.source : undefined;
+  return applied && committed?.applied === applied && committed.signature === signature && committed.configuration === configurationVersion &&
+    applied.key === serialized && !documentId && applied.accountId === getActiveBrowserUserId() && applied.generation === generation ? applied.source : undefined;
 }
