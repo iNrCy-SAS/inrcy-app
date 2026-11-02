@@ -67,7 +67,8 @@ test("saved and local sources use the same native projection, preserve reusable 
   assert.equal(payload.clientName, ""); assert.equal(payload.clientEmail, ""); assert.equal(payload.number, ""); assert.equal(payload.status, "brouillon"); assert.equal(payload.isFinalized, false);
   assert.equal(payload.officialSequenceValue, undefined); assert.equal(payload.quoteMention, undefined); assert.equal(payload.serviceDate, ""); assert.equal(payload.servicePeriodEnd, "2026-10-31");
   assert.equal(payload.discountValue, 5); assert.equal(payload.invoiceMention, "Mention"); assert.deepEqual(payload.providerOverride, { name: "Prestataire" });
-  assert.deepEqual((payload.lines as Row[]).map(({ id, ...line }) => line), h.original.payload.lines.map(({ id, ...line }) => line));
+  const withoutLineId = (line: Row) => Object.fromEntries(Object.entries(line).filter(([key]) => key !== "id"));
+  assert.deepEqual((payload.lines as Row[]).map(withoutLineId), h.original.payload.lines.map(withoutLineId));
   assert.deepEqual(h.rows.get(ID), h.original); assert.equal(h.writes(), 1);
   const local = template.createCommercialTemplateSnapshot("invoice", h.original.payload, "Mensuel", index => `l_${result.id}_${index}`);
   const { nativeTemplateInputHash, nativeTemplatePayloadHash, ...actual } = payload; assert.ok(nativeTemplateInputHash); assert.ok(nativeTemplatePayloadHash); assert.deepEqual(actual, local);
