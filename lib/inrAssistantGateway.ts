@@ -34,6 +34,7 @@ import { inrAssistantRequiredCalls, inrAssistantGoalCompleted, inrAssistantTaskT
 import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsAction, inrAssistantPlanAllowsRead, inrAssistantReadMatchesObjective, inrAssistantObjectiveFamily, inrAssistantObjectiveLabel, createInrAssistantReadBudget } from "./inrAssistantObjectives.ts";
 import { inrAssistantUiActionsFromToolResult, INR_ASSISTANT_MAX_UI_ACTIONS, type InrAssistantUiAction } from "./inrAssistantUiActions.ts";
 import { inrAssistantUiSteps, type InrAssistantUiStep } from "./inrAssistantUiTask.ts";
+import { compactInrAssistantRejectedToolContext } from "./inrAssistantRejectedToolContext.ts";
 import { discoverInrAssistantActionCoverage, INR_ASSISTANT_COVERAGE_FAMILIES } from "./inrAssistantActionCoverage.ts";
 import { deriveInrAssistantStudioDraft, isInrAssistantStudioDraftRequest, parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "./inrAssistantStudioDraft.ts";
 import { withInrAssistantToolActivities } from "./inrAssistantActivity.ts";
@@ -535,6 +536,8 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const chain = getInrAssistantModelChain({ edition: args.edition, complexity, solReserved: quota.solReserved });
   let success = false;
   let continuationMessages = messages;
+  const rejectedToolCallIds = new Set<string>();
+  let continuingSystem = system;
   const taskState = (outcome:InrAssistantTaskOutcome,question:string):InrAssistantTaskState => ({version:1,instruction:args.taskContext?.instruction ?? latestRequest,...(uiSteps.length?{uiSteps:uiSteps.map(step=>({...step}))}:{}),actionRequestId:args.actionRequestId??args.requestId,startedAt:args.actionStartedAt??new Date(started).toISOString(),expiresAt:new Date(started+(outcome==="processing"?24*60:30)*60_000).toISOString(),outcome,requiredTools:requiredTools.filter(name=>!["navigateApplication","runScreenCommand"].includes(name)),...(Object.keys(requiredCalls).length?{requiredCalls}:{}),receipts:compactInrAssistantTaskReceipts(receipts.filter(receipt=>!["navigateApplication","runScreenCommand"].includes(receipt.tool)),requiredTools,requiredCalls),question:question.slice(-2000)});
   const finishReply = (reply: InrAssistantReply): InrAssistantReply => {
     if (draftOnly) {
@@ -584,7 +587,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     }
     for (const attempt of chain) {
       let toolInputRepairAttempt: typeof attempt | undefined;
-      const attemptMessages = continuationMessages === messages ? messages : compactInrAssistantGuideContext(continuationMessages, { maxGuideCharacters: 1200 });
+      const attemptMessages = continuationMessages === messages ? messages : compactInrAssistantGuideContext(compactInrAssistantRejectedToolContext(continuationMessages, rejectedToolCallIds), { maxGuideCharacters: 1200 });
       if (args.signal?.aborted) noteFailure("request_aborted", { model: attempt.model, callCount: llmCalls });
       args.signal?.throwIfAborted();
       const remaining = deadline - Date.now();
@@ -686,12 +689,13 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
         };
         const model = guardedModel(attempt);
         const result = await generateText({
-          model, system, messages: attemptMessages, maxOutputTokens, tools,
+          model, system: continuingSystem, messages: attemptMessages, maxOutputTokens, tools,
           stopWhen: [({ steps }) => steps.length >= maxCalls, () => checkpointFailed || llmCalls >= maxCalls || Boolean(studioDraftState.value) || Boolean(mediaState.result) && !followupAfterMedia],
           onStepFinish: async ({ toolResults, toolCalls, response }) => {
             // A model fallback keeps every completed call/result pair. Only
             // repeated/oversized guide prose is compacted, never native receipts.
             continuationMessages = [...attemptMessages, ...response.messages];
+            for (const call of toolCalls) if (call.invalid && InvalidToolInputError.isInstance(call.error)) rejectedToolCallIds.add(call.toolCallId);
             if (!toolInputRepairAttempt && attempt.model === INR_ASSISTANT_MODELS.qwen && toolCalls.some(call => call.invalid && InvalidToolInputError.isInstance(call.error))) {
               toolInputRepairAttempt = chain.find(candidate => candidate.model === INR_ASSISTANT_MODELS.luna);
             }
@@ -706,7 +710,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
             const awaitsBrowser = !statusOnly && uiSteps.some(step => step.actions?.length && !appliedUi.has(step.id)) && !uiSteps.some(step => !step.actions?.length && !appliedUi.has(step.id) && uiReady(step));
             const answerOnly = awaitsBrowser || goalsDone || stepNumber >= maxCalls-1 || llmCalls >= maxCalls-1;
             const activeTools = answerOnly ? [] : Object.keys(tools).filter(name => !(name === "navigateApplication" && navigation) && readBudget.available(name) && inrAssistantPlanAllowsAction(objectives,name,receipts,appliedUi) && inrAssistantPlanAllowsRead(objectives,name,receipts,appliedUi) && !(name === "runScreenCommand" && uiSteps.length && !uiSteps.some(step => !step.actions?.length && !appliedUi.has(step.id) && uiReady(step))) && !(args.taskContext && inrAssistantGoalCompleted(name,args.taskContext.receipts,requiredCalls))) as Array<keyof typeof tools>;
-            if (stepNumber === 0 && !answerOnly && !args.taskContext && !navigation) return { activeTools };
+            if (stepNumber === 0 && continuationMessages === messages && !answerOnly && !args.taskContext && !navigation) return { activeTools };
             // Keep call/result pairs intact and discard only earlier chat text.
             // After a guide or DNA lookup, creation remains possible in step 2;
             // the last step only answers and never repeats reads or actions.
@@ -718,16 +722,17 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
             const answerAttempt = answerOnly && attempt.model === INR_ASSISTANT_MODELS.qwen
               ? chain.find(candidate => candidate.model === INR_ASSISTANT_MODELS.luna) ?? attempt
               : attempt;
+            continuingSystem = buildInrAssistantSystemPrompt(args.displayName, undefined, readCounts.has("readAppGuide") ? undefined : getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext, Boolean(args.fileContexts?.length), true)
+              + continuityContext + draftGuidance + (operationGuidance ? `\n${operationGuidance}` : "")
+              + (navigation ? `\nL’ouverture de ${navigation.label} est déjà demandée au navigateur. Termine aussi les lectures demandées, sans annoncer la navigation terminée.` : "")
+              + (args.taskContext ? `\nReprise vérifiée de la tâche. Résultats enregistrés, à réutiliser sans refaire ces actions : ${JSON.stringify(publicTaskReceipts(args.taskContext.receipts)).slice(0,5000)}. La précision actuelle complète seulement cette tâche. Réponds dans la langue de ce message : ${JSON.stringify(spokenRequest).slice(0,500)}` : "")
+              + (answerOnly ? "\nRépondez maintenant sans appeler d’outil. Utilisez seulement les faits déjà obtenus. Si le sujet ou une donnée indispensable manque, posez une question courte pour continuer. N’inventez ni résultat ni action exécutée." : "");
             return {
               ...(toolInputRepairAttempt || answerOnly ? { model: guardedModel(toolInputRepairAttempt ?? answerAttempt) } : {}),
-              messages: compactInrAssistantGuideContext(stepMessages.slice(latestUser)),
+              messages: compactInrAssistantGuideContext(compactInrAssistantRejectedToolContext(stepMessages.slice(latestUser), rejectedToolCallIds)),
               activeTools,
               ...(answerOnly ? { toolChoice: "none" as const } : {}),
-              system: buildInrAssistantSystemPrompt(args.displayName, undefined, readCounts.has("readAppGuide") ? undefined : getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext, Boolean(args.fileContexts?.length), true)
-                + continuityContext + draftGuidance + (operationGuidance ? `\n${operationGuidance}` : "")
-                + (navigation ? `\nL’ouverture de ${navigation.label} est déjà demandée au navigateur. Termine aussi les lectures demandées, sans annoncer la navigation terminée.` : "")
-                + (args.taskContext ? `\nReprise vérifiée de la tâche. Résultats enregistrés, à réutiliser sans refaire ces actions : ${JSON.stringify(publicTaskReceipts(args.taskContext.receipts)).slice(0,5000)}. La précision actuelle complète seulement cette tâche. Réponds dans la langue de ce message : ${JSON.stringify(spokenRequest).slice(0,500)}` : "")
-                + (answerOnly ? "\nRépondez maintenant sans appeler d’outil. Utilisez seulement les faits déjà obtenus. Si le sujet ou une donnée indispensable manque, posez une question courte pour continuer. N’inventez ni résultat ni action exécutée." : ""),
+              system: continuingSystem,
             };
           },
           // Normal calls retain their 100s deadline in the model middleware.

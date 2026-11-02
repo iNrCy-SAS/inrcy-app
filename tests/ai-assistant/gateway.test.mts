@@ -1,3 +1,4 @@
+import * as rejectedToolContext from "../../lib/inrAssistantRejectedToolContext.ts";
 import * as uiTask from "../../lib/inrAssistantUiTask.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -142,6 +143,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantObjectives.ts": objectives,
     "./inrAssistantUiActions.ts": uiActions,
     "./inrAssistantUiTask.ts": uiTask,
+    "./inrAssistantRejectedToolContext.ts": rejectedToolContext,
     "./inrAssistantActionCoverage.ts": actionCoverage,
     "./inrAssistantCommandRegistry.ts": commandRegistry,
     "./inrAssistantUiCommands.ts": uiCommands,
@@ -187,7 +189,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantCommercialTools.ts": { createInrAssistantCommercialTools: () => options.crmIds ? {
       manageCrmContact: tool({ inputSchema: jsonSchema({ type: "object", properties: {
         action: { type: "string", enum: ["create", "update", "delete"] }, instructionQuote: { type: "string" }, reference: { type: "string" }, contactId: { type: ["string", "null"] }, fields: { type: "object" },
-      }, required: ["action", "instructionQuote", "reference", "contactId", "fields"], additionalProperties: false }), execute: async input => {
+      }, required: ["action", "instructionQuote", "reference", "contactId", "fields"], additionalProperties: false }, { validate: value => { const input = value as Record<string, unknown>; return input.contactId === null || typeof input.contactId === "string" ? { success: true, value: input } : { success: false, error: new Error("Invalid contactId: " + JSON.stringify(value)) }; } }), execute: async input => {
         const id = options.crmIds![Math.min(crmExecutions.length, options.crmIds!.length - 1)];
         crmExecutions.push(input);
         return { ok: !options.crmStatus, status: options.crmStatus??"created", id, message: options.crmStatus?"Résultat CRM incertain.":`Fiche CRM enregistrée : ${id}.`, nextAction: { label: "iNr’CRM", href: "/dashboard/crm" } };
@@ -571,6 +573,25 @@ test("invalid Qwen tool arguments switch to the bounded fallback before executin
   assert.equal(h.crmExecutions.length, 1);
   assert.equal(reply.outcome, "completed");
   assert.ok(h.generations.length <= 7);
+});
+
+test("oversized SDK argument rejection is compacted before fallback while saved CRM facts and later reads survive", async () => {
+  const instruction = "Crée deux contacts CRM Alice et Bob, puis consulte les dernières publications Facebook.";
+  const first = { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } };
+  const second = { ...contactPlan[1], input: { ...contactPlan[1].input, instructionQuote: instruction } };
+  const malformed = { ...second, input: { ...second.input, contactId: { invalidJsonInId: "SDK_REJECTED_UNEXECUTED_".repeat(5000) } } };
+  const observedReads: number[] = [];
+  const h = harness({ crmIds: contactIds, plan: [first, malformed, second, { tool: "getRecentPublications" }], accountRead: () => { observedReads.push(h.crmExecutions.length); return { ok: true, publications: [{ id: "verified_publication_1" }] }; } });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, messages: [{ role: "user", content: instruction }] });
+  assert.equal(reply.outcome, "completed", JSON.stringify({outcome:reply.outcome,diagnostics:h.diagnostics,executions:h.crmExecutions.length,generations:h.generations.length}));
+  assert.equal(h.crmExecutions.length, 2, "schema rejection never executes and the first saved contact is not replayed");
+  assert.deepEqual(observedReads, [2]);
+  assert.equal(h.generations[2].model, policy.INR_ASSISTANT_MODELS.luna);
+  const repairedContext = JSON.stringify(h.generations[2].params.prompt);
+  assert.doesNotMatch(repairedContext, /SDK_REJECTED_UNEXECUTED_/);
+  assert.match(repairedContext, /Arguments rejetés.*AVANT toute exécution/);
+  assert.ok(repairedContext.includes(contactIds[0]), "the first verified native record remains available");
+  assert.ok(h.generations.length <= 12);
 });
 
 test("a native published-history reader obeys the later-read order while drafts cannot satisfy that objective", async () => {
