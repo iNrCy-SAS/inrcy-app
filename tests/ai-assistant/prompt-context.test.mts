@@ -32,3 +32,13 @@ test("distinct guide content and business receipts are never replaced by an unre
   ];
   assert.deepEqual(compactInrAssistantGuideContext(messages), messages);
 });
+
+test("fallback guide excerpts preserve call/result pairs and every native business field", () => {
+  const native = guideResult("native", [{ id: "record-123", content: "Native record content must remain exact. ".repeat(200) }], "readPublicationWorkspace");
+  const messages = [guideResult("guide", [{ id: "crm", content: "Guidance. ".repeat(1000) }]), native];
+  const result = compactInrAssistantGuideContext(messages, { maxGuideCharacters: 1200 });
+  assert.deepEqual(result[1], native);
+  assert.match(JSON.stringify(result[0]), /Extrait du guide/);
+  assert.match(JSON.stringify(result[0]), /"truncated":true/);
+  assert.equal((result[0] as { content: Array<{ toolCallId: string }> }).content[0].toolCallId, "guide");
+});

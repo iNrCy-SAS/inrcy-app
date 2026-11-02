@@ -31,7 +31,7 @@ import { getInrAssistantAppKnowledge, createInrAssistantAppGuideTool, getVerifie
 import { selectInrAssistantToolFamilies, inrAssistantSelectionToolHints, inrAssistantRoutingText, inrAssistantRequiredTools, inrAssistantTaskOutcome, verifiedInrAssistantCapabilityLimit } from "./inrAssistantToolRouting.ts";
 import type { InrAssistantTaskState, InrAssistantTaskOutcome, InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
 import { inrAssistantRequiredCalls, inrAssistantGoalCompleted, inrAssistantTaskTrackingLimit, compactInrAssistantTaskReceipts, inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantTaskPolicy.ts";
-import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsAction, inrAssistantPlanAllowsRead, inrAssistantObjectiveFamily, inrAssistantObjectiveLabel, createInrAssistantReadBudget } from "./inrAssistantObjectives.ts";
+import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsAction, inrAssistantPlanAllowsRead, inrAssistantReadMatchesObjective, inrAssistantObjectiveFamily, inrAssistantObjectiveLabel, createInrAssistantReadBudget } from "./inrAssistantObjectives.ts";
 import { inrAssistantUiActionsFromToolResult, INR_ASSISTANT_MAX_UI_ACTIONS, type InrAssistantUiAction } from "./inrAssistantUiActions.ts";
 import { discoverInrAssistantActionCoverage, INR_ASSISTANT_COVERAGE_FAMILIES } from "./inrAssistantActionCoverage.ts";
 import { deriveInrAssistantStudioDraft, isInrAssistantStudioDraftRequest, parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "./inrAssistantStudioDraft.ts";
@@ -139,7 +139,11 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   if(args.taskContext?.receipts.some(receipt=>INR_ASSISTANT_UNCERTAIN_STATUSES.has(receipt.status))) return {outcome:"blocked",message:"Une opération précédente a un résultat incertain. Vérifiez son état dans l’outil concerné avant de demander une nouvelle action."};
   const statusOnly = Boolean(args.taskContext && args.actionInstruction && (args.taskContext.outcome === "processing" || args.taskIntent === "check_status"));
   const navigationRequested = isInrAssistantNavigationRequest(args.taskContext?spokenRequest:latestRequest);
-  const screenCommandRequested = isInrAssistantScreenCommandRequest(args.taskContext?spokenRequest:latestRequest);
+  const screenRequest = args.taskContext ? spokenRequest : latestRequest;
+  const nativeScreen = args.clientContext?.screen;
+  const nativeAdsRequested = nativeScreen?.pathname === "/dashboard/ads" && Boolean(nativeScreen.revision) && nativeScreen.availableCommands?.includes("configure_ads_draft") === true && isInrAssistantScreenCommandRequest(screenRequest, "configure_ads_draft");
+  const nativeVideoRequested = nativeScreen?.pathname === "/dashboard/generer-media" && Boolean(nativeScreen.revision) && nativeScreen.availableCommands?.includes("configure_video_retouch") === true && isInrAssistantScreenCommandRequest(screenRequest, "configure_video_retouch");
+  const screenCommandRequested = isInrAssistantScreenCommandRequest(screenRequest, "export_document_pdf") || nativeAdsRequested || nativeVideoRequested;
   const draftOnly = isInrAssistantStudioDraftRequest(latestRequest);
   const insertRequest = requestsStudioInsertion(spokenRequest);
   if (!args.actionInstruction && !draftOnly && (shortAffirmation(spokenRequest) || insertRequest)) {
@@ -306,12 +310,12 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
               }
               if(result.toolName === "readCampaignDeliveryStatus" && typeof output.campaignId === "string") output={...output,recordId:output.campaignId};
               if (!observedActionNames.has(result.toolName)) {
-                const index=objectives.findIndex(objective=>objective.kind==="read" && objective.tool===result.toolName && objective.id===readObjectiveAtStart.get(result.toolCallId));
+                const index=objectives.findIndex(objective=>inrAssistantReadMatchesObjective(objective,result.toolName,result.input) && objective.id===readObjectiveAtStart.get(result.toolCallId));
                 if(index>=0) {
                   const objective=objectives[index];
                   const verified=(output.ok===true || output.available===true || output.found===true) && output.ok!==false && output.available!==false;
                   const more=typeof output.nextOffset==="number" || typeof output.nextPage==="number" || output.truncated===true;
-                  receipts.push({tool:result.toolName,recordId:objective.id,ok:verified,status:verified && !(objective.exhaustive && more)?"read":"partial",message:verified?`${inrAssistantObjectiveLabel(result.toolName)}${objective.exhaustive && more?" : recherche encore partielle.":" : lecture effectuée."}`:"La lecture demandée n’a pas pu être vérifiée."});
+                  receipts.push({tool:objective.tool,recordId:objective.id,ok:verified,status:verified && !(objective.exhaustive && more)?"read":"partial",message:verified?`${inrAssistantObjectiveLabel(objective.tool)}${objective.exhaustive && more?" : recherche encore partielle.":" : lecture effectuée."}`:"La lecture demandée n’a pas pu être vérifiée."});
                   receiptsChanged=true;
                 }
                 if (statusOnly && typeof output.status === "string" && typeof output.message === "string") {
@@ -460,7 +464,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
       ...definition,
       execute: async (...input: unknown[]) => {
         if (!inrAssistantPlanAllowsRead(objectives, name, receipts)) return { ok: false, status: "deferred", message: "Cette lecture est demandée après une action encore incomplète. Terminez cette action avant la lecture." };
-        const eligibleObjective = objectives.find((objective, index) => objective.kind === "read" && objective.tool === name &&
+        const eligibleObjective = objectives.find((objective, index) => inrAssistantReadMatchesObjective(objective, name, input[0]) &&
           !inrAssistantObjectiveCompleted(objectives, index, receipts) && inrAssistantObjectiveReady(objectives, index, receipts));
         const attempt = readBudget.start(name, input[0], eligibleObjective?.exhaustive ? eligibleObjective.id : undefined);
         if (!attempt) return { ok: false, status: "blocked", message: "Cette lecture se répète sans progression vérifiable. Précisez la recherche avant de continuer." };
@@ -502,6 +506,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   });
   const chain = getInrAssistantModelChain({ edition: args.edition, complexity, solReserved: quota.solReserved });
   let success = false;
+  let continuationMessages = messages;
   const taskState = (outcome:InrAssistantTaskOutcome,question:string):InrAssistantTaskState => ({version:1,instruction:statusOnly?args.taskContext!.instruction:latestRequest,actionRequestId:args.actionRequestId??args.requestId,startedAt:args.actionStartedAt??new Date(started).toISOString(),expiresAt:new Date(started+(outcome==="processing"?24*60:30)*60_000).toISOString(),outcome,requiredTools:requiredTools.filter(name=>!["navigateApplication","runScreenCommand"].includes(name)),...(Object.keys(requiredCalls).length?{requiredCalls}:{}),receipts:compactInrAssistantTaskReceipts(receipts.filter(receipt=>!["navigateApplication","runScreenCommand"].includes(receipt.tool)),requiredTools,requiredCalls),question:question.slice(-2000)});
   const finishReply = (reply: InrAssistantReply): InrAssistantReply => {
     if (draftOnly) {
@@ -543,6 +548,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     }
     for (const attempt of chain) {
       let toolInputRepairAttempt: typeof attempt | undefined;
+      const attemptMessages = continuationMessages === messages ? messages : compactInrAssistantGuideContext(continuationMessages, { maxGuideCharacters: 1200 });
       if (args.signal?.aborted) noteFailure("request_aborted", { model: attempt.model, callCount: llmCalls });
       args.signal?.throwIfAborted();
       const remaining = deadline - Date.now();
@@ -644,9 +650,12 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
         };
         const model = guardedModel(attempt);
         const result = await generateText({
-          model, system, messages, maxOutputTokens, tools,
+          model, system, messages: attemptMessages, maxOutputTokens, tools,
           stopWhen: [({ steps }) => steps.length >= maxCalls, () => checkpointFailed || llmCalls >= maxCalls || Boolean(studioDraftState.value) || Boolean(mediaState.result) && !followupAfterMedia],
-          onStepFinish: async ({ toolResults, toolCalls }) => {
+          onStepFinish: async ({ toolResults, toolCalls, response }) => {
+            // A model fallback keeps every completed call/result pair. Only
+            // repeated/oversized guide prose is compacted, never native receipts.
+            continuationMessages = [...attemptMessages, ...response.messages];
             if (!toolInputRepairAttempt && attempt.model === INR_ASSISTANT_MODELS.qwen && toolCalls.some(call => call.invalid && InvalidToolInputError.isInstance(call.error))) {
               toolInputRepairAttempt = chain.find(candidate => candidate.model === INR_ASSISTANT_MODELS.luna);
             }

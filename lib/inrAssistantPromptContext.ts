@@ -2,7 +2,7 @@ import type { ModelMessage } from "ai";
 
 /** Keep every call/result pair and every distinct guide, without resending
  * identical guide prose each time a model consults the same expert. */
-export function compactInrAssistantGuideContext(messages: ModelMessage[]): ModelMessage[] {
+export function compactInrAssistantGuideContext(messages: ModelMessage[], options: { maxGuideCharacters?: number } = {}): ModelMessage[] {
   const seen = new Set<string>();
   return messages.map(message => {
     if (message.role !== "tool") return message;
@@ -15,6 +15,10 @@ export function compactInrAssistantGuideContext(messages: ModelMessage[]): Model
         const key = JSON.stringify([guide.id, guide.content]);
         if (seen.has(key)) return { ...guide, content: `Guide [${guide.id}] déjà fourni dans cet échange : réutiliser son contenu ci-dessus.` };
         seen.add(key);
+        if (options.maxGuideCharacters && guide.content.length > options.maxGuideCharacters) return {
+          ...guide, truncated: true,
+          content: guide.content.slice(0, options.maxGuideCharacters) + `\n[Extrait du guide ${guide.id} ; le contenu intégral n’est pas reproduit dans ce contexte borné.]`,
+        };
         return guide;
       }) } } };
     }) };

@@ -62,6 +62,8 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   channelActionFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   statsFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   mailboxFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
+  publicationWorkspaceRead?: boolean;
+  guideCharacters?: number;
   accountRead?: (name:string,input:unknown)=>unknown;
   cta?: { definition: ReturnType<typeof createCtaToolFixture>["definition"]; input: { target: "phone" | "website"; instructionQuote: string; channels: string[] | null } } } = {}) {
   const generations: { model: string; params: LanguageModelV3CallOptions }[] = [];
@@ -151,7 +153,9 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantAgentTools.ts": { createInrAssistantAgentTools: () => ({}) },
     "./inrAssistantChannelActionTools.ts": { createInrAssistantChannelActionTools: (args:Record<string,unknown>) => options.channelActionFactory?.(args) ?? {} },
     "./inrAssistantMediaLibraryTools.ts": { createInrAssistantMediaLibraryTools: (args:Record<string,unknown>) => options.mediaLibraryFactory?.(args) ?? {} },
-    "./inrAssistantPublicationLifecycleTools.ts": { createInrAssistantPublicationLifecycleTools: () => ({}) },
+    "./inrAssistantPublicationLifecycleTools.ts": { createInrAssistantPublicationLifecycleTools: () => options.publicationWorkspaceRead ? {
+      readPublicationWorkspace: tool({ inputSchema: jsonSchema({ type: "object", properties: { view: { type: "string" }, recordId: { type: ["string", "null"] }, offset: { type: "integer" } } }), execute: async input => options.accountRead?.("readPublicationWorkspace", input) ?? { ok: true, records: [] } }),
+    } : {} },
     "./inrAssistantStatsTools.ts": { createInrAssistantStatsTools: (args:Record<string,unknown>) => options.statsFactory?.(args) ?? {} },
     "./inrAssistantQuota.ts": { reserveInrAssistantRequest: async () => ({ solReserved: options.sol ?? false }),
       finalizeInrAssistantRequest: async (_quota: unknown, outcome: { success: boolean }) => { finalized.push(outcome); } },
@@ -214,7 +218,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
       actionFactories.push("insights");
       return Object.fromEntries(["readStatsSnapshots", "readGoogleReviews", "replyToGoogleReview"].map(name => [name, tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ available: true }) })]));
     } },
-    "./inrAssistantAppGuides.ts": { getInrAssistantAppKnowledge: () => "Documentation officielle : /dashboard?action=publish", getVerifiedInrAssistantNavigation: () => options.verifiedNavigation ?? null, createInrAssistantAppGuideTool: () => tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ found: true }) }) },
+    "./inrAssistantAppGuides.ts": { getInrAssistantAppKnowledge: () => "Documentation officielle : /dashboard?action=publish", getVerifiedInrAssistantNavigation: () => options.verifiedNavigation ?? null, createInrAssistantAppGuideTool: () => tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ found: true, ...(options.guideCharacters ? { guides: [{ id: "crm", content: "Guide natif. ".repeat(Math.ceil(options.guideCharacters / 13)) }] } : {}) }) }) },
     "./inrAssistantAccountTools.ts": { createInrAssistantAccountTools: () => Object.fromEntries(["getBusinessDna", "searchMedia", "getRecentPublications"].map(name => [name,
       tool({ inputSchema: jsonSchema<Record<string, unknown>>({ type: "object", properties: {offset:{type:"integer"},query:{type:"string"},limit:{type:"integer"}} }, { validate: value => {
         const input = value as Record<string, unknown>;
@@ -505,6 +509,42 @@ test("invalid Qwen tool arguments switch to the bounded fallback before executin
   assert.equal(h.crmExecutions.length, 1);
   assert.equal(reply.outcome, "completed");
   assert.ok(h.generations.length <= 7);
+});
+
+test("a native published-history reader obeys the later-read order while drafts cannot satisfy that objective", async () => {
+  const instruction = "Crée un contact CRM nommé Alice, puis consulte les dernières publications Facebook.";
+  const create = { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } };
+  for (const view of ["history", "drafts", "prepared"]) {
+    const read = { tool: "readPublicationWorkspace", input: { view, recordId: null, offset: 0 } };
+    const observed: number[] = [];
+    const h = harness({ crmIds: contactIds, publicationWorkspaceRead: true, parallelPlan: [read, create], plan: [read, read], accountRead: () => { observed.push(h.crmExecutions.length); return { ok: true, view, records: [], nextOffset: null }; } });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, actorUserId: "actor-a", edition: "premium", supabase: {} as never, messages: [{ role: "user", content: instruction }] });
+    assert.deepEqual(observed, [1]);
+    assert.equal(toolNames(h.generations[0].params).includes("readPublicationWorkspace"), false);
+    assert.equal(reply.outcome, view === "history" ? "completed" : "partial");
+    assert.equal(reply.taskState?.receipts.some(receipt => receipt.tool === "getRecentPublications" && receipt.status === "read"), view === "history");
+  }
+});
+
+test("a context-budget fallback retains completed tool results and IDs while shortening only guide prose", async () => {
+  const instruction = "Crée un contact CRM nommé Alice, puis consulte les dernières publications Facebook.";
+  const h = harness({ crmIds: contactIds, guideCharacters: 40_000, plan: [
+    { tool: "readAppGuide" }, { tool: "searchCrmContacts" },
+    { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } }, { tool: "getRecentPublications" },
+  ], accountRead: () => ({ ok: true, items: [] }) });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, requestId: randomUUID(), actorUserId: "actor-a", edition: "premium", supabase: {} as never, messages: [{ role: "user", content: instruction }] });
+  assert.equal(h.generations[1].model, policy.INR_ASSISTANT_MODELS.luna);
+  const fallbackPrompt = JSON.stringify(h.generations[1].params.prompt);
+  assert.match(fallbackPrompt, /readAppGuide/);
+  assert.match(fallbackPrompt, /Extrait du guide/);
+  const guideResult = h.generations[1].params.prompt.flatMap(message => message.role === "tool" ? message.content : [])
+    .find(part => part.type === "tool-result" && part.toolName === "readAppGuide");
+  assert.ok(guideResult?.type === "tool-result" && guideResult.output.type === "json");
+  const guides = (guideResult.output.value as { guides: Array<{ content: string }> }).guides;
+  assert.ok(guides[0].content.length < 1400);
+  assert.equal(h.crmExecutions.length, 1);
+  assert.equal(reply.outcome, "completed");
+  assert.ok(h.diagnostics.some(diagnostic => diagnostic.phase === "input_limit"));
 });
 
 test("media pagination follows a progressing cursor past two reads without allowing an unchanged loop",async()=>{

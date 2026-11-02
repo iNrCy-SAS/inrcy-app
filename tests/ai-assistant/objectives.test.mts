@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsRead, createInrAssistantReadBudget } from "../../lib/inrAssistantObjectives.ts";
+import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsRead, inrAssistantReadMatchesObjective, createInrAssistantReadBudget } from "../../lib/inrAssistantObjectives.ts";
 import { inrAssistantRequiredTools, inrAssistantRequiredCalls } from "../../lib/inrAssistantTaskPolicy.ts";
 import { matchesInrAssistantActionClause } from "../../lib/inrAssistantActionClause.ts";
 import { inrAssistantSelectionToolHints } from "../../lib/inrAssistantToolRouting.ts";
@@ -44,6 +44,16 @@ test("a requested statistics report targets the paginated report reader rather t
   assert.equal(plan[0].tool, "readStatsReports");
   assert.equal(plan[0].exhaustive, true);
   assert.equal(inrAssistantObjectives("Consulte mes statistiques.")[0].tool, "readStatsSnapshots");
+});
+
+test("publication reader aliases retain the distinction between history, drafts and prepared content", () => {
+  const recent = inrAssistantObjectives("Consulte mes dernières publications.")[0];
+  assert.equal(inrAssistantReadMatchesObjective(recent, "readPublicationWorkspace", { view: "history", recordId: null }), true);
+  for (const input of [{ view: "drafts", recordId: null }, { view: "prepared", recordId: null }, { view: "history", recordId: "one-record" }])
+    assert.equal(inrAssistantReadMatchesObjective(recent, "readPublicationWorkspace", input), false);
+  const drafts = inrAssistantObjectives("Liste mes brouillons de publications.")[0];
+  assert.equal(inrAssistantReadMatchesObjective(drafts, "readPublicationWorkspace", { view: "drafts" }), true);
+  assert.equal(inrAssistantReadMatchesObjective(drafts, "readPublicationWorkspace", { view: "history" }), false);
 });
 
 test("deferring later reads retains a CRM reference lookup without marking its later objective done", () => {

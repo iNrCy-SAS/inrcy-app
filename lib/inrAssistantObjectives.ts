@@ -58,6 +58,24 @@ export function inrAssistantObjectiveFamily(tool: string): InrAssistantCommandFa
 export function inrAssistantObjectiveLabel(tool: string): string {
     return INR_ASSISTANT_COMMANDS[tool]?.label ?? readers.find(reader => reader.tool === tool)?.label ?? "terminer la lecture demandée";
 }
+
+/** A tool alias is not enough: drafts/prepared publications never satisfy a
+ * request for published history, even when the same native reader serves both. */
+export function inrAssistantReadMatchesObjective(objective: InrAssistantObjective, tool: string, input?: unknown): boolean {
+    if (objective.kind !== "read") return false;
+    const value = input && typeof input === "object" ? input as Record<string, unknown> : {};
+    if (objective.tool === tool) {
+        if (tool !== "readPublicationWorkspace") return true;
+        const expectedView = /brouillon/.test(objective.instruction) ? "drafts" : /proposition|prepare/.test(objective.instruction) ? "prepared" : /historique/.test(objective.instruction) ? "history" : null;
+        return expectedView === null || value.view === expectedView;
+    }
+    if (objective.tool !== "getRecentPublications" || tool !== "readPublicationWorkspace") return false;
+    return value.view === "history" && value.recordId == null;
+}
+
+function mayReadObjective(objective: InrAssistantObjective, tool: string): boolean {
+    return objective.tool === tool || objective.tool === "getRecentPublications" && tool === "readPublicationWorkspace";
+}
 export function inrAssistantObjectiveCompleted(plan: InrAssistantObjective[], index: number, receipts: InrAssistantActionReceipt[]): boolean {
     const objective = plan[index];
     if (objective.kind === "read")
@@ -104,7 +122,7 @@ const prerequisiteReaders: Record<string, string[]> = {
 /** Defer a later requested read while retaining native reference lookups needed
  * by an earlier mutation. Such prerequisite reads never complete the later goal. */
 export function inrAssistantPlanAllowsRead(plan: InrAssistantObjective[], tool: string, receipts: InrAssistantActionReceipt[]): boolean {
-    const index = plan.findIndex((objective, position) => objective.kind === "read" && objective.tool === tool && !inrAssistantObjectiveCompleted(plan, position, receipts));
+    const index = plan.findIndex((objective, position) => objective.kind === "read" && mayReadObjective(objective, tool) && !inrAssistantObjectiveCompleted(plan, position, receipts));
     if (index < 0 || inrAssistantObjectiveReady(plan, index, receipts)) return true;
     return plan.slice(0, index).some((objective, position) => objective.kind === "action" &&
         !inrAssistantObjectiveCompleted(plan, position, receipts) && prerequisiteReaders[objective.tool]?.includes(tool));
