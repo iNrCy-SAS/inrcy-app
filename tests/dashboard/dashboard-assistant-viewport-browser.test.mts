@@ -28,6 +28,7 @@ const sources = {
   "./dashboardAssistantTaskCopy": compile("app/dashboard/_components/dashboardAssistantTaskCopy.ts"),
   "./DashboardAssistantScreenContext": compile("app/dashboard/_components/DashboardAssistantScreenContext.tsx"),
   "./DashboardAssistantCommandContext": compile("app/dashboard/_components/DashboardAssistantCommandContext.tsx"),
+  "./inrAssistantMediaUiCommands.ts": compile("lib/inrAssistantMediaUiCommands.ts"),
   "@/lib/inrAssistantUiCommands": compile("lib/inrAssistantUiCommands.ts"),
   "@/lib/inrAssistantUiActions": compile("lib/inrAssistantUiActions.ts"),
   "@/lib/inrAssistantAttachments": compile("lib/inrAssistantAttachments.ts"),
@@ -81,7 +82,7 @@ const studioSources = {
   studio: compile("app/dashboard/generer-media/MediaGeneratorStudioClient.tsx"),
   "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
   "./MediaFreeGenerator": compile("app/dashboard/_components/MediaFreeGenerator.tsx"),
-  ...Object.fromEntries(["aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
+  ...Object.fromEntries(["studioVideoRetouchPersistence", "aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
 };
 const studioFixture = `
 const sources=${JSON.stringify(studioSources)}, loaded={};

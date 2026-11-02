@@ -14,7 +14,7 @@ function harness(onSaved?: (value: unknown, options: { isCurrent: () => boolean 
   const source = { name: "A.mp4" }, state = { source, format: "9_16", adaptationMode: "cover_crop", channel: "site_web", mounted: true };
   const calls: unknown[][] = [], saveState = { current: state }, saveLock = { current: false };
   const variables = { source, format: state.format, adaptationMode: state.adaptationMode, channel: state.channel, saving: false,
-    saveState, saveLock, savedCopy: { current: null }, onSaved, initialContext: null, acceptMode: "library",
+    saveState, saveLock, savedCopy: { current: null }, onSaved, initialContext: null, sourceVariants: [], sourceMatchesInitial: false, acceptMode: "library",
     setSaving: (value: boolean) => calls.push(["busy", value]), setSaved: (value: boolean) => calls.push(["saved", value]), setError: (value: string) => calls.push(["error", value]) };
   const run = new Function(...Object.keys(variables), `${code}\nreturn handler;`)(...Object.values(variables)) as (options?: { isCurrent?: () => boolean }) => Promise<boolean>;
   return { run, calls, saveState, saveLock };

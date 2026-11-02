@@ -1,6 +1,7 @@
 "use client";
 
-import { useInrAssistantNativeDraft } from "../_hooks/useInrAssistantNativeDraft";
+import { useInrAssistantVideoCommands } from "../_hooks/useInrAssistantVideoCommands";
+import { loadInrAssistantLibraryVideo } from "@/lib/inrAssistantMediaUiClient";
 
 import { useTranslations } from "next-intl";
 import { useEffect, useLayoutEffect, useRef, useState, type DragEvent } from "react";
@@ -226,28 +227,42 @@ export default function MediaVideoRetoucher({
   const [error, setError] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const channel: ChannelKey = initialContext?.channel || "site_web";
+  const sourceMatchesInitial = Boolean(source && (source.storagePath && source.storagePath === initialContext?.storagePath
+    || source.file && source.file === initialSource || source.url === initialPreview?.url));
+  const sourceVariants = sourceMatchesInitial ? initialContext?.transformedVariants || [] : [];
   const saveLock = useRef(false);
   const savedCopy = useRef<{ source: MediaVideoRetoucherSource; format: VideoFormat; adaptationMode: VideoAdaptationMode; channel: ChannelKey; mediaId: string } | null>(null);
   const saveState = useRef({ source, format, adaptationMode, channel, mounted: true });
   useLayoutEffect(() => { saveState.current = { source, format, adaptationMode, channel, mounted: true }; });
   useEffect(() => () => { saveState.current.mounted = false; }, []);
 
-  useInrAssistantNativeDraft({
-    command: "configure_video_retouch", kind: "media", id: source?.libraryItem?.id,
-    snapshot: { source, format, adaptationMode, channel, saving, initialSourceLoading },
-    enabled: Boolean(source) && !saving && !initialSourceLoading,
-    channel, step: "media", pendingChanges: Boolean(source) && !saved,
-    apply(command) {
-      if (command.command !== "configure_video_retouch" || !source || saving || initialSourceLoading) return false;
-      if (command.patch.format && normalizeVideoFormat(channel, command.patch.format) !== command.patch.format) return false;
+  useInrAssistantVideoCommands({
+    snapshot: { source, format, adaptationMode, channel, initialSourceLoading },
+    enabled: !saving && !initialSourceLoading,
+    hasSource: Boolean(source), canSave: Boolean(source) && !saved && acceptMode === "library",
+    channel, pendingChanges: Boolean(source) && !saved,
+    async apply(command, stillCurrent, scopeCurrent) {
+      if (!stillCurrent() || saving || initialSourceLoading) return false;
+      if (command.command === "select_video_source") {
+        const item = await loadInrAssistantLibraryVideo(command.mediaId, stillCurrent);
+        if (!item || !stillCurrent()) return false;
+        if (source?.libraryItem?.id === item.id) return true;
+        const next = sourceFromLibraryItem(item);
+        if (!next) return false;
+        clearOwnedUrl(); setSource(next); setSaved(false); setError("");
+        return true;
+      }
+      if (command.command === "save_video_retouch") return save({ keepOpen: true, isCurrent: scopeCurrent });
+      if (!source || command.patch.format && normalizeVideoFormat(channel, command.patch.format) !== command.patch.format) return false;
       setSaved(false);
       if (command.patch.format) setFormat(command.patch.format);
       if (command.patch.adaptationMode) setAdaptationMode(command.patch.adaptationMode);
       return true;
     },
     isApplied(command) {
-      return command.command === "configure_video_retouch"
-        && (command.patch.format === undefined || format === command.patch.format)
+      if (command.command === "select_video_source") return source?.libraryItem?.id === command.mediaId;
+      if (command.command === "save_video_retouch") return saved;
+      return (command.patch.format === undefined || format === command.patch.format)
         && (command.patch.adaptationMode === undefined || adaptationMode === command.patch.adaptationMode);
     },
   });
@@ -420,10 +435,10 @@ export default function MediaVideoRetoucher({
         channel,
         format,
         adaptationMode,
-        transformedVariants: initialContext?.transformedVariants || [],
+        transformedVariants: sourceVariants,
         deferTechnicalPreparationUntilPublish:
           initialContext?.deferTechnicalPreparationUntilPublish === true,
-        mediaRecord: initialContext?.mediaRecord || null,
+        mediaRecord: source?.libraryItem ? source.libraryItem as unknown as Record<string, unknown> : sourceMatchesInitial ? initialContext?.mediaRecord || null : null,
       }, { isCurrent, keepOpen: options?.keepOpen });
       if (!isCurrent() || acceptMode === "library" && !receipt?.mediaId) return false;
       if (receipt?.mediaId) savedCopy.current = { source, format, adaptationMode, channel, mediaId: receipt.mediaId };
@@ -555,7 +570,7 @@ export default function MediaVideoRetoucher({
               videoSourceMetadata={source.sourceMetadata}
               currentFormat={format}
               adaptationMode={adaptationMode}
-              videoTransformedVariants={initialContext?.transformedVariants || []}
+              videoTransformedVariants={sourceVariants}
               deferTechnicalPreparationUntilPublish
               onFormatChange={(nextFormat) => {
                 setSaved(false);

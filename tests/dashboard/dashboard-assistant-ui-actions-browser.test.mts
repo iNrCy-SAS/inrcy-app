@@ -15,7 +15,8 @@ type UiFixture = Window & {
   releaseDownload: () => void; requests: Array<{ url: string; body: string }>;
   startActions: (actions: InrAssistantUiAction[]) => void; mountTarget: () => void; renderFixture: () => void;
   deferClaim: boolean; releaseClaim: () => void;
-  editNative: (name: string) => void; nativeState: { name: string; primaryText: string; confirmedSpend: boolean; format: string; adaptationMode: string; saved: boolean; step: number };
+  editNative: (name: string) => void; nativeState: { name: string; primaryText: string; confirmedSpend: boolean; format: string; adaptationMode: string; saved: boolean; step: number; sourceId: string };
+  videoLoads: string[]; videoSaves: number; deferVideoLoad: boolean; deferVideoSave: boolean; releaseVideoLoad: () => void; releaseVideoSave: () => void; replaceNativeSource: (id: string) => void;
   authCallback: (event: string, session: null) => void; releasePdf: () => void;
 };
 
@@ -28,7 +29,7 @@ function nativeBridgeSource(file: string) {
   const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
   const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
   const calls: ts.CallExpression[] = []; let update = "";
-  const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && node.expression.getText(parsed) === "useInrAssistantNativeDraft") calls.push(node); if (ts.isFunctionDeclaration(node) && node.name?.text === "updateDraft") update = node.getText(parsed); ts.forEachChild(node, visit); }; visit(parsed);
+  const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && ["useInrAssistantNativeDraft", "useInrAssistantVideoCommands"].includes(node.expression.getText(parsed))) calls.push(node); if (ts.isFunctionDeclaration(node) && node.name?.text === "updateDraft") update = node.getText(parsed); ts.forEachChild(node, visit); }; visit(parsed);
   assert.equal(calls.length, 1, `one active native bridge in ${file}`);
   return { call: ts.transpileModule(calls[0].getText(parsed), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
     update: ts.transpileModule(update, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText };
@@ -43,8 +44,9 @@ const sources = {
   "./DashboardAssistantScreenContext": compile("app/dashboard/_components/DashboardAssistantScreenContext.tsx"),
   "./DashboardAssistantCommandContext": compile("app/dashboard/_components/DashboardAssistantCommandContext.tsx"),
   "native": compile("app/dashboard/_hooks/useInrAssistantNativeDraft.ts"),
+  "video-native": compile("app/dashboard/_hooks/useInrAssistantVideoCommands.ts"),
   "preview": compile("app/dashboard/_hooks/useInrAssistantDocumentPreview.ts"),
-  ...Object.fromEntries(["inrAssistantMailCompose", "inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
+  ...Object.fromEntries(["inrAssistantMediaUiCommands", "inrAssistantMailCompose", "inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
 };
 const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
 const fixture = `
@@ -95,12 +97,17 @@ function AdsDraft(){
  return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
 }
 function VideoDraft(){
- const source={libraryItem:{id:window.fixtureScope.documentId},url:'local-video'},[format,setFormat]=React.useState('original'),[adaptationMode,setAdaptationMode]=React.useState('safe_frame'),[saved,setSaved]=React.useState(true);
- const channel='site_web',saving=Boolean(window.fixtureScope.blocked),initialSourceLoading=false;
+ const [source,setSource]=React.useState({libraryItem:{id:window.fixtureScope.documentId},url:'local-video'}),[format,setFormat]=React.useState('original'),[adaptationMode,setAdaptationMode]=React.useState('safe_frame'),[saved,setSaved]=React.useState(false);
+ const [operationBusy,setOperationBusy]=React.useState(false);
+ const channel='site_web',saving=operationBusy||Boolean(window.fixtureScope.blocked),initialSourceLoading=false,acceptMode='library';
  const normalizeVideoFormat=(_channel,value)=>['original','9_16','1_1','16_9'].includes(value)?value:'original';
- const useInrAssistantNativeDraft=require('native').useInrAssistantNativeDraft;
+ const clearOwnedUrl=()=>{},setError=()=>{};
+ const sourceFromLibraryItem=item=>({libraryItem:item,url:'owned-library-video'});
+ const loadInrAssistantLibraryVideo=async(id,stillCurrent)=>{window.videoLoads=(window.videoLoads||[]).concat(id);if(window.deferVideoLoad)await new Promise(resolve=>window.releaseVideoLoad=resolve);return stillCurrent()?{id,media_type:'video'}:null};
+ const save=async(options)=>{setOperationBusy(true);try{window.videoSaves=(window.videoSaves||0)+1;if(window.deferVideoSave)await new Promise(resolve=>window.releaseVideoSave=resolve);if(!options.isCurrent())return false;setSaved(true);return true}finally{setOperationBusy(false)}};
+ const useInrAssistantVideoCommands=require('video-native').useInrAssistantVideoCommands;
  ${videoBridge.call}
- window.editNative=value=>setFormat(value); window.nativeState={format,adaptationMode,saved};
+ window.editNative=value=>setFormat(value); window.replaceNativeSource=id=>setSource({libraryItem:{id},url:'user-replacement'});window.nativeState={format,adaptationMode,saved,sourceId:source.libraryItem.id};
  return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
 }
 function MailDraft(){
@@ -357,5 +364,71 @@ test("a concurrent native batch cannot overtake the pending claim or apply twice
     await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.name), "First edit");
+  } finally { await browser.close(); }
+});
+
+test("video source selection waits for the real editor commit and preserves its format/crop", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(), errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+    await setup(page, false, false, "generer-media");
+    await page.evaluate(() => (window as unknown as UiFixture).editNative("9_16"));
+    await page.waitForFunction(() => (window as unknown as UiFixture).nativeState.format === "9_16");
+    const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+    const request = inrAssistantUiActionsFromToolResult("select-video", { ok: true, uiCommand: { command: "select_video_source", selection: screen.selection, revision: screen.revision, mediaId: B } });
+    await page.evaluate(actions => { const f = window as unknown as UiFixture; f.deferVideoLoad = true; f.startActions(actions); }, request);
+    await page.waitForFunction(() => Boolean((window as unknown as UiFixture).releaseVideoLoad));
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.sourceId), A);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result), null);
+    await page.evaluate(() => (window as unknown as UiFixture).releaseVideoLoad());
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    const state = await page.evaluate(() => (window as unknown as UiFixture).nativeState);
+    assert.equal(state.sourceId, B); assert.equal(state.format, "9_16"); assert.equal(state.adaptationMode, "safe_frame");
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen.selection.id), screen.selection.id, "editor identity remains stable while its source changes");
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test("late source lookup cannot overwrite a user-selected source or cross account/actor scope", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const mode of ["source", "account", "actor"]) {
+      const page = await browser.newPage(); await setup(page, false, false, "generer-media");
+      const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+      const request = inrAssistantUiActionsFromToolResult("late-source", { ok: true, uiCommand: { command: "select_video_source", selection: screen.selection, revision: screen.revision, mediaId: B } });
+      await page.evaluate(actions => { const f = window as unknown as UiFixture; f.deferVideoLoad = true; f.startActions(actions); }, request);
+      await page.waitForFunction(() => Boolean((window as unknown as UiFixture).releaseVideoLoad));
+      await page.evaluate(mode => { const f = window as unknown as UiFixture;
+        if (mode === "source") f.replaceNativeSource("user-choice");
+        else if (mode === "account") { f.fixtureScope.account = "account-b"; window.dispatchEvent(new Event("fixture-account-change")); }
+        else f.authCallback("SIGNED_OUT", null);
+      }, mode);
+      if (mode === "source") await page.waitForFunction(() => (window as unknown as UiFixture).nativeState.sourceId === "user-choice");
+      await page.evaluate(() => (window as unknown as UiFixture).releaseVideoLoad());
+      await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      assert.notEqual(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied", mode);
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.sourceId), mode === "source" ? "user-choice" : A, mode);
+      await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
+test("video save acknowledgement waits for the native save and the saved state commit", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, false, "generer-media");
+    const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+    const request = inrAssistantUiActionsFromToolResult("save-video", { ok: true, uiCommand: { command: "save_video_retouch", selection: screen.selection, revision: screen.revision } });
+    await page.evaluate(actions => { const f = window as unknown as UiFixture; f.deferVideoSave = true; f.startActions(actions); }, request);
+    await page.waitForFunction(() => Boolean((window as unknown as UiFixture).releaseVideoSave));
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result), null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.saved), false);
+    await page.evaluate(() => (window as unknown as UiFixture).releaseVideoSave());
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.saved), true);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).videoSaves), 1);
+    await page.waitForFunction(() => !(window as unknown as UiFixture).assistantProps.screen.availableCommands.includes("save_video_retouch"));
   } finally { await browser.close(); }
 });

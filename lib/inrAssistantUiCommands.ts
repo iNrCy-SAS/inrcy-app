@@ -1,3 +1,4 @@
+import { isInrAssistantMediaUiCommandName, isInrAssistantMediaUiCommandText, parseInrAssistantMediaUiCommand, type InrAssistantMediaUiCommand } from "./inrAssistantMediaUiCommands.ts";
 import { getAssistantInternalDestination } from "./inrAssistantNavigation.ts";
 import { parseInrAssistantMailPatch, inrAssistantMailRecipientRequested, type InrAssistantMailCommand } from "./inrAssistantMailCompose.ts";
 
@@ -35,10 +36,12 @@ export type InrAssistantVideoPatch = { format?: "original" | "9_16" | "1_1" | "1
 export type InrAssistantNativeCommand =
   InrAssistantMailCommand | { command: "configure_ads_draft"; selection: { kind: "campaign"; id: string }; revision: string; patch: InrAssistantAdsPatch }
   | { command: "configure_video_retouch"; selection: { kind: "media"; id: string }; revision: string; patch: InrAssistantVideoPatch };
-export type InrAssistantUiCommand = InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
+export type InrAssistantUiCommand = InrAssistantMediaUiCommand | InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
   | { command: "download_media"; selection: { kind: "media"; id: string }; mediaIds: string[]; pathname: "/dashboard/mediatheque"; selectionMode?: "current" }
   | { command: "download_stats_report"; selection: { kind: "stats_report"; id: string }; reportId: string };
 export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiCommand | null {
+  const media = parseInrAssistantMediaUiCommand(value);
+  if (media) return media;
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
   const selection = row.selection && typeof row.selection === "object" ? row.selection as Record<string, unknown> : {};
@@ -110,15 +113,16 @@ export function isInrAssistantNavigationRequest(message: string): boolean {
   return /\b(?:ouvre|ouvrez|ouvrir|affiche|affichez|afficher|montre|montrez|montrer|emmene|emmenez|emmener|amene|amenez|amener|conduis|conduisez|conduire|navigate|open|show)\b|\b(?:va|allez|aller|go)\s+(?:dans|sur|a|au|aux|to)\b/.test(text);
 }
 
-export function isInrAssistantScreenCommandRequest(message: string, command?: "export_document_pdf" | InrAssistantNativeCommand["command"]): boolean {
+export function isInrAssistantScreenCommandRequest(message: string, command?: "export_document_pdf" | InrAssistantNativeCommand["command"] | InrAssistantMediaUiCommand["command"]): boolean {
   const text = navigationRequestText(message);
+  if (isInrAssistantMediaUiCommandName(command)) return isInrAssistantMediaUiCommandText(text, command);
   if (/^(?:comment|pourquoi|explique|how|why|si |imagine)\b|\b(?:ne |n['’]|sans |do not |don't ).{0,35}(?:telecharg|export|gener|prepar|download|modifi|chang|regl|appli|rempl|config|recadr|adapt|pass|met|renomm)/.test(text) || /\b(?:si|if|quand|when|apres confirmation|after approval|demain|tomorrow)\b/.test(text)) return false;
   const pdf = /\bpdf\b/.test(text) && !/\b(?:stats|statistiques|bilan|rapport)\b/.test(text) && /\b(?:telecharge\w*|exporte\w*|gener\w*|prepare\w*|download|export|generate)\b/.test(text);
   const edit = /\b(?:modifi\w*|chang\w*|regl\w*|appli\w*|rempl\w*|configur\w*|recadr\w*|adapt\w*|passe\w*|mets|mettre|renomm\w*|set|change|edit|apply|fill)\b/.test(text);
   const ads = edit && /\b(?:pub|publicite|publicitaire|campagne|annonce|ads|advert|brouillon)\b/.test(text);
   const video = edit && /\b(?:video|cadrage|format|recadrage)\b/.test(text);
   const mail = (edit || /\b(?:redig\w*|ecris|prepare\w*)\b/.test(text)) && /\b(?:mail|email|courriel|message|composeur)\b/.test(text) && !/\b(?:campagne|newsletter|publicitaire)\b/.test(text);
-  return command === "export_document_pdf" ? pdf : command === "configure_ads_draft" ? ads : command === "configure_video_retouch" ? video : command === "configure_mail_draft" ? mail : pdf || ads || video || mail;
+  return command === "export_document_pdf" ? pdf : command === "configure_ads_draft" ? ads : command === "configure_video_retouch" ? video : command === "configure_mail_draft" ? mail : pdf || ads || video || mail || isInrAssistantMediaUiCommandText(text);
 }
 
 export function inrAssistantMailPatchRequested(message: string, patch: InrAssistantMailCommand["patch"]): boolean {

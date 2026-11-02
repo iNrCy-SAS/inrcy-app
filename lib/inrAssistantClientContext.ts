@@ -1,3 +1,4 @@
+import { isInrAssistantMediaUiCommandAvailable, type InrAssistantMediaUiCommandName } from "./inrAssistantMediaUiCommands.ts";
 import { getAssistantInternalDestination } from "./inrAssistantNavigation.ts";
 
 export type InrAssistantClientError = { code?: string; requestId?: string; occurredAt: string };
@@ -9,7 +10,7 @@ export type InrAssistantClientScreen = {
   /** Only explicitly checked library items, never arbitrary DOM or ownership claims. */
   selectedMediaIds?: string[];
   selectionOverflow?: boolean;
-  availableCommands?: ("export_document_pdf" | "configure_ads_draft" | "configure_video_retouch" | "configure_mail_draft")[];
+  availableCommands?: ("export_document_pdf" | "configure_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | InrAssistantMediaUiCommandName)[];
 };
 /** Browser hints only: never an authenticated scope, entitlement or confirmed diagnosis. */
 export type InrAssistantClientContext = {
@@ -46,7 +47,8 @@ export function parseInrAssistantClientContext(value: unknown, now = Date.now())
     const selection = typeof rawSelection.kind === "string" && kinds.includes(rawSelection.kind) && typeof rawSelection.id === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(rawSelection.id)
       ? { kind: rawSelection.kind as NonNullable<InrAssistantClientScreen["selection"]>["kind"], id: rawSelection.id } : undefined;
     const availableCommands = Array.isArray(rawScreen.availableCommands) && selection ? rawScreen.availableCommands.filter((command): command is NonNullable<InrAssistantClientScreen["availableCommands"]>[number] =>
-      command === "export_document_pdf" && ["quote", "invoice"].includes(selection.kind)
+      isInrAssistantMediaUiCommandAvailable(command, rawScreen.pathname, selection.kind)
+      || command === "export_document_pdf" && ["quote", "invoice"].includes(selection.kind)
       || command === "configure_ads_draft" && selection.kind === "campaign" && rawScreen.pathname === "/dashboard/ads"
       || command === "configure_mail_draft" && selection.kind === "mail" && rawScreen.pathname === "/dashboard/mails"
       || command === "configure_video_retouch" && selection.kind === "media" && rawScreen.pathname === "/dashboard/generer-media") : undefined;

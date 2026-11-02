@@ -1,3 +1,5 @@
+import { prepareInrAssistantMediaUiAction } from "./inrAssistantMediaUiTools.ts";
+import { INR_ASSISTANT_MEDIA_UI_COMMANDS, type InrAssistantMediaUiCommandName } from "./inrAssistantMediaUiCommands.ts";
 import "server-only";
 import { jsonSchema, tool } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -39,19 +41,22 @@ export function createInrAssistantUiTools(options: { accountId: string; currentU
     }),
     runScreenCommand: tool({
       strict: true,
-      description: "Configurer le formulaire actuellement monté avec configure_ads_draft (nom/texte/étape) configure_video_retouch (format/cadrage) ou configure_mail_draft (recipient exact, subject, bodyText). Pour mail, seul le composeur déjà ouvert est modifié : aucun envoi ni ajout de pièce jointe. Uniquement si la capacité correspondante est déclarée : aucune sauvegarde, dépense, génération ou publication. patch contient seulement les champs demandés, les autres null. Pour ces modifications, documentId/documentKind null. Télécharger le PDF natif. Pour l’aperçu actuellement ouvert, documentId/documentKind null ; il doit déclarer export_document_pdf. Pour un document nommé ou un autre document, lire son ID réel avec readCommercialDocuments puis fournir documentId et documentKind. Le navigateur ouvre cette cible vérifiée, attend son montage, puis exporte ce document exact ; toute navigation refusée arrête l’export. Ne finalise, ne sauvegarde et n’envoie rien. Un téléchargement lancé n’est pas la preuve d’un fichier reçu.",
-      inputSchema: jsonSchema<{ command: "export_document_pdf" | "configure_ads_draft" | "configure_video_retouch" | "configure_mail_draft"; instructionQuote: string; documentId?: string | null; documentKind?: "quote" | "invoice" | null; patch?: Record<string, unknown> | null }>({ type: "object", properties: {
-        command: { type: "string", enum: ["export_document_pdf", "configure_ads_draft", "configure_video_retouch", "configure_mail_draft"] }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 },
+      description: "Actions médias actives : select_video_source sélectionne patch.mediaId réel de Mes médias dans le retoucheur ouvert ; save_video_retouch sauvegarde une copie durable de la vidéo courante ; optimize_media prépare une copie optimisée du média sélectionné (patch.targetBytes 5 à 75 Mo). Originaux conservés. Pour les commandes configure_ suivantes : Configurer le formulaire actuellement monté avec configure_ads_draft (nom/texte/étape) configure_video_retouch (format/cadrage) ou configure_mail_draft (recipient exact, subject, bodyText). Pour mail, seul le composeur déjà ouvert est modifié : aucun envoi ni ajout de pièce jointe. Uniquement si la capacité correspondante est déclarée : aucune sauvegarde, dépense, génération ou publication. patch contient seulement les champs demandés, les autres null. Pour ces modifications, documentId/documentKind null. Télécharger le PDF natif. Pour l’aperçu actuellement ouvert, documentId/documentKind null ; il doit déclarer export_document_pdf. Pour un document nommé ou un autre document, lire son ID réel avec readCommercialDocuments puis fournir documentId et documentKind. Le navigateur ouvre cette cible vérifiée, attend son montage, puis exporte ce document exact ; toute navigation refusée arrête l’export. Ne finalise, ne sauvegarde et n’envoie rien. Un téléchargement lancé n’est pas la preuve d’un fichier reçu.",
+      inputSchema: jsonSchema<{ command: "export_document_pdf" | "configure_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | InrAssistantMediaUiCommandName; instructionQuote: string; documentId?: string | null; documentKind?: "quote" | "invoice" | null; patch?: Record<string, unknown> | null }>({ type: "object", properties: {
+        command: { type: "string", enum: ["export_document_pdf", "configure_ads_draft", "configure_video_retouch", "configure_mail_draft", ...INR_ASSISTANT_MEDIA_UI_COMMANDS] }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 },
         documentId: { type: ["string", "null"], format: "uuid" }, documentKind: { type: ["string", "null"], enum: ["quote", "invoice", null] },
         patch: { type: ["object", "null"], properties: {
+          mediaId: { type: ["string", "null"], format: "uuid" }, targetBytes: { type: ["integer", "null"], minimum: 5000000, maximum: 75000000 },
           name: { type: ["string", "null"], maxLength: 100 }, primaryText: { type: ["string", "null"], maxLength: 800 },
           step: { type: ["string", "null"], enum: [...INR_ASSISTANT_ADS_STEPS, null] },
           format: { type: ["string", "null"], enum: ["original", "9_16", "1_1", "16_9", null] },
           adaptationMode: { type: ["string", "null"], enum: ["safe_frame", "cover_crop", null] },
           recipient: { type: ["string", "null"], maxLength: 254 }, subject: { type: ["string", "null"], maxLength: 220 }, bodyText: { type: ["string", "null"], maxLength: 6000 },
-        }, required: ["name", "primaryText", "step", "format", "adaptationMode", "recipient", "subject", "bodyText"], additionalProperties: false },
+        }, required: ["name", "primaryText", "step", "format", "adaptationMode", "recipient", "subject", "bodyText", "mediaId", "targetBytes"], additionalProperties: false },
       }, required: ["command", "instructionQuote", "documentId", "documentKind", "patch"], additionalProperties: false }),
       execute: async input => {
+        const mediaAction = await prepareInrAssistantMediaUiAction(input, { ...options, isRequest: isInrAssistantScreenCommandRequest });
+        if (mediaAction) return mediaAction;
         const screen = options.clientContext?.screen;
         if (input.command === "configure_ads_draft" || input.command === "configure_video_retouch" || input.command === "configure_mail_draft") {
           const command = parseInrAssistantUiCommand({ command: input.command, selection: screen?.selection, revision: screen?.revision, patch: input.patch });

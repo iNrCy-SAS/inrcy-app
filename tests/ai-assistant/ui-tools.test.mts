@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import * as mediaCommands from "../../lib/inrAssistantMediaUiCommands.ts";
 import * as commands from "../../lib/inrAssistantUiCommands.ts";
 import type { InrAssistantClientScreen } from "../../lib/inrAssistantClientContext.ts";
 import type * as Runtime from "../../lib/inrAssistantUiTools.ts";
@@ -12,7 +13,13 @@ function harness(message: string, options: { foreign?: boolean; available?: bool
     "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (value: unknown) => value },
     "./requireUser": { requireUser: async () => ({ activeUserId: options.foreign ? "other" : "active" }) },
     "./inrAssistantUiCommands.ts": commands,
+    "./inrAssistantMediaUiCommands.ts": mediaCommands,
   };
+  const mediaModule = { exports: {} };
+  const mediaSource = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantMediaUiTools.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  vm.runInNewContext(`(function(require,module,exports){${mediaSource}\n})`, {})(
+    (name: string) => { assert.ok(name in deps, name); return deps[name]; }, mediaModule, mediaModule.exports);
+  deps["./inrAssistantMediaUiTools.ts"] = mediaModule.exports;
   const moduleRecord = { exports: {} as typeof Runtime };
   const source = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantUiTools.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   vm.runInNewContext(`(function(require,module,exports){${source}\n})`, {})(
