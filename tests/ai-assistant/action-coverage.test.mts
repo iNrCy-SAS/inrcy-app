@@ -64,6 +64,8 @@ test("the catalogue distinguishes guides, drafts, irreversible work and unavaila
   assert.equal(byId.get("mail.history")?.mode, "read");
   assert.equal(byId.get("mail.history")?.family, "workspace");
   assert.equal(byId.get("documents.finalize")?.family, "commercial");
+  assert.equal(byId.get("documents.paid-status")?.mode, "needs_pro_confirmation");
+  assert.match(byId.get("documents.paid-status")!.limits, /aucun encaissement/);
   assert.equal(byId.get("studio.generate")?.family, "media");
   assert.match(byId.get("mail.history")!.limits, /pas les messages reçus/);
   assert.match(byId.get("studio.generate")!.limits, /IMAGE uniquement/);
