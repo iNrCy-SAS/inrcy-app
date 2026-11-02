@@ -85,3 +85,26 @@ for (const stage of ["before", "download", "upload", "readback"]) {
     if (stage === "upload") assert.ok(!fixture.calls.some(value => value.startsWith("/api/")));
   });
 }
+
+for (const at of ["download", "readback"]) {
+  test(`bounds ${at} response bodies and does not retry an uncertain upload`, async context => {
+    context.mock.timers.enable({ apis: ["setTimeout"] });
+    const fixture = setup(), fetch = fixture.ports.fetch;
+    let signal: AbortSignal | undefined;
+    fixture.ports.fetch = async (url, init) => {
+      if (at === "download" || String(url).startsWith("/api/")) {
+        signal = init?.signal as AbortSignal;
+        return { ok: true, blob: () => new Promise(() => {}), json: () => new Promise(() => {}) } as Response;
+      }
+      return fetch(url, init);
+    };
+    const pending = persistStudioVideoRetouch(fixture.options, fixture.ports);
+    for (let i = 0; i < 30 && !signal; i++) await Promise.resolve();
+    assert.ok(signal);
+    const rejected = assert.rejects(pending, /délai prévu/);
+    context.mock.timers.tick(at === "download" ? 120_000 : 15_000);
+    await rejected;
+    assert.equal(signal.aborted, true);
+    assert.equal(fixture.calls.filter(value => value === "upload").length, at === "download" ? 0 : 1);
+  });
+}

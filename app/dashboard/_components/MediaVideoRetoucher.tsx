@@ -227,6 +227,7 @@ export default function MediaVideoRetoucher({
   const [isMobile, setIsMobile] = useState(false);
   const channel: ChannelKey = initialContext?.channel || "site_web";
   const saveLock = useRef(false);
+  const savedCopy = useRef<{ source: MediaVideoRetoucherSource; format: VideoFormat; adaptationMode: VideoAdaptationMode; channel: ChannelKey; mediaId: string } | null>(null);
   const saveState = useRef({ source, format, adaptationMode, channel, mounted: true });
   useLayoutEffect(() => { saveState.current = { source, format, adaptationMode, channel, mounted: true }; });
   useEffect(() => () => { saveState.current.mounted = false; }, []);
@@ -407,6 +408,9 @@ export default function MediaVideoRetoucher({
     const isCurrent = () => saveState.current.mounted && saveState.current.source === source
       && saveState.current.format === format && saveState.current.adaptationMode === adaptationMode
       && saveState.current.channel === channel && options?.isCurrent?.() !== false;
+    if (!isCurrent()) return false;
+    if (savedCopy.current?.source === source && savedCopy.current.format === format
+      && savedCopy.current.adaptationMode === adaptationMode && savedCopy.current.channel === channel) return true;
     saveLock.current = true;
     setSaving(true);
     setError("");
@@ -422,6 +426,7 @@ export default function MediaVideoRetoucher({
         mediaRecord: initialContext?.mediaRecord || null,
       }, { isCurrent, keepOpen: options?.keepOpen });
       if (!isCurrent() || acceptMode === "library" && !receipt?.mediaId) return false;
+      if (receipt?.mediaId) savedCopy.current = { source, format, adaptationMode, channel, mediaId: receipt.mediaId };
       setSaved(true);
       return true;
     } catch (caught) {
@@ -591,7 +596,7 @@ export default function MediaVideoRetoucher({
         <button
           type="button"
           onClick={() => void save()}
-          disabled={!source || saving}
+          disabled={!source || saving || saved}
         >
           {saving
             ? acceptMode === "insert"

@@ -18,6 +18,16 @@ type Ports = {
   upload: (file: File, options: UploadOptions) => Promise<Record<string, unknown>>;
 };
 
+async function boundedRead<T>(milliseconds: number, operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([operation(controller.signal), new Promise<never>((_, reject) => {
+      timer = setTimeout(() => { controller.abort(); reject(new Error("La lecture du média a dépassé le délai prévu. Aucun nouvel import n’a été relancé.")); }, milliseconds);
+    })]);
+  } finally { clearTimeout(timer); }
+}
+
 /** A transformation alone is not a library save. Persist the actual generated
  * bytes as a separate native item, then read that owned item back. Never replace
  * or delete the original, and never announce success from an upload URL alone. */
@@ -29,10 +39,12 @@ export async function persistStudioVideoRetouch(options: CopyOptions, ports: Por
     && value.contentType === "video/mp4" && value.storagePath && value.publicUrl
     && Number.isSafeInteger(value.size) && value.size > 0);
   if (!variant) throw new Error("Aucune variante correspondant au format demandé n’a été produite. L’original est conservé.");
-  const response = await ports.fetch(variant.publicUrl, { cache: "no-store" });
-  assertCurrent();
-  if (!response.ok) throw new Error("La copie vidéo préparée n’est pas disponible.");
-  const blob = await response.blob();
+  const blob = await boundedRead(120_000, async signal => {
+    const response = await ports.fetch(variant.publicUrl, { cache: "no-store", signal });
+    assertCurrent();
+    if (!response.ok) throw new Error("La copie vidéo préparée n’est pas disponible.");
+    return response.blob();
+  });
   assertCurrent();
   if (blob.size !== variant.size || blob.type.split(";")[0] !== "video/mp4") throw new Error("La copie vidéo reçue ne correspond pas à la variante préparée.");
   const baseName = options.sourceName.replace(/\.[^.]+$/, "").slice(0, 140) || "video-inrstudio";
@@ -48,8 +60,11 @@ export async function persistStudioVideoRetouch(options: CopyOptions, ports: Por
   assertCurrent();
   const id = item.id;
   if (typeof id !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id) || id === options.sourceMediaId) throw new Error("La nouvelle copie n’a pas été identifiée dans Mes médias.");
-  const verifiedResponse = await ports.fetch(`/api/media-library/items?id=${encodeURIComponent(id)}`, { cache: "no-store" });
-  const payload = await verifiedResponse.json().catch(() => null);
+  const { verifiedResponse, payload } = await boundedRead(15_000, async signal => {
+    const verifiedResponse = await ports.fetch(`/api/media-library/items?id=${encodeURIComponent(id)}`, { cache: "no-store", signal });
+    const payload = await verifiedResponse.json().catch(() => null);
+    return { verifiedResponse, payload };
+  });
   assertCurrent();
   const saved = payload?.items?.find((value: Record<string, unknown>) => value.id === id);
   const metadata = saved?.media_metadata;

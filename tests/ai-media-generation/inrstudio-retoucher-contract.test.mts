@@ -257,7 +257,7 @@ test("Retoucher vidéo réutilise le moteur d'adaptation existant dans iNrStudio
   assert.match(videoRetoucher, /Utiliser ce média/);
   assert.match(videoRetoucher, /Enregistrer dans la Médiathèque/);
   assert.match(videoRetoucher, /Ajoutez une vidéo pour commencer/);
-  assert.match(videoRetoucher, /disabled=\{!source \|\| saving\}/);
+  assert.match(videoRetoucher, /disabled=\{!source \|\| saving \|\| saved\}/);
   assert.match(
     videoRetoucherStyles,
     /\.root\s*\{[\s\S]*?grid-template-rows:\s*minmax\(0, 1fr\) auto;/

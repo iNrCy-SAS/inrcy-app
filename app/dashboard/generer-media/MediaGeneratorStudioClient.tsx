@@ -421,7 +421,7 @@ export default function MediaGeneratorStudioClient({
 
       let transformedVariants = value.transformedVariants;
       let preparedVariants: BoosterVideoTransformedVariant[] = [];
-      if (!value.deferTechnicalPreparationUntilPublish) {
+      if (!handoff || !value.deferTechnicalPreparationUntilPublish) {
         const response = await requestBoosterVideoTransforms({
           source: {
             storagePath: storagePath || undefined,

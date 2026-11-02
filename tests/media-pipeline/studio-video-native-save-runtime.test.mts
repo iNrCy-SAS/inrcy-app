@@ -14,7 +14,7 @@ function harness(onSaved?: (value: unknown, options: { isCurrent: () => boolean 
   const source = { name: "A.mp4" }, state = { source, format: "9_16", adaptationMode: "cover_crop", channel: "site_web", mounted: true };
   const calls: unknown[][] = [], saveState = { current: state }, saveLock = { current: false };
   const variables = { source, format: state.format, adaptationMode: state.adaptationMode, channel: state.channel, saving: false,
-    saveState, saveLock, onSaved, initialContext: null, acceptMode: "library",
+    saveState, saveLock, savedCopy: { current: null }, onSaved, initialContext: null, acceptMode: "library",
     setSaving: (value: boolean) => calls.push(["busy", value]), setSaved: (value: boolean) => calls.push(["saved", value]), setError: (value: string) => calls.push(["error", value]) };
   const run = new Function(...Object.keys(variables), `${code}\nreturn handler;`)(...Object.values(variables)) as (options?: { isCurrent?: () => boolean }) => Promise<boolean>;
   return { run, calls, saveState, saveLock };
@@ -61,4 +61,36 @@ test("actual native failure clears its operation lock and retains the unsaved fo
   assert.equal(await fixture.run(), false);
   assert.deepEqual(fixture.calls, [["busy", true], ["error", ""], ["error", "native save failed"], ["busy", false]]);
   assert.equal(fixture.saveLock.current, false);
+});
+
+test("an unchanged successful retouch reuses its verified copy instead of uploading again", async () => {
+  let nativeCalls = 0;
+  const fixture = harness(async () => { nativeCalls++; return { mediaId: "owned-copy" }; });
+  assert.equal(await fixture.run(), true);
+  assert.equal(await fixture.run(), true);
+  assert.equal(nativeCalls, 1);
+  assert.deepEqual(fixture.calls.filter(call => call[0] === "saved"), [["saved", true]]);
+});
+
+test("the actual standalone Studio saver always prepares the variant even if a stale handoff requested deferred publication", async () => {
+  const file = "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx", text = readFileSync(file, "utf8");
+  const tree = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let initializer: ts.Expression | undefined;
+  const visit = (node: ts.Node) => { if (ts.isVariableDeclaration(node) && node.name.getText(tree) === "saveRetouchedVideo") initializer = node.initializer; ts.forEachChild(node, visit); };
+  visit(tree); assert.ok(initializer);
+  let transformed = 0, persisted = 0;
+  const ports = {
+    useCallback: (callback: unknown) => callback, handoff: null, scopeRef: { current: { mounted: true } },
+    router: { replace() { throw new Error("keepOpen must not navigate"); } }, deliverReturnedMedia() { throw new Error("standalone must persist"); },
+    uploadFileToMediaLibrary() { throw new Error("existing source must not reupload"); },
+    requestBoosterVideoTransforms: async () => { transformed++; return { ok: true, variants: [{ format: "9_16" }] }; },
+    mergeVideoVariants: (_old: unknown, generated: unknown) => generated,
+    persistStudioVideoRetouch: async (value: { variants: unknown[] }) => { persisted++; assert.deepEqual(value.variants, [{ format: "9_16" }]); return { id: "new-copy" }; },
+    fetch() { throw new Error("helper owns network"); },
+  };
+  const code = ts.transpileModule(`const handler = ${initializer.getText(tree)};`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText;
+  const run = new Function(...Object.keys(ports), `${code}\nreturn handler;`)(...Object.values(ports));
+  const result = await run({ source: { file: null, storagePath: "owned/source.mp4", url: "/api/media-library/content?id=A", name: "A.mp4", libraryItem: { id: "A" } }, format: "9_16", adaptationMode: "cover_crop", channel: "site_web", transformedVariants: [], deferTechnicalPreparationUntilPublish: true }, { keepOpen: true, isCurrent: () => true });
+  assert.deepEqual(result, { mediaId: "new-copy" });
+  assert.equal(transformed, 1); assert.equal(persisted, 1);
 });
