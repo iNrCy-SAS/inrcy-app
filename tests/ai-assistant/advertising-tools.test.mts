@@ -11,6 +11,7 @@ import * as metrics from "../../lib/adsCampaignMetrics.ts";
 import * as lifecycle from "../../lib/adsCampaignLifecycle.ts";
 import * as publicUrl from "../../lib/channelPublicUrl.ts";
 import * as resources from "../../lib/adsProviderResources.ts";
+import * as draftVersion from "../../lib/adsDraftVersion.ts";
 import type * as Advertising from "../../lib/inrAssistantAdvertisingTools.ts";
 
 type Row = Record<string, unknown>;
@@ -73,6 +74,7 @@ function fixture(options: { current?: string; status?: string; provider?: string
     "./adsValidation.ts": validation, "@/lib/adsValidation": validation,
     "./adsCampaignMetrics.ts": metrics, "./adsCampaignLifecycle.ts": lifecycle, "./channelPublicUrl.ts": publicUrl,
     "@/lib/adsProviderResources": resources,
+    "@/lib/adsDraftVersion": draftVersion,
     "@/lib/supabaseAdmin": { supabaseAdmin: database },
     "@/lib/rateLimit": { enforceRateLimit: async () => null },
     "@/lib/adsServer": {
@@ -154,6 +156,20 @@ test("concurrent native requests create one row and the same key is isolated bet
   assert.notEqual(other.campaign.id, results[0].campaign.id);
   assert.equal(h.rows.get(results[0].campaign.id)!.user_id, accountId);
   assert.equal(h.rows.get(other.campaign.id)!.user_id, foreignId);
+});
+
+test("native editor baseline rejects earlier cross-tab changes and still applies the atomic RPC guard", async () => {
+  for (const mode of ["same", "stale", "during-rpc", "invalid"]) {
+    const h = fixture({ conflict: mode === "during-rpc" });
+    const original = clone(h.rows.get(campaignId)!.draft);
+    const key = draftVersion.adsDraftBaselineKey(original); assert.ok(key);
+    const expectedDraftHash = mode === "invalid" ? "bad" : await draftVersion.adsDraftBaselineHash(key);
+    if (mode === "stale") (h.rows.get(campaignId)!.draft as Row).name = "Other tab kept";
+    const response = await h.native.POST(new Request("https://app.inrcy.test/api/ads/campaigns", { method: "POST", body: JSON.stringify({ ...(original as Row), id: campaignId, name: "This tab edit", expectedDraftHash }) }));
+    assert.equal(response.status, mode === "same" ? 200 : mode === "invalid" ? 400 : 409, mode);
+    assert.equal(h.calls.filter(call => call.kind === "rpc:inrcy_update_ads_draft").length, ["same", "during-rpc"].includes(mode) ? 1 : 0, mode);
+    assert.equal((h.rows.get(campaignId)!.draft as Row).name, mode === "stale" ? "Other tab kept" : mode === "same" ? "This tab edit" : (original as Row).name, mode);
+  }
 });
 
 test("all five public channels use the actual draft validator without choosing advertiser accounts or consent", async () => {

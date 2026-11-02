@@ -88,8 +88,8 @@ export function inrAssistantAdsFieldsRequested(message: string, patch: InrAssist
   return (patch.adsChanges ?? []).every(({ field, valueJson }) => {
     const value: unknown = JSON.parse(valueJson);
     if (typeof value === "number" && /Euros|Roas/.test(field) && !new RegExp(`(?:^|[^0-9])${String(value).replace(".", "[.,]")}(?:$|[^0-9])`).test(text)) return false;
-    const subject = /[Bb]udget|Euros|[Bb]idding|Roas|Cpc|Cpa/.test(field) ? /budget|euros?|€|enchere|cpc|cpa|roas/
-      : /Date|startAt|endAt/.test(field) ? /date|debut|fin|commence|termine|calendrier|programme|\d{4}-\d{2}-\d{2}/
+    const subject = /Date|startAt|endAt/.test(field) ? /date|debut|fin|commence|termine|calendrier|programme|\d{4}-\d{2}-\d{2}/
+      : /[Bb]udget|Euros|[Bb]idding|Roas|Cpc|Cpa/.test(field) ? /budget|euros?|€|enchere|cpc|cpa|roas/
       : /Locations|Audiences|audience|targeting|ageM/.test(field) ? /cibl|zone|local|ville|pays|audience|age|ans/
       : /language|locale/.test(field) ? /langue|francais|anglais|pays|locale/
       : /keyword|Keyword/.test(field) ? /mots?.cles?|recherche|exclu|signaux/

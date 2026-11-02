@@ -14,6 +14,7 @@ import { defaultLinkedInDeliverySettings } from "../../lib/adsLinkedInCampaignSe
 import { defaultPinterestDeliverySettings } from "../../lib/adsPinterestCampaignSettings.ts";
 import { defaultOpenaiDeliverySettings } from "../../lib/adsOpenaiCampaignSettings.ts";
 import { defaultPreparedDeliverySettings } from "../../lib/adsPreparedCampaignSettings.ts";
+import { adsDraftBaselineKey, adsDraftBaselineHash } from "../../lib/adsDraftVersion.ts";
 import { defaultAdsChannelWizardSettings } from "../../lib/adsChannelWizardSettings.ts";
 
 const ID = "11111111-1111-4111-8111-111111111111";
@@ -80,6 +81,9 @@ test("save and draft changes require unquoted current instructions and explicit 
   assert.equal(inrAssistantAdsFieldsRequested("Mets le budget publicitaire à 50 €", patch), true);
   assert.equal(inrAssistantAdsFieldsRequested("Mets le budget publicitaire à 20 €", patch), false);
   assert.equal(inrAssistantAdsFieldsRequested('Renomme la campagne « budget 50 € »', patch), false);
+  const calendar = changes({ "metaDeliverySettings.budget.endAt": "2026-12-25T12:00:00.000Z" }); assert.ok(calendar);
+  assert.equal(inrAssistantAdsFieldsRequested("Règle la date de fin de cette campagne au 25 décembre à 13 h", calendar), true);
+  assert.equal(inrAssistantAdsFieldsRequested("Modifie seulement le budget de cette campagne", calendar), false);
   const screen = { pathname: "/dashboard/ads", selection: { kind: "campaign", id: "editor" }, revision: "revision_1", availableCommands: ["save_ads_draft"] };
   assert.ok(parseInrAssistantClientContext({ screen })?.screen?.availableCommands?.includes("save_ads_draft"));
   assert.equal(parseInrAssistantClientContext({ screen: { ...screen, pathname: "/dashboard/mails" } })?.screen?.availableCommands, undefined);
@@ -107,6 +111,17 @@ test("native draft save refuses changed content, non-draft, wrong ID and late ac
     await assert.rejects(persistVerifiedAdsDraft({ draft: source, savedId: null, idempotencyKey: "fixture", isCurrent: () => current, fetch: fetcher }));
     assert.equal(calls, ["account", "lost"].includes(mode) ? 1 : 2, mode);
   }
+});
+
+test("updating a saved draft sends its opened baseline rather than hashing the new edits", async () => {
+  const source = draft(), baselineKey = adsDraftBaselineKey(source); assert.ok(baselineKey);
+  const edited = { ...source, name: "New edit" }; let sent: Record<string, unknown> | undefined;
+  const fetcher: typeof fetch = async (_url, init) => { if (init?.method === "POST") sent = JSON.parse(String(init.body)); return Response.json({ campaign: { id: ID, status: "draft", provider: edited.provider, draft: edited } }); };
+  await assert.rejects(persistVerifiedAdsDraft({ draft: edited, savedId: ID, idempotencyKey: "unused", isCurrent: () => true, fetch: fetcher }), /Rouvrez/);
+  assert.equal(sent, undefined);
+  await persistVerifiedAdsDraft({ draft: edited, savedId: ID, baselineKey, idempotencyKey: "unused", isCurrent: () => true, fetch: fetcher });
+  assert.equal(sent!.expectedDraftHash, await adsDraftBaselineHash(baselineKey));
+  assert.notEqual(sent!.expectedDraftHash, await adsDraftBaselineHash(adsDraftBaselineKey(edited)!));
 });
 
 test("uncertain native draft writes time out once without automatic replay", async context => {

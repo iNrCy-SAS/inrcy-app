@@ -5,7 +5,7 @@ import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessPr
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { prepareInrAssistantAdsFormPatch, inrAssistantAdsPatchIsApplied } from "@/lib/inrAssistantAdsFormPatch";
-import { persistVerifiedAdsDraft, adsDraftContentKey } from "@/lib/inrAssistantAdsDraftPersistence";
+import { persistVerifiedAdsDraft, adsDraftContentKey, adsDraftBaselineKey } from "@/lib/inrAssistantAdsDraftPersistence";
 import { loadInrAssistantAdsLibraryMedia } from "@/lib/inrAssistantAdsLibraryMedia";
 
 import { useCallback, useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentPropsWithoutRef } from "react";
@@ -1919,9 +1919,14 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const adsEditor = useRef({ draft, savedId, channelId, actorId: adsActorId, accountId: adsAccountId, creating, busy, active: true });
   const nativeSavePending = useRef(false);
   const nativeSaveAttempt = useRef<{ key: string; idempotencyKey: string } | null>(null);
+  const savedBaseline = useRef<{ id: string; key: string | null } | null>(null);
   const adsFormGeneration = useRef(0);
   const assistantMedia = useRef<{ id: string; url: string; slot?: "feed" | "story_reel" } | null>(null);
   useLayoutEffect(() => { adsEditor.current = { draft, savedId, channelId, actorId: adsActorId, accountId: adsAccountId, creating, busy, active: true }; });
+  useLayoutEffect(() => {
+    // Capture a newly opened/created identity once, never subsequent local edits.
+    if (savedBaseline.current?.id !== savedId) savedBaseline.current = savedId ? { id: savedId, key: adsDraftBaselineKey(draft) } : null;
+  }, [savedId, draft]);
   useLayoutEffect(() => () => { adsEditor.current.active = false; }, []);
 
   useInrAssistantAdsCommands({
@@ -2724,8 +2729,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           ? externalStatuses[channelId].selectedAccountId || draft.adAccountId
           : channelId === "openai" ? connectionSnapshots.openai.accountId || draft.adAccountId : draft.adAccountId,
       };
-      const confirmed = await persistVerifiedAdsDraft({ draft: campaignDraft, savedId, idempotencyKey: nativeSaveAttempt.current.idempotencyKey, isCurrent });
+      const baselineKey = savedBaseline.current?.id === savedId ? savedBaseline.current.key : null;
+      const confirmed = await persistVerifiedAdsDraft({ draft: campaignDraft, savedId, baselineKey, idempotencyKey: nativeSaveAttempt.current.idempotencyKey, isCurrent });
       if (!isCurrent()) return false;
+      savedBaseline.current = { id: confirmed.id, key: adsDraftBaselineKey(confirmed.draft) };
       setDraft(confirmed.draft); setSavedId(confirmed.id); setDirty(false);
       setConfirmedSpend(false); linkedInLaunchConsent.current = null;
       setDraftsRevision(revision => revision + 1); setNotice("");
@@ -2733,7 +2740,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     } catch (error) {
       if (isCurrent()) setNotice(error instanceof Error ? error.message : "Enregistrement impossible. Vérifiez le suivi avant de recommencer.");
       return false;
-    } finally { nativeSavePending.current = false; if (adsEditor.current.active && adsEditor.current.busy === "save") setBusy(null); }
+    } finally { nativeSavePending.current = false; if (adsEditor.current.active) setBusy(current => current === "save" ? null : current); }
   }
 
   async function validatePreparedDraft() {
@@ -3307,6 +3314,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     if (campaign.status !== "draft") return;
     if (!pilotChannelsEnabled && !isAdsPublicChannel(campaign.provider)) return;
     adsFormGeneration.current += 1;
+    savedBaseline.current = { id: campaign.id, key: adsDraftBaselineKey(campaign.draft) };
     linkedInManualGroupId.current = campaign.draft.linkedinCampaignGroupId || null;
     linkedInPlanEndIsExplicit.current = true;
     stopPlanProgress();

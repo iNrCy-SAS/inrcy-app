@@ -18,6 +18,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { ADS_PUBLIC_CHANNELS } from "@/lib/adsAccessPolicy";
 import { ADS_CAMPAIGN_ID_PATTERN, canMutateAdsDraft } from "./[id]/trackingPolicy";
+import { adsDraftBaselineKey, adsDraftBaselineHash } from "@/lib/adsDraftVersion";
 
 const CAMPAIGN_PAGE_SIZE = 50;
 
@@ -138,13 +139,20 @@ export async function POST(request: Request) {
     }
     if (typeof requestedId === "string") {
       const { data: existing, error: readError } = await supabaseAdmin.from("ads_campaigns")
-        .select("id,provider,status,published_at,provider_resources,updated_at")
+        .select("id,provider,status,published_at,provider_resources,updated_at,draft")
         .eq("id", requestedId).eq("user_id", user.activeUserId).maybeSingle();
       if (readError) return NextResponse.json({ error: "Impossible de vérifier ce brouillon." }, { status: 503 });
       if (!existing) return NextResponse.json({ error: "Brouillon introuvable." }, { status: 404 });
       if (!isAdsChannelId(existing.provider) || !(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, existing.provider))) return adsPilotOnlyResponse();
       if (!canMutateAdsDraft(existing)) {
         return NextResponse.json({ error: "Ce brouillon possède déjà une publication ou des ressources sur une plateforme et ne peut plus être modifié ici." }, { status: 409 });
+      }
+      // A version supplied by the native editor must still be the version it
+      // opened. The RPC below then covers a further race after this read.
+      if (body?.expectedDraftHash !== undefined) {
+        if (typeof body.expectedDraftHash !== "string" || !/^[a-f0-9]{64}$/.test(body.expectedDraftHash)) return NextResponse.json({ error: "Version de brouillon invalide." }, { status: 400 });
+        const key = adsDraftBaselineKey(normalizeStoredAdsCampaignDraft(existing.draft));
+        if (!key || await adsDraftBaselineHash(key) !== body.expectedDraftHash) return NextResponse.json({ error: "Ce brouillon a été modifié dans un autre écran. Rouvrez sa version enregistrée ; votre saisie actuelle est conservée." }, { status: 409 });
       }
       const { data: savedId, error: updateError } = await supabaseAdmin.rpc("inrcy_update_ads_draft", {
         p_user_id: user.activeUserId,

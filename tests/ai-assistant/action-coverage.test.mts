@@ -89,3 +89,14 @@ test("native Ads and video capabilities are current-form prefills accepted by th
     assert.equal(parseInrAssistantUiCommand({ command, selection: { kind, id: "native_preview" }, revision: "rev_1", patch: { ...patch, save: true } }), null);
   }
 });
+
+test("native video source/save, optimization and bounded audio import are discoverable with honest modes", () => {
+  for (const [id, mode, command] of [["studio.video-source", "prefill", "select_video_source"], ["studio.video-save", "execute", "save_video_retouch"], ["media.optimize", "execute", "optimize_media"]] as const) {
+    const entry = INR_ASSISTANT_ACTION_COVERAGE.find(row => row.id === id); assert.ok(entry);
+    assert.equal(entry.mode, mode); assert.equal(entry.availability, "implemented"); assert.match(entry.limits, new RegExp(command));
+    assert.ok(discoverInrAssistantActionCoverage({ edition: "premium", query: command }).items.some(row => row.id === id));
+    assert.ok(parseInrAssistantUiCommand({ command, selection: { kind: "media", id: "11111111-1111-4111-8111-111111111111" }, revision: "rev1", ...(command === "select_video_source" ? { mediaId: "22222222-2222-4222-8222-222222222222" } : {}) }));
+  }
+  const audio = discoverInrAssistantActionCoverage({ edition: "premium", query: "audio" }).items.find(row => row.id === "media.import");
+  assert.ok(audio); assert.match(audio.limits, /MP3\/WAV.*3 Mio.*300 secondes.*sans transcription/);
+});

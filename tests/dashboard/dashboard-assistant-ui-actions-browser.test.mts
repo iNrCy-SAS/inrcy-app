@@ -119,6 +119,7 @@ window.fetch=async(url,init)=>{
   return Response.json({items:[{id:'33333333-3333-4333-8333-333333333333',media_type:'image',size_bytes:1000,mime_type:'image/jpeg',width:960,height:1200,signed_url:'/api/media-library/items/33333333-3333-4333-8333-333333333333/content?token=fixture'}]});
  }
  if(url==='/api/ads/campaigns'){
+  if(window.adsConflict)return Response.json({error:'Other tab changed the draft'},{status:409});
   window.nativeSaved=JSON.parse(init.body);window.nativeSavedId=window.nativeSaved.id||'22222222-2222-4222-8222-222222222222';
   window.adsPostStarted=true;if(window.deferAdsSave)await new Promise(resolve=>window.releaseAdsSave=resolve);
   return Response.json({campaign:{id:window.nativeSavedId,status:'draft'}});
@@ -168,13 +169,15 @@ function AdsDraft(){
  const {prepareInrAssistantAdsFormPatch,inrAssistantAdsPatchIsApplied}=require('@/lib/inrAssistantAdsFormPatch');
  const adsActorId=window.fixtureScope.actor,adsAccountId=window.fixtureScope.account,campaignMediaUploadBusy=false;
  const pilotChannelsEnabled=true,nativeSettings=null,assistantMedia=React.useRef(null);
- const {persistVerifiedAdsDraft,adsDraftContentKey}=require('@/lib/inrAssistantAdsDraftPersistence');
+ const {persistVerifiedAdsDraft,adsDraftContentKey,adsDraftBaselineKey}=require('@/lib/inrAssistantAdsDraftPersistence');
  const {loadInrAssistantAdsLibraryMedia}=require('@/lib/inrAssistantAdsLibraryMedia');
  const getActiveBrowserUserId=()=>window.fixtureScope.account;
  const adsEditor=React.useRef({draft,savedId,channelId,actorId:adsActorId,accountId:adsAccountId,creating,busy,active:true});
  React.useLayoutEffect(()=>{adsEditor.current={draft,savedId,channelId,actorId:adsActorId,accountId:adsAccountId,creating,busy,active:true}});
  React.useLayoutEffect(()=>()=>{adsEditor.current.active=false},[]);
  const nativeSavePending=React.useRef(false),nativeSaveAttempt=React.useRef(null),adsFormGeneration=React.useRef(0);
+ const savedBaseline=React.useRef(savedId?{id:savedId,key:adsDraftBaselineKey(draft)}:null);
+ React.useLayoutEffect(()=>{if(savedBaseline.current?.id!==savedId)savedBaseline.current=savedId?{id:savedId,key:adsDraftBaselineKey(draft)}:null},[savedId,draft]);
  const externalStatuses={},connectionSnapshots={},setNotice=value=>window.adsNotice=value,setDraftsRevision=()=>{};
  const confirmInrcy=async()=>{window.channelConfirmations=(window.channelConfirmations||0)+1;return window.allowChannelChange===true};
  const isAdsPublicChannel=()=>true,CHANNEL_CATALOG=[{id:'meta'},{id:'google'}],selectChannel=index=>{window.channelChanges=(window.channelChanges||0)+1};
@@ -183,7 +186,7 @@ function AdsDraft(){
  ${adsMedia}
  window.nativeSave=()=>saveDraft();window.newUnsaved=()=>{adsFormGeneration.current++;setSavedId(null);setDirty(true);setDraft(value=>({...value}))};window.loadNative=id=>{adsFormGeneration.current++;setSavedId(id);setDraft(value=>({...value}))};
  ${adsBridge.call}
- window.editNative=name=>updateDraft({name}); window.nativeState={...draft,savedId,confirmedSpend,step,dirty};
+ window.editNative=name=>updateDraft({name}); window.nativeState={...draft,savedId,confirmedSpend,step,dirty,busy};
  return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
 }
 function VideoDraft(){
@@ -634,6 +637,34 @@ test("Ads native double save claims one write before React commits busy state", 
     await page.evaluate("window.releaseAdsSave()"); await page.waitForFunction("window.savePair!==null");
     assert.deepEqual(await page.evaluate("window.savePair"), [true, false]);
     assert.equal(await page.evaluate("window.requests.filter(row=>row.url==='/api/ads/campaigns').length"), 1);
+  } finally { await browser.close(); }
+});
+
+test("Ads immediate native responses release busy even before React commits the save flag", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, true, "ads");
+    assert.equal(await page.evaluate("window.nativeSave()"), true);
+    await page.waitForFunction("window.nativeState.savedId!==null");
+    assert.equal(await page.evaluate("window.nativeState.busy"), null);
+    await page.waitForFunction(() => (window as unknown as UiFixture).assistantProps.screen.availableCommands.includes("save_ads_draft"));
+    assert.equal(await page.evaluate("window.requests.length"), 2);
+  } finally { await browser.close(); }
+});
+
+test("Ads cross-tab conflict preserves this form edits and its opened baseline without retry", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, false, "ads");
+    await page.evaluate("window.editNative('Keep my edit');window.adsConflict=true");
+    await page.waitForFunction("window.nativeState.name==='Keep my edit'");
+    assert.equal(await page.evaluate("window.nativeSave()"), false);
+    await page.waitForFunction("window.nativeState.busy===null");
+    assert.equal(await page.evaluate("window.nativeState.name"), "Keep my edit");
+    assert.equal(await page.evaluate("window.nativeState.dirty"), true);
+    assert.equal(await page.evaluate("window.requests.length"), 1);
+    assert.match(await page.evaluate("JSON.parse(window.requests[0].body).expectedDraftHash"), /^[a-f0-9]{64}$/);
+    assert.match(await page.evaluate("window.adsNotice"), /Other tab/);
   } finally { await browser.close(); }
 });
 
