@@ -35,7 +35,7 @@ export function useInrAssistantDocumentPreview(kind: "quote" | "invoice", savedI
   }, []);
   const canPrepareMail = !!savedId && !pendingChanges && mail?.isFinalized === true && mail.serverVersion?.documentId === savedId &&
     mail.serverVersion.accountId === accountId && Number.isFinite(Date.parse(mail.serverVersion.updatedAt));
-  useInrAssistantScreen({ selection, revision, availableCommands: canPrepareMail ? ["export_document_pdf", "prepare_document_mail"] : ["export_document_pdf"],
+  useInrAssistantScreen({ selection, revision, availableCommands: canPrepareMail ? ["export_document_pdf", "create_document_template", "prepare_document_mail"] : ["export_document_pdf", "create_document_template"],
     pendingChanges: !savedId || pendingChanges, ...(canPrepareMail ? { documentVersion: mail!.serverVersion!.updatedAt } : {}), ...(mail?.prefill ? { documentPrefill: mail.prefill } : {}) });
   return { selection, revision, canPrepareMail, captureRevision, isCurrentRevision, isSameContent };
 }

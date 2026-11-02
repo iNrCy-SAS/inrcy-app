@@ -1,6 +1,8 @@
 "use client";
 import { useInrAssistantDocumentPreview } from "../../_hooks/useInrAssistantDocumentPreview";
 import { useInrAssistantDocumentMail } from "../../_hooks/useInrAssistantDocumentMail";
+import { useInrAssistantDocumentTemplate } from "../../_hooks/useInrAssistantDocumentTemplate";
+import { persistDocumentTemplate } from "../../_documents/documentTemplatePersistence";
 import { useDocumentAssistantPrefill } from "../../_hooks/useDocumentAssistantPrefill";
 import { useDocumentUnsavedChanges, type DocumentSaveVersion, type DocumentServerVersion } from "../../_hooks/useDocumentUnsavedChanges";
 import { prepareDocumentMail } from "../../_documents/documentMailPreparation";
@@ -10,7 +12,7 @@ import { useLocale, useTranslations } from "next-intl";
 import DashboardAssistantTrigger from "../../_components/DashboardAssistantTrigger";
 
 
-import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -1067,7 +1069,10 @@ export default function NewFacturePage() {
     return savedId as string | undefined;
   };
 
-  const saveAsTemplate = async () => {
+  const saveAsTemplate = async (assistant?: { templateName: string; stillCurrent: () => boolean; started: () => void }) => {
+    const captured = assistantDocument.captureRevision();
+    const accountId = getActiveBrowserUserId() || "";
+    const valid = () => !!accountId && accountId === getActiveBrowserUserId() && assistantDocument.isCurrentRevision(captured) && (!assistant || assistant.stillCurrent());
     const hasValidLine = hasReusableDocumentLine(lines);
     if (!hasValidLine) {
       setFieldErrors((prev) => ({
@@ -1076,10 +1081,13 @@ export default function NewFacturePage() {
           "Ajoutez au moins une prestation valide avant d’enregistrer un modèle.",
       }));
       setFormMessage(null);
-      return;
+      return false;
     }
 
-    const templateName = await promptInrcy({
+    const templateName = assistant ? (await confirmInrcy({
+      title: i18nT("creer_un_modele_082a9b78"), message: assistant.templateName,
+      confirmLabel: i18nT("creer_modele_386adb21"),
+    }) ? assistant.templateName : null) : await promptInrcy({
       title: i18nT("creer_un_modele_082a9b78"),
       message:
         i18nT("donnez_un_nom_a_ce_modele_df1c6b74"),
@@ -1088,10 +1096,9 @@ export default function NewFacturePage() {
       confirmLabel: i18nT("creer_modele_386adb21"),
       required: false,
     });
-    if (templateName === null) return;
+    if (templateName === null || !valid()) return false;
 
     const cleanName = templateName.trim() || "Modèle facture";
-    const nowISO = new Date().toISOString();
     const savedServiceDate = serviceDateMode === "single" ? serviceDate : "";
     const savedServicePeriodStart =
       serviceDateMode === "period" ? servicePeriodStart : "";
@@ -1125,33 +1132,22 @@ export default function NewFacturePage() {
       cleanName,
     );
 
-    const {
-      data: { user },
-      error: userErr,
-    } = await supabase.auth.getUser();
-    if (userErr || !user) return;
-
-    const { error } = await supabase.from("doc_saves").insert({
-      user_id: resolveActiveBrowserUserId(user.id),
-      type: SAVES_TYPE,
-      name: cleanName,
-      payload: snapshot,
-      updated_at: nowISO,
-    });
-
-    if (error) {
-      console.error(error);
+    assistant?.started();
+    const saved = await persistDocumentTemplate({ accountId, kind: "invoice", name: cleanName, snapshot, isCurrent: valid });
+    if (!valid()) return false;
+    if (!saved) {
       setFormMessage({
         type: "error",
         text: i18nT("impossible_d_enregistrer_ce_modele_pour_99e1aa63"),
       });
-      return;
+      return false;
     }
 
-    await refreshSaves();
+    void refreshSaves();
     setDocumentsTab("templates");
     setDraftsOpen(true);
     setFormMessage({ type: "success", text: i18nT("modele_de_facture_enregistre_8ed67319") });
+    return true;
   };
 
   const applyTemplateSnapshot = (s: FactureDraft["snapshot"]) => {
@@ -1439,7 +1435,7 @@ export default function NewFacturePage() {
       const date = new Date().toISOString().slice(0, 10);
       applyDevisConversionSnapshot(payload as DevisSnapshot, sourceId, date, dateWithAddedDays(date, documentsSettings.invoice.dueDays));
     },
-    onFailure: () => setFormMessage({ type: "error", text: "La source a changé ou n’est plus accessible. Relisez-la avant de préparer ce document." }),
+    onFailure: () => setFormMessage({ type: "error", text: i18nT("source_document_changed_20261102") }),
   });
   const assistantDocument = useInrAssistantDocumentPreview("invoice", currentSaveId, {
     clientExchangePreferences, documentUiLocale,
@@ -1452,6 +1448,8 @@ export default function NewFacturePage() {
     discountDetails, isFinalized, finalizedAt, documentsSettings,
   }, documentEdits.dirty, { isFinalized, serverVersion: documentEdits.serverVersion, prefill: assistantPrefill });
   useInrAssistantDocumentPdf(assistantDocument.selection, buildPdfBlob, "facture", assistantDocument.revision);
+  useInrAssistantDocumentTemplate({ selection: assistantDocument.selection, revision: assistantDocument.revision,
+    create: (templateName, stillCurrent, started) => saveAsTemplate({ templateName, stillCurrent, started }) });
   useInrAssistantDocumentMail({
     selection: assistantDocument.selection, revision: assistantDocument.revision,
     serverVersion: documentEdits.serverVersion, enabled: assistantDocument.canPrepareMail,

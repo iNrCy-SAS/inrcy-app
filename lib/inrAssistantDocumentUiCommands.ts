@@ -16,6 +16,17 @@ export type InrAssistantDocumentMailCommand = {
   recipient: string;
 };
 
+export type InrAssistantDocumentTemplateCommand = {
+  command: "create_document_template"; selection: { kind: "quote" | "invoice"; id: string }; revision: string; templateName: string;
+};
+export function parseInrAssistantDocumentTemplateCommand(value: unknown): InrAssistantDocumentTemplateCommand | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const input = value as Record<string, unknown>, selection = input.selection && typeof input.selection === "object" ? input.selection as Record<string, unknown> : {};
+  if (input.command !== "create_document_template" || !["quote", "invoice"].includes(String(selection.kind)) || typeof selection.id !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(selection.id) ||
+    typeof input.revision !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(input.revision) || typeof input.templateName !== "string" || !input.templateName.trim() || input.templateName.trim() !== input.templateName || input.templateName.length > 120) return null;
+  return { command: "create_document_template", selection: { kind: selection.kind as "quote" | "invoice", id: selection.id }, revision: input.revision, templateName: input.templateName };
+}
+
 export type InrAssistantDocumentPrefill = {
   operation: "convert_quote" | "apply_template";
   kind: "quote" | "invoice";

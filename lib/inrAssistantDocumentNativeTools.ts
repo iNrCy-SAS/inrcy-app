@@ -12,6 +12,7 @@ import { matchesInrAssistantActionClause, inrAssistantMaskQuotedText } from "./i
 import { unquotedInrAssistantIntent as intent } from "./inrAssistantCommandRegistry.ts";
 import { assistantActionFingerprint, createAssistantActionPreview, hasAssistantActionApproval, verifyAssistantActionPreview } from "./inrAssistantActionPreview.ts";
 import { createInrAssistantDocumentFormTools } from "./inrAssistantDocumentFormTools.ts";
+import { createInrAssistantDocumentTemplateTools } from "./inrAssistantDocumentTemplateTools.ts";
 
 type PreviewInput = { documentId: string; expectedUpdatedAt: string; reference: string; instructionQuote: string };
 type ApplyInput = { reference: string; instructionQuote: string };
@@ -70,6 +71,7 @@ export function createInrAssistantDocumentNativeTools(options: {
   }, required: ["documentId", "expectedUpdatedAt", "reference", "instructionQuote"] });
   return {
     ...createInrAssistantDocumentFormTools(options),
+    ...createInrAssistantDocumentTemplateTools(options),
     previewCommercialDocumentAction: tool({ strict: true,
       description: "Prévisualiser le statut manuel payé d’UNE facture réelle lue avec readCommercialDocuments. Numéro/ID exact cité, version updatedAt exacte, demande actuelle explicite. Ce statut n’encaisse rien, ne finalise rien et n’attribue aucun numéro. La confirmation exacte du nouvel aperçu sera nécessaire.",
       inputSchema: previewSchema,

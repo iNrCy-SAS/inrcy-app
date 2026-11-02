@@ -79,6 +79,8 @@ function harness(options: { account?: string; owner?: string; type?: string; pay
   type Tool = { execute(input: unknown): Promise<Row> };
   deps["./inrAssistantDocumentUiCommands.ts"] = documentCommands;
   deps["./inrAssistantDocumentFormTools.ts"] = load("lib/inrAssistantDocumentFormTools.ts");
+  deps["./commercialDocumentTemplate.ts"] = load("lib/commercialDocumentTemplate.ts");
+  deps["./inrAssistantDocumentTemplateTools.ts"] = load("lib/inrAssistantDocumentTemplateTools.ts");
   const adapter = load<{ createInrAssistantDocumentNativeTools(options: unknown): { previewCommercialDocumentAction: Tool; applyCommercialDocumentAction: Tool } }>("lib/inrAssistantDocumentNativeTools.ts");
   const tokens = new Map<string, string>();
   const tools = (message: string, overrides: Row = {}) => adapter.createInrAssistantDocumentNativeTools({

@@ -15,6 +15,7 @@ const sources = {
   "react-dom": packageSource("react-dom", "react-dom.development.js"), "react-dom/client": packageSource("react-dom", "react-dom-client.development.js"), scheduler: packageSource("scheduler", "scheduler.development.js"),
   guard: compile(read("app/dashboard/_hooks/useDocumentUnsavedChanges.ts")), prefill: compile(read("app/dashboard/_hooks/useDocumentAssistantPrefill.ts")),
   commands: compile(read("lib/inrAssistantDocumentUiCommands.ts")), provider: compile(read("app/dashboard/_components/DashboardUnsavedNavigationProvider.tsx")),
+  "./inrAssistantActionClause.ts": compile(read("lib/inrAssistantActionClause.ts")), "./inrAssistantRequestClauses.ts": compile(read("lib/inrAssistantRequestClauses.ts")),
 };
 async function mount(page: Page, operation: "apply_template" | "convert_quote") {
   await page.route("**/*", route => route.request().url() === "https://prefill.invalid/" ? route.fulfill({ contentType: "text/html", body: '<div id="root"></div>' }) : route.abort());

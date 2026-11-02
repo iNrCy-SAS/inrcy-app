@@ -5,7 +5,7 @@ import { parseInrAssistantAdsPatch, isInrAssistantAdsSaveRequest, isInrAssistant
 export { INR_ASSISTANT_ADS_STEPS } from "./inrAssistantAdsUiCommands.ts";
 export type { InrAssistantAdsPatch } from "./inrAssistantAdsUiCommands.ts";
 import { parseInrAssistantMailPatch, inrAssistantMailRecipientRequested, type InrAssistantMailCommand } from "./inrAssistantMailCompose.ts";
-import { parseInrAssistantDocumentMailCommand, getInrAssistantDocumentPrefillNavigation, type InrAssistantDocumentMailCommand, type InrAssistantDocumentPrefill } from "./inrAssistantDocumentUiCommands.ts";
+import { parseInrAssistantDocumentMailCommand, parseInrAssistantDocumentTemplateCommand, getInrAssistantDocumentPrefillNavigation, type InrAssistantDocumentMailCommand, type InrAssistantDocumentTemplateCommand, type InrAssistantDocumentPrefill } from "./inrAssistantDocumentUiCommands.ts";
 
 /** Shared public destinations. These commands navigate; they never grant business permissions. */
 export const INR_ASSISTANT_NAVIGATION = {
@@ -39,7 +39,7 @@ export type InrAssistantVideoPatch = { format?: "original" | "9_16" | "1_1" | "1
 export type InrAssistantNativeCommand =
   InrAssistantMailCommand | { command: "configure_ads_draft"; selection: { kind: "campaign"; id: string }; revision: string; patch: InrAssistantAdsPatch }
   | { command: "configure_video_retouch"; selection: { kind: "media"; id: string }; revision: string; patch: InrAssistantVideoPatch };
-export type InrAssistantUiCommand = InrAssistantAdsSaveCommand | InrAssistantMailLifecycleCommand | InrAssistantMediaUiCommand | InrAssistantDocumentMailCommand | InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
+export type InrAssistantUiCommand = InrAssistantAdsSaveCommand | InrAssistantMailLifecycleCommand | InrAssistantMediaUiCommand | InrAssistantDocumentMailCommand | InrAssistantDocumentTemplateCommand | InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
   | { command: "download_media"; selection: { kind: "media"; id: string }; mediaIds: string[]; pathname: "/dashboard/mediatheque"; selectionMode?: "current" }
   | { command: "download_stats_report"; selection: { kind: "stats_report"; id: string }; reportId: string };
 export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiCommand | null {
@@ -50,6 +50,7 @@ export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiComman
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
   if (row.command === "prepare_document_mail") return parseInrAssistantDocumentMailCommand(row);
+  if (row.command === "create_document_template") return parseInrAssistantDocumentTemplateCommand(row);
   const selection = row.selection && typeof row.selection === "object" ? row.selection as Record<string, unknown> : {};
   if (row.command === "save_ads_draft") return selection.kind === "campaign" && typeof selection.id === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(selection.id) && typeof row.revision === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(row.revision)
     ? { command: row.command, selection: { kind: "campaign", id: selection.id }, revision: row.revision } : null;
