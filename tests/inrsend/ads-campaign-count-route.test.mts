@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import { ADS_PUBLIC_CHANNELS } from "../../lib/adsAccessPolicy.ts";
+import * as draftVersion from "../../lib/adsDraftVersion.ts";
 
 type QueryCall = { operation: string; args: unknown[] };
 type DatabaseResult = { data: Record<string, unknown>[] | null; count: number | null; error: { message: string } | null };
@@ -52,6 +53,7 @@ function runtime(options: RouteOptions = {}) {
       rpc: () => assert.fail("Count GET must not mutate campaigns"),
     } },
     "@/lib/adsAccessPolicy": { ADS_PUBLIC_CHANNELS },
+    "@/lib/adsDraftVersion": draftVersion,
     "@/lib/adsValidation": {
       normalizeStoredAdsCampaignDraft: (draft: unknown) => { formatted.push(draft); return draft; },
     },
