@@ -362,7 +362,7 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
       setPending(true);
       try {
         const started = await onScreenCommand?.(screenCommand) === true;
-        if (stillCurrent()) setMessages(current => [...current, { role: "assistant", content: screenCommand.command === "export_document_pdf" ? dashboardAssistantPdfCopy(locale, started) : locale.startsWith("fr") ? started ? "Le téléchargement a été transmis au navigateur." : "Le téléchargement n’a pas pu être lancé. Réessayez depuis l’outil." : started ? "The download was sent to your browser." : "The download could not be started. Try again from the tool." }]);
+        if (stillCurrent()) setMessages(current => [...current, { role: "assistant", content: screenCommand.command === "export_document_pdf" ? dashboardAssistantPdfCopy(locale, started) : screenCommand.command === "configure_ads_draft" || screenCommand.command === "configure_video_retouch" ? locale.startsWith("fr") ? started ? "Les réglages ont été appliqués au formulaire, sans enregistrement ni publication." : "Les réglages n’ont pas été appliqués. Vérifiez le formulaire ouvert." : started ? "The form settings were applied without saving or publishing." : "The settings were not applied. Check the open form." : locale.startsWith("fr") ? started ? "Le téléchargement a été transmis au navigateur." : "Le téléchargement n’a pas pu être lancé. Réessayez depuis l’outil." : started ? "The download was sent to your browser." : "The download could not be started. Try again from the tool." }]);
       } finally { if (stillCurrent()) setPending(false); }
     }
     if (navigationHref && stillCurrent()) onInternalNavigate?.(navigationHref);

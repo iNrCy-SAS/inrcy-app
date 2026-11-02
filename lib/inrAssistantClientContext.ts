@@ -9,7 +9,7 @@ export type InrAssistantClientScreen = {
   /** Only explicitly checked library items, never arbitrary DOM or ownership claims. */
   selectedMediaIds?: string[];
   selectionOverflow?: boolean;
-  availableCommands?: ("export_document_pdf")[];
+  availableCommands?: ("export_document_pdf" | "configure_ads_draft" | "configure_video_retouch")[];
 };
 /** Browser hints only: never an authenticated scope, entitlement or confirmed diagnosis. */
 export type InrAssistantClientContext = {
@@ -19,7 +19,7 @@ export type InrAssistantClientContext = {
 const ACTIONS = new Set(["channels", "publish", "campaigns", "cash", "help", "generator", "stats"]);
 const PANELS = new Set(["contact", "profil", "preferences", "notifications", "inrbadge", "compte", "activite", "ia", "ai_memory", "abonnement", "factures", "mails", "agenda", "site_web", "site_inrcy", "instagram", "threads", "linkedin", "x", "gmb", "inr_search", "inr_directory", "facebook", "tiktok", "youtube_shorts", "pinterest", "legal", "rgpd", "inertie", "boutique", "parrainage", "documents", "trustpilot"]);
 const CHANNELS = new Set(["site_web", "gmb", "facebook", "instagram", "threads", "linkedin", "tiktok", "youtube_shorts", "pinterest", "x", "inr_search", "inr_directory", "inrbadge", "mails", "meta", "google", "openai"]);
-const STEPS = new Set(["mode", "channels", "intention", "content", "media", "control", "validation", "publication", "results", "project", "analysis", "foundations", "budget", "geography", "targeting", "bidding", "creative", "review", "launch"]);
+const STEPS = new Set(["mode", "channels", "intention", "content", "media", "control", "validation", "publication", "results", "project", "analysis", "foundations", "budget", "geography", "targeting", "bidding", "creative", "review", "launch", "keywords", "pinterest_format", "identity", "delivery"]);
 const member = (value: unknown, values: Set<string>) => typeof value === "string" && values.has(value) ? value : undefined;
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
@@ -45,12 +45,15 @@ export function parseInrAssistantClientContext(value: unknown, now = Date.now())
     const kinds = ["contact", "publication", "campaign", "event", "quote", "invoice", "media"];
     const selection = typeof rawSelection.kind === "string" && kinds.includes(rawSelection.kind) && typeof rawSelection.id === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(rawSelection.id)
       ? { kind: rawSelection.kind as NonNullable<InrAssistantClientScreen["selection"]>["kind"], id: rawSelection.id } : undefined;
-    const availableCommands = Array.isArray(rawScreen.availableCommands) && rawScreen.availableCommands.includes("export_document_pdf") && selection && ["quote", "invoice"].includes(selection.kind) ? ["export_document_pdf" as const] : undefined;
+    const availableCommands = Array.isArray(rawScreen.availableCommands) && selection ? rawScreen.availableCommands.filter((command): command is NonNullable<InrAssistantClientScreen["availableCommands"]>[number] =>
+      command === "export_document_pdf" && ["quote", "invoice"].includes(selection.kind)
+      || command === "configure_ads_draft" && selection.kind === "campaign" && rawScreen.pathname === "/dashboard/ads"
+      || command === "configure_video_retouch" && selection.kind === "media" && rawScreen.pathname === "/dashboard/generer-media") : undefined;
     const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
     const selectedMediaIds = rawScreen.pathname === "/dashboard/mediatheque" && Array.isArray(rawScreen.selectedMediaIds) && rawScreen.selectedMediaIds.length > 0 && rawScreen.selectedMediaIds.length <= 25 && rawScreen.selectedMediaIds.every(id => typeof id === "string" && uuid.test(id)) && new Set(rawScreen.selectedMediaIds).size === rawScreen.selectedMediaIds.length ? [...rawScreen.selectedMediaIds] as string[] : undefined;
     const selectionOverflow = rawScreen.pathname === "/dashboard/mediatheque" && rawScreen.selectionOverflow === true;
     const revision = typeof rawScreen.revision === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(rawScreen.revision) ? rawScreen.revision : undefined;
-    if (destination) screen = { pathname: rawScreen.pathname, tool: destination.label, ...(action ? { action } : {}), ...(panel ? { panel } : {}), ...(channel ? { channel } : {}), ...(step ? { step } : {}), ...(selection ? { selection } : {}), ...(revision ? { revision } : {}), ...(typeof rawScreen.pendingChanges === "boolean" ? { pendingChanges: rawScreen.pendingChanges } : {}), ...(availableCommands ? { availableCommands } : {}), ...(selectedMediaIds && !selectionOverflow ? { selectedMediaIds } : {}), ...(selectionOverflow ? { selectionOverflow: true } : {}) };
+    if (destination) screen = { pathname: rawScreen.pathname, tool: destination.label, ...(action ? { action } : {}), ...(panel ? { panel } : {}), ...(channel ? { channel } : {}), ...(step ? { step } : {}), ...(selection ? { selection } : {}), ...(revision ? { revision } : {}), ...(typeof rawScreen.pendingChanges === "boolean" ? { pendingChanges: rawScreen.pendingChanges } : {}), ...(availableCommands?.length ? { availableCommands } : {}), ...(selectedMediaIds && !selectionOverflow ? { selectedMediaIds } : {}), ...(selectionOverflow ? { selectionOverflow: true } : {}) };
   }
   const rawError = record(input.visibleError);
   const requestId = parseInrAssistantRequestId(rawError.requestId);

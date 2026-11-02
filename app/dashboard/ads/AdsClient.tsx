@@ -1,5 +1,7 @@
 "use client";
 
+import { useInrAssistantNativeDraft } from "../_hooks/useInrAssistantNativeDraft";
+
 import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState, type ChangeEvent, type ComponentPropsWithoutRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -1904,6 +1906,32 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setDirty(true);
     setConfirmedSpend(false); linkedInLaunchConsent.current = null;
   }
+
+  useInrAssistantNativeDraft({
+    command: "configure_ads_draft", kind: "campaign", id: savedId,
+    snapshot: { draft, step, channelId, creating, creationPath, busy },
+    enabled: creating && creationPath !== "choice" && busy === null,
+    channel: channelId, step: stepKeys[step], pendingChanges: dirty,
+    apply(command) {
+      if (command.command !== "configure_ads_draft" || !creating || creationPath === "choice" || busy !== null) return false;
+      const { step: requestedStep, ...patch } = command.patch;
+      const nextStep = requestedStep ? stepKeys.indexOf(requestedStep) : -1;
+      if (requestedStep && (nextStep < 0 || nextStep !== step && !reachedStepKeys.includes(requestedStep)
+        && !(nextStep === step + 1 && !(creationPath === "inrcy" && step === analysisStep && planProgress !== 100)))) return false;
+      const textLimit = channelId === "linkedin" ? 300 : channelId === "openai" || channelId === "tiktok" ? 100 : channelId === "pinterest" ? 800 : channelId === "x" ? 280 : 500;
+      if (patch.name !== undefined && patch.name.length > 100 || patch.primaryText !== undefined && (channelId === "google" || patch.primaryText.length > textLimit)) return false;
+      // Use the native edit path: it invalidates spend/launch consent and stale briefs.
+      if (Object.keys(patch).length) updateDraft(patch);
+      if (nextStep >= 0) navigateToStep(nextStep);
+      return true;
+    },
+    isApplied(command) {
+      return command.command === "configure_ads_draft"
+        && (command.patch.name === undefined || draft.name === command.patch.name)
+        && (command.patch.primaryText === undefined || draft.primaryText === command.patch.primaryText)
+        && (command.patch.step === undefined || stepKeys[step] === command.patch.step);
+    },
+  });
 
   function confirmReviewedDeclaration(
     field: "notEuPoliticalConfirmed" | "linkedinPoliticalIntentConfirmed" | "linkedinTargetingNoticeAcknowledged" | "noSpecialCategoryConfirmed",

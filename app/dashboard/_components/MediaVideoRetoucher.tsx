@@ -1,5 +1,7 @@
 "use client";
 
+import { useInrAssistantNativeDraft } from "../_hooks/useInrAssistantNativeDraft";
+
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 
@@ -221,6 +223,26 @@ export default function MediaVideoRetoucher({
   const [error, setError] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const channel: ChannelKey = initialContext?.channel || "site_web";
+
+  useInrAssistantNativeDraft({
+    command: "configure_video_retouch", kind: "media", id: source?.libraryItem?.id,
+    snapshot: { source, format, adaptationMode, channel, saving, initialSourceLoading },
+    enabled: Boolean(source) && !saving && !initialSourceLoading,
+    channel, step: "media", pendingChanges: Boolean(source) && !saved,
+    apply(command) {
+      if (command.command !== "configure_video_retouch" || !source || saving || initialSourceLoading) return false;
+      if (command.patch.format && normalizeVideoFormat(channel, command.patch.format) !== command.patch.format) return false;
+      setSaved(false);
+      if (command.patch.format) setFormat(command.patch.format);
+      if (command.patch.adaptationMode) setAdaptationMode(command.patch.adaptationMode);
+      return true;
+    },
+    isApplied(command) {
+      return command.command === "configure_video_retouch"
+        && (command.patch.format === undefined || format === command.patch.format)
+        && (command.patch.adaptationMode === undefined || adaptationMode === command.patch.adaptationMode);
+    },
+  });
 
   useEffect(() => {
     onEditingChange?.(saving || Boolean(initialSourceLoading && !source));

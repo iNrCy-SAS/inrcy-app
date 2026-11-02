@@ -34,3 +34,13 @@ test("library multi-selection is exact, bounded, route-specific and never trunca
   assert.equal(overflow?.screen?.selectionOverflow, true);
   assert.equal(overflow?.screen?.selectedMediaIds, undefined);
 });
+
+test("native edit capabilities retain their exact form revision and cannot cross routes or entity types", () => {
+  const screen = { pathname: "/dashboard/ads", channel: "meta", step: "creative", selection: { kind: "campaign", id: "draft_local" }, revision: "draft_4", pendingChanges: true, availableCommands: ["configure_ads_draft"], name: "private draft", accountId: "other" };
+  const result = parseInrAssistantClientContext({ screen })?.screen;
+  assert.deepEqual(result?.availableCommands, ["configure_ads_draft"]);
+  assert.equal(result?.revision, "draft_4"); assert.equal(result?.pendingChanges, true); assert.equal(result?.step, "creative");
+  assert.ok(!JSON.stringify(result).includes("private draft")); assert.ok(!JSON.stringify(result).includes("other"));
+  assert.equal(parseInrAssistantClientContext({ screen: { ...screen, pathname: "/dashboard/crm" } })?.screen?.availableCommands, undefined);
+  assert.equal(parseInrAssistantClientContext({ screen: { ...screen, selection: { kind: "media", id: "media_local" } } })?.screen?.availableCommands, undefined);
+});

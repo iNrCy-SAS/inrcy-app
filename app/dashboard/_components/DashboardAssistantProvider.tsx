@@ -155,7 +155,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
       } catch { return false; }
     }
     const matches = [...screenHandlers.current.entries()].filter(([, entry]) => entry.actorUserId === actorUserId && entry.activeAccountId === activeAccountId && entry.handler.command === command.command && entry.handler.selection.kind === command.selection.kind && entry.handler.selection.id === command.selection.id
-      && (!command.revision || entry.handler.command === "export_document_pdf" && entry.handler.revision === command.revision));
+      && (!command.revision || "revision" in entry.handler && entry.handler.revision === command.revision));
     if (matches.length !== 1) return false;
     const [key, entry] = matches[0];
     const stillCurrent = () => {
@@ -167,7 +167,14 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
         && (!command.revision || current.screen.revision === command.revision);
     };
     if (!stillCurrent()) return false;
-    try { return await entry.handler.run(stillCurrent); } catch { return false; }
+    const scopeCurrent = () => {
+      const scope = navigationScopeRef.current, current = screenRef.current;
+      return scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId
+        && (getActiveBrowserUserId() || activeAccountId) === activeAccountId
+        && current.pathname === entry.handler.pathname && current.screen?.selection?.kind === command.selection.kind
+        && current.screen.selection.id === command.selection.id;
+    };
+    try { return await entry.handler.run(stillCurrent, command, scopeCurrent); } catch { return false; }
   }, [actorUserId, activeAccountId]);
   const executeUiActions = useCallback(async (actions: InrAssistantUiAction[], onResult?: (result: InrAssistantUiResult) => Promise<void>, beforeAction?: (action: InrAssistantUiAction) => Promise<boolean>) => {
     const execution = uiExecution.current;

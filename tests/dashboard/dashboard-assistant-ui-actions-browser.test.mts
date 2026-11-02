@@ -9,11 +9,13 @@ import { getInrAssistantNavigation } from "../../lib/inrAssistantUiCommands.ts";
 import { inrAssistantUiActionsFromToolResult, type InrAssistantUiAction, type InrAssistantUiResult } from "../../lib/inrAssistantUiActions.ts";
 
 type UiFixture = Window & {
-  assistantProps: { screen: { availableCommands: string[]; selection: { id: string }; selectedMediaIds?: string[]; revision: string; pendingChanges?: boolean } };
+  assistantProps: { screen: { availableCommands: string[]; selection: { id: string }; selectedMediaIds?: string[]; revision: string; pendingChanges?: boolean }; onUiActions: (actions: InrAssistantUiAction[]) => Promise<InrAssistantUiResult[]> };
   result: InrAssistantUiResult[]; requestedHref: string; pdfBuilds: string[]; exports: unknown[];
-  fixtureScope: { account: string; documentId: string; selectedMediaIds: string[]; text: string }; allowNavigation: boolean; deferPdf: boolean; deferDownload: boolean;
+  fixtureScope: { account: string; documentId: string; selectedMediaIds: string[]; text: string; blocked: boolean }; allowNavigation: boolean; deferPdf: boolean; deferDownload: boolean;
   releaseDownload: () => void; requests: Array<{ url: string; body: string }>;
   startActions: (actions: InrAssistantUiAction[]) => void; mountTarget: () => void; renderFixture: () => void;
+  deferClaim: boolean; releaseClaim: () => void;
+  editNative: (name: string) => void; nativeState: { name: string; primaryText: string; confirmedSpend: boolean; format: string; adaptationMode: string; saved: boolean; step: number };
   authCallback: (event: string, session: null) => void; releasePdf: () => void;
 };
 
@@ -22,24 +24,37 @@ const compile = (file: string) => ts.transpileModule(readFileSync(new URL(`../..
   target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
 } }).outputText;
 const packageSource = (name: string, file: string) => readFileSync(path.join(path.dirname(require.resolve(`${name}/package.json`)), "cjs", file), "utf8");
+function nativeBridgeSource(file: string) {
+  const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
+  const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
+  const calls: ts.CallExpression[] = []; let update = "";
+  const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && node.expression.getText(parsed) === "useInrAssistantNativeDraft") calls.push(node); if (ts.isFunctionDeclaration(node) && node.name?.text === "updateDraft") update = node.getText(parsed); ts.forEachChild(node, visit); }; visit(parsed);
+  assert.equal(calls.length, 1, `one active native bridge in ${file}`);
+  return { call: ts.transpileModule(calls[0].getText(parsed), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
+    update: ts.transpileModule(update, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText };
+}
+const adsBridge = nativeBridgeSource("app/dashboard/ads/AdsClient.tsx");
+const videoBridge = nativeBridgeSource("app/dashboard/_components/MediaVideoRetoucher.tsx");
 const sources = {
   react: packageSource("react", "react.production.js"), "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
   "react-dom": packageSource("react-dom", "react-dom.production.js"), "react-dom/client": packageSource("react-dom", "react-dom-client.production.js"), scheduler: packageSource("scheduler", "scheduler.production.js"),
   provider: compile("app/dashboard/_components/DashboardAssistantProvider.tsx"),
   "./DashboardAssistantScreenContext": compile("app/dashboard/_components/DashboardAssistantScreenContext.tsx"),
   "./DashboardAssistantCommandContext": compile("app/dashboard/_components/DashboardAssistantCommandContext.tsx"),
+  "native": compile("app/dashboard/_hooks/useInrAssistantNativeDraft.ts"),
   "preview": compile("app/dashboard/_hooks/useInrAssistantDocumentPreview.ts"),
   ...Object.fromEntries(["inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
 };
 const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
 const fixture = `
 const sources=${JSON.stringify(sources)},loaded={};
-window.fixtureScope={actor:'actor-a',account:'account-a',pathname:location.pathname.endsWith('/mediatheque')?'/dashboard/mediatheque':'/dashboard/devis/new',query:location.search.includes('new=1')?'':'saveId=${A}',documentId:location.search.includes('new=1')?'':'${A}',selectedMediaIds:['${A}','${B}'],text:'Private form text'};
+window.fixtureScope={actor:'actor-a',account:'account-a',pathname:location.pathname,query:location.search.includes('new=1')?'':'saveId=${A}',documentId:location.search.includes('new=1')?'':'${A}',selectedMediaIds:['${A}','${B}'],text:'Private form text'};
 window.exports=[];window.pdfBuilds=[];window.requests=[];window.allowNavigation=true;window.deferNavigation=true;
 const router={push(href){window.requestedHref=href;if(!window.deferNavigation)window.mountTarget()}};
 function require(name){
  if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
  if(name==='../_components/DashboardAssistantScreenContext')return require('./DashboardAssistantScreenContext');
+ if(name==='../_components/DashboardAssistantCommandContext')return require('./DashboardAssistantCommandContext');
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
  if(name==='next-intl')return {useLocale:()=> 'fr-FR'};
  if(name==='next/navigation')return {usePathname:()=>window.fixtureScope.pathname,useSearchParams:()=>new URLSearchParams(window.fixtureScope.query),useRouter:()=>router};
@@ -66,15 +81,36 @@ function Document(){
  return React.createElement('output',{id:'mounted-document'},id);
 }
 function Library(){screen.useInrAssistantScreen({selectedMediaIds:window.fixtureScope.selectedMediaIds});return React.createElement('output',null,'Library')}
-function Fixture(){const[,render]=React.useState(0);window.renderFixture=()=>render(n=>n+1);return React.createElement(require('provider').default,null,React.createElement(window.fixtureScope.pathname==='/dashboard/mediatheque'?Library:Document))}
+function AdsDraft(){
+ const[draft,setDraft]=React.useState({name:'Original campaign',primaryText:'Original text'}),[dirty,setDirty]=React.useState(false),[confirmedSpend,setConfirmedSpend]=React.useState(true),[step,setStep]=React.useState(0);
+ const channelId='meta',creating=true,creationPath='manual',busy=window.fixtureScope.blocked?'saving':null,savedId=window.fixtureScope.documentId,stepKeys=['foundations','creative','budget'];
+ const reachedStepKeys=['foundations'],analysisStep=-1,planProgress=100;
+ const linkedInManualGroupId=React.useRef(null),linkedInPlanEndIsExplicit=React.useRef(false),linkedInLaunchConsent=React.useRef({approved:true});
+ function setConfirmedDestinationUrl(){} function applyDraftEdit(current,patch){return {...current,...patch}} function navigateToStep(next){setStep(next)}
+ ${adsBridge.update}
+ const useInrAssistantNativeDraft=require('native').useInrAssistantNativeDraft;
+ ${adsBridge.call}
+ window.editNative=name=>updateDraft({name}); window.nativeState={...draft,confirmedSpend,step,dirty};
+ return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
+}
+function VideoDraft(){
+ const source={libraryItem:{id:window.fixtureScope.documentId},url:'local-video'},[format,setFormat]=React.useState('original'),[adaptationMode,setAdaptationMode]=React.useState('safe_frame'),[saved,setSaved]=React.useState(true);
+ const channel='site_web',saving=Boolean(window.fixtureScope.blocked),initialSourceLoading=false;
+ const normalizeVideoFormat=(_channel,value)=>['original','9_16','1_1','16_9'].includes(value)?value:'original';
+ const useInrAssistantNativeDraft=require('native').useInrAssistantNativeDraft;
+ ${videoBridge.call}
+ window.editNative=value=>setFormat(value); window.nativeState={format,adaptationMode,saved};
+ return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
+}
+function Fixture(){const[,render]=React.useState(0);window.renderFixture=()=>render(n=>n+1);return React.createElement(require('provider').default,null,React.createElement(window.fixtureScope.pathname==='/dashboard/ads'?AdsDraft:window.fixtureScope.pathname==='/dashboard/generer-media'?VideoDraft:window.fixtureScope.pathname==='/dashboard/mediatheque'?Library:Document))}
 window.mountTarget=()=>{const url=new URL(window.requestedHref,location.origin);window.fixtureScope={...window.fixtureScope,pathname:url.pathname,query:url.search.slice(1),documentId:url.searchParams.get('saveId')};window.renderFixture()};
-window.startActions=actions=>{window.result=null;window.assistantProps.onUiActions(actions).then(value=>window.result=value)};
+window.startActions=actions=>{window.result=null;window.assistantProps.onUiActions(actions,undefined,window.deferClaim?()=>new Promise(resolve=>window.releaseClaim=()=>resolve(true)):undefined).then(value=>window.result=value)};
 require('react-dom/client').createRoot(document.getElementById('root')).render(React.createElement(Fixture));
 `;
 const actions = inrAssistantUiActionsFromToolResult("pdf-b", { ok: true, navigation: getInrAssistantNavigation("quotes", B), uiCommand: { command: "export_document_pdf", selection: { kind: "quote", id: B } } });
-async function setup(page: Page, library = false, unsaved = false) {
+async function setup(page: Page, library = false, unsaved = false, native?: "ads" | "generer-media") {
   await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: '<html><body><div id="root"></div></body></html>' }) : route.abort());
-  await page.goto(library ? "https://fixture.invalid/dashboard/mediatheque" : `https://fixture.invalid/dashboard/devis/new${unsaved ? "?new=1" : ""}`);
+  await page.goto(native ? `https://fixture.invalid/dashboard/${native}` : library ? "https://fixture.invalid/dashboard/mediatheque" : `https://fixture.invalid/dashboard/devis/new${unsaved ? "?new=1" : ""}`);
   await page.addScriptTag({ content: fixture });
   await page.waitForFunction(() => Boolean((window as unknown as UiFixture).assistantProps?.screen?.availableCommands?.length || (window as unknown as UiFixture).assistantProps?.screen?.selectedMediaIds?.length));
 }
@@ -179,5 +215,94 @@ test("new unsaved document exports its native preview without saving and rejects
     await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "failed");
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).exports.length), 1);
+  } finally { await browser.close(); }
+});
+
+for (const kind of ["ads", "generer-media"] as const) {
+  test(`${kind}: actual native callbacks commit requested fields, keep guards, and reject stale commands`, async () => {
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const page = await browser.newPage(), errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+      await setup(page, false, false, kind);
+      const initial = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+      const command = kind === "ads" ? "configure_ads_draft" : "configure_video_retouch";
+      const patch = kind === "ads" ? { name: "Edited campaign", primaryText: "Requested copy", step: "creative" } : { format: "9_16", adaptationMode: "cover_crop" };
+      const request = inrAssistantUiActionsFromToolResult("native", { ok: true, uiCommand: { command, selection: { kind: kind === "ads" ? "campaign" : "media", id: initial.selection.id }, revision: initial.revision, patch } });
+      assert.equal(request.length, 1);
+      await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), request);
+      await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
+      const state = await page.evaluate(() => (window as unknown as UiFixture).nativeState);
+      if (kind === "ads") { assert.equal(state.name, "Edited campaign"); assert.equal(state.primaryText, "Requested copy"); assert.equal(state.confirmedSpend, false, "Native edit revokes paid-launch consent"); assert.equal(state.step, 1); }
+      else { assert.equal(state.format, "9_16"); assert.equal(state.adaptationMode, "cover_crop"); assert.equal(state.saved, false, "Retouch remains unsaved"); }
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).requests.length), 0);
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).exports.length), 0);
+      await page.evaluate(kind => (window as unknown as UiFixture).editNative(kind === "ads" ? "User later edit" : "16_9"), kind);
+      await page.waitForFunction(revision => (window as unknown as UiFixture).assistantProps.screen.revision !== revision, initial.revision);
+      await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), request);
+      await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "failed");
+      assert.equal(await page.evaluate(kind => kind === "ads" ? (window as unknown as UiFixture).nativeState.name : (window as unknown as UiFixture).nativeState.format, kind), kind === "ads" ? "User later edit" : "16_9");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  });
+}
+
+test("native changes arriving after a claim wait cannot cross a form revision or account", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const invalidation of ["revision", "selection", "busy", "account"]) {
+      const page = await browser.newPage(); await setup(page, false, false, "ads");
+      const current = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+      const request = inrAssistantUiActionsFromToolResult("late", { ok: true, uiCommand: { command: "configure_ads_draft", selection: { kind: "campaign", id: current.selection.id }, revision: current.revision, patch: { name: "Late assistant edit" } } });
+      await page.evaluate(actions => { const fixture = window as unknown as UiFixture; fixture.deferClaim = true; fixture.startActions(actions); }, request);
+      await page.waitForFunction(() => Boolean((window as unknown as UiFixture).releaseClaim));
+      await page.evaluate(mode => { const f = window as unknown as UiFixture;
+        if (mode === "revision") f.editNative("User latest edit");
+        if (mode === "selection") { f.fixtureScope.documentId = "another-campaign"; f.renderFixture(); }
+        if (mode === "busy") { f.fixtureScope.blocked = true; f.renderFixture(); }
+        if (mode === "account") { f.fixtureScope.account = "account-b"; window.dispatchEvent(new Event("fixture-account-change")); }
+      }, invalidation);
+      if (invalidation !== "account") await page.waitForFunction(old => { const screen = (window as unknown as UiFixture).assistantProps.screen; return screen.revision !== old.revision || screen.selection?.id !== old.selection.id; }, current);
+      await page.evaluate(() => (window as unknown as UiFixture).releaseClaim());
+      await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      assert.notEqual(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied", invalidation);
+      assert.notEqual(await page.evaluate(() => (window as unknown as UiFixture).nativeState.name), "Late assistant edit", invalidation);
+      await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
+test("native Ads rejects locked steps and channel text limits before applying any field", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, false, "ads");
+    for (const patch of [{ name: "Must not apply", step: "budget" }, { name: "Must not apply", primaryText: "x".repeat(501) }]) {
+      const current = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+      const request = inrAssistantUiActionsFromToolResult("guard", { ok: true, uiCommand: { command: "configure_ads_draft", selection: { kind: "campaign", id: current.selection.id }, revision: current.revision, patch } });
+      await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), request);
+      await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "failed");
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.name), "Original campaign");
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.confirmedSpend), true);
+    }
+  } finally { await browser.close(); }
+});
+
+test("a concurrent native batch cannot overtake the pending claim or apply twice", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, false, "ads");
+    const current = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+    const request = inrAssistantUiActionsFromToolResult("first", { ok: true, uiCommand: { command: "configure_ads_draft", selection: { kind: "campaign", id: current.selection.id }, revision: current.revision, patch: { name: "First edit" } } });
+    await page.evaluate(actions => { const f = window as unknown as UiFixture; f.deferClaim = true; f.startActions(actions); }, request);
+    await page.waitForFunction(() => Boolean((window as unknown as UiFixture).releaseClaim));
+    const second = await page.evaluate(actions => (window as unknown as UiFixture).assistantProps.onUiActions(actions), request);
+    assert.equal(second[0].status, "cancelled");
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.name), "Original campaign");
+    await page.evaluate(() => (window as unknown as UiFixture).releaseClaim());
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.name), "First edit");
   } finally { await browser.close(); }
 });

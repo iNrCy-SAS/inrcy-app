@@ -28,7 +28,13 @@ export const INR_ASSISTANT_NAVIGATION = {
 } as const;
 export const INR_ASSISTANT_NAVIGATION_DESTINATIONS = Object.keys(INR_ASSISTANT_NAVIGATION) as (keyof typeof INR_ASSISTANT_NAVIGATION)[];
 export type InrAssistantNavigation = { destination: string; href: string; label: string; documentId?: string };
-export type InrAssistantUiCommand = { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
+export const INR_ASSISTANT_ADS_STEPS = ["foundations", "bidding", "geography", "targeting", "keywords", "creative", "pinterest_format", "identity", "media", "delivery", "budget", "validation", "analysis"] as const;
+export type InrAssistantAdsPatch = { name?: string; primaryText?: string; step?: typeof INR_ASSISTANT_ADS_STEPS[number] };
+export type InrAssistantVideoPatch = { format?: "original" | "9_16" | "1_1" | "16_9"; adaptationMode?: "safe_frame" | "cover_crop" };
+export type InrAssistantNativeCommand =
+  { command: "configure_ads_draft"; selection: { kind: "campaign"; id: string }; revision: string; patch: InrAssistantAdsPatch }
+  | { command: "configure_video_retouch"; selection: { kind: "media"; id: string }; revision: string; patch: InrAssistantVideoPatch };
+export type InrAssistantUiCommand = InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
   | { command: "download_media"; selection: { kind: "media"; id: string }; mediaIds: string[]; pathname: "/dashboard/mediatheque"; selectionMode?: "current" }
   | { command: "download_stats_report"; selection: { kind: "stats_report"; id: string }; reportId: string };
 export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiCommand | null {
@@ -36,6 +42,21 @@ export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiComman
   const row = value as Record<string, unknown>;
   const selection = row.selection && typeof row.selection === "object" ? row.selection as Record<string, unknown> : {};
   const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+  if (row.command === "configure_ads_draft" || row.command === "configure_video_retouch") {
+    if (typeof selection.id !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(selection.id) || typeof row.revision !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(row.revision) || !row.patch || typeof row.patch !== "object" || Array.isArray(row.patch)) return null;
+    const patch = row.patch as Record<string, unknown>;
+    const entries = Object.entries(patch).filter(([, value]) => value !== null && value !== undefined);
+    if (!entries.length) return null;
+    if (row.command === "configure_ads_draft" && selection.kind === "campaign") {
+      if (entries.some(([key, value]) => key === "name" ? typeof value !== "string" || !value.trim() || value.length > 100 : key === "primaryText" ? typeof value !== "string" || value.length > 800 : key === "step" ? !INR_ASSISTANT_ADS_STEPS.includes(value as typeof INR_ASSISTANT_ADS_STEPS[number]) : true)) return null;
+      return { command: row.command, selection: { kind: "campaign", id: selection.id }, revision: row.revision, patch: Object.fromEntries(entries) as InrAssistantAdsPatch };
+    }
+    if (row.command === "configure_video_retouch" && selection.kind === "media") {
+      if (entries.some(([key, value]) => key === "format" ? !["original", "9_16", "1_1", "16_9"].includes(String(value)) : key === "adaptationMode" ? !["safe_frame", "cover_crop"].includes(String(value)) : true)) return null;
+      return { command: row.command, selection: { kind: "media", id: selection.id }, revision: row.revision, patch: Object.fromEntries(entries) as InrAssistantVideoPatch };
+    }
+    return null;
+  }
   if (row.command === "download_media") return row.pathname === "/dashboard/mediatheque" && Array.isArray(row.mediaIds) && row.mediaIds.length > 0 && row.mediaIds.length <= 25 && row.mediaIds.every(id => typeof id === "string" && uuid.test(id)) && new Set(row.mediaIds).size === row.mediaIds.length && selection.kind === "media" && selection.id === row.mediaIds[0]
     ? { command: "download_media", selection: { kind: "media", id: row.mediaIds[0] as string }, mediaIds: [...row.mediaIds] as string[], pathname: "/dashboard/mediatheque", ...(row.selectionMode === "current" ? { selectionMode: "current" } : {}) } : null;
   if (row.command === "download_stats_report") return typeof row.reportId === "string" && uuid.test(row.reportId) && selection.kind === "stats_report" && selection.id === row.reportId
@@ -64,7 +85,10 @@ export function parseInrAssistantNavigation(value: unknown): InrAssistantNavigat
 }
 
 function navigationRequestText(message: string): string {
-  return message.replace(/```[\s\S]*?(?:```|$)|`[^`]*`|«[^»]*»|“[^”]*”|"[^"]*"|^>.*$/gm, " ")
+  // Fence end-of-input must not use multiline $, which exposes later code lines.
+  return message.replace(/```[\s\S]*?(?:```|$)/g, " ")
+    .replace(/`[^`]*(?:`|$)|«[^»]*(?:»|$)|“[^”]*(?:”|$)|"[^"]*(?:"|$)|(?<![\p{L}])'[\s\S]*?(?:'(?![\p{L}])|$)|‘[\s\S]*?(?:’(?![\p{L}])|$)/gu, " ")
+    .replace(/^\s*>.*$/gm, " ")
     .normalize("NFD").replace(/\p{M}/gu, "").replace(/’/g, "'").toLowerCase().trim();
 }
 
@@ -80,11 +104,14 @@ export function isInrAssistantNavigationRequest(message: string): boolean {
   return /\b(?:ouvre|ouvrez|ouvrir|affiche|affichez|afficher|montre|montrez|montrer|emmene|emmenez|emmener|amene|amenez|amener|conduis|conduisez|conduire|navigate|open|show)\b|\b(?:va|allez|aller|go)\s+(?:dans|sur|a|au|aux|to)\b/.test(text);
 }
 
-export function isInrAssistantScreenCommandRequest(message: string): boolean {
-  const text = message.replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm, " ")
-    .normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
-  return /\bpdf\b/.test(text) && !/\b(?:stats|statistiques|bilan|rapport)\b/.test(text) && /\b(?:telecharge\w*|exporte\w*|gener\w*|prepare\w*|download|export|generate)\b/.test(text)
-    && !/^(?:comment|pourquoi|explique|how|why|si |imagine)\b|\b(?:ne |n['’]|sans |do not |don't ).{0,30}(?:telecharg|export|gener|prepar|download)/.test(text);
+export function isInrAssistantScreenCommandRequest(message: string, command?: "export_document_pdf" | "configure_ads_draft" | "configure_video_retouch"): boolean {
+  const text = navigationRequestText(message);
+  if (/^(?:comment|pourquoi|explique|how|why|si |imagine)\b|\b(?:ne |n['’]|sans |do not |don't ).{0,35}(?:telecharg|export|gener|prepar|download|modifi|chang|regl|appli|rempl|config|recadr|adapt|pass|met|renomm)/.test(text) || /\b(?:si|if|quand|when|apres confirmation|after approval|demain|tomorrow)\b/.test(text)) return false;
+  const pdf = /\bpdf\b/.test(text) && !/\b(?:stats|statistiques|bilan|rapport)\b/.test(text) && /\b(?:telecharge\w*|exporte\w*|gener\w*|prepare\w*|download|export|generate)\b/.test(text);
+  const edit = /\b(?:modifi\w*|chang\w*|regl\w*|appli\w*|rempl\w*|configur\w*|recadr\w*|adapt\w*|passe\w*|mets|mettre|renomm\w*|set|change|edit|apply|fill)\b/.test(text);
+  const ads = edit && /\b(?:pub|publicite|publicitaire|campagne|annonce|ads|advert|brouillon)\b/.test(text);
+  const video = edit && /\b(?:video|cadrage|format|recadrage)\b/.test(text);
+  return command === "export_document_pdf" ? pdf : command === "configure_ads_draft" ? ads : command === "configure_video_retouch" ? video : pdf || ads || video;
 }
 
 const DIRECT_DESTINATION_ALIASES: ReadonlyArray<readonly [keyof typeof INR_ASSISTANT_NAVIGATION, RegExp]> = [

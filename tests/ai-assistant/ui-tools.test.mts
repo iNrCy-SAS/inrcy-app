@@ -4,9 +4,10 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import * as commands from "../../lib/inrAssistantUiCommands.ts";
+import type { InrAssistantClientScreen } from "../../lib/inrAssistantClientContext.ts";
 import type * as Runtime from "../../lib/inrAssistantUiTools.ts";
 
-function harness(message: string, options: { foreign?: boolean; available?: boolean; expired?: boolean; documentOwner?: string; preview?: boolean } = {}) {
+function harness(message: string, options: { foreign?: boolean; available?: boolean; expired?: boolean; documentOwner?: string; preview?: boolean; screen?: InrAssistantClientScreen } = {}) {
   const deps: Record<string, unknown> = {
     "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (value: unknown) => value },
     "./requireUser": { requireUser: async () => ({ activeUserId: options.foreign ? "other" : "active" }) },
@@ -22,7 +23,7 @@ function harness(message: string, options: { foreign?: boolean; available?: bool
     return query;
   } } as unknown as Parameters<typeof Runtime.createInrAssistantUiTools>[0]["supabase"];
   return moduleRecord.exports.createInrAssistantUiTools({ accountId: "active", currentUserMessage: message, canStartWork: () => !options.expired, ...(options.documentOwner ? { supabase: db } : {}),
-    clientContext: { source: "untrusted_client", screen: { pathname: "/dashboard/devis/new", tool: "Créer un devis", selection: { kind: "quote", id: options.preview ? "preview_local" : "quote-123" }, ...(options.preview ? { revision: "preview_local_2", pendingChanges: true } : {}), ...(options.available === false ? {} : { availableCommands: ["export_document_pdf"] }) } } });
+    clientContext: { source: "untrusted_client", screen: options.screen ?? { pathname: "/dashboard/devis/new", tool: "Créer un devis", selection: { kind: "quote", id: options.preview ? "preview_local" : "quote-123" }, ...(options.preview ? { revision: "preview_local_2", pendingChanges: true } : {}), ...(options.available === false ? {} : { availableCommands: ["export_document_pdf"] }) } } });
 }
 const execution = { toolCallId: "test", messages: [] };
 test("navigation validates current instruction and active account before emitting a UI command", async () => {
@@ -87,4 +88,24 @@ test("unsaved preview PDF binds the local revision without saving or reading a r
   assert.deepEqual(commands.parseInrAssistantUiCommand(result.uiCommand), { command: "export_document_pdf", selection: { kind: "quote", id: "preview_local" }, revision: "preview_local_2" });
   assert.equal(result.navigation, undefined);
   assert.equal(commands.parseInrAssistantUiCommand({ ...(result.uiCommand as object), revision: "bad revision" }), null);
+});
+
+for (const kind of ["ads", "video"] as const) {
+  test(`${kind}: native edits require explicit current instructions, mounted capability and revision`, async () => {
+    const command = kind === "ads" ? "configure_ads_draft" : "configure_video_retouch";
+    const request = kind === "ads" ? "Renomme cette campagne publicitaire" : "Recadre cette vidéo au format vertical";
+    const screen: InrAssistantClientScreen = { pathname: kind === "ads" ? "/dashboard/ads" : "/dashboard/generer-media", tool: "Native form", selection: { kind: kind === "ads" ? "campaign" : "media", id: "draft_local" }, revision: "draft_2", availableCommands: [command] };
+    const patch = kind === "ads" ? { name: "Nouveau nom" } : { format: "9_16", adaptationMode: "cover_crop" };
+    const input = { command, instructionQuote: request, patch } as const;
+    const result = await harness(request, { screen }).runScreenCommand.execute!(input, execution) as { ok: boolean; uiCommand: unknown };
+    assert.equal(result.ok, true); assert.equal(commands.parseInrAssistantUiCommand(result.uiCommand)?.command, command);
+    for (const options of [{ screen: { ...screen, revision: undefined } }, { screen: { ...screen, availableCommands: [] } }, { screen, foreign: true }, { screen, expired: true }]) assert.equal((await harness(request, options).runScreenCommand.execute!(input, execution) as { ok: boolean }).ok, false);
+    for (const message of ["Comment " + request, "Ne " + request, "Demain " + request, "Le document dit « " + request + " »", "Lis ce texte : “" + request + "”", "Lis ce texte : '" + request + "'", "Lis ce texte : ‘" + request + "’", "Lis ce code : `" + request + "`", "Lis ce code : ```txt\n" + request + "\nAutre ligne", request + " si je confirme", "Lis ce texte : “" + request, "Lis ce texte : '" + request, "Lis ce code : `" + request]) assert.equal((await harness(message, { screen }).runScreenCommand.execute!({ ...input, instructionQuote: message }, execution) as { ok: boolean }).ok, false, message);
+    for (const invalid of [{ budget: 200 }, { format: "trim" }, { name: "x", publish: true }]) assert.equal(commands.parseInrAssistantUiCommand({ command, selection: screen.selection, revision: screen.revision, patch: invalid }), null);
+  });
+}
+
+test("quoted field values preserve a current instruction, quoted instructions never authorize UI changes", () => {
+  for (const message of ["Renomme la campagne « Promotion été »", "Modifie le texte de l'annonce en 'Bonjour à tous'", "Recadre la vidéo au format \"9:16\""]) assert.equal(commands.isInrAssistantScreenCommandRequest(message), true, message);
+  for (const message of ["Lis ce texte : “Ouvre le CRM”", "Lis ce code : ```txt\nOuvre le CRM\nAutre ligne"]) assert.equal(commands.isInrAssistantNavigationRequest(message), false, message);
 });
