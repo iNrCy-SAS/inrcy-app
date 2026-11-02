@@ -21,6 +21,8 @@ type UiFixture = Window & {
   authCallback: (event: string, session: null) => void; releasePdf: () => void;
   allowMailMount: boolean; mailUploads: string[];
   mailAttachments: Array<{ bucket: string; path: string; name: string; type: string; size: number }>;
+  mailSaves: number; mailSends: number; mailConfirmations: number; mailScheduleOpen: boolean;
+  deferMailSave: boolean; releaseMailSave: () => void; deferMailSend: boolean; releaseMailSend: () => void; refuseMail: boolean;
 };
 
 const require = createRequire(import.meta.url);
@@ -32,7 +34,7 @@ function nativeBridgeSource(file: string) {
   const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
   const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
   const calls: ts.CallExpression[] = []; let update = "";
-  const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && ["useInrAssistantNativeDraft", "useInrAssistantVideoCommands"].includes(node.expression.getText(parsed))) calls.push(node); if (ts.isFunctionDeclaration(node) && node.name?.text === "updateDraft") update = node.getText(parsed); ts.forEachChild(node, visit); }; visit(parsed);
+  const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && ["useInrAssistantNativeDraft", "useInrAssistantVideoCommands", "useInrAssistantMailCommands"].includes(node.expression.getText(parsed))) calls.push(node); if (ts.isFunctionDeclaration(node) && node.name?.text === "updateDraft") update = node.getText(parsed); ts.forEachChild(node, visit); }; visit(parsed);
   assert.equal(calls.length, 1, `one active native bridge in ${file}`);
   return { call: ts.transpileModule(calls[0].getText(parsed), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
     update: ts.transpileModule(update, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText };
@@ -47,12 +49,13 @@ const sources = {
   "./DashboardAssistantScreenContext": compile("app/dashboard/_components/DashboardAssistantScreenContext.tsx"),
   "./DashboardAssistantCommandContext": compile("app/dashboard/_components/DashboardAssistantCommandContext.tsx"),
   "native": compile("app/dashboard/_hooks/useInrAssistantNativeDraft.ts"),
+  "mail-native": compile("app/dashboard/_hooks/useInrAssistantMailCommands.ts"),
   "library-optimization": compile("app/dashboard/_hooks/useInrAssistantLibraryOptimization.ts"),
   "video-native": compile("app/dashboard/_hooks/useInrAssistantVideoCommands.ts"),
   "preview": compile("app/dashboard/_hooks/useInrAssistantDocumentPreview.ts"),
   "document-mail": compile("app/dashboard/_hooks/useInrAssistantDocumentMail.ts"),
   "document-mail-preparation": compile("app/dashboard/_documents/documentMailPreparation.ts"),
-  ...Object.fromEntries(["inrAssistantUiPostScreen", "inrAssistantDocumentUiCommands", "inrAssistantNativeMediaOptimization", "mediaLibraryOptimizationPolicy", "mediaRules", "inrAssistantMailAttachments", "inrAssistantMailCompose", "inrAssistantMediaUiCommands", "inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
+  ...Object.fromEntries(["inrAssistantMailLifecycle", "inrAssistantUiPostScreen", "inrAssistantDocumentUiCommands", "inrAssistantNativeMediaOptimization", "mediaLibraryOptimizationPolicy", "mediaRules", "inrAssistantMailAttachments", "inrAssistantMailCompose", "inrAssistantMediaUiCommands", "inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
 };
 const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
 const fixture = `
@@ -145,10 +148,14 @@ function MailDraft(){
  const [composeAttachments,setComposeAttachments]=React.useState([{bucket:'inrbox_attachments',path:'existing.pdf',size:400,name:'Facture.pdf',type:'application/pdf'}]);
  const {mergeInrAssistantMailAttachments}=require('@/lib/inrAssistantMailAttachments');
  const draftId=window.fixtureScope.documentId,composeOpen=true,sendBusy=Boolean(window.fixtureScope.blocked),scheduleBusy=false,attachBusy=false,scheduledMailEditSaving=false,scheduledMailEdit=null;
- const currentComposeSnapshot=JSON.stringify({to,subject,text,html,composeAttachments}),lastSavedComposeSnapshot=null;
- const useInrAssistantNativeDraft=require('native').useInrAssistantNativeDraft;
+ const currentComposeSnapshot=JSON.stringify({to,subject,text,html,composeAttachments});
+ const [lastSavedComposeSnapshot,setLastSavedComposeSnapshot]=React.useState(null),[assistantScheduleOpen,setAssistantScheduleOpen]=React.useState(false),[consumed,setConsumed]=React.useState(false);
+ const assistantComposeConsumed=consumed,composeType='mail',setToast=()=>{},i18nT=value=>value,getClientUserFacingErrorMessage=()=>'';
+ const saveDraft=async execution=>{execution.started();window.mailSaves=(window.mailSaves||0)+1;if(window.deferMailSave)await new Promise(resolve=>window.releaseMailSave=resolve);if(!execution.isCurrent())return;execution.accepted('saved');setLastSavedComposeSnapshot(currentComposeSnapshot)};
+ const assistantMailControls={current:{send:async execution=>{window.mailConfirmations=(window.mailConfirmations||0)+1;if(window.deferMailSend)await new Promise(resolve=>window.releaseMailSend=resolve);if(!execution.isCurrent()||window.refuseMail)return;execution.started();window.mailSends=(window.mailSends||0)+1;execution.accepted('accepted');setConsumed(true)}}};
+ const useInrAssistantMailCommands=require('mail-native').useInrAssistantMailCommands;
  ${mailBridge.call}
- window.editNative=value=>setSubject(value);window.nativeState={to,subject,text,html};window.mailAttachments=composeAttachments;
+ window.editNative=value=>setSubject(value);window.nativeState={to,subject,text,html};window.mailAttachments=composeAttachments;window.mailScheduleOpen=assistantScheduleOpen;
  return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
 }
 function Fixture(){const[,render]=React.useState(0);window.renderFixture=()=>render(n=>n+1);return React.createElement(require('provider').default,null,window.fixtureScope.pathname==='/dashboard/mails'&&window.allowMailMount===false?null:React.createElement(window.fixtureScope.pathname==='/dashboard/mails'?MailDraft:window.fixtureScope.pathname==='/dashboard/ads'?AdsDraft:window.fixtureScope.pathname==='/dashboard/generer-media'?VideoDraft:window.fixtureScope.pathname==='/dashboard/mediatheque'?Library:Document))}
@@ -204,6 +211,74 @@ test("native mail draft applies committed fields without saving/sending and inva
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
     assert.deepEqual(await page.evaluate(() => (window as unknown as UiFixture).nativeState), { to: "original@example.invalid", subject: "Nouveau sujet", text: "Bonjour Alice", html: "" });
     assert.deepEqual(await page.evaluate(() => (window as unknown as UiFixture).requests), []);
+  } finally { await browser.close(); }
+});
+
+test("native mail lifecycle acknowledges saved drafts, confirmed sends and schedule opening separately", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const name of ["save_mail_draft", "send_mail_draft", "open_mail_schedule"] as const) {
+      const page = await browser.newPage(); await setup(page, false, false, "mails");
+      const current = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+      const make = (key: string) => inrAssistantUiActionsFromToolResult(key, { ok: true, uiCommand: { command: name, selection: current.selection, revision: current.revision } });
+      await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), make("first"));
+      await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied", name);
+      const counts = await page.evaluate(() => { const f = window as unknown as UiFixture; return { saves: f.mailSaves || 0, sends: f.mailSends || 0, confirms: f.mailConfirmations || 0, scheduled: f.mailScheduleOpen }; });
+      assert.deepEqual(counts, { saves: name === "save_mail_draft" ? 1 : 0, sends: name === "send_mail_draft" ? 1 : 0, confirms: name === "send_mail_draft" ? 1 : 0, scheduled: name === "open_mail_schedule" });
+      if (name === "save_mail_draft") assert.equal(await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen.pendingChanges), false);
+      if (name !== "open_mail_schedule") {
+        await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), make("replay-new-tool-call"));
+        await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+        assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "failed");
+        assert.equal(await page.evaluate(() => { const f = window as unknown as UiFixture; return (f.mailSaves || 0) + (f.mailSends || 0); }), 1);
+      }
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).mailAttachments[0].path), "existing.pdf");
+      await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
+test("native mail confirmation refusal and late account/form changes never trigger an outgoing request", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const mode of ["refuse", "account", "edit"]) {
+      const page = await browser.newPage(); await setup(page, false, false, "mails");
+      const current = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+      const actions = inrAssistantUiActionsFromToolResult("send-guard", { ok: true, uiCommand: { command: "send_mail_draft", selection: current.selection, revision: current.revision } });
+      await page.evaluate(({ actions, mode }) => { const f = window as unknown as UiFixture; f.refuseMail = mode === "refuse"; f.deferMailSend = mode !== "refuse"; f.startActions(actions); }, { actions, mode });
+      if (mode !== "refuse") {
+        await page.waitForFunction(() => Boolean((window as unknown as UiFixture).releaseMailSend));
+        await page.evaluate(mode => { const f = window as unknown as UiFixture; if (mode === "account") { f.fixtureScope.account = "other-account"; window.dispatchEvent(new Event("fixture-account-change")); } else f.editNative("Different message"); }, mode);
+        if (mode === "edit") await page.waitForFunction(revision => (window as unknown as UiFixture).assistantProps.screen.revision !== revision, current.revision);
+        await page.evaluate(() => (window as unknown as UiFixture).releaseMailSend());
+      }
+      await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      assert.notEqual(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied", mode);
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).mailSends || 0), 0, mode);
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).mailAttachments[0].path), "existing.pdf");
+      await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
+test("a native draft save whose result becomes stale cannot be replayed for its original revision", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, false, "mails");
+    const current = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+    const make = (key: string) => inrAssistantUiActionsFromToolResult(key, { ok: true, uiCommand: { command: "save_mail_draft", selection: current.selection, revision: current.revision } });
+    await page.evaluate(actions => { const f = window as unknown as UiFixture; f.deferMailSave = true; f.startActions(actions); }, make("save"));
+    await page.waitForFunction(() => Boolean((window as unknown as UiFixture).releaseMailSave));
+    await page.evaluate(() => (window as unknown as UiFixture).editNative("Edited during save"));
+    await page.waitForFunction(revision => (window as unknown as UiFixture).assistantProps.screen.revision !== revision, current.revision);
+    await page.evaluate(() => (window as unknown as UiFixture).releaseMailSave());
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "failed");
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), make("second-save"));
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).mailSaves), 1);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen.pendingChanges), true);
   } finally { await browser.close(); }
 });
 

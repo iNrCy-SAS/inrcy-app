@@ -38,6 +38,9 @@ const sources = {
   "@/lib/inrAssistantStudioHandoff": compile("lib/inrAssistantStudioHandoff.ts"),
   "./inrAssistantNavigation.ts": compile("lib/inrAssistantNavigation.ts"),
   "./inrAssistantDocumentUiCommands.ts": compile("lib/inrAssistantDocumentUiCommands.ts"),
+  "./inrAssistantMailLifecycle.ts": compile("lib/inrAssistantMailLifecycle.ts"),
+  "./inrAssistantMailCompose.ts": compile("lib/inrAssistantMailCompose.ts"),
+  "./inrAssistantMailAttachments.ts": compile("lib/inrAssistantMailAttachments.ts"),
 };
 const fixture = `
 const sources=${JSON.stringify(sources)}, loaded={};

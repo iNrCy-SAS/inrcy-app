@@ -1,7 +1,9 @@
 "use client";
 
 import { useMailboxHistory } from "./_hooks/useMailboxHistory";
-import { useInrAssistantNativeDraft } from "../_hooks/useInrAssistantNativeDraft";
+import { useInrAssistantMailCommands } from "../_hooks/useInrAssistantMailCommands";
+import { persistInrAssistantMailDraft } from "@/lib/inrAssistantMailDraftPersistence";
+import type { InrAssistantMailExecution } from "@/lib/inrAssistantMailLifecycle";
 import { mergeInrAssistantMailAttachments } from "@/lib/inrAssistantMailAttachments";
 import { useMailboxCrmRecipients } from "./_hooks/useMailboxCrmRecipients";
 import { useMailboxPublicationMedia } from "./_hooks/useMailboxPublicationMedia";
@@ -502,11 +504,23 @@ export default function MailboxClient({
     [makeComposeSnapshot],
   );
 
-  useInrAssistantNativeDraft({
-    command: "configure_mail_draft", kind: "mail", id: draftId,
-    enabled: composeOpen && !sendBusy && !scheduleBusy && !attachBusy && !scheduledMailEditSaving,
+  const assistantMailControls = useRef<{ send: (execution: InrAssistantMailExecution) => Promise<void> } | null>(null);
+  const [assistantScheduleOpen, setAssistantScheduleOpen] = useState(false);
+  const [assistantConsumedSnapshot, setAssistantConsumedSnapshot] = useState<string | null>(null);
+  const assistantComposeConsumed = assistantConsumedSnapshot === currentComposeSnapshot;
+  useInrAssistantMailCommands({
+    open: composeOpen,
+    enabled: composeOpen && !scheduledMailEdit && !assistantComposeConsumed && !sendBusy && !scheduleBusy && !attachBusy && !scheduledMailEditSaving,
     snapshot: { currentComposeSnapshot, draftId, scheduledMailEdit },
     pendingChanges: lastSavedComposeSnapshot !== currentComposeSnapshot,
+    consumed: assistantComposeConsumed,
+    canSchedule: composeType === "mail",
+    openSchedule: () => setAssistantScheduleOpen(true), scheduleOpen: assistantScheduleOpen,
+    save: async execution => {
+      try { await saveDraft(execution); }
+      catch (error) { setToast(getClientUserFacingErrorMessage(error, i18nT("draft_save_failed"))); throw error; }
+    },
+    send: async execution => { if (assistantMailControls.current) await assistantMailControls.current.send(execution); },
     apply: command => {
       if (command.command !== "configure_mail_draft") return false;
       const patch = command.patch;
@@ -697,6 +711,8 @@ export default function MailboxClient({
   }
 
   function resetCompose(nextType: SendType = "mail") {
+    setAssistantScheduleOpen(false);
+    setAssistantConsumedSnapshot(null);
     setDraftId(null);
     setLastSavedComposeSnapshot(null);
     setComposeType(nextType);
@@ -2170,13 +2186,15 @@ export default function MailboxClient({
     router.replace(`/dashboard/mails?${params.toString()}`, { scroll: false });
   }
 
-  async function saveDraft() {
+  async function saveDraft(assistant?: InrAssistantMailExecution) {
+    if (assistantComposeConsumed || assistant && !assistant.isCurrent()) return;
     if (attachBusy) {
       throw new Error(
         i18nT("patientez_les_pieces_jointes_sont_encore_ac136c9e"),
       );
     }
     const { data: auth } = await supabase.auth.getUser();
+    if (assistant && !assistant.isCurrent()) return;
     const userId = auth?.user?.id ? resolveActiveBrowserUserId(auth.user.id) : null;
     if (!userId) return;
 
@@ -2234,6 +2252,15 @@ export default function MailboxClient({
       attachments: serializeComposeAttachments(composeAttachments),
       draft_state: draftState,
     };
+
+    if (assistant) {
+      const savedId = await persistInrAssistantMailDraft({ supabase, accountId: userId, draftId, payload: draftPayload, baseline: lastSavedComposeSnapshot, isCurrent: assistant.isCurrent, onWriteStarted: assistant.started });
+      if (!assistant.isCurrent()) return;
+      assistant.accepted("saved", savedId);
+      setDraftId(savedId); setComposeSavedSnapshotFromCurrent(); setToast(i18nT("draft_saved"));
+      await loadHistory();
+      return;
+    }
 
     const metadataPayload = { ...draftPayload } as Record<string, unknown>;
     delete metadataPayload.draft_state;
@@ -2540,7 +2567,8 @@ export default function MailboxClient({
     }
   }
 
-  async function doSend() {
+  async function doSend(assistant?: InrAssistantMailExecution) {
+    if (assistantComposeConsumed || assistant && !assistant.isCurrent()) return;
     if (attachBusy) {
       setToast(i18nT("patientez_les_pieces_jointes_sont_encore_ac136c9e"));
       return;
@@ -2587,11 +2615,12 @@ export default function MailboxClient({
         confirmLabel: i18nT("envoyer_e9ce243b"),
         variant: "warning",
       });
-      if (!ok) return;
+      if (!ok || assistant && !assistant.isCurrent()) return;
     }
 
     setSendBusy(true);
     try {
+      if (assistant && !assistant.isCurrent()) return;
       if (shouldSendAsCampaign) {
         const campaignFolder =
           trackedCampaign?.kind && trackedCampaign?.type
@@ -2632,6 +2661,7 @@ export default function MailboxClient({
           sourceDocNumber: composeSourceDocNumber || undefined,
         };
 
+        assistant?.started();
         const res = await fetch("/api/crm/campaigns", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2643,6 +2673,16 @@ export default function MailboxClient({
             data?.error ||
               i18nT("campaign_launch_failed"),
           );
+          return;
+        }
+
+        if (assistant) {
+          if (!assistant.isCurrent() || typeof data?.campaignId !== "string" && typeof data?.id !== "string" || !Number.isFinite(Number(data?.queued))) return;
+          assistant.accepted("queued", String(data.campaignId || data.id));
+          setDraftId(null);
+          setAssistantConsumedSnapshot(currentComposeSnapshot);
+          setToast(i18nT("accepte_par_la_messagerie_d_envoi_ac2abd25"));
+          await loadHistory();
           return;
         }
 
@@ -2738,6 +2778,7 @@ export default function MailboxClient({
         sourceDocNumber: composeSourceDocNumber || undefined,
       };
 
+      assistant?.started();
       const res = await fetch(providerSendEndpoint(selectedAccount.provider), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2750,6 +2791,16 @@ export default function MailboxClient({
             data?.error ||
             i18nT("message_send_failed"),
         );
+        return;
+      }
+
+      if (assistant) {
+        if (!assistant.isCurrent() || data?.ok !== true && data?.success !== true) return;
+        assistant.accepted("accepted", typeof data?.id === "string" ? data.id : undefined);
+        setDraftId(null);
+        setAssistantConsumedSnapshot(currentComposeSnapshot);
+        setToast(i18nT("accepte_par_la_messagerie_d_envoi_ac2abd25"));
+        await loadHistory();
         return;
       }
 
@@ -3941,6 +3992,10 @@ export default function MailboxClient({
           signatureImageWidth={signatureImageWidth}
           saveDraft={saveDraft}
           doSend={scheduledMailEdit ? sendScheduledMailEditNow : doSend}
+          onAssistantControls={controls => { assistantMailControls.current = controls; }}
+          assistantConsumed={assistantComposeConsumed}
+          controlledScheduleOpen={assistantScheduleOpen}
+          onControlledScheduleOpenChange={setAssistantScheduleOpen}
           scheduledEditMode={Boolean(scheduledMailEdit)}
           scheduledEditSaving={scheduledMailEditSaving}
           scheduledEditScheduledAt={scheduledMailEdit?.scheduledAt || null}

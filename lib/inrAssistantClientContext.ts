@@ -13,7 +13,7 @@ export type InrAssistantClientScreen = {
   /** Only explicitly checked library items, never arbitrary DOM or ownership claims. */
   selectedMediaIds?: string[];
   selectionOverflow?: boolean;
-  availableCommands?: ("export_document_pdf" | "configure_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | "prepare_document_mail" | InrAssistantMediaUiCommandName)[];
+  availableCommands?: ("export_document_pdf" | "configure_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | "save_mail_draft" | "send_mail_draft" | "open_mail_schedule" | "prepare_document_mail" | InrAssistantMediaUiCommandName)[];
 };
 /** Browser hints only: never an authenticated scope, entitlement or confirmed diagnosis. */
 export type InrAssistantClientContext = {
@@ -54,7 +54,7 @@ export function parseInrAssistantClientContext(value: unknown, now = Date.now())
       || command === "export_document_pdf" && ["quote", "invoice"].includes(selection.kind)
       || command === "prepare_document_mail" && ["quote", "invoice"].includes(selection.kind) && rawScreen.pathname === `/dashboard/${selection.kind === "quote" ? "devis" : "factures"}/new` && rawScreen.pendingChanges === false
       || command === "configure_ads_draft" && selection.kind === "campaign" && rawScreen.pathname === "/dashboard/ads"
-      || command === "configure_mail_draft" && selection.kind === "mail" && rawScreen.pathname === "/dashboard/mails"
+      || ["configure_mail_draft", "save_mail_draft", "send_mail_draft", "open_mail_schedule"].includes(String(command)) && selection.kind === "mail" && rawScreen.pathname === "/dashboard/mails"
       || command === "configure_video_retouch" && selection.kind === "media" && rawScreen.pathname === "/dashboard/generer-media") : undefined;
     const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
     const selectedMediaIds = rawScreen.pathname === "/dashboard/mediatheque" && Array.isArray(rawScreen.selectedMediaIds) && rawScreen.selectedMediaIds.length > 0 && rawScreen.selectedMediaIds.length <= 25 && rawScreen.selectedMediaIds.every(id => typeof id === "string" && uuid.test(id)) && new Set(rawScreen.selectedMediaIds).size === rawScreen.selectedMediaIds.length ? [...rawScreen.selectedMediaIds] as string[] : undefined;

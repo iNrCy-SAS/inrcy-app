@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireUser } from "./requireUser";
 import type { InrAssistantClientContext } from "./inrAssistantClientContext.ts";
 import { resolveInrAssistantMailAttachments } from "./inrAssistantMailAttachments.ts";
+import { INR_ASSISTANT_MAIL_LIFECYCLE, type InrAssistantMailLifecycleName } from "./inrAssistantMailLifecycle.ts";
 import { parseInrAssistantUiCommand, isInrAssistantScreenCommandRequest, INR_ASSISTANT_ADS_STEPS, inrAssistantMailPatchRequested } from "./inrAssistantUiCommands.ts";
 import { getInrAssistantNavigation, INR_ASSISTANT_NAVIGATION_DESTINATIONS, isInrAssistantNavigationRequest } from "./inrAssistantUiCommands.ts";
 
@@ -42,9 +43,9 @@ export function createInrAssistantUiTools(options: { accountId: string; currentU
     }),
     runScreenCommand: tool({
       strict: true,
-      description: "Exécuter uniquement une capacité déclarée du formulaire courant. configure_ads_draft : nom/texte/étape ; configure_video_retouch : format/cadrage ; configure_mail_draft : recipient explicite, subject, bodyText, attachmentIds de searchMedia (5 médias du compte, total 10 Mo, conserver les PJ existantes). Ces configure_* ne sauvegardent, ne publient et n’envoient rien. select_video_source : patch.mediaId réel ; save_video_retouch : sauvegarder une copie de la retouche courante ; optimize_media : copie optimisée avec patch.targetBytes optionnel (5–75 Mo). Originaux conservés. prepare_document_mail : document courant enregistré, finalisé et propre, recipient explicite ; PDF joint au composeur, aucun envoi. Autres champs patch et documentId/documentKind/recipient null hors usage. export_document_pdf : aperçu courant avec IDs null, ou document exact lu via readCommercialDocuments et IDs explicites ; ouverture de la cible puis export, sans sauvegarde/finalisation/envoi. Révision et compte revérifiés au navigateur ; téléchargement transmis ne prouve pas fichier reçu.",
-      inputSchema: jsonSchema<{ command: "export_document_pdf" | "configure_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | "prepare_document_mail" | InrAssistantMediaUiCommandName; instructionQuote: string; documentId?: string | null; documentKind?: "quote" | "invoice" | null; recipient?: string | null; patch?: Record<string, unknown> | null }>({ type: "object", properties: {
-        command: { type: "string", enum: ["export_document_pdf", "configure_ads_draft", "configure_video_retouch", "configure_mail_draft", "prepare_document_mail", ...INR_ASSISTANT_MEDIA_UI_COMMANDS] }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 },
+      description: "Exécuter une capacité déclarée du formulaire courant. configure_ads_draft : nom/texte/étape ; configure_video_retouch : format/cadrage ; configure_mail_draft : recipient explicite, subject, bodyText, attachmentIds de searchMedia (5 médias du compte, total 10 Mo, PJ existantes conservées). configure_* ne sauvegarde, ne publie et n’envoie rien. save_mail_draft : sauvegarde exacte du composeur avec relecture ; send_mail_draft : confirmation native de son contenu/PJ puis acceptation fournisseur ou file, jamais livraison ; open_mail_schedule : ouvre le sélecteur, date à confirmer par le professionnel, aucun envoi programmé à ce stade. select_video_source : patch.mediaId réel ; save_video_retouch : sauvegarde une copie ; optimize_media : copie optimisée avec patch.targetBytes optionnel (5–75 Mo). Originaux conservés. prepare_document_mail : document courant finalisé, enregistré, propre, recipient explicite ; PDF joint au composeur, aucun envoi. patch/documentId/documentKind/recipient null hors usage. export_document_pdf : aperçu courant avec IDs null, ou document lu via readCommercialDocuments et IDs explicites ; ouvrir puis exporter sans sauvegarde/finalisation/envoi. Attendre l’acquittement de l’interface ; compte et révision revérifiés. Téléchargement transmis ne prouve pas fichier reçu.",
+      inputSchema: jsonSchema<{ command: "export_document_pdf" | "configure_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | "prepare_document_mail" | InrAssistantMediaUiCommandName | InrAssistantMailLifecycleName; instructionQuote: string; documentId?: string | null; documentKind?: "quote" | "invoice" | null; recipient?: string | null; patch?: Record<string, unknown> | null }>({ type: "object", properties: {
+        command: { type: "string", enum: ["export_document_pdf", "configure_ads_draft", "configure_video_retouch", "configure_mail_draft", "prepare_document_mail", ...INR_ASSISTANT_MEDIA_UI_COMMANDS, ...INR_ASSISTANT_MAIL_LIFECYCLE] }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 },
         recipient: { type: ["string", "null"], maxLength: 254 },
         documentId: { type: ["string", "null"], format: "uuid" }, documentKind: { type: ["string", "null"], enum: ["quote", "invoice", null] },
         patch: { type: ["object", "null"], properties: {
@@ -61,6 +62,16 @@ export function createInrAssistantUiTools(options: { accountId: string; currentU
         const mediaAction = await prepareInrAssistantMediaUiAction(input, { ...options, isRequest: isInrAssistantScreenCommandRequest });
         if (mediaAction) return mediaAction;
         const screen = options.clientContext?.screen;
+        if (INR_ASSISTANT_MAIL_LIFECYCLE.includes(input.command as InrAssistantMailLifecycleName)) {
+          if (input.patch || input.documentId || input.documentKind || input.recipient || options.canStartWork?.() === false || !input.instructionQuote?.trim()
+            || !options.currentUserMessage.includes(input.instructionQuote) || !isInrAssistantScreenCommandRequest(options.currentUserMessage, input.command as InrAssistantMailLifecycleName)
+            || !isInrAssistantScreenCommandRequest(input.instructionQuote, input.command as InrAssistantMailLifecycleName)) return { ok: false, status: "needs_instruction", message: "Demandez explicitement l’action sur le composeur affiché. Aucun envoi ou enregistrement effectué." };
+          const command = parseInrAssistantUiCommand({ command: input.command, selection: screen?.selection, revision: screen?.revision });
+          if (!command || screen?.pathname !== "/dashboard/mails" || !screen.availableCommands?.includes(input.command as InrAssistantMailLifecycleName)) return { ok: false, status: "needs_details", message: "Ouvrez le composeur exact et vérifiez son contenu." };
+          const auth = await requireUser();
+          if (auth.errorResponse || auth.activeUserId !== options.accountId) return { ok: false, status: "blocked", message: "Le compte actif a changé." };
+          return { ok: true, status: "ui_action_requested", uiCommand: command, message: input.command === "save_mail_draft" ? "Enregistrement du composeur demandé ; attendre sa relecture native." : input.command === "send_mail_draft" ? "Confirmation native d’envoi demandée pour ce composeur exact et ses pièces jointes. Seule l’acceptation du fournisseur pourra être attestée, jamais la livraison." : "Ouverture du sélecteur natif de programmation demandée. Le professionnel doit encore choisir et confirmer la date ; aucun envoi programmé à ce stade." };
+        }
         if (input.command === "prepare_document_mail") {
           if (input.patch) return { ok: false, status: "needs_details", message: "La préparation d’un PDF en pièce jointe ne modifie pas le document." };
           const { requestInrAssistantDocumentMail } = await import("./inrAssistantDocumentMailTools");

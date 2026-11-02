@@ -1,5 +1,6 @@
 import { isInrAssistantMediaUiCommandName, isInrAssistantMediaUiCommandText, parseInrAssistantMediaUiCommand, type InrAssistantMediaUiCommand } from "./inrAssistantMediaUiCommands.ts";
 import { getAssistantInternalDestination } from "./inrAssistantNavigation.ts";
+import { INR_ASSISTANT_MAIL_LIFECYCLE, isInrAssistantMailLifecycleRequest, parseInrAssistantMailLifecycle, type InrAssistantMailLifecycleCommand } from "./inrAssistantMailLifecycle.ts";
 import { parseInrAssistantMailPatch, inrAssistantMailRecipientRequested, type InrAssistantMailCommand } from "./inrAssistantMailCompose.ts";
 import { parseInrAssistantDocumentMailCommand, getInrAssistantDocumentPrefillNavigation, type InrAssistantDocumentMailCommand, type InrAssistantDocumentPrefill } from "./inrAssistantDocumentUiCommands.ts";
 
@@ -37,10 +38,12 @@ export type InrAssistantVideoPatch = { format?: "original" | "9_16" | "1_1" | "1
 export type InrAssistantNativeCommand =
   InrAssistantMailCommand | { command: "configure_ads_draft"; selection: { kind: "campaign"; id: string }; revision: string; patch: InrAssistantAdsPatch }
   | { command: "configure_video_retouch"; selection: { kind: "media"; id: string }; revision: string; patch: InrAssistantVideoPatch };
-export type InrAssistantUiCommand = InrAssistantMediaUiCommand | InrAssistantDocumentMailCommand | InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
+export type InrAssistantUiCommand = InrAssistantMailLifecycleCommand | InrAssistantMediaUiCommand | InrAssistantDocumentMailCommand | InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
   | { command: "download_media"; selection: { kind: "media"; id: string }; mediaIds: string[]; pathname: "/dashboard/mediatheque"; selectionMode?: "current" }
   | { command: "download_stats_report"; selection: { kind: "stats_report"; id: string }; reportId: string };
 export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiCommand | null {
+  const mailLifecycle = parseInrAssistantMailLifecycle(value);
+  if (mailLifecycle) return mailLifecycle;
   const media = parseInrAssistantMediaUiCommand(value);
   if (media) return media;
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -119,8 +122,10 @@ export function isInrAssistantNavigationRequest(message: string): boolean {
   return /\b(?:ouvre|ouvrez|ouvrir|affiche|affichez|afficher|montre|montrez|montrer|emmene|emmenez|emmener|amene|amenez|amener|conduis|conduisez|conduire|navigate|open|show)\b|\b(?:va|allez|aller|go)\s+(?:dans|sur|a|au|aux|to)\b/.test(text);
 }
 
-export function isInrAssistantScreenCommandRequest(message: string, command?: "export_document_pdf" | InrAssistantNativeCommand["command"] | InrAssistantMediaUiCommand["command"] | "prepare_document_mail"): boolean {
+export function isInrAssistantScreenCommandRequest(message: string, command?: "export_document_pdf" | "prepare_document_mail" | InrAssistantNativeCommand["command"] | InrAssistantMediaUiCommand["command"] | InrAssistantMailLifecycleCommand["command"]): boolean {
   const text = navigationRequestText(message);
+  if (command && INR_ASSISTANT_MAIL_LIFECYCLE.includes(command as InrAssistantMailLifecycleCommand["command"])) return isInrAssistantMailLifecycleRequest(text, command);
+  if (!command && isInrAssistantMailLifecycleRequest(text)) return true;
   if (isInrAssistantMediaUiCommandName(command)) return isInrAssistantMediaUiCommandText(text, command);
   if (/^(?:comment|pourquoi|explique|how|why|si |imagine)\b|\b(?:ne |n['’]|sans |do not |don't ).{0,35}(?:telecharg|export|gener|prepar|download|modifi|chang|regl|appli|rempl|config|recadr|adapt|pass|met|renomm|joins|joign|ajout|attach|redig|ecri)/.test(text) || /\b(?:si|if|quand|when|apres confirmation|after approval|demain|tomorrow)\b/.test(text)) return false;
   const documentMail = /\b(?:prepare\w*|ouvre\w*|redige\w*|rempli\w*|open|draft)\b/.test(text)

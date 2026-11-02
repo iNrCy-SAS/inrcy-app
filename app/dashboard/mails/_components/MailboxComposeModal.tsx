@@ -31,6 +31,7 @@ import { useUnsavedExitGuard } from "@/app/dashboard/_hooks/useUnsavedExitGuard"
 import TemplateSubjectInlineEditor from "@/app/dashboard/_components/TemplateSubjectInlineEditor";
 import CampaignScheduleModal from "@/app/dashboard/_components/CampaignScheduleModal";
 import AiConfigurationIcon from "@/app/dashboard/_components/AiConfigurationIcon";
+import type { InrAssistantMailExecution } from "@/lib/inrAssistantMailLifecycle";
 
 type MailboxComposeModalProps = {
   open: boolean;
@@ -92,7 +93,11 @@ type MailboxComposeModalProps = {
   signatureImageUrl: string;
   signatureImageWidth: number;
   saveDraft: () => Promise<void>;
-  doSend: () => Promise<void>;
+  doSend: (execution?: InrAssistantMailExecution) => Promise<void>;
+  onAssistantControls?: (controls: { send: (execution: InrAssistantMailExecution) => Promise<void> } | null) => void;
+  assistantConsumed?: boolean;
+  controlledScheduleOpen?: boolean;
+  onControlledScheduleOpenChange?: (open: boolean) => void;
   scheduledEditMode?: boolean;
   scheduledEditSaving?: boolean;
   scheduledEditScheduledAt?: string | null;
@@ -179,6 +184,10 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
     signatureImageWidth,
     saveDraft,
     doSend,
+    onAssistantControls,
+    assistantConsumed = false,
+    controlledScheduleOpen,
+    onControlledScheduleOpenChange,
     scheduledEditMode = false,
     scheduledEditSaving = false,
     scheduledEditScheduledAt = null,
@@ -295,7 +304,14 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
         ? "💌"
         : "✉️";
 
-  const requestSend = React.useCallback(async () => {
+  const requestSend = React.useCallback(async (assistant?: InrAssistantMailExecution) => {
+    if (assistantConsumed || assistant && !assistant.isCurrent()) return;
+    if (assistant) {
+      const confirmed = await confirmInrcy({ title: i18nT("envoyer_e9ce243b"),
+        message: [selectedAccount?.email_address || "", to, subject, text, ...composeAttachments.map(item => String(item.name || item.path || ""))].filter(Boolean).join("\n\n"),
+        confirmLabel: i18nT("envoyer_e9ce243b"), cancelLabel: i18nT("annuler_49ba3292"), variant: "warning" });
+      if (!confirmed || !assistant.isCurrent()) return;
+    }
     const placeholders = extractTemplatePlaceholders(`${subject}\n${text}`);
     if (placeholders.length > 0) {
       const preview = placeholders.slice(0, 6).join(", ");
@@ -310,10 +326,17 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
         cancelLabel: i18nT("corriger_le_message_6d7e26a8"),
         variant: "warning",
       });
-      if (!confirmed) return;
+      if (!confirmed || assistant && !assistant.isCurrent()) return;
     }
-    await doSend();
-  }, [doSend, i18nT, subject, text]);
+    if (assistant && !assistant.isCurrent()) return;
+    await doSend(assistant);
+  }, [assistantConsumed, composeAttachments, doSend, i18nT, selectedAccount, subject, text, to]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    onAssistantControls?.({ send: requestSend });
+    return () => onAssistantControls?.(null);
+  }, [onAssistantControls, open, requestSend]);
 
   const [isMobileViewport, setIsMobileViewport] = React.useState(false);
 
@@ -336,13 +359,15 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
   const [mailWritingType, setMailWritingType] =
     React.useState<MailWritingType>("auto");
 
-  const [scheduleModalOpen, setScheduleModalOpen] = React.useState(false);
+  const [localScheduleOpen, setLocalScheduleOpen] = React.useState(false);
+  const scheduleModalOpen = controlledScheduleOpen ?? localScheduleOpen;
+  const setScheduleModalOpen = onControlledScheduleOpenChange ?? setLocalScheduleOpen;
   const [scheduleError, setScheduleError] = React.useState<string | null>(null);
 
   const openScheduleModal = React.useCallback(() => {
     setScheduleError(null);
     setScheduleModalOpen(true);
-  }, []);
+  }, [setScheduleModalOpen]);
 
   const confirmSchedule = React.useCallback(
     async (scheduledAt: string) => {
@@ -1358,7 +1383,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                 className={`${styles.btnGhost} ${styles.composeScheduleBtn}`}
                 onClick={openScheduleModal}
                 type="button"
-                disabled={sendBusy || scheduleBusy || attachBusy}
+                disabled={assistantConsumed || sendBusy || scheduleBusy || attachBusy}
                 title={i18nT("programmer_l_envoi_avec_inr_agent_224abf77")}
               >
                 <span aria-hidden>🕒</span>
@@ -1369,7 +1394,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
               className={`${styles.btnPrimary} ${styles.composeSendBtn} ${scheduledEditMode ? styles.composeSendBtnScheduledEdit : ""}`}
               onClick={() => void requestSend()}
               type="button"
-              disabled={sendBusy || scheduleBusy || attachBusy || scheduledEditSaving}
+              disabled={assistantConsumed || sendBusy || scheduleBusy || attachBusy || scheduledEditSaving}
               title={i18nT(
                 scheduledEditMode ? "send_now" : "envoyer_e9ce243b",
               )}

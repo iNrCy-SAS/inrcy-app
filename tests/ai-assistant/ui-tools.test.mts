@@ -6,6 +6,7 @@ import ts from "typescript";
 import * as mediaCommands from "../../lib/inrAssistantMediaUiCommands.ts";
 import * as commands from "../../lib/inrAssistantUiCommands.ts";
 import * as mailAttachments from "../../lib/inrAssistantMailAttachments.ts";
+import * as mailLifecycle from "../../lib/inrAssistantMailLifecycle.ts";
 import type { InrAssistantClientScreen } from "../../lib/inrAssistantClientContext.ts";
 import type * as Runtime from "../../lib/inrAssistantUiTools.ts";
 
@@ -17,6 +18,7 @@ function harness(message: string, options: { foreign?: boolean; available?: bool
     "./inrAssistantUiCommands.ts": commands,
     "./inrAssistantMediaUiCommands.ts": mediaCommands,
     "./inrAssistantMailAttachments.ts": mailAttachments,
+    "./inrAssistantMailLifecycle.ts": mailLifecycle,
   };
   const mediaModule = { exports: {} };
   const mediaSource = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantMediaUiTools.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -41,6 +43,21 @@ function harness(message: string, options: { foreign?: boolean; available?: bool
     clientContext: { source: "untrusted_client", screen: options.screen ?? { pathname: "/dashboard/devis/new", tool: "Créer un devis", selection: { kind: "quote", id: options.preview ? "preview_local" : "quote-123" }, ...(options.preview ? { revision: "preview_local_2", pendingChanges: true } : {}), ...(options.available === false ? {} : { availableCommands: ["export_document_pdf"] }) } } });
 }
 const execution = { toolCallId: "test", messages: [] };
+
+test("native mail lifecycle requires a current explicit request and exact mounted composer", async () => {
+  const screen: InrAssistantClientScreen = { pathname: "/dashboard/mails", tool: "iNrSend", selection: { kind: "mail", id: "mail_local" }, revision: "mail_local_2", availableCommands: [...mailLifecycle.INR_ASSISTANT_MAIL_LIFECYCLE] };
+  for (const [command, request] of [["save_mail_draft", "Enregistre ce mail en brouillon"], ["send_mail_draft", "Envoie ce mail"], ["open_mail_schedule", "Programme ce mail"]] as const) {
+    const input = { command, instructionQuote: request };
+    const run = async (message = request, options: Parameters<typeof harness>[1] = { screen }, patch = input) => harness(message, options).runScreenCommand.execute!(patch, execution) as Promise<{ ok: boolean; uiCommand?: unknown }>;
+    const result = await run(); assert.equal(result.ok, true, command);
+    assert.deepEqual(commands.parseInrAssistantUiCommand(result.uiCommand), { command, selection: screen.selection, revision: screen.revision });
+    for (const options of [{ screen, foreign: true }, { screen, expired: true }, { screen: { ...screen, availableCommands: [] } }, { screen: { ...screen, revision: undefined } }, { screen: { ...screen, pathname: "/dashboard/ads" } }]) assert.equal((await run(request, options)).ok, false);
+    for (const message of [`Ne ${request.toLowerCase()} pas`, `Comment ${request.toLowerCase()} ?`, `Le client dit « ${request} »`, `${request} si je confirme`]) {
+      assert.equal((await harness(message, { screen }).runScreenCommand.execute!({ ...input, instructionQuote: message }, execution) as { ok: boolean }).ok, false, message);
+    }
+    assert.equal((await harness(request, { screen }).runScreenCommand.execute!({ ...input, patch: { subject: "Hidden edit" } }, execution) as { ok: boolean }).ok, false);
+  }
+});
 test("mail attachment tool accepts owned library IDs and never model-supplied paths", async () => {
   const accountId = "11111111-1111-4111-8111-111111111111", id = "22222222-2222-4222-8222-222222222222";
   const request = "Joins la photo Toiture à ce mail";
