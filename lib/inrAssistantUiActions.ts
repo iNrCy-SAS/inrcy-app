@@ -1,4 +1,4 @@
-import { parseInrAssistantNavigation, parseInrAssistantUiCommand, type InrAssistantNavigation, type InrAssistantUiCommand } from "./inrAssistantUiCommands.ts";
+import { parseInrAssistantNavigation, parseInrAssistantUiCommand, type InrAssistantNavigation, type InrAssistantUiCommand, type InrAssistantTaskProgress } from "./inrAssistantUiCommands.ts";
 
 /** Ordered effects of one server response. This is not a business authorization. */
 export type InrAssistantUiAction =
@@ -55,11 +55,27 @@ export function parseInrAssistantUiResult(value: unknown): InrAssistantUiResult 
   return { actionId: row.actionId, source: "browser_reported", status: row.status as InrAssistantUiResult["status"] };
 }
 
+/** Display projection only: browser handoffs leave the server-business progress list.
+ * No browser claim is added to its completed business confirmations. */
+export function inrAssistantBusinessProgressAfterUi(progress: InrAssistantTaskProgress | undefined, actions: InrAssistantUiAction[], results: InrAssistantUiResult[]): InrAssistantTaskProgress | undefined {
+  if (!progress) return undefined;
+  const reportedLabels = new Set<string>();
+  for (const [command, label] of [["download_media", "télécharger les médias"], ["download_stats_report", "télécharger le bilan PDF"]]) {
+    const matching = actions.filter(action => action.type === "command" && action.command.command === command);
+    if (matching.length && matching.every(action => results.some(result => result.actionId === action.id))) reportedLabels.add(label);
+  }
+  const remaining = progress.remaining.filter(label => !reportedLabels.has(label));
+  const completed = progress.completed.filter(label => !reportedLabels.has(label));
+  if (!remaining.length && !completed.length) return undefined;
+  return { ...progress, remaining, completed, ...(!remaining.length && completed.length ? { outcome: "completed" as const } : {}) };
+}
+
 /** A failed/cancelled step stops its dependent sequence; later steps never run on the old screen. */
 export async function runInrAssistantUiActions(actions: InrAssistantUiAction[], ports: {
   isCurrent: () => boolean;
   navigate: (navigation: InrAssistantNavigation) => Promise<boolean>;
   command: (command: InrAssistantUiCommand) => Promise<boolean>;
+  beforeAction?: (action: InrAssistantUiAction) => Promise<boolean>;
   onResult?: (result: InrAssistantUiResult) => Promise<void> | void;
 }): Promise<InrAssistantUiResult[]> {
   const results: InrAssistantUiResult[] = [];
@@ -68,7 +84,8 @@ export async function runInrAssistantUiActions(actions: InrAssistantUiAction[], 
     let status: InrAssistantUiResult["status"] = "cancelled";
     if (!stopped && ports.isCurrent()) {
       try {
-        const applied = action.type === "navigate" ? await ports.navigate(action.navigation) : await ports.command(action.command);
+        const claimed = ports.beforeAction ? await ports.beforeAction(action) : true;
+        const applied = claimed && ports.isCurrent() && (action.type === "navigate" ? await ports.navigate(action.navigation) : await ports.command(action.command));
         status = !ports.isCurrent() ? "cancelled" : !applied ? "failed" : action.type === "navigate" ? "applied" : "handed_to_browser";
       } catch { status = ports.isCurrent() ? "failed" : "cancelled"; }
     }

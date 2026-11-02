@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { inrAssistantUiActionsFromToolResult, parseInrAssistantUiActions, runInrAssistantUiActions, type InrAssistantUiAction } from "../../lib/inrAssistantUiActions.ts";
+import { inrAssistantBusinessProgressAfterUi, inrAssistantUiActionsFromToolResult, parseInrAssistantUiActions, runInrAssistantUiActions, type InrAssistantUiAction } from "../../lib/inrAssistantUiActions.ts";
 import { getInrAssistantNavigation } from "../../lib/inrAssistantUiCommands.ts";
 
 const id = "22222222-2222-4222-8222-222222222222";
@@ -59,4 +59,17 @@ test("protocol rejects duplicate IDs, oversized actions and substituted external
   assert.equal(parseInrAssistantUiActions([...actions, actions[0]]), null);
   assert.equal(parseInrAssistantUiActions(Array.from({ length: 25 }, (_, i) => ({ ...actions[0], id: `action-${i}` }))), null);
   assert.equal(parseInrAssistantUiActions([{ ...actions[0], navigation: { ...navigation, href: "https://external.invalid" } }]), null);
+});
+
+test("a refused server claim stops all actions and never invokes navigation or export", async () => {
+  const results = await runInrAssistantUiActions(actions, { isCurrent: () => true, beforeAction: async () => false,
+    navigate: async () => assert.fail("unclaimed navigation"), command: async () => assert.fail("unclaimed command") });
+  assert.deepEqual(results.map(result => result.status), ["failed", "cancelled"]);
+});
+
+test("browser projection removes handed-off UI work without inventing confirmed business results", () => {
+  const batch = inrAssistantUiActionsFromToolResult("media", { ok: true, uiCommand: { command: "download_media", selection: { kind: "media", id }, mediaIds: [id], pathname: "/dashboard/mediatheque" } });
+  const results = [{ actionId: batch[0].id, source: "browser_reported" as const, status: "handed_to_browser" as const }];
+  assert.equal(inrAssistantBusinessProgressAfterUi({ outcome: "processing", completed: [], remaining: ["télécharger les médias"] }, batch, results), undefined);
+  assert.deepEqual(inrAssistantBusinessProgressAfterUi({ outcome: "processing", completed: ["créer le contact"], remaining: ["publier", "télécharger les médias"] }, batch, results), { outcome: "processing", completed: ["créer le contact"], remaining: ["publier"] });
 });

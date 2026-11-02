@@ -48,3 +48,33 @@ test("opening a document verifies the native type and current owner before expos
   assert.equal((await harness(request, { documentOwner: "other" }).navigateApplication.execute!(input, execution) as { ok: boolean }).ok, false);
   assert.equal((await harness(request).navigateApplication.execute!(input, execution) as { ok: boolean }).ok, false);
 });
+
+test("open document B then PDF binds export to B instead of the initial document A", async () => {
+  const request = "Ouvre le devis B puis télécharge son PDF";
+  const tools = harness(request, { documentOwner: "active" });
+  const target = "22222222-2222-4222-8222-222222222222";
+  await tools.navigateApplication.execute!({ destination: "quotes", documentId: target, instructionQuote: request }, execution);
+  const result = await tools.runScreenCommand.execute!({ command: "export_document_pdf", instructionQuote: request }, execution) as { ok: boolean; uiCommand: unknown; navigation: unknown };
+  assert.equal(result.ok, true);
+  assert.equal(commands.parseInrAssistantUiCommand(result.uiCommand)?.selection.id, target);
+  assert.equal(commands.parseInrAssistantNavigation(result.navigation)?.documentId, target);
+});
+
+test("named and concurrent compound PDF requests cannot fall back to the old open document", async () => {
+  for (const request of ["Télécharge le PDF du devis B", "Ouvre le devis B puis télécharge son PDF"]) {
+    const result = await harness(request, { documentOwner: "active" }).runScreenCommand.execute!({ command: "export_document_pdf", instructionQuote: request }, execution) as { ok: boolean; status: string };
+    assert.equal(result.ok, false);
+    assert.equal(result.status, "needs_details");
+  }
+});
+
+test("explicit PDF target is verified and returns an ordered navigation dependency", async () => {
+  const request = "Télécharge le PDF du devis B";
+  const documentId = "22222222-2222-4222-8222-222222222222";
+  const input = { command: "export_document_pdf" as const, instructionQuote: request, documentId, documentKind: "quote" as const };
+  const result = await harness(request, { documentOwner: "active" }).runScreenCommand.execute!(input, execution) as { ok: boolean; navigation: unknown; uiCommand: unknown };
+  assert.equal(result.ok, true);
+  assert.equal(commands.parseInrAssistantNavigation(result.navigation)?.documentId, documentId);
+  assert.equal(commands.parseInrAssistantUiCommand(result.uiCommand)?.selection.id, documentId);
+  assert.equal((await harness(request, { documentOwner: "other" }).runScreenCommand.execute!(input, execution) as { ok: boolean }).ok, false);
+});

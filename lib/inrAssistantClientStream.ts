@@ -2,6 +2,7 @@ import { parseInrAssistantActivity, type InrAssistantActivity } from "./inrAssis
 import { parseInrAssistantRefresh, type InrAssistantRefresh } from "./inrAssistantRefresh.ts";
 import { parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "./inrAssistantStudioDraft.ts";
 import { parseInrAssistantNavigation, parseInrAssistantTaskProgress, parseInrAssistantUiCommand, type InrAssistantUiCommand, type InrAssistantNavigation, type InrAssistantTaskProgress } from "./inrAssistantUiCommands.ts";
+import { parseInrAssistantUiActions, parseInrAssistantUiResult, type InrAssistantUiAction, type InrAssistantUiResult } from "./inrAssistantUiActions.ts";
 
 export type InrAssistantClientReply = {
   refresh?: InrAssistantRefresh;
@@ -11,6 +12,9 @@ export type InrAssistantClientReply = {
   studioDraft?: InrAssistantStudioDraft; insertStudioDraft?: boolean;
   navigation?: InrAssistantNavigation; taskProgress?: InrAssistantTaskProgress;
   uiCommand?: InrAssistantUiCommand;
+  uiActions?: InrAssistantUiAction[];
+  uiReceiptToken?: string;
+  uiResults?: InrAssistantUiResult[];
 };
 
 const MAX_RESPONSE_BYTES = 2_000_000;
@@ -33,6 +37,10 @@ function parseReply(value: unknown): InrAssistantClientReply | null {
   if (taskProgress) reply.taskProgress = taskProgress;
   const uiCommand = parseInrAssistantUiCommand(input.uiCommand);
   if (uiCommand) reply.uiCommand = uiCommand;
+  const uiActions = parseInrAssistantUiActions(input.uiActions);
+  if (Object.hasOwn(input, "uiActions")) reply.uiActions = uiActions ?? [];
+  if (typeof input.uiReceiptToken === "string" && input.uiReceiptToken.length <= 24_000) reply.uiReceiptToken = input.uiReceiptToken;
+  if (Array.isArray(input.uiResults) && input.uiResults.length <= 24) reply.uiResults = input.uiResults.map(parseInrAssistantUiResult).filter((value): value is InrAssistantUiResult => Boolean(value));
   const studioDraft = parseInrAssistantStudioDraft(input.studioDraft);
   if (studioDraft) {
     reply.studioDraft = studioDraft;

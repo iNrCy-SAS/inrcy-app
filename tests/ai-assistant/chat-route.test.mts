@@ -7,6 +7,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import * as conversation from "../../lib/inrAssistantConversation.ts";
 import * as clientContext from "../../lib/inrAssistantClientContext.ts";
+import * as uiActions from "../../lib/inrAssistantUiActions.ts";
 import * as activity from "../../lib/inrAssistantActivity.ts";
 import * as attachmentPolicy from "../../lib/inrAssistantAttachments.ts";
 import * as taskPolicy from "../../lib/inrAssistantTaskPolicy.ts";
@@ -213,6 +214,15 @@ function harness(options: {
     "@/lib/inrAssistantTaskPolicy": taskPolicy,
     "@/lib/inrAssistantStudioDraft": studioDraft,
     "@/lib/inrAssistantClientContext": clientContext,
+    "@/lib/inrAssistantUiActions": uiActions,
+    "@/lib/inrAssistantUiReceipts": {
+      createInrAssistantUiReceiptToken: (scope: MemoryScope, turn: { turnId: string }, actions: uiActions.InrAssistantUiAction[]) => {
+        assert.equal(scope.accountId, activeScope.accountId); assert.equal(scope.actorUserId, activeScope.actorUserId);
+        assert.ok(turn.turnId); assert.ok(uiActions.parseInrAssistantUiActions(actions)?.length);
+        return "fixture-signed-browser-plan";
+      },
+      loadInrAssistantUiResults: async () => [],
+    },
     "@/lib/inrAssistantActivity": activity,
     "@/lib/inrAssistantMemory": { InrAssistantMemoryConflictError: MemoryConflictError, InrAssistantMemoryInputError: MemoryInputError,
       INR_ASSISTANT_MEMORY_MAX_REPLY_CHARS: 60_000,

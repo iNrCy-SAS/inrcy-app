@@ -13,6 +13,7 @@ import { getInrAssistantContextualHelp } from "@/lib/inrAssistantContextualHelp"
 import type { InrAssistantActivity } from "@/lib/inrAssistantActivity";
 import { ASSISTANT_ATTACHMENT_ACCEPT, ASSISTANT_ATTACHMENT_MAX_COUNT, ASSISTANT_ATTACHMENT_MAX_BYTES, ASSISTANT_ATTACHMENT_VIDEO_MAX_BYTES } from "@/lib/inrAssistantAttachments";
 import type { InrAssistantUiCommand } from "@/lib/inrAssistantUiCommands";
+import { inrAssistantBusinessProgressAfterUi, inrAssistantUiActionsFromToolResult, type InrAssistantUiAction, type InrAssistantUiResult } from "@/lib/inrAssistantUiActions";
 import { deriveInrAssistantStudioDraft, parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "@/lib/inrAssistantStudioDraft";
 import { useAssistantAttachments } from "../_hooks/useAssistantAttachments";
 import { useAssistantDialogViewport } from "../_hooks/useAssistantDialogViewport";
@@ -31,7 +32,7 @@ const COLLABORATION_AGENTS = {
   stats: { name: "Agent Stats", image: "/agent/agent-stats.webp" },
   emailing: { name: "Agent Emailings", image: "/agent/agent-campaigns.webp" },
 } as const;
-export default function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, minimize, onHumanContact, starterDraft, onStarterConsumed, onboardingWelcome = false, onReply, onPendingChange, onOpenMediaLibrary, onInternalNavigate, onScreenCommand, onInsertStudioDraft, screen }: {
+export default function AssistantSession({ actorUserId, activeAccountId, allowed, open, close, minimize, onHumanContact, starterDraft, onStarterConsumed, onboardingWelcome = false, onReply, onPendingChange, onOpenMediaLibrary, onInternalNavigate, onScreenCommand, onUiActions, onInsertStudioDraft, screen }: {
   actorUserId: string; activeAccountId: string; allowed: boolean; open: boolean; close: () => void;
   minimize: () => void; onHumanContact: (message: string) => void;
   starterDraft?: string; onStarterConsumed?: () => void;
@@ -40,6 +41,7 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
   onOpenMediaLibrary?: () => void;
   onInternalNavigate?: (href: string) => void;
   onScreenCommand?: (command: InrAssistantUiCommand) => Promise<boolean>;
+  onUiActions?: (actions: InrAssistantUiAction[], onResult?: (result: InrAssistantUiResult) => Promise<void>, beforeAction?: (action: InrAssistantUiAction) => Promise<boolean>) => Promise<InrAssistantUiResult[]>;
   onInsertStudioDraft?: (draft: InrAssistantStudioDraft) => Promise<boolean>;
   screen?: InrAssistantClientScreen;
 }) {
@@ -248,6 +250,10 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
     let autoInsertMessage: ChatMessage | null = null;
     let navigationHref: string | undefined;
     let screenCommand: InrAssistantUiCommand | undefined;
+    let uiActions: InrAssistantUiAction[] | undefined;
+    let uiReceiptToken: string | undefined;
+    let responseMessage: ChatMessage | undefined;
+    let previousUiResults: InrAssistantUiResult[] = [];
     try {
       const response = await fetch("/api/assistant/chat", {
         method: "POST", credentials: "include", cache: "no-store",
@@ -282,10 +288,14 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
       const media = parseAssistantMedia(payload.media);
       const studioDraft = parseInrAssistantStudioDraft(payload.studioDraft);
       const assistantMessage: ChatMessage = { role: "assistant", content: payload.message, ...(media ? { media } : {}), ...(studioDraft ? { studioDraft } : {}), ...(payload.taskProgress ? { taskProgress: payload.taskProgress } : {}) };
+      responseMessage = assistantMessage;
       setMessages([...conversation, assistantMessage]);
       if (studioDraft && payload.insertStudioDraft === true) autoInsertMessage = assistantMessage;
       navigationHref = payload.navigation?.href;
       screenCommand = payload.uiCommand;
+      uiActions = payload.uiActions ?? inrAssistantUiActionsFromToolResult("legacy", { ok: true, navigation: payload.navigation, uiCommand: payload.uiCommand });
+      uiReceiptToken = payload.uiReceiptToken;
+      previousUiResults = payload.uiResults ?? [];
       if (payload.refresh?.accountId === accountAtStart && stillCurrent()) dispatchInrAssistantRefresh(payload.refresh);
       onReply?.();
       setHandoffSummary(payload.needsHuman === true ? typeof payload.handoffSummary === "string" && payload.handoffSummary.trim() ? payload.handoffSummary.slice(0, 4500) : payload.message.slice(0, 4500) : "");
@@ -310,6 +320,44 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
     // its controller, then let Studio apply its own pending/unsaved guard.
     if (autoInsertMessage?.studioDraft && stillCurrent()) await insertDraft(autoInsertMessage.studioDraft, autoInsertMessage);
     // Only a fresh verified server result triggers navigation. Loading history never replays it.
+    if (uiActions?.length && onUiActions && stillCurrent()) {
+      setPending(true);
+      controllerRef.current = controller;
+      try {
+        const newResults = await onUiActions(uiActions.filter(action => !previousUiResults.some(result => result.actionId === action.id)), async result => {
+          if (!uiReceiptToken || !stillCurrent()) return;
+          const response = await fetch("/api/assistant/ui-results", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: uiReceiptToken, result }), signal: controller.signal });
+          if (!response.ok) throw new Error("Browser receipt unavailable");
+        }, async action => {
+          if (!uiReceiptToken || !stillCurrent()) return false;
+          const response = await fetch("/api/assistant/ui-results", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "claim", token: uiReceiptToken, actionId: action.id }), signal: controller.signal });
+          const result = await response.json();
+          return response.ok && result?.ok === true && stillCurrent();
+        });
+        const results = [...previousUiResults, ...newResults];
+        if (stillCurrent()) {
+          const applied = results.filter(result => result.status === "applied").length;
+          const handed = results.filter(result => result.status === "handed_to_browser").length;
+          const failed = results.filter(result => result.status === "failed" || result.status === "cancelled").length;
+          const content = locale.startsWith("fr")
+            ? `${applied ? `${applied} ouverture(s) ou modification(s) d’écran confirmée(s). ` : ""}${handed ? `${handed} téléchargement(s) transmis au navigateur ; la réception du fichier n’est pas vérifiée. ` : ""}${failed ? `${failed} étape(s) non exécutée(s). Les actions qui en dépendaient ont été arrêtées.` : ""}`
+            : `${applied ? `${applied} screen action(s) applied. ` : ""}${handed ? `${handed} download(s) handed to the browser; file receipt is not verified. ` : ""}${failed ? `${failed} step(s) did not run. Dependent actions were stopped.` : ""}`;
+          setMessages(current => [...current.map(message => message === responseMessage ? { ...message, taskProgress: inrAssistantBusinessProgressAfterUi(message.taskProgress, uiActions!, results), uiResults: results } : message), { role: "assistant", content, uiResults: results }]);
+        }
+      } finally {
+        if (controllerRef.current === controller) controllerRef.current = null;
+        if (stillCurrent()) setPending(false);
+      }
+      return;
+    }
+    // Compatibility with old embedded consumers: never run a PDF before a queued navigation.
+    if (screenCommand && navigationHref) {
+      if (stillCurrent()) onInternalNavigate?.(navigationHref);
+      if (stillCurrent()) setMessages(current => [...current, { role: "assistant", content: locale.startsWith("fr") ? "Ouvrez le document demandé puis relancez son export PDF. Aucun PDF de l’ancien document n’a été lancé." : "Open the requested document, then request its PDF again. The previous document was not exported." }]);
+      return;
+    }
     if (screenCommand && stillCurrent()) {
       setPending(true);
       try {

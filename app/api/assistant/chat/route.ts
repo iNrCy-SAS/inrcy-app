@@ -15,6 +15,8 @@ import { continueInrAssistantTask, type InrAssistantTaskState } from "@/lib/inrA
 import { loadAssistantMediaAttachmentOriginal, claimAssistantMediaAttachmentImport } from "@/lib/inrAssistantAttachmentStorage";
 import { assistantRefreshTopics, parseInrAssistantRefresh } from "@/lib/inrAssistantRefresh";
 import { INR_ASSISTANT_UNCERTAIN_STATUSES } from "@/lib/inrAssistantCommandRegistry";
+import { inrAssistantUiActionsFromToolResult, parseInrAssistantUiActions } from "@/lib/inrAssistantUiActions";
+import { createInrAssistantUiReceiptToken, loadInrAssistantUiResults } from "@/lib/inrAssistantUiReceipts";
 
 export const runtime = "nodejs";
 export const maxDuration = 800;
@@ -127,7 +129,11 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     if (begun.available && begun.existing && !begun.claimed) {
       if (begun.turn?.status === "completed" && begun.turn.assistantText) {
         const replay = await loadAssistantReplyReplay(attachmentScope, begun.turn);
-        return NextResponse.json({ ...replay, message: begun.turn.assistantText, conversationId, turnId, memorySaved: true,
+        const replayActions = parseInrAssistantUiActions(replay?.uiActions) ?? inrAssistantUiActionsFromToolResult("legacy", { ok: true, ...replay });
+        const uiResults = replayActions.length ? await loadInrAssistantUiResults(attachmentScope, begun.turn, replayActions) : [];
+        // Claims are immutable. A retry can report old results but cannot automatically replay them.
+        const uiReceiptToken = replayActions.length ? createInrAssistantUiReceiptToken(attachmentScope, begun.turn, replayActions) : undefined;
+        return NextResponse.json({ ...replay, ...(replayActions.length ? { uiActions: replayActions, uiReceiptToken, uiResults } : {}), message: begun.turn.assistantText, conversationId, turnId, memorySaved: true,
           requestId, accountId: auth.activeUserId }, { headers });
       }
       // A concurrent request owns this turn. Never start a second paid answer or
@@ -152,6 +158,21 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
       const recent = await memory.loadRecent({ conversationId, limit: 6 });
       if (recent.available) {
         const previous = recent.turns.filter(turn=>turn.turnId !== turnId).at(-1);
+        if (previous && (taskIntent === "check_status" || /^(?:est.ce (?:fini|termin[eé])|c.est (?:fini|termin[eé])|o[uù] en est|statut|suivi|v[eé]rifie(?: uniquement)?(?: l.[eé]tat)?)[ ?.!]*$/i.test(messages.at(-1)!.content.trim()))) {
+          const previousReply = await loadAssistantReplyReplay(attachmentScope, previous);
+          const actions = parseInrAssistantUiActions(previousReply?.uiActions);
+          const task = actions?.length ? await inspectAssistantTaskState(attachmentScope, previous) : null;
+          const onlyBrowser = task?.status === "available" && task.task.requiredTools.every(name => ["prepareMediaDownload", "prepareStatsReportDownload", "navigateApplication", "runScreenCommand"].includes(name));
+          if (actions?.length && onlyBrowser) {
+            const results = await loadInrAssistantUiResults(attachmentScope, previous, actions);
+            const applied = results.filter(result => result.status === "applied").length;
+            const handed = results.filter(result => result.status === "handed_to_browser").length;
+            const unresolved = actions.length - applied - handed;
+            const message = `Suivi du navigateur : ${applied} action(s) d’écran appliquée(s), ${handed} téléchargement(s) signalé(s) comme transmis au navigateur. ${unresolved ? `${unresolved} étape(s) sans confirmation de réussite. Consultez l’écran avant de renouveler une demande.` : "Toutes les étapes de ce parcours ont un résultat navigateur."} La réception d’un fichier sur disque n’est pas vérifiée. Aucune action n’a été relancée.`;
+            const completed = await memory.completeTurn({ ...identity, assistantText: message });
+            return NextResponse.json({ message, uiResults: results, uiActions: [], conversationId, turnId, memorySaved: Boolean(completed?.ok), requestId, accountId: auth.activeUserId }, { headers });
+          }
+        }
         if (!continuation && previous && ["completed", "failed"].includes(previous.status)) {
           const stored = await inspectAssistantTaskState(attachmentScope, previous);
           if (["invalid", "unavailable"].includes(stored.status) || stored.status === "expired" && (taskIntent || /^(?:continue|reprends|termine|poursuis|verifie|actualise|suivi|statut)/i.test(messages.at(-1)!.content.trim()))) {
@@ -248,8 +269,11 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
       actionStartedAt: continuation?.task.startedAt ?? begun.turn?.createdAt,
     });
     const { taskState, ...replyData } = reply;
+    if (replyData.uiActions !== undefined && !parseInrAssistantUiActions(replyData.uiActions)) throw Object.assign(new Error("Le parcours d’écran dépasse ses limites."), { code: "assistant_ui_plan_invalid" });
+    const uiActions = parseInrAssistantUiActions(replyData.uiActions) ?? inrAssistantUiActionsFromToolResult("legacy", { ok: true, navigation: replyData.navigation, uiCommand: replyData.uiCommand });
+    const uiReceiptToken = uiActions.length ? createInrAssistantUiReceiptToken(attachmentScope, begun.turn!, uiActions) : undefined;
     const refresh = parseInrAssistantRefresh({ accountId: auth.activeUserId, turnId, topics: assistantRefreshTopics(taskState?.receipts ?? []) });
-    const publicReply = { ...replyData, ...(refresh ? { refresh } : {}) };
+    const publicReply = { ...replyData, ...(uiActions.length ? { uiActions, uiReceiptToken } : {}), ...(refresh ? { refresh } : {}) };
     const taskSaved = taskState ? await saveAssistantTaskState(attachmentScope, {turnId,createdAt:begun.turn!.createdAt}, bindMediaImportSource(taskState)) : true;
     if (!taskSaved && taskState && ["partial","needs_input","processing"].includes(taskState.outcome)) publicReply.message += "\n\nLe suivi de cette tâche n’a pas pu être enregistré. Vérifiez les résultats dans les outils avant toute nouvelle action ; les étapes déjà confirmées y sont conservées.";
     if (!await saveAssistantReplyReplay(attachmentScope, begun.turn!, publicReply)) {

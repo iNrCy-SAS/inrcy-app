@@ -29,6 +29,7 @@ const sources = {
   "./DashboardAssistantScreenContext": compile("app/dashboard/_components/DashboardAssistantScreenContext.tsx"),
   "./DashboardAssistantCommandContext": compile("app/dashboard/_components/DashboardAssistantCommandContext.tsx"),
   "@/lib/inrAssistantUiCommands": compile("lib/inrAssistantUiCommands.ts"),
+  "@/lib/inrAssistantUiActions": compile("lib/inrAssistantUiActions.ts"),
   "@/lib/inrAssistantAttachments": compile("lib/inrAssistantAttachments.ts"),
   "@/lib/inrAssistantClientContext": compile("lib/inrAssistantClientContext.ts"),
   "@/lib/inrAssistantStudioDraft": compile("lib/inrAssistantStudioDraft.ts"),
@@ -40,6 +41,7 @@ const sources=${JSON.stringify(sources)}, loaded={};
 function require(name) {
   if(name.endsWith('.css')) return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
   if(name==='./inrAssistantStudioDraft.ts') return require('@/lib/inrAssistantStudioDraft');
+  if(name==='./inrAssistantUiCommands.ts') return require('@/lib/inrAssistantUiCommands');
   if(name==='next-intl') return {useLocale:()=> 'fr-FR'};
   if(name==='next/image') return {__esModule:true,default:props=>require('react').createElement('img',props)};
   if(name==='next/dynamic') return {__esModule:true,default:()=>()=>null};

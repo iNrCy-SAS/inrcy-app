@@ -7,7 +7,8 @@ import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { createClient } from "@/lib/supabaseClient";
 import { getInrAssistantClientScreen, selectInrAssistantClientScreen, parseInrAssistantClientContext, type InrAssistantClientScreen } from "@/lib/inrAssistantClientContext";
-import type { InrAssistantUiCommand } from "@/lib/inrAssistantUiCommands";
+import type { InrAssistantNavigation, InrAssistantUiCommand } from "@/lib/inrAssistantUiCommands";
+import { runInrAssistantUiActions, type InrAssistantUiAction, type InrAssistantUiResult } from "@/lib/inrAssistantUiActions";
 import type { InrAssistantStudioDraft } from "@/lib/inrAssistantStudioDraft";
 import { clearInrAssistantStudioDraft, inrAssistantStudioDraftHref, requestInrAssistantStudioDraft, stageInrAssistantStudioDraft, waitForInrAssistantStudioDraft } from "@/lib/inrAssistantStudioHandoff";
 import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
@@ -49,12 +50,16 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
   }, [screenScope]);
   const screen = selectInrAssistantClientScreen(getInrAssistantClientScreen(pathname, searchParams), Object.values(screenOverrides).filter(entry => entry.scope === screenScope).map(entry => entry.value));
   const screenHandlers = useRef(new Map<string, { actorUserId: string; activeAccountId: string; handler: InrAssistantScreenHandler }>());
+  const uiTargetWaiters = useRef(new Set<() => void>());
+  const uiExecution = useRef<{ epoch: number; busy: boolean }>({ epoch: 0, busy: false });
   const registerCommand = useCallback((key: string, handler: InrAssistantScreenHandler | null) => {
     if (handler) screenHandlers.current.set(key, { actorUserId, activeAccountId, handler });
     else screenHandlers.current.delete(key);
+    uiTargetWaiters.current.forEach(notify => notify());
   }, [actorUserId, activeAccountId]);
-  const screenRef = useRef({ pathname, screen });
-  useEffect(() => { screenRef.current = { pathname, screen }; }, [pathname, screen]);
+  const query = searchParams.toString();
+  const screenRef = useRef({ pathname, screen, query });
+  useEffect(() => { screenRef.current = { pathname, screen, query }; uiTargetWaiters.current.forEach(notify => notify()); }, [pathname, screen, query]);
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const [revision, setRevision] = useState(0);
   const [browserActorId, setBrowserActorId] = useState(actorUserId);
@@ -157,6 +162,57 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     if (!stillCurrent()) return false;
     try { return await entry.handler.run(stillCurrent); } catch { return false; }
   }, [actorUserId, activeAccountId]);
+  const executeUiActions = useCallback(async (actions: InrAssistantUiAction[], onResult?: (result: InrAssistantUiResult) => Promise<void>, beforeAction?: (action: InrAssistantUiAction) => Promise<boolean>) => {
+    const execution = uiExecution.current;
+    if (execution.busy) return actions.map(action => ({ actionId: action.id, source: "browser_reported" as const, status: "cancelled" as const }));
+    execution.busy = true;
+    const epoch = execution.epoch;
+    const isCurrent = () => {
+      const scope = navigationScopeRef.current;
+      return execution.epoch === epoch && scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId
+        && (getActiveBrowserUserId() || activeAccountId) === activeAccountId;
+    };
+    const mounted = (navigation: InrAssistantNavigation) => {
+      const target = new URL(navigation.href, "https://inrcy.local"), current = screenRef.current;
+      if (current.pathname !== target.pathname) return false;
+      if (navigation.documentId) {
+        const kind = navigation.destination === "quotes" ? "quote" : "invoice";
+        return current.screen?.selection?.id === navigation.documentId && current.screen.selection.kind === kind
+          && [...screenHandlers.current.values()].filter(entry => entry.actorUserId === actorUserId && entry.activeAccountId === activeAccountId
+            && entry.handler.command === "export_document_pdf" && entry.handler.selection.kind === kind && entry.handler.selection.id === navigation.documentId).length === 1;
+      }
+      const params = new URLSearchParams(current.query);
+      return [...target.searchParams].every(([key, value]) => params.get(key) === value);
+    };
+    const navigate = async (navigation: InrAssistantNavigation) => {
+      if (!isCurrent()) return false;
+      if (mounted(navigation)) return true;
+      const starting = screenRef.current;
+      const target = new URL(navigation.href, "https://inrcy.local");
+      const leftForAnotherTarget = () => {
+        const current = screenRef.current;
+        const routeChanged = current.pathname !== starting.pathname || current.query !== starting.query;
+        const params = new URLSearchParams(current.query);
+        const targetRoute = current.pathname === target.pathname && [...target.searchParams].every(([key, value]) => params.get(key) === value);
+        const selectionChangedElsewhere = navigation.documentId && current.screen?.selection?.id && current.screen.selection.id !== starting.screen?.selection?.id && current.screen.selection.id !== navigation.documentId;
+        return Boolean(routeChanged && !targetRoute || selectionChangedElsewhere);
+      };
+      let pushed = false;
+      const accepted = await requestNavigation(() => {
+        if (!isCurrent()) return;
+        router.push(navigation.href); pushed = true; revealNavigationDestination();
+      });
+      if (!accepted || !pushed || !isCurrent()) return false;
+      return new Promise<boolean>(resolve => {
+        const finish = (result: boolean) => { clearTimeout(timer); uiTargetWaiters.current.delete(check); resolve(result); };
+        const check = () => { if (!isCurrent() || leftForAnotherTarget()) finish(false); else if (mounted(navigation)) finish(true); };
+        const timer = setTimeout(() => finish(false), 30_000);
+        uiTargetWaiters.current.add(check); check();
+      });
+    };
+    try { return await runInrAssistantUiActions(actions, { isCurrent, navigate, command: executeScreenCommand, onResult, beforeAction }); }
+    finally { execution.busy = false; }
+  }, [actorUserId, activeAccountId, requestNavigation, router, revealNavigationDestination, executeScreenCommand]);
   const insertStudioDraft = useCallback(async (value: InrAssistantStudioDraft) => {
     const currentScope = () => {
       const scope = navigationScopeRef.current;
@@ -197,7 +253,10 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
   }, [actorUserId, activeAccountId, revealNavigationDestination, openAssistant, requestNavigation, router]);
 
   useEffect(() => {
+    const execution = uiExecution.current, waiters = uiTargetWaiters.current;
     const syncAccount = () => {
+      execution.epoch += 1;
+      waiters.forEach(notify => notify());
       setOpen(false);
       setMinimized(false);
       setContactDraft(null);
@@ -213,6 +272,8 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     const { data } = createClient().auth.onAuthStateChange((_event, session) => {
       setBrowserActorId(session?.user.id || "");
       if (session?.user.id !== actorUserId) {
+        execution.epoch += 1;
+        waiters.forEach(notify => notify());
         clearActorSessions(actorUserId);
         visibleRef.current = false;
         setOpen(false);
@@ -224,6 +285,8 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
       }
     });
     return () => {
+      execution.epoch += 1;
+      waiters.forEach(notify => notify());
       window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, syncAccount);
       data.subscription.unsubscribe();
     };
@@ -246,6 +309,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
       onOpenMediaLibrary={openMediaLibrary}
       onInternalNavigate={navigateInternally}
       onScreenCommand={executeScreenCommand}
+      onUiActions={executeUiActions}
       onInsertStudioDraft={insertStudioDraft}
       screen={screen}
     />
