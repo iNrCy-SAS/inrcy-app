@@ -16,6 +16,7 @@ type UiFixture = Window & {
   startActions: (actions: InrAssistantUiAction[]) => void; mountTarget: () => void; renderFixture: () => void;
   deferClaim: boolean; releaseClaim: () => void;
   editNative: (name: string) => void; nativeState: { name: string; primaryText: string; confirmedSpend: boolean; format: string; adaptationMode: string; saved: boolean; step: number; sourceId: string };
+  deferOptimization: boolean; releaseOptimization: () => void; optimizationRefreshes: number;
   videoLoads: string[]; videoSaves: number; deferVideoLoad: boolean; deferVideoSave: boolean; releaseVideoLoad: () => void; releaseVideoSave: () => void; replaceNativeSource: (id: string) => void;
   authCallback: (event: string, session: null) => void; releasePdf: () => void;
   mailAttachments: Array<{ bucket: string; path: string; name: string; type: string; size: number }>;
@@ -45,9 +46,10 @@ const sources = {
   "./DashboardAssistantScreenContext": compile("app/dashboard/_components/DashboardAssistantScreenContext.tsx"),
   "./DashboardAssistantCommandContext": compile("app/dashboard/_components/DashboardAssistantCommandContext.tsx"),
   "native": compile("app/dashboard/_hooks/useInrAssistantNativeDraft.ts"),
+  "library-optimization": compile("app/dashboard/_hooks/useInrAssistantLibraryOptimization.ts"),
   "video-native": compile("app/dashboard/_hooks/useInrAssistantVideoCommands.ts"),
   "preview": compile("app/dashboard/_hooks/useInrAssistantDocumentPreview.ts"),
-  ...Object.fromEntries(["inrAssistantMailAttachments", "inrAssistantMediaUiCommands", "inrAssistantMailCompose", "inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
+  ...Object.fromEntries(["inrAssistantNativeMediaOptimization", "mediaLibraryOptimizationPolicy", "mediaRules", "inrAssistantMailAttachments", "inrAssistantMailCompose", "inrAssistantMediaUiCommands", "inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
 };
 const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
 const fixture = `
@@ -65,6 +67,7 @@ function require(name){
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.fixtureScope.account};
  if(name==='@/lib/multicompte/constants')return {ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};
  if(name==='@/lib/supabaseClient')return {createClient:()=>({auth:{onAuthStateChange(callback){window.authCallback=callback;return {data:{subscription:{unsubscribe(){}}}}}}})};
+ if(name==='../_components/DashboardViewerAccessProvider')return require('./DashboardViewerAccessProvider');
  if(name==='./DashboardViewerAccessProvider')return {useDashboardViewerAccess:()=>({actorUserId:window.fixtureScope.actor,activeAccountId:window.fixtureScope.account})};
  if(name==='./DashboardUnsavedNavigationProvider')return {useDashboardUnsavedNavigation:()=>({requestNavigation:async callback=>{if(!window.allowNavigation)return false;await callback();return true}})};
  if(name==='./dashboardAssistantCopy')return {dashboardAssistantCopy:()=>({open:'Open',restore:'Restore',minimize:'Minimize'})};
@@ -75,7 +78,18 @@ function require(name){
  if(!sources[name])throw Error('Unexpected UI fixture module '+name);
  const module=loaded[name]={exports:{}};new Function('require','module','exports',sources[name])(require,module,module.exports);return module.exports;
 }
-window.fetch=async(url,init)=>{window.requests.push({url,body:init?.body});if(window.deferDownload)await new Promise(resolve=>window.releaseDownload=resolve);return new Response(JSON.stringify({ok:true,downloadUrl:'/api/media-library/download?bundle=test'}),{headers:{'Content-Type':'application/json'}})};
+window.fetch=async(url,init)=>{
+ window.requests.push({url,body:init?.body});
+ if(url==='/api/media-library/optimization'){window.optimizationQueued=true;return Response.json({job:{id:'job-native',media_id:'${A}',status:'queued'}})}
+ if(url==='/api/media-library/optimization/run')return Response.json({ok:true});
+ if(url==='/api/media-library/items?id=${A}'){
+  if(window.optimizationQueued){window.optimizationReadStarted=true;if(window.deferOptimization)await new Promise(resolve=>window.releaseOptimization=resolve)}
+  return Response.json({items:[{id:'${A}',media_type:'video',size_bytes:40000000,mime_type:'video/mp4',original_file_name:'source.mp4',...(window.optimizationQueued?{optimization:{id:'job-native',status:'succeeded',result:{outputMediaId:'${B}'}}}:{})}]});
+ }
+ if(url==='/api/media-library/items?id=${B}')return Response.json({items:[{id:'${B}',media_type:'video',size_bytes:19000000,media_metadata:{library_optimization:{source_media_id:'${A}',job_id:'job-native',target_bytes:20000000}}}]});
+ if(window.deferDownload)await new Promise(resolve=>window.releaseDownload=resolve);
+ return new Response(JSON.stringify({ok:true,downloadUrl:'/api/media-library/download?bundle=test'}),{headers:{'Content-Type':'application/json'}})
+};
 HTMLAnchorElement.prototype.click=function(){window.exports.push({id:window.fixtureScope.documentId,href:this.href})};
 const React=require('react'),screen=require('./DashboardAssistantScreenContext'),command=require('./DashboardAssistantCommandContext');
 function Document(){
@@ -84,7 +98,12 @@ function Document(){
  command.useInrAssistantDocumentPdf(preview.selection,async()=>{window.pdfBuilds.push(id);if(window.deferPdf)await new Promise(resolve=>window.releasePdf=resolve);return new Blob(['PDF fixture'],{type:'application/pdf'})},'devis',preview.revision);
  return React.createElement('output',{id:'mounted-document'},id);
 }
-function Library(){screen.useInrAssistantScreen({selectedMediaIds:window.fixtureScope.selectedMediaIds});return React.createElement('output',null,'Library')}
+function Library(){
+ screen.useInrAssistantScreen({selectedMediaIds:window.fixtureScope.selectedMediaIds});
+ const target={id:window.fixtureScope.documentId,media_type:'video',size_bytes:40000000,mime_type:'video/mp4',title:'Source',is_active:true};
+ const status=require('library-optimization').useInrAssistantLibraryOptimization({target,selectedIds:window.fixtureScope.selectedMediaIds,blocked:Boolean(window.fixtureScope.blocked),refresh:async current=>{if(current())window.optimizationRefreshes=(window.optimizationRefreshes||0)+1}});
+ return React.createElement('output',{id:'optimization-state'},JSON.stringify(status));
+}
 function AdsDraft(){
  const[draft,setDraft]=React.useState({name:'Original campaign',primaryText:'Original text'}),[dirty,setDirty]=React.useState(false),[confirmedSpend,setConfirmedSpend]=React.useState(true),[step,setStep]=React.useState(0);
  const channelId='meta',creating=true,creationPath='manual',busy=window.fixtureScope.blocked?'saving':null,savedId=window.fixtureScope.documentId,stepKeys=['foundations','creative','budget'];
@@ -456,5 +475,59 @@ test("video save acknowledgement waits for the native save and the saved state c
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).videoSaves), 1);
     await page.waitForFunction(() => !(window as unknown as UiFixture).assistantProps.screen.availableCommands.includes("save_video_retouch"));
+  } finally { await browser.close(); }
+});
+
+test("library optimization uses native queue/worker/readback, preserves source and acknowledges only its exact output", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(), errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+    await setup(page, true);
+    await page.waitForFunction(() => (window as unknown as UiFixture).assistantProps.screen.availableCommands?.includes("optimize_media"));
+    const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+    const actions = inrAssistantUiActionsFromToolResult("optimize", { ok: true, uiCommand: { command: "optimize_media", selection: screen.selection, revision: screen.revision, targetBytes: 20_000_000 } });
+    await page.evaluate(actions => { const f = window as unknown as UiFixture; f.deferOptimization = true; f.startActions(actions); }, actions);
+    await page.waitForFunction(() => Boolean((window as unknown as UiFixture).releaseOptimization));
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result), null);
+    assert.equal(await page.locator("#optimization-state").evaluate(node => JSON.parse(node.textContent!).busy), true);
+    const duplicate = await page.evaluate(actions => (window as unknown as UiFixture).assistantProps.onUiActions(actions), actions);
+    assert.equal(duplicate[0].status, "cancelled");
+    await page.evaluate(() => (window as unknown as UiFixture).releaseOptimization());
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).optimizationRefreshes), 1);
+    assert.match(await page.locator("#optimization-state").textContent() || "", /copie optimisée.*vérifiée/);
+    const requests = await page.evaluate(() => (window as unknown as UiFixture).requests);
+    assert.equal(requests.filter(row => row.url === "/api/media-library/optimization").length, 1);
+    assert.equal(requests.filter(row => row.url === `/api/media-library/items?id=${B}`).length, 1);
+    assert.equal(requests.some(row => /delete|cleanup/.test(row.url)), false);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test("late native optimization completion cannot acknowledge another selected source or account", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const mode of ["selection", "account"]) {
+      const page = await browser.newPage(); await setup(page, true);
+      await page.waitForFunction(() => (window as unknown as UiFixture).assistantProps.screen.availableCommands?.includes("optimize_media"));
+      const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+      const actions = inrAssistantUiActionsFromToolResult("optimize-late", { ok: true, uiCommand: { command: "optimize_media", selection: screen.selection, revision: screen.revision, targetBytes: 20_000_000 } });
+      await page.evaluate(actions => { const f = window as unknown as UiFixture; f.deferOptimization = true; f.startActions(actions); }, actions);
+      await page.waitForFunction(() => Boolean((window as unknown as UiFixture).releaseOptimization));
+      await page.evaluate(mode => { const f = window as unknown as UiFixture;
+        if (mode === "selection") f.fixtureScope.documentId = "33333333-3333-4333-8333-333333333333";
+        else { f.fixtureScope.account = "account-b"; window.dispatchEvent(new Event("fixture-account-change")); }
+        f.renderFixture();
+      }, mode);
+      await page.waitForFunction(revision => (window as unknown as UiFixture).assistantProps.screen.revision !== revision, screen.revision);
+      await page.evaluate(() => (window as unknown as UiFixture).releaseOptimization());
+      await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      assert.notEqual(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).requests.some(row => row.url.endsWith("22222222-2222-4222-8222-222222222222"))), false);
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).optimizationRefreshes || 0), 0);
+      if (mode === "account") assert.equal(await page.locator("#optimization-state").evaluate(node => JSON.parse(node.textContent!).message), "");
+      await page.close();
+    }
   } finally { await browser.close(); }
 });

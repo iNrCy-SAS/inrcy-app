@@ -1,4 +1,5 @@
 "use client";
+import { useInrAssistantLibraryOptimization } from "../_hooks/useInrAssistantLibraryOptimization";
 import { useInrAssistantScreen } from "../_components/DashboardAssistantScreenContext";
 import { useInrAssistantRefresh } from "../_hooks/useInrAssistantRefresh";
 import MediaLibraryVideo from "./MediaLibraryVideo";
@@ -485,6 +486,12 @@ export default function MediaLibraryClient() {
       if (isCurrentRequest()) setLoading(false);
     }
   }, [activeFilter, i18nT, search, typeFilter]);
+
+  const assistantOptimization = useInrAssistantLibraryOptimization({
+    target: previewItem || (selectedItems.length === 1 ? selectedItems[0] : null), selectedIds: selectedItems.map(item => item.id),
+    blocked: uploading || importOpen || Boolean(savingId) || metadataEditingKeys.size > 0 || metadataSavingKeys.size > 0 || Boolean(optimizerItem),
+    refresh: isCurrent => loadItems({ silent: true, canApply: isCurrent }),
+  });
 
   useInrAssistantRefresh({ topics: ["media"], blocked: uploading || importOpen || Boolean(savingId) || metadataEditingKeys.size > 0 || metadataSavingKeys.size > 0 || Boolean(optimizerItem), refresh: async ({ canApply }) => {
     invalidateModuleSnapshot(MODULE_SNAPSHOT_KEYS.mediaLibraryDefault);
@@ -1595,6 +1602,8 @@ export default function MediaLibraryClient() {
           </form>
         </div>
       </div> : null}
+
+      {assistantOptimization.message ? <p role="status" aria-live="polite" aria-busy={assistantOptimization.busy}>{assistantOptimization.message}</p> : null}
 
       <MediaOptimizerModal
         open={Boolean(optimizerItem)}
