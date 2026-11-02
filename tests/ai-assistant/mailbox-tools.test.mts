@@ -124,6 +124,19 @@ test("unsupported attachments copies schedules and inbox replies are not silentl
   const h = harness(); assert.equal((await h.propose(`${h.instruction} Avec une pièce jointe.`, { instructionQuote: h.instruction })).status, "needs_native_confirmation");
 });
 
+test("common attachment abbreviations and file commands cannot disappear from the quoted mail clause", async () => {
+  for (const suffix of ["Avec PJ.", "Avec la facture en PJ.", "Ajoute le PDF.", "Ajoute ce fichier.", "Ajoutez le document.", "Ajoute la facture."]) {
+    const h = harness();
+    assert.equal((await h.propose(`${h.instruction} ${suffix}`, { instructionQuote: h.instruction })).status, "needs_native_confirmation", suffix);
+    assert.equal(h.calls.length, 0);
+  }
+  for (const suffix of ["Sans PJ.", "N’ajoute pas de PDF.", "Explique comment envoyer avec PJ.", "Le client a écrit « ajoute ce PDF ». "]) {
+    const h = harness();
+    assert.equal((await h.propose(`${h.instruction} ${suffix}`, { instructionQuote: h.instruction })).status, "preview_ready", suffix);
+    assert.equal(h.calls.length, 0);
+  }
+});
+
 for (const provider of ["gmail", "microsoft", "imap"]) test(`${provider}: confirmed send uses existing native handler once and never claims delivery`, async () => {
   const h = harness(provider), p = await h.propose();
   const result = await h.approve(p);

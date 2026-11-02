@@ -77,13 +77,13 @@ function requestedPreview(message: string, quote: string, from: string, recipien
 }
 function requestsNativeComposeOnly(message: string, quote: string) {
   const withoutData = message.replace(/```[\s\S]*?(?:```|$)|`[^`]*`|«[^»]*»|“[^”]*”|"[^"]*"|^>.*$/gm, " ");
-  const withoutExclusions = (value: string) => normalize(value).replace(/\b(?:sans|aucune?|pas de)\s+(?:pieces?\s+jointes?|copie|cc|cci|bcc)\b/g, " ");
+  const withoutExclusions = (value: string) => normalize(value).replace(/\b(?:sans|aucune?|pas de)\s+(?:pieces?\s+jointes?|pj|copie|cc|cci|bcc)\b/g, " ");
   const intent = withoutExclusions(withoutData), command = withoutExclusions(quote);
   // An explanatory question about attachments is not an attachment request.
   // Keep explicit extra commands in the current message, even if the model
   // omitted them from its quoted preparation clause.
-  const actionClauses = intent.split(/[.!?;\n]+(?=\s|$)|\b(?:puis|ensuite)\b/).filter(clause => !/^\s*(?:comment|pourquoi|explique|how|why)\b/.test(clause));
-  return actionClauses.some(clause => /\b(?:joins|joignez|attache|attach|reponds|reply|transfere|forward|programme|planifie|schedule)\b|\b(?:mets|mettez)\b.{0,80}\b(?:copie|cc|cci|bcc)\b|\bavec\s+(?:une?\s+|des\s+)?(?:pieces?\s+jointes?|copie|cc|cci|bcc)\b/.test(clause))
+  const actionClauses = intent.split(/[.!?;\n]+(?=\s|$)|\b(?:puis|ensuite)\b/).filter(clause => !/^\s*(?:(?:comment|pourquoi|explique|how|why|ne|not|never)\b|n['’])/.test(clause));
+  return actionClauses.some(clause => /\b(?:joins|joignez|attache|attach|reponds|reply|transfere|forward|programme|planifie|schedule)\b|\b(?:mets|mettez)\b.{0,80}\b(?:copie|cc|cci|bcc)\b|\bavec\s+(?:une?\s+|des\s+)?(?:pieces?\s+jointes?|pj|copie|cc|cci|bcc)\b|\ben\s+pj\b|\b(?:ajoute|ajoutez)\s+(?:(?:ce|cet|le|la|un|une|les|des|mon|ma)\s+)?(?:pdf|fichier|document|facture)\b/.test(clause))
     || /\b(?:pieces?\s+jointes?|bcc|cci|cc|joindre|programmer|planifier|transferer)\b/.test(command);
 }
 function mailboxFingerprint(mailbox: Row) {
