@@ -24,8 +24,27 @@ const MEDIA = "30000000-0000-4000-8000-000000000001", DRAFT = "40000000-0000-400
 const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
 type Row = Record<string, unknown>;
 
+test("completed CRM objective releases its real mutation schema before the required publication read", async t => {
+  const h = harness({ crmThenRead: true });
+  const reply = await h.runtime.generateInrAssistantReply({ accountId: ACCOUNT, actorUserId: ACTOR, displayName: "Entreprise Toitures", edition: "premium",
+    requestId: randomUUID(), actionRequestId: `${ACCOUNT}_${randomUUID()}`, request: new Request("https://app.inrcy.com/api/assistant/chat"),
+    supabase: { from() { assert.fail("No real customer data access"); } } as never,
+    messages: [{ role: "user", content: "Crée un contact CRM nommé Alice, puis consulte les dernières publications Facebook." }],
+  });
+  assert.equal(reply.outcome, "completed");
+  assert.equal(h.actionExecutions, 1);
+  assert.equal(h.providerCalls.length, 3);
+  const names = (index: number) => (h.providerCalls[index].tools ?? []).filter(tool => tool.type === "function").map(tool => tool.name);
+  assert.ok(names(0).includes("manageCrmContact"));
+  assert.equal(names(1).includes("manageCrmContact"), false);
+  assert.ok(names(1).includes("getRecentPublications"));
+  const providerBytes = h.providerCalls.map(params => bytes({ prompt: params.prompt, tools: params.tools }) + 1024);
+  assert.ok(providerBytes.every(value => value <= 32_000));
+  t.diagnostic(JSON.stringify({ providerBytes, savedContacts: h.actionExecutions }));
+});
+
 /** Only local schema factories/public guides run; no action executor, DB or paid provider. */
-function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: boolean; dnaFollowup?: boolean; dnaLanguage?: "fr" | "zh"; actionThenInputError?: boolean; ctaPartialThenInputError?: boolean } = {}) {
+function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: boolean; guideFollowup?: boolean; dnaFollowup?: boolean; dnaLanguage?: "fr" | "zh"; actionThenInputError?: boolean; ctaPartialThenInputError?: boolean } = {}) {
   const modules = new Map<string, Row>();
   const definitions = new Map<unknown, { name: string; description?: string }>();
   const schemas: Array<{ name: string; description?: string; schema: unknown }> = [];
@@ -92,6 +111,12 @@ function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: 
     createGateway: () => (modelId: string): LanguageModelV3 => ({ specificationVersion: "v3", provider: "schema-matrix", modelId, supportedUrls: {},
       doGenerate: async params => {
         providerCalls.push(params);
+        if (options.crmThenRead && providerCalls.length <= 2) {
+          const input = providerCalls.length === 1 ? { action: "create", instructionQuote: "Crée un contact CRM nommé Alice, puis consulte les dernières publications Facebook.", reference: "Alice", contactId: null,
+            fields: { displayName: "Alice", companyName: null, email: null, phone: null, address: null, billingAddress: null, deliveryAddress: null, postalCode: null, city: null, siret: null, vatNumber: null, category: null, contactType: null, notes: null, important: null } } : { limit: 8 };
+          return { content: [{ type: "tool-call", toolCallId: `crm-read-${providerCalls.length}`, toolName: providerCalls.length === 1 ? "manageCrmContact" : "getRecentPublications", input: JSON.stringify(input) }], finishReason: { unified: "tool-calls", raw: "test" },
+            usage: { inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 20, text: 20, reasoning: 0 } }, warnings: [] };
+        }
         if (options.publicationGuideFollowup && providerCalls.length === 1) return {
           content: ["booster", "publications", "studio-create", "assistant-capabilities"].map((topic, index) => ({ type: "tool-call" as const, toolCallId: `publication-guide-${index}`, toolName: "readAppGuide", input: JSON.stringify({ topic }) })),
           finishReason: { unified: "tool-calls" as const, raw: "test" },
@@ -174,6 +199,12 @@ function harness(options: { publicationGuideFollowup?: boolean; guideFollowup?: 
           args[0] = { ...args[0] as Row, supabase: synthetic };
         }
         const result = factory(...args) as Row;
+        if (options.crmThenRead && name === "createInrAssistantCommercialTools") result.manageCrmContact = {
+          ...result.manageCrmContact as object, execute: async () => { actionExecutions++; return { ok: true, status: "created", id: "10000000-0000-4000-8000-000000000001", message: "Contact Alice enregistré." }; },
+        };
+        if (options.crmThenRead && name === "createInrAssistantAccountTools") result.getRecentPublications = {
+          ...result.getRecentPublications as object, execute: async () => ({ ok: true, publications: [{ id: "publication_record_1", channel: "facebook", content: "Texte existant vérifié." }] }),
+        };
         if (name === "createInrAssistantUiTools") result.navigateApplication = {
           ...result.navigateApplication as object,
           execute: async (input: unknown) => {
