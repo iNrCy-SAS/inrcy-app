@@ -6,7 +6,7 @@ import ts from "typescript";
 import * as commands from "../../lib/inrAssistantUiCommands.ts";
 import type * as Runtime from "../../lib/inrAssistantUiTools.ts";
 
-function harness(message: string, options: { foreign?: boolean; available?: boolean; expired?: boolean; documentOwner?: string } = {}) {
+function harness(message: string, options: { foreign?: boolean; available?: boolean; expired?: boolean; documentOwner?: string; preview?: boolean } = {}) {
   const deps: Record<string, unknown> = {
     "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (value: unknown) => value },
     "./requireUser": { requireUser: async () => ({ activeUserId: options.foreign ? "other" : "active" }) },
@@ -22,7 +22,7 @@ function harness(message: string, options: { foreign?: boolean; available?: bool
     return query;
   } } as unknown as Parameters<typeof Runtime.createInrAssistantUiTools>[0]["supabase"];
   return moduleRecord.exports.createInrAssistantUiTools({ accountId: "active", currentUserMessage: message, canStartWork: () => !options.expired, ...(options.documentOwner ? { supabase: db } : {}),
-    clientContext: { source: "untrusted_client", screen: { pathname: "/dashboard/devis/new", tool: "Créer un devis", selection: { kind: "quote", id: "quote-123" }, ...(options.available === false ? {} : { availableCommands: ["export_document_pdf"] }) } } });
+    clientContext: { source: "untrusted_client", screen: { pathname: "/dashboard/devis/new", tool: "Créer un devis", selection: { kind: "quote", id: options.preview ? "preview_local" : "quote-123" }, ...(options.preview ? { revision: "preview_local_2", pendingChanges: true } : {}), ...(options.available === false ? {} : { availableCommands: ["export_document_pdf"] }) } } });
 }
 const execution = { toolCallId: "test", messages: [] };
 test("navigation validates current instruction and active account before emitting a UI command", async () => {
@@ -77,4 +77,14 @@ test("explicit PDF target is verified and returns an ordered navigation dependen
   assert.equal(commands.parseInrAssistantNavigation(result.navigation)?.documentId, documentId);
   assert.equal(commands.parseInrAssistantUiCommand(result.uiCommand)?.selection.id, documentId);
   assert.equal((await harness(request, { documentOwner: "other" }).runScreenCommand.execute!(input, execution) as { ok: boolean }).ok, false);
+});
+
+
+test("unsaved preview PDF binds the local revision without saving or reading a record", async () => {
+  const request = "Télécharge le PDF de cet aperçu";
+  const result = await harness(request, { preview: true }).runScreenCommand.execute!({ command: "export_document_pdf", instructionQuote: request }, execution) as { ok: boolean; uiCommand: unknown; navigation?: unknown };
+  assert.equal(result.ok, true);
+  assert.deepEqual(commands.parseInrAssistantUiCommand(result.uiCommand), { command: "export_document_pdf", selection: { kind: "quote", id: "preview_local" }, revision: "preview_local_2" });
+  assert.equal(result.navigation, undefined);
+  assert.equal(commands.parseInrAssistantUiCommand({ ...(result.uiCommand as object), revision: "bad revision" }), null);
 });

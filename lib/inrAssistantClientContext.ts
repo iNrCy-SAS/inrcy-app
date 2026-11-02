@@ -5,6 +5,7 @@ export type InrAssistantClientScreen = {
   pathname: string; tool: string; action?: string; panel?: string; channel?: string; step?: string;
   selection?: { kind: "contact" | "publication" | "campaign" | "event" | "quote" | "invoice" | "media"; id: string };
   pendingChanges?: boolean;
+  revision?: string;
   /** Only explicitly checked library items, never arbitrary DOM or ownership claims. */
   selectedMediaIds?: string[];
   selectionOverflow?: boolean;
@@ -48,7 +49,8 @@ export function parseInrAssistantClientContext(value: unknown, now = Date.now())
     const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
     const selectedMediaIds = rawScreen.pathname === "/dashboard/mediatheque" && Array.isArray(rawScreen.selectedMediaIds) && rawScreen.selectedMediaIds.length > 0 && rawScreen.selectedMediaIds.length <= 25 && rawScreen.selectedMediaIds.every(id => typeof id === "string" && uuid.test(id)) && new Set(rawScreen.selectedMediaIds).size === rawScreen.selectedMediaIds.length ? [...rawScreen.selectedMediaIds] as string[] : undefined;
     const selectionOverflow = rawScreen.pathname === "/dashboard/mediatheque" && rawScreen.selectionOverflow === true;
-    if (destination) screen = { pathname: rawScreen.pathname, tool: destination.label, ...(action ? { action } : {}), ...(panel ? { panel } : {}), ...(channel ? { channel } : {}), ...(step ? { step } : {}), ...(selection ? { selection } : {}), ...(typeof rawScreen.pendingChanges === "boolean" ? { pendingChanges: rawScreen.pendingChanges } : {}), ...(availableCommands ? { availableCommands } : {}), ...(selectedMediaIds && !selectionOverflow ? { selectedMediaIds } : {}), ...(selectionOverflow ? { selectionOverflow: true } : {}) };
+    const revision = typeof rawScreen.revision === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(rawScreen.revision) ? rawScreen.revision : undefined;
+    if (destination) screen = { pathname: rawScreen.pathname, tool: destination.label, ...(action ? { action } : {}), ...(panel ? { panel } : {}), ...(channel ? { channel } : {}), ...(step ? { step } : {}), ...(selection ? { selection } : {}), ...(revision ? { revision } : {}), ...(typeof rawScreen.pendingChanges === "boolean" ? { pendingChanges: rawScreen.pendingChanges } : {}), ...(availableCommands ? { availableCommands } : {}), ...(selectedMediaIds && !selectionOverflow ? { selectedMediaIds } : {}), ...(selectionOverflow ? { selectionOverflow: true } : {}) };
   }
   const rawError = record(input.visibleError);
   const requestId = parseInrAssistantRequestId(rawError.requestId);

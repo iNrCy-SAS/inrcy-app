@@ -1,5 +1,5 @@
 "use client";
-import { useInrAssistantScreen } from "../../_components/DashboardAssistantScreenContext";
+import { useInrAssistantDocumentPreview } from "../../_hooks/useInrAssistantDocumentPreview";
 import { useInrAssistantDocumentPdf } from "../../_components/DashboardAssistantCommandContext";
 
 import { useTranslations } from "next-intl";
@@ -152,7 +152,6 @@ export default function NewDevisPage() {
     advancedOpen, setAdvancedOpen, crmQuery, setCrmQuery,
     crmContainerRef: crmBoxRef,
   } = useDocumentCrmUiState<QuoteFieldErrors>();
-  useInrAssistantScreen(currentSaveId ? { selection: { kind: "quote", id: currentSaveId }, availableCommands: ["export_document_pdf"] } : null);
 
   useDocumentClientQueryPrefill(searchParams, {
     setClientName,
@@ -972,7 +971,15 @@ export default function NewDevisPage() {
     return exportDocumentPreviewPdf(el, styles, waitForDomUpdate);
   };
 
-  useInrAssistantDocumentPdf(currentSaveId ? { kind: "quote", id: currentSaveId } : null, buildPdfBlob, "devis");
+  const assistantDocument = useInrAssistantDocumentPreview("quote", currentSaveId, {
+    number, docDateISO, clientName, billingAddress, billingPostalCode, billingCity,
+    deliveryAddress, deliveryPostalCode, deliveryCity, sameAddresses, profile, providerOverride,
+    clientEmail, clientSiren, clientVatNumber, clientType, vatDispense, operationCategory,
+    serviceDateMode, serviceDate, servicePeriodStart, servicePeriodEnd, purchaseOrderReference,
+    depositKind, depositValue, paymentMethod, paymentDetails, notes, quoteMention, validityDays,
+    lines, discountKind, discountValue, discountDetails, isFinalized, finalizedAt, documentsSettings,
+  });
+  useInrAssistantDocumentPdf(assistantDocument.selection, buildPdfBlob, "devis", assistantDocument.revision);
 
   const uploadPdfAndOpenCompose = async (to: string, filename: string) => {
     const {

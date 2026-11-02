@@ -1,5 +1,5 @@
 "use client";
-import { useInrAssistantScreen } from "../../_components/DashboardAssistantScreenContext";
+import { useInrAssistantDocumentPreview } from "../../_hooks/useInrAssistantDocumentPreview";
 import { useInrAssistantDocumentPdf } from "../../_components/DashboardAssistantCommandContext";
 
 import { useTranslations } from "next-intl";
@@ -158,7 +158,6 @@ export default function NewFacturePage() {
     advancedOpen, setAdvancedOpen, crmQuery, setCrmQuery,
     crmContainerRef: crmSelectRef,
   } = useDocumentCrmUiState<InvoiceFieldErrors>();
-  useInrAssistantScreen(currentSaveId ? { selection: { kind: "invoice", id: currentSaveId }, availableCommands: ["export_document_pdf"] } : null);
 
   const { filteredCrmContacts, selectedCrmLabel } =
     useDocumentCrmDirectory({
@@ -1387,7 +1386,16 @@ export default function NewFacturePage() {
     return exportDocumentPreviewPdf(el, styles, waitForDomUpdate);
   };
 
-  useInrAssistantDocumentPdf(currentSaveId ? { kind: "invoice", id: currentSaveId } : null, buildPdfBlob, "facture");
+  const assistantDocument = useInrAssistantDocumentPreview("invoice", currentSaveId, {
+    number, invoiceDate, dueDate, clientName, billingAddress, billingPostalCode, billingCity,
+    deliveryAddress, deliveryPostalCode, deliveryCity, sameAddresses, profile, providerOverride,
+    clientEmail, clientSiren, clientVatNumber, clientType, vatDispense, operationCategory,
+    serviceDateMode, serviceDate, servicePeriodStart, servicePeriodEnd, purchaseOrderReference,
+    depositKind, depositValue, vatOnDebits, lateFeeRate, fixedRecoveryFee40, documentKind,
+    status, paymentMethod, paymentDetails, notes, invoiceMention, lines, discountKind, discountValue,
+    discountDetails, isFinalized, finalizedAt, documentsSettings,
+  });
+  useInrAssistantDocumentPdf(assistantDocument.selection, buildPdfBlob, "facture", assistantDocument.revision);
 
   const uploadPdfAndOpenCompose = async (to: string, filename?: string) => {
     const {

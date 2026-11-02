@@ -7,21 +7,21 @@ export type InrAssistantScreenHandler = InrAssistantUiCommand & { pathname: stri
 export const DashboardAssistantCommandContext = createContext<(key: string, handler: InrAssistantScreenHandler | null) => void>(() => {});
 
 /** Reuse the document's native renderer; never click arbitrary DOM nodes or export another selection. */
-export function useInrAssistantDocumentPdf(selection: Extract<InrAssistantUiCommand, { command: "export_document_pdf" }>["selection"] | null, buildPdf: () => Promise<Blob | null>, filename: string) {
+export function useInrAssistantDocumentPdf(selection: Extract<InrAssistantUiCommand, { command: "export_document_pdf" }>["selection"] | null, buildPdf: () => Promise<Blob | null>, filename: string, revision?: string) {
   const register = useContext(DashboardAssistantCommandContext);
   const key = useId(), pathname = usePathname();
-  const current = useRef({ selection, buildPdf, filename });
-  current.current = { selection, buildPdf, filename };
+  const current = useRef({ selection, buildPdf, filename, revision });
+  current.current = { selection, buildPdf, filename, revision };
   const kind = selection?.kind, id = selection?.id;
   useEffect(() => {
     if (!kind || !id) return;
     let busy = false, active = true;
-    register(key, { command: "export_document_pdf", selection: { kind, id }, pathname, run: async (stillCurrent) => {
-      if (!active || !stillCurrent() || busy || current.current.selection?.kind !== kind || current.current.selection.id !== id) return false;
+    register(key, { command: "export_document_pdf", selection: { kind, id }, ...(revision ? { revision } : {}), pathname, run: async (stillCurrent) => {
+      if (!active || !stillCurrent() || busy || current.current.selection?.kind !== kind || current.current.selection.id !== id || current.current.revision !== revision) return false;
       busy = true;
       try {
         const blob = await current.current.buildPdf();
-        if (!active || !stillCurrent() || !blob || blob.type !== "application/pdf" || current.current.selection?.kind !== kind || current.current.selection.id !== id) return false;
+        if (!active || !stillCurrent() || !blob || blob.type !== "application/pdf" || current.current.selection?.kind !== kind || current.current.selection.id !== id || current.current.revision !== revision) return false;
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = url;
@@ -32,5 +32,5 @@ export function useInrAssistantDocumentPdf(selection: Extract<InrAssistantUiComm
       } finally { busy = false; }
     } });
     return () => { active = false; register(key, null); };
-  }, [key, pathname, register, kind, id]);
+  }, [key, pathname, register, kind, id, revision]);
 }

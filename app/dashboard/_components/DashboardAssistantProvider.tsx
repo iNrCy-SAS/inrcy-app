@@ -154,7 +154,8 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
         document.body.appendChild(link); link.click(); link.remove(); return true;
       } catch { return false; }
     }
-    const matches = [...screenHandlers.current.entries()].filter(([, entry]) => entry.actorUserId === actorUserId && entry.activeAccountId === activeAccountId && entry.handler.command === command.command && entry.handler.selection.kind === command.selection.kind && entry.handler.selection.id === command.selection.id);
+    const matches = [...screenHandlers.current.entries()].filter(([, entry]) => entry.actorUserId === actorUserId && entry.activeAccountId === activeAccountId && entry.handler.command === command.command && entry.handler.selection.kind === command.selection.kind && entry.handler.selection.id === command.selection.id
+      && (!command.revision || entry.handler.command === "export_document_pdf" && entry.handler.revision === command.revision));
     if (matches.length !== 1) return false;
     const [key, entry] = matches[0];
     const stillCurrent = () => {
@@ -162,7 +163,8 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
       return scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId
         && (getActiveBrowserUserId() || activeAccountId) === activeAccountId && screenHandlers.current.get(key) === entry
         && current.pathname === entry.handler.pathname && current.screen?.selection?.kind === command.selection.kind
-        && current.screen.selection.id === command.selection.id && current.screen.availableCommands?.includes(command.command) === true;
+        && current.screen.selection.id === command.selection.id && current.screen.availableCommands?.includes(command.command) === true
+        && (!command.revision || current.screen.revision === command.revision);
     };
     if (!stillCurrent()) return false;
     try { return await entry.handler.run(stillCurrent); } catch { return false; }
@@ -172,6 +174,11 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     if (execution.busy) return actions.map(action => ({ actionId: action.id, source: "browser_reported" as const, status: "cancelled" as const }));
     execution.busy = true;
     const epoch = execution.epoch;
+    const mountedRevisions = new Map<string, string>();
+    const rememberDocumentRevision = (navigation: InrAssistantNavigation) => {
+      const revision = screenRef.current.screen?.revision;
+      if (navigation.documentId && revision) mountedRevisions.set(`${navigation.destination === "quotes" ? "quote" : "invoice"}:${navigation.documentId}`, revision);
+    };
     const isCurrent = () => {
       const scope = navigationScopeRef.current;
       return execution.epoch === epoch && scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId
@@ -191,7 +198,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     };
     const navigate = async (navigation: InrAssistantNavigation) => {
       if (!isCurrent()) return false;
-      if (mounted(navigation)) return true;
+      if (mounted(navigation)) { rememberDocumentRevision(navigation); return true; }
       const starting = screenRef.current;
       const target = new URL(navigation.href, "https://inrcy.local");
       const leftForAnotherTarget = () => {
@@ -210,12 +217,16 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
       if (!accepted || !pushed || !isCurrent()) return false;
       return new Promise<boolean>(resolve => {
         const finish = (result: boolean) => { clearTimeout(timer); uiTargetWaiters.current.delete(check); resolve(result); };
-        const check = () => { if (!isCurrent() || leftForAnotherTarget()) finish(false); else if (mounted(navigation)) finish(true); };
+        const check = () => { if (!isCurrent() || leftForAnotherTarget()) finish(false); else if (mounted(navigation)) { rememberDocumentRevision(navigation); finish(true); } };
         const timer = setTimeout(() => finish(false), 30_000);
         uiTargetWaiters.current.add(check); check();
       });
     };
-    try { return await runInrAssistantUiActions(actions, { isCurrent, navigate, command: executeScreenCommand, onResult, beforeAction }); }
+    const command = (value: InrAssistantUiCommand) => {
+      const revision = value.command === "export_document_pdf" ? value.revision ?? mountedRevisions.get(`${value.selection.kind}:${value.selection.id}`) : undefined;
+      return executeScreenCommand(value.command === "export_document_pdf" && revision ? { ...value, revision } : value);
+    };
+    try { return await runInrAssistantUiActions(actions, { isCurrent, navigate, command, onResult, beforeAction }); }
     finally { execution.busy = false; }
   }, [actorUserId, activeAccountId, requestNavigation, router, revealNavigationDestination, executeScreenCommand]);
   const insertStudioDraft = useCallback(async (value: InrAssistantStudioDraft) => {

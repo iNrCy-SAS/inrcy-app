@@ -74,6 +74,7 @@ export function createInrAssistantUiTools(options: { accountId: string; currentU
           if (!currentTarget) navigation = targetNavigation;
         }
         if (currentTarget && !screen?.availableCommands?.includes(command.command)) return { ok: false, status: "needs_details", message: "Le PDF de cet aperçu n’est pas disponible. Ouvrez le document puis réessayez." };
+        if (currentTarget && screen?.revision) command.revision = screen.revision;
         return { ok: true, status: "ui_action_requested", uiCommand: command, ...(navigation ? { navigation } : {}), message: navigation ? "L’ouverture du document exact puis son export PDF ont été demandés au navigateur. Le document n’est ni finalisé ni envoyé." : "La génération du PDF de l’aperçu ouvert a été demandée au navigateur. Le document n’est ni finalisé ni envoyé." };
       },
     }),

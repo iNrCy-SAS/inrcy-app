@@ -9,9 +9,9 @@ import { getInrAssistantNavigation } from "../../lib/inrAssistantUiCommands.ts";
 import { inrAssistantUiActionsFromToolResult, type InrAssistantUiAction, type InrAssistantUiResult } from "../../lib/inrAssistantUiActions.ts";
 
 type UiFixture = Window & {
-  assistantProps: { screen: { availableCommands: string[]; selection: { id: string }; selectedMediaIds?: string[] } };
+  assistantProps: { screen: { availableCommands: string[]; selection: { id: string }; selectedMediaIds?: string[]; revision: string; pendingChanges?: boolean } };
   result: InrAssistantUiResult[]; requestedHref: string; pdfBuilds: string[]; exports: unknown[];
-  fixtureScope: { account: string; documentId: string; selectedMediaIds: string[] }; allowNavigation: boolean; deferPdf: boolean; deferDownload: boolean;
+  fixtureScope: { account: string; documentId: string; selectedMediaIds: string[]; text: string }; allowNavigation: boolean; deferPdf: boolean; deferDownload: boolean;
   releaseDownload: () => void; requests: Array<{ url: string; body: string }>;
   startActions: (actions: InrAssistantUiAction[]) => void; mountTarget: () => void; renderFixture: () => void;
   authCallback: (event: string, session: null) => void; releasePdf: () => void;
@@ -28,16 +28,18 @@ const sources = {
   provider: compile("app/dashboard/_components/DashboardAssistantProvider.tsx"),
   "./DashboardAssistantScreenContext": compile("app/dashboard/_components/DashboardAssistantScreenContext.tsx"),
   "./DashboardAssistantCommandContext": compile("app/dashboard/_components/DashboardAssistantCommandContext.tsx"),
+  "preview": compile("app/dashboard/_hooks/useInrAssistantDocumentPreview.ts"),
   ...Object.fromEntries(["inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantClientContext", "inrAssistantNavigation", "inrAssistantStudioDraft", "inrAssistantStudioHandoff"].map(name => [`@/lib/${name}`, compile(`lib/${name}.ts`)])),
 };
 const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
 const fixture = `
 const sources=${JSON.stringify(sources)},loaded={};
-window.fixtureScope={actor:'actor-a',account:'account-a',pathname:location.pathname.endsWith('/mediatheque')?'/dashboard/mediatheque':'/dashboard/devis/new',query:'saveId=${A}',documentId:'${A}',selectedMediaIds:['${A}','${B}']};
+window.fixtureScope={actor:'actor-a',account:'account-a',pathname:location.pathname.endsWith('/mediatheque')?'/dashboard/mediatheque':'/dashboard/devis/new',query:location.search.includes('new=1')?'':'saveId=${A}',documentId:location.search.includes('new=1')?'':'${A}',selectedMediaIds:['${A}','${B}'],text:'Private form text'};
 window.exports=[];window.pdfBuilds=[];window.requests=[];window.allowNavigation=true;window.deferNavigation=true;
 const router={push(href){window.requestedHref=href;if(!window.deferNavigation)window.mountTarget()}};
 function require(name){
  if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
+ if(name==='../_components/DashboardAssistantScreenContext')return require('./DashboardAssistantScreenContext');
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
  if(name==='next-intl')return {useLocale:()=> 'fr-FR'};
  if(name==='next/navigation')return {usePathname:()=>window.fixtureScope.pathname,useSearchParams:()=>new URLSearchParams(window.fixtureScope.query),useRouter:()=>router};
@@ -58,20 +60,21 @@ window.fetch=async(url,init)=>{window.requests.push({url,body:init?.body});if(wi
 HTMLAnchorElement.prototype.click=function(){window.exports.push({id:window.fixtureScope.documentId,href:this.href})};
 const React=require('react'),screen=require('./DashboardAssistantScreenContext'),command=require('./DashboardAssistantCommandContext');
 function Document(){
- const id=window.fixtureScope.documentId;
- screen.useInrAssistantScreen(window.fixtureScope.pathname==='/dashboard/mediatheque'?{selectedMediaIds:window.fixtureScope.selectedMediaIds}:{selection:{kind:'quote',id},availableCommands:['export_document_pdf']});
- command.useInrAssistantDocumentPdf({kind:'quote',id},async()=>{window.pdfBuilds.push(id);if(window.deferPdf)await new Promise(resolve=>window.releasePdf=resolve);return new Blob(['PDF fixture'],{type:'application/pdf'})},'devis');
+ const preview=require('preview').useInrAssistantDocumentPreview('quote',window.fixtureScope.documentId,{text:window.fixtureScope.text});
+ const id=preview.selection.id;
+ command.useInrAssistantDocumentPdf(preview.selection,async()=>{window.pdfBuilds.push(id);if(window.deferPdf)await new Promise(resolve=>window.releasePdf=resolve);return new Blob(['PDF fixture'],{type:'application/pdf'})},'devis',preview.revision);
  return React.createElement('output',{id:'mounted-document'},id);
 }
-function Fixture(){const[,render]=React.useState(0);window.renderFixture=()=>render(n=>n+1);return React.createElement(require('provider').default,null,React.createElement(Document))}
+function Library(){screen.useInrAssistantScreen({selectedMediaIds:window.fixtureScope.selectedMediaIds});return React.createElement('output',null,'Library')}
+function Fixture(){const[,render]=React.useState(0);window.renderFixture=()=>render(n=>n+1);return React.createElement(require('provider').default,null,React.createElement(window.fixtureScope.pathname==='/dashboard/mediatheque'?Library:Document))}
 window.mountTarget=()=>{const url=new URL(window.requestedHref,location.origin);window.fixtureScope={...window.fixtureScope,pathname:url.pathname,query:url.search.slice(1),documentId:url.searchParams.get('saveId')};window.renderFixture()};
 window.startActions=actions=>{window.result=null;window.assistantProps.onUiActions(actions).then(value=>window.result=value)};
 require('react-dom/client').createRoot(document.getElementById('root')).render(React.createElement(Fixture));
 `;
 const actions = inrAssistantUiActionsFromToolResult("pdf-b", { ok: true, navigation: getInrAssistantNavigation("quotes", B), uiCommand: { command: "export_document_pdf", selection: { kind: "quote", id: B } } });
-async function setup(page: Page, library = false) {
+async function setup(page: Page, library = false, unsaved = false) {
   await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: '<html><body><div id="root"></div></body></html>' }) : route.abort());
-  await page.goto(library ? "https://fixture.invalid/dashboard/mediatheque" : "https://fixture.invalid/dashboard/devis/new");
+  await page.goto(library ? "https://fixture.invalid/dashboard/mediatheque" : `https://fixture.invalid/dashboard/devis/new${unsaved ? "?new=1" : ""}`);
   await page.addScriptTag({ content: fixture });
   await page.waitForFunction(() => Boolean((window as unknown as UiFixture).assistantProps?.screen?.availableCommands?.length || (window as unknown as UiFixture).assistantProps?.screen?.selectedMediaIds?.length));
 }
@@ -154,5 +157,27 @@ test("real provider downloads all checked media and rejects a changed selection 
     await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).exports.length), 1, "Late ZIP must not be downloaded for the old selection");
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "failed");
+  } finally { await browser.close(); }
+});
+
+test("new unsaved document exports its native preview without saving and rejects an older form revision", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, true);
+    const initial = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+    assert.match(initial.selection.id, /^preview_/);
+    assert.equal(initial.pendingChanges, true);
+    assert.ok(!JSON.stringify(initial).includes("Private form text"));
+    const previewActions = inrAssistantUiActionsFromToolResult("preview", { ok: true, uiCommand: { command: "export_document_pdf", selection: { kind: "quote", id: initial.selection.id }, revision: initial.revision } });
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), previewActions);
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).exports.length), 1);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).requests.length), 0, "Preview export must not create/finalize/save a document");
+    await page.evaluate(() => { (window as unknown as UiFixture).fixtureScope.text = "Edited local form"; (window as unknown as UiFixture).renderFixture(); });
+    await page.waitForFunction(revision => (window as unknown as UiFixture).assistantProps.screen.revision !== revision, initial.revision);
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), previewActions);
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "failed");
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).exports.length), 1);
   } finally { await browser.close(); }
 });
