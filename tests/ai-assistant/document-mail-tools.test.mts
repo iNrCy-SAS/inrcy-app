@@ -87,6 +87,10 @@ for (const denied of [
 
 test("an exact named document is accepted, but a substituted target or attachment patch is refused", async () => {
   assert.equal((await harness({ message: `Prépare le mail à ${recipient} avec le PDF de la facture FAC-2026-001.` }).run()).ok, true);
+  const exact = await harness().run({ documentId: ID, documentKind: "invoice" });
+  assert.equal(exact.ok, true);
+  assert.equal((exact.uiCommand as { selection: { id: string; kind: string } }).selection.id, ID);
+  assert.equal((exact.uiCommand as { selection: { id: string; kind: string } }).selection.kind, "invoice");
   assert.equal((await harness().run({ documentId: OTHER })).ok, false);
   assert.equal((await harness().run({ documentKind: "quote" })).ok, false);
   assert.equal((await harness().run({ patch: { name: "tamper" } })).ok, false);

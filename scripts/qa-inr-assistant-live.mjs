@@ -92,7 +92,11 @@ function fixtureExecute(name, input, factoryArguments) {
   else if (name === 'runScreenCommand' && activeCase.test.expectedCommand) {
     const scenario = activeCase.test;
     const presentPatch = Object.fromEntries(Object.entries(input.patch || {}).filter(([, value]) => value !== null && value !== undefined));
-    const valid = input.command === scenario.expectedCommand && input.documentId === null && input.documentKind === null
+    const documentTargetMatches = scenario.expectedCommand === 'prepare_document_mail'
+      ? (input.documentId === null || input.documentId === scenario.screen.selection.id)
+        && (input.documentKind === null || input.documentKind === scenario.screen.selection.kind)
+      : input.documentId === null && input.documentKind === null;
+    const valid = input.command === scenario.expectedCommand && documentTargetMatches
       && (scenario.expectedPatch ? JSON.stringify(presentPatch) === JSON.stringify(scenario.expectedPatch) && input.recipient === null
         : input.patch === null && input.recipient === scenario.expectedRecipient);
     output = valid ? { ok: true, status: 'ui_requested', message: 'Commande de formulaire préparée, résultat navigateur en attente.',
