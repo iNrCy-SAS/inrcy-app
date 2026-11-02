@@ -383,5 +383,10 @@
   "version_du_04_10_2026_51f2b1b8": "Versione del 04/10/2026",
   "version_juridique_synchronisee_le_04_10_2026_68a90e11": "Versione legale sincronizzata il 04/10/2026",
   "version_du_11_10_2026_video_credits": "Versione aggiornata l’11 ottobre 2026.",
-  "derniere_mise_a_jour_12_10_2026_meta": "Ultimo aggiornamento: 12/10/2026"
+  "derniere_mise_a_jour_12_10_2026_meta": "Ultimo aggiornamento: 12/10/2026",
+  "connection_recovery_title": "Recupera l’accesso",
+  "connection_recovery_wait": "Attendi la fine delle verifiche per vedere i passaggi adatti.",
+  "connection_recovery_network": "Controlla la connessione Internet, poi ripeti la diagnosi. Se l’applicazione resta indisponibile, attendi prima di riprovare oppure prova un’altra connessione.",
+  "connection_recovery_storage": "Consenti i cookie e l’archiviazione di questo sito nel browser. Puoi provare un browser aggiornato che usi normalmente; non occorre cancellare tutti i dati.",
+  "connection_recovery_credentials": "Torna all’accesso e verifica il tuo indirizzo email. Se hai dimenticato la password, usa «Password dimenticata?» e l’ultima email ricevuta. Una diagnosi riuscita non verifica le credenziali."
 }

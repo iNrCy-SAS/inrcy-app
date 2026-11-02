@@ -383,5 +383,10 @@
   "version_du_04_10_2026_51f2b1b8": "Version dated 04/10/2026",
   "version_juridique_synchronisee_le_04_10_2026_68a90e11": "Legal version synchronized on 04/10/2026",
   "version_du_11_10_2026_video_credits": "Version updated on 11 October 2026.",
-  "derniere_mise_a_jour_12_10_2026_meta": "Last updated: 12/10/2026"
+  "derniere_mise_a_jour_12_10_2026_meta": "Last updated: 12/10/2026",
+  "connection_recovery_title": "Regain access",
+  "connection_recovery_wait": "Wait for the checks to finish to see the relevant next steps.",
+  "connection_recovery_network": "Check your Internet connection, then run the diagnostic again. If the application remains unavailable, wait before retrying or try another connection.",
+  "connection_recovery_storage": "Allow cookies and site storage in your browser. You can try an up-to-date browser you normally use; there is no need to clear all your data.",
+  "connection_recovery_credentials": "Return to sign-in and check your email address. If you forgot your password, use “Forgot password?” and the most recent email you receive. Successful checks do not verify your sign-in details."
 }

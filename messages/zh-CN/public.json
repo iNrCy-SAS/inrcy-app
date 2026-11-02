@@ -383,5 +383,10 @@
   "version_du_04_10_2026_51f2b1b8": "版本日期为 2026 年 10 月 4 日",
   "version_juridique_synchronisee_le_04_10_2026_68a90e11": "法律版本于 2026 年 10 月 4 日同步",
   "version_du_11_10_2026_video_credits": "更新日期：2026年10月11日。",
-  "derniere_mise_a_jour_12_10_2026_meta": "最后更新：2026/10/12"
+  "derniere_mise_a_jour_12_10_2026_meta": "最后更新：2026/10/12",
+  "connection_recovery_title": "恢复访问",
+  "connection_recovery_wait": "请等待检查完成，再查看适合的后续步骤。",
+  "connection_recovery_network": "检查网络连接，然后重新运行诊断。如果应用仍不可用，请稍后重试或尝试其他网络连接。",
+  "connection_recovery_storage": "在浏览器中允许此网站使用 Cookie 和网站存储。可以尝试平时使用且已更新的浏览器，无需清除所有数据。",
+  "connection_recovery_credentials": "返回登录页面并核对邮箱地址。如果忘记密码，请选择“忘记密码？”并使用最新收到的邮件。诊断通过并不代表登录凭据正确。"
 }

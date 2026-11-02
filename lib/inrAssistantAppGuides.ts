@@ -6,6 +6,7 @@ import { INR_ASSISTANT_CREATION_GUIDES } from "./inrAssistantGuidesCreation.ts";
 import { INR_ASSISTANT_MANAGEMENT_GUIDES } from "./inrAssistantGuidesManagement.ts";
 import { INR_ASSISTANT_CODE_INDEX } from "./inrAssistantCodeIndex.generated.ts";
 import { inrAssistantCapabilityGuide } from "./inrAssistantCapabilities.ts";
+import { INR_ASSISTANT_RECOVERY_GUIDES } from "./inrAssistantGuidesRecovery.ts";
 
 export type InrAssistantAppGuide = {
   id: string; title: string; keywords: string[]; content: string; sourceFiles: string[]; directNavigation?: string;
@@ -14,6 +15,7 @@ export type InrAssistantAppGuide = {
 export const INR_ASSISTANT_APP_GUIDES: readonly InrAssistantAppGuide[] = [
   {id:"assistant-capabilities",title:"iNr’Assistant : capacités par offre et validations",keywords:["assistant","capacités","capable","tout gérer","basique","standard","premium","fusion","annulation"],content:inrAssistantCapabilityGuide(),sourceFiles:["lib/inrAssistantCapabilities.ts"]},
   ...INR_ASSISTANT_ACCOUNT_GUIDES, ...INR_ASSISTANT_CREATION_GUIDES, ...INR_ASSISTANT_MANAGEMENT_GUIDES,
+  ...INR_ASSISTANT_RECOVERY_GUIDES.map(guide => ({ ...guide, keywords: [...guide.keywords], sourceFiles: [...guide.sourceFiles] })),
 ];
 
 const normalize = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();

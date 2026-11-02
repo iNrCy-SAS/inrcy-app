@@ -383,5 +383,10 @@
   "version_du_04_10_2026_51f2b1b8": "Version vom 04.10.2026",
   "version_juridique_synchronisee_le_04_10_2026_68a90e11": "Rechtliche Version synchronisiert am 04.10.2026",
   "version_du_11_10_2026_video_credits": "Fassung vom 11. Oktober 2026.",
-  "derniere_mise_a_jour_12_10_2026_meta": "Zuletzt aktualisiert: 12.10.2026"
+  "derniere_mise_a_jour_12_10_2026_meta": "Zuletzt aktualisiert: 12.10.2026",
+  "connection_recovery_title": "Zugang wiederherstellen",
+  "connection_recovery_wait": "Warte, bis die Prüfungen abgeschlossen sind, um die passenden nächsten Schritte zu sehen.",
+  "connection_recovery_network": "Prüfe deine Internetverbindung und starte die Diagnose erneut. Falls die Anwendung weiterhin nicht verfügbar ist, warte vor einem neuen Versuch oder nutze eine andere Verbindung.",
+  "connection_recovery_storage": "Erlaube Cookies und Website-Speicher in deinem Browser. Du kannst einen aktuellen Browser verwenden, den du normalerweise nutzt; du musst nicht alle Daten löschen.",
+  "connection_recovery_credentials": "Kehre zur Anmeldung zurück und prüfe deine E-Mail-Adresse. Wenn du dein Passwort vergessen hast, nutze „Passwort vergessen?“ und die zuletzt erhaltene E-Mail. Eine erfolgreiche Diagnose überprüft deine Zugangsdaten nicht."
 }

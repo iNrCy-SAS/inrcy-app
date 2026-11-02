@@ -139,7 +139,8 @@
       "notifications": "Alerts",
       "documents": "Default settings",
       "threads": "Settings — Threads",
-      "factures": "Subscription invoices"
+      "factures": "Subscription invoices",
+      "inr_directory": "Settings — iNr’Annuaire"
     }
   },
   "hero": {
@@ -365,7 +366,7 @@
     },
     "inr_search": {
       "name": "iNr’Search",
-      "description": "Your page created by iNrCy 🔎",
+      "description": "Your visibility on AI search engines 🤖",
       "view": "View my page",
       "connect": "Set up"
     },
@@ -425,7 +426,7 @@
     },
     "inr_directory": {
       "name": "iNr’Annuaire",
-      "description": "Be found near your customers 📍",
+      "description": "Your business visible on inrcy.com",
       "view": "View directory",
       "connect": "Set up"
     }

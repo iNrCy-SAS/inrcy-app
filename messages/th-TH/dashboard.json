@@ -139,7 +139,8 @@
       "notifications": "การแจ้งเตือน",
       "documents": "การตั้งค่าเริ่มต้น",
       "threads": "การกำหนดค่า — Threads",
-      "factures": "ใบแจ้งหนี้การสมัครสมาชิก"
+      "factures": "ใบแจ้งหนี้การสมัครสมาชิก",
+      "inr_directory": "การตั้งค่า — iNr’Annuaire"
     }
   },
   "hero": {
@@ -365,7 +366,7 @@
     },
     "inr_search": {
       "name": "iNr’Search",
-      "description": "เพจของคุณสร้างโดย iNrCy 🔎",
+      "description": "การมองเห็นธุรกิจของคุณบนเครื่องมือค้นหา AI 🤖",
       "view": "ดูหน้าของฉัน",
       "connect": "กำหนดค่า"
     },
@@ -425,7 +426,7 @@
     },
     "inr_directory": {
       "name": "iNr’Annuaire",
-      "description": "ค้นหาผู้เชี่ยวชาญใกล้คุณ 📍",
+      "description": "แสดงธุรกิจของคุณบน inrcy.com",
       "view": "ดูทำเนียบ",
       "connect": "กำหนดค่า"
     }

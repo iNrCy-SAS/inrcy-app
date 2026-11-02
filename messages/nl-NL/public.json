@@ -383,5 +383,10 @@
   "version_du_04_10_2026_51f2b1b8": "Versie van 04-10-2026",
   "version_juridique_synchronisee_le_04_10_2026_68a90e11": "Juridische versie gesynchroniseerd op 04-10-2026",
   "version_du_11_10_2026_video_credits": "Versie bijgewerkt op 11 oktober 2026.",
-  "derniere_mise_a_jour_12_10_2026_meta": "Laatst bijgewerkt: 12-10-2026"
+  "derniere_mise_a_jour_12_10_2026_meta": "Laatst bijgewerkt: 12-10-2026",
+  "connection_recovery_title": "Toegang herstellen",
+  "connection_recovery_wait": "Wacht tot de controles klaar zijn om de passende vervolgstappen te zien.",
+  "connection_recovery_network": "Controleer je internetverbinding en voer de diagnose opnieuw uit. Blijft de toepassing onbereikbaar, wacht dan voordat je het opnieuw probeert of gebruik een andere verbinding.",
+  "connection_recovery_storage": "Sta cookies en siteopslag toe in je browser. Je kunt een bijgewerkte browser gebruiken die je gewend bent; je hoeft niet al je gegevens te wissen.",
+  "connection_recovery_credentials": "Ga terug naar het aanmelden en controleer je e-mailadres. Gebruik bij een vergeten wachtwoord “Wachtwoord vergeten?” en de laatst ontvangen e-mail. Een geslaagde diagnose controleert je inloggegevens niet."
 }

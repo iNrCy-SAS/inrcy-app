@@ -139,7 +139,8 @@
       "notifications": "Avisos",
       "documents": "Ajustes por defecto",
       "threads": "Configuración — Threads",
-      "factures": "Facturas de suscripción"
+      "factures": "Facturas de suscripción",
+      "inr_directory": "Configuración — iNr’Annuaire"
     }
   },
   "hero": {
@@ -365,7 +366,7 @@
     },
     "inr_search": {
       "name": "iNr’Search",
-      "description": "Tu página creada por iNrCy 🔎",
+      "description": "Tu visibilidad en los motores de búsqueda de IA 🤖",
       "view": "Ver mi página",
       "connect": "Configurar"
     },
@@ -425,7 +426,7 @@
     },
     "inr_directory": {
       "name": "iNr’Annuaire",
-      "description": "Haz que te encuentren cerca 📍",
+      "description": "Tu empresa visible en inrcy.com",
       "view": "Ver el directorio",
       "connect": "Configurar"
     }

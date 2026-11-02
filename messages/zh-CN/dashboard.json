@@ -139,7 +139,8 @@
       "notifications": "通知",
       "documents": "默认设置",
       "threads": "配置 — Threads",
-      "factures": "订阅发票"
+      "factures": "订阅发票",
+      "inr_directory": "设置 — iNr’Annuaire"
     }
   },
   "hero": {
@@ -365,7 +366,7 @@
     },
     "inr_search": {
       "name": "iNr’Search",
-      "description": "您的页面由 iNrCy 🔎 创建",
+      "description": "您在 AI 搜索引擎中的可见度 🤖",
       "view": "查看我的页面",
       "connect": "配置"
     },
@@ -425,7 +426,7 @@
     },
     "inr_directory": {
       "name": "iNr’Annuaire",
-      "description": "让附近的客户找到您 📍",
+      "description": "让您的企业展示在 inrcy.com",
       "view": "查看名录",
       "connect": "配置"
     }

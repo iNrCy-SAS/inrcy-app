@@ -139,7 +139,8 @@
       "notifications": "Meldingen",
       "documents": "Standaardwaarden",
       "threads": "Instellingen — Threads",
-      "factures": "Abonnementsfacturen"
+      "factures": "Abonnementsfacturen",
+      "inr_directory": "Instellingen — iNr’Annuaire"
     }
   },
   "hero": {
@@ -365,7 +366,7 @@
     },
     "inr_search": {
       "name": "iNr’Search",
-      "description": "Uw door iNrCy gemaakte pagina 🔎",
+      "description": "Uw zichtbaarheid in AI-zoekmachines 🤖",
       "view": "Mijn pagina bekijken",
       "connect": "Instellen"
     },
@@ -425,7 +426,7 @@
     },
     "inr_directory": {
       "name": "iNr’Annuaire",
-      "description": "Word gevonden in de buurt 📍",
+      "description": "Uw bedrijf zichtbaar op inrcy.com",
       "view": "Bekijk de bedrijvengids",
       "connect": "Instellen"
     }

@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
+import ConnectionRecovery from "./ConnectionRecovery";
 
 import styles from "./diagnostic.module.css";
 
@@ -433,6 +434,8 @@ export default function DiagnosticClient() {
           </button>
         </div>
       </section>
+
+      <ConnectionRecovery checks={checks} running={running} />
 
       <section className={styles.checkGrid}>
         {checks.map((check) => (

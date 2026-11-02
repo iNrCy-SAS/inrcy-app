@@ -383,5 +383,10 @@
   "version_du_04_10_2026_51f2b1b8": "Versão de 04/10/2026",
   "version_juridique_synchronisee_le_04_10_2026_68a90e11": "Versão legal sincronizada em 04/10/2026",
   "version_du_11_10_2026_video_credits": "Versão atualizada a 11 de outubro de 2026.",
-  "derniere_mise_a_jour_12_10_2026_meta": "Última atualização: 12/10/2026"
+  "derniere_mise_a_jour_12_10_2026_meta": "Última atualização: 12/10/2026",
+  "connection_recovery_title": "Recuperar o acesso",
+  "connection_recovery_wait": "Aguarde o fim das verificações para ver os passos adequados.",
+  "connection_recovery_network": "Verifique a ligação à Internet e repita o diagnóstico. Se a aplicação continuar indisponível, aguarde antes de tentar novamente ou experimente outra ligação.",
+  "connection_recovery_storage": "Permita cookies e o armazenamento deste site no navegador. Pode experimentar um navegador atualizado que utiliza habitualmente; não é necessário apagar todos os seus dados.",
+  "connection_recovery_credentials": "Volte ao início de sessão e verifique o endereço de email. Se se esqueceu da palavra-passe, utilize «Esqueceu-se da palavra-passe?» e o último email recebido. Um diagnóstico bem-sucedido não verifica as suas credenciais."
 }

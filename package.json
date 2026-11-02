@@ -36,6 +36,8 @@
     "assistant:knowledge:index": "node scripts/build-assistant-code-index.mjs --write",
     "assistant:knowledge:check": "node scripts/build-assistant-code-index.mjs --check",
     "test:assistant": "node --test --test-isolation=none --experimental-strip-types tests/ai-assistant/*.test.mts tests/ai-assistant/*.test.mjs tests/dashboard/dashboard-assistant*.test.mts tests/dashboard/assistant-creation-guides-integrity.test.mts",
+    "qa:assistant": "node --use-system-ca --experimental-strip-types scripts/qa-inr-assistant-live.mjs",
+    "qa:assistant:live": "node --use-system-ca --experimental-strip-types scripts/qa-inr-assistant-live.mjs --live",
     "test:media-rules": "node --test tests/media-rules/media-rules.test.mjs",
     "qa:multicompte": "node scripts/qa-multicompte-final.mjs && node scripts/qa-multicompte-scope-lockdown.mjs && npm run test:multicompte",
     "test:booster-images": "node --test --experimental-strip-types tests/booster-image-decision/booster-image-decision.test.mts && node --test tests/booster-image-decision/*.test.mjs",

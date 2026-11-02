@@ -916,7 +916,7 @@ export default function LoginPage() {
           </form>
 
           <div className="pt-4 text-center text-xs text-slate-500">
-            {t("needHelp")} {" "}
+            <a className="underline" href="/diagnostic?from=login">{t("needHelp")}</a> {" · "}
             <a className="underline" href="mailto:contact@inrcy.com">
               contact@inrcy.com
             </a>
