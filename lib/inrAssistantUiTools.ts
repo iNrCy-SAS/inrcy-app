@@ -42,9 +42,10 @@ export function createInrAssistantUiTools(options: { accountId: string; currentU
     }),
     runScreenCommand: tool({
       strict: true,
-      description: "Exécuter uniquement une capacité déclarée du formulaire courant. configure_ads_draft : nom/texte/étape ; configure_video_retouch : format/cadrage ; configure_mail_draft : recipient explicite, subject, bodyText, attachmentIds de searchMedia (5 médias du compte, total 10 Mo, conserver les PJ existantes). Ces configure_* ne sauvegardent, ne publient et n’envoient rien. select_video_source : patch.mediaId réel ; save_video_retouch : sauvegarder une copie de la retouche courante ; optimize_media : copie optimisée avec patch.targetBytes optionnel (5–75 Mo). Originaux conservés. Autres champs patch et documentId/documentKind null. export_document_pdf : aperçu courant avec IDs null, ou document exact lu via readCommercialDocuments et IDs explicites ; ouverture de la cible puis export, sans sauvegarde/finalisation/envoi. Révision et compte revérifiés au navigateur ; téléchargement transmis ne prouve pas fichier reçu.",
-      inputSchema: jsonSchema<{ command: "export_document_pdf" | "configure_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | InrAssistantMediaUiCommandName; instructionQuote: string; documentId?: string | null; documentKind?: "quote" | "invoice" | null; patch?: Record<string, unknown> | null }>({ type: "object", properties: {
-        command: { type: "string", enum: ["export_document_pdf", "configure_ads_draft", "configure_video_retouch", "configure_mail_draft", ...INR_ASSISTANT_MEDIA_UI_COMMANDS] }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 },
+      description: "Exécuter uniquement une capacité déclarée du formulaire courant. configure_ads_draft : nom/texte/étape ; configure_video_retouch : format/cadrage ; configure_mail_draft : recipient explicite, subject, bodyText, attachmentIds de searchMedia (5 médias du compte, total 10 Mo, conserver les PJ existantes). Ces configure_* ne sauvegardent, ne publient et n’envoient rien. select_video_source : patch.mediaId réel ; save_video_retouch : sauvegarder une copie de la retouche courante ; optimize_media : copie optimisée avec patch.targetBytes optionnel (5–75 Mo). Originaux conservés. prepare_document_mail : document courant enregistré, finalisé et propre, recipient explicite ; PDF joint au composeur, aucun envoi. Autres champs patch et documentId/documentKind/recipient null hors usage. export_document_pdf : aperçu courant avec IDs null, ou document exact lu via readCommercialDocuments et IDs explicites ; ouverture de la cible puis export, sans sauvegarde/finalisation/envoi. Révision et compte revérifiés au navigateur ; téléchargement transmis ne prouve pas fichier reçu.",
+      inputSchema: jsonSchema<{ command: "export_document_pdf" | "configure_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | "prepare_document_mail" | InrAssistantMediaUiCommandName; instructionQuote: string; documentId?: string | null; documentKind?: "quote" | "invoice" | null; recipient?: string | null; patch?: Record<string, unknown> | null }>({ type: "object", properties: {
+        command: { type: "string", enum: ["export_document_pdf", "configure_ads_draft", "configure_video_retouch", "configure_mail_draft", "prepare_document_mail", ...INR_ASSISTANT_MEDIA_UI_COMMANDS] }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 },
+        recipient: { type: ["string", "null"], maxLength: 254 },
         documentId: { type: ["string", "null"], format: "uuid" }, documentKind: { type: ["string", "null"], enum: ["quote", "invoice", null] },
         patch: { type: ["object", "null"], properties: {
           mediaId: { type: ["string", "null"], format: "uuid" }, targetBytes: { type: ["integer", "null"], minimum: 5000000, maximum: 75000000 },
@@ -55,11 +56,16 @@ export function createInrAssistantUiTools(options: { accountId: string; currentU
           recipient: { type: ["string", "null"], maxLength: 254 }, subject: { type: ["string", "null"], maxLength: 220 }, bodyText: { type: ["string", "null"], maxLength: 6000 },
           attachmentIds: { type: ["array", "null"], maxItems: 5, minItems: 1, items: { type: "string", format: "uuid" }, uniqueItems: true },
         }, required: ["name", "primaryText", "step", "format", "adaptationMode", "recipient", "subject", "bodyText", "attachmentIds", "mediaId", "targetBytes"], additionalProperties: false },
-      }, required: ["command", "instructionQuote", "documentId", "documentKind", "patch"], additionalProperties: false }),
+      }, required: ["command", "instructionQuote", "documentId", "documentKind", "recipient", "patch"], additionalProperties: false }),
       execute: async input => {
         const mediaAction = await prepareInrAssistantMediaUiAction(input, { ...options, isRequest: isInrAssistantScreenCommandRequest });
         if (mediaAction) return mediaAction;
         const screen = options.clientContext?.screen;
+        if (input.command === "prepare_document_mail") {
+          if (input.patch) return { ok: false, status: "needs_details", message: "La préparation d’un PDF en pièce jointe ne modifie pas le document." };
+          const { requestInrAssistantDocumentMail } = await import("./inrAssistantDocumentMailTools");
+          return requestInrAssistantDocumentMail(options, input);
+        }
         if (input.command === "configure_ads_draft" || input.command === "configure_video_retouch" || input.command === "configure_mail_draft") {
           let patch = input.patch;
           if (input.command === "configure_mail_draft" && patch) {

@@ -37,6 +37,7 @@ const sources = {
   "@/lib/inrAssistantStudioDraft": compile("lib/inrAssistantStudioDraft.ts"),
   "@/lib/inrAssistantStudioHandoff": compile("lib/inrAssistantStudioHandoff.ts"),
   "./inrAssistantNavigation.ts": compile("lib/inrAssistantNavigation.ts"),
+  "./inrAssistantDocumentUiCommands.ts": compile("lib/inrAssistantDocumentUiCommands.ts"),
 };
 const fixture = `
 const sources=${JSON.stringify(sources)}, loaded={};

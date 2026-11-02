@@ -1,6 +1,7 @@
 "use client";
 import { useInrAssistantDocumentPreview } from "../../_hooks/useInrAssistantDocumentPreview";
-import { useDocumentUnsavedChanges, type DocumentSaveVersion } from "../../_hooks/useDocumentUnsavedChanges";
+import { useInrAssistantDocumentMail } from "../../_hooks/useInrAssistantDocumentMail";
+import { useDocumentUnsavedChanges, type DocumentSaveVersion, type DocumentServerVersion } from "../../_hooks/useDocumentUnsavedChanges";
 import { prepareDocumentMail } from "../../_documents/documentMailPreparation";
 import { useInrAssistantDocumentPdf } from "../../_components/DashboardAssistantCommandContext";
 
@@ -327,6 +328,7 @@ export default function NewDevisPage() {
 
   // --- Sauvegardes (brouillons locaux)
   type DevisDraft = {
+    accountId: string;
     id: string;
     updatedAtISO: string;
     name?: string | null;
@@ -396,16 +398,18 @@ export default function NewDevisPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      const accountId = resolveActiveBrowserUserId(user.id);
       const { data, error } = await supabase
         .from("doc_saves")
         .select("id,updated_at,name,payload")
-        .eq("user_id", resolveActiveBrowserUserId(user.id))
+        .eq("user_id", accountId)
         .eq("type", SAVES_TYPE)
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
 
       const mapped: DevisDraft[] = (data ?? []).map((row: any) => ({
+        accountId,
         id: row.id,
         updatedAtISO: row.updated_at,
         name: row.name,
@@ -428,9 +432,9 @@ export default function NewDevisPage() {
   const onRequestedSaveLoadFailed = useEffectEvent((missing: boolean) => {
     setFormMessage({ type: "error", text: missing ? i18nT("devis_introuvable_d3cb961f") : i18nT("impossible_de_reouvrir_ce_devis_61080602") });
   });
-  const onRequestedSaveLoaded = useEffectEvent((data: { id: string; payload: DevisDraft["snapshot"] }) => {
+  const onRequestedSaveLoaded = useEffectEvent((data: { id: string; payload: DevisDraft["snapshot"]; accountId: string; updatedAt: string }) => {
     void documentEdits.requestNavigation(() => {
-      applyDraftSnapshot(data.payload);
+      applyDraftSnapshot(data.payload, { documentId: data.id, accountId: data.accountId, updatedAt: data.updatedAt });
       setCurrentSaveId(data.id);
       setFormMessage({ type: "success", text: i18nT("devis_reouvert_depuis_inrsend_7453e560") });
     });
@@ -450,11 +454,12 @@ export default function NewDevisPage() {
       } = await supabase.auth.getUser();
       if (userErr || !user) return;
 
+      const accountId = resolveActiveBrowserUserId(user.id);
       const { data, error } = await supabase
         .from("doc_saves")
-        .select("id,payload")
+        .select("id,payload,updated_at")
         .eq("id", saveId)
-        .eq("user_id", resolveActiveBrowserUserId(user.id))
+        .eq("user_id", accountId)
         .eq("type", SAVES_TYPE)
         .maybeSingle();
 
@@ -471,7 +476,7 @@ export default function NewDevisPage() {
         return;
       }
 
-      if (!cancelled) onRequestedSaveLoaded({ id: data.id, payload: data.payload as DevisDraft["snapshot"] });
+      if (!cancelled) onRequestedSaveLoaded({ id: data.id, payload: data.payload as DevisDraft["snapshot"], accountId, updatedAt: data.updated_at });
     };
 
     void loadRequestedSave();
@@ -665,7 +670,7 @@ export default function NewDevisPage() {
     const savedId =
       (savedRows?.[0] as { id?: string } | undefined)?.id || currentSaveId;
     if (savedId) {
-      if (!documentEdits.markSaved(saveVersion, savedId)) return null;
+      if (!documentEdits.markSaved(saveVersion, savedId, { documentId: savedId, accountId: resolveActiveBrowserUserId(user.id), updatedAt: savedRows[0].updated_at })) return null;
       setCurrentSaveId(savedId);
       options?.onSavedVersion?.({ ...saveVersion, documentId: savedId });
     }
@@ -683,7 +688,7 @@ export default function NewDevisPage() {
         setFormMessage({ type: "error", text: commercialDocumentCompletionError(result, "La finalisation du devis ne peut pas être confirmée. Vérifiez sa sauvegarde avant de réessayer.") });
         return;
       }
-      if (!documentEdits.isCurrentSave(finalizeVersion)) return null;
+      if (!documentEdits.markPersistedFields(finalizeVersion, {}, { documentId: savedId, accountId: resolveActiveBrowserUserId(user.id), updatedAt: result.updatedAt })) return null;
       setIsFinalized(true);
       setFinalizedAt(String(result.finalizedAt));
     }
@@ -702,8 +707,8 @@ export default function NewDevisPage() {
     return savedId as string | undefined;
   };
 
-  const applyDraftSnapshot = (s: DevisDraft["snapshot"]) => {
-    documentEdits.markHydrated();
+  const applyDraftSnapshot = (s: DevisDraft["snapshot"], version?: DocumentServerVersion) => {
+    documentEdits.markHydrated(version);
     const legacyBilling = splitFrenchAddress(
       s.billingAddress || s.clientAddress || "",
     );
@@ -803,7 +808,7 @@ export default function NewDevisPage() {
 
   const openDraft = (d: DevisDraft) => {
     void documentEdits.requestNavigation(() => {
-      applyDraftSnapshot(d.snapshot);
+      applyDraftSnapshot(d.snapshot, { documentId: d.id, accountId: d.accountId, updatedAt: d.updatedAtISO });
       setCurrentSaveId(d.id);
       setDraftsOpen(false);
     });
@@ -1010,8 +1015,34 @@ export default function NewDevisPage() {
     serviceDateMode, serviceDate, servicePeriodStart, servicePeriodEnd, purchaseOrderReference,
     depositKind, depositValue, paymentMethod, paymentDetails, notes, quoteMention, validityDays,
     lines, discountKind, discountValue, discountDetails, isFinalized, finalizedAt, documentsSettings,
-  }, documentEdits.dirty);
+  }, documentEdits.dirty, { isFinalized, serverVersion: documentEdits.serverVersion });
   useInrAssistantDocumentPdf(assistantDocument.selection, buildPdfBlob, "devis", assistantDocument.revision);
+  useInrAssistantDocumentMail({
+    selection: assistantDocument.selection, revision: assistantDocument.revision,
+    serverVersion: documentEdits.serverVersion, enabled: assistantDocument.canPrepareMail,
+    prepare: async (command, stillCurrent) => {
+      const version = documentEdits.serverVersion;
+      if (!version || !isFinalized || documentEdits.dirty || currentSaveId !== command.selection.id ||
+        version.updatedAt !== command.expectedUpdatedAt || !stillCurrent()) return false;
+      const editVersion = documentEdits.captureSave(), preview = assistantDocument.captureRevision();
+      const isCurrent = () => stillCurrent() && documentEdits.isUnchanged(editVersion) && assistantDocument.isCurrentRevision(preview);
+      const verifyDocument = async () => {
+        if (!isCurrent()) return false;
+        const { data, error } = await supabase.from("doc_saves").select("id,user_id,type,updated_at,payload")
+          .eq("id", version.documentId).eq("user_id", version.accountId).eq("type", "devis").maybeSingle();
+        return isCurrent() && !error && data?.id === version.documentId && data.user_id === version.accountId && data.type === "devis" &&
+          data.updated_at === version.updatedAt && data.payload?.isFinalized === true && data.payload?.isTemplate !== true && data.payload?.number === number;
+      };
+      const mailTexts = buildDocumentMailTexts("devis", clientExchangePreferences, clientName, number);
+      return await prepareDocumentMail({
+        accountId: version.accountId, documentId: version.documentId, kind: "devis", number,
+        filename: `${number}.pdf`, recipient: command.recipient, clientName, ...mailTexts,
+        isCurrent, verifyDocument, buildPdf: buildPdfBlob,
+        upload: (key, pdf) => supabase.storage.from(ATTACH_BUCKET).upload(key, pdf, { contentType: "application/pdf", upsert: false }),
+        requestNavigation: documentEdits.requestNavigation, navigate: path => router.push(path),
+      }) === "opened";
+    },
+  });
 
   const uploadPdfAndOpenCompose = async (to: string, filename: string) => {
     const started = documentEdits.captureSave();

@@ -11,6 +11,7 @@ export type DocumentSaveVersion = {
   generation: number;
   signature: string;
 };
+export type DocumentServerVersion = { documentId: string; accountId: string; updatedAt: string };
 
 /** Tracks the editable form, independently of asynchronously loaded PDF preferences. */
 export function useDocumentUnsavedChanges(documentId: string, snapshot: Record<string, unknown>) {
@@ -18,6 +19,7 @@ export function useDocumentUnsavedChanges(documentId: string, snapshot: Record<s
   const key = JSON.stringify([accountId, documentId]);
   const signature = JSON.stringify(snapshot);
   const [baseline, setBaseline] = useState({ key, signature: signature as string | null });
+  const [serverVersion, setServerVersion] = useState<DocumentServerVersion | null>(null);
   // A newly hydrated document is clean. Reset synchronously, before children/guards commit.
   if (baseline.key !== key || baseline.signature === null) setBaseline({ key, signature });
   const dirty = baseline.key === key && baseline.signature !== null && baseline.signature !== signature;
@@ -25,8 +27,9 @@ export function useDocumentUnsavedChanges(documentId: string, snapshot: Record<s
   const generation = useRef(0);
   useLayoutEffect(() => { current.current = { accountId, documentId, signature, dirty }; }, [accountId, documentId, signature, dirty]);
 
-  const markHydrated = useCallback(() => {
+  const markHydrated = useCallback((version?: DocumentServerVersion) => {
     generation.current++;
+    setServerVersion(version ?? null);
     setBaseline(previous => ({ ...previous, signature: null }));
   }, []);
 
@@ -43,9 +46,10 @@ export function useDocumentUnsavedChanges(documentId: string, snapshot: Record<s
   const isUnchanged = useCallback((version: DocumentSaveVersion, persistedFields: Record<string, unknown> = {}) =>
     isCurrentSave(version) && current.current.signature === JSON.stringify({ ...JSON.parse(version.signature), ...persistedFields }), [isCurrentSave]);
 
-  const markSaved = useCallback((version: DocumentSaveVersion, savedId: string) => {
+  const markSaved = useCallback((version: DocumentSaveVersion, savedId: string, server?: DocumentServerVersion) => {
     if (!savedId || !isCurrentSave(version)) return false;
     setBaseline({ key: JSON.stringify([version.accountId, savedId]), signature: version.signature });
+    setServerVersion(server ?? null);
     // A caller may immediately finalize a newly created draft before React commits its ID.
     current.current = { ...current.current, documentId: savedId };
     return true;
@@ -53,11 +57,12 @@ export function useDocumentUnsavedChanges(documentId: string, snapshot: Record<s
 
   // Finalization may assign an official number/status; acknowledge only those fields,
   // never unrelated edits made while its request was pending.
-  const markPersistedFields = useCallback((version: DocumentSaveVersion, fields: Record<string, unknown>) => {
+  const markPersistedFields = useCallback((version: DocumentSaveVersion, fields: Record<string, unknown>, server?: DocumentServerVersion) => {
     if (!isCurrentSave(version)) return false;
     setBaseline(previous => previous.signature === null ? previous : {
       ...previous, signature: JSON.stringify({ ...JSON.parse(previous.signature), ...fields }),
     });
+    setServerVersion(server ?? null);
     return true;
   }, [isCurrentSave]);
 
@@ -91,5 +96,6 @@ export function useDocumentUnsavedChanges(documentId: string, snapshot: Record<s
     return () => window.removeEventListener("beforeunload", beforeUnload);
   }, []);
 
-  return { dirty, markHydrated, captureSave, isCurrentSave, isUnchanged, markSaved, markPersistedFields, requestNavigation };
+  const knownVersion = !dirty && serverVersion?.documentId === documentId && serverVersion.accountId === accountId && Number.isFinite(Date.parse(serverVersion.updatedAt)) ? serverVersion : null;
+  return { dirty, serverVersion: knownVersion, markHydrated, captureSave, isCurrentSave, isUnchanged, markSaved, markPersistedFields, requestNavigation };
 }

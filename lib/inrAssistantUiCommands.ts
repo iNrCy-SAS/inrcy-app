@@ -1,6 +1,7 @@
 import { isInrAssistantMediaUiCommandName, isInrAssistantMediaUiCommandText, parseInrAssistantMediaUiCommand, type InrAssistantMediaUiCommand } from "./inrAssistantMediaUiCommands.ts";
 import { getAssistantInternalDestination } from "./inrAssistantNavigation.ts";
 import { parseInrAssistantMailPatch, inrAssistantMailRecipientRequested, type InrAssistantMailCommand } from "./inrAssistantMailCompose.ts";
+import { parseInrAssistantDocumentMailCommand, type InrAssistantDocumentMailCommand } from "./inrAssistantDocumentUiCommands.ts";
 
 /** Shared public destinations. These commands navigate; they never grant business permissions. */
 export const INR_ASSISTANT_NAVIGATION = {
@@ -36,7 +37,7 @@ export type InrAssistantVideoPatch = { format?: "original" | "9_16" | "1_1" | "1
 export type InrAssistantNativeCommand =
   InrAssistantMailCommand | { command: "configure_ads_draft"; selection: { kind: "campaign"; id: string }; revision: string; patch: InrAssistantAdsPatch }
   | { command: "configure_video_retouch"; selection: { kind: "media"; id: string }; revision: string; patch: InrAssistantVideoPatch };
-export type InrAssistantUiCommand = InrAssistantMediaUiCommand | InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
+export type InrAssistantUiCommand = InrAssistantMediaUiCommand | InrAssistantDocumentMailCommand | InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
   | { command: "download_media"; selection: { kind: "media"; id: string }; mediaIds: string[]; pathname: "/dashboard/mediatheque"; selectionMode?: "current" }
   | { command: "download_stats_report"; selection: { kind: "stats_report"; id: string }; reportId: string };
 export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiCommand | null {
@@ -44,6 +45,7 @@ export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiComman
   if (media) return media;
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
+  if (row.command === "prepare_document_mail") return parseInrAssistantDocumentMailCommand(row);
   const selection = row.selection && typeof row.selection === "object" ? row.selection as Record<string, unknown> : {};
   if (row.command === "configure_mail_draft") {
     const patch = parseInrAssistantMailPatch(row.patch);

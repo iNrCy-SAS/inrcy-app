@@ -98,6 +98,16 @@ test("quote native finalization preserves its existing number without numbering 
   assert.equal(h.calls.filter(call => call.operation === "number").length, 0);
 });
 
+for (const kind of ["devis", "facture"] as const) test(`${kind}: native finalization returns the exact persisted version for the document form`, async () => {
+  const h = harness({ kind });
+  const response = await h.native(), body = await response.json();
+  assert.equal(response.status, 200); assert.equal(body.updatedAt, h.document.updated_at); assert.equal(body.sent, false);
+  const replay = await h.native({ expectedUpdatedAt: body.updatedAt });
+  const unchanged = await replay.json();
+  assert.equal(unchanged.updatedAt, body.updatedAt); assert.equal(unchanged.unchanged, true);
+  assert.equal(h.calls.filter(call => call.operation === "update").length, 1);
+});
+
 for (const [label, config] of Object.entries({ "missing address": { payload: { billingAddress: "" } }, "invalid line": { payload: { lines: [{ label: "Test", qty: 0, unitPrice: 12, vatRate: 20 }] } }, "missing B2B SIREN": { payload: { clientType: "professionnel" } }, "missing quote number": { kind: "devis", payload: { number: "" } } })) {
   test(`native route rejects ${label} before number allocation or writing`, async () => {
     const h = harness(config as Parameters<typeof harness>[0]), response = await h.native(); assert.equal(response.status, 422); assert.ok((await response.json()).missingFields.length); assert.ok(h.calls.every(call => call.operation === "read"));

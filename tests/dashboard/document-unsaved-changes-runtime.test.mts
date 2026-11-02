@@ -251,15 +251,15 @@ for (const domain of ["devis", "factures"]) {
     assert.match(snapshot, /useDocumentUnsavedChanges\(currentSaveId/);
     for (const field of ["clientName", "providerOverride", "lines", "notes", "discountValue", "paymentMethod"]) assert.match(snapshot, new RegExp(`\\b${field}\\b`));
     for (const field of ["profile", "clientExchangePreferences", "documentUiLocale", "documentsSettings", "finalizedAt"]) assert.doesNotMatch(snapshot, new RegExp(`\\b${field}\\b`));
-    assert.match(initializer(domain, "applyDraftSnapshot"), /documentEdits\.markHydrated\(\)/);
+    assert.match(initializer(domain, "applyDraftSnapshot"), /documentEdits\.markHydrated\(version\)/);
     const save = initializer(domain, "saveDraft");
     assert.match(save, /captureSave\(\{ number: finalNumber \}\)/);
     assert.match(save, /if \(error \|\| !savedRows\?\.\[0\]\?\.id\)/);
-    assert.match(save, /if \(!documentEdits\.markSaved\(saveVersion, savedId\)\) return null/);
+    assert.match(save, /if \(!documentEdits\.markSaved\(saveVersion, savedId, \{ documentId: savedId, accountId: resolveActiveBrowserUserId\(user.id\), updatedAt: savedRows\[0\].updated_at \}\)\) return null/);
     assert.ok(save.indexOf("isCurrentSave(saveVersion)") < save.indexOf("const saveMutation"));
     assert.ok(save.indexOf("isCurrentSave(savedVersion)") > save.indexOf("await refreshSaves()"));
     const pdf = initializer(domain, "buildPdfBlob");
     assert.doesNotMatch(pdf, /saveDraft|finalize|requestNavigation|markSaved/);
-    assert.match(initializer(domain, "assistantDocument"), /documentEdits\.dirty\)/);
+    assert.match(initializer(domain, "assistantDocument"), /documentEdits\.dirty, \{ isFinalized, serverVersion: documentEdits\.serverVersion \}\)/);
   });
 }

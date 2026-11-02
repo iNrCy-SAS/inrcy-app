@@ -9,6 +9,7 @@ type DocumentMailPreparation = {
   subject: string;
   text: string;
   isCurrent: () => boolean;
+  verifyDocument?: () => Promise<boolean>;
   buildPdf: () => Promise<Blob | null>;
   upload: (key: string, pdf: Blob) => Promise<{ error: unknown }>;
   requestNavigation: (action: () => void) => Promise<boolean>;
@@ -21,6 +22,7 @@ export async function prepareDocumentMail(options: DocumentMailPreparation): Pro
 > {
   if (!options.isCurrent()) return "stale";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(options.recipient.trim())) return "invalid_recipient";
+  if (options.verifyDocument && (!await options.verifyDocument() || !options.isCurrent())) return "stale";
   let pdf: Blob | null;
   try { pdf = await options.buildPdf(); } catch { return options.isCurrent() ? "pdf_failed" : "stale"; }
   if (!options.isCurrent()) return "stale";
@@ -33,6 +35,7 @@ export async function prepareDocumentMail(options: DocumentMailPreparation): Pro
     if (!options.isCurrent()) return "stale";
     if (result.error) return "upload_failed";
   } catch { return options.isCurrent() ? "upload_failed" : "stale"; }
+  if (options.verifyDocument && (!await options.verifyDocument() || !options.isCurrent())) return "stale";
   const params = new URLSearchParams({
     compose: "1", to: options.recipient.trim(), attachKey: key, attachName: filename,
     type: options.kind, docSaveId: options.documentId, docType: options.kind,

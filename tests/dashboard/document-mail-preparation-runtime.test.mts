@@ -24,6 +24,13 @@ function initializer(domain: string, name: string) {
   const walk = (node: ts.Node) => { if (ts.isVariableDeclaration(node) && node.name.getText(tree) === name) found = node.initializer; ts.forEachChild(node, walk); };
   walk(tree); assert.ok(found, `${domain}.${name} exists`); return found.getText(tree);
 }
+function callSource(domain: string, name: string) {
+  const source = read(`app/dashboard/${domain}/new/page.tsx`);
+  const tree = ts.createSourceFile(domain, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const found: ts.CallExpression[] = [];
+  const walk = (node: ts.Node) => { if (ts.isCallExpression(node) && node.expression.getText(tree) === name) found.push(node); ts.forEachChild(node, walk); };
+  walk(tree); assert.equal(found.length, 1); return found[0].getText(tree);
+}
 const sources = {
   react: packageSource("react", "react.development.js"),
   "react/jsx-runtime": packageSource("react", "react-jsx-runtime.development.js"),
@@ -32,20 +39,23 @@ const sources = {
   scheduler: packageSource("scheduler", "scheduler.development.js"),
   edits: compile(read("app/dashboard/_hooks/useDocumentUnsavedChanges.ts")),
   preview: compile(read("app/dashboard/_hooks/useInrAssistantDocumentPreview.ts")),
+  bridge: compile(read("app/dashboard/_hooks/useInrAssistantDocumentMail.ts")),
   prepare: compile(read("app/dashboard/_documents/documentMailPreparation.ts")),
 };
 
-async function mount(page: Page, domain: string) {
+async function mount(page: Page, domain: string, bridge = false) {
   await page.route("**/*", route => route.request().url() === "https://document-mail.invalid/"
     ? route.fulfill({ contentType: "text/html", body: '<div id="root"></div>' }) : route.abort());
   await page.goto("https://document-mail.invalid/");
   await page.addScriptTag({ content: `
     const sources=${JSON.stringify(sources)},cache={},process={env:{NODE_ENV:'development'}};
-    window.account='account-A';window.events=[];window.block='';window.stage='';window.navigations=[];
+    window.account='account-A';window.events=[];window.block='';window.stage='';window.navigations=[];window.handlers=new Map();window.reads=0;
     const tick=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     async function checkpoint(name){window.events.push(name);window.stage=name;if(window.block===name)await new Promise(resolve=>window.release=resolve);}
     function load(name){
       if(name==='@/lib/browserAccountCache')return{getActiveBrowserUserId:()=>window.account};
+      if(name==='next/navigation')return{usePathname:()=>'/dashboard/${domain}/new'};
+      if(name.endsWith('DashboardAssistantCommandContext'))return{DashboardAssistantCommandContext:window.commandContext};
       if(name==='@/lib/inrcyDialog')return{confirmInrcy:async()=>false};
       if(name.endsWith('DashboardUnsavedNavigationProvider'))return{useDashboardUnsavedNavigation:()=>({registerGuard:()=>()=>{},requestNavigation:async action=>{await checkpoint('navigation');action();return true;}})};
       if(name.endsWith('DashboardAssistantScreenContext'))return{useInrAssistantScreen:()=>{}};
@@ -55,12 +65,14 @@ async function mount(page: Page, domain: string) {
       new Function('require','module','exports','process',sources[name])(load,module,module.exports,process);return module.exports;
     }
     const React=load('react'),guard=load('edits').useDocumentUnsavedChanges,previewHook=load('preview').useInrAssistantDocumentPreview;
+    window.commandContext=React.createContext((key,handler)=>handler?window.handlers.set(key,handler):window.handlers.delete(key));
+    const useInrAssistantDocumentMail=load('bridge').useInrAssistantDocumentMail;
     const prepareDocumentMail=load('prepare').prepareDocumentMail;
     const handlerSource=${JSON.stringify(compile("return " + initializer(domain, "uploadPdfAndOpenCompose")))};
     function Editor(){
       const [id,setId]=React.useState('A'),[form,setForm]=React.useState({number:'TEMP',status:'brouillon',clientName:'Client A'});
       const [finalized,setFinalized]=React.useState(false),[locale,setLocale]=React.useState('fr');
-      const documentEdits=guard(id,form),assistantDocument=previewHook(${JSON.stringify(domain === "devis" ? "quote" : "invoice")},id,{...form,isFinalized:finalized,finalizedAt:finalized?'date':'',locale},documentEdits.dirty);
+      const documentEdits=guard(id,form),assistantDocument=previewHook(${JSON.stringify(domain === "devis" ? "quote" : "invoice")},id,{...form,isFinalized:finalized,finalizedAt:finalized?'date':'',locale},documentEdits.dirty,{isFinalized:finalized,serverVersion:documentEdits.serverVersion});
       const saveDraft=async options=>{
         const version=documentEdits.captureSave({number:form.number||'TEMP'}),savedId=id||'NEW';
         await checkpoint('save');
@@ -77,7 +89,8 @@ async function mount(page: Page, domain: string) {
         return{number:'OFFICIAL',status:'envoye'};
       };
       const context={documentEdits,assistantDocument,saveDraft,finalizeInvoice,prepareDocumentMail,
-        supabase:{auth:{getUser:async()=>{await checkpoint('auth');return{data:{user:{id:'actor'}},error:null}}},storage:{from:()=>({upload:async(key,pdf,options)=>{window.upload={key,type:pdf.type,options};await checkpoint('upload');return{error:null}}})}},
+        supabase:{auth:{getUser:async()=>{await checkpoint('auth');return{data:{user:{id:'actor'}},error:null}}},storage:{from:()=>({upload:async(key,pdf,options)=>{window.upload={key,type:pdf.type,options};await checkpoint('upload');return{error:null}}})},
+          from:()=>{const filters={};const query={select:()=>query,eq:(key,value)=>{filters[key]=value;return query},maybeSingle:async()=>{window.reads++;await checkpoint(window.reads===1?'read_before':'read_after');return{data:{id:filters.id,user_id:window.foreignOwner?'account-B':filters.user_id,type:filters.type,updated_at:window.serverChanged?'2026-11-03T12:00:00Z':'2026-11-02T12:00:00Z',payload:{isFinalized:!window.serverDraft,isTemplate:false,number:'SAVED'}},error:null}}};return query;}},
         resolveActiveBrowserUserId:()=>window.account,setFormMessage:message=>window.message=message,setFinalizing:()=>{},
         waitForDomUpdate:async()=>{await checkpoint('dom');await tick()},
         buildPdfBlob:async()=>{await checkpoint('pdf');return new Blob(['%PDF-test'],{type:window.invalidPdf?'text/plain':'application/pdf'})},
@@ -85,10 +98,13 @@ async function mount(page: Page, domain: string) {
         status:form.status,ATTACH_BUCKET:'mail-attachments',router:{push:path=>window.navigations.push(path)},i18nT:key=>key,
       };
       const run=new Function(...Object.keys(context),handlerSource)(...Object.values(context));
+      ${bridge ? `new Function(...Object.keys(context),'useInrAssistantDocumentMail','isFinalized','currentSaveId','number',${JSON.stringify(compile(callSource(domain, "useInrAssistantDocumentMail")))})(...Object.values(context),useInrAssistantDocumentMail,finalized,id,form.number);` : ""}
       React.useLayoutEffect(()=>{
         window.state={id,form,dirty:documentEdits.dirty,locale};window.run=()=>run('client@example.test','document.pdf');
         window.change=()=>setForm(previous=>({...previous,clientName:'Edited'}));window.locale=()=>setLocale('en');
         window.load=nextId=>{documentEdits.markHydrated();setId(nextId);setForm({number:'TEMP',status:'brouillon',clientName:'Client '+nextId});setFinalized(false)};
+        window.loadFinalized=()=>{const nextId='11111111-1111-4111-8111-111111111111';documentEdits.markHydrated({documentId:nextId,accountId:window.account,updatedAt:'2026-11-02T12:00:00Z'});setId(nextId);setForm({number:'SAVED',status:'envoye',clientName:'Client A'});setFinalized(true)};
+        window.runBridge=()=>{const handler=[...window.handlers.values()][0];if(!handler)return Promise.resolve(false);return handler.run(()=>true,{...handler,recipient:'explicit@example.test'},()=>true)};
       });
       return React.createElement('output',null,id);
     }
@@ -145,3 +161,40 @@ test("the reusable preparation has no save/finalize/send dependency and refuses 
   assert.equal(await subject.exports.prepareDocumentMail(options), "pdf_failed"); assert.equal(uploads, 0); assert.equal(navigations, 0);
   assert.equal(await subject.exports.prepareDocumentMail({ ...options, recipient: "invalid" }), "invalid_recipient");
 });
+
+for (const domain of ["devis", "factures"]) {
+  test(`${domain}: the actual assistant bridge advertises only a clean saved final version and opens compose without save/finalize`, async () => {
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const page = await browser.newPage(); await mount(page, domain, true);
+      assert.equal(await page.evaluate("window.handlers.size"), 0);
+      await page.evaluate("window.loadFinalized()"); await page.waitForFunction("window.handlers.size===1");
+      assert.equal(await page.evaluate("window.runBridge()"), true);
+      const events = await page.evaluate("window.events") as string[];
+      assert.deepEqual(events, ["read_before", "pdf", "upload", "read_after", "navigation"]);
+      const path = await page.evaluate("window.navigations[0]") as string;
+      assert.equal(new URL(path, "https://fixture.invalid").searchParams.get("to"), "explicit@example.test");
+      await page.evaluate("window.change()"); await page.waitForFunction("window.state.dirty");
+      await page.waitForFunction("window.handlers.size===0");
+    } finally { await browser.close(); }
+  });
+
+  test(`${domain}: the actual bridge rejects server/local/account changes and unmount during preparation`, async () => {
+    const browser = await chromium.launch({ headless: true });
+    try {
+      for (const stage of ["read_before", "pdf", "upload", "read_after", "navigation"]) for (const change of ["document", "account", "edit", "preferences", "unmount", ...(["read_before", "read_after"].includes(stage) ? ["server"] : [])]) {
+        const page = await browser.newPage(); await mount(page, domain, true);
+        await page.evaluate("window.loadFinalized()"); await page.waitForFunction("window.handlers.size===1");
+        await page.evaluate(stage => { const w = window as unknown as { block: string; runBridge: () => Promise<boolean>; result: boolean }; w.block = stage; void w.runBridge().then(result => w.result = result); }, stage);
+        await page.waitForFunction(stage => (window as unknown as MailFixture).stage === stage, stage);
+        await page.evaluate(change => { const w = window as unknown as MailFixture & { unmount: () => void; serverChanged: boolean }; if (change === "document") w.load("B"); else if (change === "account") w.account = "account-B"; else if (change === "edit") w.change(); else if (change === "preferences") w.locale(); else if (change === "server") w.serverChanged = true; else w.unmount(); }, change);
+        if (["document", "edit", "preferences"].includes(change)) await page.waitForFunction(change => { const s = (window as unknown as MailFixture).state; return change === "document" ? s.id === "B" : change === "edit" ? s.form.clientName === "Edited" : s.locale === "en"; }, change);
+        await page.evaluate("window.release()"); await page.waitForFunction("window.result!==undefined");
+        assert.equal(await page.evaluate("window.result"), false, `${domain}/${stage}/${change}`);
+        assert.deepEqual(await page.evaluate("window.navigations"), []);
+        assert.equal(await page.evaluate("window.events.includes('save')||window.events.includes('finalize')"), false);
+        await page.close();
+      }
+    } finally { await browser.close(); }
+  });
+}

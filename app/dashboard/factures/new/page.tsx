@@ -1,6 +1,7 @@
 "use client";
 import { useInrAssistantDocumentPreview } from "../../_hooks/useInrAssistantDocumentPreview";
-import { useDocumentUnsavedChanges, type DocumentSaveVersion } from "../../_hooks/useDocumentUnsavedChanges";
+import { useInrAssistantDocumentMail } from "../../_hooks/useInrAssistantDocumentMail";
+import { useDocumentUnsavedChanges, type DocumentSaveVersion, type DocumentServerVersion } from "../../_hooks/useDocumentUnsavedChanges";
 import { prepareDocumentMail } from "../../_documents/documentMailPreparation";
 import { useInrAssistantDocumentPdf } from "../../_components/DashboardAssistantCommandContext";
 
@@ -368,6 +369,7 @@ export default function NewFacturePage() {
 
   // --- Sauvegardes (brouillons locaux)
   type FactureDraft = {
+    accountId: string;
     id: string;
     updatedAtISO: string;
     name?: string | null;
@@ -480,16 +482,18 @@ export default function NewFacturePage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      const accountId = resolveActiveBrowserUserId(user.id);
       const { data, error } = await supabase
         .from("doc_saves")
         .select("id,updated_at,name,payload")
-        .eq("user_id", resolveActiveBrowserUserId(user.id))
+        .eq("user_id", accountId)
         .eq("type", SAVES_TYPE)
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
 
       const mapped: FactureDraft[] = (data ?? []).map((row: any) => ({
+        accountId,
         id: row.id,
         updatedAtISO: row.updated_at,
         name: row.name,
@@ -509,8 +513,8 @@ export default function NewFacturePage() {
     void refreshSaves();
   }, [refreshSaves]);
 
-  const applyDraftSnapshot = (s: FactureDraft["snapshot"]) => {
-    documentEdits.markHydrated();
+  const applyDraftSnapshot = (s: FactureDraft["snapshot"], version?: DocumentServerVersion) => {
+    documentEdits.markHydrated(version);
     const legacyBilling = splitFrenchAddress(
       s.billingAddress || s.clientAddress || "",
     );
@@ -606,9 +610,9 @@ export default function NewFacturePage() {
   const onRequestedSaveLoadFailed = useEffectEvent((missing: boolean) => {
     setFormMessage({ type: "error", text: missing ? i18nT("facture_introuvable_ab2a4359") : i18nT("impossible_de_reouvrir_cette_facture_b35f4a6b") });
   });
-  const onRequestedSaveLoaded = useEffectEvent((data: { id: string; payload: FactureDraft["snapshot"] }) => {
+  const onRequestedSaveLoaded = useEffectEvent((data: { id: string; payload: FactureDraft["snapshot"]; accountId: string; updatedAt: string }) => {
     void documentEdits.requestNavigation(() => {
-      applyDraftSnapshot(data.payload);
+      applyDraftSnapshot(data.payload, { documentId: data.id, accountId: data.accountId, updatedAt: data.updatedAt });
       setCurrentSaveId(data.id);
       setFormMessage({ type: "success", text: i18nT("facture_reouverte_depuis_inrsend_d05c29b9") });
     });
@@ -628,11 +632,12 @@ export default function NewFacturePage() {
       } = await supabase.auth.getUser();
       if (userErr || !user) return;
 
+      const accountId = resolveActiveBrowserUserId(user.id);
       const { data, error } = await supabase
         .from("doc_saves")
-        .select("id,payload")
+        .select("id,payload,updated_at")
         .eq("id", saveId)
-        .eq("user_id", resolveActiveBrowserUserId(user.id))
+        .eq("user_id", accountId)
         .eq("type", SAVES_TYPE)
         .maybeSingle();
 
@@ -649,7 +654,7 @@ export default function NewFacturePage() {
         return;
       }
 
-      if (!cancelled) onRequestedSaveLoaded({ id: data.id, payload: data.payload as FactureDraft["snapshot"] });
+      if (!cancelled) onRequestedSaveLoaded({ id: data.id, payload: data.payload as FactureDraft["snapshot"], accountId, updatedAt: data.updated_at });
     };
 
     void loadRequestedSave();
@@ -1023,7 +1028,7 @@ export default function NewFacturePage() {
           updated_at: nowISO,
         });
 
-    const { data: savedRows, error } = await saveMutation.select("id");
+    const { data: savedRows, error } = await saveMutation.select("id,updated_at");
 
     if (error || !savedRows?.[0]?.id) {
       console.error(error);
@@ -1037,7 +1042,7 @@ export default function NewFacturePage() {
     const savedId =
       (savedRows?.[0] as { id?: string } | undefined)?.id || currentSaveId;
     if (savedId) {
-      if (!documentEdits.markSaved(saveVersion, savedId)) return null;
+      if (!documentEdits.markSaved(saveVersion, savedId, { documentId: savedId, accountId: resolveActiveBrowserUserId(user.id), updatedAt: savedRows[0].updated_at })) return null;
       setCurrentSaveId(savedId);
       options?.onSavedVersion?.({ ...saveVersion, documentId: savedId });
     }
@@ -1339,7 +1344,7 @@ export default function NewFacturePage() {
           ? json.finalizedAt
           : new Date().toISOString();
 
-      if (!documentEdits.markPersistedFields(finalizeVersion, { number: officialNumber, status: nextStatus })) return null;
+      if (!documentEdits.markPersistedFields(finalizeVersion, { number: officialNumber, status: nextStatus }, { documentId: docSaveId, accountId: finalizeVersion.accountId || "", updatedAt: json.updatedAt })) return null;
       setCurrentSaveId(docSaveId);
       setNumber(officialNumber);
       setStatus(nextStatus);
@@ -1368,7 +1373,7 @@ export default function NewFacturePage() {
 
   const openDraft = (d: FactureDraft) => {
     void documentEdits.requestNavigation(() => {
-      applyDraftSnapshot(d.snapshot);
+      applyDraftSnapshot(d.snapshot, { documentId: d.id, accountId: d.accountId, updatedAt: d.updatedAtISO });
       setCurrentSaveId(d.id);
       setDraftsOpen(false);
     });
@@ -1430,8 +1435,34 @@ export default function NewFacturePage() {
     depositKind, depositValue, vatOnDebits, lateFeeRate, fixedRecoveryFee40, documentKind,
     status, paymentMethod, paymentDetails, notes, invoiceMention, lines, discountKind, discountValue,
     discountDetails, isFinalized, finalizedAt, documentsSettings,
-  }, documentEdits.dirty);
+  }, documentEdits.dirty, { isFinalized, serverVersion: documentEdits.serverVersion });
   useInrAssistantDocumentPdf(assistantDocument.selection, buildPdfBlob, "facture", assistantDocument.revision);
+  useInrAssistantDocumentMail({
+    selection: assistantDocument.selection, revision: assistantDocument.revision,
+    serverVersion: documentEdits.serverVersion, enabled: assistantDocument.canPrepareMail,
+    prepare: async (command, stillCurrent) => {
+      const version = documentEdits.serverVersion;
+      if (!version || !isFinalized || documentEdits.dirty || currentSaveId !== command.selection.id ||
+        version.updatedAt !== command.expectedUpdatedAt || !stillCurrent()) return false;
+      const editVersion = documentEdits.captureSave(), preview = assistantDocument.captureRevision();
+      const isCurrent = () => stillCurrent() && documentEdits.isUnchanged(editVersion) && assistantDocument.isCurrentRevision(preview);
+      const verifyDocument = async () => {
+        if (!isCurrent()) return false;
+        const { data, error } = await supabase.from("doc_saves").select("id,user_id,type,updated_at,payload")
+          .eq("id", version.documentId).eq("user_id", version.accountId).eq("type", "facture").maybeSingle();
+        return isCurrent() && !error && data?.id === version.documentId && data.user_id === version.accountId && data.type === "facture" &&
+          data.updated_at === version.updatedAt && data.payload?.isFinalized === true && data.payload?.isTemplate !== true && data.payload?.number === number;
+      };
+      const mailTexts = buildDocumentMailTexts("facture", clientExchangePreferences, clientName, number);
+      return await prepareDocumentMail({
+        accountId: version.accountId, documentId: version.documentId, kind: "facture", number,
+        filename: `${number}.pdf`, recipient: command.recipient, clientName, ...mailTexts,
+        isCurrent, verifyDocument, buildPdf: buildPdfBlob,
+        upload: (key, pdf) => supabase.storage.from(ATTACH_BUCKET).upload(key, pdf, { contentType: "application/pdf", upsert: false }),
+        requestNavigation: documentEdits.requestNavigation, navigate: path => router.push(path),
+      }) === "opened";
+    },
+  });
 
   const uploadPdfAndOpenCompose = async (to: string, filename?: string) => {
     const started = documentEdits.captureSave();

@@ -3,10 +3,11 @@
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { useInrAssistantScreen } from "../_components/DashboardAssistantScreenContext";
+import type { DocumentServerVersion } from "./useDocumentUnsavedChanges";
 
 /** A local preview has an identity without saving it. Only its opaque revision leaves
  * the form; client names, lines and prices remain local to the native renderer. */
-export function useInrAssistantDocumentPreview(kind: "quote" | "invoice", savedId: string, snapshot: unknown, pendingChanges = false) {
+export function useInrAssistantDocumentPreview(kind: "quote" | "invoice", savedId: string, snapshot: unknown, pendingChanges = false, mail?: { isFinalized: boolean; serverVersion: DocumentServerVersion | null }) {
   const instance = useId().replace(/[^a-zA-Z0-9_-]/g, "_");
   const signature = JSON.stringify(snapshot);
   const [version, setVersion] = useState({ signature, revision: 0 });
@@ -31,6 +32,9 @@ export function useInrAssistantDocumentPreview(kind: "quote" | "invoice", savedI
     ));
     return comparable(captured.signature) === comparable(current.current.signature);
   }, []);
-  useInrAssistantScreen({ selection, revision, availableCommands: ["export_document_pdf"], ...(!savedId || pendingChanges ? { pendingChanges: true } : {}) });
-  return { selection, revision, captureRevision, isCurrentRevision, isSameContent };
+  const canPrepareMail = !!savedId && !pendingChanges && mail?.isFinalized === true && mail.serverVersion?.documentId === savedId &&
+    mail.serverVersion.accountId === accountId && Number.isFinite(Date.parse(mail.serverVersion.updatedAt));
+  useInrAssistantScreen({ selection, revision, availableCommands: canPrepareMail ? ["export_document_pdf", "prepare_document_mail"] : ["export_document_pdf"],
+    pendingChanges: !savedId || pendingChanges, ...(canPrepareMail ? { documentVersion: mail!.serverVersion!.updatedAt } : {}) });
+  return { selection, revision, canPrepareMail, captureRevision, isCurrentRevision, isSameContent };
 }
