@@ -27,6 +27,7 @@ const MEDIA = '30000000-0000-4000-8000-000000000001';
 const DRAFT = '40000000-0000-4000-8000-000000000001';
 const cases = [
   { id: 'crm-direct', prompt: 'Crée un contact CRM nommé Alice Martin, alice@example.invalid.', calls: { manageCrmContact: 1 } },
+  { id: 'crm-address-book', prompt: 'Enregistre Alice Martin, alice@example.invalid, dans mon carnet d’adresses.', calls: { manageCrmContact: 1 } },
   { id: 'crm-question-action', prompt: 'Explique-moi brièvement le CRM, puis crée un contact CRM nommé Alice Martin, alice@example.invalid.', calls: { manageCrmContact: 1 } },
   { id: 'crm-two-clauses', prompt: 'Crée un contact CRM nommé Alice Martin, alice@example.invalid, et crée un contact CRM nommé Bob Martin, bob@example.invalid.', calls: { manageCrmContact: 2 } },
   { id: 'crm-two-counted', prompt: 'Crée deux contacts CRM : Alice Martin avec alice@example.invalid et Bob Martin avec bob@example.invalid.', calls: { manageCrmContact: 2 } },

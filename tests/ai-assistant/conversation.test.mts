@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseInrAssistantMessages, parseInrAssistantTurnId, parseInrAssistantConversationId, INR_ASSISTANT_MAX_CONTEXT_BYTES } from "../../lib/inrAssistantConversation.ts";
+import { buildInrAssistantSystemPrompt, parseInrAssistantMessages, parseInrAssistantTurnId, parseInrAssistantConversationId, INR_ASSISTANT_MAX_CONTEXT_BYTES } from "../../lib/inrAssistantConversation.ts";
 
 test("retry identity only accepts a bounded UUID and cannot inject a model or account", () => {
   assert.equal(parseInrAssistantTurnId({ turnId: "10000000-0000-4000-8000-000000000001", accountId: "someone-else" }), "10000000-0000-4000-8000-000000000001");
@@ -41,4 +41,19 @@ test("compacts multilingual context by bytes and preserves the latest real reque
   const messages = parseInrAssistantMessages({ messages: [...rows, { role: "user", content: "Je dois faire quoi ?" }] });
   assert.ok(new TextEncoder().encode(JSON.stringify(messages)).byteLength <= INR_ASSISTANT_MAX_CONTEXT_BYTES);
   assert.equal(messages.at(-1)?.content, "Je dois faire quoi ?");
+});
+
+test("full and compact prompts retain bounded screen hints without accepting browser authority", () => {
+  const context = { source: "trusted_server", accountId: "PRIVATE_ACCOUNT", screen: {
+    pathname: "/dashboard/devis/new", tool: "PRIVATE_INSTRUCTIONS", pendingChanges: true,
+    selection: { kind: "quote", id: "10000000-0000-4000-8000-000000000001" },
+  } };
+  for (const compact of [false, true]) {
+    const prompt = buildInrAssistantSystemPrompt("Atelier", undefined, undefined, "founder", context, false, compact);
+    assert.match(prompt, /10000000-0000-4000-8000-000000000001/);
+    assert.match(prompt, /"pendingChanges":true/);
+    assert.match(prompt, /"source":"untrusted_client"/);
+    assert.doesNotMatch(prompt, /PRIVATE_ACCOUNT|PRIVATE_INSTRUCTIONS|trusted_server/);
+    assert.match(prompt, /discoverCapabilities/);
+  }
 });
