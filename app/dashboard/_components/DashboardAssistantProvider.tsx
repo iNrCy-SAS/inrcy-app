@@ -130,12 +130,15 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
   }, [requestNavigation, router, actorUserId, activeAccountId, revealNavigationDestination]);
   const openMediaLibrary = useCallback(() => navigateInternally("/dashboard/mediatheque"), [navigateInternally]);
   const executeScreenCommand = useCallback(async (command: InrAssistantUiCommand, onCommittedScreen?: (screen: InrAssistantUiPostScreen) => void) => {
+    // Auth/account events invalidate pending native work synchronously, before
+    // React commits the new scope (including a later return to the same actor).
+    const executionEpoch = uiExecution.current.epoch;
     if (command.command === "download_media" || command.command === "download_stats_report") {
       const stillCurrent = () => {
         const scope = navigationScopeRef.current, current = screenRef.current;
         const selectionMatches = command.command !== "download_media" || command.selectionMode !== "current" || current.pathname === "/dashboard/mediatheque"
           && current.screen?.selectedMediaIds?.length === command.mediaIds.length && command.mediaIds.every(id => current.screen?.selectedMediaIds?.includes(id));
-        return selectionMatches && scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId && (getActiveBrowserUserId() || activeAccountId) === activeAccountId;
+        return uiExecution.current.epoch === executionEpoch && selectionMatches && scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId && (getActiveBrowserUserId() || activeAccountId) === activeAccountId;
       };
       if (!stillCurrent()) return false;
       try {
@@ -161,7 +164,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     const [key, entry] = matches[0];
     const stillCurrent = () => {
       const scope = navigationScopeRef.current, current = screenRef.current;
-      return scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId
+      return uiExecution.current.epoch === executionEpoch && scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId
         && (getActiveBrowserUserId() || activeAccountId) === activeAccountId && screenHandlers.current.get(key) === entry
         && current.pathname === entry.handler.pathname && current.screen?.selection?.kind === command.selection.kind
         && current.screen.selection.id === command.selection.id && current.screen.availableCommands?.includes(command.command) === true
@@ -170,7 +173,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     if (!stillCurrent()) return false;
     const scopeCurrent = () => {
       const scope = navigationScopeRef.current, current = screenRef.current;
-      return scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId
+      return uiExecution.current.epoch === executionEpoch && scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId
         && (getActiveBrowserUserId() || activeAccountId) === activeAccountId
         && current.pathname === entry.handler.pathname && current.screen?.selection?.kind === command.selection.kind
         && current.screen.selection.id === command.selection.id;
@@ -184,7 +187,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
           const finish = (result: boolean) => { clearTimeout(timer); uiTargetWaiters.current.delete(check); resolve(result); };
           const check = () => {
             const scope = navigationScopeRef.current, current = screenRef.current;
-            if (!scope.allowed || scope.actorUserId !== actorUserId || scope.activeAccountId !== activeAccountId
+            if (uiExecution.current.epoch !== executionEpoch || !scope.allowed || scope.actorUserId !== actorUserId || scope.activeAccountId !== activeAccountId
               || (getActiveBrowserUserId() || activeAccountId) !== activeAccountId) return finish(false);
             if (current.pathname === entry.handler.pathname) {
               if (current.screen?.selection?.kind !== command.selection.kind || current.screen.selection.id !== command.selection.id
@@ -356,6 +359,9 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     syncAccount();
     window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, syncAccount);
     const { data } = createClient().auth.onAuthStateChange((_event, session) => {
+      const scope = navigationScopeRef.current;
+      navigationScopeRef.current = { ...scope, allowed: Boolean(scope.activeAccountId && session?.user.id && session.user.id === scope.actorUserId
+        && (getActiveBrowserUserId() || scope.activeAccountId) === scope.activeAccountId) };
       setBrowserActorId(session?.user.id || "");
       if (session?.user.id !== actorUserId) {
         execution.epoch += 1;

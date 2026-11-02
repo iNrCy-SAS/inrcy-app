@@ -11,7 +11,7 @@ import { inrAssistantUiActionsFromToolResult, type InrAssistantUiAction, type In
 
 type UiFixture = Window & {
   documentPrefill?: InrAssistantDocumentPrefill;
-  assistantProps: { screen: { availableCommands: string[]; selection: { id: string }; selectedMediaIds?: string[]; revision: string; pendingChanges?: boolean; documentPrefill?: InrAssistantDocumentPrefill }; onUiActions: (actions: InrAssistantUiAction[]) => Promise<InrAssistantUiResult[]> };
+  assistantProps: { allowed: boolean; screen: { availableCommands: string[]; selection: { id: string }; selectedMediaIds?: string[]; revision: string; pendingChanges?: boolean; documentPrefill?: InrAssistantDocumentPrefill }; onUiActions: (actions: InrAssistantUiAction[]) => Promise<InrAssistantUiResult[]> };
   result: InrAssistantUiResult[]; requestedHref: string; pdfBuilds: string[]; exports: unknown[];
   fixtureScope: { account: string; documentId: string; selectedMediaIds: string[]; text: string; blocked: boolean }; allowNavigation: boolean; deferPdf: boolean; deferDownload: boolean;
   releaseDownload: () => void; requests: Array<{ url: string; body: string }>;
@@ -21,7 +21,7 @@ type UiFixture = Window & {
   loadNative: (id: string) => void;
   deferOptimization: boolean; releaseOptimization: () => void; optimizationRefreshes: number;
   videoLoads: string[]; videoSaves: number; deferVideoLoad: boolean; deferVideoSave: boolean; releaseVideoLoad: () => void; releaseVideoSave: () => void; replaceNativeSource: (id: string) => void;
-  authCallback: (event: string, session: null) => void; releasePdf: () => void;
+  authCallback: (event: string, session: { user: { id: string } } | null) => void; releasePdf: () => void;
   allowMailMount: boolean; mailUploads: string[];
   mailAttachments: Array<{ bucket: string; path: string; name: string; type: string; size: number }>;
   mailSaves: number; mailSends: number; mailConfirmations: number; mailScheduleOpen: boolean;
@@ -738,22 +738,66 @@ test("video source selection waits for the real editor commit and preserves its 
 test("late source lookup cannot overwrite a user-selected source or cross account/actor scope", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
-    for (const mode of ["source", "account", "actor"]) {
+    for (const mode of ["source", "account", "actor", "actor-restored", "account-restored"]) {
       const page = await browser.newPage(); await setup(page, false, false, "generer-media");
       const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
       const request = inrAssistantUiActionsFromToolResult("late-source", { ok: true, uiCommand: { command: "select_video_source", selection: screen.selection, revision: screen.revision, mediaId: B } });
       await page.evaluate(actions => { const f = window as unknown as UiFixture; f.deferVideoLoad = true; f.startActions(actions); }, request);
       await page.waitForFunction(() => Boolean((window as unknown as UiFixture).releaseVideoLoad));
-      await page.evaluate(mode => { const f = window as unknown as UiFixture;
+      const allowedBeforeCommit = await page.evaluate(mode => { const f = window as unknown as UiFixture;
         if (mode === "source") f.replaceNativeSource("user-choice");
         else if (mode === "account") { f.fixtureScope.account = "account-b"; window.dispatchEvent(new Event("fixture-account-change")); }
-        else f.authCallback("SIGNED_OUT", null);
+        else if (mode === "account-restored") {
+          f.fixtureScope.account = "account-b"; window.dispatchEvent(new Event("fixture-account-change"));
+          f.fixtureScope.account = "account-a"; window.dispatchEvent(new Event("fixture-account-change"));
+          f.releaseVideoLoad();
+        } else {
+          f.authCallback("SIGNED_OUT", null);
+          if (mode === "actor-restored") f.authCallback("SIGNED_IN", { user: { id: "actor-a" } });
+          f.releaseVideoLoad();
+        }
+        return f.assistantProps.allowed;
       }, mode);
+      if (mode.startsWith("actor") || mode === "account-restored") assert.equal(allowedBeforeCommit, true, "scope invalidation precedes React's next commit");
       if (mode === "source") await page.waitForFunction(() => (window as unknown as UiFixture).nativeState.sourceId === "user-choice");
-      await page.evaluate(() => (window as unknown as UiFixture).releaseVideoLoad());
+      if (mode === "source" || mode === "account") await page.evaluate(() => (window as unknown as UiFixture).releaseVideoLoad());
       await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
       assert.notEqual(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied", mode);
       assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.sourceId), mode === "source" ? "user-choice" : A, mode);
+      if (mode.endsWith("restored")) {
+        await page.evaluate(actions => { const f = window as unknown as UiFixture; f.deferVideoLoad = false; f.startActions(actions); }, request);
+        await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+        assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied", `${mode}: a fresh command is allowed`);
+        assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.sourceId), B);
+      }
+      await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
+test("auth events guard new native commands before React commits without cancelling a same-actor token refresh", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const signedOut of [true, false]) {
+      const page = await browser.newPage(); await setup(page, false, false, "generer-media");
+      const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+      const request = inrAssistantUiActionsFromToolResult("auth-native", { ok: true, uiCommand: { command: "select_video_source", selection: screen.selection, revision: screen.revision, mediaId: B } });
+      if (signedOut) {
+        const allowedBeforeCommit = await page.evaluate(actions => {
+          const f = window as unknown as UiFixture;
+          f.authCallback("SIGNED_OUT", null); f.startActions(actions);
+          return f.assistantProps.allowed;
+        }, request);
+        assert.equal(allowedBeforeCommit, true, "the event guard acts before the rendered props change");
+      } else {
+        await page.evaluate(actions => { const f = window as unknown as UiFixture; f.deferVideoLoad = true; f.startActions(actions); }, request);
+        await page.waitForFunction(() => Boolean((window as unknown as UiFixture).releaseVideoLoad));
+        await page.evaluate(() => { const f = window as unknown as UiFixture; f.authCallback("TOKEN_REFRESHED", { user: { id: "actor-a" } }); f.releaseVideoLoad(); });
+      }
+      await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), signedOut ? "cancelled" : "applied");
+      assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.sourceId), signedOut ? A : B);
+      assert.equal(await page.evaluate(() => ((window as unknown as UiFixture).videoLoads || []).length), signedOut ? 0 : 1);
       await page.close();
     }
   } finally { await browser.close(); }
