@@ -16,6 +16,7 @@ type UiFixture = Window & {
   startActions: (actions: InrAssistantUiAction[]) => void; mountTarget: () => void; renderFixture: () => void;
   deferClaim: boolean; releaseClaim: () => void;
   editNative: (name: string) => void; nativeState: { name: string; primaryText: string; confirmedSpend: boolean; format: string; adaptationMode: string; saved: boolean; step: number; sourceId: string };
+  loadNative: (id: string) => void;
   deferOptimization: boolean; releaseOptimization: () => void; optimizationRefreshes: number;
   videoLoads: string[]; videoSaves: number; deferVideoLoad: boolean; deferVideoSave: boolean; releaseVideoLoad: () => void; releaseVideoSave: () => void; replaceNativeSource: (id: string) => void;
   authCallback: (event: string, session: null) => void; releasePdf: () => void;
@@ -26,7 +27,7 @@ type UiFixture = Window & {
 };
 
 const require = createRequire(import.meta.url);
-const compile = (file: string) => ts.transpileModule(readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), { compilerOptions: {
+const compile = (file: string) => ts.transpileModule(readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), { fileName: file, compilerOptions: {
   target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
 } }).outputText;
 const packageSource = (name: string, file: string) => readFileSync(path.join(path.dirname(require.resolve(`${name}/package.json`)), "cjs", file), "utf8");
@@ -34,14 +35,34 @@ function nativeBridgeSource(file: string) {
   const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
   const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
   const calls: ts.CallExpression[] = []; let update = "";
-  const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && ["useInrAssistantNativeDraft", "useInrAssistantVideoCommands", "useInrAssistantMailCommands"].includes(node.expression.getText(parsed))) calls.push(node); if (ts.isFunctionDeclaration(node) && node.name?.text === "updateDraft") update = node.getText(parsed); ts.forEachChild(node, visit); }; visit(parsed);
+  const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && ["useInrAssistantNativeDraft", "useInrAssistantVideoCommands", "useInrAssistantMailCommands", "useInrAssistantAdsCommands"].includes(node.expression.getText(parsed))) calls.push(node); if (ts.isFunctionDeclaration(node) && node.name?.text === "updateDraft") update = node.getText(parsed); ts.forEachChild(node, visit); }; visit(parsed);
   assert.equal(calls.length, 1, `one active native bridge in ${file}`);
   return { call: ts.transpileModule(calls[0].getText(parsed), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
     update: ts.transpileModule(update, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText };
 }
+function nativeFunctionSource(file: string, name: string) {
+  const raw = readFileSync(file, "utf8"), ast = ts.createSourceFile(file, raw, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let found: ts.FunctionDeclaration | undefined;
+  const visit = (node: ts.Node) => { if (ts.isFunctionDeclaration(node) && node.name?.text === name) found = node; ts.forEachChild(node, visit); }; visit(ast); assert.ok(found, name);
+  return ts.transpileModule(found.getText(ast), { fileName: file, compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+}
+const adsSave = nativeFunctionSource("app/dashboard/ads/AdsClient.tsx", "saveDraft");
+const adsMedia = nativeFunctionSource("app/dashboard/ads/AdsClient.tsx", "applyCampaignMedia");
 const adsBridge = nativeBridgeSource("app/dashboard/ads/AdsClient.tsx");
 const videoBridge = nativeBridgeSource("app/dashboard/_components/MediaVideoRetoucher.tsx");
 const mailBridge = nativeBridgeSource("app/dashboard/mails/MailboxClient.tsx");
+function clientLibSources(entry: string, output: Record<string, string> = {}) {
+  const key = '@/lib/' + entry;
+  if (output[key]) return output;
+  const file = 'lib/' + entry + '.ts';
+  const raw = readFileSync(file, 'utf8'); output[key] = compile(file);
+  const ast = ts.createSourceFile(file, raw, ts.ScriptTarget.Latest, true);
+  for (const node of ast.statements) if (ts.isImportDeclaration(node) && !node.importClause?.isTypeOnly && ts.isStringLiteral(node.moduleSpecifier)) {
+    const name = node.moduleSpecifier.text;
+    if (name.startsWith('./') && name.endsWith('.ts')) clientLibSources(name.slice(2, -3), output);
+  }
+  return output;
+}
 const sources = {
   react: packageSource("react", "react.production.js"), "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
   "react-dom": packageSource("react-dom", "react-dom.production.js"), "react-dom/client": packageSource("react-dom", "react-dom-client.production.js"), scheduler: packageSource("scheduler", "scheduler.production.js"),
@@ -50,6 +71,11 @@ const sources = {
   "./DashboardAssistantCommandContext": compile("app/dashboard/_components/DashboardAssistantCommandContext.tsx"),
   "native": compile("app/dashboard/_hooks/useInrAssistantNativeDraft.ts"),
   "mail-native": compile("app/dashboard/_hooks/useInrAssistantMailCommands.ts"),
+  "ads-native": compile("app/dashboard/_hooks/useInrAssistantAdsCommands.ts"),
+  ...clientLibSources("inrAssistantAdsFormPatch"),
+  ...clientLibSources("inrAssistantAdsDraftPersistence"),
+  ...clientLibSources("inrAssistantAdsLibraryMedia"),
+  ...clientLibSources("inrAssistantAdsUiCommands"),
   "library-optimization": compile("app/dashboard/_hooks/useInrAssistantLibraryOptimization.ts"),
   "video-native": compile("app/dashboard/_hooks/useInrAssistantVideoCommands.ts"),
   "preview": compile("app/dashboard/_hooks/useInrAssistantDocumentPreview.ts"),
@@ -82,10 +108,20 @@ function require(name){
  if(name==='./DashboardAssistantSession')return {__esModule:true,default:props=>{window.assistantProps=props;return null}};
  if(loaded[name])return loaded[name].exports;
  if(!sources[name])throw Error('Unexpected UI fixture module '+name);
- const module=loaded[name]={exports:{}};new Function('require','module','exports',sources[name])(require,module,module.exports);return module.exports;
+ const module=loaded[name]={exports:{}};try{new Function('require','module','exports',sources[name])(require,module,module.exports);return module.exports;}catch(error){delete loaded[name];throw error;}
 }
 window.fetch=async(url,init)=>{
- window.requests.push({url,body:init?.body});
+ window.requests.push({url,body:init?.body,idempotencyKey:new Headers(init?.headers).get('Idempotency-Key')});
+ if(url==='/api/media-library/items?id=33333333-3333-4333-8333-333333333333'){
+  window.adsMediaStarted=true;if(window.deferAdsMedia)await new Promise(resolve=>window.releaseAdsMedia=resolve);
+  return Response.json({items:[{id:'33333333-3333-4333-8333-333333333333',media_type:'image',size_bytes:1000,mime_type:'image/jpeg',width:960,height:1200,signed_url:'/api/media-library/items/33333333-3333-4333-8333-333333333333/content?token=fixture'}]});
+ }
+ if(url==='/api/ads/campaigns'){
+  window.nativeSaved=JSON.parse(init.body);window.nativeSavedId=window.nativeSaved.id||'22222222-2222-4222-8222-222222222222';
+  window.adsPostStarted=true;if(window.deferAdsSave)await new Promise(resolve=>window.releaseAdsSave=resolve);
+  return Response.json({campaign:{id:window.nativeSavedId,status:'draft'}});
+ }
+ if(String(url).startsWith('/api/ads/campaigns/'))return Response.json({campaign:{id:window.nativeSavedId,status:'draft',provider:window.nativeSaved.provider,draft:window.nativeSaved}});
  if(url==='/api/media-library/optimization'){window.optimizationQueued=true;return Response.json({job:{id:'job-native',media_id:'${A}',status:'queued'}})}
  if(url==='/api/media-library/optimization/run')return Response.json({ok:true});
  if(url==='/api/media-library/items?id=${A}'){
@@ -118,15 +154,34 @@ function Library(){
  return React.createElement('output',{id:'optimization-state'},JSON.stringify(status));
 }
 function AdsDraft(){
- const[draft,setDraft]=React.useState({name:'Original campaign',primaryText:'Original text'}),[dirty,setDirty]=React.useState(false),[confirmedSpend,setConfirmedSpend]=React.useState(true),[step,setStep]=React.useState(0);
- const channelId='meta',creating=true,creationPath='manual',busy=window.fixtureScope.blocked?'saving':null,savedId=window.fixtureScope.documentId,stepKeys=['foundations','creative','budget'];
+ const[draft,setDraft]=React.useState(()=>require('@/lib/adsValidation').parseAdsCampaignInput({provider:'meta',accountCurrency:'EUR',dailyBudgetEuros:20,endDate:'2026-12-30',name:'Original campaign',primaryText:'Original text'},{purpose:'draft'}).draft),[dirty,setDirty]=React.useState(false),[confirmedSpend,setConfirmedSpend]=React.useState(true),[step,setStep]=React.useState(0);
+ const channelId='meta',creating=true,creationPath='manual',stepKeys=['foundations','creative','budget'];
+ const [savedId,setSavedId]=React.useState(window.fixtureScope.documentId),[operationBusy,setBusy]=React.useState(null);
+ const busy=window.fixtureScope.blocked?'saving':operationBusy;
  const reachedStepKeys=['foundations'],analysisStep=-1,planProgress=100;
  const linkedInManualGroupId=React.useRef(null),linkedInPlanEndIsExplicit=React.useRef(false),linkedInLaunchConsent=React.useRef({approved:true});
  function setConfirmedDestinationUrl(){} function applyDraftEdit(current,patch){return {...current,...patch}} function navigateToStep(next){setStep(next)}
  ${adsBridge.update}
- const useInrAssistantNativeDraft=require('native').useInrAssistantNativeDraft;
+ const useInrAssistantAdsCommands=require('ads-native').useInrAssistantAdsCommands;
+ const {prepareInrAssistantAdsFormPatch,inrAssistantAdsPatchIsApplied}=require('@/lib/inrAssistantAdsFormPatch');
+ const adsActorId=window.fixtureScope.actor,adsAccountId=window.fixtureScope.account,campaignMediaUploadBusy=false;
+ const pilotChannelsEnabled=true,nativeSettings=null,assistantMedia=React.useRef(null);
+ const {persistVerifiedAdsDraft,adsDraftContentKey}=require('@/lib/inrAssistantAdsDraftPersistence');
+ const {loadInrAssistantAdsLibraryMedia}=require('@/lib/inrAssistantAdsLibraryMedia');
+ const getActiveBrowserUserId=()=>window.fixtureScope.account;
+ const adsEditor=React.useRef({draft,savedId,channelId,actorId:adsActorId,accountId:adsAccountId,creating,busy,active:true});
+ React.useLayoutEffect(()=>{adsEditor.current={draft,savedId,channelId,actorId:adsActorId,accountId:adsAccountId,creating,busy,active:true}});
+ React.useLayoutEffect(()=>()=>{adsEditor.current.active=false},[]);
+ const nativeSavePending=React.useRef(false),nativeSaveAttempt=React.useRef(null),adsFormGeneration=React.useRef(0);
+ const externalStatuses={},connectionSnapshots={},setNotice=value=>window.adsNotice=value,setDraftsRevision=()=>{};
+ const confirmInrcy=async()=>{window.channelConfirmations=(window.channelConfirmations||0)+1;return window.allowChannelChange===true};
+ const isAdsPublicChannel=()=>true,CHANNEL_CATALOG=[{id:'meta'},{id:'google'}],selectChannel=index=>{window.channelChanges=(window.channelChanges||0)+1};
+ const metaMediaSlot=null,setMetaMediaFormatStatus=()=>{},setCampaignMediaUploadError=value=>window.adsMediaError=value;
+ ${adsSave}
+ ${adsMedia}
+ window.nativeSave=()=>saveDraft();window.newUnsaved=()=>{adsFormGeneration.current++;setSavedId(null);setDirty(true);setDraft(value=>({...value}))};window.loadNative=id=>{adsFormGeneration.current++;setSavedId(id);setDraft(value=>({...value}))};
  ${adsBridge.call}
- window.editNative=name=>updateDraft({name}); window.nativeState={...draft,confirmedSpend,step,dirty};
+ window.editNative=name=>updateDraft({name}); window.nativeState={...draft,savedId,confirmedSpend,step,dirty};
  return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
 }
 function VideoDraft(){
@@ -167,8 +222,10 @@ const actions = inrAssistantUiActionsFromToolResult("pdf-b", { ok: true, navigat
 async function setup(page: Page, library = false, unsaved = false, native?: "ads" | "generer-media" | "mails") {
   await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: '<html><body><div id="root"></div></body></html>' }) : route.abort());
   await page.goto(native ? `https://fixture.invalid/dashboard/${native}` : library ? "https://fixture.invalid/dashboard/mediatheque" : `https://fixture.invalid/dashboard/devis/new${unsaved ? "?new=1" : ""}`);
+  await page.addScriptTag({ content: "window.fixtureErrors=[];window.addEventListener('error',event=>window.fixtureErrors.push(event.error?.stack||event.message));" });
   await page.addScriptTag({ content: fixture });
-  await page.waitForFunction(() => Boolean((window as unknown as UiFixture).assistantProps?.screen?.availableCommands?.length || (window as unknown as UiFixture).assistantProps?.screen?.selectedMediaIds?.length));
+  await page.waitForFunction(() => Boolean((window as unknown as UiFixture).assistantProps?.screen?.availableCommands?.length || (window as unknown as UiFixture).assistantProps?.screen?.selectedMediaIds?.length || (window as unknown as { fixtureErrors: string[] }).fixtureErrors.length));
+  assert.deepEqual(await page.evaluate("window.fixtureErrors"), []);
 }
 
 test("real React provider waits for B to mount and exports B once, never initial A", async () => {
@@ -456,11 +513,12 @@ test("native changes arriving after a claim wait cannot cross a form revision or
       await page.waitForFunction(() => Boolean((window as unknown as UiFixture).releaseClaim));
       await page.evaluate(mode => { const f = window as unknown as UiFixture;
         if (mode === "revision") f.editNative("User latest edit");
-        if (mode === "selection") { f.fixtureScope.documentId = "another-campaign"; f.renderFixture(); }
+        if (mode === "selection") f.loadNative("another-campaign");
         if (mode === "busy") { f.fixtureScope.blocked = true; f.renderFixture(); }
         if (mode === "account") { f.fixtureScope.account = "account-b"; window.dispatchEvent(new Event("fixture-account-change")); }
       }, invalidation);
-      if (invalidation !== "account") await page.waitForFunction(old => { const screen = (window as unknown as UiFixture).assistantProps.screen; return screen.revision !== old.revision || screen.selection?.id !== old.selection.id; }, current);
+      if (invalidation === "busy") await page.waitForFunction(() => !(window as unknown as UiFixture).assistantProps.screen.availableCommands?.length);
+      else if (invalidation !== "account") await page.waitForFunction(old => { const screen = (window as unknown as UiFixture).assistantProps.screen; return screen.revision !== old.revision || screen.selection?.id !== old.selection.id; }, current);
       await page.evaluate(() => (window as unknown as UiFixture).releaseClaim());
       await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
       assert.notEqual(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied", invalidation);
@@ -482,6 +540,120 @@ test("native Ads rejects locked steps and channel text limits before applying an
       assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "failed");
       assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.name), "Original campaign");
       assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.confirmedSpend), true);
+    }
+  } finally { await browser.close(); }
+});
+
+test("Ads native budget changes commit before ACK, preserve other fields and revoke spend consent", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, false, "ads");
+    const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+    const request = inrAssistantUiActionsFromToolResult("budget", { ok: true, uiCommand: { command: "configure_ads_draft", selection: { kind: "campaign", id: screen.selection.id }, revision: screen.revision, patch: { adsChanges: [{ field: "dailyBudgetEuros", valueJson: "35" }, { field: "targetLocations", valueJson: '["Paris"]' }] } } });
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), request);
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate("window.nativeState.dailyBudgetEuros"), 35);
+    assert.deepEqual(await page.evaluate("window.nativeState.targetLocations"), ["Paris"]);
+    assert.equal(await page.evaluate("window.nativeState.primaryText"), "Original text");
+    assert.equal(await page.evaluate("window.nativeState.confirmedSpend"), false);
+    assert.equal(await page.evaluate("window.result[0].status"), "applied");
+    assert.deepEqual(await page.evaluate("window.requests"), []);
+  } finally { await browser.close(); }
+});
+
+test("Ads first save executes the real callback, waits for exact native readback and keeps editor identity", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, false, "ads");
+    await page.evaluate("window.newUnsaved()"); await page.waitForFunction("window.nativeState.savedId===null");
+    const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+    const request = inrAssistantUiActionsFromToolResult("save", { ok: true, uiCommand: { command: "save_ads_draft", selection: { kind: "campaign", id: screen.selection.id }, revision: screen.revision } });
+    await page.evaluate("window.deferAdsSave=true");
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), request);
+    await page.waitForFunction("window.adsPostStarted===true");
+    assert.equal(await page.evaluate("window.result"), null);
+    await page.evaluate("window.releaseAdsSave()"); await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate("window.result[0].status"), "applied");
+    assert.equal(await page.evaluate("window.nativeState.savedId"), B); assert.equal(await page.evaluate("window.nativeState.dirty"), false);
+    assert.equal(await page.evaluate("window.assistantProps.screen.selection.id"), screen.selection.id);
+    assert.notEqual(await page.evaluate("window.assistantProps.screen.revision"), screen.revision);
+    assert.deepEqual(await page.evaluate("window.requests.map(row=>row.url)"), ["/api/ads/campaigns", `/api/ads/campaigns/${B}`]);
+    const firstKey = await page.evaluate("window.requests[0].idempotencyKey");
+    await page.evaluate("window.newUnsaved();window.deferAdsSave=false"); await page.waitForFunction("window.nativeState.savedId===null");
+    await page.evaluate("window.nativeSave()");
+    assert.notEqual(await page.evaluate("window.requests[2].idempotencyKey"), firstKey, "A deliberately new identical form is a distinct creation");
+  } finally { await browser.close(); }
+});
+
+test("Ads late native saves never clear edits or acknowledge a different account/actor/document", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const invalidation of ["edit", "account", "actor", "document", "same_document"]) {
+      const page = await browser.newPage(); await setup(page, false, false, "ads");
+      const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+      const request = inrAssistantUiActionsFromToolResult("late-save", { ok: true, uiCommand: { command: "save_ads_draft", selection: { kind: "campaign", id: screen.selection.id }, revision: screen.revision } });
+      await page.evaluate("window.deferAdsSave=true");
+      await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), request); await page.waitForFunction("window.adsPostStarted===true");
+      if (invalidation === "edit") { await page.evaluate("window.editNative('New unsaved text')"); await page.waitForFunction("window.nativeState.name==='New unsaved text'"); }
+      else if (invalidation === "document") { await page.evaluate("window.newUnsaved()"); await page.waitForFunction("window.nativeState.savedId===null"); }
+      else if (invalidation === "same_document") { await page.evaluate(id => (window as unknown as UiFixture).loadNative(id), A); await page.waitForFunction(old => (window as unknown as UiFixture).assistantProps.screen.revision !== old, screen.revision); }
+      else { await page.evaluate(field => { const scope = (window as unknown as { fixtureScope: Record<string, string> }).fixtureScope; scope[field] = "other"; (window as unknown as UiFixture).renderFixture(); }, invalidation); await page.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))"); }
+      await page.evaluate("window.releaseAdsSave()"); await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      assert.notEqual(await page.evaluate("window.result[0].status"), "applied", invalidation);
+      assert.equal(await page.evaluate("window.requests.length"), 1, "No read or retry after invalidation");
+      if (invalidation === "edit") { assert.equal(await page.evaluate("window.nativeState.name"), "New unsaved text"); assert.equal(await page.evaluate("window.nativeState.dirty"), true); }
+      if (invalidation === "document") assert.equal(await page.evaluate("window.nativeState.savedId"), null);
+      await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
+test("Ads channel reset cannot discard a dirty form without the native pro confirmation", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, false, "ads");
+    await page.evaluate("window.editNative('Keep this draft')"); await page.waitForFunction("window.nativeState.dirty===true");
+    const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+    const request = inrAssistantUiActionsFromToolResult("channel", { ok: true, uiCommand: { command: "configure_ads_draft", selection: { kind: "campaign", id: screen.selection.id }, revision: screen.revision, patch: { channel: "google" } } });
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), request); await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate("window.channelConfirmations"), 1); assert.equal(await page.evaluate("window.channelChanges||0"), 0);
+    assert.equal(await page.evaluate("window.nativeState.name"), "Keep this draft"); assert.notEqual(await page.evaluate("window.result[0].status"), "applied");
+    assert.deepEqual(await page.evaluate("window.requests"), []);
+  } finally { await browser.close(); }
+});
+
+test("Ads native double save claims one write before React commits busy state", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, false, "ads");
+    await page.evaluate("window.deferAdsSave=true;window.savePair=null;void Promise.all([window.nativeSave(),window.nativeSave()]).then(value=>window.savePair=value)");
+    await page.waitForFunction("window.adsPostStarted===true");
+    assert.equal(await page.evaluate("window.requests.length"), 1);
+    await page.evaluate("window.releaseAdsSave()"); await page.waitForFunction("window.savePair!==null");
+    assert.deepEqual(await page.evaluate("window.savePair"), [true, false]);
+    assert.equal(await page.evaluate("window.requests.filter(row=>row.url==='/api/ads/campaigns').length"), 1);
+  } finally { await browser.close(); }
+});
+
+test("Ads selected media uses the real native media callback and cannot overwrite a late form edit", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const late of [false, true]) {
+      const page = await browser.newPage(); await setup(page, false, false, "ads");
+      const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+      const request = inrAssistantUiActionsFromToolResult("media", { ok: true, uiCommand: { command: "configure_ads_draft", selection: { kind: "campaign", id: screen.selection.id }, revision: screen.revision, patch: { mediaId: "33333333-3333-4333-8333-333333333333", metaSlot: "feed" } } });
+      if (late) await page.evaluate("window.deferAdsMedia=true");
+      await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), request);
+      if (late) {
+        await page.waitForFunction("window.adsMediaStarted===true"); await page.evaluate("window.editNative('Keep my latest draft')"); await page.waitForFunction("window.nativeState.name==='Keep my latest draft'"); await page.evaluate("window.releaseAdsMedia()");
+      }
+      await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      assert.equal(await page.evaluate("window.nativeState.metaCreativeAssets.feedImageUrl"), late ? "" : "/api/media-library/items/33333333-3333-4333-8333-333333333333/content?token=fixture");
+      assert.equal(await page.evaluate("window.nativeState.metaCreativeAssets.storyReelImageUrl"), "");
+      assert.equal(await page.evaluate("window.result[0].status==='applied'"), !late);
+      assert.equal(await page.evaluate("window.nativeState.primaryText"), "Original text");
+      assert.equal(await page.evaluate("window.requests.some(row=>row.url.includes('/campaigns'))"), false);
+      await page.close();
     }
   } finally { await browser.close(); }
 });

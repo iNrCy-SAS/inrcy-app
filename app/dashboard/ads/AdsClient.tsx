@@ -1,8 +1,14 @@
 "use client";
 
-import { useInrAssistantNativeDraft } from "../_hooks/useInrAssistantNativeDraft";
+import { useInrAssistantAdsCommands } from "../_hooks/useInrAssistantAdsCommands";
+import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessProvider";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { confirmInrcy } from "@/lib/inrcyDialog";
+import { prepareInrAssistantAdsFormPatch, inrAssistantAdsPatchIsApplied } from "@/lib/inrAssistantAdsFormPatch";
+import { persistVerifiedAdsDraft, adsDraftContentKey } from "@/lib/inrAssistantAdsDraftPersistence";
+import { loadInrAssistantAdsLibraryMedia } from "@/lib/inrAssistantAdsLibraryMedia";
 
-import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState, type ChangeEvent, type ComponentPropsWithoutRef } from "react";
+import { useCallback, useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentPropsWithoutRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -1781,6 +1787,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setChannelIndex(nextIndex);
     const next = CHANNEL_CATALOG[nextIndex].id;
     if (next === channelId) return;
+    adsFormGeneration.current += 1;
     cancelExternalAccountsLoad();
     if (isExternalChannel(next)) {
       const locked = !pilotChannelsEnabled && !isAdsPublicChannel(next);
@@ -1871,6 +1878,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     const channelChanged = channelId !== next;
     setChannelId(next);
     if (next === provider && !channelChanged) return;
+    adsFormGeneration.current += 1;
     if (next !== provider) setProvider(next);
     const cached = providerAccountsCache.current[next];
     const savedConnection = connectionSnapshots[next];
@@ -1907,29 +1915,67 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setConfirmedSpend(false); linkedInLaunchConsent.current = null;
   }
 
-  useInrAssistantNativeDraft({
-    command: "configure_ads_draft", kind: "campaign", id: savedId,
-    snapshot: { draft, step, channelId, creating, creationPath, busy },
-    enabled: creating && creationPath !== "choice" && busy === null,
+  const { actorUserId: adsActorId, activeAccountId: adsAccountId } = useDashboardViewerAccess();
+  const adsEditor = useRef({ draft, savedId, channelId, actorId: adsActorId, accountId: adsAccountId, creating, busy, active: true });
+  const nativeSavePending = useRef(false);
+  const nativeSaveAttempt = useRef<{ key: string; idempotencyKey: string } | null>(null);
+  const adsFormGeneration = useRef(0);
+  const assistantMedia = useRef<{ id: string; url: string; slot?: "feed" | "story_reel" } | null>(null);
+  useLayoutEffect(() => { adsEditor.current = { draft, savedId, channelId, actorId: adsActorId, accountId: adsAccountId, creating, busy, active: true }; });
+  useLayoutEffect(() => () => { adsEditor.current.active = false; }, []);
+
+  useInrAssistantAdsCommands({
+    snapshot: { draft, savedId, step, channelId, creating, creationPath, actorId: adsActorId, accountId: adsAccountId, generation: adsFormGeneration.current },
+    mounted: creating && creationPath !== "choice",
+    enabled: busy === null && !campaignMediaUploadBusy,
     channel: channelId, step: stepKeys[step], pendingChanges: dirty,
-    apply(command) {
-      if (command.command !== "configure_ads_draft" || !creating || creationPath === "choice" || busy !== null) return false;
-      const { step: requestedStep, ...patch } = command.patch;
+    async apply(command, isCurrent) {
+      if (!creating || creationPath === "choice" || busy !== null || !isCurrent()) return false;
+      if (command.command === "save_ads_draft") return saveDraft({ isCurrent });
+      const { step: requestedStep, channel, mediaId, metaSlot } = command.patch;
+      if (channel) {
+        if (!pilotChannelsEnabled && !isAdsPublicChannel(channel)) return false;
+        if (channel === channelId) return true;
+        if (dirty && !await confirmInrcy({ title: "Changer de canal publicitaire ?", message: "Le formulaire actuel contient des modifications non enregistrées. Le changement de canal ouvre une autre campagne et abandonne cette saisie. Enregistrez d’abord le brouillon pour la conserver.", confirmLabel: "Changer sans enregistrer", cancelLabel: "Conserver ma saisie", variant: "warning" })) return false;
+        if (!isCurrent()) return false;
+        selectChannel(CHANNEL_CATALOG.findIndex(item => item.id === channel));
+        return true;
+      }
+      if (mediaId) {
+        const item = await loadInrAssistantAdsLibraryMedia(mediaId, isCurrent);
+        if (!item || !isCurrent() || channelId === "meta" && !metaSlot || channelId !== "meta" && metaSlot) return false;
+        assistantMedia.current = { id: mediaId, url: item.signed_url!, ...(metaSlot ? { slot: metaSlot } : {}) };
+        applyCampaignMedia(item, metaSlot ?? null);
+        return true;
+      }
       const nextStep = requestedStep ? stepKeys.indexOf(requestedStep) : -1;
       if (requestedStep && (nextStep < 0 || nextStep !== step && !reachedStepKeys.includes(requestedStep)
         && !(nextStep === step + 1 && !(creationPath === "inrcy" && step === analysisStep && planProgress !== 100)))) return false;
-      const textLimit = channelId === "linkedin" ? 300 : channelId === "openai" || channelId === "tiktok" ? 100 : channelId === "pinterest" ? 800 : channelId === "x" ? 280 : 500;
-      if (patch.name !== undefined && patch.name.length > 100 || patch.primaryText !== undefined && (channelId === "google" || patch.primaryText.length > textLimit)) return false;
-      // Use the native edit path: it invalidates spend/launch consent and stale briefs.
+      const prepared = prepareInrAssistantAdsFormPatch(draft, command.patch);
+      if (!prepared.patch) { setNotice(prepared.error); return false; }
+      const { channelSettings, ...patch } = prepared.patch;
+      if (channelSettings) {
+        // Preserve the native confirmation before discarding Pinterest signals.
+        if (channelSettings.channel === "pinterest" && nativeSettings?.channel === "pinterest" && channelSettings.targetingMode !== nativeSettings.targetingMode) {
+          const transition = preparePinterestTargetingTransition(nativeSettings.targetingMode, channelSettings.targetingMode, draft.keywords);
+          if (transition.requiresConfirmation && !await confirmInrcy({ message: "Ce changement retire " + transition.removedSignalCount + " signal(s) manuel(s). Continuer ?", variant: "warning" })) return false;
+          if (!isCurrent()) return false;
+          updateNativeSettings(channelSettings);
+          if (channelSettings.targetingMode === "automatic") updateDraft({ keywords: transition.keywords });
+        } else updateNativeSettings(channelSettings);
+      }
       if (Object.keys(patch).length) updateDraft(patch);
       if (nextStep >= 0) navigateToStep(nextStep);
       return true;
     },
     isApplied(command) {
-      return command.command === "configure_ads_draft"
-        && (command.patch.name === undefined || draft.name === command.patch.name)
-        && (command.patch.primaryText === undefined || draft.primaryText === command.patch.primaryText)
-        && (command.patch.step === undefined || stepKeys[step] === command.patch.step);
+      if (command.command === "save_ads_draft") return Boolean(savedId) && !dirty;
+      if (command.patch.channel) return command.patch.channel === channelId;
+      if (command.patch.mediaId) {
+        const media = assistantMedia.current;
+        return media?.id === command.patch.mediaId && (media.slot ? draft.metaCreativeAssets[media.slot === "feed" ? "feedImageUrl" : "storyReelImageUrl"] === media.url : draft.creativeUrl === media.url);
+      }
+      return inrAssistantAdsPatchIsApplied(draft, command.patch) && (command.patch.step === undefined || stepKeys[step] === command.patch.step);
     },
   });
 
@@ -2580,6 +2626,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
 
   function startNewCampaign() {
     if (!pilotChannelsEnabled && !isAdsPublicChannel(channelId)) return;
+    adsFormGeneration.current += 1;
     stopPlanProgress();
     setConfirmedDestinationUrl("");
     setDraft({
@@ -2641,6 +2688,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   });
 
   function closeCampaignCreation() {
+    adsFormGeneration.current += 1;
     planGenerationRevision.current += 1;
     stopPlanProgress();
     setDemoDialog(null);
@@ -2657,31 +2705,35 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setCreating(false);
   }
 
-  async function saveDraft() {
+  async function saveDraft(options?: { isCurrent?: () => boolean }): Promise<boolean> {
+    if (nativeSavePending.current || busy !== null) return false;
+    const initial = adsEditor.current;
+    const key = adsDraftContentKey({ draft: initial.draft, savedId: initial.savedId, channelId: initial.channelId, actorId: initial.actorId, accountId: initial.accountId, generation: adsFormGeneration.current });
+    const isCurrent = () => adsEditor.current.active && adsEditor.current.creating
+      && Boolean(initial.accountId) && getActiveBrowserUserId() === initial.accountId
+      && (options?.isCurrent?.() ?? true)
+      && key === adsDraftContentKey({ draft: adsEditor.current.draft, savedId: adsEditor.current.savedId, channelId: adsEditor.current.channelId, actorId: adsEditor.current.actorId, accountId: adsEditor.current.accountId, generation: adsFormGeneration.current });
+    if (!isCurrent()) return false;
+    if (nativeSaveAttempt.current?.key !== key) nativeSaveAttempt.current = { key, idempotencyKey: crypto.randomUUID() };
+    nativeSavePending.current = true;
     setBusy("save"); setNotice("");
     try {
       const campaignDraft: AdsCampaignInput = {
-        ...draft,
-        provider: channelId,
+        ...draft, provider: channelId,
         adAccountId: channelId === "pinterest" || channelId === "linkedin"
           ? externalStatuses[channelId].selectedAccountId || draft.adAccountId
-          : channelId === "openai" ? connectionSnapshots.openai.accountId || draft.adAccountId
-          : draft.adAccountId,
+          : channelId === "openai" ? connectionSnapshots.openai.accountId || draft.adAccountId : draft.adAccountId,
       };
-      const result = await readJson(await fetch("/api/ads/campaigns", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...campaignDraft, ...(savedId ? { id: savedId } : {}) }),
-      }));
-      const campaign = result.campaign as { id: string };
-      setDraft(campaignDraft);
-      setSavedId(campaign.id);
-      setDirty(false);
+      const confirmed = await persistVerifiedAdsDraft({ draft: campaignDraft, savedId, idempotencyKey: nativeSaveAttempt.current.idempotencyKey, isCurrent });
+      if (!isCurrent()) return false;
+      setDraft(confirmed.draft); setSavedId(confirmed.id); setDirty(false);
       setConfirmedSpend(false); linkedInLaunchConsent.current = null;
-      setDraftsRevision((revision) => revision + 1);
-      setNotice("");
+      setDraftsRevision(revision => revision + 1); setNotice("");
+      return true;
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Enregistrement impossible.");
-    } finally { setBusy(null); }
+      if (isCurrent()) setNotice(error instanceof Error ? error.message : "Enregistrement impossible. Vérifiez le suivi avant de recommencer.");
+      return false;
+    } finally { nativeSavePending.current = false; if (adsEditor.current.active && adsEditor.current.busy === "save") setBusy(null); }
   }
 
   async function validatePreparedDraft() {
@@ -3254,6 +3306,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   function reopen(campaign: StoredCampaign) {
     if (campaign.status !== "draft") return;
     if (!pilotChannelsEnabled && !isAdsPublicChannel(campaign.provider)) return;
+    adsFormGeneration.current += 1;
     linkedInManualGroupId.current = campaign.draft.linkedinCampaignGroupId || null;
     linkedInPlanEndIsExplicit.current = true;
     stopPlanProgress();

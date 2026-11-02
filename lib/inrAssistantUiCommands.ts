@@ -1,6 +1,9 @@
 import { isInrAssistantMediaUiCommandName, isInrAssistantMediaUiCommandText, parseInrAssistantMediaUiCommand, type InrAssistantMediaUiCommand } from "./inrAssistantMediaUiCommands.ts";
 import { getAssistantInternalDestination } from "./inrAssistantNavigation.ts";
 import { INR_ASSISTANT_MAIL_LIFECYCLE, isInrAssistantMailLifecycleRequest, parseInrAssistantMailLifecycle, type InrAssistantMailLifecycleCommand } from "./inrAssistantMailLifecycle.ts";
+import { parseInrAssistantAdsPatch, isInrAssistantAdsSaveRequest, isInrAssistantAdsEditRequest, type InrAssistantAdsPatch, type InrAssistantAdsSaveCommand } from "./inrAssistantAdsUiCommands.ts";
+export { INR_ASSISTANT_ADS_STEPS } from "./inrAssistantAdsUiCommands.ts";
+export type { InrAssistantAdsPatch } from "./inrAssistantAdsUiCommands.ts";
 import { parseInrAssistantMailPatch, inrAssistantMailRecipientRequested, type InrAssistantMailCommand } from "./inrAssistantMailCompose.ts";
 import { parseInrAssistantDocumentMailCommand, getInrAssistantDocumentPrefillNavigation, type InrAssistantDocumentMailCommand, type InrAssistantDocumentPrefill } from "./inrAssistantDocumentUiCommands.ts";
 
@@ -32,13 +35,11 @@ export const INR_ASSISTANT_NAVIGATION = {
 } as const;
 export const INR_ASSISTANT_NAVIGATION_DESTINATIONS = Object.keys(INR_ASSISTANT_NAVIGATION) as (keyof typeof INR_ASSISTANT_NAVIGATION)[];
 export type InrAssistantNavigation = { destination: string; href: string; label: string; documentId?: string; documentPrefill?: InrAssistantDocumentPrefill };
-export const INR_ASSISTANT_ADS_STEPS = ["foundations", "bidding", "geography", "targeting", "keywords", "creative", "pinterest_format", "identity", "media", "delivery", "budget", "validation", "analysis"] as const;
-export type InrAssistantAdsPatch = { name?: string; primaryText?: string; step?: typeof INR_ASSISTANT_ADS_STEPS[number] };
 export type InrAssistantVideoPatch = { format?: "original" | "9_16" | "1_1" | "16_9"; adaptationMode?: "safe_frame" | "cover_crop" };
 export type InrAssistantNativeCommand =
   InrAssistantMailCommand | { command: "configure_ads_draft"; selection: { kind: "campaign"; id: string }; revision: string; patch: InrAssistantAdsPatch }
   | { command: "configure_video_retouch"; selection: { kind: "media"; id: string }; revision: string; patch: InrAssistantVideoPatch };
-export type InrAssistantUiCommand = InrAssistantMailLifecycleCommand | InrAssistantMediaUiCommand | InrAssistantDocumentMailCommand | InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
+export type InrAssistantUiCommand = InrAssistantAdsSaveCommand | InrAssistantMailLifecycleCommand | InrAssistantMediaUiCommand | InrAssistantDocumentMailCommand | InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
   | { command: "download_media"; selection: { kind: "media"; id: string }; mediaIds: string[]; pathname: "/dashboard/mediatheque"; selectionMode?: "current" }
   | { command: "download_stats_report"; selection: { kind: "stats_report"; id: string }; reportId: string };
 export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiCommand | null {
@@ -50,6 +51,8 @@ export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiComman
   const row = value as Record<string, unknown>;
   if (row.command === "prepare_document_mail") return parseInrAssistantDocumentMailCommand(row);
   const selection = row.selection && typeof row.selection === "object" ? row.selection as Record<string, unknown> : {};
+  if (row.command === "save_ads_draft") return selection.kind === "campaign" && typeof selection.id === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(selection.id) && typeof row.revision === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(row.revision)
+    ? { command: row.command, selection: { kind: "campaign", id: selection.id }, revision: row.revision } : null;
   if (row.command === "configure_mail_draft") {
     const patch = parseInrAssistantMailPatch(row.patch);
     return patch && selection.kind === "mail" && typeof selection.id === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(selection.id) && typeof row.revision === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(row.revision)
@@ -62,8 +65,8 @@ export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiComman
     const entries = Object.entries(patch).filter(([, value]) => value !== null && value !== undefined);
     if (!entries.length) return null;
     if (row.command === "configure_ads_draft" && selection.kind === "campaign") {
-      if (entries.some(([key, value]) => key === "name" ? typeof value !== "string" || !value.trim() || value.length > 100 : key === "primaryText" ? typeof value !== "string" || value.length > 800 : key === "step" ? !INR_ASSISTANT_ADS_STEPS.includes(value as typeof INR_ASSISTANT_ADS_STEPS[number]) : true)) return null;
-      return { command: row.command, selection: { kind: "campaign", id: selection.id }, revision: row.revision, patch: Object.fromEntries(entries) as InrAssistantAdsPatch };
+      const adsPatch = parseInrAssistantAdsPatch(patch);
+      return adsPatch ? { command: row.command, selection: { kind: "campaign", id: selection.id }, revision: row.revision, patch: adsPatch } : null;
     }
     if (row.command === "configure_video_retouch" && selection.kind === "media") {
       if (entries.some(([key, value]) => key === "format" ? !["original", "9_16", "1_1", "16_9"].includes(String(value)) : key === "adaptationMode" ? !["safe_frame", "cover_crop"].includes(String(value)) : true)) return null;
@@ -122,10 +125,12 @@ export function isInrAssistantNavigationRequest(message: string): boolean {
   return /\b(?:ouvre|ouvrez|ouvrir|affiche|affichez|afficher|montre|montrez|montrer|emmene|emmenez|emmener|amene|amenez|amener|conduis|conduisez|conduire|navigate|open|show)\b|\b(?:va|allez|aller|go)\s+(?:dans|sur|a|au|aux|to)\b/.test(text);
 }
 
-export function isInrAssistantScreenCommandRequest(message: string, command?: "export_document_pdf" | "prepare_document_mail" | InrAssistantNativeCommand["command"] | InrAssistantMediaUiCommand["command"] | InrAssistantMailLifecycleCommand["command"]): boolean {
+export function isInrAssistantScreenCommandRequest(message: string, command?: "export_document_pdf" | "prepare_document_mail" | "save_ads_draft" | InrAssistantNativeCommand["command"] | InrAssistantMediaUiCommand["command"] | InrAssistantMailLifecycleCommand["command"]): boolean {
   const text = navigationRequestText(message);
   if (command && INR_ASSISTANT_MAIL_LIFECYCLE.includes(command as InrAssistantMailLifecycleCommand["command"])) return isInrAssistantMailLifecycleRequest(text, command);
   if (!command && isInrAssistantMailLifecycleRequest(text)) return true;
+  if (command === "save_ads_draft") return isInrAssistantAdsSaveRequest(text);
+  if (command === "configure_ads_draft") return isInrAssistantAdsEditRequest(text);
   if (isInrAssistantMediaUiCommandName(command)) return isInrAssistantMediaUiCommandText(text, command);
   if (/^(?:comment|pourquoi|explique|how|why|si |imagine)\b|\b(?:ne |n['’]|sans |do not |don't ).{0,35}(?:telecharg|export|gener|prepar|download|modifi|chang|regl|appli|rempl|config|recadr|adapt|pass|met|renomm|joins|joign|ajout|attach|redig|ecri)/.test(text) || /\b(?:si|if|quand|when|apres confirmation|after approval|demain|tomorrow)\b/.test(text)) return false;
   const documentMail = /\b(?:prepare\w*|ouvre\w*|redige\w*|rempli\w*|open|draft)\b/.test(text)
@@ -134,10 +139,10 @@ export function isInrAssistantScreenCommandRequest(message: string, command?: "e
   if (command === "prepare_document_mail") return documentMail;
   const pdf = !documentMail && /\bpdf\b/.test(text) && !/\b(?:stats|statistiques|bilan|rapport)\b/.test(text) && /\b(?:telecharge\w*|exporte\w*|gener\w*|prepare\w*|download|export|generate)\b/.test(text);
   const edit = /\b(?:modifi\w*|chang\w*|regl\w*|appli\w*|rempl\w*|configur\w*|recadr\w*|adapt\w*|passe\w*|mets|mettre|renomm\w*|set|change|edit|apply|fill)\b/.test(text);
-  const ads = edit && /\b(?:pub|publicite|publicitaire|campagne|annonce|ads|advert|brouillon)\b/.test(text);
+  const ads = isInrAssistantAdsEditRequest(text);
   const video = edit && /\b(?:video|cadrage|format|recadrage)\b/.test(text);
   const mail = !documentMail && (edit || /\b(?:redig\w*|ecris|prepare\w*|joins|joignez|ajoute\w*|attache\w*)\b/.test(text)) && /\b(?:mail|email|courriel|message|composeur)\b/.test(text) && !/\b(?:campagne|newsletter|publicitaire)\b/.test(text);
-  return command === "export_document_pdf" ? pdf : command === "configure_ads_draft" ? ads : command === "configure_video_retouch" ? video : command === "configure_mail_draft" ? mail : documentMail || pdf || ads || video || mail || isInrAssistantMediaUiCommandText(text);
+  return command === "export_document_pdf" ? pdf : command === "configure_video_retouch" ? video : command === "configure_mail_draft" ? mail : documentMail || pdf || ads || video || mail || isInrAssistantAdsSaveRequest(text) || isInrAssistantMediaUiCommandText(text);
 }
 
 export function inrAssistantMailPatchRequested(message: string, patch: InrAssistantMailCommand["patch"]): boolean {

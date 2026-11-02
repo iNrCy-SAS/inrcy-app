@@ -20,9 +20,12 @@ test("la création d'un brouillon ne transmet pas d'identifiant nul", () => {
   const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/ads/campaigns/route.ts", import.meta.url), "utf8");
   const source = ts.createSourceFile("AdsClient.tsx", client, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const saveBodies: Array<{ owner: string; body: ts.Expression }> = [];
-  const visit = (node: ts.Node) => {
-    if (ts.isCallExpression(node) && node.expression.getText(source) === "fetch"
+  const persistence = ts.createSourceFile("inrAssistantAdsDraftPersistence.ts", readFileSync(new URL("../lib/inrAssistantAdsDraftPersistence.ts", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
+  const saveBodies: Array<{ owner: string; body: ts.Expression; source: ts.SourceFile }> = [];
+  let nativeSave: ts.FunctionDeclaration | undefined;
+  const visit = (node: ts.Node, source: ts.SourceFile) => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "saveDraft") nativeSave = node;
+    if (ts.isCallExpression(node) && ["fetch", "request"].includes(node.expression.getText(source))
       && ts.isStringLiteral(node.arguments[0]) && node.arguments[0].text === "/api/ads/campaigns") {
       const options = node.arguments[1];
       assert.ok(options && ts.isObjectLiteralExpression(options));
@@ -32,19 +35,20 @@ test("la création d'un brouillon ne transmet pas d'identifiant nul", () => {
         assert.ok(body && ts.isPropertyAssignment(body));
         const owner = ts.findAncestor(node, ts.isFunctionDeclaration);
         assert.ok(owner?.name);
-        saveBodies.push({ owner: owner.name.text, body: body.initializer });
+        saveBodies.push({ owner: owner.name.text, body: body.initializer, source });
       }
     }
-    ts.forEachChild(node, visit);
+    ts.forEachChild(node, child => visit(child, source));
   };
-  visit(source);
+  visit(source, source); visit(persistence, persistence);
+  assert.ok(nativeSave); assert.match(nativeSave.getText(source), /persistVerifiedAdsDraft\(/, "native save delegates its actual serialization to verified persistence");
   const owners = new Set(saveBodies.map(({ owner }) => owner));
-  for (const owner of ["saveDraft", "openLaunchDialog", "confirmCampaignLaunch"]) assert.ok(owners.has(owner), owner);
-  for (const { owner, body } of saveBodies) {
-    const serialize = new Function("savedId", "campaignDraft", "launchDraft", "parsed", `return (${body.getText(source)});`);
+  for (const owner of ["persistVerifiedAdsDraft", "openLaunchDialog", "confirmCampaignLaunch"]) assert.ok(owners.has(owner), owner);
+  for (const { owner, body, source: ownerSource } of saveBodies) {
+    const serialize = new Function("savedId", "campaignDraft", "launchDraft", "parsed", "options", "draft", `return (${body.getText(ownerSource)});`);
     const draft = { provider: "linkedin", name: "Brouillon conservé" };
     for (const savedId of [undefined, null, "", "72b4871a-95e4-4e16-b16e-94c8341741a5"]) {
-      const payload = JSON.parse(serialize(savedId, draft, draft, { draft }));
+      const payload = JSON.parse(serialize(savedId, draft, draft, { draft }, { savedId }, draft));
       assert.deepEqual(payload, savedId ? { ...draft, id: savedId } : draft, owner);
       assert.equal(Object.hasOwn(payload, "id"), Boolean(savedId), `${owner}: no null or empty id on creation`);
     }

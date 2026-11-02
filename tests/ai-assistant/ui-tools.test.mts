@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import * as adsCommands from "../../lib/inrAssistantAdsUiCommands.ts";
 import * as mediaCommands from "../../lib/inrAssistantMediaUiCommands.ts";
 import * as commands from "../../lib/inrAssistantUiCommands.ts";
 import * as mailAttachments from "../../lib/inrAssistantMailAttachments.ts";
@@ -17,6 +18,7 @@ function harness(message: string, options: { foreign?: boolean; available?: bool
     "./requireUser": { requireUser: async () => ({ activeUserId: options.foreign ? "other" : activeId }) },
     "./inrAssistantUiCommands.ts": commands,
     "./inrAssistantMediaUiCommands.ts": mediaCommands,
+    "./inrAssistantAdsUiCommands.ts": adsCommands,
     "./inrAssistantMailAttachments.ts": mailAttachments,
     "./inrAssistantMailLifecycle.ts": mailLifecycle,
   };
@@ -25,6 +27,11 @@ function harness(message: string, options: { foreign?: boolean; available?: bool
   vm.runInNewContext(`(function(require,module,exports){${mediaSource}\n})`, {})(
     (name: string) => { assert.ok(name in deps, name); return deps[name]; }, mediaModule, mediaModule.exports);
   deps["./inrAssistantMediaUiTools.ts"] = mediaModule.exports;
+  const adsModule = { exports: {} };
+  const adsSource = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantAdsUiTools.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  vm.runInNewContext('(function(require,module,exports){'+adsSource+'\n})', {})(
+    (name: string) => { assert.ok(name in deps, name); return deps[name]; }, adsModule, adsModule.exports);
+  deps["./inrAssistantAdsUiTools.ts"] = adsModule.exports;
   const moduleRecord = { exports: {} as typeof Runtime };
   const source = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantUiTools.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   vm.runInNewContext(`(function(require,module,exports){${source}\n})`, {})(
