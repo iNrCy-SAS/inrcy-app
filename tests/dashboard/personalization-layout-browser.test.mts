@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { chromium, type Page } from "@playwright/test";
+import { chromium, firefox, webkit, type Page } from "@playwright/test";
 import { ROOT, fixture, html } from "./personalization-browser-fixture.mts";
+
+const browserEngine = process.env.INRCY_PERSONALIZATION_BROWSER || "chromium";
+assert.ok(["chromium", "firefox", "webkit"].includes(browserEngine), "supported personalization browser engine");
+const browserType = browserEngine === "webkit" ? webkit : browserEngine === "firefox" ? firefox : chromium;
 
 const responsiveViewports = [
   { width: 360, height: 800 }, { width: 390, height: 844 },
@@ -25,7 +29,7 @@ async function assertActivityCardsFitTheirLists(page: Page) {
 }
 
 test("all personalization tabs keep fields accessible and fit the desktop workspace without horizontal overflow", { timeout: 90_000 }, async t => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await browserType.launch({ headless: true });
   try {
     for (const viewport of responsiveViewports) {
       const page = await browser.newPage({ viewport });
@@ -159,9 +163,13 @@ test("all personalization tabs keep fields accessible and fit the desktop worksp
 });
 
 test("eight and ten analysis documents stay inside their card and scroll when needed while metadata stays fixed", { timeout: 60_000 }, async t => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await browserType.launch({ headless: true });
   try {
-    for (const viewport of responsiveViewports) {
+    const analysisViewports = [...responsiveViewports,
+      { width: 761, height: 700 }, { width: 1024, height: 700 },
+      { width: 1101, height: 700 }, { width: 1366, height: 700 },
+    ];
+    for (const viewport of analysisViewports) {
       for (const count of [8, 10]) {
         const page = await browser.newPage({ viewport });
         const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
@@ -205,16 +213,25 @@ test("eight and ten analysis documents stay inside their card and scroll when ne
         assert.equal(before.listOverflow, "auto");
         assert.ok(before.list.left >= before.card.left && before.list.right <= before.card.right, "document rows fit inside the card width");
         assert.ok(before.list.top >= before.storage.bottom && before.list.bottom < before.card.bottom, "the list stays below fixed storage and above the card border");
-        if (viewport.width >= 1366) {
+        if (viewport.width >= 1101 && viewport.height >= 700 || viewport.width >= 761 && viewport.height >= 760) {
           assert.ok(before.pageHeight <= viewport.height + 2, "populated documents do not create desktop page scrolling");
           assert.ok(before.channels.top >= before.header.bottom && before.channels.bottom <= before.card.top, "the channels remain completely visible above documents");
           assert.ok(before.card.bottom <= viewport.height && before.footer.bottom <= viewport.height, "documents and actions fit the desktop viewport");
         } else {
-          assert.ok(before.listHeight <= 300, "mobile document scrolling remains bounded");
+          assert.ok(before.listHeight <= 300, "stacked document scrolling remains bounded");
         }
         await list.evaluate(node => { node.scrollTop = node.scrollHeight; });
         const lastButton = rows.last().getByRole("button");
         assert.equal(await lastButton.isEnabled(), true, "the final document can still be deleted");
+        // A wrapped filename can be taller than the viewport of its list.
+        // Reach its centered action by scrolling that list, without moving the page.
+        await lastButton.evaluate(button => {
+          const list = button.closest<HTMLElement>("[data-reference-document-list]")!;
+          const action = button.getBoundingClientRect();
+          const bounds = list.getBoundingClientRect();
+          if (action.top < bounds.top) list.scrollTop -= bounds.top - action.top + 2;
+          else if (action.bottom > bounds.bottom) list.scrollTop += action.bottom - bounds.bottom + 2;
+        });
         const lastBounds = await lastButton.boundingBox();
         const after = await measure();
         assert.ok(lastBounds && lastBounds.y >= after.list.top && lastBounds.y + lastBounds.height <= after.list.bottom, "the final document action is inside the list after scrolling");
@@ -237,7 +254,7 @@ test("eight and ten analysis documents stay inside their card and scroll when ne
 });
 
 test("populated tag groups and long strategy text remain contained and reachable at all responsive sizes", { timeout: 90_000 }, async t => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await browserType.launch({ headless: true });
   const violations: string[] = [];
   try {
     for (const viewport of responsiveViewports) {
@@ -329,7 +346,7 @@ test("populated tag groups and long strategy text remain contained and reachable
 });
 
 test("rich strategy formatting survives a controlled remount without any network write", { timeout: 30_000 }, async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await browserType.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
     const errors: string[] = []; page.on("pageerror", e => errors.push(e.message));
@@ -339,6 +356,7 @@ test("rich strategy formatting survives a controlled remount without any network
     await page.locator("[data-business-dna-channel-analysis]").waitFor();
     await page.evaluate(() => (window as unknown as { renderRichEditor: () => void }).renderRichEditor());
     const editor = page.getByRole("textbox", { name: "Argument de test", exact: true });
+    await page.waitForFunction(() => document.querySelector('[role="textbox"][aria-label="Argument de test"]')?.textContent === "Argument initial");
     await editor.fill("Argument clair");
     await editor.press("Control+A");
     await page.getByRole("button", { name: "Gras", exact: true }).click();
@@ -348,11 +366,15 @@ test("rich strategy formatting survives a controlled remount without any network
     await page.waitForFunction(() => /<ul>[\s\S]*<li>/.test((window as unknown as { richDraft: { html: string } }).richDraft.html));
     const saved = await page.evaluate(() => (window as unknown as { richDraft: { text: string; html: string } }).richDraft);
     assert.equal(saved.text.trim(), "• Argument clair", "the plain-text version retains the list bullet for prompts");
+    const previousEditor = await editor.elementHandle();
+    assert.ok(previousEditor);
     await page.evaluate(() => (window as unknown as { remountRichEditor: () => void }).remountRichEditor());
-    await page.waitForTimeout(80);
+    await page.waitForFunction(previous => !previous.isConnected, previousEditor);
+    await page.waitForFunction(expected => document.querySelector('[role="textbox"][aria-label="Argument de test"]')?.innerHTML === expected, saved.html);
     assert.equal(await editor.innerHTML(), saved.html, "the saved rich HTML is restored on remount");
-    assert.equal(await editor.innerText(), "Argument clair");
+    assert.equal(await editor.textContent(), "Argument clair");
     assert.equal(await page.evaluate(() => (window as unknown as { mutations: number }).mutations), 0);
     assert.deepEqual(errors, []);
+    await previousEditor.dispose();
   } finally { await browser.close(); }
 });

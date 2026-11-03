@@ -76,7 +76,7 @@
 .launch:focus-visible,.schedule:focus-visible,.reset:focus-visible { outline: 2px solid #a5f3fc; outline-offset: 3px; }
 .emptyHint { flex: 1; color: #c4cde0; font-size: 10px; }
 @media (max-width: 1100px) { .workspace { grid-template-columns: minmax(280px,1fr) minmax(0,1.3fr); } .sourceScroll { padding: 14px; } .result { padding: 18px; } .channel { padding: 8px; gap: 6px; } .channel img { width: 26px; height: 26px; flex-basis: 26px; } .footer { padding: 14px; } }
-@media (max-width: 760px), (max-height: 699px) {
+@media (max-width: 760px), (max-width: 1100px) and (max-height: 759px), (max-height: 699px) {
   .workspace { grid-template-columns: minmax(0,1fr); grid-template-rows: auto auto auto; height: auto; min-height: 0; }
   .sources { grid-column: 1; grid-row: 1; border-right: 0; border-bottom: 1px solid #a7bfff24; }
   .sourceScroll { max-height: none; overflow: visible; }
