@@ -12,6 +12,11 @@ const locales = readdirSync(join(root, "messages"), { withFileTypes: true })
   .sort();
 
 type DashboardMessages = {
+  personalization: {
+    title: string;
+    companyTitle: string;
+    communicationTitle: string;
+  };
   userMenu: { activity: string; profile: string };
   drawer: { titles: { activite: string; profil: string } };
   generatorSteps: {
@@ -122,7 +127,7 @@ test("media generation consistently presents the professional source as Business
   }
 });
 
-test("GPS no longer presents Profile and Activity as separate destinations", () => {
+test("GPS directs business details to the unified personalization workspace", () => {
   const gpsKeys = [
     "avant_de_publier_ou_d_analyser_d71524fb",
     "avant_de_publier_ou_d_envoyer_622660b3",
@@ -143,8 +148,21 @@ test("GPS no longer presents Profile and Activity as separate destinations", () 
 
   for (const locale of locales) {
     const gps = readJson<Record<string, string>>(`messages/${locale}/gps.json`);
+    const { personalization } = readJson<DashboardMessages>(`messages/${locale}/dashboard.json`);
     const visibleCopy = gpsKeys.map((key) => String(gps[key] ?? "")).join(" ");
-    assert.doesNotMatch(visibleCopy, legacyActivityLabelByLocale[locale], `${locale}: legacy GPS wording`);
+    assert.equal(gps.ouvrir_mon_activite_2786763e, personalization.companyTitle, `${locale}: unified business destination`);
+    assert.ok(gps.avant_de_publier_ou_d_analyser_d71524fb.includes(personalization.title), `${locale}: personalization entry point`);
+    assert.ok(visibleCopy.includes(personalization.communicationTitle), `${locale}: communication destination`);
+    // "My business" is now the current section title, rather than a separate legacy Activity screen.
+    const copyOutsideCurrentCompanyTitle = visibleCopy.replaceAll(personalization.companyTitle, "[company]");
+    assert.doesNotMatch(copyOutsideCurrentCompanyTitle, legacyActivityLabelByLocale[locale], `${locale}: legacy GPS wording`);
+  }
+
+  for (const sourcePath of ["app/dashboard/gps/noticeContent.ts", "app/dashboard/gps/gpsEditionPolicy.ts"]) {
+    const source = read(sourcePath);
+    assert.match(source, /label: "mon_profil_faa6d321", href: "\/dashboard\/personnalisation\?section=company"/);
+    assert.match(source, /label: "configuration_ia_f620c8d8", href: "\/dashboard\/personnalisation\?section=communication"/);
+    assert.doesNotMatch(source, /href: "\/dashboard\?panel=(?:profil|activite)(?:[&"])/);
   }
 });
 

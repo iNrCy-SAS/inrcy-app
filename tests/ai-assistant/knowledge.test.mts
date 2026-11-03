@@ -35,11 +35,23 @@ const guides = load("./lib/inrAssistantGuidesAccount.ts") as typeof AccountGuide
 test("a vague first question receives canonical tool destinations and onboarding guidance", () => {
   const text = knowledge.getInrAssistantKnowledge("Je dois faire quoi ?");
   assert.match(text, /Bien démarrer/);
-  for (const route of ["/dashboard?action=publish", "/dashboard/generer-media", "/dashboard/mediatheque", "/dashboard/stats", "/dashboard/adn-entreprise", "/dashboard/configuration-ia"]) {
+  for (const route of ["/dashboard?action=publish", "/dashboard/generer-media", "/dashboard/mediatheque", "/dashboard/stats", "/dashboard/personnalisation"]) {
     assert.ok(text.includes(route), route);
   }
+  assert.match(text, /Connecter mes canaux/);
+  assert.match(text, /Personnaliser mon application/);
   assert.match(text, /Premium/);
   assert.doesNotMatch(text, /startup_step_|_[a-f0-9]{8}\b/);
+});
+
+test("the unified personalization guide retains the existing ADN and AI configuration aliases", () => {
+  const guide = guides.INR_ASSISTANT_ACCOUNT_GUIDES.find((entry) => entry.id === "business-dna");
+  assert.ok(guide);
+  for (const route of ["/dashboard/adn-entreprise", "/dashboard/configuration-ia"]) {
+    assert.ok(guide.content.includes(route), route);
+    assert.ok(existsSync(resolve(root, `app${route}/page.tsx`)), `${route}: existing legacy page`);
+  }
+  assert.ok(guide.content.includes("/dashboard/personnalisation"));
 });
 
 test("Facebook support reuses the actual channel helper and official Page creation destination", () => {
