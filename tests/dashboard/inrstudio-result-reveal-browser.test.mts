@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
-import { chromium, type Page } from "@playwright/test";
+import { chromium, webkit, type Page } from "@playwright/test";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
@@ -71,6 +71,7 @@ const nativeSources = {
   "@/lib/studioVideoRetouchPersistence": compile(read("lib/studioVideoRetouchPersistence.ts")),
   "@/app/dashboard/_components/MediaGeneratorModal": compile(read("app/dashboard/_components/MediaGeneratorModal.tsx")),
   "./MediaFreeGenerator": compile(read("app/dashboard/_components/MediaFreeGenerator.tsx")),
+  "./MediaBusinessDnaHelp": compile(read("app/dashboard/_components/MediaBusinessDnaHelp.tsx")),
   "./MediaModifier": compile(read("app/dashboard/_components/MediaModifier.tsx")),
   "./MediaGenerationCreationWorkspace": modules.workspace,
   "./DashboardMobileSelect": compile(read("app/dashboard/_components/DashboardMobileSelect.tsx")),
@@ -148,6 +149,77 @@ async function swipe(page: Page, fromY: number, toY: number) {
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await page.waitForTimeout(180); await cdp.detach();
 }
+
+test("Studio criteria keep natural heights and optional DNA help works without Popover support", { timeout: 90000 }, async t => {
+  for (const engine of [chromium, ...(process.env.INRCY_STUDIO_WEBKIT === "1" ? [webkit] : [])]) {
+    const browser = await engine.launch({ headless: true });
+    try {
+      for (const viewport of [{ width: 1440, height: 900 }, { width: 1280, height: 780 }, { width: 390, height: 844 }]) {
+        const page = await browser.newPage({ viewport });
+        await page.addInitScript(() => {
+          Object.defineProperty(HTMLElement.prototype, "showPopover", { configurable: true, value: undefined });
+          Object.defineProperty(HTMLElement.prototype, "hidePopover", { configurable: true, value: undefined });
+          const stripPopover = () => document.querySelectorAll('[popover]').forEach(element => element.removeAttribute('popover'));
+          new MutationObserver(stripPopover).observe(document, { childList: true, subtree: true });
+        });
+        const errors = await mountNative(page, "image");
+        assert.equal(await page.locator('[data-business-dna-info]').count(), 0, "Help must not exist at opening on engines that ignore popover");
+        await page.evaluate(() => new Promise<void>((resolve, reject) => {
+          let frames = 0;
+          const inspect = () => {
+            if (document.querySelector('[data-business-dna-info]')) { reject(Error('DNA help flashed during Studio startup')); return; }
+            if (++frames === 8) resolve(); else requestAnimationFrame(inspect);
+          };
+          requestAnimationFrame(inspect);
+        }));
+        const prompt = page.locator('.free-promptContainer textarea');
+        await prompt.fill("Mon prompt professionnel doit rester intact.");
+        const dna = page.getByRole('checkbox', { name: 'Utiliser mon ADN', exact: true });
+        await dna.check();
+        const info = page.getByRole('button', { name: 'Comment fonctionne mon ADN ?', exact: true });
+        await info.click();
+        const dialog = page.locator('dialog[data-business-dna-info][open]');
+        await dialog.waitFor();
+        const bounds = await dialog.boundingBox(); assert.ok(bounds);
+        assert.ok(bounds.height < viewport.height - 20 && bounds.width <= viewport.width - 20);
+        await page.keyboard.press('Escape');
+        await dialog.waitFor({ state: 'detached' });
+        assert.equal(await page.locator('[data-inrcy-tool-dialog]').count(), 1, "Escape must keep Studio open");
+        assert.equal(await info.evaluate(element => element === document.activeElement), true);
+        assert.equal(await prompt.inputValue(), "Mon prompt professionnel doit rester intact.");
+        assert.equal(await dna.isChecked(), true);
+        await info.click();
+        await dialog.getByRole('button', { name: 'Fermer les informations sur l’ADN' }).click();
+        await dialog.waitFor({ state: 'detached' });
+        if (viewport.width > 1100) await page.getByRole('tab', { name: 'Critères', exact: true }).click();
+        else {
+          await page.locator('.editor-mobileSettingsNavigation select').selectOption('criteria');
+        }
+        await page.evaluate(() => new Promise<void>((resolve, reject) => {
+          let frames = 0;
+          const inspect = () => {
+            const formats = [...document.querySelectorAll('.free-formatOption')].map(element => element.getBoundingClientRect());
+            const references = document.querySelector('.free-referencesSection')?.getBoundingClientRect();
+            if (formats.some(format => format.height > 150) || !references || references.top < Math.max(...formats.map(format => format.bottom))) { reject(Error('Criteria stretched or overlapped during their first frames')); return; }
+            if (++frames === 8) resolve(); else requestAnimationFrame(inspect);
+          };
+          requestAnimationFrame(inspect);
+        }));
+        const formats = await page.locator('.free-formatOption').evaluateAll(elements => elements.map(element => {
+          const bounds=element.getBoundingClientRect();return { top:bounds.top,bottom:bounds.bottom,height:bounds.height };
+        }));
+        assert.equal(formats.length, 4);
+        assert.ok(formats.every(format => format.height > 35 && format.height < 150), "Format cards cannot stretch over the settings pane");
+        const references = await page.locator('.free-referencesSection').boundingBox();assert.ok(references);
+        assert.ok(references.y >= Math.max(...formats.map(format => format.bottom)), "References must follow the format cards without overlap");
+        assert.equal(await page.evaluate(() => (window as unknown as { networkCalls:number }).networkCalls), 0);
+        assert.deepEqual(errors, []);
+        t.diagnostic(JSON.stringify({ engine:engine.name(), viewport, formats }));
+        await page.close();
+      }
+    } finally { await browser.close(); }
+  }
+});
 
 test("native Studio image/video/Modifier remain touch scrollable after completion, save and expanded preview", async t => {
   const browser = await chromium.launch({ headless: true });

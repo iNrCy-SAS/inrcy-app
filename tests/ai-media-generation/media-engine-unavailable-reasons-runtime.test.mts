@@ -130,7 +130,7 @@ function freeEditor(options: { kind?: "image" | "video"; engine?: models.AiMedia
   modules.set("@/lib/mediaGenerationReferenceClient", {});
   modules.set("@/lib/aiMediaCharacterVoiceClient", characterVoices);
   modules.set("@/lib/aiMediaCharacterVoices", characterVoiceRules);
-  for (const path of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaQuotaSummary", "./MediaPromptHelp", "./MediaCharacterVoiceInput"]) modules.set(path, { __esModule: true, default: path });
+  for (const path of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaQuotaSummary", "./MediaPromptHelp", "./MediaBusinessDnaHelp", "./MediaCharacterVoiceInput"]) modules.set(path, { __esModule: true, default: path });
   modules.set("./MediaGenerationCreationWorkspace", { __esModule: true, default: "preview", MediaGenerationSettingsTabs: "settings-tabs" });
   modules.set("./MediaGenerationCreationWorkspace.module.css", styles); modules.set("./MediaFreeGenerator.module.css", styles);
   modules.set("../_hooks/useMediaEnginePreference", { __esModule: true, default: () => ({ videoEngine: options.engine || "omni", imageEngine: options.imageEngine || "openai", videoResolution: "720p", update() {} }) });

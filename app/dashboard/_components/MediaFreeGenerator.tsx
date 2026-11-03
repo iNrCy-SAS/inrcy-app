@@ -49,6 +49,7 @@ import { AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, exceedsAiMediaCharacterVoiceEng
 import MediaPromptHelp from "./MediaPromptHelp";
 import MediaGenerationCreationWorkspace, { MediaGenerationSettingsTabs } from "./MediaGenerationCreationWorkspace";
 import editorStyles from "./MediaGenerationCreationWorkspace.module.css";
+import MediaBusinessDnaHelp from "./MediaBusinessDnaHelp";
 import MediaQuotaSummary from "./MediaQuotaSummary";
 import useMediaEnginePreference from "../_hooks/useMediaEnginePreference";
 import useMediaCreditQuote from "../_hooks/useMediaCreditQuote";
@@ -836,17 +837,6 @@ export default function MediaFreeGenerator({
       data-creation-mode="free"
       data-media-kind={kind}
       data-view="editor"
-      onKeyDownCapture={(event) => {
-        if (event.key !== "Escape") return;
-        const info = event.currentTarget.querySelector<HTMLElement>(
-          "[data-business-dna-info]:popover-open"
-        );
-        if (!info) return;
-        // Close this optional help before Studio's own Escape shortcut runs.
-        event.preventDefault();
-        event.stopPropagation();
-        info.hidePopover();
-      }}
     >
       <div className={editorStyles.editorBody}>
         <div className={editorStyles.settingsPane}>
@@ -1201,46 +1191,7 @@ export default function MediaFreeGenerator({
               />
               <strong>{t("ai_generator_use_business_dna_label")}</strong>
             </label>
-            <button
-              type="button"
-              className={styles.businessDnaInfoButton}
-              popoverTarget={`${instanceId}-business-dna-help`}
-              aria-haspopup="dialog"
-              aria-label={t("ai_generator_use_business_dna_info_label")}
-              title={t("ai_generator_use_business_dna_info_label")}
-            >
-              <span aria-hidden="true">i</span>
-            </button>
-            <div
-              id={`${instanceId}-business-dna-help`}
-              popover="auto"
-              role="dialog"
-              data-business-dna-info
-              aria-labelledby={`${instanceId}-business-dna-help-title`}
-              className={styles.businessDnaInfo}
-              onToggle={(event) => {
-                if (event.newState === "open") {
-                  event.currentTarget.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
-                }
-              }}
-            >
-              <header className={styles.businessDnaInfoHeader}>
-                <h3 id={`${instanceId}-business-dna-help-title`}>
-                  {t("ai_generator_use_business_dna_label")}
-                </h3>
-                <button
-                  type="button"
-                  className={styles.businessDnaInfoClose}
-                  popoverTarget={`${instanceId}-business-dna-help`}
-                  popoverTargetAction="hide"
-                  aria-label={t("ai_generator_use_business_dna_info_close")}
-                >×</button>
-              </header>
-              <p>{t("ai_generator_use_business_dna_info_sources")}</p>
-              <p>{t("ai_generator_use_business_dna_info_identity")}</p>
-              <p>{t("ai_generator_use_business_dna_info_contacts")}</p>
-              <p>{t("ai_generator_use_business_dna_info_freedom")}</p>
-            </div>
+            <MediaBusinessDnaHelp />
           </div>
           <div className={styles.promptContainer}>
             <label

@@ -97,7 +97,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     ["../_hooks/useMediaCreditQuote", { __esModule: true, default: (input: Props) => { quoteInputs.push(input); return { ready: true, insufficient: false, authorization: { expectedCredits: 88 }, quote: { totalCredits: 88 } }; } }],
     ["./MediaGenerationCreationWorkspace", { __esModule: true, default: "preview", MediaGenerationSettingsTabs: "settings-tabs" }],
   ]);
-  for (const name of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaPromptHelp", "./MediaQuotaSummary", "./MediaCharacterVoiceLibraryPicker"]) modules.set(name, { __esModule: true, default: name });
+  for (const name of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaPromptHelp", "./MediaBusinessDnaHelp", "./MediaQuotaSummary", "./MediaCharacterVoiceLibraryPicker"]) modules.set(name, { __esModule: true, default: name });
   const browser = { addEventListener(name: string, callback: () => void) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name)!.add(callback); }, removeEventListener(name: string, callback: () => void) { listeners.get(name)?.delete(callback); }, requestAnimationFrame() { return 1; } };
   const fetch = async (_url: string, init: RequestInit) => {
     uploads.push(init.body as FormData);

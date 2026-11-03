@@ -21,6 +21,7 @@
 .workspace[data-view="editor"] .parameters,
 .workspace[data-view="editor"] .promptPanel { box-sizing:border-box;width:100%;min-height:100%;height:auto;padding:18px;border:0;border-radius:0;overflow:visible; }
 .workspace[data-view="editor"] .parameters { display:flex;flex-direction:column;gap:16px; }
+.workspace[data-view="editor"] .parameters > * { flex-shrink: 0; }
 .workspace[data-view="editor"] .promptPanel { height:100%;gap:12px; }
 .workspace[data-view="editor"] .promptContainer { min-height:260px;flex:1; }
 .workspace[data-view="editor"] .promptContainer textarea { min-height:210px; }
@@ -115,7 +116,8 @@
   border-color: rgba(203, 111, 235, 0.28);
 }
 .fieldset {
-  display: grid;
+  /* Safari's anonymous fieldset/legend box must not distribute a grid's height. */
+  display: block;
   gap: 10px;
   padding: 0;
   margin: 0;
@@ -132,6 +134,8 @@
 .formatOptions {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: max-content;
+  align-items: start;
   gap: 7px;
 }
 .formatOption {
@@ -647,6 +651,8 @@
   inset: 0;
   box-sizing: border-box;
   width: min(400px, calc(100vw - 32px));
+  height: fit-content;
+  max-height: calc(100vh - 32px);
   max-height: calc(100dvh - 32px);
   margin: auto;
   padding: 20px;
@@ -660,6 +666,8 @@
   font-size: 13px;
   line-height: 1.6;
 }
+.businessDnaInfo:not([open]) { display: none; }
+.businessDnaInfo::backdrop { background: rgba(0, 0, 0, 0.45); }
 .businessDnaInfoHeader {
   display: flex;
   align-items: center;

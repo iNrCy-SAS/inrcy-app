@@ -104,7 +104,7 @@ function fixture(extra: Props = {}) {
   const quote = { ready: true, insufficient: false, quote: { totalCredits: 4 }, authorization: {} };
   freeModules.set("../_hooks/useMediaEnginePreference", { __esModule: true, default: () => preference });
   freeModules.set("../_hooks/useMediaCreditQuote", { __esModule: true, default: () => quote });
-  for (const name of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaPromptHelp", "./MediaQuotaSummary", "./MediaCharacterVoiceInput"]) freeModules.set(name, { __esModule: true, default: name });
+  for (const name of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaPromptHelp", "./MediaBusinessDnaHelp", "./MediaQuotaSummary", "./MediaCharacterVoiceInput"]) freeModules.set(name, { __esModule: true, default: name });
   freeModules.set("./MediaGenerationCreationWorkspace", { __esModule: true, default: "preview", MediaGenerationSettingsTabs: "settings" });
   freeModules.set("./MediaEngineCreditControls", { __esModule: true, default: "engines", isMediaVideoReferenceCompatible: () => true, MediaCreditQuoteSummary: "new-quote", MediaRecoveredCreditSummary: "recorded-cost", MediaGenerationActions: "actions" });
   const panels: ReturnType<typeof runtime>[] = [];

@@ -1,0 +1,6 @@
+# Keep the hash-verified WordPress package reproducible on Windows and Linux.
+ops/wordpress-visio-booking/*.md text eol=lf
+ops/wordpress-visio-booking/*.css text eol=lf
+ops/wordpress-visio-booking/*.js text eol=lf
+ops/wordpress-visio-booking/*.php text eol=lf
+ops/inrcy-visio-booking.manifest.json text eol=lf
