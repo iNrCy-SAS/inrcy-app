@@ -187,6 +187,7 @@ export type AgentChannelPreview = {
   ctaMode: BoosterCtaMode;
   ctaUrl: string;
   ctaPhone: string;
+  ctaAction?: string;
   hashtags: string[];
 };
 

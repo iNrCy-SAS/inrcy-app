@@ -23,6 +23,7 @@ import {
 import { mergePreflightFailuresIntoPublicationSummary } from "@/lib/boosterPublicationOutcome";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
 import PublishModal from "../booster/publier/PublishModal";
+import { prewarmPublishChannelIcons } from "../booster/publier/components/publishChannelIdentity";
 import type { BoosterChannelIdentitySeed } from "../booster/publier/publishConnectionSnapshot";
 import AiConfigurationIcon from "./AiConfigurationIcon";
 import BusinessDnaIcon from "./BusinessDnaIcon";
@@ -67,6 +68,7 @@ export default function DashboardBoosterModalLayer({
   const searchParams = useSearchParams();
   const activePublishDraftId = String(searchParams?.get("draftId") || "").trim();
   const [publishSuccessOpen, setPublishSuccessOpen] = useState(false);
+  useEffect(() => { prewarmPublishChannelIcons(); }, []);
   const [publishSummary, setPublishSummary] = useState<any>(null);
   const [publishEditorOverlayOpen, setPublishEditorOverlayOpen] = useState(false);
   const [publishHasUnsavedChanges, setPublishHasUnsavedChanges] = useState(false);

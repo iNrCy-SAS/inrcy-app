@@ -12,7 +12,7 @@ import {
 } from "../publishModal.styles";
 import { useDashboardViewerAccess } from "../../../_components/DashboardViewerAccessProvider";
 import css from "./PublishChannelSelector.module.css";
-import { PUBLISH_CHANNEL_IDENTITY } from "./publishChannelIdentity";
+import { PUBLISH_CHANNEL_IDENTITY, prewarmPublishChannelIcons } from "./publishChannelIdentity";
 
 type PublishModalStyles = Readonly<Record<string, string>>;
 
@@ -73,6 +73,24 @@ const CHANNEL_ICON_SRC: Record<ChannelKey, string> = {
   youtube_shorts: "/icons/youtube-shorts.png",
   pinterest: "/icons/pinterest-logo-128.png",
 };
+
+function ChannelLogo({ channel, mobile = false, style }: { channel: ChannelKey; mobile?: boolean; style?: CSSProperties }) {
+  const size = mobile ? 24 : 43;
+  return (
+    <img
+      className={mobile ? css.mobileLogo : css.channelLogo}
+      src={CHANNEL_ICON_SRC[channel]}
+      alt=""
+      aria-hidden="true"
+      width={size}
+      height={size}
+      loading="eager"
+      decoding="sync"
+      fetchPriority="high"
+      style={{ width: size, height: size, borderRadius: 999, objectFit: mobile ? "contain" : "cover", ...style }}
+    />
+  );
+}
 
 function WarningTriangle({ size = 18 }: { size?: number }) {
   return (
@@ -145,14 +163,8 @@ export default function PublishChannelSelector({
     : i18nT("select_all_channels");
 
   useEffect(() => {
-    // Warm every icon as soon as Booster opens so the channel row never
-    // appears with late or missing logos. Reusing the same URLs keeps this
-    // operation in the browser cache.
-    Object.values(CHANNEL_ICON_SRC).forEach((src) => {
-      const image = new Image();
-      image.decoding = "async";
-      image.src = src;
-    });
+    // Reuse the early dashboard warm-up, retrying any asset that failed there.
+    prewarmPublishChannelIcons();
   }, []);
 
   const bulkControl = (
@@ -172,7 +184,9 @@ export default function PublishChannelSelector({
         <div className={css.channelGrid} style={{ display: isMobile ? "grid" : "flex", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", flexWrap: "wrap" }}>
           {channelKeys.filter(key => key !== "threads" || metaPilotEnabled).map(key => (
             <div key={key} className={`${css.channelCard} ${css.pendingCard} ${isMobile ? css.mobileCard : ""}`} aria-hidden="true">
-              <img className={isMobile ? css.mobileLogo : css.channelLogo} src={CHANNEL_ICON_SRC[key]} alt="" />
+              {isMobile ? (
+                <span key="logo" className={css.mobileIdentity} aria-hidden="true"><ChannelLogo channel={key} mobile /></span>
+              ) : <ChannelLogo key="logo" channel={key} />}
               <span className={css.channelCopy}>
                 <span className={css.channelName}>{getLocalizedChannelLabel(key, messageKey => i18nT(messageKey as never))}</span>
                 <span className={css.accountPlaceholder} />
@@ -278,8 +292,8 @@ export default function PublishChannelSelector({
                     : {}),
                 }}
               >
-                <span className={css.mobileIdentity} aria-hidden="true">
-                  <img className={css.mobileLogo} src={CHANNEL_ICON_SRC[key]} alt="" loading="eager" />
+                <span key="logo" className={css.mobileIdentity} aria-hidden="true">
+                  <ChannelLogo channel={key} mobile />
                 </span>
                 <span className={css.channelCopy}>
                   <span className={css.mobileName}>{channelLabel}</span>
@@ -406,19 +420,10 @@ export default function PublishChannelSelector({
               <span aria-hidden className={css.selectionMark}>
                 {isSelected ? "✓" : ""}
               </span>
-              <img
-                className={css.channelLogo}
-                src={CHANNEL_ICON_SRC[key]}
-                alt=""
-                aria-hidden="true"
-                loading="eager"
-                decoding="sync"
-                fetchPriority="high"
+              <ChannelLogo
+                key="logo"
+                channel={key}
                 style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 999,
-                  objectFit: "cover",
                   opacity: isConnected ? 1 : requiresReconnect ? 0.72 : 0.48,
                   filter: isConnected ? undefined : requiresReconnect ? "grayscale(0.35)" : "grayscale(0.7)",
                   boxShadow: isSelected ? "0 0 18px rgba(76,195,255,0.24)" : undefined,

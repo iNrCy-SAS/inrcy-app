@@ -60,7 +60,7 @@
 .channelCard[aria-pressed="true"] .selectionMark { border-color: var(--channel-accent); background: var(--channel-accent); }
 .channelCard[aria-pressed="false"] .channelLogo, .channelCard[aria-pressed="false"] .mobileLogo { opacity: .58 !important; filter: grayscale(.7) !important; }
 .channelCard[aria-pressed="false"] .channelName, .channelCard[aria-pressed="false"] .mobileName { color: #b8c5d9 !important; }
-.channelLogo { width: 43px !important; height: 43px !important; box-shadow: 0 4px 16px #00000026 !important; }
+.channelLogo { width: 43px !important; height: 43px !important; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 16px #00000026 !important; }
 .channelName { color: #eef5ff; font-size: 14px !important; font-weight: 750 !important; letter-spacing: -.02em; line-height: 1.25; }
 .channelCopy { display: flex; flex-direction: column; justify-content: center; flex: 1 1 0; gap: 3px; min-width: 0; max-width: 100%; }
 .desktopCopy { align-items: center; width: 100%; padding-inline: 4px; box-sizing: border-box; text-align: center; }
@@ -106,4 +106,5 @@
 .pendingCard { display: flex; flex-direction: column; align-items: center; justify-content: center; border-style: dashed !important; background: linear-gradient(135deg, #19374f66, #25213f66) !important; }
 .pendingCard .channelCopy { align-items: center; gap: 6px; text-align: center; }
 .accountPlaceholder { width: 62%; min-width: 44px; height: 7px; border-radius: 99px; background: #adc7e330; }
+@media (max-width: 768px) { .channelLogo { width: 24px !important; height: 24px !important; object-fit: contain !important; } }
 @media (max-width: 700px) { .pendingCard { flex-direction: row; } .pendingCard .channelName { font-size: 11px !important; } }

@@ -926,5 +926,9 @@
   "publication_music_preview_choose": "Elige una música para escucharla.",
   "publication_reel_duration_hint": "Reel: {duration} s en total ({secondsPerImage} s por imagen, transiciones incluidas)",
   "publication_story_duration_hint": "Story: {secondsPerImage} s por imagen",
-  "publication_music_previous": "Selección anterior"
+  "publication_music_previous": "Selección anterior",
+  "cta_action_reserver": "Reservar",
+  "cta_action_commander": "Hacer un pedido",
+  "cta_action_acheter": "Comprar",
+  "cta_action_inscrire": "Registrarse"
 }

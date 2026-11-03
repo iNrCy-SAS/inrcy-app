@@ -765,9 +765,8 @@ test("Standard routes real phone and website CTA orders through the scoped execu
     assert.equal(h.ctaScopes[0].accountId, CTA_TEST_ACCOUNT_ID);
     assert.equal(h.ctaScopes[0].currentUserMessage, current);
     const map = fixture.tables.business_profiles.ai_channel_ctas as Record<string, { choice: string; phone: string; url: string }>;
-    const channels = target === "phone" ? ["site_web", "gmb", "facebook", "instagram", "threads", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"] : ["site_web", "gmb", "facebook", "threads", "linkedin", "youtube_shorts", "pinterest"];
+    const channels = ["site_web", "gmb", "facebook", "instagram", "threads", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"];
     for (const channel of channels) assert.equal(map[channel].choice, target === "phone" ? "appeler" : "site", channel);
-    if (target === "website") assert.equal(map.instagram.choice, "message");
     assert.equal(fixture.calls.filter(call => call.patch).length, 2);
     const transcript = JSON.stringify(h.generations[1].params.prompt);
     assert.match(transcript, /configureBusinessCta/);

@@ -715,7 +715,7 @@ export default function PublishContentEditorPanel({
                   data-content-state={xUrlBlocked ? "blocked" : hasText ? "ready" : "empty"}
                   title={
                     xUrlBlocked
-                      ? "X est bloqué : retirez le lien détecté."
+                      ? "X est bloqué : corrigez le format de lien détecté."
                       : hasText
                         ? i18nT("content_text_present")
                         : i18nT("content_text_to_review")

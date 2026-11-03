@@ -31,8 +31,12 @@ test("creation mode helper is concise", () => {
 });
 
 test("Booster eagerly warms channel logos", () => {
-  assert.match(channelSelector, /Object\.values\(CHANNEL_ICON_SRC\)/);
-  assert.match(channelSelector, /const image = new Image\(\)/);
+  const identity = readFileSync("app/dashboard/booster/publier/components/publishChannelIdentity.ts", "utf8");
+  const dashboardLayer = readFileSync("app/dashboard/_components/DashboardBoosterModalLayer.tsx", "utf8");
+  assert.match(identity, /Object\.values\(PUBLISH_CHANNEL_IDENTITY\)/);
+  assert.match(identity, /const image = new Image\(\)/);
+  assert.match(dashboardLayer, /useEffect\(\(\) => \{ prewarmPublishChannelIcons\(\); \}, \[\]\)/);
+  assert.match(channelSelector, /prewarmPublishChannelIcons\(\)/);
   assert.match(channelSelector, /loading="eager"/);
   assert.match(channelSelector, /fetchPriority="high"/);
 });

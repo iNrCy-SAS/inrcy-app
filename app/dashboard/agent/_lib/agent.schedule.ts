@@ -496,6 +496,7 @@ export function updateScheduledEditPublishText(
     ctaMode: BoosterCtaMode;
     ctaUrl: string;
     ctaPhone: string;
+    ctaAction?: string;
     hashtags: string;
   },
   applyToChannels: ChannelKey[] = [],
@@ -527,6 +528,7 @@ export function updateScheduledEditPublishText(
     ctaMode: draft.ctaMode,
     ctaUrl: draft.ctaUrl,
     ctaPhone: draft.ctaPhone,
+    ctaAction: draft.ctaAction || "",
     hashtags: draft.hashtags.split(/[\s,;]+/).filter(Boolean),
   };
   postByChannel[displayKey] = nextPost;

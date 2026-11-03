@@ -20,7 +20,7 @@ function normalizeFieldValue(value: unknown) {
 }
 
 /**
- * Localise précisément une URL interdite dans les champs éditables de X.
+ * Localise précisément un format d’URL non pris en charge dans les champs éditables de X.
  * La valeur n'est jamais modifiée : le pro garde la main pour la corriger.
  */
 export function getBoosterXForbiddenUrlFields(
@@ -51,5 +51,5 @@ export function getBoosterXUrlBlockerMessage(
 ) {
   const labels = Array.from(new Set(fields.map((field) => field.label)));
   const location = labels.length ? ` dans : ${labels.join(", ")}` : "";
-  return `Les liens et URL ne sont pas autorisés sur X. Supprimez le lien${location} pour publier.`;
+  return `Ce format de lien n’est pas pris en charge sur X${location}. Utilisez un lien HTTP ou HTTPS.`;
 }

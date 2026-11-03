@@ -7,10 +7,11 @@ import {
   countConfiguredAiChannelCtas,
   isAiChannelCtaComplete,
   normalizeAiChannelCtaMap,
+  resolveAiChannelCtaMap,
 } from "../../lib/aiChannelCtaPreferences.ts";
 import { buildBoosterCtaGenerationInstructions } from "../../lib/boosterCtaGenerationInstructions.ts";
 
-test("CTA configuration starts empty and covers the ten actionable channels", () => {
+test("raw saved CTA settings may remain empty and cover the ten actionable channels", () => {
   assert.equal(AI_CTA_CHANNELS.length, 10);
   assert.equal(AI_CTA_CHANNELS.map(({ key }) => String(key)).includes("inr_search"), false);
   assert.deepEqual(normalizeAiChannelCtaMap(undefined), {});
@@ -25,11 +26,11 @@ test("only explicit complete CTAs survive normalization", () => {
     x: { mode: "message", label: "Écrivez-nous" },
     pinterest: { mode: "website", label: "Voir", url: "" },
   });
-  assert.deepEqual(Object.keys(normalized).sort(), ["facebook", "gmb", "pinterest", "x"]);
+  assert.deepEqual(Object.keys(normalized).sort(), ["facebook", "gmb", "instagram", "pinterest", "x"]);
   assert.equal(normalized.facebook?.phone, "+33 6 12 34 56 78");
   assert.equal(normalized.gmb?.url, "https://example.com/");
   assert.equal(normalized.x?.label, "Écrivez-nous");
-  assert.equal(countConfiguredAiChannelCtas(normalized), 4);
+  assert.equal(countConfiguredAiChannelCtas(normalized), 5);
   assert.equal(isAiChannelCtaComplete("pinterest", normalized.pinterest, null), false);
   assert.equal(isAiChannelCtaComplete("pinterest", normalized.pinterest, { preferredWebsiteUrl: "https://example.com" }), true);
 });
@@ -63,7 +64,7 @@ test("automatic site and call choices remain configured but need a real destinat
 test("channel choices retain parity with Booster CTA mode policy", () => {
   const source = readFileSync(new URL("../../lib/boosterCta.ts", import.meta.url), "utf8");
   const choiceModes = {
-    site: "website", devis: "website", appeler: "call", message: "message", whatsapp: "custom", custom: "custom",
+    site: "website", devis: "website", reserver: "website", commander: "website", acheter: "website", inscrire: "website", appeler: "call", message: "message", whatsapp: "custom", custom: "custom",
   } as const;
   for (const { key } of AI_CTA_CHANNELS) {
     const match = source.match(new RegExp(`\\b${key}: \\[([^\\]]+)\\]`));
@@ -78,7 +79,7 @@ test("channel choices retain parity with Booster CTA mode policy", () => {
   }
 });
 
-test("AI writing follows configured CTA per channel and leaves unconfigured channels without CTA", () => {
+test("AI writing follows configured CTA and fills an unset compatible channel from the real profile", () => {
   const instructions = buildBoosterCtaGenerationInstructions({
     channels: ["facebook", "gmb", "instagram"],
     channelCtas: normalizeAiChannelCtaMap({
@@ -89,8 +90,59 @@ test("AI writing follows configured CTA per channel and leaves unconfigured chan
   });
   assert.match(instructions, /Facebook : invite uniquement à écrire sur WhatsApp/);
   assert.match(instructions, /Google Business : invite uniquement à demander un devis/);
-  assert.match(instructions, /Instagram : aucun CTA configuré ; laisse le champ cta vide/);
+  assert.match(instructions, /Instagram : invite uniquement à visiter le site/);
   assert.doesNotMatch(instructions, /https:\/\/example\.com|0612345678/);
+});
+
+test("unset CTAs prefer a real website and fall back to the phone according to channel policy", () => {
+  const resolved = resolveAiChannelCtaMap({}, { siteWebUrl: "https://example.test", phone: "0612345678" });
+  assert.equal(resolved.site_web?.choice, "site");
+  assert.equal(resolved.gmb?.choice, "site");
+  assert.equal(resolved.facebook?.choice, "site");
+  assert.equal(resolved.instagram?.choice, "site");
+  assert.equal(resolved.tiktok?.choice, "site");
+  assert.equal(resolved.x?.choice, "site");
+  assert.equal(resolved.youtube_shorts?.choice, "site");
+  assert.equal(Object.hasOwn(resolved, "inr_search"), false);
+  assert.equal(Object.values(resolved).every(config => config.url === "" && config.phone === ""), true, "Automatic destinations remain profile-driven");
+  assert.equal(AI_CTA_CHANNELS.every(({ key }) => isAiChannelCtaComplete(key, resolved[key], { siteWebUrl: "https://example.test", phone: "0612345678" })), true);
+});
+
+test("automatic CTAs never invent a destination and adapt to the current account profile", () => {
+  assert.deepEqual(resolveAiChannelCtaMap(undefined, null), {});
+  assert.deepEqual(resolveAiChannelCtaMap({}, { siteWebUrl: "javascript:alert(1)", phone: "12" }), {});
+  assert.deepEqual(resolveAiChannelCtaMap({}, { siteWebUrl: "https://user:password@example.test" }), {});
+  const withoutWebsite = resolveAiChannelCtaMap({}, { phone: "0612345678" });
+  assert.equal(Object.values(withoutWebsite).every(config => config.choice === "appeler"), true);
+  const withoutPhone = resolveAiChannelCtaMap({}, { siteWebUrl: "https://example.test" });
+  assert.equal(withoutPhone.facebook?.choice, "site");
+  assert.equal(withoutPhone.instagram?.choice, "site");
+  assert.equal(withoutPhone.tiktok?.choice, "site");
+});
+
+test("saved selections and an explicit no-CTA choice survive defaults, saving normalization and reload", () => {
+  const original = {
+    facebook: { choice: "whatsapp", mode: "custom", label: "Mon WhatsApp", url: "", phone: "0612345678" },
+    instagram: { choice: "none", mode: "none", label: "", url: "", phone: "" },
+  };
+  const serialized = JSON.stringify(original);
+  const saved = normalizeAiChannelCtaMap(original);
+  const reloaded = resolveAiChannelCtaMap(JSON.parse(JSON.stringify(saved)), { siteWebUrl: "https://example.test", phone: "0698765432" });
+  assert.equal(reloaded.facebook?.choice, "whatsapp");
+  assert.equal(reloaded.facebook?.phone, "0612345678");
+  assert.equal(reloaded.instagram?.choice, "none");
+  assert.equal(isAiChannelCtaComplete("instagram", reloaded.instagram, null), true, "A deliberate no-CTA choice must remain saveable");
+  assert.equal(countConfiguredAiChannelCtas({ instagram: reloaded.instagram }), 0);
+  assert.equal(JSON.stringify(original), serialized, "Source settings are not mutated");
+  const instructions = buildBoosterCtaGenerationInstructions({ channels: ["instagram"], channelCtas: saved, destinations: { siteWebUrl: "https://example.test", phone: "0698765432" } });
+  assert.match(instructions, /Instagram : aucun CTA configuré/);
+});
+
+test("an unfinished explicit custom CTA is not replaced with an automatic action", () => {
+  const resolved = resolveAiChannelCtaMap({ facebook: { choice: "custom", mode: "custom", label: "À terminer", url: "" } }, { siteWebUrl: "https://example.test", phone: "0612345678" });
+  assert.equal(resolved.facebook?.choice, "none");
+  assert.deepEqual(resolveAiChannelCtaMap(resolved, { siteWebUrl: "https://example.test", phone: "0612345678" }), resolved, "A second pass must not revive an incomplete explicit setting");
+  assert.equal(resolved.gmb?.choice, "site");
 });
 
 test("Booster and iNrAgent send the same saved channel CTA defaults to the AI writer", () => {

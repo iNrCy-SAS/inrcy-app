@@ -25,6 +25,7 @@ export type BoosterPost = {
   ctaMode?: BoosterCtaMode;
   ctaUrl?: string;
   ctaPhone?: string;
+  ctaAction?: string;
 };
 
 export type NormalizedScheduleSelection = {

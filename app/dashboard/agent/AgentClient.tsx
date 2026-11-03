@@ -722,6 +722,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     ctaMode: "none" as BoosterCtaMode,
     ctaUrl: "",
     ctaPhone: "",
+    ctaAction: "",
     hashtags: "",
   });
   const publishTextDraftHasForbiddenXUrl =
@@ -2085,6 +2086,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       ctaMode: normalizeAgentCtaMode(preview.ctaMode),
       ctaUrl: preview.ctaUrl || "",
       ctaPhone: preview.ctaPhone || "",
+      ctaAction: preview.ctaAction || "",
       hashtags: preview.hashtags.join(" "),
     });
     setPublishEditChoiceOpen(false);
@@ -3245,6 +3247,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       ctaMode: publishTextDraft.ctaMode,
       ctaUrl: publishTextDraft.ctaUrl,
       ctaPhone: publishTextDraft.ctaPhone,
+                  ctaAction: publishTextDraft.ctaAction,
       hashtags: publishTextDraft.hashtags.split(/[\s,;]+/).filter(Boolean),
     };
     const patch = buildPreferredCtaPatch(
@@ -3260,6 +3263,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       ctaMode: normalizeAgentCtaMode(patch.ctaMode ?? current.ctaMode),
       ctaUrl: String(patch.ctaUrl ?? current.ctaUrl ?? ""),
       ctaPhone: String(patch.ctaPhone ?? current.ctaPhone ?? ""),
+      ctaAction: String(patch.ctaAction ?? current.ctaAction ?? ""),
     }));
   }
 
@@ -3294,6 +3298,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
             ctaMode: publishTextDraft.ctaMode,
             ctaUrl: publishTextDraft.ctaUrl.trim(),
             ctaPhone: publishTextDraft.ctaPhone.trim(),
+            ctaAction: publishTextDraft.ctaAction,
             hashtags: publishTextDraft.hashtags,
           },
           options.applyToAllChannels ? preparedChannels : []
@@ -3326,6 +3331,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
           ctaMode: publishTextDraft.ctaMode,
           ctaUrl: publishTextDraft.ctaUrl.trim(),
           ctaPhone: publishTextDraft.ctaPhone.trim(),
+            ctaAction: publishTextDraft.ctaAction,
           hashtags: publishTextDraft.hashtags,
           applyToAllChannels: options.applyToAllChannels === true,
         }),
@@ -6989,6 +6995,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                   ctaMode: publishTextDraft.ctaMode,
                   ctaUrl: publishTextDraft.ctaUrl,
                   ctaPhone: publishTextDraft.ctaPhone,
+                  ctaAction: publishTextDraft.ctaAction,
                   hashtags: publishTextDraft.hashtags
                     .split(/[\s,;]+/)
                     .filter(Boolean),

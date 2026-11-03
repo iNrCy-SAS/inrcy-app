@@ -35,7 +35,7 @@ const post: BoosterPostLike = { title: "Notre atelier", content: "Découvrez not
 const image = { imageKey: "first", imageMeta: { interactions: { version: 1, items: [{ text: link.label, linkUrl: link.url }] } } };
 
 test("image CTA respects provider support and existing explicit CTAs", () => {
-  for (const channel of ["gmb", "facebook", "linkedin", "pinterest"] as BoosterChannelKey[]) {
+  for (const channel of ["gmb", "facebook", "instagram", "threads", "linkedin", "tiktok", "pinterest", "x"] as BoosterChannelKey[]) {
     const enriched = cta.applyImageInteractionCtaFallback(channel, post, link);
     assert.equal(enriched.ctaMode, "custom");
     assert.equal(enriched.ctaUrl, link.url);
@@ -46,7 +46,7 @@ test("image CTA respects provider support and existing explicit CTAs", () => {
       { ...post, ctaPhone: "+33123456789" },
     ]) assert.equal(cta.applyImageInteractionCtaFallback(channel, explicit, link), explicit);
   }
-  for (const channel of ["site_web", "inr_search", "instagram", "tiktok", "youtube_shorts", "x"] as BoosterChannelKey[]) {
+  for (const channel of ["site_web", "inr_search", "youtube_shorts"] as BoosterChannelKey[]) {
     assert.equal(cta.applyImageInteractionCtaFallback(channel, post, link), post);
   }
   assert.equal(post.ctaUrl, undefined, "shared source post must remain immutable");

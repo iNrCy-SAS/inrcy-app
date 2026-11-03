@@ -1,5 +1,6 @@
+import { getBoosterLinkCtaAction, isBoosterLinkCtaChoice, type BoosterLinkCtaChoice } from "@/lib/boosterCtaActions";
 import { BOOSTER_ASIAN_CTA_LABELS } from "@/lib/boosterAsianCtaLabels";
-import type { AiChannelCtaMap, AiCtaChannel } from "@/lib/aiChannelCtaPreferences";
+import { resolveAiChannelCtaMap, type AiChannelCtaMap, type AiCtaChannel } from "@/lib/aiChannelCtaPreferences";
 import type {
   BoosterChannelKey,
   BoosterCtaMode,
@@ -23,7 +24,8 @@ export type BoosterPreferredCta =
   | "appeler"
   | "message"
   | "whatsapp"
-  | "custom";
+  | "custom"
+  | BoosterLinkCtaChoice;
 
 export type BoosterAiLanguage =
   | "fr"
@@ -52,6 +54,7 @@ export type BoosterStructuredCtaPatch = {
   cta: string;
   ctaUrl: string;
   ctaPhone: string;
+  ctaAction?: string;
 };
 
 const PREFERRED_CTA_VALUES = new Set<BoosterPreferredCta>([
@@ -62,6 +65,10 @@ const PREFERRED_CTA_VALUES = new Set<BoosterPreferredCta>([
   "message",
   "whatsapp",
   "custom",
+  "reserver",
+  "commander",
+  "acheter",
+  "inscrire",
 ]);
 
 const PREFERRED_CTA_MODE: Record<BoosterPreferredCta, BoosterCtaMode> = {
@@ -72,6 +79,10 @@ const PREFERRED_CTA_MODE: Record<BoosterPreferredCta, BoosterCtaMode> = {
   message: "message",
   whatsapp: "custom",
   custom: "custom",
+  reserver: "website",
+  commander: "website",
+  acheter: "website",
+  inscrire: "website",
 };
 
 export function getSupportedPreferredCtasForChannel(
@@ -111,6 +122,10 @@ const CTA_LABELS_BY_LANGUAGE: Record<
 > = {
   fr: {
     none: "",
+    reserver: "Réserver",
+    commander: "Commander",
+    acheter: "Acheter",
+    inscrire: "S’inscrire",
     site: "Voir le site",
     devis: "Demander un devis",
     appeler: "Appeler",
@@ -120,6 +135,10 @@ const CTA_LABELS_BY_LANGUAGE: Record<
   },
   en: {
     none: "",
+    reserver: "Book now",
+    commander: "Order now",
+    acheter: "Shop now",
+    inscrire: "Sign up",
     site: "Visit website",
     devis: "Request a quote",
     appeler: "Call",
@@ -129,6 +148,10 @@ const CTA_LABELS_BY_LANGUAGE: Record<
   },
   es: {
     none: "",
+    reserver: "Reservar",
+    commander: "Hacer un pedido",
+    acheter: "Comprar",
+    inscrire: "Registrarse",
     site: "Ver sitio web",
     devis: "Solicitar presupuesto",
     appeler: "Llamar",
@@ -138,6 +161,10 @@ const CTA_LABELS_BY_LANGUAGE: Record<
   },
   it: {
     none: "",
+    reserver: "Prenota",
+    commander: "Ordina",
+    acheter: "Acquista",
+    inscrire: "Iscriviti",
     site: "Visita il sito",
     devis: "Richiedi un preventivo",
     appeler: "Chiama",
@@ -147,6 +174,10 @@ const CTA_LABELS_BY_LANGUAGE: Record<
   },
   de: {
     none: "",
+    reserver: "Jetzt buchen",
+    commander: "Bestellen",
+    acheter: "Einkaufen",
+    inscrire: "Registrieren",
     site: "Website ansehen",
     devis: "Angebot anfordern",
     appeler: "Anrufen",
@@ -156,6 +187,10 @@ const CTA_LABELS_BY_LANGUAGE: Record<
   },
   nl: {
     none: "",
+    reserver: "Reserveren",
+    commander: "Bestellen",
+    acheter: "Kopen",
+    inscrire: "Aanmelden",
     site: "Website bekijken",
     devis: "Offerte aanvragen",
     appeler: "Bellen",
@@ -165,6 +200,10 @@ const CTA_LABELS_BY_LANGUAGE: Record<
   },
   pt: {
     none: "",
+    reserver: "Reservar",
+    commander: "Encomendar",
+    acheter: "Comprar",
+    inscrire: "Inscrever-se",
     site: "Ver site",
     devis: "Pedir orçamento",
     appeler: "Ligar",
@@ -268,7 +307,7 @@ export function getPreferredWebsiteUrlForChannel(
 }
 
 function emptyCta(): BoosterStructuredCtaPatch {
-  return { ctaMode: "none", cta: "", ctaUrl: "", ctaPhone: "" };
+  return { ctaMode: "none", cta: "", ctaUrl: "", ctaPhone: "", ctaAction: "" };
 }
 
 function resolveUsablePreferredCtaChoice(args: {
@@ -287,6 +326,7 @@ function resolveUsablePreferredCtaChoice(args: {
     args.choice,
   );
   const hasRequiredData =
+    isBoosterLinkCtaChoice(args.choice) ? Boolean(args.customUrl) :
     args.choice === "site" || args.choice === "devis"
       ? Boolean(args.websiteUrl)
       : args.choice === "appeler"
@@ -300,6 +340,9 @@ function resolveUsablePreferredCtaChoice(args: {
   if (supported && (hasRequiredData || args.allowIncompleteInput)) {
     return args.choice;
   }
+
+  // A booking/order/shop/signup link must be supplied explicitly.
+  if (isBoosterLinkCtaChoice(args.choice)) return "none";
 
   if (
     args.websiteUrl &&
@@ -349,6 +392,10 @@ export function buildSafePreferredCtaPatch(args: {
 
   if (choice === "none") return emptyCta();
 
+  if (isBoosterLinkCtaChoice(choice)) {
+    return { ctaMode: "website", cta: getPreferredCtaLabel(choice, language), ctaUrl: customUrl, ctaPhone: "", ctaAction: getBoosterLinkCtaAction(choice) };
+  }
+
   if (choice === "site" || choice === "devis") {
     if (!websiteUrl && args.allowIncompleteInput !== true) return emptyCta();
     return {
@@ -356,6 +403,7 @@ export function buildSafePreferredCtaPatch(args: {
       cta: getPreferredCtaLabel(choice, language),
       ctaUrl: websiteUrl,
       ctaPhone: "",
+      ctaAction: "",
     };
   }
 
@@ -366,6 +414,7 @@ export function buildSafePreferredCtaPatch(args: {
         cta: getPreferredCtaLabel("appeler", language),
         ctaUrl: "",
         ctaPhone: phone,
+        ctaAction: "",
       };
     }
     if (args.allowIncompleteInput === true) {
@@ -374,6 +423,7 @@ export function buildSafePreferredCtaPatch(args: {
         cta: getPreferredCtaLabel("appeler", language),
         ctaUrl: "",
         ctaPhone: "",
+        ctaAction: "",
       };
     }
     if (!websiteUrl) return emptyCta();
@@ -382,6 +432,7 @@ export function buildSafePreferredCtaPatch(args: {
       cta: getPreferredCtaLabel("site", language),
       ctaUrl: websiteUrl,
       ctaPhone: "",
+      ctaAction: "",
     };
   }
 
@@ -392,6 +443,7 @@ export function buildSafePreferredCtaPatch(args: {
         cta: getPreferredCtaLabel("message", language),
         ctaUrl: "",
         ctaPhone: "",
+        ctaAction: "",
       };
     }
     if (!websiteUrl) return emptyCta();
@@ -400,6 +452,7 @@ export function buildSafePreferredCtaPatch(args: {
       cta: getPreferredCtaLabel("site", language),
       ctaUrl: websiteUrl,
       ctaPhone: "",
+      ctaAction: "",
     };
   }
 
@@ -415,6 +468,7 @@ export function buildSafePreferredCtaPatch(args: {
       cta: getPreferredCtaLabel("whatsapp", language),
       ctaUrl: whatsappUrl,
       ctaPhone: whatsappPhone,
+      ctaAction: "",
     };
   }
 
@@ -424,6 +478,7 @@ export function buildSafePreferredCtaPatch(args: {
     cta: cleanText(args.post?.cta),
     ctaUrl: customUrl,
     ctaPhone: "",
+    ctaAction: "",
   };
 }
 
@@ -449,11 +504,11 @@ export function applySafePreferredCta<T extends BoosterPostLike>(args: {
   defaults: BoosterCtaDefaults | null | undefined;
   preserveExplicit?: boolean;
 }): T {
-  const configured = args.defaults?.channelCtas?.[
+  const configured = resolveAiChannelCtaMap(args.defaults?.channelCtas, args.defaults)[
     args.channel as AiCtaChannel
   ];
   if (!configured) {
-    // A generated publication has no CTA unless this channel was configured.
+    // No usable destination or supported explicit setting: do not invent a CTA.
     // A saved/manual publication keeps its own CTA, including an explicit none.
     return args.preserveExplicit === false
       ? { ...args.post, ...emptyCta() }
@@ -461,6 +516,10 @@ export function applySafePreferredCta<T extends BoosterPostLike>(args: {
   }
 
   const explicitMode = cleanText(args.post.ctaMode);
+  if (args.preserveExplicit !== false && !explicitMode &&
+    (cleanText(args.post.title) || cleanText(args.post.content))) {
+    return args.post;
+  }
   if (
     args.preserveExplicit !== false &&
     explicitMode &&
@@ -476,7 +535,10 @@ export function applySafePreferredCta<T extends BoosterPostLike>(args: {
   );
   const phone = normalizeCtaPhone(configured.phone || args.defaults?.phone);
   let patch: BoosterStructuredCtaPatch = emptyCta();
-  if (choice === "site" || choice === "devis") {
+  if (isBoosterLinkCtaChoice(choice)) {
+    const url = normalizeCtaWebsiteUrl(configured.url);
+    if (url) patch = { ctaMode: "website", cta: label, ctaUrl: url, ctaPhone: "", ctaAction: getBoosterLinkCtaAction(choice) };
+  } else if (choice === "site" || choice === "devis") {
     if (websiteUrl) {
       patch = { ctaMode: "website", cta: label, ctaUrl: websiteUrl, ctaPhone: "" };
     }
@@ -497,5 +559,5 @@ export function applySafePreferredCta<T extends BoosterPostLike>(args: {
       patch = { ctaMode: "custom", cta: label, ctaUrl: customUrl, ctaPhone: "" };
     }
   }
-  return { ...args.post, ...patch };
+  return { ...args.post, ctaAction: "", ...patch };
 }

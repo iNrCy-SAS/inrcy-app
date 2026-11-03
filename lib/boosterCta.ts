@@ -11,6 +11,7 @@ import {
   sanitizeBoosterPostForStructuredCta as sanitizeStructuredCtaPost,
   sanitizeGoogleBusinessPublicationText,
 } from "@/lib/boosterPublicationSafety";
+import { getBoosterLinkCtaChoice, type BoosterLinkCtaAction } from "@/lib/boosterCtaActions";
 export {
   buildBoosterWhatsAppUrl,
   getBoosterWhatsAppPhoneFromUrl,
@@ -29,6 +30,7 @@ export type BoosterPostLike = {
   ctaMode?: string | null;
   ctaUrl?: string | null;
   ctaPhone?: string | null;
+  ctaAction?: string | null;
 };
 
 export type BoosterCtaContext = {
@@ -37,7 +39,7 @@ export type BoosterCtaContext = {
 };
 
 export type BoosterGmbCallToAction =
-  | { actionType: "LEARN_MORE"; url: string }
+  | { actionType: "LEARN_MORE" | BoosterLinkCtaAction; url: string }
   | { actionType: "CALL" }
   | null;
 
@@ -55,14 +57,13 @@ export const BOOSTER_CTA_MODES_BY_CHANNEL: Record<
   // Hors Google Business, Appeler + numéro est une invitation textuelle,
   // jamais un bouton natif créé par l'API du réseau.
   facebook: ["none", "website", "call", "message", "custom"],
-  // Instagram et TikTok ne rendent pas les URL de légende cliquables via nos API.
-  instagram: ["none", "call", "message"],
-  threads: ["none", "website", "call", "custom"],
-  linkedin: ["none", "website", "call", "custom"],
-  // X n'expose pas de bouton natif et notre intégration refuse toute URL.
-  // Seules les invitations textuelles sans lien restent proposées.
-  x: ["none", "call", "message"],
-  tiktok: ["none", "call", "message"],
+  // Caption URLs remain textual on Instagram/TikTok; no native button is promised.
+  instagram: ["none", "website", "call", "message", "custom"],
+  threads: ["none", "website", "call", "message", "custom"],
+  linkedin: ["none", "website", "call", "message", "custom"],
+  // X supports clickable URLs in the post, counted with twitter-text/t.co.
+  x: ["none", "website", "call", "message", "custom"],
+  tiktok: ["none", "website", "call", "message", "custom"],
   // Les liens sont placés dans la description YouTube.
   youtube_shorts: ["none", "website", "call", "custom"],
   // Pinterest expose un lien de destination natif sur l'épingle.
@@ -94,10 +95,15 @@ function collapseWhitespace(input: string) {
 function ensureUrl(input: string) {
   const raw = String(input || "").trim();
   if (!raw) return "";
-  if (/^https?:\/\//i.test(raw)) return raw;
-  if (/^www\./i.test(raw)) return `https://${raw}`;
-  if (/^[^\s]+\.[^\s]+/.test(raw)) return `https://${raw}`;
-  return "";
+  const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(candidate);
+    return (url.protocol === "https:" || url.protocol === "http:") &&
+      !url.username && !url.password && !/\s/u.test(raw) &&
+      (url.hostname.includes(".") || url.hostname === "localhost") ? url.toString() : "";
+  } catch {
+    return "";
+  }
 }
 
 function normalizePhone(input: string) {
@@ -153,7 +159,8 @@ export function getCtaLabel(post: Partial<BoosterPostLike> | null | undefined, m
 }
 
 export function getCtaWebsiteUrl(post: Partial<BoosterPostLike> | null | undefined, context?: BoosterCtaContext) {
-  return ensureUrl(String(post?.ctaUrl || "")) || ensureUrl(String(context?.websiteUrl || ""));
+  return ensureUrl(String(post?.ctaUrl || "")) ||
+    (getBoosterLinkCtaChoice(post?.ctaAction) ? "" : ensureUrl(String(context?.websiteUrl || "")));
 }
 
 export function getCtaPhone(post: Partial<BoosterPostLike> | null | undefined, context?: BoosterCtaContext) {
@@ -218,6 +225,9 @@ export function normalizeBoosterPostCtaForChannel(
 ): BoosterPostLike {
   const source = { ...(post || {}) };
   const requestedMode = getCtaMode(source);
+  if (requestedMode === "website" && getBoosterLinkCtaChoice(source.ctaAction) && !ensureUrl(String(source.ctaUrl || ""))) {
+    return { ...source, ctaMode: "none", cta: "", ctaUrl: "", ctaPhone: "", ctaAction: "" };
+  }
   const resolvedMode =
     requestedMode === "none"
       ? "none"
@@ -227,12 +237,13 @@ export function normalizeBoosterPostCtaForChannel(
         : getFallbackCtaModeForChannel(channel, source, context);
 
   if (resolvedMode === "none") {
-    return { ...source, ctaMode: "none", cta: "", ctaUrl: "", ctaPhone: "" };
+    return { ...source, ctaMode: "none", cta: "", ctaUrl: "", ctaPhone: "", ctaAction: "" };
   }
   if (resolvedMode === "website") {
     return {
       ...source,
       ctaMode: "website",
+      ctaAction: getBoosterLinkCtaChoice(source.ctaAction) ? source.ctaAction : "",
       cta:
         requestedMode === "website" &&
         collapseWhitespace(String(source.cta || "")) &&
@@ -247,6 +258,7 @@ export function normalizeBoosterPostCtaForChannel(
     return {
       ...source,
       ctaMode: "call",
+      ctaAction: "",
       cta:
         requestedMode === "call" &&
         collapseWhitespace(String(source.cta || "")) &&
@@ -261,6 +273,7 @@ export function normalizeBoosterPostCtaForChannel(
     return {
       ...source,
       ctaMode: "message",
+      ctaAction: "",
       cta:
         requestedMode === "message" &&
         collapseWhitespace(String(source.cta || "")) &&
@@ -271,7 +284,7 @@ export function normalizeBoosterPostCtaForChannel(
       ctaPhone: "",
     };
   }
-  return { ...source, ctaMode: "custom", ctaPhone: "" };
+  return { ...source, ctaMode: "custom", ctaPhone: "", ctaAction: "" };
 }
 
 export function getBoosterCtaDestinationUrlForChannel(
@@ -466,7 +479,9 @@ export function getBoosterGmbCallToAction(post: Partial<BoosterPostLike> | null 
   if (mode === "website") {
     const url = getCtaWebsiteUrl(channelPost, context);
     if (!url) return null;
-    return { actionType: "LEARN_MORE", url };
+    const actionType = getBoosterLinkCtaChoice(channelPost.ctaAction)
+      ? channelPost.ctaAction as BoosterLinkCtaAction : "LEARN_MORE";
+    return { actionType, url };
   }
   if (mode === "call") {
     if (!getCtaPhone(channelPost, context)) return null;

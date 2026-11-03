@@ -1263,74 +1263,6 @@ export default function AiConfigurationContent({
                   </div>
                 </div>
 
-                <div data-instruction-examples style={instructionExamplesGridStyle}>
-                  <div data-ai-instruction-tone="cyan" style={{ ...label, ...instructionPanelStyle }}>
-                    <span style={voiceFieldHeadingStyle}>
-                      <label htmlFor={`${voiceFieldIdPrefix}-liked-1`} style={labelTitle}>
-                        {configurationT("likedContent1Label")}
-                      </label>
-                      <span style={voiceFieldActionsStyle}>
-                        <MediaSubjectVoiceButton
-                          disabled={voiceDisabledFor("likedExample")}
-                          value={form.likedExample}
-                          contextLabel={configurationT("likedContent1Label")}
-                          onChange={(next) => set("likedExample", next.slice(0, 1200))}
-                          onBusyChange={(busy) => handleVoiceBusyChange("likedExample", busy)}
-                          purpose="content"
-                          placement="inline"
-                          mergeMode="paragraph"
-                          maxLength={1200}
-                        />
-                        <span style={voiceCounterStyle}>{form.likedExample.length}/1200</span>
-                      </span>
-                    </span>
-                    <textarea
-                      id={`${voiceFieldIdPrefix}-liked-1`}
-                      style={{ ...input, minHeight: workspaceMode ? 150 : 165, resize: "vertical", lineHeight: 1.45 }}
-                      value={form.likedExample}
-                      maxLength={1200}
-                      readOnly={voiceBusy}
-                      aria-busy={voiceTarget === "likedExample"}
-                      onChange={(e) => set("likedExample", e.target.value.slice(0, 1200))}
-                      placeholder={configurationT("likedContentPlaceholder")}
-                    />
-                    <span style={hint}>{configurationT("likedContentHint")}</span>
-                  </div>
-
-                  <div data-ai-instruction-tone="violet" style={{ ...label, ...instructionPanelStyle }}>
-                    <span style={voiceFieldHeadingStyle}>
-                      <label htmlFor={`${voiceFieldIdPrefix}-liked-2`} style={labelTitle}>
-                        {configurationT("likedContent2Label")}
-                      </label>
-                      <span style={voiceFieldActionsStyle}>
-                        <MediaSubjectVoiceButton
-                          disabled={voiceDisabledFor("likedExample2")}
-                          value={form.likedExample2}
-                          contextLabel={configurationT("likedContent2Label")}
-                          onChange={(next) => set("likedExample2", next.slice(0, 1200))}
-                          onBusyChange={(busy) => handleVoiceBusyChange("likedExample2", busy)}
-                          purpose="content"
-                          placement="inline"
-                          mergeMode="paragraph"
-                          maxLength={1200}
-                        />
-                        <span style={voiceCounterStyle}>{form.likedExample2.length}/1200</span>
-                      </span>
-                    </span>
-                    <textarea
-                      id={`${voiceFieldIdPrefix}-liked-2`}
-                      style={{ ...input, minHeight: workspaceMode ? 150 : 165, resize: "vertical", lineHeight: 1.45 }}
-                      value={form.likedExample2}
-                      maxLength={1200}
-                      readOnly={voiceBusy}
-                      aria-busy={voiceTarget === "likedExample2"}
-                      onChange={(e) => set("likedExample2", e.target.value.slice(0, 1200))}
-                      placeholder={configurationT("likedContentPlaceholder")}
-                    />
-                    <span style={hint}>{configurationT("likedContentHint")}</span>
-                  </div>
-                </div>
-
                 <div
                   data-custom-instructions
                   style={{
@@ -1409,6 +1341,74 @@ export default function AiConfigurationContent({
                       placeholder={configurationT("forbiddenInstructionsPlaceholder")}
                     />
                     <span style={hint}>{configurationT("forbiddenInstructionsHint")}</span>
+                  </div>
+                </div>
+
+                <div data-instruction-examples style={instructionExamplesGridStyle}>
+                  <div data-ai-instruction-tone="cyan" style={{ ...label, ...instructionPanelStyle }}>
+                    <span style={voiceFieldHeadingStyle}>
+                      <label htmlFor={`${voiceFieldIdPrefix}-liked-1`} style={labelTitle}>
+                        {configurationT("likedContent1Label")}
+                      </label>
+                      <span style={voiceFieldActionsStyle}>
+                        <MediaSubjectVoiceButton
+                          disabled={voiceDisabledFor("likedExample")}
+                          value={form.likedExample}
+                          contextLabel={configurationT("likedContent1Label")}
+                          onChange={(next) => set("likedExample", next.slice(0, 1200))}
+                          onBusyChange={(busy) => handleVoiceBusyChange("likedExample", busy)}
+                          purpose="content"
+                          placement="inline"
+                          mergeMode="paragraph"
+                          maxLength={1200}
+                        />
+                        <span style={voiceCounterStyle}>{form.likedExample.length}/1200</span>
+                      </span>
+                    </span>
+                    <textarea
+                      id={`${voiceFieldIdPrefix}-liked-1`}
+                      style={{ ...input, minHeight: workspaceMode ? 150 : 165, resize: "vertical", lineHeight: 1.45 }}
+                      value={form.likedExample}
+                      maxLength={1200}
+                      readOnly={voiceBusy}
+                      aria-busy={voiceTarget === "likedExample"}
+                      onChange={(e) => set("likedExample", e.target.value.slice(0, 1200))}
+                      placeholder={configurationT("likedContentPlaceholder")}
+                    />
+                    <span style={hint}>{configurationT("likedContentHint")}</span>
+                  </div>
+
+                  <div data-ai-instruction-tone="violet" style={{ ...label, ...instructionPanelStyle }}>
+                    <span style={voiceFieldHeadingStyle}>
+                      <label htmlFor={`${voiceFieldIdPrefix}-liked-2`} style={labelTitle}>
+                        {configurationT("likedContent2Label")}
+                      </label>
+                      <span style={voiceFieldActionsStyle}>
+                        <MediaSubjectVoiceButton
+                          disabled={voiceDisabledFor("likedExample2")}
+                          value={form.likedExample2}
+                          contextLabel={configurationT("likedContent2Label")}
+                          onChange={(next) => set("likedExample2", next.slice(0, 1200))}
+                          onBusyChange={(busy) => handleVoiceBusyChange("likedExample2", busy)}
+                          purpose="content"
+                          placement="inline"
+                          mergeMode="paragraph"
+                          maxLength={1200}
+                        />
+                        <span style={voiceCounterStyle}>{form.likedExample2.length}/1200</span>
+                      </span>
+                    </span>
+                    <textarea
+                      id={`${voiceFieldIdPrefix}-liked-2`}
+                      style={{ ...input, minHeight: workspaceMode ? 150 : 165, resize: "vertical", lineHeight: 1.45 }}
+                      value={form.likedExample2}
+                      maxLength={1200}
+                      readOnly={voiceBusy}
+                      aria-busy={voiceTarget === "likedExample2"}
+                      onChange={(e) => set("likedExample2", e.target.value.slice(0, 1200))}
+                      placeholder={configurationT("likedContentPlaceholder")}
+                    />
+                    <span style={hint}>{configurationT("likedContentHint")}</span>
                   </div>
                 </div>
               </section>

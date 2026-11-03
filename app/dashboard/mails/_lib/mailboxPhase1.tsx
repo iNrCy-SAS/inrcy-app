@@ -410,6 +410,7 @@ export type PublicationParts = {
   ctaMode?: string | null;
   ctaUrl?: string | null;
   ctaPhone?: string | null;
+  ctaAction?: string | null;
   hashtags?: string[];
   attachments?: PublicationAttachment[];
   mediaMode?: string | null;
@@ -430,6 +431,7 @@ export type PublicationEditForm = {
   ctaMode: string;
   ctaUrl: string;
   ctaPhone: string;
+  ctaAction?: string;
   hashtags: string;
 };
 
@@ -1513,6 +1515,7 @@ export function extractChannelPublications(payload: any): ChannelPublication[] {
         ctaMode: channelParts.ctaMode || fallbackParts.ctaMode || null,
         ctaUrl: channelParts.ctaUrl || fallbackParts.ctaUrl || null,
         ctaPhone: channelParts.ctaPhone || fallbackParts.ctaPhone || null,
+        ctaAction: channelParts.ctaAction ?? fallbackParts.ctaAction ?? null,
         hashtags: channelParts.hashtags?.length ? channelParts.hashtags : fallbackParts.hashtags || [],
         attachments: channelOwnsAttachments ? channelParts.attachments || [] : fallbackParts.attachments || [],
         mediaMode: channelParts.mediaMode || fallbackParts.mediaMode || null,

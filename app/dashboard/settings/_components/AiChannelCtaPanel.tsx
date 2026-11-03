@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import { useLocale } from "next-intl";
 import {
   AI_CTA_CHANNELS as ALL_AI_CTA_CHANNELS,
   isAiChannelCtaComplete,
+  resolveAiChannelCtaMap,
   type AiChannelCtaConfig,
   type AiChannelCtaDestinations,
   type AiChannelCtaMap,
@@ -13,6 +14,9 @@ import {
   type AiCtaChoice,
 } from "@/lib/aiChannelCtaPreferences";
 import { getSupportedPreferredCtasForChannel, normalizeCtaPhone } from "@/lib/boosterCtaPreferences";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
+import { isBoosterLinkCtaChoice } from "@/lib/boosterCtaActions";
 import styles from "./AiChannelCtaPanel.module.css";
 
 type Props = {
@@ -24,7 +28,7 @@ type Props = {
 const COPY = {
   fr: {
     title: "Un CTA adapté à chaque canal",
-    description: "Choisissez une action par canal. Sans réglage, aucun CTA n’est ajouté.",
+    description: "Par défaut : Voir le site sur les canaux compatibles, sinon Appeler si un numéro est renseigné. Vos choix restent prioritaires.",
     progress: "canaux configurés",
     select: "Action à proposer",
     empty: "Aucun CTA",
@@ -34,6 +38,10 @@ const COPY = {
     message: "Envoyer un message",
     whatsapp: "Écrire sur WhatsApp",
     custom: "Lien personnalisé",
+    reserver: "Réserver",
+    commander: "Commander",
+    acheter: "Acheter",
+    inscrire: "S’inscrire",
     label: "Texte du CTA",
     url: "Lien de destination · vide = site du profil",
     customUrl: "Lien personnalisé",
@@ -41,6 +49,7 @@ const COPY = {
     automatic: "Destination automatique",
     missingDestination: "Ajoutez d’abord un site ou un numéro au profil, ou renseignez-le ici.",
     configured: "Configuré",
+    default: "Par défaut",
     incomplete: "À compléter",
     notConfigured: "Sans CTA",
     native: "Bouton cliquable quand le canal le permet",
@@ -49,12 +58,18 @@ const COPY = {
     googleCall: "Google affiche un bouton Appeler avec le numéro vérifié de votre fiche, pas avec un numéro saisi uniquement ici.",
     storyCall: "Les Stories Facebook et Instagram n’affichent pas ce texte.",
     noLinks: "Les liens de légende ne sont pas cliquables sur ce canal.",
+    shortsLinks: "Les liens de description ne sont pas cliquables sur les Shorts. Ils peuvent l’être sur les vidéos YouTube classiques.",
     preview: "APERÇU DU CTA",
     settings: "RÉGLAGES DU CTA",
     previewEmpty: "Choisissez une action à gauche pour visualiser ce qui sera proposé sur ce canal.",
     previewDestination: "Destination",
     settingsEmpty: "Choisissez une action ci-dessus. Les réglages utiles apparaîtront ici, sans étape inutile.",
+    actionUrl: "Lien de l’action · à renseigner",
     choiceHints: {
+      reserver: "Lien de réservation à renseigner",
+      commander: "Lien de commande à renseigner",
+      acheter: "Lien de boutique ou de produit à renseigner",
+      inscrire: "Lien d’inscription à renseigner",
       none: "Ne rien ajouter à ce canal",
       site: "Vers le site de votre profil",
       devis: "Pour recevoir une demande de devis",
@@ -66,7 +81,7 @@ const COPY = {
   },
   en: {
     title: "A CTA for each channel",
-    description: "Choose an action per channel. Without a setting, no CTA is added.",
+    description: "Default: Visit website on compatible channels, otherwise Call when a phone number is available. Your choices take priority.",
     progress: "channels configured",
     select: "Action to offer",
     empty: "No CTA",
@@ -76,6 +91,10 @@ const COPY = {
     message: "Send a message",
     whatsapp: "Message on WhatsApp",
     custom: "Custom link",
+    reserver: "Book now",
+    commander: "Order now",
+    acheter: "Shop now",
+    inscrire: "Sign up",
     label: "CTA text",
     url: "Destination URL · blank = profile website",
     customUrl: "Custom link",
@@ -83,6 +102,7 @@ const COPY = {
     automatic: "Automatic destination",
     missingDestination: "Add a website or phone to the profile, or enter one here.",
     configured: "Configured",
+    default: "Default",
     incomplete: "Complete details",
     notConfigured: "No CTA",
     native: "Clickable button where supported",
@@ -91,12 +111,18 @@ const COPY = {
     googleCall: "Google shows a Call button using your verified Business Profile number, not a number entered only here.",
     storyCall: "Facebook and Instagram Stories do not display this text.",
     noLinks: "Caption links are not clickable on this channel.",
+    shortsLinks: "Description links are not clickable on Shorts. They can be clickable on regular YouTube videos.",
     preview: "CTA PREVIEW",
     settings: "CTA SETTINGS",
     previewEmpty: "Choose an action on the left to preview what this channel will offer.",
     previewDestination: "Destination",
     settingsEmpty: "Choose an action above. The relevant settings will appear here, with no unnecessary steps.",
+    actionUrl: "Action URL · required",
     choiceHints: {
+      reserver: "Enter your booking link",
+      commander: "Enter your ordering link",
+      acheter: "Enter your shop or product link",
+      inscrire: "Enter your signup link",
       none: "Add nothing to this channel",
       site: "To your profile website",
       devis: "Collect a quote request",
@@ -116,15 +142,23 @@ const CHOICE_ICONS: Record<AiCtaChoice | "none", string> = {
   message: "✉",
   whatsapp: "◉",
   custom: "⌁",
+  reserver: "▦",
+  commander: "☷",
+  acheter: "◇",
+  inscrire: "+",
 };
 
-const CHOICE_MODE: Record<AiCtaChoice, AiChannelCtaConfig["mode"]> = {
+const CHOICE_MODE: Record<AiCtaChoice, Exclude<AiChannelCtaConfig["mode"], "none">> = {
   site: "website",
   devis: "website",
   appeler: "call",
   message: "message",
   whatsapp: "custom",
   custom: "custom",
+  reserver: "website",
+  commander: "website",
+  acheter: "website",
+  inscrire: "website",
 };
 
 const NATIVE_CTA_CHANNELS = new Set<AiCtaChannel>(["gmb", "pinterest",  "site_web"]);
@@ -136,7 +170,7 @@ function automaticWebsite(channel: AiCtaChannel, destinations: AiChannelCtaDesti
 }
 
 export default function AiChannelCtaPanel({ value, onChange, disabled = false }: Props) {
-  const { metaPilotEnabled } = useDashboardViewerAccess();
+  const { metaPilotEnabled, actorUserId, activeAccountId } = useDashboardViewerAccess();
   const AI_CTA_CHANNELS = ALL_AI_CTA_CHANNELS.filter(({ key }) => key !== "threads" || metaPilotEnabled);
   const language = useLocale().split("-")[0];
   const copy = language === "fr" ? COPY.fr : COPY.en;
@@ -145,18 +179,37 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
   const [menuOpen, setMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const [destinations, setDestinations] = useState<AiChannelCtaDestinations | null>(null);
+  const [accountId, setAccountId] = useState(() => getActiveBrowserUserId() || activeAccountId);
+  const [loadedDestinations, setLoadedDestinations] = useState<{ actor: string; account: string; value: AiChannelCtaDestinations } | null>(null);
+  const currentAccountId = getActiveBrowserUserId() || activeAccountId;
+  const destinations = loadedDestinations?.actor === actorUserId && loadedDestinations.account === currentAccountId ? loadedDestinations.value : null;
   useEffect(() => {
+    const update = () => setAccountId(getActiveBrowserUserId() || activeAccountId);
+    update();
+    window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, update);
+    return () => window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, update);
+  }, [activeAccountId]);
+  const effectiveValue = useMemo(() => ({ ...resolveAiChannelCtaMap(value, destinations), ...value }), [value, destinations]);
+  const activeSelection = (channel: AiCtaChannel) => {
+    const selection = effectiveValue[channel];
+    return selection?.choice === "none" ? undefined : selection;
+  };
+  useEffect(() => {
+    if (!actorUserId || !accountId || (getActiveBrowserUserId() || activeAccountId) !== accountId) return;
     const controller = new AbortController();
     void fetch("/api/booster/cta-defaults", { cache: "no-store", credentials: "include", signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("cta_destinations_unavailable");
         return response.json() as Promise<AiChannelCtaDestinations>;
       })
-      .then((loaded) => setDestinations(loaded))
+      .then((loaded) => {
+        if (!controller.signal.aborted && (getActiveBrowserUserId() || activeAccountId) === accountId) {
+          setLoadedDestinations({ actor: actorUserId, account: accountId, value: loaded });
+        }
+      })
       .catch(() => undefined);
     return () => controller.abort();
-  }, []);
+  }, [actorUserId, accountId, activeAccountId]);
   useEffect(() => {
     if (!menuOpen) return;
     const closeOutside = (event: PointerEvent) => {
@@ -170,7 +223,7 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
     dropdownRef.current?.querySelector<HTMLButtonElement>('[role="option"][aria-selected="true"]')?.focus();
   }, [menuOpen, activeChannel]);
   const configuredCount = AI_CTA_CHANNELS.filter(({ key }) =>
-    isAiChannelCtaComplete(key, value[key], destinations),
+    isAiChannelCtaComplete(key, activeSelection(key), destinations),
   ).length;
   const configuredPercent = Math.round((configuredCount / AI_CTA_CHANNELS.length) * 100);
   const activeMeta = AI_CTA_CHANNELS.find(({ key }) => key === activeChannel)!;
@@ -180,13 +233,14 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
     setMenuOpen(false);
     setActiveChannel(AI_CTA_CHANNELS[nextIndex].key);
   };
-  const selected = value[activeChannel];
+  const selected = activeSelection(activeChannel);
   const complete = isAiChannelCtaComplete(activeChannel, selected, destinations);
   const choices = getSupportedPreferredCtasForChannel(activeChannel).filter((choice) => choice !== "none");
   const selectionOptions: Array<AiCtaChoice | "none"> = ["none", ...choices];
-  const needsUrl = selected?.choice === "site" || selected?.choice === "devis" || selected?.choice === "custom";
+  const specificLink = isBoosterLinkCtaChoice(selected?.choice);
+  const needsUrl = specificLink || selected?.choice === "site" || selected?.choice === "devis" || selected?.choice === "custom";
   const needsPhone = selected?.choice === "appeler" || selected?.choice === "whatsapp";
-  const automaticDestination = selected?.choice === "custom" ? "" : needsUrl
+  const automaticDestination = selected?.choice === "custom" || specificLink ? "" : needsUrl
     ? automaticWebsite(activeChannel, destinations)
     : destinations?.phone || "";
   const callPreviewPhone = selected?.choice === "appeler"
@@ -206,6 +260,8 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
         : `${copy.callText}${activeChannel === "facebook" || activeChannel === "instagram" ? ` ${copy.storyCall}` : ""}`;
     } else if (activeChannel === "instagram" || activeChannel === "tiktok") {
       capabilityText = copy.noLinks;
+    } else if (activeChannel === "youtube_shorts") {
+      capabilityText = copy.shortsLinks;
     } else {
       capabilityText = NATIVE_CTA_CHANNELS.has(activeChannel) ? copy.native : copy.text;
     }
@@ -214,9 +270,9 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
   const update = (channel: AiCtaChannel, patch: Partial<AiChannelCtaConfig> | null) => {
     const next = { ...value };
     if (patch === null) {
-      delete next[channel];
+      next[channel] = { choice: "none", mode: "none", label: "", url: "", phone: "" };
     } else {
-      next[channel] = { ...next[channel], ...patch } as AiChannelCtaConfig;
+      next[channel] = { ...effectiveValue[channel], ...patch } as AiChannelCtaConfig;
     }
     onChange(next);
   };
@@ -275,11 +331,11 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
             type="button"
             role="tab"
             aria-selected={activeChannel === key}
-            className={`${styles.channelTab} ${activeChannel === key ? styles.channelTabActive : ""} ${isAiChannelCtaComplete(key, value[key], destinations) ? styles.channelTabReady : value[key] ? styles.channelTabPending : ""}`}
+            className={`${styles.channelTab} ${activeChannel === key ? styles.channelTabActive : ""} ${isAiChannelCtaComplete(key, activeSelection(key), destinations) ? styles.channelTabReady : activeSelection(key) ? styles.channelTabPending : ""}`}
             onClick={() => { setMenuOpen(false); setActiveChannel(key); }}
           >
             <span>{label}</span>
-            <span className={`${styles.dot} ${isAiChannelCtaComplete(key, value[key], destinations) ? styles.dotReady : value[key] ? styles.dotPending : ""}`} aria-hidden />
+            <span className={`${styles.dot} ${isAiChannelCtaComplete(key, activeSelection(key), destinations) ? styles.dotReady : activeSelection(key) ? styles.dotPending : ""}`} aria-hidden />
           </button>
         ))}
       </div>
@@ -300,7 +356,7 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
             <span className={styles.cardIndex}>{String(activeIndex + 1).padStart(2, "0")}</span>
             <span className={styles.cardTitle}><small>{copy.settings}</small><strong>{activeMeta.label}</strong></span>
             <span className={`${styles.status} ${complete ? styles.ready : selected ? styles.pending : ""}`}>
-              {complete ? copy.configured : selected ? copy.incomplete : copy.notConfigured}
+              {complete ? value[activeChannel] ? copy.configured : copy.default : selected ? copy.incomplete : copy.notConfigured}
             </span>
           </div>
           <div className={styles.controls}>
@@ -363,6 +419,7 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
                     <span>{copy.label}</span>
                     <input
                       value={selected.label}
+                      placeholder={copy[selected.choice]}
                       maxLength={180}
                       disabled={disabled}
                       onChange={(event) => update(activeChannel, { label: event.target.value })}
@@ -370,11 +427,11 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
                   </label>
                   {needsUrl ? (
                     <label className={styles.field}>
-                      <span>{selected.choice === "custom" ? copy.customUrl : copy.url}</span>
+                      <span>{specificLink ? copy.actionUrl : selected.choice === "custom" ? copy.customUrl : copy.url}</span>
                       <input
                         type="url"
                         inputMode="url"
-                        placeholder={selected.choice === "custom" ? "https://…" : automaticDestination || "https://…"}
+                        placeholder={selected.choice === "custom" || specificLink ? "https://…" : automaticDestination || "https://…"}
                         value={selected.url}
                         disabled={disabled}
                         onChange={(event) => update(activeChannel, { url: event.target.value })}
@@ -398,7 +455,7 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
               ) : <p className={styles.settingsEmpty}>{copy.settingsEmpty}</p>}
               {selected && (needsUrl || needsPhone) && !(activeChannel === "gmb" && selected.choice === "appeler") ? (
                 <p className={styles.destination}>
-                  {automaticDestination ? `${copy.automatic} : ${automaticDestination}` : copy.missingDestination}
+                  {selected.url || selected.phone ? `${copy.previewDestination} : ${selected.url || selected.phone}` : automaticDestination ? `${copy.automatic} : ${automaticDestination}` : copy.missingDestination}
                 </p>
               ) : null}
               {activeChannel === "gmb" && selected?.choice === "appeler" ? (

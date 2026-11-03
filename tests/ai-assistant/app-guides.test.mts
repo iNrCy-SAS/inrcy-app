@@ -59,8 +59,9 @@ test("CTA guidance follows the real mode normalizer and never invents a profile 
   const call = { choice: "appeler", phone: "0612345678" };
   const website = { choice: "site", url: "https://business.example.com/" };
   for (const { key } of cta.AI_CTA_CHANNELS) assert.equal(cta.normalizeAiChannelCtaMap({ [key]: call })[key]?.mode, "call", key);
-  for (const channel of ["instagram", "tiktok", "x"] as const) assert.equal(cta.normalizeAiChannelCtaMap({ [channel]: website })[channel], undefined);
-  for (const channel of ["site_web", "gmb", "facebook", "threads", "linkedin", "youtube_shorts", "pinterest"] as const) assert.equal(cta.normalizeAiChannelCtaMap({ [channel]: website })[channel]?.mode, "website");
+  for (const { key } of cta.AI_CTA_CHANNELS) assert.equal(cta.normalizeAiChannelCtaMap({ [key]: website })[key]?.mode, "website", key);
+  assert.match(guide.content, /Réserver, Commander, Acheter et S’inscrire exigent un lien explicite/);
+  assert.match(guide.content, /X accepte les liens HTTP\(S\)/);
   assert.match(guide.content, /Ne dites pas que Facebook, Instagram ou LinkedIn interdisent ce mode/);
   assert.match(guide.content, /Appeler Google utilise le numéro de sa fiche Google/);
   assert.match(guide.content, /futurs contenus.*jamais les publications ou brouillons existants/);

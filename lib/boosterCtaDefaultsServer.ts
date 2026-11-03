@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { normalizeAiChannelCtaMap } from "@/lib/aiChannelCtaPreferences";
+import { resolveAiChannelCtaMap } from "@/lib/aiChannelCtaPreferences";
 import {
   normalizeBoosterAiLanguage,
   normalizeBoosterPreferredCta,
@@ -40,17 +40,18 @@ export async function loadBoosterCtaDefaults(args: {
   const youtubeDefaults = asRecord(asRecord(proSettings.youtube_shorts).defaults);
   const siteWebUrl = (asString(siteWeb.url) || "").trim();
   const preferredWebsiteUrl = siteWebUrl;
+  const phone = (asString(profile.phone) || "").trim();
 
   return {
     preferredWebsiteUrl,
     preferredWebsiteLabel: siteWebUrl ? "Site web connecté" : "",
     siteWebUrl,
-    phone: (asString(profile.phone) || "").trim(),
+    phone,
     preferredCta: normalizeBoosterPreferredCta(
       asString(businessProfile.preferred_cta) || "devis",
     ),
     aiLanguage: normalizeBoosterAiLanguage(businessProfile.ai_language),
-    channelCtas: normalizeAiChannelCtaMap(businessProfile.ai_channel_ctas),
+    channelCtas: resolveAiChannelCtaMap(businessProfile.ai_channel_ctas, { preferredWebsiteUrl, siteWebUrl, phone }),
     youtubeAutoHashtags: youtubeDefaults.autoHashtags !== false,
   };
 }

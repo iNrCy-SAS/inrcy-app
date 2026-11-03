@@ -25,7 +25,8 @@ import {
 } from "@/lib/boosterPrompt";
 import { normalizeBoosterStructuredResponse } from "@/lib/boosterStructuredResponseNormalization";
 import { buildBoosterCtaGenerationInstructions } from "@/lib/boosterCtaGenerationInstructions";
-import type { BoosterCtaDefaults } from "@/lib/boosterCtaPreferences";
+import { applySafePreferredCta, type BoosterCtaDefaults } from "@/lib/boosterCtaPreferences";
+import { buildBoosterMessage, buildBoosterHashtagLine } from "@/lib/boosterCta";
 import { sanitizeGmbGeneratedPost } from "@/lib/googleBusinessCompliance";
 import { getAiEngineTemperature, getAiLanguageLabel } from "@/lib/aiWritingProfile";
 import { prepareMediaForSelectedWriter } from "@/lib/aiMediaUnderstanding";
@@ -72,6 +73,7 @@ export type ChannelPost = {
   ctaMode?: "none" | "website" | "call" | "message" | "custom";
   ctaUrl?: string;
   ctaPhone?: string;
+  ctaAction?: string;
   hashtags: string[];
 };
 
@@ -440,6 +442,10 @@ function trimXGeneratedField(value: string, maxWeightedLength: number) {
 }
 
 function renderGeneratedXPost(post: ChannelPost) {
+  if (post.ctaMode) {
+    const message = buildBoosterMessage("x", post);
+    return [message, buildBoosterHashtagLine(post, message, 2)].filter(Boolean).join("\n\n");
+  }
   const hashtagLine = post.hashtags
     .map((tag) => `#${String(tag || "").replace(/^#+/, "")}`)
     .filter((tag) => tag.length > 1)
@@ -1987,6 +1993,14 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
     aiFallbackStage: aiFallback?.stage,
     aiFallbackModel: aiFallback?.finalModel,
   });
+
+  // Fit only generated copy, with the actual configured CTA and t.co-weighted
+  // URL included. Manual edits remain subject to the publisher's strict limit.
+  if (safeVersions.x && args.ctaDefaults) {
+    safeVersions.x = fitGeneratedXContent(applySafePreferredCta({
+      channel: "x", post: safeVersions.x, defaults: args.ctaDefaults, preserveExplicit: false,
+    }));
+  }
 
   return {
     versions: safeVersions,

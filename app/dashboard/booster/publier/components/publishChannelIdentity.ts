@@ -15,3 +15,20 @@ export const PUBLISH_CHANNEL_IDENTITY: Record<ChannelKey, {
   pinterest: { icon: "/icons/pinterest-logo-128.png", color: "#c09aff", rgb: "192,154,255", gradient: "linear-gradient(135deg,#9472d8,#d8baff)" },
   x: { icon: "/icons/x.svg", color: "#8eaccc", rgb: "142,172,204", gradient: "linear-gradient(135deg,#41536d,#91aac7)" },
 };
+
+const prewarmedChannelIcons = new Map<string, HTMLImageElement>();
+
+/** Prepare and retain the real brand images before the publication editor opens. */
+export function prewarmPublishChannelIcons(): void {
+  if (typeof Image === "undefined") return;
+  for (const { icon } of Object.values(PUBLISH_CHANNEL_IDENTITY)) {
+    if (prewarmedChannelIcons.has(icon)) continue;
+    const image = new Image();
+    prewarmedChannelIcons.set(icon, image);
+    image.decoding = "async";
+    image.fetchPriority = "low";
+    image.onerror = () => { if (prewarmedChannelIcons.get(icon) === image) prewarmedChannelIcons.delete(icon); };
+    image.src = icon;
+    if (typeof image.decode === "function") void image.decode().catch(() => undefined);
+  }
+}

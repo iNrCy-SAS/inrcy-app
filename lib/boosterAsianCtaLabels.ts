@@ -1,6 +1,10 @@
 export const BOOSTER_ASIAN_CTA_LABELS = {
   th: {
     none: "",
+    reserver: "จองเลย",
+    commander: "สั่งซื้อ",
+    acheter: "ซื้อสินค้า",
+    inscrire: "ลงทะเบียน",
     site: "เยี่ยมชมเว็บไซต์",
     devis: "ขอใบเสนอราคา",
     appeler: "โทร",
@@ -10,6 +14,10 @@ export const BOOSTER_ASIAN_CTA_LABELS = {
   },
   zh: {
     none: "",
+    reserver: "立即预约",
+    commander: "立即订购",
+    acheter: "立即购买",
+    inscrire: "注册",
     site: "访问网站",
     devis: "索取报价",
     appeler: "致电",

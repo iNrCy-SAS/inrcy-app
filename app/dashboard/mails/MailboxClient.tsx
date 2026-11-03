@@ -1419,6 +1419,7 @@ export default function MailboxClient({
               : "none"),
       ctaUrl: parts.ctaUrl || "",
       ctaPhone: parts.ctaPhone || "",
+      ctaAction: parts.ctaAction || "",
       hashtags: tagsToEditorString(parts.hashtags),
     });
   }, [
@@ -3387,6 +3388,7 @@ export default function MailboxClient({
             ctaMode: publicationEditForm.ctaMode,
             ctaUrl: publicationEditForm.ctaUrl,
             ctaPhone: publicationEditForm.ctaPhone,
+            ctaAction: publicationEditForm.ctaAction || "",
             hashtags,
             externalId:
               (activeDetailsChannelResult as any)?.external_id || null,

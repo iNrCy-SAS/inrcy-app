@@ -17,10 +17,10 @@ test("each publication channel has an explicit CTA capability policy", () => {
   assert.match(cta, /inr_search: \["none"\]/);
   assert.match(cta, /gmb: \["none", "website", "call", "custom"\]/);
   assert.match(cta, /facebook: \["none", "website", "call", "message", "custom"\]/);
-  assert.match(cta, /instagram: \["none", "call", "message"\]/);
-  assert.match(cta, /linkedin: \["none", "website", "call", "custom"\]/);
-  assert.match(cta, /x: \["none", "call", "message"\]/);
-  assert.match(cta, /tiktok: \["none", "call", "message"\]/);
+  assert.match(cta, /instagram: \["none", "website", "call", "message", "custom"\]/);
+  assert.match(cta, /linkedin: \["none", "website", "call", "message", "custom"\]/);
+  assert.match(cta, /x: \["none", "website", "call", "message", "custom"\]/);
+  assert.match(cta, /tiktok: \["none", "website", "call", "message", "custom"\]/);
   assert.match(cta, /youtube_shorts: \["none", "website", "call", "custom"\]/);
   assert.match(cta, /pinterest: \["none", "website", "call", "custom"\]/);
 });
@@ -183,8 +183,8 @@ test("channel CTA settings reach Booster and iNrAgent without reviving the legac
   const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
 
   assert.match(defaults, /\.select\("preferred_cta,ai_language,ai_channel_ctas,updated_at"\)/);
-  assert.match(defaults, /channelCtas: normalizeAiChannelCtaMap\(businessProfile\.ai_channel_ctas\)/);
-  assert.match(preferences, /const configured = args\.defaults\?\.channelCtas\?/);
+  assert.match(defaults, /channelCtas: resolveAiChannelCtaMap\(businessProfile\.ai_channel_ctas, \{ preferredWebsiteUrl, siteWebUrl, phone \}\)/);
+  assert.match(preferences, /const configured = resolveAiChannelCtaMap\(args\.defaults\?\.channelCtas, args\.defaults\)/);
   assert.match(preferences, /args\.preserveExplicit === false\s*\? \{ \.\.\.args\.post, \.\.\.emptyCta\(\) \}/);
   assert.doesNotMatch(preferences.slice(preferences.indexOf("export function applySafePreferredCta")), /choice: args\.defaults\?\.preferredCta/);
   assert.match(preferences, /choice === "site" \|\| choice === "devis"/);

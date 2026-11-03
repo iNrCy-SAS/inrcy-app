@@ -20,6 +20,7 @@ export type ChannelPost = {
   ctaMode?: BoosterCtaMode;
   ctaUrl?: string;
   ctaPhone?: string;
+  ctaAction?: string;
 };
 
 export type ImageBankAsset = {

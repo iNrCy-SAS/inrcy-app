@@ -4733,7 +4733,7 @@ export default function PublishModal({
                   `Post X : ${xTextMetrics.weightedLength}/${X_POST_WEIGHTED_LENGTH_MAX} caractères pondérés.`,
                   ...(xGifCount > 0 ? ["GIF X : publié seul, conformément aux règles du canal."] : []),
                   ...(post.ctaMode && post.ctaMode !== "none"
-                    ? ["X n’affiche pas de bouton natif : le CTA sans lien est intégré au texte du post."]
+                    ? ["X n’affiche pas de bouton natif : le CTA et son éventuel lien sont intégrés au texte du post."]
                     : []),
                 ]
               : [],

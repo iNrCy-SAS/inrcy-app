@@ -7,6 +7,7 @@ import ts from "typescript";
 import type * as Generation from "../../lib/boosterPublishGeneration.ts";
 import type * as Editor from "../../app/dashboard/booster/publier/publishModal.foundations.ts";
 import type * as Cta from "../../lib/boosterCta.ts";
+import type { BoosterCtaDefaults } from "../../lib/boosterCtaPreferences.ts";
 import { getXPostTextMetrics } from "../../lib/xChannel.ts";
 
 type Json = Record<string, unknown>;
@@ -74,9 +75,9 @@ function runtime(providerPost: Generation.ChannelPost) {
   const cta = load("lib/boosterCta.ts") as typeof Cta;
   return {
     calls, editor, cta,
-    generate: (publicationInstruction?: string) => generation.generateSharedBoosterPosts({
+    generate: (publicationInstruction?: string, ctaDefaults?: BoosterCtaDefaults) => generation.generateSharedBoosterPosts({
       idea, publicationInstruction, theme: "conseil", channels: ["x"],
-      preferredEngine: "openai", profile: {}, business: {},
+      preferredEngine: "openai", profile: {}, business: {}, ctaDefaults,
     }),
   };
 }
@@ -94,6 +95,18 @@ test("X keeps both generated hashtags through the editor and the final publicati
   const text = h.cta.buildBoosterXPostText(edited);
   assert.match(text, /#Projet #Conseil/);
   assert.equal(getXPostTextMetrics(text).valid, true);
+});
+
+test("X generation budgets the real CTA URL before the editor and publisher receive the copy", async () => {
+  const h = runtime({ ...post, content: `${post.content} Chaque étape est préparée avec vous pour avancer sereinement dans votre projet.` });
+  const result = await h.generate(undefined, { preferredWebsiteUrl: "https://business.example/une-destination-tres-longue-qui-compte-pour-23-caracteres", siteWebUrl: "", preferredWebsiteLabel: "", phone: "", preferredCta: "site", channelCtas: {} });
+  const prepared = result.versions.x!;
+  assert.equal(prepared.ctaMode, "website");
+  assert.match(prepared.ctaUrl || "", /^https:\/\/business\.example\//);
+  const published = h.cta.buildBoosterXPostText(h.editor.sanitizePostsForEditor({ x: prepared }).x);
+  assert.ok(published.includes(prepared.ctaUrl!));
+  assert.equal(getXPostTextMetrics(published).valid, true);
+  assert.equal(h.calls.length, 1, "Fitting the configured URL is local and must not trigger another paid generation");
 });
 
 test("an explicit no-hashtags instruction reaches X generation and its empty result stays empty", async () => {

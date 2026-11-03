@@ -1,3 +1,4 @@
+import { getBoosterLinkCtaChoice } from "@/lib/boosterCtaActions";
 import "server-only";
 
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
@@ -245,6 +246,7 @@ export function normalizePost(raw: unknown, fallback?: BoosterPost): BoosterPost
     ...(ctaMode ? { ctaMode } : {}),
     ...(ctaUrl ? { ctaUrl } : {}),
     ...(ctaPhone ? { ctaPhone } : {}),
+    ...(getBoosterLinkCtaChoice(record.ctaAction ?? fallback?.ctaAction) ? { ctaAction: String(record.ctaAction ?? fallback?.ctaAction) } : {}),
   };
 }
 
@@ -262,6 +264,7 @@ export function ensurePublishablePost(
     ...(post.ctaMode ? { ctaMode: post.ctaMode } : {}),
     ...(post.ctaUrl ? { ctaUrl: post.ctaUrl } : {}),
     ...(post.ctaPhone ? { ctaPhone: post.ctaPhone } : {}),
+    ...(post.ctaAction ? { ctaAction: post.ctaAction } : {}),
   };
 }
 

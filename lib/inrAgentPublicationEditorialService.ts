@@ -39,7 +39,7 @@ export async function generateBoosterPosts(args: {
       )}`
     : "";
   const xUrlInstruction = args.channels.includes("x")
-    ? "\nRÈGLE ABSOLUE POUR X : n'écris aucun lien ni aucune URL dans le titre, le contenu, les hashtags ou le CTA. N'écris pas non plus de domaine nu, de lien raccourci ou d'adresse commençant par www. Invite à contacter l'entreprise sans ajouter de lien."
+    ? "\nRÈGLE POUR X : respecte le CTA configuré. Les liens HTTP(S) fournis sont autorisés ; n’invente aucune destination et réserve leur place dans les 280 caractères pondérés (23 caractères par URL)."
     : "";
   const { versions, recoveredChannels } = await generateSharedBoosterPosts({
     idea: args.idea,

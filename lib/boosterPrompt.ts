@@ -188,7 +188,7 @@ const CHANNEL_COMPACT_CONTRACTS: Record<BoosterChannels, string> = {
   linkedin:
     "LinkedIn professionnel, humain et crédible. Titre 45–120. Expertise, méthode, recul ou retour terrain. Peu d’emojis, pas de ton vendeur artificiel.",
   x:
-    "X direct, clair et conversationnel. Le post final complet (titre, contenu, CTA et hashtags) doit rester sous 280 caractères pondérés. Titre bref de 20–45 caractères, puis un content réellement développé en 2 à 3 phrases complémentaires : contexte concret, idée utile et conclusion naturelle. Utilise intelligemment l'espace disponible sans remplissage. CTA bref et facultatif. Ajoute par défaut 1 à 2 hashtags pertinents, directement liés au sujet, exclusivement dans le tableau hashtags et prévois leur place dans la limite totale. Si une consigne explicite demande de ne pas ajouter de hashtags, respecte-la et renvoie hashtags: []. RÈGLE ABSOLUE : aucune URL ni aucun lien dans title, content, cta ou hashtags, même si le contexte ou la consigne en fournit. Ne propose jamais de CTA Site, Lien personnalisé ou WhatsApp ; seuls Aucun CTA, Appeler et Envoyer un message sont autorisés.",
+    "X direct, clair et conversationnel. Le post final complet (titre, contenu, CTA et hashtags) doit rester sous 280 caractères pondérés. Titre bref de 20–45 caractères, puis un content réellement développé en 2 à 3 phrases complémentaires : contexte concret, idée utile et conclusion naturelle. Utilise intelligemment l'espace disponible sans remplissage. CTA bref et facultatif. Ajoute par défaut 1 à 2 hashtags pertinents, directement liés au sujet, exclusivement dans le tableau hashtags et prévois leur place dans la limite totale. Si une consigne explicite demande de ne pas ajouter de hashtags, respecte-la et renvoie hashtags: []. Les liens HTTP(S) fournis par le pro sont autorisés et comptent chacun pour 23 caractères pondérés. Le CTA configuré est appliqué séparément avec sa destination : réserve sa place, sans inventer de lien ni recopier sa destination dans content.",
   tiktok:
     "TikTok direct, vivant et concret. Titre 30–70. Pensé pour accompagner vidéo/photos. Hashtags ciblés si utiles. Éviter le ton institutionnel.",
   youtube_shorts:
@@ -495,7 +495,7 @@ export function boosterUserPrompt(args: {
       ? "- Google Business : reste strictement factuel et sans coordonnées, URL, hashtag ni promotion agressive ; CTA neutre seulement si utile."
       : "",
     channelSet.has("x")
-      ? "- X — RÈGLE TECHNIQUE PRIORITAIRE : ne recopie et ne génère aucun lien ni aucune URL dans title, content, cta ou hashtags, même si la phrase libre, la consigne, le profil ou un média en contient. N'utilise jamais de CTA Site, Lien personnalisé ou WhatsApp pour X ; utilise seulement Aucun CTA, Appeler ou Envoyer un message."
+      ? "- X — RÈGLE TECHNIQUE PRIORITAIRE : respecte le CTA configuré et réserve la place de son libellé et de son lien dans les 280 caractères pondérés (23 caractères par URL). Les liens HTTP(S) fournis sont acceptés ; n’invente aucune destination."
       : "",
     channelSet.has("site_web") || channelSet.has("inr_search")
       ? "- Canaux site : zéro emoji ; SEO local naturel uniquement avec les faits réellement fournis."

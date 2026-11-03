@@ -34,14 +34,14 @@ test("Booster exposes X as one canonical channel alongside every existing channe
   assert.match(selector, /x:\s*"\/icons\/x\.svg"/);
 });
 
-test("X proposes only URL-free CTA choices", () => {
+test("X offers website and custom CTA links without promising native buttons", () => {
   const cta = read("lib/boosterCta.ts");
   const shared = read("app/dashboard/booster/publier/publishModal.shared.tsx");
   assert.match(
     cta,
-    /x:\s*\["none", "call", "message"\]/,
+    /x:\s*\["none", "website", "call", "message", "custom"\]/,
   );
-  assert.doesNotMatch(
+  assert.match(
     cta,
     /x:\s*\[[^\]]*"(?:website|custom)"/,
   );
@@ -53,8 +53,8 @@ test("X proposes only URL-free CTA choices", () => {
     cta,
     /case "call":[\s\S]*?joinCtaLabelAndValue\(label, phone/,
   );
-  assert.match(shared, /WhatsApp n’est pas proposé sur X/);
-  assert.match(shared, /Les CTA avec lien ne sont pas proposés sur X/);
+  assert.match(shared, /Le lien WhatsApp sera ajouté au texte du post X/);
+  assert.match(shared, /Le lien sera ajouté au post X et comptera/);
 });
 
 test("Booster keeps forbidden X URLs visible and blocks only X", () => {
@@ -81,9 +81,10 @@ test("Booster keeps forbidden X URLs visible and blocks only X", () => {
   );
   assert.match(editor, /data-x-url-blocker="true"/);
   assert.match(editor, /Retirer le lien du CTA/);
-  assert.match(editor, /X est bloqué : retirez le lien détecté/);
+  assert.match(editor, /X est bloqué : corrigez le format de lien détecté/);
   assert.match(prompt, /X — RÈGLE TECHNIQUE PRIORITAIRE/);
-  assert.match(prompt, /ne recopie et ne génère aucun lien ni aucune URL/);
+  assert.match(prompt, /Les liens HTTP\(S\) fournis sont acceptés/);
+  assert.doesNotMatch(prompt, /Ne propose jamais de CTA Site/);
   assert.match(prompt, /2 à 3 phrases complémentaires/);
   assert.match(prompt, /1 à 2 hashtags pertinents/);
   assert.match(prompt, /consigne explicite demande de ne pas ajouter de hashtags/);

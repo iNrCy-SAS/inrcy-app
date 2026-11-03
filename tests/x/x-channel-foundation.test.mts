@@ -37,30 +37,17 @@ test("X text validation uses the official weighted counter", () => {
   assert.equal(tooLong.code, "x_text_too_long");
 });
 
-test("X refuses explicit, bare, IDN, shortened and disguised URLs", () => {
-  const forbidden = [
-    "https://example.com/offre",
-    "HTTP://EXAMPLE.FR",
-    "www.example.com",
-    "example.fr",
-    "example.photography",
-    "bit.ly/offre",
-    "https://xn--caf-dma.fr",
-    "café.fr",
-    "例子.中国",
-    "example[.]com",
-    "example (dot) com",
-    "example point fr",
-    "hxxps[:]//example.com",
-    "w w w dot example dot com",
-    "https://exa\u200Bmple.com",
-    "192.168.1.1",
-    "tel:+33622082179",
-  ];
-  for (const value of forbidden) {
+test("X accepts website, bare, IDN and shortened HTTP links", () => {
+  for (const value of ["https://example.com/offre", "HTTP://EXAMPLE.FR", "www.example.com", "example.fr", "bit.ly/offre", "https://xn--caf-dma.fr", "café.fr", "例子.中国"]) {
+    assert.equal(findForbiddenXUrl(value), null, value);
+    assert.equal(validateXUrlFreeText(value).valid, true, value);
+    assert.equal(validateXPostText(value).valid, true, value);
+  }
+});
+
+test("X rejects unsupported schemes before publishing, including invisible-character disguises", () => {
+  for (const value of ["javascript:alert(1)", "data:text/html,danger", "file:///private", "ftp://example.com", "tel:+33622082179", "mailto:contact@example.com", "java\u200Bscript:alert(1)"]) {
     assert.equal(containsForbiddenXUrl(value), true, value);
-    assert.ok(findForbiddenXUrl(value), value);
-    assert.equal(validateXUrlFreeText(value).code, "x_url_forbidden", value);
     assert.equal(validateXPostText(value).code, "x_url_forbidden", value);
   }
 });

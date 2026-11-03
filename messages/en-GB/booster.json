@@ -926,5 +926,9 @@
   "publication_music_preview_choose": "Choose a track to preview it.",
   "publication_reel_duration_hint": "Reel: {duration} s in total ({secondsPerImage} s per image, including transitions)",
   "publication_story_duration_hint": "Story: {secondsPerImage} s per image",
-  "publication_music_previous": "Previous selection"
+  "publication_music_previous": "Previous selection",
+  "cta_action_reserver": "Book now",
+  "cta_action_commander": "Order now",
+  "cta_action_acheter": "Shop now",
+  "cta_action_inscrire": "Sign up"
 }

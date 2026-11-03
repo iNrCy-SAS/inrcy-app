@@ -1,3 +1,4 @@
+import { getBoosterLinkCtaChoice } from "@/lib/boosterCtaActions";
 import { restoreInrAgentPublicationReview, PublicationRefusalRestoreError } from "@/lib/inrAgentPublicationRefusalServer";
 import { refuseUnvalidatedInrAgentPublication, UnvalidatedPublicationRefusalError } from "@/lib/inrAgentUnvalidatedPublicationRefusal";
 import { isInrAgentActionId } from "@/lib/inrAgentActionId";
@@ -1237,6 +1238,7 @@ export async function PATCH(request: Request) {
     ctaMode?: unknown;
     ctaUrl?: unknown;
     ctaPhone?: unknown;
+    ctaAction?: unknown;
     hashtags?: unknown;
     media?: unknown;
     removeMedia?: unknown;
@@ -2206,6 +2208,7 @@ export async function PATCH(request: Request) {
         ctaMode,
         ctaUrl,
         ctaPhone,
+        ctaAction: getBoosterLinkCtaChoice(requestBody?.ctaAction) ? String(requestBody?.ctaAction) : "",
         hashtags,
         editedByUser: true,
         editedAt,

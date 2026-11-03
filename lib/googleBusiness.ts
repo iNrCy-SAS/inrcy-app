@@ -1,3 +1,4 @@
+import { getBoosterLinkCtaChoice, type BoosterLinkCtaAction } from "@/lib/boosterCtaActions";
 import { listAllGoogleBusinessAccounts, listAllGoogleBusinessLocations } from "@/lib/googleBusinessLocations";
 import { getGoogleTokenForAnyGoogle } from "@/lib/googleStats";
 import { postGoogleBusinessLocalPost } from "@/lib/googleBusinessPostTransport";
@@ -335,7 +336,7 @@ export async function gmbCreateLocalPost(args: {
   videoUrls?: string[];
   languageCode?: string; // default fr-FR
   callToAction?:
-    | { actionType: "LEARN_MORE"; url: string }
+    | { actionType: "LEARN_MORE" | BoosterLinkCtaAction; url: string }
     | { actionType: "CALL" }
     | null;
 }) {
@@ -365,7 +366,7 @@ export async function gmbCreateLocalPost(args: {
 
   if (args.callToAction?.actionType === "CALL") {
     payload.callToAction = { actionType: "CALL" };
-  } else if (args.callToAction?.actionType === "LEARN_MORE" && args.callToAction.url) {
+  } else if (args.callToAction && (args.callToAction.actionType === "LEARN_MORE" || getBoosterLinkCtaChoice(args.callToAction.actionType)) && args.callToAction.url) {
     payload.callToAction = args.callToAction;
   }
 
@@ -428,7 +429,7 @@ export async function gmbPatchLocalPost(args: {
   summary: string;
   languageCode?: string;
   callToAction?:
-    | { actionType: "LEARN_MORE"; url: string }
+    | { actionType: "LEARN_MORE" | BoosterLinkCtaAction; url: string }
     | { actionType: "CALL" }
     | null;
 }) {
@@ -445,7 +446,7 @@ export async function gmbPatchLocalPost(args: {
   };
   if (args.callToAction?.actionType === "CALL") {
     payload.callToAction = { actionType: "CALL" };
-  } else if (args.callToAction?.actionType === "LEARN_MORE" && args.callToAction.url) {
+  } else if (args.callToAction && (args.callToAction.actionType === "LEARN_MORE" || getBoosterLinkCtaChoice(args.callToAction.actionType)) && args.callToAction.url) {
     payload.callToAction = args.callToAction;
   }
 

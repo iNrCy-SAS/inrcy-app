@@ -1,3 +1,4 @@
+import { getBoosterLinkCtaChoice, type BoosterLinkCtaChoice } from "@/lib/boosterCtaActions";
 import type { CSSProperties } from "react";
 import type { ImageOverlay } from "@/lib/imageOverlay";
 import {
@@ -131,6 +132,7 @@ export type ChannelPost = {
   ctaMode?: BoosterCtaMode;
   ctaUrl?: string;
   ctaPhone?: string;
+  ctaAction?: string;
   hashtags?: string[];
 };
 
@@ -141,7 +143,8 @@ export type BoosterPreferredCta =
   | "appeler"
   | "message"
   | "whatsapp"
-  | "custom";
+  | "custom"
+  | BoosterLinkCtaChoice;
 
 export type BoosterAiLanguage = "fr" | "en" | "es" | "it" | "de" | "nl" | "pt" | "th" | "zh";
 
@@ -167,6 +170,10 @@ export const BOOSTER_PREFERRED_CTA_OPTIONS: Array<{
   { value: "message", label: "Envoyer un message" },
   { value: "whatsapp", label: "Écrire sur WhatsApp" },
   { value: "custom", label: "Lien personnalisé" },
+  { value: "reserver", label: "Réserver" },
+  { value: "commander", label: "Commander" },
+  { value: "acheter", label: "Acheter" },
+  { value: "inscrire", label: "S’inscrire" },
 ];
 
 export function getPreferredCtaOptionsForChannel(channel: DisplayKey) {
@@ -184,6 +191,10 @@ const BOOSTER_PREFERRED_CTA_MESSAGE_KEYS = {
   message: "envoyer_un_message_c211810b",
   whatsapp: "whatsapp_cta_label",
   custom: "lien_personnalise_d1d21cea",
+  reserver: "cta_action_reserver",
+  commander: "cta_action_commander",
+  acheter: "cta_action_acheter",
+  inscrire: "cta_action_inscrire",
 } as const satisfies Record<BoosterPreferredCta, string>;
 
 export function getLocalizedPreferredCtaLabel(
@@ -253,6 +264,7 @@ export function getPreferredCtaChoiceFromPost(
   }
   let choice: BoosterPreferredCta = "devis";
   if (mode === "none") choice = "none";
+  else if (mode === "website" && getBoosterLinkCtaChoice(normalized.ctaAction)) choice = getBoosterLinkCtaChoice(normalized.ctaAction)!;
   else if (mode === "call") choice = "appeler";
   else if (mode === "message") choice = "message";
   else if (mode === "custom") {
@@ -1332,13 +1344,13 @@ export function getCtaModeHelp(
     if (["instagram", "tiktok", "youtube_shorts"].includes(channel))
       return "Le lien WhatsApp sera ajouté à la légende. Selon le réseau, il peut être affiché comme texte non cliquable.";
     if (channel === "x")
-      return "WhatsApp n’est pas proposé sur X, car les liens y sont interdits par iNrCy.";
+      return "Le lien WhatsApp sera ajouté au texte du post X.";
     return "Un lien WhatsApp sécurisé sera ajouté à la publication.";
   }
   if (mode === "none") return "Aucun bouton ne sera ajouté à la fin du texte.";
   if (channel === "x") {
     if (mode === "website" || mode === "custom")
-      return "Les CTA avec lien ne sont pas proposés sur X.";
+      return "Le lien sera ajouté au post X et comptera dans sa limite de 280 caractères pondérés.";
     if (mode === "call")
       return "X n’affiche pas de bouton natif : le libellé et le numéro seront ajoutés proprement dans le texte du post.";
     return "Une phrase naturelle d’invitation au message privé sera ajoutée au texte du post.";
@@ -1371,13 +1383,13 @@ export function getLocalizedCtaModeHelp(
       return translate("cta_help_whatsapp_caption");
     }
     if (channel === "x")
-      return "WhatsApp n’est pas proposé sur X, car les liens y sont interdits par iNrCy.";
+      return "Le lien WhatsApp sera ajouté au texte du post X.";
     return translate("cta_help_whatsapp");
   }
   if (mode === "none") return translate("cta_help_none");
   if (channel === "x") {
     if (mode === "website" || mode === "custom")
-      return "Les CTA avec lien ne sont pas proposés sur X.";
+      return "Le lien sera ajouté au post X et comptera dans sa limite de 280 caractères pondérés.";
     if (mode === "call")
       return "X n’affiche pas de bouton natif : le libellé et le numéro seront ajoutés proprement dans le texte du post.";
     return "Une phrase naturelle d’invitation au message privé sera ajoutée au texte du post.";

@@ -1256,6 +1256,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
       ctaMode: publicationEditForm.ctaMode || "none",
       ctaUrl: publicationEditForm.ctaUrl || "",
       ctaPhone: publicationEditForm.ctaPhone || "",
+      ctaAction: publicationEditForm.ctaAction || "",
       hashtags: [],
     } as ChannelPost;
     const patch = buildPreferredCtaPatch(publicationDisplayKey, choice, current, publicationCtaDefaults, publicationCtaDefaults?.aiLanguage);
@@ -1264,8 +1265,9 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
       ...(typeof patch.cta === "string" ? { cta: patch.cta } : {}),
       ...(typeof patch.ctaUrl === "string" ? { ctaUrl: patch.ctaUrl } : {}),
       ...(typeof patch.ctaPhone === "string" ? { ctaPhone: patch.ctaPhone } : {}),
+      ...(typeof patch.ctaAction === "string" ? { ctaAction: patch.ctaAction } : {}),
     });
-  }, [publicationCtaDefaults, publicationDisplayKey, publicationEditForm.content, publicationEditForm.cta, publicationEditForm.ctaMode, publicationEditForm.ctaPhone, publicationEditForm.ctaUrl, publicationEditForm.title, updatePublicationEdit]);
+  }, [publicationCtaDefaults, publicationDisplayKey, publicationEditForm.content, publicationEditForm.ctaAction, publicationEditForm.cta, publicationEditForm.ctaMode, publicationEditForm.ctaPhone, publicationEditForm.ctaUrl, publicationEditForm.title, updatePublicationEdit]);
 
   const getPublicationPreviewCta = React.useCallback((channel: DisplayKey, form: PublicationEditForm) => {
     const mode = (form.ctaMode || "none") as BoosterCtaMode;
@@ -2523,6 +2525,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                               ctaMode: (publicationEditForm.ctaMode || "none") as BoosterCtaMode,
                                               ctaUrl: publicationEditForm.ctaUrl,
                                               ctaPhone: publicationEditForm.ctaPhone,
+                                              ctaAction: publicationEditForm.ctaAction,
                                             };
                                             const ctaChoice = getPreferredCtaChoiceFromPost(publicationDisplayKey, publicationCtaPost);
                                             const ctaMode = getCtaModeForPreferredChoice(ctaChoice);

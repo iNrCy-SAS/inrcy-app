@@ -225,12 +225,23 @@ test("createXPost accepts at most four unique numeric media ids", async () => {
   assert.equal(calls, 0);
 });
 
-test("createXPost rejects every URL before calling the X API", async () => {
+test("createXPost preserves an ordinary CTA link in the provider request", async () => {
+  const text = "Découvrez notre service. Voir le site : https://business.example/contact";
+  const payloads: unknown[] = [];
+  await createXPost({ accessToken: "fixture-token", text, mediaIds: [], fetchImpl: asFetch(async (_url, options) => {
+    payloads.push(JSON.parse(String(options?.body)));
+    return jsonResponse({ data: { id: "1880028106020515841" } });
+  }) });
+  assert.equal(payloads.length, 1);
+  assert.equal((payloads[0] as { text: string }).text, text);
+});
+
+test("createXPost rejects unsafe and unsupported URL schemes before calling the X API", async () => {
   for (const text of [
-    "Voir https://example.com",
-    "Voir example.fr",
-    "Voir example [.] com",
-    "Voir bit.ly/offre",
+    "Voir javascript:alert(1)",
+    "Voir data:text/html,danger",
+    "Voir file:///private",
+    "Voir ftp://example.com",
   ]) {
     let calls = 0;
     await assert.rejects(

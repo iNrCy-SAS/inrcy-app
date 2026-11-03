@@ -10,6 +10,25 @@ const websiteInstruction = "Configure le lien de mon site dans tous les CTA de t
 const input = (target: "phone" | "website", instructionQuote = target === "phone" ? phoneInstruction : websiteInstruction, channels: string[] | null = null) => ({ instructionQuote, target, channels });
 const plain = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 
+test("new generated publications get usable site/phone defaults while manual content and explicit no-CTA survive", () => {
+  const h = fixture();
+  const defaults = { preferredWebsiteUrl: "https://atelier.example", preferredWebsiteLabel: "", siteWebUrl: "https://atelier.example", phone: "0612345678", preferredCta: "none" as const, aiLanguage: "en" as const, channelCtas: {} };
+  const post = { title: "New content", content: "New body" };
+  const facebook = h.preferences.applySafePreferredCta({ channel: "facebook", post, defaults, preserveExplicit: false });
+  assert.equal((facebook as Row).ctaMode, "website");
+  assert.equal((facebook as Row).ctaUrl, "https://atelier.example");
+  assert.equal((facebook as Row).cta, "Visit website");
+  const instagram = h.preferences.applySafePreferredCta({ channel: "instagram", post, defaults, preserveExplicit: false });
+  assert.equal((instagram as Row).ctaMode, "website");
+  assert.equal((instagram as Row).ctaUrl, "https://atelier.example");
+  assert.equal((instagram as Row).cta, "Visit website");
+  assert.deepEqual(h.preferences.applySafePreferredCta({ channel: "facebook", post, defaults, preserveExplicit: true }), post, "A legacy/manual post without structured CTA must not change");
+  const optedOut = { ...defaults, channelCtas: { facebook: { choice: "none" as const, mode: "none" as const, label: "", url: "", phone: "" } } };
+  const result = h.preferences.applySafePreferredCta({ channel: "facebook", post, defaults: optedOut, preserveExplicit: false });
+  assert.equal((result as Row).ctaMode, "none"); assert.equal((result as Row).ctaUrl, "");
+  assert.equal(h.calls.length, 0, "Computing defaults must not write to the account or contact a provider");
+});
+
 test("registered phone updates compatible future CTA defaults and Badge while preserving every unrelated field", async () => {
   const h = fixture(); const originalProfile = plain(h.tables.profiles), settings = plain(h.tables.pro_tools_configs.settings as Row);
   const result = await h.execute(input("phone")); assert.equal(result.ok, true); assert.equal(result.existingContentChanged, false); assert.equal(result.externalProfilesChanged, false);
@@ -32,8 +51,8 @@ test("website default is taken from the current registered public site and feeds
   const h = fixture({ current: websiteInstruction }); const result = await h.execute(input("website")); assert.equal(result.status, "partial");
   const map = h.tables.business_profiles.ai_channel_ctas as Row;
   for (const channel of ["site_web", "gmb", "facebook", "linkedin", "youtube_shorts", "pinterest"]) assert.equal((map[channel] as Row).url, "https://atelier.example.com/contact?utm_source=site");
-  assert.equal((map.instagram as Row).choice, "message", "Unsupported website links must not replace a usable Instagram setting");
-  assert.ok((result.items as Row[]).some(item => item.channel === "instagram" && item.status === "blocked"));
+  assert.equal((map.instagram as Row).choice, "site", "An explicit user request now supports an Instagram caption link");
+  assert.ok((result.items as Row[]).some(item => item.channel === "instagram" && item.status === "applied"));
   const generated = h.preferences.applySafePreferredCta({ channel: "facebook", post: { title: "Service", content: "Texte neuf" }, defaults: { preferredWebsiteUrl: "", preferredWebsiteLabel: "", siteWebUrl: "", phone: "", preferredCta: "site", channelCtas: map as never }, preserveExplicit: false });
   assert.equal((generated as Row).ctaMode, "website"); assert.equal((generated as Row).ctaUrl, "https://atelier.example.com/contact?utm_source=site");
   assert.equal((h.tables.pro_tools_configs.settings as Row).inrSearch && ((h.tables.pro_tools_configs.settings as Row).inrSearch as Row).enabled, false);

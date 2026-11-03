@@ -145,6 +145,7 @@ export function extractChannelPreview(
                   : "custom",
           ctaUrl,
           ctaPhone,
+          ctaAction: safeString(post.ctaAction),
           hashtags,
         };
       }

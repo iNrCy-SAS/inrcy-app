@@ -148,6 +148,7 @@ type PostPayload = {
   ctaMode?: string;
   ctaUrl?: string;
   ctaPhone?: string;
+  ctaAction?: string;
   hashtags: string[];
   images?: string[];
   attachments?: unknown[];
@@ -926,6 +927,7 @@ function getChannelPost(eventPayload: JsonRecord, publication: JsonRecord, chann
     ctaMode: String(raw.ctaMode ?? "").trim(),
     ctaUrl: String(raw.ctaUrl ?? "").trim(),
     ctaPhone: String(raw.ctaPhone ?? "").trim(),
+    ctaAction: String(raw.ctaAction ?? "").trim(),
     hashtags: rawTags.map((tag: unknown) => normalizeHashtag(String(tag || ""))).filter(Boolean).slice(0, 20),
   };
 }
@@ -2811,6 +2813,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         ctaMode: String(body.ctaMode ?? currentPost.ctaMode ?? "").trim(),
         ctaUrl: String(body.ctaUrl ?? currentPost.ctaUrl ?? "").trim(),
         ctaPhone: String(body.ctaPhone ?? currentPost.ctaPhone ?? "").trim(),
+        ctaAction: String(body.ctaAction ?? currentPost.ctaAction ?? "").trim(),
         hashtags: Array.isArray(body.hashtags)
           ? body.hashtags.map((tag: unknown) => normalizeHashtag(String(tag || ""))).filter(Boolean).slice(0, 20)
           : currentPost.hashtags,
