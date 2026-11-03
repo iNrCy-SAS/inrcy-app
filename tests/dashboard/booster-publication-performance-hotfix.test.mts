@@ -42,7 +42,7 @@ test("queued publication opens a useful balance by 60 seconds, then continues in
   assert.doesNotMatch(layer, /finally \{\s*await refreshMetrics\(\)/);
 });
 
-test("YouTube preserves the selected framing while using the managed master", () => {
+test("YouTube preserves the selected framing and server-owned workspace checks", () => {
   assert.deepEqual(
     getAutomaticVideoSettingsForPublication({
       channel: "youtube_shorts",
@@ -55,8 +55,11 @@ test("YouTube preserves the selected framing while using the managed master", ()
     [publishModal, submission].join("\n"),
     /current\.youtube_shorts === "9_16"[\s\S]*setVideoAdaptationModeByChannel/,
   );
-  assert.match(publishModal, /mediaPipelineCutoverV1: true/);
-  assert.match(publishModal, /allowOriginalVideoFallback: false/);
+  assert.match(submission, /mediaPipelineCutoverV1:\s*mediaPipelineCutoverEnabled/);
+  assert.match(submission, /mediaWorkspaceId:[\s\S]{0,110}unifiedMediaConsumptionClientAvailable && readyMediaWorkspaceId/);
+  const publishRoute = read("app/api/booster/publish-now/route.ts");
+  assert.match(publishRoute, /body\.mediaPipelineCutoverV1 === true/);
+  assert.match(publishRoute, /if \(strictMediaCutover && requestContainsMedia && !mediaWorkspaceId\)/);
   assert.doesNotMatch([publishModal, submission].join("\n"), /source: "original"/);
 });
 

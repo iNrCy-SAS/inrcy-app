@@ -20,6 +20,7 @@ type PublishFooterActionsProps = {
   publicationDestinations?: readonly PublicationProgressDestination[];
   publishError: string;
   mediaPreparationIssue?: string;
+  scheduleMediaPreparationIssue?: string;
   mediaPreparationFailed?: boolean;
   onPublish: () => void;
   onSchedule: () => void;
@@ -41,6 +42,7 @@ export default function PublishFooterActions({
   publicationDestinations,
   publishError,
   mediaPreparationIssue = "",
+  scheduleMediaPreparationIssue = mediaPreparationIssue,
   mediaPreparationFailed = false,
   onPublish,
   onSchedule,
@@ -73,10 +75,10 @@ export default function PublishFooterActions({
               aria-label={i18nT("programmer_ad97007f")}
               title={i18nT("programmer_ad97007f")}
               onClick={onSchedule}
-              disabled={draftSaving || voiceBusy || Boolean(mediaPreparationIssue)}
+              disabled={draftSaving || voiceBusy || Boolean(scheduleMediaPreparationIssue)}
               style={{
-                opacity: draftSaving || voiceBusy || mediaPreparationIssue ? 0.64 : 1,
-                cursor: draftSaving || voiceBusy || mediaPreparationIssue ? "wait" : "pointer",
+                opacity: draftSaving || voiceBusy || scheduleMediaPreparationIssue ? 0.64 : 1,
+                cursor: draftSaving || voiceBusy || scheduleMediaPreparationIssue ? "wait" : "pointer",
               }}
             >
               <span data-publish-schedule-icon aria-hidden="true">🕒</span>

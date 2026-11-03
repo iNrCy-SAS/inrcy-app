@@ -293,8 +293,9 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
     { path: "/dashboard?action=campaigns", title: copy.mailCampaigns, description: signatureT("mailCampaignDescription"), tone: "campaignCard", glyph: "mail", action: t.modules.campaignsCta, premiumOnly: true, onOpen: openCampaignModal, loading: isVisible("modal:campaigns"), testId: standardMode ? "standard-campaign-mails" : "premium-campaign-open" },
   ];
   const agentControls = (workspace: InrAgentWorkspace, className: string) => {
+    if (basicMode) return null;
     const definition = INR_AGENT_WORKSPACES[workspace];
-    const locked = dashboardEdition === "basic" || (workspace === "campaigns" && standardMode);
+    const locked = workspace === "campaigns" && standardMode;
     return (
       <div className={`${signatureStyles.agentControls} ${className}${basicMode ? ` ${signatureStyles.standardAgentPreview}` : ""}`}>
         <DashboardAgentLogoButton workspace={workspace} enabled={inrAgentEnabled && !locked}
@@ -305,12 +306,13 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
     );
   };
   const planningControl = (workspace: InrAgentWorkspace) => {
-    const locked = dashboardEdition === "basic" || (workspace === "campaigns" && standardMode);
+    if (basicMode && workspace !== "publications") return null;
+    const locked = workspace === "campaigns" && standardMode;
     return (
         <button type="button" className={`${signatureStyles.planningButton} ${signatureStyles.modulePlanning}`}
           data-agent-planning-workspace={workspace}
           disabled={locked}
-          onClick={() => locked ? startPanelOpening("abonnement") : setPlanningWorkspace(workspace)}
+          onClick={() => locked ? startPanelOpening("abonnement") : basicMode ? startModuleNavigation(INR_AGENT_WORKSPACES.publications.href) : setPlanningWorkspace(workspace)}
           aria-label={`${agentT("planning")} — ${agentT(`${workspace}.name`)}`}
           title={`${agentT("planning")} — ${agentT(`${workspace}.name`)}`}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2m-8 3h2" /></svg>

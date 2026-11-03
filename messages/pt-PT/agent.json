@@ -846,6 +846,8 @@
   "settings_selection_empty": "Sem seleção",
   "workspaces": {
     "publications": {
+      "manualTitle": "Publicações agendadas",
+      "manualDescription": "Gira as suas publicações agendadas a partir do Booster",
       "automate": "Automatizar",
       "name": "Publicações",
       "description": "As suas publicações, preparadas e agendadas"

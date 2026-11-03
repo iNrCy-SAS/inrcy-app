@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
+import { createScheduledPublicationMediaRevision, ScheduledPublicationMediaRevisionError } from "@/lib/scheduledPublicationMediaRevision";
 import { normalizeBoosterSoundtrackId, normalizeBoosterSoundtrackByChannel } from "@/lib/boosterSoundtracks";
 import {
   scheduledActionToDbRow,
@@ -20,6 +22,8 @@ import {
 import {
   filterStandardAgentItems,
   isStandardAgentActionDescriptor,
+  isManualBoosterPublicationSchedule,
+  filterManualBoosterPublicationSchedules,
 } from "@/lib/standardAgentPolicy";
 import { compactInrAgentScheduledPayload, hasUnauthorizedScheduledStorageReference } from "@/lib/inrAgentScheduledPayload";
 import { buildAbsoluteStorageContentUrl } from "@/lib/storageContentUrl";
@@ -114,8 +118,9 @@ function scheduledActionForResponse(
 export async function GET(request: Request) {
   const { errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
-  const standardMode =
-    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
+  const edition = await getDashboardEditionForAuthUser(authUserId);
+  const standardMode = edition === "standard";
+  const basicMode = edition === "basic";
 
   const url = new URL(request.url);
   const rawRequestId = url.searchParams.get("requestId");
@@ -152,7 +157,7 @@ export async function GET(request: Request) {
         },
       );
     }
-    if (standardMode && !isStandardAgentActionDescriptor(exact.data)) {
+    if (basicMode ? !isManualBoosterPublicationSchedule(exact.data) : standardMode && !isStandardAgentActionDescriptor(exact.data)) {
       return premiumRequiredApiResponse();
     }
     return NextResponse.json(
@@ -211,7 +216,7 @@ export async function GET(request: Request) {
   );
 
   const visibleRows = Array.isArray(mergedRows)
-    ? standardMode
+    ? basicMode ? filterManualBoosterPublicationSchedules(mergedRows) : standardMode
       ? filterStandardAgentItems(mergedRows)
       : mergedRows
     : [];
@@ -224,8 +229,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const { errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
-  const standardMode =
-    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
+  const edition = await getDashboardEditionForAuthUser(authUserId);
+  const standardMode = edition === "standard";
+  const basicMode = edition === "basic";
 
   let body: unknown;
   try {
@@ -291,7 +297,7 @@ export async function POST(request: Request) {
     payload: scheduledPayload,
   });
 
-  if (standardMode && !isStandardAgentActionDescriptor(row)) {
+  if (basicMode ? !isManualBoosterPublicationSchedule(row) : standardMode && !isStandardAgentActionDescriptor(row)) {
     return premiumRequiredApiResponse();
   }
 
@@ -304,7 +310,7 @@ export async function POST(request: Request) {
       .maybeSingle();
     if (existing.error) throw existing.error;
     if (existing.data) {
-      if (standardMode && !isStandardAgentActionDescriptor(existing.data)) {
+      if (basicMode ? !isManualBoosterPublicationSchedule(existing.data) : standardMode && !isStandardAgentActionDescriptor(existing.data)) {
         return premiumRequiredApiResponse();
       }
       return NextResponse.json({
@@ -359,13 +365,24 @@ export async function POST(request: Request) {
     }
   }
 
+  let mediaRevision: Awaited<ReturnType<typeof createScheduledPublicationMediaRevision>> | null = null;
+  const revisionScheduleId = scheduleRequestId || randomUUID();
+  if (isManualBoosterPublicationSchedule(row) && asRecord(scheduledPayload)?.scheduledMediaRevisionRequested === true) {
+    try {
+      mediaRevision = await createScheduledPublicationMediaRevision({ accountId: activeUserId, actorAuthUserId: authUserId,
+        scheduledActionId: revisionScheduleId, scheduledAt, previousPayload: row.payload, payload: row.payload, channels: row.channels, requestUrl: request.url });
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof ScheduledPublicationMediaRevisionError ? error.message : "Les médias n’ont pas pu être programmés de façon fiable. Réessayez." }, { status: 409 });
+    }
+  }
   const { data, error } = await supabaseAdmin
     .from("inr_agent_scheduled_actions")
-    .insert(scheduleRequestId ? { ...row, id: scheduleRequestId } : row)
+    .insert(mediaRevision ? { ...row, id: revisionScheduleId, payload: mediaRevision.payload } : scheduleRequestId ? { ...row, id: scheduleRequestId } : row)
     .select(SCHEDULED_ACTION_SELECT)
     .single();
 
   if (error) {
+    if (mediaRevision) await mediaRevision.discard();
     if (isMissingTableError(error)) {
       return NextResponse.json({ error: "La table inr_agent_scheduled_actions doit être créée dans Supabase.", tableMissing: true }, { status: 500 });
     }
@@ -379,7 +396,7 @@ export async function POST(request: Request) {
         .maybeSingle();
       if (existing.error) throw existing.error;
       if (existing.data) {
-        if (standardMode && !isStandardAgentActionDescriptor(existing.data)) {
+        if (basicMode ? !isManualBoosterPublicationSchedule(existing.data) : standardMode && !isStandardAgentActionDescriptor(existing.data)) {
           return premiumRequiredApiResponse();
         }
         return NextResponse.json({
@@ -407,7 +424,7 @@ export async function POST(request: Request) {
     let mediaWorkspaceId = sourceMediaWorkspaceId;
 
     let createdSnapshotWorkspaceId = "";
-    if (sourceMediaWorkspaceId) {
+    if (sourceMediaWorkspaceId && !mediaRevision) {
       try {
         const snapshot = await snapshotScheduledPublicationWorkspace({
           accountId: activeUserId,

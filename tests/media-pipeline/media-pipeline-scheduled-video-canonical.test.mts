@@ -21,26 +21,46 @@ const hook = read(
 );
 const client = read("lib/mediaWorkspaceClient.ts");
 const prewarm = read("app/api/media-pipeline/workspace/prewarm/route.ts");
+const publish = read("app/api/booster/publish-now/route.ts");
+const scheduleRoute = read("app/api/agent/scheduled-actions/route.ts");
+const snapshot = read("lib/scheduledPublicationMediaSnapshot.ts");
 
-test("strict scheduled video never validates the browser original", () => {
-  const ensure = sliceBetween(
+test("strict scheduled video verifies durable originals before snapshot and defers adaptations to its worker", () => {
+  const readiness = sliceBetween(
     modal,
-    "async function ensureCutoverVideoVariantsReady",
-    "const syncActiveImagesToPersistentWorkspace",
+    "const waitForPersistentWorkspaceReadiness = useCallback",
+    "// Les captures locales",
   );
-  const schedule = sliceBetween(
-    submission,
-    "if (hasAnyVideoPublish && workspaceCarriesVideoForSchedule)",
-    "const emptyChannelImages",
+  const verifySources = sliceBetween(
+    hook,
+    "const verifyReadySources = useCallback",
+    "const archiveWorkspace = useCallback",
   );
+  const schedule = submission.slice(submission.indexOf("const performSchedulePublication = async"));
+  const sourceCheck = schedule.indexOf("await waitForPersistentWorkspaceReadiness(");
+  const recordSchedule = schedule.indexOf("await postBoosterScheduledAction(");
 
-  assert.doesNotMatch(ensure, /directOriginalAvailable|source:\s*"original"/);
-  assert.match(ensure, /mediaPipelineCutoverV1:\s*true/);
-  assert.ok(
-    (ensure.match(/allowOriginalVideoFallback:\s*false/g) || []).length >= 2,
-    "initial lookup and regeneration must both reject the original fallback",
+  assert.ok(sourceCheck >= 0 && recordSchedule > sourceCheck, "sources must be secured before recording any schedule");
+  assert.match(schedule, /waitForPersistentWorkspaceReadiness\(\s*"schedule"/);
+  assert.match(readiness, /await waitForPersistentWorkspaceIdle\(/);
+  assert.match(readiness, /await verifyPersistentWorkspaceSources\(sourceExpectations/);
+  assert.match(verifySources, /await loadMediaPublicationWorkspace\(/);
+  assert.match(verifySources, /media\.uploadStatus === "uploaded" &&[\s\S]*media\.storagePath/);
+  assert.match(verifySources, /everyExpectedSourceIsReady[\s\S]*readyPositions\.has\(position\)/);
+  assert.doesNotMatch(schedule, /ensureCutoverVideoVariantsReady|prewarmPersistentMediaWorkspace/);
+  assert.match(schedule, /mediaWorkspaceId:[\s\S]*unifiedMediaConsumptionClientAvailable && readyMediaWorkspaceId/);
+  assert.match(schedule, /mediaPipelineCutoverV1: mediaPipelineCutoverEnabled/);
+  assert.match(schedule, /videoSettingsByChannel: buildChannelUnknownRecord\(\s*scheduleVideoSettingsByChannel/);
+  assert.match(scheduleRoute, /await snapshotScheduledPublicationWorkspace\(/);
+  assert.match(scheduleRoute, /applyScheduledPublicationMediaSnapshot\(/);
+  assert.match(snapshot, /media_id: link\.media_id/);
+  assert.match(publish, /preparePublicationVariants\(\s*internalAsyncPreparationDispatch,?\s*\)/);
+  assert.match(publish, /candidate\.signature === signature/);
+  assert.match(publish, /reason: "video_variant_required"/);
+  assert.match(
+    publish,
+    /validateVideoPublicationForChannel\(\{\s*channel: request\.channel,[\s\S]*storagePath: variant\.storagePath/,
   );
-  assert.match(schedule, /generateMissingVideoVariants:\s*false/);
   assert.doesNotMatch(schedule, /allowOriginalVideoFallback:\s*true/);
 });
 

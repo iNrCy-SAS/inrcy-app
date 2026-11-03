@@ -86,9 +86,9 @@ test("a partial preparation can continue only when failures are isolated by chan
   );
 });
 
-test("immediate publication defers video work while scheduling keeps one recovery", async () => {
+test("publication and scheduling defer adaptations while keeping durable sources and legacy recovery", async () => {
   const modal = await read("app/dashboard/booster/publier/PublishModal.tsx");
-  assert.match(modal, /options\?\.generateMissingVideoVariants === false/);
+  const publishRoute = await read("app/api/booster/publish-now/route.ts");
   assert.doesNotMatch([modal, submission].join("\n"), /startBackgroundVideoPrewarm/);
   assert.doesNotMatch([modal, submission].join("\n"), /prepareCutoverVideoVariants/);
   const immediatePublish = submission.slice(
@@ -99,13 +99,17 @@ test("immediate publication defers video work while scheduling keeps one recover
     immediatePublish,
     /ensureCutoverVideoVariantsReady|prewarmPersistentMediaWorkspace/,
   );
-  assert.match(
-    modal,
-    /shouldRetryVideoVariantGeneration[\s\S]*generateMissingVideoVariants:\s*true/,
-  );
-  assert.match(modal, /generateMissingVideoVariants:\s*true/);
-  assert.match(submission, /allowPartialChannelFailures:\s*true/);
-  assert.match(modal, /canContinueWithIsolatedVideoPreparationFailures/);
+  const scheduledPublish = submission.slice(submission.indexOf("const performSchedulePublication = async"));
+  const sourceCheck = scheduledPublish.indexOf("await waitForPersistentWorkspaceReadiness(");
+  const recordSchedule = scheduledPublish.indexOf("await postBoosterScheduledAction(");
+  assert.ok(sourceCheck >= 0 && recordSchedule > sourceCheck);
+  assert.match(modal, /await verifyPersistentWorkspaceSources\(sourceExpectations/);
+  assert.doesNotMatch(scheduledPublish, /ensureCutoverVideoVariantsReady|prewarmPersistentMediaWorkspace/);
+  assert.match(scheduledPublish, /if \(shouldBuildScheduleVideoFallback\)[\s\S]*preparePublicationVideoVariants\(/);
+  assert.match(scheduledPublish, /videoSettingsByChannel: buildChannelUnknownRecord\(\s*scheduleVideoSettingsByChannel/);
+  assert.match(publishRoute, /preparePublicationVariants\(\s*internalAsyncPreparationDispatch,?\s*\)/);
+  assert.match(publishRoute, /preflightFailuresByChannel/);
+  assert.match(publishRoute, /buildBoosterPublicationDispatchPlan/);
   assert.match(
     immediatePublish,
     /if \(shouldBuildVideoFallbackPayload\)[\s\S]*preparePublicationVideoVariants\(/,

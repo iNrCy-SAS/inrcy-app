@@ -289,7 +289,7 @@ export default function DashboardToolWarmup() {
           priority,
           run: async () => {
             const { warmAgentRuntimeSnapshot } = await import("../agent/_hooks/useAgentRuntimeData");
-            await warmAgentRuntimeSnapshot();
+            await warmAgentRuntimeSnapshot({ manualPlanningOnly: edition === "basic" });
           },
         });
       }
@@ -402,7 +402,7 @@ export default function DashboardToolWarmup() {
       window.removeEventListener(DASHBOARD_TOOL_WARMUP_EVENT, onExplicitWarmup as EventListener);
       window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, handleAccountChange);
     };
-  }, [accountingEnabled, actorUserId, activeAccountId, metaPilotEnabled, router, standardMode]);
+  }, [accountingEnabled, actorUserId, activeAccountId, edition, metaPilotEnabled, router, standardMode]);
 
   return null;
 }

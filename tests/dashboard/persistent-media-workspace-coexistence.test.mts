@@ -364,6 +364,7 @@ test("publish and schedule settle once, then freeze only their required families
   );
   assert.match(
     publishModal,
-    /waitForPersistentWorkspaceIdle\(undefined, \{[\s\S]{0,80}mediaTypes: \["video"\]/,
+    /verifyPersistentWorkspaceSources\(sourceExpectations,[\s\S]{0,100}signal: readinessSignal/,
   );
+  assert.doesNotMatch(submission, /ensureCutoverVideoVariantsReady/);
 });

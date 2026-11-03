@@ -12,7 +12,7 @@ import {
   getDashboardEditionForAuthUser,
   premiumRequiredApiResponse,
 } from "@/lib/dashboardEditionServer";
-import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
+import { isStandardAgentActionDescriptor, isManualBoosterPublicationSchedule } from "@/lib/standardAgentPolicy";
 import { scheduledPublicationFingerprint } from "@/lib/inrAssistantActionPreview";
 
 export const runtime = "nodejs";
@@ -374,8 +374,9 @@ async function executeBoosterPublicationNow(row: any, userId: string) {
 export async function POST(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
-  const standardMode =
-    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
+  const edition = await getDashboardEditionForAuthUser(authUserId);
+  const standardMode = edition === "standard";
+  const basicMode = edition === "basic";
   const { id } = await ctx.params;
   const requestBody = asRecord(await _request.json().catch(() => ({})));
 
@@ -395,7 +396,7 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
   if (!scheduledRow) {
     return NextResponse.json({ error: "Action programmée introuvable." }, { status: 404 });
   }
-  if (standardMode && !isStandardAgentActionDescriptor(scheduledRow)) {
+  if (basicMode ? !isManualBoosterPublicationSchedule(scheduledRow) : standardMode && !isStandardAgentActionDescriptor(scheduledRow)) {
     return premiumRequiredApiResponse();
   }
   const currentStatus = cleanText(scheduledRow.status, 40).toLowerCase();
@@ -432,6 +433,10 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
     .eq("id", id)
     .eq("user_id", activeUserId)
     .in("status", ["scheduled", "failed"]);
+  if (basicMode) {
+    claim = claim.eq("source", "manual");
+    claim = scheduledRow.updated_at == null ? claim.is("updated_at", null) : claim.eq("updated_at", scheduledRow.updated_at);
+  }
   if ("expectedState" in requestBody) {
     claim = claim.eq("status", "failed").eq("updated_at", scheduledRow.updated_at).eq("payload", JSON.stringify(scheduledRow.payload));
     claim = scheduledRow.attempt_count == null ? claim.is("attempt_count", null) : claim.eq("attempt_count", scheduledRow.attempt_count);

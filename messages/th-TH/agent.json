@@ -846,6 +846,8 @@
   "settings_selection_empty": "ยังไม่ได้เลือก",
   "workspaces": {
     "publications": {
+      "manualTitle": "โพสต์ที่ตั้งเวลาไว้",
+      "manualDescription": "จัดการโพสต์ที่ตั้งเวลาไว้จาก Booster",
       "automate": "ตั้งค่าอัตโนมัติ",
       "name": "สิ่งพิมพ์",
       "description": "เตรียมและกำหนดเวลาโพสต์ของคุณ"

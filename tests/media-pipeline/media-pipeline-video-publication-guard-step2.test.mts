@@ -165,9 +165,14 @@ test("la finalisation serveur valide chaque canal et isole les adaptations", asy
   const policy = await readSource("lib/videoPublicationPolicy.ts");
   const variants = await readSource("lib/boosterVideoVariantServer.ts");
 
-  assert.match(modal, /async function ensureCutoverVideoVariantsReady/);
+  assert.match(modal, /await verifyPersistentWorkspaceSources\(sourceExpectations/);
+  const schedule = submission.slice(submission.indexOf("const performSchedulePublication = async"));
+  const sourceCheck = schedule.indexOf("await waitForPersistentWorkspaceReadiness(");
+  const recordSchedule = schedule.indexOf("await postBoosterScheduledAction(");
+  assert.ok(sourceCheck >= 0 && recordSchedule > sourceCheck);
+  assert.doesNotMatch(schedule, /ensureCutoverVideoVariantsReady|prewarmPersistentMediaWorkspace/);
   assert.match(submission, /i18nT\("publication_checking_media"\)/);
-  assert.match(submission, /setPublishProgressLabel\(i18nT\("progress_media_preparation"\)\)/);
+  assert.match(publish, /const terminalMediaFailure = Boolean\(\s*workspacePreparationState\?\.terminalMediaIds\.length/);
   assert.doesNotMatch([modal, submission].join("\n"), /Compression des médias/);
   assert.match(controller, /validateVideoPublicationForChannel/);
   assert.match(prewarm, /invalidSignatures/);
@@ -177,6 +182,9 @@ test("la finalisation serveur valide chaque canal et isole les adaptations", asy
   assert.match(publish, /setPreflightFailure/);
   assert.match(publish, /buildBoosterPublicationDispatchPlan/);
   assert.match(publish, /validateVideoPublicationForChannel/);
+  assert.match(publish, /preparePublicationVariants\(\s*internalAsyncPreparationDispatch,?\s*\)/);
+  assert.match(publish, /candidate\.signature === signature/);
+  assert.match(publish, /reason: "video_variant_required"/);
   assert.match(policy, /maxDurationSeconds:\s*null/);
   assert.match(
     policy,

@@ -846,6 +846,8 @@
   "settings_selection_empty": "Nothing selected",
   "workspaces": {
     "publications": {
+      "manualTitle": "Scheduled publications",
+      "manualDescription": "Manage your publications scheduled from Booster",
       "automate": "Automate",
       "name": "Publications",
       "description": "Your posts, prepared and scheduled"

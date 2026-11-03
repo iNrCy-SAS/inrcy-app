@@ -171,6 +171,7 @@ import {
 import { useAgentRichTextEditors } from "./_hooks/useAgentRichTextEditors";
 import { useAgentAutomationController } from "./_hooks/useAgentAutomationController";
 import { useAgentManualCredits } from "./_hooks/useAgentManualCredits";
+import { useScheduledStudioCredits } from "./_hooks/useScheduledStudioCredits";
 import {
   INSTANT_PUBLICATION_PREPARATION_ID,
   buildPublicationViewerItems,
@@ -541,11 +542,12 @@ type AgentClientProps = { workspace?: InrAgentWorkspace };
 
 export default function AgentClient({ workspace = "publications" }: AgentClientProps) {
   const edition = useDashboardEdition();
+  if (edition === "basic" && workspace !== "publications") return <AgentCampaignAccess />;
   if (edition === "standard" && workspace === "campaigns") return <AgentCampaignAccess />;
-  return <AgentWorkspaceMessages workspace={workspace}><AgentWorkspaceClient key={workspace} workspace={workspace} /></AgentWorkspaceMessages>;
+  return <AgentWorkspaceMessages workspace={workspace}><AgentWorkspaceClient key={`${workspace}:${edition}`} workspace={workspace} manualPlanningOnly={edition === "basic"} /></AgentWorkspaceMessages>;
 }
 
-function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
+function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { workspace: InrAgentWorkspace; manualPlanningOnly?: boolean }) {
   const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
   const i18nT = useTranslations("agent");
   const mediaT = useTranslations("media");
@@ -557,7 +559,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   const locale = useLocale();
   const runtimeT = i18nT as unknown as AgentTranslator;
   const router = useRouter();
-  const standardMode = useDashboardEdition() === "standard";
+  const standardMode = useDashboardEdition() === "standard" || manualPlanningOnly;
   const visibleAutomations = useMemo(
     () => (standardMode
         ? automations.filter((automation) => isStandardAgentAutomationKey(automation.key))
@@ -589,7 +591,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     refreshScheduledActions,
     refreshAssistantData,
     showNotice,
-  } = useAgentRuntimeData({ standardMode });
+  } = useAgentRuntimeData({ standardMode, manualPlanningOnly });
   const [publicationVisibilityNow, setPublicationVisibilityNow] = useState(0);
   const { isMobileHeader } = useAgentResponsiveUi();
   const [selectedKey, setSelectedKey] = useState<AutomationKey>(INR_AGENT_WORKSPACES[workspace].initialAutomation);
@@ -627,7 +629,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   const [agentConfirmDialog, setAgentConfirmDialog] =
     useState<AgentConfirmDialogState>(null);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(manualPlanningOnly);
   const [scheduledEditSession, setScheduledEditSession] =
     useState<ScheduledActionEditSession | null>(null);
   const [scheduleOnlyEdit, setScheduleOnlyEdit] =
@@ -929,7 +931,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     );
   }, [actions, publicationVisibilityNow]);
 
-  const manualCredits = useAgentManualCredits(JSON.stringify([agentSettings, actions.map(action => action.id), saveState]));
+  const manualCredits = useAgentManualCredits(JSON.stringify([agentSettings, actions.map(action => action.id), saveState]), !manualPlanningOnly);
   const manualCreditHelp = !manualCredits.availability
     ? i18nT("manual_credits_checking")
     : !manualCredits.availability.ready
@@ -1080,7 +1082,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     && publishPlacementSaveState !== "saving" && !publishChannelSelectionSaving;
   const canEditSelectedPublication = canReviseInrAgentPublication(selectedPreparedAction)
     && publishPlacementSaveState !== "saving" && !publishChannelSelectionSaving;
-  const canRegenerateSelectedPublication = canEditSelectedPublication && !scheduledEditDirty
+  const canRegenerateSelectedPublication = !manualPlanningOnly && canEditSelectedPublication && !scheduledEditDirty
     && (!scheduledEditSession || Boolean(firstSafeString(selectedPreparedAction?.payload.sourceActionId,
       asRecord(selectedPreparedAction?.payload.publishPayload)?.inrAgentActionId)));
   const publicationViewerActions = buildPublicationViewerItems(
@@ -1156,7 +1158,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       actions,
       historyPublications,
       scheduledActions,
-      visibleAutomations,
+      visibleAutomations: manualPlanningOnly ? [] : visibleAutomations,
       configs,
       connectedChannels: agentConnectedChannels,
       locale,
@@ -1168,6 +1170,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     return filterAgentWorkspaceSchedule(workspace, items, manualAutomations);
   }, [
     workspace,
+    manualPlanningOnly,
     actions,
     historyPublications,
     agentConnectedChannels,
@@ -2193,10 +2196,17 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     }
   }
 
+  const manualStudioCredits = useScheduledStudioCredits({ enabled: manualPlanningOnly && Boolean(scheduledEditSession), accountId: activeAccountId,
+    kind: publishMediaPreview?.kind === "video" ? "video" : "image" });
+  const manualStudioCreditHelp = manualStudioCredits.generate.insufficient || manualStudioCredits.modify.insufficient
+    ? mediaT("ai_generator_video_credit_insufficient")
+    : manualStudioCredits.unavailable || manualStudioCredits.generate.error || manualStudioCredits.modify.error
+      ? mediaT("ai_generator_credits_unavailable") : mediaT("ai_generator_credit_quote_loading");
   const { openStudio, studio, completeReturn } = useInrStudioSession({
     onReturned: (result) => {
       void applyInrStudioReturn(result);
     },
+    onClosed: () => { if (manualPlanningOnly) void manualStudioCredits.refresh(); },
   });
   const historicalStudioReturnHandledRef = useRef(false);
   const onHistoricalStudioReturn = useEffectEvent((result: ReturnType<typeof consumeInrStudioReturn>) => {
@@ -2440,7 +2450,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
         return;
       }
       const returnedMutation: PublishMediaMutation =
-        returnedItem.media_type === "image" ? "append" : "replace";
+        result.context.mediaMutation === "replace" || returnedItem.media_type === "video" ? "replace" : "append";
       await savePublishMediaPatch(
         mediaPatchFromLibraryItem(returnedItem),
         returnedMutation,
@@ -2453,9 +2463,9 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       );
       showNotice(
         i18nT(
-          returnedItem.media_type === "image"
+          returnedItem.media_type === "image" && returnedMutation === "append"
             ? "publish_image_added"
-            : "publish_video_updated"
+            : returnedItem.media_type === "image" ? "publish_image_updated" : "publish_video_updated"
         )
       );
     } catch {
@@ -2481,6 +2491,8 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
   }
 
   async function openPublishImageInStudio(tab: "modify" | "retouch") {
+    if (manualPlanningOnly && tab === "modify" && !manualStudioCredits.modifyAllowed) { showNotice(manualStudioCreditHelp); return; }
+    if (manualPlanningOnly && tab === "modify") manualStudioCredits.prepareModification();
     if (!publishMediaPreview?.url) {
       showNotice(i18nT("add_image_first"));
       return;
@@ -2498,7 +2510,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       });
       const { href } = await createInrStudioHandoff({
         tab,
-        origin: "inr-agent",
+        origin: manualPlanningOnly ? "booster" : "inr-agent",
         source: {
           url: publishMediaPreview.url,
           name: sourceName,
@@ -2519,6 +2531,19 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     } catch {
       showNotice(i18nT("image_adaptation_failed"));
     }
+  }
+
+  async function openScheduledMediaGeneration() {
+    if (!manualPlanningOnly || !scheduledEditSession || !selectedPreparedAction || !activePreviewChannel) return;
+    if (!manualStudioCredits.generateAllowed) { showNotice(manualStudioCreditHelp); return; }
+    try {
+      const { href } = await createInrStudioHandoff({ tab: "generate", origin: "booster",
+        publicationBrief: preparedChannelPreview?.body || selectedPreparedAction.summary || selectedPreparedAction.title,
+        context: { actionId: selectedPreparedAction.id, channel: activePreviewChannel, mediaIndex: publishMediaActiveIndex,
+          mediaType: publishMediaPreview?.kind === "video" ? "video" : "image", scheduledEdit: true, mediaMutation: "replace" },
+      });
+      openStudio(href);
+    } catch { showNotice(i18nT("publish_media_update_failed")); }
   }
 
   function getCurrentVideoSettings() {
@@ -5052,7 +5077,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     setValidationChoiceOpen,
     setValidationScheduleOpen,
     refreshActions,
-    refreshScheduledActions,
+    refreshScheduledActions: async (silent?: boolean) => { await refreshScheduledActions(silent); },
     patchScheduledAction,
     exitScheduledEditSession,
     deleteScheduledEditAction,
@@ -5325,7 +5350,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
     : i18nT("agent_working_saving");
 
   return (
-    <main className={`${styles.agentPage} ${styles.agentWorkspace}`} data-agent-workspace={workspace}>
+    <main className={`${styles.agentPage} ${styles.agentWorkspace}`} data-agent-workspace={workspace} data-manual-publications-planning={manualPlanningOnly || undefined}>
       <AgentFeedbackModals
         publishExecutionProgress={agentPublishExecutionProgress}
         publishSuccessSummary={agentPublishSuccessSummary}
@@ -5352,6 +5377,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
       >
         <AgentWorkspaceHeader
           workspace={workspace}
+          manualPlanningOnly={manualPlanningOnly}
           campaignMode={selectedKey === "loyalty" ? "loyalty" : "grow"}
           onCampaignMode={(mode) => {
             const changeMode = () => { setSelectedKey(mode); setSelectedPreparedActionId(null); };
@@ -5796,7 +5822,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                         <button
                           type="button"
                           className={`${styles.campaignInfoCard} ${styles.publishInfoFormat} ${styles.publishInfoCardWithAction}`}
-                          onClick={() => activePublicationChannelEmpty && activePreviewChannel ? void prepareAdditionalPublicationChannel(activePreviewChannel) : openPublishTextEditor()}
+                          onClick={() => !manualPlanningOnly && activePublicationChannelEmpty && activePreviewChannel ? void prepareAdditionalPublicationChannel(activePreviewChannel) : openPublishTextEditor()}
                           disabled={
                             !selectedPreparedAction ||
                             publishMediaOnly ||
@@ -5825,7 +5851,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                             </strong>
                           </span>
                         </button>
-                        <button
+                        {!manualPlanningOnly && <button
                           type="button"
                           className={styles.publishRegenerateButton}
                           onClick={() =>
@@ -5844,7 +5870,7 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                           data-busy={publishRegeneration?.kind === "content" || Boolean(publicationChannelPreparing)}
                         >
                           <span aria-hidden>↻</span>
-                        </button>
+                        </button>}
                       </div>
                       <div className={styles.publishInfoActionShell}>
                         <button
@@ -5875,26 +5901,26 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                             </strong>
                           </span>
                         </button>
-                        <button
+                        {(!manualPlanningOnly || scheduledEditSession) && <button
                           type="button"
                           className={styles.publishRegenerateButton}
                           onClick={() =>
-                            requestPublishChannelRegeneration("media")
+                            manualPlanningOnly ? void openScheduledMediaGeneration() : requestPublishChannelRegeneration("media")
                           }
                           disabled={
                             activeThreadsGhost ||
                             !selectedPreparedAction ||
-                            !canRegenerateSelectedPublication ||
+                            (manualPlanningOnly ? !manualStudioCredits.generateAllowed : !canRegenerateSelectedPublication) ||
                             actionMutationState === "saving" ||
                             Boolean(publishRegeneration)
                           }
                           aria-label={i18nT("regenerate_media")}
-                          title={i18nT("regenerate_media")}
+                          title={manualPlanningOnly && !manualStudioCredits.generateAllowed ? manualStudioCreditHelp : i18nT("regenerate_media")}
                           aria-busy={publishRegeneration?.kind === "media"}
                           data-busy={publishRegeneration?.kind === "media"}
                         >
                           <span aria-hidden>↻</span>
-                        </button>
+                        </button>}
                       </div>
                       <article className={`${styles.campaignInfoCard} ${styles.publicationFormatCard}`}>
                         <small className={styles.publicationCardHeading}>{i18nT("publication_options")}</small>
@@ -7508,7 +7534,8 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                       <>
                         <button type="button" className={styles.publishMediaModifyButton}
                           onClick={() => void openPublishImageInStudio("modify")}
-                          disabled={publishMediaUploadState === "saving"}>
+                          disabled={publishMediaUploadState === "saving" || manualPlanningOnly && !manualStudioCredits.modifyAllowed}
+                          title={manualPlanningOnly && !manualStudioCredits.modifyAllowed ? manualStudioCreditHelp : undefined}>
                           <span aria-hidden>✦</span>{i18nT("modifier_f260e757")}
                         </button>
                         <button type="button" className={styles.publishMediaRetouchButton}
@@ -7525,12 +7552,15 @@ function AgentWorkspaceClient({ workspace }: { workspace: InrAgentWorkspace }) {
                     )
                   ) : null}
                   <button type="button" className={styles.publishMediaRegenerateButton}
-                    onClick={() => { setPublishMediaPreviewOpen(false); requestPublishChannelRegeneration("media"); }}
-                    disabled={!canRegenerateSelectedPublication || publishMediaUploadState === "saving" || Boolean(publishRegeneration) || activeThreadsGhost}
+                    onClick={() => { if (manualPlanningOnly) void openScheduledMediaGeneration(); else { setPublishMediaPreviewOpen(false); requestPublishChannelRegeneration("media"); } }}
+                    disabled={(manualPlanningOnly ? !manualStudioCredits.generateAllowed : !canRegenerateSelectedPublication) || publishMediaUploadState === "saving" || Boolean(publishRegeneration) || activeThreadsGhost}
+                    title={manualPlanningOnly && !manualStudioCredits.generateAllowed ? manualStudioCreditHelp : undefined}
                     aria-label={i18nT("regenerate_media")}>
                     <span aria-hidden>↻</span>{mediaT("ai_generator_regenerate")}
                   </button>
                 </div>
+                {manualPlanningOnly && (!manualStudioCredits.generateAllowed || publishMediaPreview?.kind === "image" && !manualStudioCredits.modifyAllowed)
+                  ? <p role="status">{manualStudioCreditHelp}</p> : null}
 
             <div className={styles.publishMediaSourcePanel}>
               <div className={styles.publishMediaSourceHeader}>

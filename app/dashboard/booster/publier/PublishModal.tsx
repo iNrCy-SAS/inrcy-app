@@ -126,11 +126,6 @@ import {
   normalizeYoutubeLongUploadsStatus,
   type YoutubeLongUploadsStatus,
 } from "@/lib/videoPublicationPolicy";
-import {
-  canContinueWithIsolatedVideoPreparationFailures,
-  isVideoPreparationReady,
-  shouldRetryVideoVariantGeneration,
-} from "@/lib/boosterVideoPreparationRecovery";
 import { CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES, normalizeThreadsPublicationPreferences, type ThreadsPublicationMode, type ThreadsPublicationPreferences } from "@/lib/threadsPublicationPreferences";
 import { getEffectiveThreadsMediaMode, getThreadsPublicationModeIssue } from "./threadsPublicationUi";
 import {
@@ -1869,7 +1864,6 @@ export default function PublishModal({
     syncVideo: syncPersistentWorkspaceVideo,
     prepareAiMedia: startPersistentAiMediaPreparation,
     preparePublicationMedia: startPersistentPublicationMediaPreparation,
-    preparePublicationVariants: prewarmPersistentMediaWorkspace,
     clearWorkspaceMedia: clearPersistentWorkspaceMedia,
     linkDraft: linkPersistentWorkspaceDraft,
     ensureWorkspace: ensurePersistentMediaWorkspace,
@@ -2302,90 +2296,6 @@ export default function PublishModal({
     clearPreparedVideoVariantsForChannel(channel);
   };
 
-  function getCutoverVideoPreparationError(result: any) {
-    const firstInvalidChannel = Array.isArray(result?.invalidChannels)
-      ? result.invalidChannels[0]
-      : null;
-    const firstError = Array.isArray(result?.errors) ? result.errors[0] : null;
-    const message = String(
-      firstInvalidChannel?.message ||
-        (typeof firstError === "string" ? firstError : firstError?.message) ||
-        result?.error ||
-        "",
-    ).trim();
-    return (
-      message ||
-      i18nT("la_video_n_est_pas_encore_12c45cc8")
-    );
-  }
-
-  async function ensureCutoverVideoVariantsReady(
-    channels: ChannelKey[],
-    settingsByChannel: Partial<
-      Record<
-        ChannelKey,
-        { format: VideoFormat; adaptationMode: VideoAdaptationMode }
-      >
-    >,
-    options?: {
-      generateMissingVideoVariants?: boolean;
-      allowPartialChannelFailures?: boolean;
-    },
-  ) {
-    if (!mediaPipelineCutoverEnabled || !channels.length) return null;
-
-    await waitForPersistentWorkspaceIdle(undefined, {
-      mediaTypes: ["video"],
-    });
-    const workspace = await ensurePersistentMediaWorkspace();
-    if (!workspace) {
-      throw new Error("L’espace média de cette publication est indisponible.");
-    }
-
-    let result = await prewarmPersistentMediaWorkspace({
-      selectedChannels: channels,
-      requestedMediaType: "video",
-      videoSettingsByChannel: settingsByChannel as Record<string, unknown>,
-      generateMissingVideoVariants:
-        options?.generateMissingVideoVariants !== false,
-      mediaPipelineCutoverV1: true,
-      allowOriginalVideoFallback: false,
-    });
-    // Fast path first: reuse an existing explicit channel adaptation. If its
-    // cache was invalidated, regenerate that adaptation once from the original
-    // server-validated workspace source.
-    if (
-      !isVideoPreparationReady(result) &&
-      options?.generateMissingVideoVariants === false &&
-      shouldRetryVideoVariantGeneration(
-        Array.isArray(result?.invalidChannels) ? result.invalidChannels : [],
-      )
-    ) {
-      setContextualPublishProgress((current) => Math.max(current, 46));
-      setContextualPublishProgressLabel(
-        "Préparation de la variante vidéo nécessaire...",
-      );
-      result = await prewarmPersistentMediaWorkspace({
-        selectedChannels: channels,
-        videoSettingsByChannel: settingsByChannel as Record<string, unknown>,
-        generateMissingVideoVariants: true,
-        mediaPipelineCutoverV1: true,
-        allowOriginalVideoFallback: false,
-      });
-    }
-
-    if (!isVideoPreparationReady(result)) {
-      if (
-        options?.allowPartialChannelFailures === true &&
-        canContinueWithIsolatedVideoPreparationFailures(result)
-      ) {
-        return result;
-      }
-      throw new Error(getCutoverVideoPreparationError(result));
-    }
-    return result;
-  }
-
   const syncActiveImagesToPersistentWorkspace = useCallback(
     async (
       nextImages: readonly File[],
@@ -2515,8 +2425,15 @@ export default function PublishModal({
     recoveredPreviewErrors,
   ]);
 
-  const getImagePreparationIssue = (channelsToReview: readonly ChannelKey[]) => {
+  const getImagePreparationIssue = (
+    channelsToReview: readonly ChannelKey[],
+    purpose: "publish" | "schedule" = "publish",
+  ) => {
     if (!mediaPipelineCutoverEnabled) return "";
+    // Scheduling secures and verifies the originals before creating its
+    // immutable snapshot. The durable worker owns pending adaptations.
+    const allowBackgroundPreparation = purpose === "schedule" &&
+      persistentMediaWorkspaceEnabled && unifiedMediaConsumptionClientAvailable;
     const requiredKeys = new Set(
       channelsToReview
         .filter((channel) => resolveChannelMediaMode(channel) === "images")
@@ -2528,13 +2445,13 @@ export default function PublishModal({
     if ([...requiredKeys].some((key) => !requiredItems.some((item) => item.imageKey === key))) {
       return "Une image sélectionnée n’est plus disponible. Réattribuez les images à ce canal avant de publier.";
     }
-    if (persistentMediaSynchronizing && requiredItems.length) {
+    if (!allowBackgroundPreparation && persistentMediaSynchronizing && requiredItems.length) {
       return "Envoi des images en cours. Leur contrôle commencera dès que l’upload sera terminé.";
     }
     if (requiredItems.some((item) => item.status === "failed")) {
       return "Une image n’a pas pu être préparée. Utilisez « Modifier Média » pour créer une nouvelle version ou remplacez-la.";
     }
-    if (requiredItems.some((item) => item.status === "pending")) {
+    if (!allowBackgroundPreparation && requiredItems.some((item) => item.status === "pending")) {
       return imagePreparationError ||
         "Vérification des images en cours. La publication sera disponible après le contrôle de leur aperçu.";
     }
@@ -2542,6 +2459,7 @@ export default function PublishModal({
   };
 
   const publishImagePreparationIssue = getImagePreparationIssue(selectedChannels);
+  const scheduleImagePreparationIssue = getImagePreparationIssue(selectedChannels, "schedule");
 
   const selectedForGeneration = useMemo(() => {
     return CHANNEL_KEYS.filter((channel) => channels[channel] && connected[channel]);
@@ -4291,7 +4209,6 @@ export default function PublishModal({
         preparePublicationVideoVariants,
         getPublicationSoundtracks,
         filterPostsForSelectedChannels,
-        ensureCutoverVideoVariantsReady,
       },
       actions: {
         setPublishError,
@@ -4406,7 +4323,7 @@ export default function PublishModal({
 
   const openSchedulePublicationModal = () => {
     if (saving || draftSaving || scheduleSaving || voiceInputBusy) return;
-    const imagePreparationIssue = getImagePreparationIssue(selectedChannels);
+    const imagePreparationIssue = getImagePreparationIssue(selectedChannels, "schedule");
     if (imagePreparationIssue) {
       setPublishError(imagePreparationIssue);
       return;
@@ -4416,6 +4333,7 @@ export default function PublishModal({
     setScheduleError("");
     setDraftMessage("");
     setImgError("");
+    setPendingScheduleRequest(null);
     if (!tiktokReviewCurrent) setTiktokPublicationSettings(null);
 
     if (!selectedChannels.length) {
@@ -4454,7 +4372,7 @@ export default function PublishModal({
       throw new Error("");
     }
 
-    await performSchedulePublication(
+    const result = await performSchedulePublication(
       selections,
       preparedPostsByChannel,
       tiktokWillSchedule || tiktokWillPublishNow
@@ -4462,6 +4380,8 @@ export default function PublishModal({
         : null,
       immediateChannels,
     );
+    // The schedule modal reports success only after a recorded submission.
+    if (result === undefined) throw new Error("");
   };
 
   const onPublish = async () => {
@@ -4830,15 +4750,22 @@ export default function PublishModal({
 
     if (tiktokSettingsFlow === "schedule" && pendingScheduleRequest) {
       const request = pendingScheduleRequest;
-      setPendingScheduleRequest(null);
       setTiktokSettingsFlow(null);
       setScheduleModalOpen(true);
-      const immediatePublishRequest = await performSchedulePublication(
-        request.selections,
-        request.preparedPostsByChannel,
-        settings,
-        request.immediateChannels,
-      );
+      let immediatePublishRequest: PendingImmediatePublishAfterSchedule | null | undefined;
+      try {
+        immediatePublishRequest = await performSchedulePublication(
+          request.selections,
+          request.preparedPostsByChannel,
+          settings,
+          request.immediateChannels,
+        );
+      } catch {
+        // Submission already exposes its error and releases its busy lock.
+        // Keep the form and its original dates available for a manual retry.
+        return;
+      }
+      if (immediatePublishRequest === undefined) return;
       setScheduleModalOpen(false);
       if (immediatePublishRequest?.immediateChannels?.length) {
         setPendingImmediatePublishAfterSchedule(null);
@@ -5236,6 +5163,7 @@ export default function PublishModal({
             publicationDestinations={publicationVisualDestinations}
             publishError={publishError}
             mediaPreparationIssue={publishImagePreparationIssue}
+            scheduleMediaPreparationIssue={scheduleImagePreparationIssue}
             mediaPreparationFailed={
               Boolean(imagePreparationError) ||
               imagePreparationItems.some((item) => item.status === "failed")
@@ -5570,6 +5498,7 @@ export default function PublishModal({
         open={scheduleModalOpen}
         styles={styles}
         items={scheduleModalItems}
+        initialSelections={pendingScheduleRequest?.selections}
         isMobile={isMobile}
         saving={scheduleSaving}
         error={scheduleError}

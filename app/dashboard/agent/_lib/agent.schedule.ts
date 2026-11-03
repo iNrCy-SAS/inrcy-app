@@ -2,6 +2,7 @@ import { filterInrAgentPublicationChannels, preparedInrAgentPublicationChannels 
 import { readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
 import { INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT } from "@/lib/mediaRules";
 import { compactInrAgentScheduledPayload } from "@/lib/inrAgentScheduledPayload";
+import { isManualBoosterPublicationSchedule } from "@/lib/standardAgentPolicy";
 import {
   inrAgentMonthlyDateCount,
   isInrAgentScheduledMonthDay,
@@ -933,6 +934,7 @@ export function updateScheduledEditPublishMedia(
     imageAssets: selectedChannelAssets,
     payload: {
       ...payload,
+      scheduledMediaRevisionRequested: true,
       publishPayload: nextPublishPayload,
       postByChannel,
       imagesByChannel,
@@ -1039,6 +1041,9 @@ export function scheduledEditUpdateFromAction(
     action.actionType === "publication"
   ) {
     const publishPayload = asRecord(payload.publishPayload) || {};
+    const manualBoosterSchedule = isManualBoosterPublicationSchedule({
+      source: "manual", automationKey: action.automationKey, actionType: action.actionType, targetTool: action.targetTool, payload,
+    });
     const channels = filterInrAgentPublicationChannels(payload, options.channels?.length
       ? options.channels
       : agentChannelsToBoosterChannels(
@@ -1113,12 +1118,12 @@ export function scheduledEditUpdateFromAction(
       video,
       workflowTool: "booster",
       workflowAction: "publier",
-      source: "inr_agent",
-      inrAgentActionId: firstSafeString(
+      source: manualBoosterSchedule ? "booster_scheduled" : "inr_agent",
+      ...(manualBoosterSchedule ? {} : { inrAgentActionId: firstSafeString(
         payload.sourceActionId,
         payload.inrAgentActionId,
         action.id,
-      ),
+      ) }),
     };
     if (!channels.includes("instagram")) {
       delete nextPublishPayload.instagramPublicationSettings;

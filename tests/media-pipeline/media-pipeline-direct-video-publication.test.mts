@@ -82,7 +82,7 @@ test("TikTok refuse une vidéo au-dessus du plafond de transport du fournisseur"
   );
 });
 
-test("publier finalise après le clic tandis que la programmation garde sa récupération", async () => {
+test("publier et programmer sécurisent les sources tandis que le worker prépare les adaptations", async () => {
   const modal = await readSource(
     "app/dashboard/booster/publier/PublishModal.tsx",
   );
@@ -104,7 +104,7 @@ test("publier finalise après le clic tandis que la programmation garde sa récu
     submission,
     /waitForPersistentWorkspaceReadiness\(\s*"schedule"/,
   );
-  assert.match(modal, /async function ensureCutoverVideoVariantsReady/);
+  assert.match(modal, /await verifyPersistentWorkspaceSources\(sourceExpectations/);
   assert.doesNotMatch([modal, submission].join("\n"), /startBackgroundVideoPrewarm/);
   assert.doesNotMatch([modal, submission].join("\n"), /prepareCutoverVideoVariants/);
   const immediatePublish = submission.slice(
@@ -119,11 +119,13 @@ test("publier finalise après le clic tandis que la programmation garde sa récu
     immediatePublish,
     /if \(shouldBuildVideoFallbackPayload\)[\s\S]*preparePublicationVideoVariants\(/,
   );
-  assert.match(submission, /generateMissingVideoVariants:\s*false/);
-  assert.match(
-    modal,
-    /shouldRetryVideoVariantGeneration[\s\S]*generateMissingVideoVariants:\s*true/,
-  );
+  const scheduledPublish = submission.slice(submission.indexOf("const performSchedulePublication = async"));
+  assert.doesNotMatch(scheduledPublish, /ensureCutoverVideoVariantsReady|prewarmPersistentMediaWorkspace/);
+  assert.match(scheduledPublish, /if \(shouldBuildScheduleVideoFallback\)[\s\S]*preparePublicationVideoVariants\(/);
+  assert.match(scheduledPublish, /videoSettingsByChannel: buildChannelUnknownRecord\(\s*scheduleVideoSettingsByChannel/);
+  assert.match(publishRoute, /preparePublicationVariants\(\s*internalAsyncPreparationDispatch,?\s*\)/);
+  assert.match(publishRoute, /candidate\.signature === signature/);
+  assert.match(publishRoute, /reason: "video_variant_required"/);
   assert.match(uploadEvent, /!directVideoSource/);
   assert.match(uploadEvent, /reason:\s*"source_direct_ready"/);
   assert.match(prepareRoute, /function canUseOriginalVideo/);

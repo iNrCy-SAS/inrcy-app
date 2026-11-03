@@ -3883,7 +3883,8 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   const navigateUsageGuide = useCallback((href: string) => {
     if (!isDashboardDestinationAllowedForEdition(href, dashboardEdition)) return;
     const destination = new URL(href, "https://inrcy.local");
-    if (destination.pathname.startsWith("/dashboard/agent") && !canAccessInrAgent) return;
+    const manualBasicPlanning = dashboardEdition === "basic" && (destination.pathname === "/dashboard/agent" || destination.pathname === "/dashboard/agent/publications");
+    if (destination.pathname.startsWith("/dashboard/agent") && !canAccessInrAgent && !manualBasicPlanning) return;
     if (destination.searchParams.get("panel") === "threads" && !metaPilotEnabled) return;
     const helpAction = destination.pathname === "/dashboard" ? destination.searchParams.get("helpAction") : null;
     if (helpAction) {

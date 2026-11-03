@@ -47,6 +47,7 @@ import type { AutomationConfig, AutomationKey } from "../_lib/agent.types";
 import {
   filterStandardAgentItems,
   restrictInrAgentSettingsForStandard,
+  filterManualBoosterPublicationSchedules,
 } from "@/lib/standardAgentPolicy";
 
 function channelMapFromConnectionStates(payload: unknown): ConnectedChannelMap {
@@ -230,7 +231,7 @@ export function writeCachedAgentViewSnapshot(
   }
 }
 
-export async function warmAgentRuntimeSnapshot() {
+export async function warmAgentRuntimeSnapshot({ manualPlanningOnly = false }: { manualPlanningOnly?: boolean } = {}) {
   if (typeof window === "undefined") return;
   const cached = readCachedAgentViewSnapshot();
 
@@ -241,9 +242,9 @@ export async function warmAgentRuntimeSnapshot() {
   };
 
   const [settingsResult, channelsResult, actionsResult, scheduledResult] = await Promise.allSettled([
-    cached?.settings ? Promise.resolve(null) : readJson("/api/agent/settings"),
+    manualPlanningOnly || cached?.settings ? Promise.resolve(null) : readJson("/api/agent/settings"),
     cached?.connectedChannels ? Promise.resolve(null) : readJson("/api/integrations/channel-states"),
-    Array.isArray(cached?.actions) ? Promise.resolve(null) : readJson("/api/agent/actions"),
+    manualPlanningOnly || Array.isArray(cached?.actions) ? Promise.resolve(null) : readJson("/api/agent/actions"),
     Array.isArray(cached?.scheduledActions) ? Promise.resolve(null) : readJson("/api/agent/scheduled-actions"),
   ]);
 
@@ -279,8 +280,10 @@ export async function warmAgentRuntimeSnapshot() {
 
 export function useAgentRuntimeData({
   standardMode = false,
+  manualPlanningOnly = false,
 }: {
   standardMode?: boolean;
+  manualPlanningOnly?: boolean;
 } = {}) {
   const { metaPilotEnabled } = useDashboardViewerAccess();
   const i18nT = useTranslations("agent");
@@ -328,7 +331,7 @@ export function useAgentRuntimeData({
       cachedSnapshot?.connectedChannels ?? readCachedAgentConnectedChannels();
     cachedAgentSnapshotRef.current = cachedSnapshot;
 
-    if (cachedSnapshot?.settings) {
+    if (!manualPlanningOnly && cachedSnapshot?.settings) {
       const nextSettings = standardMode
         ? restrictInrAgentSettingsForStandard(cachedSnapshot.settings)
         : cachedSnapshot.settings;
@@ -343,7 +346,7 @@ export function useAgentRuntimeData({
       setConnectedChannelsLoadState("ready");
     }
 
-    if (Array.isArray(cachedSnapshot?.actions)) {
+    if (!manualPlanningOnly && Array.isArray(cachedSnapshot?.actions)) {
       setActions(
         standardMode
           ? filterStandardAgentItems(cachedSnapshot.actions)
@@ -354,7 +357,7 @@ export function useAgentRuntimeData({
 
     if (Array.isArray(cachedSnapshot?.scheduledActions)) {
       setScheduledActions(
-        standardMode
+        manualPlanningOnly ? filterManualBoosterPublicationSchedules(cachedSnapshot.scheduledActions) : standardMode
           ? filterStandardAgentItems(cachedSnapshot.scheduledActions)
           : cachedSnapshot.scheduledActions,
       );
@@ -364,7 +367,7 @@ export function useAgentRuntimeData({
     setScheduledActionsTableMissing(
       Boolean(cachedSnapshot?.scheduledActionsTableMissing),
     );
-  }, [standardMode, metaPilotEnabled]);
+  }, [standardMode, metaPilotEnabled, manualPlanningOnly]);
 
   // Responses use the current view policy and locale without restarting the
   // account-scoped background read when the surrounding form rerenders.
@@ -397,6 +400,7 @@ export function useAgentRuntimeData({
   });
 
   useEffect(() => {
+    if (manualPlanningOnly) { setLoadState("ready"); return; }
     let alive = true;
 
     async function loadSettings() {
@@ -427,7 +431,7 @@ export function useAgentRuntimeData({
     return () => {
       alive = false;
     };
-  }, []);
+  }, [manualPlanningOnly]);
 
   const onConnectedChannelsLoaded = useEffectEvent((ok: boolean, payload: unknown, accountScope: string | null) => {
     if (!ok) {
@@ -501,6 +505,7 @@ export function useAgentRuntimeData({
   }, [agentConnectedChannels, loadState]);
 
   async function refreshPublicationHistory(silent = false) {
+    if (manualPlanningOnly) { setHistoryPublications([]); return; }
     const { from, to } = agentPublicationHistoryWindow();
     try {
       const params = new URLSearchParams({ from, to });
@@ -521,6 +526,7 @@ export function useAgentRuntimeData({
   }
 
   async function refreshActions(silent = false, refreshHistory = true) {
+    if (manualPlanningOnly) { setActions([]); return; }
     if (refreshHistory) void refreshPublicationHistory(silent);
     if (!silent) {
       setActionsLoadState((current) =>
@@ -570,6 +576,7 @@ export function useAgentRuntimeData({
   }
 
   async function refreshScheduledActions(silent = false) {
+    const accountScope = getActiveBrowserUserId();
     try {
       const response = await fetch("/api/agent/scheduled-actions", {
         method: "GET",
@@ -588,24 +595,30 @@ export function useAgentRuntimeData({
       const loadedScheduledActions = Array.isArray(payload?.scheduledActions)
         ? payload.scheduledActions
         : [];
-      const nextScheduledActions = standardMode
+      if (accountScope !== getActiveBrowserUserId()) return false;
+      const nextScheduledActions = manualPlanningOnly ? filterManualBoosterPublicationSchedules(loadedScheduledActions) : standardMode
         ? filterStandardAgentItems(loadedScheduledActions)
         : loadedScheduledActions;
       const nextScheduledTableMissing = Boolean(payload?.tableMissing);
       setScheduledActions(filterMetaPilotItems(nextScheduledActions, metaPilotEnabled));
       setScheduledActionsTableMissing(nextScheduledTableMissing);
+      if (manualPlanningOnly) setActionsLoadState("ready");
       writeCachedAgentViewSnapshot({
         scheduledActions: nextScheduledActions,
         scheduledActionsTableMissing: nextScheduledTableMissing,
       });
+      return true;
     } catch {
+      if (manualPlanningOnly) setActionsLoadState("error");
       if (!silent) {
         showNotice(i18nT("scheduled_actions_unavailable"));
       }
+      return false;
     }
   }
 
   async function refreshAssistantData(canApply: () => boolean): Promise<boolean> {
+    if (manualPlanningOnly) return canApply() ? refreshScheduledActions(true) : false;
     const accountId = getActiveBrowserUserId();
     const { from, to } = agentPublicationHistoryWindow();
     try {
@@ -657,9 +670,9 @@ export function useAgentRuntimeData({
     return () => window.clearInterval(interval);
   }, [actions]);
 
-  const visibleActions = useMemo(() => filterMetaPilotItems(actions, metaPilotEnabled), [actions, metaPilotEnabled]);
-  const visibleScheduledActions = useMemo(() => filterMetaPilotItems(scheduledActions, metaPilotEnabled), [scheduledActions, metaPilotEnabled]);
-  const visibleHistory = useMemo(() => filterMetaPilotItems(historyPublications, metaPilotEnabled), [historyPublications, metaPilotEnabled]);
+  const visibleActions = useMemo(() => manualPlanningOnly ? [] : filterMetaPilotItems(actions, metaPilotEnabled), [actions, metaPilotEnabled, manualPlanningOnly]);
+  const visibleScheduledActions = useMemo(() => filterMetaPilotItems(manualPlanningOnly ? filterManualBoosterPublicationSchedules(scheduledActions) : scheduledActions, metaPilotEnabled), [scheduledActions, metaPilotEnabled, manualPlanningOnly]);
+  const visibleHistory = useMemo(() => manualPlanningOnly ? [] : filterMetaPilotItems(historyPublications, metaPilotEnabled), [historyPublications, metaPilotEnabled, manualPlanningOnly]);
   const visibleSettings = useMemo(() => filterMetaPilotPayload(agentSettings, metaPilotEnabled), [agentSettings, metaPilotEnabled]);
   const visibleConfigs = useMemo(() => filterMetaPilotPayload(configs, metaPilotEnabled), [configs, metaPilotEnabled]);
 

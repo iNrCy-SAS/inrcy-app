@@ -142,7 +142,16 @@ test("le choix vidéo reste instantané et l'original est attesté sans compress
     immediatePublish,
     /if \(shouldBuildVideoFallbackPayload\)[\s\S]*preparePublicationVideoVariants\(/,
   );
-  assert.match(modal, /options\?\.generateMissingVideoVariants === false/);
+  const schedule = submission.slice(
+    submission.indexOf("const performSchedulePublication = async"),
+    submission.indexOf("function publishImmediateChannelsAfterSchedule"),
+  );
+  assert.doesNotMatch(schedule, /ensureCutoverVideoVariantsReady|prewarmPersistentMediaWorkspace/);
+  const verifiedSources = schedule.indexOf("await waitForPersistentWorkspaceReadiness(");
+  const scheduledSubmission = schedule.indexOf("await postBoosterScheduledAction(");
+  assert.ok(verifiedSources >= 0 && scheduledSubmission > verifiedSources, "verified originals precede the scheduled snapshot request");
+  assert.match(modal, /await verifyPersistentWorkspaceSources\(sourceExpectations,/);
+  assert.match(schedule, /mediaWorkspaceId:[\s\S]{0,110}unifiedMediaConsumptionClientAvailable && readyMediaWorkspaceId/);
 });
 
 test("un 413 TUS explique le plafond Booster de 75 Mo", async () => {

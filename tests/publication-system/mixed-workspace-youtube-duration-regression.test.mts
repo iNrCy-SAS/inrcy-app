@@ -180,20 +180,24 @@ test("la correction ne relâche aucune vraie limite de durée YouTube", () => {
   if (!tooLong.ok) assert.equal(tooLong.reason, "video_duration_too_long");
 });
 
-test("le préwarm vidéo reste explicite quand le workspace est mixte", () => {
+test("un workspace mixte vérifie les deux familles avant programmation et conserve le préwarm serveur typé", () => {
   const client = read("lib/mediaWorkspaceClient.ts");
   const hook = read(
     "app/dashboard/booster/publier/usePersistentMediaWorkspace.ts",
   );
   const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
+  const submission = read("app/dashboard/booster/publier/publicationSubmission.ts");
   const prewarm = read("app/api/media-pipeline/workspace/prewarm/route.ts");
 
   assert.match(client, /requestedMediaType\?: "images" \| "video"/);
   assert.match(hook, /requestedMediaType:\s*settings\?\.requestedMediaType/);
   assert.match(
-    modal,
-    /prewarmPersistentMediaWorkspace\(\{[\s\S]{0,160}requestedMediaType: "video"/,
+    submission,
+    /const requiredScheduleMediaTypes = \[[\s\S]{0,90}hasAnyImagePublish[\s\S]{0,90}hasAnyVideoPublish/,
   );
+  assert.match(submission, /await waitForPersistentWorkspaceReadiness\(\s*"schedule"[\s\S]{0,400}requiredScheduleMediaTypes/);
+  assert.match(modal, /await verifyPersistentWorkspaceSources\(sourceExpectations,/);
+  assert.doesNotMatch([modal, submission].join("\n"), /ensureCutoverVideoVariantsReady|prewarmPersistentMediaWorkspace/);
   assert.match(
     prewarm,
     /consumption\.video && requestedMediaType !== "images"/,

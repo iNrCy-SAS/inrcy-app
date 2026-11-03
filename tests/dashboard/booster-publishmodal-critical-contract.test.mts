@@ -50,7 +50,7 @@ test("PublishModal keeps the three dedicated media controllers", () => {
   assert.match(publishModal, /isLegacyMediaTransportCutoverClientEnabled\(\)/);
 });
 
-test("generation waits only for selected AI media while publication and scheduling always wait", () => {
+test("generation secures only selected AI sources while publication and scheduling secure their required sources", () => {
   assert.match(generation, /const shouldPrepareMediaForAi =/);
   assert.match(
     generation,
@@ -71,7 +71,7 @@ test("generation waits only for selected AI media while publication and scheduli
 test("strict cutover sends workspace references instead of browser media binaries", () => {
   assert.match(submission, /mediaWorkspaceId:/);
   assert.match(submission, /mediaWorkspaceClientKey:/);
-  assert.match(publishModal, /mediaPipelineCutoverV1:/);
+  assert.match(submission, /mediaPipelineCutoverV1:\s*mediaPipelineCutoverEnabled/);
   assert.match(
     generation,
     /imagesForAI:\s*mediaPipelineCutoverEnabled\s*\?\s*\[\]\s*:\s*imagesForAI/,
@@ -105,11 +105,11 @@ test("cutover delegates video retouching to iNrStudio and keeps server preparati
   assert.doesNotMatch([publishModal, submission].join("\n"), /directOriginalAvailable/);
   assert.match(persistentWorkspace, /preparePublicationMedia/);
   assert.doesNotMatch([publishModal, submission].join("\n"), /prepareCutoverVideoVariants/);
-  assert.match(submission, /generateMissingVideoVariants:\s*false/);
-  assert.match(
-    publishModal,
-    /mediaPipelineCutoverV1:\s*true,[\s\S]{0,100}allowOriginalVideoFallback:\s*false/,
-  );
+  assert.doesNotMatch(submission, /ensureCutoverVideoVariantsReady/);
+  assert.match(publishRoute, /if \(strictMediaCutover && hasAnyVideoChannel && publicationVideo\)/);
+  assert.match(publishRoute, /requireCodecProof:\s*true/);
+  assert.match(publishRoute, /prepareBoosterVideoVariantsOnServer\(/);
+  assert.match(publishRoute, /transformedVariants: strictMediaCutover/);
   assert.match(publishModal, /const openInrStudioVideoRetoucher = async/);
   assert.match(
     publishModal,

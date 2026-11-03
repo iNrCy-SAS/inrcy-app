@@ -115,6 +115,25 @@ test("disabled agent access and the Threads pilot retain their independent gates
     assert.equal(h.state.help, true);
   }
 });
+for (const href of ["/dashboard/agent", "/dashboard/agent/publications"]) {
+  test(`Basic help opens its manual planning at ${href}`, async () => {
+    const h = harness({ edition: "basic", agent: false });
+    h.navigate(href);
+    await h.decide(true);
+    assert.deepEqual(h.history, [{ action: "push", href }]);
+    assert.equal(h.state.help, false);
+  });
+}
+for (const edition of ["basic", "standard", "premium"] as const) {
+  test(`${edition} help preserves agent automation access rules`, async () => {
+    const allowed = edition !== "basic";
+    const h = harness({ edition, agent: allowed });
+    h.navigate("/dashboard/agent/publications/settings");
+    if (allowed) await h.decide(true);
+    assert.deepEqual(h.history, allowed ? [{ action: "push", href: "/dashboard/agent/publications/settings" }] : []);
+    assert.equal(h.prompts.length, allowed ? 1 : 0);
+  });
+}
 test("opening and closing help changes no channel, generator or publication state", () => {
   const h = harness({ query: "panel=preferences&help=1&keep=1" });
   h.state.help = false;

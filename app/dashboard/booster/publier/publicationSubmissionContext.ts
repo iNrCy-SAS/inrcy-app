@@ -72,7 +72,7 @@ export type PublicationSubmissionContext = {
   };
   preparation: {
     buildPreparedPostsByChannel: () => Partial<Record<ChannelKey, ChannelPost>>;
-    getImagePreparationIssue: (channelsToReview: readonly ChannelKey[]) => string;
+    getImagePreparationIssue: (channelsToReview: readonly ChannelKey[], purpose?: "publish" | "schedule") => string;
     resolveChannelMediaMode: (channel: ChannelKey) => ChannelMediaMode;
     waitForPersistentWorkspaceIdle: ReturnType<typeof usePersistentMediaWorkspace>["waitForIdle"];
     buildFinalReviewItems: (preparedPostsByChannel: Partial<Record<ChannelKey, ChannelPost>>, channelsToReview?: ChannelKey[], workspaceStatesOverride?: readonly PersistentWorkspaceMediaState[]) => { channel: ChannelKey; label: string; mediaType: "video" | "images"; mediaLabel: string; imageCount: number; warnings: string[]; details: string[]; blockers: string[]; blockerCodes: string[]; contentBlockers: string[]; contentWarnings: string[]; mediaWarnings: string[]; mediaBlockers: string[]; mediaBlockerCodes: string[]; publishable: boolean; tiktokParametersValidated: boolean; hasContent: boolean; hasTitle: boolean; hasText: boolean; hasImage: boolean; }[];
@@ -84,7 +84,6 @@ export type PublicationSubmissionContext = {
     preparePublicationVideoVariants: ReturnType<typeof usePublishVideoController>["preparePublicationVideoVariants"];
     getPublicationSoundtracks: (channels: readonly ChannelKey[]) => MediaSoundtrackByChannel;
     filterPostsForSelectedChannels: (preparedPosts: Partial<Record<ChannelKey, ChannelPost>>, channelsToKeep: ChannelKey[]) => Partial<Record<ChannelKey, ChannelPost>>;
-    ensureCutoverVideoVariantsReady: (channels: ChannelKey[], settingsByChannel: Partial<Record<ChannelKey, { format: VideoFormat; adaptationMode: VideoAdaptationMode; }>>, options?: { generateMissingVideoVariants?: boolean; allowPartialChannelFailures?: boolean; }) => Promise<unknown>;
   };
   actions: {
     setPublishError: Dispatch<SetStateAction<string>>;

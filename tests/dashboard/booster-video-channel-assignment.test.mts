@@ -112,7 +112,7 @@ test("channel removal and global deletion are explicit and remain separate", () 
   const channelRemoval = between(
     publishModal,
     "const removeMediaFromChannel",
-    "function getCutoverVideoPreparationError",
+    "const syncActiveImagesToPersistentWorkspace",
   );
   assert.match(channelRemoval, /\[channel\]: "none"/);
   assert.doesNotMatch(channelRemoval, /syncPersistentWorkspaceVideo/);

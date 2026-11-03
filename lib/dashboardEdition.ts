@@ -224,7 +224,8 @@ export function isDashboardRouteAllowedForEdition(
   searchParams: URLSearchParams | undefined,
   edition: DashboardEdition,
 ): boolean {
-  if (edition === "basic" && pathMatches(pathname, "/dashboard/agent")) return false;
+  if (edition === "basic" && pathMatches(pathname, "/dashboard/agent")
+    && pathname !== "/dashboard/agent" && pathname !== "/dashboard/agent/publications") return false;
   if (isStandardDashboardEdition(edition) && !isStandardDashboardRouteAllowed(pathname, searchParams)) {
     return false;
   }
@@ -295,7 +296,8 @@ export function isApiRouteAllowedForEdition(
   searchParams: URLSearchParams | undefined,
   edition: DashboardEdition,
 ): boolean {
-  if (edition === "basic" && pathMatches(pathname, "/api/agent")) return false;
+  if (edition === "basic" && pathMatches(pathname, "/api/agent")
+    && !/^\/api\/agent\/scheduled-actions(?:\/[^/]+(?:\/execute)?)?$/.test(pathname)) return false;
   if (
     edition !== "founder" &&
     FOUNDER_ONLY_API_PREFIXES.some((candidate) => pathMatches(pathname, candidate))

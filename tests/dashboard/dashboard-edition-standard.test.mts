@@ -422,7 +422,8 @@ test("les calendriers des trois agents réutilisent la modale avec le bon périm
     standardModulesSource,
     /className=\{standardStyles\.agentPlanningButton\}/,
   );
-  assert.match(sharedModulesSource, /locked \? startPanelOpening\("abonnement"\) : setPlanningWorkspace\(workspace\)/);
+  assert.match(sharedModulesSource, /locked \? startPanelOpening\("abonnement"\) : basicMode \? startModuleNavigation\(INR_AGENT_WORKSPACES\.publications\.href\) : setPlanningWorkspace\(workspace\)/);
+  assert.match(sharedModulesSource, /if \(basicMode && workspace !== "publications"\) return null/);
   assert.match(sharedModulesSource, /<DashboardAgentPlanningModal[\s\S]*?standardMode=\{standardMode\}/);
   assert.match(
     dashboardAgentPlanningSource,

@@ -70,7 +70,7 @@ function effects(reviewed: boolean, channel = "tiktok", blockers: string[] = [])
     runPublish: record("publish"), performSchedulePublication: record("schedule"),
     closeEmptyContentWarnings: record("closeEmptyWarnings"), scrollToPublishArea: record("scroll"),
   };
-  for (const name of ["setPublishError", "setDraftMessage", "setImgError", "setPublishProgress", "setPublishProgressLabel", "setPostsByChannel", "setPendingPublishPosts", "setFinalReviewPosts", "setTiktokPublicationSettings", "setTiktokReviewSignature", "setTiktokSettingsFlow", "setTiktokSettingsOpen", "setFinalReviewOpen", "setScheduleModalOpen", "setPendingScheduleRequest"]) scope[name] = record(name);
+  for (const name of ["setPublishError", "setDraftMessage", "setImgError", "setPublishProgress", "setPublishProgressLabel", "setPostsByChannel", "setPendingPublishPosts", "setFinalReviewPosts", "setTiktokPublicationSettings", "setTiktokReviewSignature", "setTiktokSettingsFlow", "setTiktokSettingsOpen", "setFinalReviewOpen", "setScheduleModalOpen", "setPendingScheduleRequest", "setPendingImmediatePublishAfterSchedule", "publishImmediateChannelsAfterSchedule", "onClose"]) scope[name] = record(name);
   return { calls, scope, called: (name: string) => calls.filter(([key]) => key === name) };
 }
 
@@ -115,5 +115,73 @@ test("closing final confirmation retains only a still-current TikTok card review
     const h = effects(reviewed);
     evaluate("closeFinalReview", h.scope)();
     assert.equal(h.called("setTiktokPublicationSettings").length, reviewed ? 0 : 1);
+  }
+});
+
+test("a media readiness rejection after TikTok approval keeps scheduling open without an unhandled promise or immediate publication", async () => {
+  const h = effects(true);
+  const request = { selections: [{ channel: "tiktok", scheduledAt: "2099-04-05T10:00:00.000Z" }], preparedPostsByChannel: { tiktok: post }, immediateChannels: ["facebook"] };
+  Object.assign(h.scope, {
+    tiktokSettingsFlow: "schedule", pendingScheduleRequest: request,
+    performSchedulePublication: async (...args: unknown[]) => {
+      h.calls.push(["schedule", args]);
+      throw new Error("Les médias sont encore en cours de préparation.");
+    },
+  });
+  await assert.doesNotReject(evaluate("validateTiktokSettingsModal", h.scope)(settings));
+  assert.deepEqual(h.called("schedule"), [["schedule", [request.selections, request.preparedPostsByChannel, settings, request.immediateChannels]]]);
+  assert.deepEqual(h.called("setScheduleModalOpen"), [["setScheduleModalOpen", true]], "the schedule error remains visible instead of closing the workspace");
+  assert.deepEqual(h.called("setPendingScheduleRequest"), [], "the selected dates remain available when the schedule form reopens");
+  for (const action of ["onClose", "publishImmediateChannelsAfterSchedule", "setPendingImmediatePublishAfterSchedule", "setPostsByChannel"]) assert.equal(h.called(action).length, 0, action);
+});
+
+test("a controlled scheduling refusal after TikTok approval cannot be mistaken for a successful schedule", async () => {
+  const h = effects(true);
+  Object.assign(h.scope, {
+    tiktokSettingsFlow: "schedule",
+    pendingScheduleRequest: { selections: [{ channel: "tiktok", scheduledAt: "2099-04-05T10:00:00.000Z" }], preparedPostsByChannel: { tiktok: post }, immediateChannels: [] },
+    performSchedulePublication: async () => undefined,
+  });
+  await evaluate("validateTiktokSettingsModal", h.scope)(settings);
+  assert.deepEqual(h.called("setScheduleModalOpen"), [["setScheduleModalOpen", true]]);
+  assert.equal(h.called("onClose").length, 0);
+  assert.equal(h.called("publishImmediateChannelsAfterSchedule").length, 0);
+});
+
+test("the standard scheduling form receives a rejection for a controlled refusal", async () => {
+  const h = effects(true);
+  h.scope.performSchedulePublication = async () => undefined;
+  await assert.rejects(evaluate("confirmSchedulePublication", h.scope)([{ channel: "tiktok", scheduledAt: "2099-04-05T10:00:00.000Z" }]));
+  assert.equal(h.called("onClose").length, 0);
+});
+
+test("only durable scheduling may defer pending image preparation; missing and failed images still block", () => {
+  const base = {
+    mediaPipelineCutoverEnabled: true, persistentMediaWorkspaceEnabled: true, unifiedMediaConsumptionClientAvailable: true,
+    resolveChannelMediaMode: () => "images", channelImageEditors: { facebook: { imageKeys: ["image-a"] } },
+    imagePreparationItems: [{ imageKey: "image-a", status: "pending" }], persistentMediaSynchronizing: false, imagePreparationError: "",
+  };
+  const check = (change = {}) => evaluate("getImagePreparationIssue", { ...base, ...change });
+  assert.notEqual(check()(["facebook"]), "", "immediate publication still waits for preparation");
+  assert.equal(check()(["facebook"], "schedule"), "");
+  assert.equal(check({ persistentMediaSynchronizing: true })(["facebook"], "schedule"), "", "submission itself must finish and verify the upload");
+  assert.notEqual(check({ persistentMediaWorkspaceEnabled: false })(["facebook"], "schedule"), "");
+  assert.notEqual(check({ unifiedMediaConsumptionClientAvailable: false })(["facebook"], "schedule"), "");
+  assert.notEqual(check({ imagePreparationItems: [] })(["facebook"], "schedule"), "");
+  assert.notEqual(check({ imagePreparationItems: [{ imageKey: "image-a", status: "failed" }] })(["facebook"], "schedule"), "");
+});
+
+test("successful scheduling after TikTok approval closes normally or publishes only the explicit immediate selection", async () => {
+  for (const immediate of [null, { immediateChannels: ["facebook"], preparedPostsByChannel: { facebook: post }, tiktokSettingsForSchedule: settings }]) {
+    const h = effects(true);
+    Object.assign(h.scope, {
+      tiktokSettingsFlow: "schedule",
+      pendingScheduleRequest: { selections: [{ channel: "tiktok", scheduledAt: "2099-04-05T10:00:00.000Z" }], preparedPostsByChannel: { tiktok: post }, immediateChannels: immediate?.immediateChannels || [] },
+      performSchedulePublication: async () => immediate,
+    });
+    await evaluate("validateTiktokSettingsModal", h.scope)(settings);
+    assert.deepEqual(h.called("setScheduleModalOpen"), [["setScheduleModalOpen", true], ["setScheduleModalOpen", false]]);
+    assert.equal(h.called("onClose").length, immediate ? 0 : 1);
+    assert.deepEqual(h.called("publishImmediateChannelsAfterSchedule"), immediate ? [["publishImmediateChannelsAfterSchedule", immediate]] : []);
   }
 });

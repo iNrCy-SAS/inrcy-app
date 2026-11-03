@@ -142,3 +142,52 @@ test("scheduling returns only explicitly selected immediate channels and dispatc
   assert.equal(f.requests.length, 1); assert.deepEqual(f.requests[0].channels, ["facebook"]);
   assert.equal(f.successes.length, 1);
 });
+
+test("media preparation rejection preserves the draft, releases the scheduling lock and allows a single successful retry", async () => {
+  const f = fixture();
+  const selections = [{ channel: "gmb", scheduledAt: "2099-04-05T10:00:00.000Z" }] as const;
+  const message = "Les médias sont encore en cours de préparation.";
+  f.preparation.waitForPersistentWorkspaceReadiness = async () => { throw new Error(message); };
+  await assert.rejects(f.api.performSchedulePublication([...selections], f.posts, null, ["facebook"]), { message });
+  assert.equal(f.scheduled.length, 0);
+  assert.deepEqual(f.requests, []);
+  assert.equal(f.writes.setScheduleError.at(-1), message);
+  assert.equal(f.writes.setPublishError.at(-1), message);
+  assert.deepEqual(f.writes.setScheduleSaving, [true, false]);
+  assert.equal(f.state.scheduleStartGuardRef.current, false);
+  for (const action of ["setChannels", "setScheduleReviewPosts", "setTiktokPublicationSettings"]) assert.equal(f.writes[action], undefined, action);
+
+  f.preparation.waitForPersistentWorkspaceReadiness = async () => null;
+  const request = await f.api.performSchedulePublication([...selections], f.posts, null, ["facebook"]);
+  assert.ok(request);
+  assert.equal(f.scheduled.length, 1);
+  assert.deepEqual(f.scheduled[0].channels, ["gmb"]);
+  assert.deepEqual(f.requests, [], "retrying a schedule never publishes the immediate channel by itself");
+  assert.equal(f.state.scheduleStartGuardRef.current, false);
+  assert.deepEqual(f.writes.setScheduleSaving, [true, false, true, false]);
+});
+
+test("durable video scheduling verifies the original before recording and leaves channel adaptations to the background worker", async () => {
+  const f = fixture(), source = deferred<string>();
+  Object.assign(f.media, { persistentMediaWorkspaceEnabled: true, mediaPipelineCutoverEnabled: true, unifiedMediaConsumptionClientAvailable: true, videoFile: { name: "source.mp4", type: "video/mp4" }, mediaWorkspaceClientKey: "workspace-client" });
+  const calls: unknown[][] = [];
+  Object.assign(f.preparation, {
+    resolveChannelMediaMode: () => "video",
+    waitForPersistentWorkspaceReadiness: (...args: unknown[]) => { calls.push(args); return source.promise; },
+    ensureCutoverVideoVariantsReady: async () => { throw new Error("Channel adaptations are still processing"); },
+  });
+  const pending = f.api.performSchedulePublication([{ channel: "gmb", scheduledAt: "2099-04-05T10:00:00.000Z" }], f.posts, null);
+  for (let turn = 0; turn < 10 && !calls.length; turn++) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls[0]?.[0], "schedule");
+  assert.deepEqual(calls[0]?.[2], ["video"]);
+  assert.equal(f.scheduled.length, 0, "an incomplete source upload must never be accepted");
+  source.resolve("durable-workspace");
+  assert.equal(await pending, null);
+  assert.equal(f.scheduled.length, 1);
+  const payload = f.scheduled[0].payload as Json, publishPayload = payload.publishPayload as Json;
+  assert.equal(publishPayload.mediaWorkspaceId, "durable-workspace");
+  assert.equal(publishPayload.mediaPipelineCutoverV1, true);
+  assert.deepEqual(publishPayload.videoSettingsByChannel, { gmb: { format: "original", adaptationMode: "fit" } });
+  assert.deepEqual(f.requests, [], "recording a schedule must not publish now");
+  assert.equal(f.state.scheduleStartGuardRef.current, false);
+});

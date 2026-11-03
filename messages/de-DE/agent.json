@@ -846,6 +846,8 @@
   "settings_selection_empty": "Keine Auswahl",
   "workspaces": {
     "publications": {
+      "manualTitle": "Geplante Veröffentlichungen",
+      "manualDescription": "Verwalten Sie Ihre in Booster geplanten Veröffentlichungen",
       "automate": "Automatisieren",
       "name": "Publikationen",
       "description": "Ihre Beiträge, vorbereitet und geplant"

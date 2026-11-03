@@ -4,11 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { InrAgentManualCreditAvailability } from "@/lib/inrAgentManualCreditPolicy";
 
 /** Refresh on return, after an action/settings change, and while the tab is visible. */
-export function useAgentManualCredits(refreshKey: string) {
+export function useAgentManualCredits(refreshKey: string, enabled = true) {
   const [availability,setAvailability] = useState<InrAgentManualCreditAvailability | null>(null);
   const requestVersion = useRef(0);
   const invalidatePendingRequests = useCallback(() => ++requestVersion.current, []);
   const refresh = useCallback(async () => {
+    if (!enabled) return {ready:false,allowed:false,unlimited:false,remaining:null,required:0} satisfies InrAgentManualCreditAvailability;
     const version = invalidatePendingRequests();
     let value: InrAgentManualCreditAvailability = {ready:false,allowed:false,unlimited:false,remaining:null,required:0};
     try {
@@ -19,9 +20,10 @@ export function useAgentManualCredits(refreshKey: string) {
     } catch { /* Keep the manual button unavailable until the balance is verified. */ }
     if (version === requestVersion.current) setAvailability(value);
     return value;
-  },[invalidatePendingRequests]);
+  },[enabled,invalidatePendingRequests]);
   useEffect(() => {
     setAvailability(null);
+    if (!enabled) { invalidatePendingRequests(); return; }
     void refresh();
     const onFocus = () => { if (document.visibilityState === "visible") void refresh(); };
     window.addEventListener("focus",onFocus);
@@ -33,6 +35,6 @@ export function useAgentManualCredits(refreshKey: string) {
       document.removeEventListener("visibilitychange",onFocus);
       window.clearInterval(interval);
     };
-  },[invalidatePendingRequests,refresh,refreshKey]);
+  },[enabled,invalidatePendingRequests,refresh,refreshKey]);
   return {availability,refresh};
 }

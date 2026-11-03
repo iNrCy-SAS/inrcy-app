@@ -846,6 +846,8 @@
   "settings_selection_empty": "Sin selección",
   "workspaces": {
     "publications": {
+      "manualTitle": "Publicaciones programadas",
+      "manualDescription": "Gestiona tus publicaciones programadas desde Booster",
       "automate": "Automatizar",
       "name": "Publicaciones",
       "description": "Tus publicaciones, preparadas y programadas"

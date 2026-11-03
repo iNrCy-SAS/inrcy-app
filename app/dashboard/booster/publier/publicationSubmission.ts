@@ -1152,7 +1152,6 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
       waitForPersistentWorkspaceIdle,
       buildFinalReviewItems,
       waitForPersistentWorkspaceReadiness,
-      ensureCutoverVideoVariantsReady,
       buildChannelImageSettingsPayload,
       buildChannelImagesPayload,
       uploadOriginalImagesForPublication,
@@ -1203,10 +1202,9 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
       return;
     }
 
-    const imagePreparationIssue = getImagePreparationIssue([
-      ...requestedChannelsToSchedule,
-      ...immediateChannels,
-    ]);
+    const imagePreparationIssue =
+      getImagePreparationIssue(requestedChannelsToSchedule, "schedule") ||
+      getImagePreparationIssue(immediateChannels);
     if (imagePreparationIssue) {
       setScheduleError(imagePreparationIssue);
       setPublishError(imagePreparationIssue);
@@ -1336,23 +1334,9 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
           scheduleWorkspaceReadinessTimeoutMs,
         );
 
-      if (hasAnyVideoPublish && workspaceCarriesVideoForSchedule) {
-        const videoChannels = channelsToSchedule.filter(
-          (channel) => publishMediaModeByChannel[channel] === "video",
-        );
-        setPublishProgress((current) => Math.max(current, 43));
-        setPublishProgressLabel(i18nT("progress_media_preparation"));
-        await ensureCutoverVideoVariantsReady(
-          videoChannels,
-          scheduleVideoSettingsByChannel,
-          {
-            generateMissingVideoVariants: false,
-            allowPartialChannelFailures: true,
-          },
-        );
-        setPublishProgress((current) => Math.max(current, 57));
-        setPublishProgressLabel(i18nT("progress_media_preparation"));
-      }
+      // The verified originals and channel settings are snapshotted below.
+      // Pending adaptations continue in the durable publication worker; they
+      // must not prevent recording a future schedule or require an open tab.
 
       const emptyChannelImages = {} as ChannelImagePayload;
       const emptyChannelSettings = {} as ChannelImageSettingsPayload;

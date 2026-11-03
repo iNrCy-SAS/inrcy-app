@@ -34,8 +34,9 @@ test("les images historiques illisibles utilisent le secours IA depuis leur sour
   assert.match(consumption, /markVariantBinaryUploadTrusted\(variant\)/);
 });
 
-test("la génération vidéo utilise les captures locales tandis que programmer exige le workspace", () => {
+test("la génération vidéo utilise les captures locales et la programmation sécurise les originaux du workspace", () => {
   const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
+  const submission = read("app/dashboard/booster/publier/publicationSubmission.ts");
   const generate = read("app/api/booster/generate/route.ts");
   assert.match(
     generationController,
@@ -46,8 +47,11 @@ test("la génération vidéo utilise les captures locales tandis que programmer 
   assert.doesNotMatch([modal, generationController].join("\n"), /directOriginalAvailable/);
   assert.match(
     modal,
-    /mediaPipelineCutoverV1:\s*true,[\s\S]{0,100}allowOriginalVideoFallback:\s*false/,
+    /await verifyPersistentWorkspaceSources\(sourceExpectations,\s*\{\s*signal: readinessSignal/,
   );
+  assert.match(submission, /await waitForPersistentWorkspaceReadiness\(\s*"schedule"[\s\S]{0,400}requiredScheduleMediaTypes/);
+  assert.match(submission, /mediaPipelineCutoverV1:\s*mediaPipelineCutoverEnabled/);
+  assert.doesNotMatch([modal, submission].join("\n"), /ensureCutoverVideoVariantsReady|prewarmPersistentMediaWorkspace/);
   assert.match(generate, /workspace_verified_client_video_context/);
   assert.match(generate, /existingVideoFrames\.length/);
 });

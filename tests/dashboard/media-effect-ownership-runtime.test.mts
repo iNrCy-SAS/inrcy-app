@@ -277,6 +277,35 @@ test("schedule initialization preserves edits across presentation rerenders and 
   } finally { await browser.close(); }
 });
 
+test("pending durable media enables scheduling while immediate publication stays blocked", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await setup(page, "app/dashboard/booster/publier/components/PublishFooterActions.tsx", `
+      window.schedules=0;window.publications=0;
+      window.config={styles:{},publishAreaRef:{current:null},saving:false,scheduling:false,draftSaving:false,publishProgress:0,publishProgressLabel:'',publishError:'',mediaPreparationIssue:'Preparation pending',scheduleMediaPreparationIssue:'',onSchedule:()=>window.schedules++,onPublish:()=>window.publications++};
+      window.configure=patch=>{window.config={...window.config,...patch};root.render(React.createElement(Subject,window.config))};window.configure({});
+    `, `{'../../../_components/StatusMessage':()=>null,'../../../_components/PublishExecutionProgress':()=>null}`);
+    const schedule = page.locator('[data-publish-schedule-action]');
+    const publish = page.getByRole("button", { name: "publier_34e6b19e", exact: true });
+    await schedule.waitFor();
+    assert.equal(await schedule.isEnabled(), true);
+    assert.equal(await publish.isDisabled(), true);
+    await schedule.click();
+    assert.equal(await page.evaluate("window.schedules"), 1);
+    assert.equal(await page.evaluate("window.publications"), 0);
+    await page.evaluate("window.configure({mediaPreparationIssue:'Media failed',scheduleMediaPreparationIssue:'Media failed',mediaPreparationFailed:true})");
+    await page.waitForFunction("document.querySelector('[data-publish-schedule-action]')?.disabled");
+    assert.equal(await publish.isDisabled(), true);
+    await page.evaluate("window.configure({mediaPreparationIssue:'',scheduleMediaPreparationIssue:'',mediaPreparationFailed:false})");
+    await page.waitForFunction("!document.querySelector('[data-publish-schedule-action]')?.disabled");
+    assert.equal(await publish.isEnabled(), true);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
 test("image adapter retains its opening baseline while edits arrive and refreshes it on reopen", async () => {
   const browser = await chromium.launch({ headless: true });
   try {

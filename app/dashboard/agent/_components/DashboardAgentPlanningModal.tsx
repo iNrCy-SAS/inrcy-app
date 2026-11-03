@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { useDashboardEdition } from "../../_components/DashboardEditionProvider";
 
 import { isStandardAgentAutomationKey } from "@/lib/standardAgentPolicy";
 import { filterAgentWorkspaceSchedule, isAutomationInAgentWorkspace, type InrAgentWorkspace } from "@/lib/inrAgentWorkspaces";
@@ -41,13 +42,14 @@ function DashboardAgentPlanningContent({
   const i18nT = useTranslations("agent");
   const locale = useLocale();
   const runtimeT = i18nT as unknown as AgentTranslator;
+  const manualPlanningOnly = useDashboardEdition() === "basic";
   const visibleAutomations = useMemo(
-    () => (standardMode
+    () => manualPlanningOnly ? [] : (standardMode
       ? automations.filter((automation) =>
           isStandardAgentAutomationKey(automation.key),
         )
       : automations).filter((automation) => !workspace || isAutomationInAgentWorkspace(workspace, automation.key)),
-    [standardMode, workspace],
+    [standardMode, workspace, manualPlanningOnly],
   );
   const {
     configs,
@@ -58,7 +60,7 @@ function DashboardAgentPlanningContent({
     historyPublications,
     scheduledActions,
     actionsLoadState,
-  } = useAgentRuntimeData({ standardMode });
+  } = useAgentRuntimeData({ standardMode, manualPlanningOnly });
   const allItems = useMemo(
     () =>
       buildAgentScheduleItems({

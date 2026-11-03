@@ -7,7 +7,7 @@ import {
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
 import { getActiveSubscriptionAccountIds } from "@/lib/accountSubscriptionAccess";
-import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
+import { isStandardAgentActionDescriptor, isManualBoosterPublicationSchedule } from "@/lib/standardAgentPolicy";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
 
 export const runtime = "nodejs";
@@ -849,7 +849,7 @@ async function processDueScheduledActions(args: { origin: string; maxRows: numbe
   );
 
   for (const row of rows) {
-    if (editionsByAccount.get(row.user_id) === "basic") {
+    if (editionsByAccount.get(row.user_id) === "basic" && !isManualBoosterPublicationSchedule(row)) {
       results.push({ ok: true, status: "skipped", scheduledActionId: row.id,
         targetTool: String(row.target_tool || "agent"), detail: "standard_required" });
       continue;

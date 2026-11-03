@@ -94,8 +94,11 @@ test("les sources partent en parallèle sans préparation lourde et les MP4 dire
   assert.doesNotMatch([modal, submission].join("\n"), /directOriginalAvailable/);
   assert.match(
     modal,
-    /mediaPipelineCutoverV1:\s*true,[\s\S]{0,100}allowOriginalVideoFallback:\s*false/,
+    /await verifyPersistentWorkspaceSources\(sourceExpectations,\s*\{\s*signal: readinessSignal/,
   );
+  assert.match(submission, /mediaPipelineCutoverV1:\s*mediaPipelineCutoverEnabled/);
+  assert.match(submission, /await waitForPersistentWorkspaceReadiness\(\s*"schedule"[\s\S]{0,400}requiredScheduleMediaTypes/);
+  assert.doesNotMatch([modal, submission].join("\n"), /ensureCutoverVideoVariantsReady|prewarmPersistentMediaWorkspace/);
   assert.match(hook, /loadMediaPublicationWorkspace\(/);
   assert.match(prepare, /processImageNormalizationJobsForMedia/);
   assert.match(prepare, /limit:\s*120/);

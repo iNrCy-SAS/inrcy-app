@@ -7,23 +7,39 @@ import test from "node:test";
 const read = (path) =>
   readFile(new URL(`../../${path}`, import.meta.url), "utf8");
 
-test("strict scheduling requires the workspace master while rollback keeps compatible originals", async () => {
-  const [modal, prewarm, publishRoute, channelContext, workspaceHook] = await Promise.all([
+test("strict scheduling snapshots verified originals and the durable worker prepares variants before publishing", async () => {
+  const [modal, prewarm, publishRoute, channelContext, workspaceHook, scheduleRoute, snapshot] = await Promise.all([
     read("app/dashboard/booster/publier/PublishModal.tsx"),
     read("app/api/media-pipeline/workspace/prewarm/route.ts"),
     read("app/api/booster/publish-now/route.ts"),
     read("app/api/booster/publish-now/publishNow.channel-context.ts"),
     read("app/dashboard/booster/publier/usePersistentMediaWorkspace.ts"),
+    read("app/api/agent/scheduled-actions/route.ts"),
+    read("lib/scheduledPublicationMediaSnapshot.ts"),
   ]);
   const publish = `${publishRoute}\n${channelContext}`;
 
   assert.doesNotMatch([modal, submission].join("\n"), /startBackgroundVideoPrewarm/);
   assert.doesNotMatch([modal, submission].join("\n"), /directOriginalAvailable/);
-  assert.match(submission, /generateMissingVideoVariants:\s*false/);
+  const schedule = submission.slice(
+    submission.indexOf("const performSchedulePublication = async"),
+    submission.indexOf("function publishImmediateChannelsAfterSchedule"),
+  );
   assert.match(
     modal,
-    /mediaPipelineCutoverV1:\s*true,[\s\S]{0,100}allowOriginalVideoFallback:\s*false/,
+    /await verifyPersistentWorkspaceSources\(sourceExpectations,\s*\{\s*signal: readinessSignal/,
   );
+  assert.match(schedule, /await waitForPersistentWorkspaceReadiness\(\s*"schedule"[\s\S]{0,400}requiredScheduleMediaTypes/);
+  assert.doesNotMatch(schedule, /ensureCutoverVideoVariantsReady|prewarmPersistentMediaWorkspace/);
+  const verifiedSources = schedule.indexOf("await waitForPersistentWorkspaceReadiness(");
+  const submissionIndex = schedule.indexOf("await postBoosterScheduledAction(");
+  assert.ok(verifiedSources >= 0 && submissionIndex > verifiedSources, "durable source verification precedes recording the schedule");
+  assert.match(schedule, /mediaPipelineCutoverV1:\s*mediaPipelineCutoverEnabled/);
+  assert.match(schedule, /videoSettingsByChannel:[\s\S]{0,150}scheduleVideoSettingsByChannel/);
+  assert.match(scheduleRoute, /await snapshotScheduledPublicationWorkspace\([\s\S]*applyScheduledPublicationMediaSnapshot\(/);
+  assert.match(snapshot, /media_id:\s*link\.media_id/);
+  assert.match(snapshot, /media_settings:\s*asRecord\(link\.media_settings\)/);
+  assert.match(snapshot, /channel_settings:\s*asRecord\(link\.channel_settings\)/);
   assert.doesNotMatch([modal, submission].join("\n"), /prepareCutoverVideoVariants/);
   const immediatePublish = submission.slice(
     submission.indexOf("const runPublish = async"),
@@ -52,6 +68,7 @@ test("strict scheduling requires the workspace master while rollback keeps compa
     /usesOriginalSource && sourceDirectlyPublishable[\s\S]*return \[\]/,
   );
   assert.match(publishRoute, /reason:\s*"video_variant_required"/);
+  assert.match(publishRoute, /preparePublicationVariants\(\s*internalAsyncPreparationDispatch,?\s*\)/);
   assert.match(publish, /const usesOriginalSource = settings\.format === "original"/);
   assert.match(
     publish,

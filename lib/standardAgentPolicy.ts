@@ -12,7 +12,35 @@ type AgentDescriptor = {
   action_type?: unknown;
   targetTool?: unknown;
   target_tool?: unknown;
+  source?: unknown;
+  payload?: unknown;
 };
+
+/** A user's Booster schedule is independent of the editorial AI agent. */
+export function isManualBoosterPublicationSchedule(value: AgentDescriptor | null | undefined): boolean {
+  if (!value || normalizedDescriptorValue(value.source) !== "manual"
+    || normalizedDescriptorValue(value.actionType ?? value.action_type) !== "publication"
+    || normalizedDescriptorValue(value.targetTool ?? value.target_tool) !== "booster") return false;
+  const automationKey = normalizedDescriptorValue(value.automationKey ?? value.automation_key);
+  if (automationKey && automationKey !== "publish") return false;
+  const payload = value.payload && typeof value.payload === "object" && !Array.isArray(value.payload)
+    ? value.payload as Record<string, unknown> : {};
+  const publishPayload = payload.publishPayload && typeof payload.publishPayload === "object" && !Array.isArray(payload.publishPayload)
+    ? payload.publishPayload as Record<string, unknown> : null;
+  if (!publishPayload || payload.editorialPlan) return false;
+  const origins = [payload.origin, publishPayload.origin].map(origin =>
+    origin && typeof origin === "object" && !Array.isArray(origin) ? origin as Record<string, unknown> : {});
+  if ([payload, publishPayload, ...origins].some(source => source.sourceActionId || source.inrAgentActionId || source.agentActionId
+    || normalizedDescriptorValue(source.source).startsWith("inr_agent"))
+    || typeof payload.origin === "string" && normalizedDescriptorValue(payload.origin).startsWith("inr_agent")) return false;
+  const kind = normalizedDescriptorValue(payload.kind);
+  if (kind && kind !== "manual_publish_schedule") return false;
+  return kind === "manual_publish_schedule" || normalizedDescriptorValue(publishPayload.source) === "booster_scheduled";
+}
+
+export function filterManualBoosterPublicationSchedules<Schedule extends AgentDescriptor>(items: readonly Schedule[]): Schedule[] {
+  return items.filter(isManualBoosterPublicationSchedule);
+}
 
 function normalizedDescriptorValue(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
