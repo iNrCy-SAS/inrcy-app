@@ -37,9 +37,9 @@ const model = loadModule(modelFile) as typeof import("../../app/dashboard/_compo
 const workspaces = loadModule(resolve(root, "lib/inrAgentWorkspaces.ts")) as typeof import("../../lib/inrAgentWorkspaces.ts");
 const editions: DashboardEdition[] = ["standard", "premium", "founder"];
 
-test("all six help goals and three setup steps lead to existing detailed articles", () => {
+test("all six help goals and the two cockpit setup steps lead to existing detailed articles", () => {
   assert.deepEqual(model.HELP_GOALS, ["publish", "media", "grow", "reviews", "contacts", "stats"]);
-  assert.deepEqual(model.HELP_SETUP, ["channels", "dna", "ai"]);
+  assert.deepEqual(model.HELP_SETUP, ["channels", "personalization"]);
   const articles = model.getHelpArticles("founder", true);
   const available = new Set(articles.map(({ article }) => article.id));
   assert.equal(available.size, articles.length, "The flattened help list has no duplicated articles");
@@ -133,12 +133,15 @@ test("all help tools use existing application pages and the current publication 
   assert.deepEqual(model.getHelpGoalTools("media", "standard", false).map(item => item.href), ["/dashboard/generer-media", "/dashboard/mediatheque"]);
 });
 
-test("legacy guide links open the channel workspace and current business DNA page without rewriting other links", () => {
+test("legacy setup links open the unified personalization tabs without rewriting other tools", () => {
   assert.equal(model.getHelpArticleDestination("/dashboard"), "/dashboard?helpAction=channels");
   assert.equal(model.getHelpArticleDestination("/dashboard/"), "/dashboard?helpAction=channels");
-  assert.equal(model.getHelpArticleDestination("/dashboard/profil-entreprise"), "/dashboard/adn-entreprise");
-  assert.equal(model.getHelpArticleDestination("/dashboard/profil-entreprise?section=offers#details"), "/dashboard/adn-entreprise?section=offers#details");
-  for (const href of ["/dashboard?panel=threads", "/dashboard?action=publish", "/dashboard?panel=documents&panelSource=gps", "/dashboard/mon-profil", "/dashboard/profil-entreprise-other", "https://inrcy.com/dashboard"]) {
+  for (const href of ["/dashboard/profil-entreprise", "/dashboard/profil-entreprise?section=offers#details", "/dashboard/mon-profil", "/dashboard/mon-profil?section=activity"]) {
+    assert.equal(model.getHelpArticleDestination(href), "/dashboard/personnalisation?section=company");
+  }
+  assert.equal(model.getHelpArticleDestination("/dashboard/adn-entreprise"), "/dashboard/personnalisation");
+  assert.equal(model.getHelpArticleDestination("/dashboard/configuration-ia"), "/dashboard/personnalisation?section=communication");
+  for (const href of ["/dashboard?panel=threads", "/dashboard?action=publish", "/dashboard?panel=documents&panelSource=gps", "/dashboard/profil-entreprise-other", "https://inrcy.com/dashboard"]) {
     assert.equal(model.getHelpArticleDestination(href), href);
   }
 });

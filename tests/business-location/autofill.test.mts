@@ -128,3 +128,29 @@ Email : hebergeur@autre.example`)]);
   assert.equal(result.phone?.value, "06 31 26 08 12");
   assert.equal(result.contact_email?.value, "contact@pro.example");
 });
+
+test("les documents attribuent leurs coordonnées explicites à l’entreprise, jamais au client ou à l’hébergeur", () => {
+  const document = source("reference_documents", `[Document fourni 1 — brochure.txt]
+Raison sociale : Entreprise réelle
+Téléphone : 06 31 26 08 12
+Email : contact@pro.example
+Client : Autre société
+Raison sociale : Client privé
+Téléphone : 01 00 00 00 00
+Email : client@autre.example
+Hébergeur : Prestataire
+Email : hebergeur@autre.example`);
+  const result = resolveBusinessIdentitySuggestions([document]);
+  assert.equal(result.company_legal_name?.value, "Entreprise réelle");
+  assert.equal(result.phone?.value, "06 31 26 08 12");
+  assert.equal(result.contact_email?.value, "contact@pro.example");
+  assert.deepEqual(resolveBusinessIdentitySuggestions([source("reference_documents", "Client : Mme X\nRaison sociale : Client privé\nEmail : client@autre.example")]), {});
+  assert.deepEqual(resolveBusinessIdentitySuggestions([source("reference_documents", "Téléphone : 06 31 26 08 12\nEmail : inconnue@autre.example")]), {});
+  assert.equal(resolveBusinessIdentitySuggestions([source("reference_documents", "Nos coordonnées\nEmail : contact@pro.example")]).contact_email?.value, "contact@pro.example");
+});
+
+test("des coordonnées documentaires contradictoires restent vides, les profils officiels gardent la priorité", () => {
+  const documents = source("reference_documents", `[Document fourni 1 — un.txt]\nRaison sociale : Société A\nEmail : a@pro.example\n\n[Document fourni 2 — deux.txt]\nRaison sociale : Société B\nEmail : b@pro.example`);
+  assert.deepEqual(resolveBusinessIdentitySuggestions([documents]), {});
+  assert.equal(resolveBusinessIdentitySuggestions([documents, gmb()]).company_legal_name?.value, "Entreprise réelle");
+});

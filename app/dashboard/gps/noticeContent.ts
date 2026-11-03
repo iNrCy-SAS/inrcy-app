@@ -54,9 +54,9 @@ export const GPS_SECTIONS: GpsSectionSource[] = [
         goal: "ia_utile_13a1f789",
         intro: "startup_intro_business_dna_20260905",
         steps: [
-          "startup_step_profile_20260905",
           "startup_step_channels_20260905",
           "startup_step_analyze_20260905",
+          "startup_step_profile_20260905",
           "startup_step_complete_dna_20260905",
           "startup_step_configure_ai_20260905",
         ],
@@ -72,10 +72,10 @@ export const GPS_SECTIONS: GpsSectionSource[] = [
           "startup_reflex_validate_20260905",
         ],
         links: [
-          { label: "ouvrir_mon_profil_15991b97", href: "/dashboard/mon-profil" },
           { label: "ouvrir_les_canaux_9322102a", href: "/dashboard" },
-          { label: "startup_link_business_dna_20260905", href: "/dashboard/adn-entreprise" },
-          { label: "configuration_ia_f620c8d8", href: "/dashboard/configuration-ia" },
+          { label: "startup_link_business_dna_20260905", href: "/dashboard/personnalisation" },
+          { label: "ouvrir_mon_profil_15991b97", href: "/dashboard/personnalisation?section=company" },
+          { label: "configuration_ia_f620c8d8", href: "/dashboard/personnalisation?section=communication" },
         ],
       },
       {
@@ -102,8 +102,8 @@ export const GPS_SECTIONS: GpsSectionSource[] = [
           "les_valeurs_proposees_par_secteur_restent_74cbdf72",
         ],
         links: [
-          { label: "mon_profil_faa6d321", href: "/dashboard/mon-profil" },
-          { label: "mon_activite_7732bf80", href: "/dashboard/mon-profil?section=activity" },
+          { label: "mon_profil_faa6d321", href: "/dashboard/personnalisation?section=company" },
+          { label: "configuration_ia_f620c8d8", href: "/dashboard/personnalisation?section=communication" },
           { label: "reglages_encaisser_ef086133", href: "/dashboard?panel=documents&panelSource=gps" },
         ],
       },

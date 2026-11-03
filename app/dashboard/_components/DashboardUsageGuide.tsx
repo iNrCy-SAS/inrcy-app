@@ -26,11 +26,11 @@ type IconName = Exclude<Theme, "start"> | "search";
 type ContentCard = { title: string; items: string[]; numbered?: boolean };
 type ThemeContent = { title: string; subtitle: string; intro: string; cards: ContentCard[] };
 const SETUP_HREFS: Record<HelpSetup, string> = {
-  channels: "/dashboard?helpAction=channels", dna: "/dashboard/adn-entreprise", ai: "/dashboard/configuration-ia",
+  channels: "/dashboard?helpAction=channels", personalization: "/dashboard/personnalisation",
 };
 const TONES: Record<Theme, string> = {
   start: "blue",
-  channels: "cyan", dna: "purple", ai: "pink", publish: "cyan", media: "blue", grow: "pink",
+  channels: "cyan", personalization: "pink", publish: "cyan", media: "blue", grow: "pink",
   reviews: "gold", contacts: "cyan", stats: "purple", landmarks: "blue",
 };
 const ARTWORK = { publish: "rocket", media: "studio", grow: "mail", reviews: "reputation", contacts: "contacts" } as const;
@@ -38,8 +38,7 @@ const ARTWORK = { publish: "rocket", media: "studio", grow: "mail", reviews: "re
 const THEME_SOURCES: Record<Theme, readonly string[]> = {
   start: ["demarrer-express", "problemes-express"],
   channels: ["canaux-express", "canaux-threads", "problemes-express"],
-  dna: ["demarrer-express", "demarrer-rangement"],
-  ai: ["demarrer-express", "booster-express", "problemes-express"],
+  personalization: ["demarrer-express", "demarrer-rangement"],
   publish: ["booster-express", "booster-bilan"],
   media: [],
   grow: ["propulser-express", "fideliser-express"],
@@ -55,8 +54,7 @@ const completion = (value: number) => Math.max(0, Math.min(100, Math.round(value
 function GuideIcon({ name }: { name: IconName }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     {name === "channels" ? <><rect x="3" y="3" width="6" height="6" rx="1.5" /><rect x="15" y="3" width="6" height="6" rx="1.5" /><rect x="9" y="15" width="6" height="6" rx="1.5" /><path d="M6 9v3h12V9M12 12v3" /></> : null}
-    {name === "dna" ? <><path d="M7 3c0 8 10 10 10 18M17 3C17 11 7 13 7 21M8 5h8M9 9h6M9 15h6M8 19h8" /></> : null}
-    {name === "ai" ? <><path d="M4 6h16M4 12h16M4 18h16" /><circle cx="9" cy="6" r="2" /><circle cx="15" cy="12" r="2" /><circle cx="8" cy="18" r="2" /></> : null}
+    {name === "personalization" ? <><path d="M7 3c0 8 10 10 10 18M17 3C17 11 7 13 7 21M8 5h8M9 9h6M9 15h6M8 19h8" /></> : null}
     {name === "publish" ? <><path d="M14 4c2-1 4-1 6-1 0 2 0 4-1 6l-7 7-5-5 7-7ZM7 11l-4 1 4-6 5-1M12 16l-1 5 6-4 1-5M7 16l-3 4" /><circle cx="16" cy="7" r="1.5" /></> : null}
     {name === "media" ? <><rect x="3" y="5" width="18" height="15" rx="3" /><circle cx="8" cy="10" r="1.5" /><path d="m4 17 5-4 4 3 3-6 4 7M9 2h6" /></> : null}
     {name === "grow" ? <><path d="m3 10 14-6v16L3 14v-4ZM7 15l2 6h4l-2-8M20 8l2-2M20 12h3M20 16l2 2" /></> : null}
@@ -108,6 +106,7 @@ export default function DashboardUsageGuide({ edition, metaPilotEnabled, inrAgen
   const content: Record<Theme, ThemeContent> = {
     start: { title: t("setupTitle"), subtitle: t("setupSubtitle"), intro: t("intro"), cards: [
       checks(items("demarrer-express", "checks", [0, 2, 3])),
+      card(t("overview"), [t("personalization.autosave"), t("personalization.analysisLimits")]),
     ] },
     channels: { title: t("channels.title"), subtitle: t("channels.body"), intro: intro("canaux-express"), cards: [
       steps(items("canaux-express", "steps", [0, 1, 2])),
@@ -117,21 +116,11 @@ export default function DashboardUsageGuide({ edition, metaPilotEnabled, inrAgen
         ? [intro("canaux-threads"), ...items("canaux-threads", "checks", [0])]
         : [intro("problemes-express"), ...items("problemes-express", "checks", [0])]),
     ] },
-    dna: { title: t("dna.title"), subtitle: t("dna.body"), intro: intro("demarrer-express"), cards: [
-      steps(items("demarrer-express", "steps", [0, 2, 3])),
-      checks(items("demarrer-express", "checks", [0, 2, 3])),
-      reflexes(items("demarrer-express", "pitfalls", [0, 1])),
-      card(source("demarrer-rangement")?.title ?? t("overview"), [intro("demarrer-rangement"), ...items("demarrer-rangement", "pitfalls", [0])]),
-    ] },
-    ai: { title: t("ai.title"), subtitle: t("ai.body"), intro: t("setupSubtitle"), cards: [
-      steps([
-        gpsT("personnaliser_configuration_ia_ton_style_facon_2fcb8d45"),
-        gpsT("startup_step_configure_ai_20260905"),
-        gpsT("verifier_le_texte_le_media_le_652d37d4"),
-      ]),
-      checks([gpsT("configuration_ia_reflete_bien_le_style_b90fdac8"), ...items("demarrer-express", "checks", [0, 3])]),
-      reflexes([gpsT("verifier_mon_activite_mon_profil_et_c02fc29a"), ...items("problemes-express", "pitfalls", [0])]),
-      card(t("goals.publish.title"), [t("goals.publish.intro"), ...items("booster-express", "checks", [2]), ...items("booster-express", "pitfalls", [2])]),
+    personalization: { title: t("personalization.title"), subtitle: t("personalization.body"), intro: t("personalization.intro"), cards: [
+      card(dashboardT("aiMemory.tabAnalysis"), [t("personalization.analysis"), t("personalization.analysisLimits")]),
+      card(dashboardT("personalization.companyTitle"), [t("personalization.company")]),
+      card(dashboardT("personalization.communicationTitle"), [t("personalization.communication")]),
+      checks([t("personalization.autosave"), t("personalization.reset")]),
     ] },
     publish: goalContent("publish", [
       checks(items("booster-express", "checks", [0, 1, 2])),
@@ -240,15 +229,15 @@ export default function DashboardUsageGuide({ edition, metaPilotEnabled, inrAgen
         </div>
         <div className={styles.detail}>
           {current.intro ? <p className={styles.detailIntro}><RichText text={current.intro} /></p> : null}
-          {setup ? <div className={styles.setupStatus}><span>{setup === "channels" ? t("connected", { connected: progress.connected, total: progress.total }) : t(completion(progress[setup]) === 100 ? "completed" : "continue")}</span><strong>{completion(progress[setup])}%</strong><span className={styles.gauge} role="progressbar" aria-label={t(`${setup}.title`)} aria-valuenow={completion(progress[setup])} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${completion(progress[setup])}%` }} /></span></div> : null}
+          {setup === "channels" ? <div className={styles.setupStatus}><span>{t("connected", { connected: progress.connected, total: progress.total })}</span><strong>{completion(progress.channels)}%</strong><span className={styles.gauge} role="progressbar" aria-label={t("channels.title")} aria-valuenow={completion(progress.channels)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${completion(progress.channels)}%` }} /></span></div> : null}
           <div className={styles.cardGrid}>
             {selection === "start" ? HELP_SETUP.map((key, index) => {
-              const value = completion(progress[key]);
-              const tip = key === "channels" ? items("canaux-express", "checks", [1])[0] : key === "dna" ? items("demarrer-express", "steps", [3])[0] : gpsT("startup_step_configure_ai_20260905");
+              const value = completion(progress.channels);
+              const tip = key === "channels" ? items("canaux-express", "checks", [1])[0] : t("personalization.tip");
               return <article className={styles.startCard} key={key} data-tone={TONES[key]}>
-                <div className={styles.cardHeading}><span className={styles.stepNumber}>{index + 1}</span><h3>{t(`${key}.title`)}</h3><span className={styles.completion}>{key === "channels" ? t("connected", { connected: progress.connected, total: progress.total }) : t(value === 100 ? "completed" : "continue")}</span></div>
+                <div className={styles.cardHeading}><span className={styles.stepNumber}>{index + 1}</span><h3>{t(`${key}.title`)}</h3>{key === "channels" ? <span className={styles.completion}>{t("connected", { connected: progress.connected, total: progress.total })}</span> : null}</div>
                 <p>{t(`${key}.body`)}</p><p className={styles.tip}><RichText text={tip ?? ""} /></p>
-                <div className={styles.startBottom}><span className={styles.gauge} role="progressbar" aria-label={t(`${key}.title`)} aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${value}%` }} /></span><strong>{value}%</strong><button type="button" className={styles.toolButton} onClick={() => navigate(SETUP_HREFS[key])}>{t(`${key}.action`)} <span aria-hidden="true">↗</span></button></div>
+                <div className={styles.startBottom}>{key === "channels" ? <><span className={styles.gauge} role="progressbar" aria-label={t("channels.title")} aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${value}%` }} /></span><strong>{value}%</strong></> : null}<button type="button" className={styles.toolButton} onClick={() => navigate(SETUP_HREFS[key])}>{t(`${key}.action`)} <span aria-hidden="true">↗</span></button></div>
               </article>;
             }) : null}
             {visibleCards.map((item, index) => <article className={styles.infoCard} key={`${selection}-${index}`}>

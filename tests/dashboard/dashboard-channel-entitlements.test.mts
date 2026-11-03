@@ -155,10 +155,7 @@ test("le cockpit ouvre une infobulle par étape et détaille tous les canaux dis
     heroSource,
     /step\.key === "channels"[\s\S]*className=\{styles\.cockpitPowerGrid\}[\s\S]*channelPowerSteps\.map/,
   );
-  assert.match(
-    heroSource,
-    /const globalPower = Math\.round\([\s\S]*\[generatorPower, dnaPower, aiPower\][\s\S]*\/ 3/,
-  );
+  assert.doesNotMatch(heroSource, /cockpitGlobalPower|const globalPower/);
   assert.match(dashboardCssSource, /\.cockpitStageInfoOpen\s*\{[\s\S]*z-index: 30;/);
   assert.match(dashboardCssSource, /\.cockpitInfoPopover\s*\{[\s\S]*z-index: 40;/);
   const infoLayer = Number(heroCssSource.match(/\.heroInfoOpen\s*\{[^}]*z-index:\s*(\d+)/)?.[1]);

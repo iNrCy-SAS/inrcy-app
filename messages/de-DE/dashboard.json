@@ -4,14 +4,14 @@
     "routineTab": "Im Alltag",
     "landmarksTab": "Orientierung",
     "title": "iNrCy richtig nutzen",
-    "intro": "Drei Einstellungen für den Einstieg, dann eine einfache Routine.",
+    "intro": "Zwei Schritte: Kanäle verbinden und die Anwendung personalisieren.",
     "setupTitle": "Beginnen Sie in Ihrem Cockpit",
     "channelsTitle": "Kanäle verbinden",
     "channelsBody": "Verknüpfen Sie Ihre Konten und prüfen Sie ihren Status. Kehren Sie hierher zurück, wenn ein Kanal neu verbunden werden muss.",
-    "dnaTitle": "Unternehmens-DNA ergänzen",
-    "dnaBody": "Beschreiben Sie Ihre Tätigkeit, Angebote und Zielgruppe, damit die KI den Kontext Ihres Unternehmens kennt.",
-    "aiTitle": "KI personalisieren",
-    "aiBody": "Wählen Sie den Ton und ergänzen Sie Vorgaben, damit die Inhalte zu Ihrer Kommunikation passen.",
+    "dnaTitle": "Meine Anwendung anpassen",
+    "dnaBody": "Mein Unternehmen umfasst Kontakt & Logo; Tätigkeit (Beruf, Vorstellung, Leistungen und Fachgebiete); Kunden; Gebiete (Postleitzahl, Hauptort, Einsatzgebiete und Öffnungszeiten); sowie Identität (Mission, Stärken, Werte und Zusagen). Prüfen Sie gefundene Angaben und ergänzen Sie fehlende Informationen.",
+    "aiTitle": "Meine Kommunikation",
+    "aiBody": "Unter Meine Kommunikation regelt Stil und Einstellungen die Schreibpräferenzen; Vorgaben und Beispiele bündelt Vorgaben, Verbote, Wortwahl und Beispiele; CTA je Kanal bestimmt Aktionen und Ziele künftiger Inhalte; Ziele und Strategie und Aktuelles legen wichtige Themen fest. Beachten Sie die Möglichkeiten des jeweiligen Kanals.",
     "routineTitle": "Ihre tägliche Routine",
     "publishTitle": "Mit Booster veröffentlichen",
     "publishBody": "Inhalt vorbereiten, prüfen, Kanäle auswählen und dann veröffentlichen oder planen.",
@@ -940,7 +940,7 @@
     "aria": "iNrCy-Hilfe öffnen",
     "intro": "Die ersten Schritte und danach das richtige Werkzeug zur richtigen Zeit.",
     "setupTitle": "Gut starten",
-    "setupSubtitle": "Drei Schritte, um die KI auf Ihr Unternehmen abzustimmen.",
+    "setupSubtitle": "Zwei Schritte: Kanäle verbinden und die Anwendung personalisieren.",
     "goalsTitle": "Was möchten Sie tun?",
     "goalsSubtitle": "Wählen Sie Ihr Ziel, wir zeigen Ihnen den Weg.",
     "back": "Zurück zu den Zielen",
@@ -965,7 +965,7 @@
     "agent": "Ihr KI-Agent kann Sie unterstützen.",
     "landmarksTitle": "Mein Cockpit verstehen",
     "landmarksBody": "Anzeigen, zentraler Punkt und Inertia-Einheiten",
-    "powerBody": "Die drei Anzeigen zeigen Ihren Einrichtungsfortschritt: Kanäle, Unternehmens-DNA und KI-Personalisierung. Vervollständigen Sie diese Angaben, damit iNrCy den richtigen Kontext erhält.",
+    "powerBody": "Das Cockpit wird in zwei Schritten eingerichtet: Kanäle verbinden und die Anwendung personalisieren. Der Titel jeder Zeile öffnet das zugehörige Werkzeug.",
     "generatorTitle": "Der zentrale Punkt",
     "generatorBody": "Grün: aktiv. Rot: wartend. Prüfen Sie auch den Status jedes Kanals im Cockpit.",
     "inertiaTitle": "Ihre Inertia-Einheiten",
@@ -979,14 +979,14 @@
       "action": "Meine Kanäle verwalten"
     },
     "dna": {
-      "title": "Mein Unternehmen vorstellen",
-      "body": "Beschreiben Sie Ihre Tätigkeit, Angebote und Zielgruppe, um der KI den richtigen Kontext zu geben.",
-      "action": "Meine DNA vervollständigen"
+      "title": "Mein Unternehmen",
+      "body": "Mein Unternehmen umfasst Kontakt & Logo; Tätigkeit (Beruf, Vorstellung, Leistungen und Fachgebiete); Kunden; Gebiete (Postleitzahl, Hauptort, Einsatzgebiete und Öffnungszeiten); sowie Identität (Mission, Stärken, Werte und Zusagen). Prüfen Sie gefundene Angaben und ergänzen Sie fehlende Informationen.",
+      "action": "Meine Anwendung anpassen"
     },
     "ai": {
-      "title": "Meine KI personalisieren",
-      "body": "Legen Sie Ihren Ton, Ihre Vorgaben und Ihre Kommunikationspräferenzen fest.",
-      "action": "Meine KI konfigurieren"
+      "title": "Meine Kommunikation",
+      "body": "Unter Meine Kommunikation regelt Stil und Einstellungen die Schreibpräferenzen; Vorgaben und Beispiele bündelt Vorgaben, Verbote, Wortwahl und Beispiele; CTA je Kanal bestimmt Aktionen und Ziele künftiger Inhalte; Ziele und Strategie und Aktuelles legen wichtige Themen fest. Beachten Sie die Möglichkeiten des jeweiligen Kanals.",
+      "action": "Meine Anwendung anpassen"
     },
     "goals": {
       "publish": {
@@ -1061,7 +1061,20 @@
       "review": "Prüfen Sie Texte und Darstellung, bei Videos auch Bewegungen und Ton. Bearbeiten Sie das Medium oder passen Sie die Beschreibung für eine neue Generierung an.",
       "save": "Speichern Sie das ausgewählte Ergebnis in der Mediathek. Dort finden Sie es wieder, um es in Ihren Beiträgen zu verwenden."
     },
-    "assistPreview": "iNr’Assist — demnächst verfügbar"
+    "assistPreview": "iNr’Assist — demnächst verfügbar",
+    "personalization": {
+      "title": "Meine Anwendung anpassen",
+      "body": "Unternehmen und Kommunikation an einem Ort.",
+      "action": "Personalisierung öffnen",
+      "intro": "Öffnen Sie im Cockpit Meine Anwendung anpassen: Unternehmensinformationen und Kommunikationsregeln sind in drei Registerkarten zusammengefasst.",
+      "tip": "Analyse bündelt Kanäle und Dokumente. Prüfen Sie danach Mein Unternehmen und Meine Kommunikation.",
+      "analysis": "Wählen Sie unter Analyse die gewünschten Kanäle. Die Büroklammer unter Dokumente hängt Dateien an; bestätigen Sie die Einwilligung vor dem Hochladen. Prüfen Sie das angezeigte Kontingent, starten Sie die Analyse und lesen Sie den Bericht. Analyse planen legt eine Wiederholung fest.",
+      "analysisLimits": "Die Analyse ergänzt verlässlich gefundene Informationen und behält manuelle Eingaben bei. Schreibpräferenzen und CTAs werden gesondert unter Meine Kommunikation eingestellt. Lassen Sie das Werkzeug bei einer individuellen Kanalauswahl geöffnet.",
+      "company": "Mein Unternehmen umfasst Kontakt & Logo; Tätigkeit (Beruf, Vorstellung, Leistungen und Fachgebiete); Kunden; Gebiete (Postleitzahl, Hauptort, Einsatzgebiete und Öffnungszeiten); sowie Identität (Mission, Stärken, Werte und Zusagen). Prüfen Sie gefundene Angaben und ergänzen Sie fehlende Informationen.",
+      "communication": "Unter Meine Kommunikation regelt Stil und Einstellungen die Schreibpräferenzen; Vorgaben und Beispiele bündelt Vorgaben, Verbote, Wortwahl und Beispiele; CTA je Kanal bestimmt Aktionen und Ziele künftiger Inhalte; Ziele und Strategie und Aktuelles legen wichtige Themen fest. Beachten Sie die Möglichkeiten des jeweiligen Kanals.",
+      "autosave": "Änderungen werden automatisch gespeichert. Warten Sie das Speichern ab; Fehler bleiben sichtbar und beim Verlassen werden ausstehende Änderungen geprüft. Prüfen Sie generierte Inhalte vor jeder Veröffentlichung.",
+      "reset": "Zurücksetzen ist eine gesonderte Aktion mit Bestätigung. Ein vollständiges Zurücksetzen löscht auch Dokumente: verwenden Sie es nur, wenn diese Informationen entfernt werden sollen."
+    }
   },
   "mobileMenu": {
     "create": "Erstellen und kommunizieren",

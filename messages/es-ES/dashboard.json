@@ -4,14 +4,14 @@
     "routineTab": "Día a día",
     "landmarksTab": "Tus referencias",
     "title": "Cómo utilizar iNrCy",
-    "intro": "Tres ajustes para empezar bien y una rutina sencilla.",
+    "intro": "Dos pasos: conectar los canales y personalizar la aplicación.",
     "setupTitle": "Empieza por tu cockpit",
     "channelsTitle": "Conecta tus canales",
     "channelsBody": "Vincula tus cuentas y comprueba su estado. Vuelve aquí si un canal necesita reconectarse.",
-    "dnaTitle": "Completa el ADN de tu empresa",
-    "dnaBody": "Indica tu actividad, tus ofertas y tu público para que la IA conozca el contexto de tu empresa.",
-    "aiTitle": "Personaliza tu IA",
-    "aiBody": "Elige el tono y añade tus instrucciones para crear contenidos acordes con tu forma de comunicar.",
+    "dnaTitle": "Personalizar mi aplicación",
+    "dnaBody": "Mi empresa reúne Contacto y logo; Actividad (profesión, presentación, servicios y especialidades); Clientes; Zonas (código postal, ciudad principal, zonas y horarios); e Identidad (misión, fortalezas, valores y compromisos). Revisa lo encontrado y completa los datos que falten.",
+    "aiTitle": "Mi comunicación",
+    "aiBody": "En Mi comunicación: Estilo y preferencias ajusta la redacción; Instrucciones y ejemplos reúne instrucciones, prohibiciones, vocabulario y ejemplos; CTA por canal elige acciones y destinos del contenido futuro; Objetivos y estrategia y Actualidad concretan los temas destacados. Comprueba las posibilidades indicadas para cada canal.",
     "routineTitle": "Tu rutina diaria",
     "publishTitle": "Publicar con Booster",
     "publishBody": "Prepara el contenido, revísalo, elige los canales y publícalo o prográmalo.",
@@ -940,7 +940,7 @@
     "aria": "Abrir la ayuda de iNrCy",
     "intro": "Tus primeros pasos y la herramienta adecuada en cada momento.",
     "setupTitle": "Empieza bien",
-    "setupSubtitle": "Tres pasos para adaptar la IA a tu empresa.",
+    "setupSubtitle": "Dos pasos: conectar los canales y personalizar la aplicación.",
     "goalsTitle": "¿Qué quieres hacer?",
     "goalsSubtitle": "Elige tu objetivo y te guiamos.",
     "back": "Volver a los objetivos",
@@ -965,7 +965,7 @@
     "agent": "Tu agente de IA puede acompañarte.",
     "landmarksTitle": "Entender mi cockpit",
     "landmarksBody": "Indicadores, punto central y Unidades de Inercia",
-    "powerBody": "Los tres indicadores muestran tu preparación: canales, ADN de la empresa y personalización de la IA. Complétalos para dar a iNrCy el contexto adecuado.",
+    "powerBody": "El cockpit se prepara en dos pasos: conectar los canales y personalizar la aplicación. El título de cada fila abre su herramienta.",
     "generatorTitle": "El punto central",
     "generatorBody": "Verde: activo. Rojo: en espera. Comprueba también el estado de cada canal en el cockpit.",
     "inertiaTitle": "Tus Unidades de Inercia",
@@ -979,14 +979,14 @@
       "action": "Gestionar mis canales"
     },
     "dna": {
-      "title": "Presentar mi empresa",
-      "body": "Describe tu actividad, tus ofertas y tu público para dar a la IA el contexto adecuado.",
-      "action": "Completar mi ADN"
+      "title": "Mi empresa",
+      "body": "Mi empresa reúne Contacto y logo; Actividad (profesión, presentación, servicios y especialidades); Clientes; Zonas (código postal, ciudad principal, zonas y horarios); e Identidad (misión, fortalezas, valores y compromisos). Revisa lo encontrado y completa los datos que falten.",
+      "action": "Personalizar mi aplicación"
     },
     "ai": {
-      "title": "Personalizar mi IA",
-      "body": "Define tu tono, tus instrucciones y tus preferencias de comunicación.",
-      "action": "Configurar mi IA"
+      "title": "Mi comunicación",
+      "body": "En Mi comunicación: Estilo y preferencias ajusta la redacción; Instrucciones y ejemplos reúne instrucciones, prohibiciones, vocabulario y ejemplos; CTA por canal elige acciones y destinos del contenido futuro; Objetivos y estrategia y Actualidad concretan los temas destacados. Comprueba las posibilidades indicadas para cada canal.",
+      "action": "Personalizar mi aplicación"
     },
     "goals": {
       "publish": {
@@ -1061,7 +1061,20 @@
       "review": "Revisa los textos y el resultado visual; en vídeo, comprueba también los movimientos y el sonido. Retoca el medio o ajusta la descripción para volver a generar.",
       "save": "Guarda el resultado elegido en la Biblioteca multimedia y encuéntralo allí para reutilizarlo en tus publicaciones."
     },
-    "assistPreview": "iNr’Assist — próximamente"
+    "assistPreview": "iNr’Assist — próximamente",
+    "personalization": {
+      "title": "Personalizar mi aplicación",
+      "body": "Tu empresa y tu comunicación en un solo lugar.",
+      "action": "Abrir personalización",
+      "intro": "Desde el cockpit, abre Personalizar mi aplicación: la información de tu empresa y tus reglas de comunicación se reúnen en tres pestañas.",
+      "tip": "Análisis reúne canales y documentos. Revisa después Mi empresa y Mi comunicación.",
+      "analysis": "En Análisis, selecciona los canales útiles. El clip de Documentos adjunta archivos; confirma la autorización antes de enviarlos. Comprueba la cuota indicada, inicia el análisis y consulta su informe. Programar el análisis permite elegir una recurrencia.",
+      "analysisLimits": "El análisis añade información fiable encontrada y conserva las entradas manuales. Las preferencias de redacción y los CTA se configuran aparte en Mi comunicación. Mantén la herramienta abierta al analizar una selección personalizada de canales.",
+      "company": "Mi empresa reúne Contacto y logo; Actividad (profesión, presentación, servicios y especialidades); Clientes; Zonas (código postal, ciudad principal, zonas y horarios); e Identidad (misión, fortalezas, valores y compromisos). Revisa lo encontrado y completa los datos que falten.",
+      "communication": "En Mi comunicación: Estilo y preferencias ajusta la redacción; Instrucciones y ejemplos reúne instrucciones, prohibiciones, vocabulario y ejemplos; CTA por canal elige acciones y destinos del contenido futuro; Objetivos y estrategia y Actualidad concretan los temas destacados. Comprueba las posibilidades indicadas para cada canal.",
+      "autosave": "Los cambios se guardan automáticamente. Espera a que termine el guardado; los errores permanecen visibles y al salir se comprueban los cambios pendientes. Revisa siempre el contenido generado antes de publicarlo.",
+      "reset": "Restablecer es una acción independiente que requiere confirmación. El restablecimiento global elimina también los documentos: úsalo solo si deseas borrar esta información."
+    }
   },
   "mobileMenu": {
     "create": "Crear y comunicar",

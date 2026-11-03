@@ -141,6 +141,39 @@ test("les documents anciens sont relus uniquement dans leur compte et un échec 
   assert.equal(refreshed[4].extractedText, "Ancien extrait");
 });
 
+test("TXT, Markdown, CSV, JSON et HTML relisent les preuves après 2500 caractères sans élargir les formats ni le compte", async () => {
+  const attachmentModule = loadModule<typeof import("../../lib/aiAttachmentContext.ts")>("lib/aiAttachmentContext.ts", {
+    "@/lib/aiGatewayClient": { aiGenerateJSON: () => { throw new Error("Aucun appel IA pour du texte"); } },
+    "@/lib/boosterPdfAttachmentPolicy": { hasBoosterPdfSignature: () => true },
+    "@/lib/pdfTextExtraction": { extractPdfTextForAi },
+    "@/lib/aiOfficeDocumentText": officeDocumentText,
+  });
+  const downloaded: string[] = [];
+  const storage = { storage: { from: () => ({ download: async (path: string) => {
+    downloaded.push(path);
+    return { data: new Blob(["<p>" + "Présentation de l’entreprise. ".repeat(150) + "PREUVE FINALE : certification attestée.</p>"], { type: "text/plain" }), error: null };
+  } }) } };
+  const refreshModule = loadModule<typeof import("../../lib/businessDnaReferenceDocumentRefresh.ts")>("lib/businessDnaReferenceDocumentRefresh.ts", {
+    "@supabase/supabase-js": { createClient: () => { throw new Error("Client fourni"); } },
+    "@/lib/aiMemory": memory,
+    "@/lib/aiAttachmentContext": { analyseAiMemoryReferenceDocument: attachmentModule.analyseAiMemoryReferenceDocument },
+  });
+  const document = (extension: string, accountId = "account") => ({ id: extension, name: `guide.${extension}`, bucket: "inrcy-ai-documents",
+    path: `users/${accountId}/ai-memory-documents/guide.${extension}`, mimeType: "application/octet-stream", size: 10_000,
+    extractedText: "Ancien extrait", status: "analysed" as const, note: "", createdAt: "2026-10-01T00:00:00.000Z" });
+  const originals = ["txt", "md", "csv", "json", "html", "htm"].map((extension) => document(extension));
+  originals.push(document("txt", "other-account"), document("jpg"), document("xlsx"));
+  const refreshed = await refreshModule.refreshBusinessDnaReferenceDocuments(originals, { accountId: "account", engine: "anthropic", storageClient: storage });
+  assert.equal(downloaded.length, 6);
+  for (const item of refreshed.slice(0, 6)) {
+    assert.ok(item.extractedText.length > 2_500);
+    assert.ok(item.extractedText.length <= 30_000);
+    assert.match(item.extractedText, /PREUVE FINALE/);
+  }
+  for (const index of [6, 7, 8]) assert.equal(refreshed[index], originals[index]);
+  assert.equal(originals[0].extractedText, "Ancien extrait");
+});
+
 test("un petit contexte multicanal conserve chaque document et les règles finales sans dépasser le JSON", () => {
   const documents = Array.from({ length: 4 }, (_value, index) => ({
     heading: `[Document fourni ${index + 1} — guide-${index + 1}.docx]`,

@@ -261,12 +261,13 @@ function quotaReachedResponse(
   );
 }
 
-function businessKnowledgeFromProfileRow(value: unknown, companyName = "") {
+function businessKnowledgeFromProfileRow(value: unknown, companyName = "", memory?: unknown) {
   const business = asRecord(value);
+  const historicalMemory = normalizeAiMemory(memory);
   return normalizeAiBusinessKnowledge({
     ...EMPTY_AI_BUSINESS_KNOWLEDGE,
     description: sanitizeProfessionalIdentityText(
-      business.business_description || business.activity_description,
+      business.business_description || business.activity_description || historicalMemory.detailedDescription,
       companyName,
     ),
     services: business.services,
@@ -275,7 +276,10 @@ function businessKnowledgeFromProfileRow(value: unknown, companyName = "") {
       business.opening_days,
       business.opening_hours,
     ),
-    strengths: business.strengths,
+    strengths: [
+      ...normalizeAiBusinessKnowledge({ strengths: business.strengths }).strengths,
+      ...historicalMemory.differentiators,
+    ],
     customerTypes: business.customer_typologies,
   });
 }
@@ -565,7 +569,7 @@ async function analyzeBusinessDna({ supabase, activeUserId, authUserId, automati
     const existingMemory = normalizeAiMemory(storedMemory, {
       includePremium: strategyEnabled,
     });
-    const existingBusinessKnowledge = businessKnowledgeFromProfileRow(business, companyName);
+    const existingBusinessKnowledge = businessKnowledgeFromProfileRow(business, companyName, storedMemory);
     const language = asString(business.ai_language) || "fr";
     const budget = createAiOperationBudget("business-dna.analyze");
     const {
@@ -805,6 +809,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
       const latestBusinessKnowledge = businessKnowledgeFromProfileRow(
         latestBusinessResult.data,
         companyName,
+        latestStoredMemory,
       );
       const merged = sanitizeProfessionalIdentityValue(
         mergeAiBusinessDnaAnalysis(

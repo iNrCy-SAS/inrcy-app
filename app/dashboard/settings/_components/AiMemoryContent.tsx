@@ -42,6 +42,7 @@ import {
   mergeAiBusinessDnaAnalysis,
   normalizeAiBusinessKnowledge,
   normalizeAiMemory,
+  updateAiMemoryRecentNewsItem,
   type AiBusinessKnowledge,
   type AiMemory,
   type AiMemoryReferenceDocument,
@@ -631,12 +632,10 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   };
 
   const setRecentNewsItem = (index: number, value: string) => {
-    const nextItems = Array.from(
-      { length: Math.max(4, memoryRef.current.recentNewsItems.length) },
-      (_, itemIndex) => memoryRef.current.recentNewsItems[itemIndex] || "",
-    );
-    nextItems[index] = value.slice(0, 2_000);
-    setField("recentNewsItems", nextItems);
+    setSaved(false);
+    setError("");
+    markWorkspaceDraftUpdated();
+    updateMemory((current) => updateAiMemoryRecentNewsItem(current, index, value));
   };
 
   const applyPersistedReferenceDocuments = useCallback(
@@ -1320,6 +1319,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       normalizeAiMemory(
         {
           ...EMPTY_AI_MEMORY,
+          recentNewsManualItems: [],
           // Les documents ont leur propre suppression explicite afin qu'un
           // clic sur "Réinitialiser" ne laisse jamais de fichier orphelin.
           referenceDocuments: memoryRef.current.referenceDocuments,

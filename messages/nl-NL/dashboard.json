@@ -4,14 +4,14 @@
     "routineTab": "Dagelijks gebruik",
     "landmarksTab": "Je weg vinden",
     "title": "iNrCy gebruiken",
-    "intro": "Drie instellingen voor een goede start, daarna een eenvoudige routine.",
+    "intro": "Twee stappen: kanalen verbinden en de applicatie personaliseren.",
     "setupTitle": "Begin in je cockpit",
     "channelsTitle": "Verbind je kanalen",
     "channelsBody": "Koppel je accounts en controleer hun status. Kom hier terug als een kanaal opnieuw moet worden verbonden.",
-    "dnaTitle": "Vul je bedrijfs-DNA aan",
-    "dnaBody": "Beschrijf je activiteiten, aanbod en doelgroep, zodat de AI de context van je bedrijf kent.",
-    "aiTitle": "Personaliseer je AI",
-    "aiBody": "Kies de toon en voeg instructies toe voor inhoud die past bij jouw manier van communiceren.",
+    "dnaTitle": "Mijn applicatie personaliseren",
+    "dnaBody": "Mijn bedrijf bevat Contact & logo; Activiteit (beroep, presentatie, diensten en specialisaties); Klanten; Regio's (postcode, hoofdplaats, werkgebieden en openingstijden); en Identiteit (missie, sterke punten, waarden en toezeggingen). Controleer gevonden gegevens en vul ontbrekende informatie aan.",
+    "aiTitle": "Mijn communicatie",
+    "aiBody": "Bij Mijn communicatie bepaalt Stijl en voorkeuren de schrijfvoorkeuren; Instructies en voorbeelden bevat instructies, verboden, woordkeuze en voorbeelden; CTA per kanaal kiest acties en bestemmingen voor toekomstige inhoud; Doelen en strategie en Actualiteit bepalen de onderwerpen. Controleer de mogelijkheden per kanaal.",
     "routineTitle": "Je dagelijkse routine",
     "publishTitle": "Publiceren met Booster",
     "publishBody": "Bereid je inhoud voor, lees deze na, kies je kanalen en publiceer of plan in.",
@@ -940,7 +940,7 @@
     "aria": "iNrCy-hulp openen",
     "intro": "Je eerste stappen, daarna de juiste tool op het juiste moment.",
     "setupTitle": "Goed beginnen",
-    "setupSubtitle": "Drie stappen om de AI op je bedrijf af te stemmen.",
+    "setupSubtitle": "Twee stappen: kanalen verbinden en de applicatie personaliseren.",
     "goalsTitle": "Wat wil je doen?",
     "goalsSubtitle": "Kies je doel, wij wijzen je de weg.",
     "back": "Terug naar de doelen",
@@ -965,7 +965,7 @@
     "agent": "Je AI-agent kan je ondersteunen.",
     "landmarksTitle": "Mijn cockpit begrijpen",
     "landmarksBody": "Meters, centraal punt en Inertia-eenheden",
-    "powerBody": "De drie meters tonen je voorbereiding: kanalen, bedrijfs-DNA en AI-personalisatie. Vul ze aan om iNrCy de juiste context te geven.",
+    "powerBody": "Richt de cockpit in twee stappen in: verbind de kanalen en personaliseer de applicatie. De titel van elke rij opent het bijbehorende hulpmiddel.",
     "generatorTitle": "Het centrale punt",
     "generatorBody": "Groen: actief. Rood: wachtend. Controleer ook de status van elk kanaal in de cockpit.",
     "inertiaTitle": "Je Inertia-eenheden",
@@ -979,14 +979,14 @@
       "action": "Mijn kanalen beheren"
     },
     "dna": {
-      "title": "Mijn bedrijf voorstellen",
-      "body": "Beschrijf je activiteit, aanbod en doelgroep om de AI de juiste context te geven.",
-      "action": "Mijn DNA aanvullen"
+      "title": "Mijn bedrijf",
+      "body": "Mijn bedrijf bevat Contact & logo; Activiteit (beroep, presentatie, diensten en specialisaties); Klanten; Regio's (postcode, hoofdplaats, werkgebieden en openingstijden); en Identiteit (missie, sterke punten, waarden en toezeggingen). Controleer gevonden gegevens en vul ontbrekende informatie aan.",
+      "action": "Mijn applicatie personaliseren"
     },
     "ai": {
-      "title": "Mijn AI personaliseren",
-      "body": "Stel je toon, instructies en communicatievoorkeuren in.",
-      "action": "Mijn AI instellen"
+      "title": "Mijn communicatie",
+      "body": "Bij Mijn communicatie bepaalt Stijl en voorkeuren de schrijfvoorkeuren; Instructies en voorbeelden bevat instructies, verboden, woordkeuze en voorbeelden; CTA per kanaal kiest acties en bestemmingen voor toekomstige inhoud; Doelen en strategie en Actualiteit bepalen de onderwerpen. Controleer de mogelijkheden per kanaal.",
+      "action": "Mijn applicatie personaliseren"
     },
     "goals": {
       "publish": {
@@ -1061,7 +1061,20 @@
       "review": "Controleer de tekst en het beeld; controleer bij video ook bewegingen en geluid. Bewerk de media of pas de beschrijving aan om opnieuw te genereren.",
       "save": "Sla het gekozen resultaat op in de Mediabibliotheek. Daar vind je het terug om het opnieuw in je berichten te gebruiken."
     },
-    "assistPreview": "iNr’Assist — binnenkort beschikbaar"
+    "assistPreview": "iNr’Assist — binnenkort beschikbaar",
+    "personalization": {
+      "title": "Mijn applicatie personaliseren",
+      "body": "Je bedrijf en communicatie op één plek.",
+      "action": "Personalisatie openen",
+      "intro": "Open Mijn applicatie personaliseren vanuit de cockpit: bedrijfsgegevens en communicatieregels staan samen in drie tabbladen.",
+      "tip": "Analyse brengt kanalen en documenten samen. Controleer daarna Mijn bedrijf en Mijn communicatie.",
+      "analysis": "Selecteer de gewenste kanalen in Analyse. De paperclip bij Documenten voegt bestanden toe; bevestig toestemming vóór het uploaden. Controleer het getoonde quotum, start de analyse en lees het verslag. Analyse plannen stelt een herhaling in.",
+      "analysisLimits": "De analyse vult betrouwbare gevonden informatie aan en behoudt handmatige invoer. Schrijfvoorkeuren en CTA’s stel je apart in bij Mijn communicatie. Houd het hulpmiddel open bij een aangepaste selectie van kanalen.",
+      "company": "Mijn bedrijf bevat Contact & logo; Activiteit (beroep, presentatie, diensten en specialisaties); Klanten; Regio's (postcode, hoofdplaats, werkgebieden en openingstijden); en Identiteit (missie, sterke punten, waarden en toezeggingen). Controleer gevonden gegevens en vul ontbrekende informatie aan.",
+      "communication": "Bij Mijn communicatie bepaalt Stijl en voorkeuren de schrijfvoorkeuren; Instructies en voorbeelden bevat instructies, verboden, woordkeuze en voorbeelden; CTA per kanaal kiest acties en bestemmingen voor toekomstige inhoud; Doelen en strategie en Actualiteit bepalen de onderwerpen. Controleer de mogelijkheden per kanaal.",
+      "autosave": "Wijzigingen worden automatisch opgeslagen. Wacht tot het opslaan klaar is; fouten blijven zichtbaar en bij het verlaten worden openstaande wijzigingen gecontroleerd. Controleer gegenereerde inhoud altijd vóór publicatie.",
+      "reset": "Opnieuw instellen is een aparte actie met bevestiging. Een volledige reset verwijdert ook documenten: gebruik dit alleen als je deze informatie wilt verwijderen."
+    }
   },
   "mobileMenu": {
     "create": "Creëren en communiceren",

@@ -4,14 +4,14 @@
     "routineTab": "Everyday use",
     "landmarksTab": "Your guide",
     "title": "Using iNrCy",
-    "intro": "Three settings to get started, then a simple routine.",
+    "intro": "Two steps: connect your channels, then personalise your application.",
     "setupTitle": "Start with your cockpit",
     "channelsTitle": "Connect your channels",
     "channelsBody": "Link your accounts and check their status. Return here if a channel needs reconnecting.",
-    "dnaTitle": "Complete your business DNA",
-    "dnaBody": "Describe your business, offers and audience to give the AI context about your company.",
-    "aiTitle": "Personalise your AI",
-    "aiBody": "Choose a tone and add your instructions for content that matches how you communicate.",
+    "dnaTitle": "Personalise my application",
+    "dnaBody": "My business contains Contact & logo; Activity (profession, presentation, services and specialities); Customers; Areas (postcode, main city, service areas and opening hours); and Identity (mission, strengths, values and commitments). Review the information found and complete missing details.",
+    "aiTitle": "My communication",
+    "aiBody": "In My communication, Style and preferences controls writing preferences; Instructions and examples contains instructions, prohibitions, vocabulary and examples; CTAs by channel selects actions and destinations for future content; Goals and strategy and News define topics to highlight. Check the capabilities displayed for each channel.",
     "routineTitle": "Your everyday routine",
     "publishTitle": "Publish with Booster",
     "publishBody": "Prepare your content, review it, select your channels, then publish or schedule.",
@@ -940,7 +940,7 @@
     "aria": "Open iNrCy Help",
     "intro": "Your first steps, then the right tool at the right time.",
     "setupTitle": "Get started",
-    "setupSubtitle": "Three steps to tailor the AI to your business.",
+    "setupSubtitle": "Two steps: connect your channels, then personalise your application.",
     "goalsTitle": "What would you like to do?",
     "goalsSubtitle": "Choose your goal and we’ll guide you.",
     "back": "Back to goals",
@@ -965,7 +965,7 @@
     "agent": "Your AI agent can help you along the way.",
     "landmarksTitle": "Understand my cockpit",
     "landmarksBody": "Gauges, central point and Inertia Units",
-    "powerBody": "The three gauges show your setup progress: channels, business DNA and AI personalisation. Complete them to give iNrCy the right context.",
+    "powerBody": "Prepare the cockpit in two steps: connect your channels, then personalise your application. Each row title opens its tool.",
     "generatorTitle": "The central point",
     "generatorBody": "Green: active. Red: waiting. Check each channel’s status in the cockpit too.",
     "inertiaTitle": "Your Inertia Units",
@@ -979,14 +979,14 @@
       "action": "Manage my channels"
     },
     "dna": {
-      "title": "Introduce my business",
-      "body": "Describe your activity, offers and audience to give the AI the right context.",
-      "action": "Complete my DNA"
+      "title": "My business",
+      "body": "My business contains Contact & logo; Activity (profession, presentation, services and specialities); Customers; Areas (postcode, main city, service areas and opening hours); and Identity (mission, strengths, values and commitments). Review the information found and complete missing details.",
+      "action": "Personalise my application"
     },
     "ai": {
-      "title": "Personalise my AI",
-      "body": "Set your tone, instructions and communication preferences.",
-      "action": "Configure my AI"
+      "title": "My communication",
+      "body": "In My communication, Style and preferences controls writing preferences; Instructions and examples contains instructions, prohibitions, vocabulary and examples; CTAs by channel selects actions and destinations for future content; Goals and strategy and News define topics to highlight. Check the capabilities displayed for each channel.",
+      "action": "Personalise my application"
     },
     "goals": {
       "publish": {
@@ -1061,7 +1061,20 @@
       "review": "Review any text and the visual result; for video, check movement and sound too. Retouch the media or revise the brief before regenerating.",
       "save": "Save your chosen result in the Media library, then find it again to reuse in your posts."
     },
-    "assistPreview": "iNr’Assist — coming soon"
+    "assistPreview": "iNr’Assist — coming soon",
+    "personalization": {
+      "title": "Personalise my application",
+      "body": "Your business and communication in one place.",
+      "action": "Open personalisation",
+      "intro": "From the cockpit, open Personalise my application: your business information and communication rules are organised into three tabs.",
+      "tip": "Analysis brings together channels and documents. Then review My business and My communication.",
+      "analysis": "In Analysis, select the relevant channels. The paperclip in Documents attaches files; confirm consent before uploading. Check the displayed quota, start the analysis and read its report. Schedule analysis lets you choose a recurrence.",
+      "analysisLimits": "Analysis enriches reliable information it finds while preserving manual entries. Writing preferences and CTAs are configured separately in My communication. Keep the tool open when analysing a custom selection of channels.",
+      "company": "My business contains Contact & logo; Activity (profession, presentation, services and specialities); Customers; Areas (postcode, main city, service areas and opening hours); and Identity (mission, strengths, values and commitments). Review the information found and complete missing details.",
+      "communication": "In My communication, Style and preferences controls writing preferences; Instructions and examples contains instructions, prohibitions, vocabulary and examples; CTAs by channel selects actions and destinations for future content; Goals and strategy and News define topics to highlight. Check the capabilities displayed for each channel.",
+      "autosave": "Changes save automatically. Wait for saving to finish; errors remain visible and leaving checks for pending changes. Always review generated content before publishing.",
+      "reset": "Reset is a separate action requiring confirmation. A global reset also deletes documents: use it only when you intend to remove this information."
+    }
   },
   "mobileMenu": {
     "create": "Create and communicate",

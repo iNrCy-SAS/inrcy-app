@@ -156,3 +156,15 @@ test("analyse : la saisie manuelle des contacts gagne aussi la course avec l’a
   assert.equal(h.rows.profiles[0].company_legal_name, "Mon nom choisi");
   assert.equal(h.rows.profiles[0].phone, "01 22 33 44 55");
 });
+
+test("analyse de documents seule : les coordonnées prouvées remplissent les champs vides et respectent le manuel", async () => {
+  const h = harness();
+  h.rows.profiles[0].phone = "01 22 33 44 55";
+  const sources = [{ key: "reference_documents", status: "analyzed", content: "Raison sociale : Entreprise réelle\nTéléphone : 06 31 26 08 12\nEmail : contact@pro.example" }];
+  const result = await h.service.autofillBusinessIdentityFromSources({ supabase: h.database, accountId: ACCOUNT, sources });
+  assert.equal(result.changed, true);
+  assert.equal(h.rows.profiles[0].company_legal_name, "Entreprise réelle");
+  assert.equal(h.rows.profiles[0].phone, "01 22 33 44 55");
+  assert.equal(h.rows.profiles[0].contact_email, "contact@pro.example");
+  assert.equal(h.rows.profiles[1].company_legal_name, "Autre pro");
+});

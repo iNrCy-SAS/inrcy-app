@@ -155,10 +155,14 @@ type HarnessOptions = {
   readableDocument?: boolean; cacheFailure?: boolean;
   autofillProfile?: boolean;
   documentText?: string;
+  providerNews?: string[];
+  legacyMemoryOnly?: boolean;
 };
 async function harness(options: HarnessOptions = {}) {
   const db = await createDb();
-  let memory = memoryLib.normalizeAiMemory({ referenceDocuments: [{
+  let memory = memoryLib.normalizeAiMemory({
+    ...(options.legacyMemoryOnly ? { detailedDescription: "Présentation manuelle héritée conservée", differentiators: ["Force manuelle héritée"] } : {}),
+    referenceDocuments: [{
     id: "private-doc", name: "scan.pdf", bucket: "inrcy-ai-documents",
     path: `users/${ACCOUNT}/ai-memory-documents/scan.pdf`, status: options.readableDocument ? "analysed" : "error",
     extractedText: options.readableDocument ? options.documentText ?? "Entreprise de rénovation. Préparation des surfaces. Travaux de qualité." : "", size: 1024,
@@ -262,7 +266,7 @@ async function harness(options: HarnessOptions = {}) {
       if (options.autofillProfile && !options.noSources) assert.ok(String(args.input).includes('"companyName":"Entreprise réelle"'), "the first AI call uses the identity recovered in this analysis");
       assert.equal(args.engine, "anthropic"); providerCalls++; providerStarted(); await providerGate;
       if (options.providerFailure || (options.completionFailure && providerCalls > 1)) throw new Error("Provider unavailable");
-      return { businessKnowledge: { services: ["Service nouveau"] }, memory: { values: ["Qualité"] } };
+      return { businessKnowledge: { services: ["Service nouveau"], ...(options.legacyMemoryOnly ? { description: "Présentation automatique à ne pas substituer", strengths: ["Force nouvelle"] } : {}) }, memory: { values: ["Qualité"], ...(options.providerNews ? { recentNewsItems: options.providerNews } : {}) } };
     } },
     "@/lib/aiGatewayPolicy": { createAiOperationBudget },
     "@/lib/businessDnaAnalysisResponse": { normalizeBusinessDnaAnalysisResponse },
@@ -310,8 +314,38 @@ async function harness(options: HarnessOptions = {}) {
   });
   return { db, route, afterCallbacks, release, started, providerCalls: () => providerCalls, memory: () => memory,
     business: () => business, profile: () => profile, saveEvents, nativeSyncAccountIds,
-    editBusiness: () => { business.services = ["Service initial", "Modification manuelle récente"]; } };
+    editBusiness: () => { business.services = ["Service initial", "Modification manuelle récente"]; },
+    editNews: (index: number, value: string) => { memory = memoryLib.updateAiMemoryRecentNewsItem(memory, index, value); } };
 }
+
+test("le résultat background conserve les actualités éditées ou effacées pendant l’appel IA et rafraîchit les places auto", async () => {
+  const h = await harness({ providerNews: ["Auto nouvelle 1", "Auto nouvelle 2", "Auto nouvelle 3", "Auto nouvelle 4"] });
+  try {
+    await h.route.POST(new Request("https://app.example/api/ai-memory/analyze-channels?background=1", { method: "POST" }));
+    const background = h.afterCallbacks[0]();
+    await h.started;
+    h.editNews(0, "Actualité saisie pendant l’analyse");
+    h.editNews(2, "");
+    h.release(); await background;
+    assert.deepEqual(h.memory().recentNewsItems, ["Actualité saisie pendant l’analyse", "Auto nouvelle 1", "", "Auto nouvelle 2"]);
+    assert.deepEqual(h.memory().recentNewsManualItems, ["Actualité saisie pendant l’analyse", null, "", null]);
+    const status = await (await h.route.GET()).json();
+    assert.equal(status.job.status, "succeeded");
+  } finally { await h.db.close(); }
+});
+
+test("le background reprend la présentation et les forces historiques présentes seulement en mémoire", async () => {
+  const h = await harness({ legacyMemoryOnly: true });
+  try {
+    await h.route.POST(new Request("https://app.example/api/ai-memory/analyze-channels?background=1", { method: "POST" }));
+    h.release(); await h.afterCallbacks[0]();
+    assert.equal(h.business().business_description, "Présentation manuelle héritée conservée");
+    assert.equal(h.memory().detailedDescription, "Présentation manuelle héritée conservée");
+    assert.deepEqual(h.business().strengths, ["Force manuelle héritée", "Force nouvelle"]);
+    assert.deepEqual(h.memory().differentiators, ["Force manuelle héritée", "Force nouvelle"]);
+    assert.equal((await (await h.route.GET()).json()).job.status, "succeeded");
+  } finally { await h.db.close(); }
+});
 
 test("l’analyse remplit le profil depuis les sources collectées puis synchronise les canaux après sauvegarde ADN", async () => {
   const h = await harness({ autofillProfile: true });

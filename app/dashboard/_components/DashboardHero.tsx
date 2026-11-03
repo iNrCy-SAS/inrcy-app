@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import styles from "./DashboardHeroPremium.module.css";
 
@@ -51,11 +51,6 @@ export default function DashboardHero({
   const locale = useLocale();
   const [openInfo, setOpenInfo] = useState<"channels" | "dna" | null>(null);
   const cockpitRef = useRef<HTMLDivElement | null>(null);
-  const globalPower = Math.round(
-    ([generatorPower, dnaPower, aiPower]
-      .map((value) => Math.min(100, Math.max(0, value)))
-      .reduce((total, value) => total + value, 0)) / 3,
-  );
 
   useEffect(() => {
     if (!openInfo) return;
@@ -113,17 +108,6 @@ export default function DashboardHero({
             <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m11.5 2-7 9H10l-1 7 7-10h-5.5l1-6Z" fill="currentColor" /></svg>
             {uiBalance.toLocaleString(locale)} UI
           </span>
-          <span
-            className={styles.cockpitGlobalPower}
-            aria-label={`${heroT("inertiaPower")} : ${globalPower}%`}
-            title={`${heroT("inertiaPower")} : ${globalPower}%`}
-            style={{
-              "--cockpit-global-power-mid": `${globalPower * 1.8}deg`,
-              "--cockpit-global-power": `${globalPower * 3.6}deg`,
-            } as CSSProperties}
-          >
-            {globalPower}%
-          </span>
         </header>
 
         <div className={styles.cockpitStages} data-layout="unified">
@@ -140,7 +124,7 @@ export default function DashboardHero({
                   <button type="button" onClick={step.action} className={styles.cockpitStageTrigger}>
                     <span className={styles.cockpitStageIcon}><HeroIcon name={step.key} /></span>
                     <small>{step.title}</small>
-                    <span className={styles.cockpitStageArrow} aria-hidden="true">›</span>
+                    <span className={styles.cockpitStageArrow} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></span>
                   </button>
                   <button
                     type="button"

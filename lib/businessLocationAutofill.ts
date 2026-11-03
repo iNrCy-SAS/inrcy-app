@@ -247,7 +247,44 @@ function validBusinessIdentityValue(field: BusinessIdentityField, value: unknown
   return item.length <= 200 && /\p{L}/u.test(item) && !/^(?:votre entreprise|your business|entreprise|contact|accueil|home)$/iu.test(item) ? item : "";
 }
 
-/** Public profile identity/contact fields only; never publications or reviewers. */
+function explicitDocumentIdentity(content: string) {
+  const found: Array<{ field: BusinessIdentityField; value: string }> = [];
+  // Each supplied document and each party section owns its coordinates. A
+  // client's name/email must never be attributed to the professional.
+  for (const document of content.slice(0, 60_000).split(/\[Document fourni[^\n]*\]\n/u)) {
+    let ownSection = false;
+    let otherParty = false;
+    let pending: Array<{ field: BusinessIdentityField; value: string }> = [];
+    const flush = () => {
+      if (ownSection && !otherParty) found.push(...pending);
+      pending = [];
+    };
+    for (const raw of document.split(/[\n\r|]+/u)) {
+      const line = raw.trim().replace(/^#{1,6}\s*/u, "");
+      if (/^(?:nos\s+coordonn[eé]es|notre\s+(?:entreprise|soci[eé]t[eé])|coordonn[eé]es\s+de\s+(?:notre\s+entreprise|l['’]entreprise)|[eé]metteur|entreprise\s+[eé]mettrice)\s*(?::|$)/iu.test(line)) {
+        flush(); ownSection = true; otherParty = false;
+        continue;
+      }
+      if (/^(?:coordonn[eé]es\s+(?:du|des|de\s+la?|de\s+l['’])\s*)?(?:clients?|destinataires?|b[eé]n[eé]ficiaires?|partenaires?|fournisseurs?|h[eé]bergeur|hosting\s+provider|r[eé]f[eé]rences\s+clients?|factur[eé]\s+[aà])\b/iu.test(line)) {
+        flush(); ownSection = false; otherParty = true;
+        continue;
+      }
+      if (otherParty) continue;
+      const name = line.match(/^(?:raison\s+sociale|d[eé]nomination\s+sociale|nom\s+de\s+(?:notre\s+entreprise|l['’]entreprise)|company\s+legal\s+name|registered\s+name)\s*[:=]\s*([^\n;]{2,200})$/iu)?.[1];
+      if (name && validBusinessIdentityValue("company_legal_name", name)) {
+        ownSection = true; pending.push({ field: "company_legal_name", value: name });
+      }
+      const phone = line.match(/^(?:t[eé]l(?:[eé]phone)?\.?|phone)(?:\s+de\s+notre\s+entreprise)?\s*[:=]\s*([+()\d .-]{7,30})$/iu)?.[1];
+      if (phone) pending.push({ field: "phone", value: phone });
+      const email = line.match(/^(?:e-?mail|courriel|contact)(?:\s+de\s+notre\s+entreprise)?\s*[:=]\s*([^\s@]+@[^\s@]+\.[^\s@,;]+)$/iu)?.[1];
+      if (email) pending.push({ field: "contact_email", value: email });
+    }
+    flush();
+  }
+  return found;
+}
+
+/** Own public profiles and explicitly attributed documents; never posts or reviewers. */
 export function resolveBusinessIdentitySuggestions(sources: BusinessLocationSource[]): BusinessIdentitySuggestions {
   const candidates: Partial<Record<BusinessIdentityField, BusinessIdentitySuggestion[]>> = {};
   const add = (field: BusinessIdentityField, value: unknown, source: string, priority: number) => {
@@ -256,6 +293,10 @@ export function resolveBusinessIdentitySuggestions(sources: BusinessLocationSour
   };
   for (const source of sources) {
     if (source.status !== "analyzed" || ["inr_search", "inrcy_publications"].includes(source.key)) continue;
+    if (source.key === "reference_documents") {
+      for (const item of explicitDocumentIdentity(source.content)) add(item.field, item.value, source.key, 45);
+      continue;
+    }
     const payload = ownProfilePayload(source.content.slice(0, 60_000));
     if (source.key === "google_business") {
       const details = record(payload.details);

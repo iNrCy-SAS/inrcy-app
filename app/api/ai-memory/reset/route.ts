@@ -58,6 +58,7 @@ function resetMemoryForTab(memory: AiMemory, tab: string, preserveVocabulary = f
       return normalizeAiMemory({
         ...memory,
         recentNewsItems: [],
+        recentNewsManualItems: [],
         recentNewsUpdatedAt: "",
         recentNewsWindowStart: "",
         recentNewsWindowEnd: "",

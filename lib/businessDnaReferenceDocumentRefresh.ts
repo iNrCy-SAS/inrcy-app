@@ -10,6 +10,17 @@ import {
 
 export const BUSINESS_DNA_DOCUMENT_EXTRACT_CHARS = 30_000;
 
+const TEXT_DOCUMENT_MIME_TYPES: Record<string, string> = {
+  pdf: "application/pdf",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  txt: "text/plain",
+  md: "text/markdown",
+  csv: "text/csv",
+  json: "application/json",
+  html: "text/html",
+  htm: "text/html",
+};
+
 /** Relit les fichiers textuels déjà consentis, sans modifier les documents
  * persistés ni lancer d'analyse visuelle payante. Un incident Storage conserve
  * l'extrait déjà disponible. Deux téléchargements maximum à la fois. */
@@ -33,8 +44,9 @@ export async function refreshBusinessDnaReferenceDocuments(
     while (index < documents.length) {
       const currentIndex = index++;
       const document = documents[currentIndex];
-      const extension = /\.(pdf|docx)$/i.exec(document.name)?.[1]?.toLowerCase();
-      if (!extension || document.bucket !== "inrcy-ai-documents" ||
+      const extension = /\.([a-z0-9]+)$/i.exec(document.name)?.[1]?.toLowerCase() || "";
+      const mimeType = Object.hasOwn(TEXT_DOCUMENT_MIME_TYPES, extension) ? TEXT_DOCUMENT_MIME_TYPES[extension] : "";
+      if (!mimeType || document.bucket !== "inrcy-ai-documents" ||
           !document.path.startsWith(`users/${options.accountId}/ai-memory-documents/`) ||
           document.path.includes("..") || /[\u0000-\u001f]/.test(document.path)) continue;
       const reservedSize = document.size || AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES;
@@ -43,7 +55,7 @@ export async function refreshBusinessDnaReferenceDocuments(
       try {
         const extracted = await analyseAiMemoryReferenceDocument(storageClient, {
           bucket: document.bucket, path: document.path, name: document.name, size: document.size,
-          type: extension === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          type: mimeType,
         }, {
           userId: options.accountId, engine: options.engine,
           maxFileBytes: Math.min(AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES, reservedSize),

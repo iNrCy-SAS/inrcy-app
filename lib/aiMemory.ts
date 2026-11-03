@@ -93,6 +93,8 @@ export type AiMemory = {
   editorialStrategy: string;
   campaignCalendar: string;
   recentNewsItems: string[];
+  /** Four optional overrides: null = automatic, "" = deliberately cleared. */
+  recentNewsManualItems?: Array<string | null>;
   recentNewsUpdatedAt: string;
   recentNewsWindowStart: string;
   recentNewsWindowEnd: string;
@@ -201,6 +203,22 @@ function cleanList(value: unknown, maxItems = 16, maxItemLength = 140) {
   return result;
 }
 
+function normalizeRecentNewsManualItems(value: unknown): Array<string | null> {
+  if (!Array.isArray(value)) return [];
+  const items = Array.from({ length: 4 }, (_, index) => typeof value[index] === "string"
+    ? cleanText(value[index], 2_000).replace(/\s+/g, " ") : null);
+  return items.some((item) => item !== null) ? items : [];
+}
+
+function recentNewsWithManualItems(items: unknown, manualItems: Array<string | null>) {
+  const automatic = cleanList(items, 4, 2_000);
+  if (!manualItems.length) return automatic;
+  const manualTexts = new Set(manualItems.filter((item): item is string => Boolean(item))
+    .map((item) => item.toLocaleLowerCase()));
+  const available = automatic.filter((item) => !manualTexts.has(item.toLocaleLowerCase()));
+  return manualItems.map((manual) => manual === null ? available.shift() || "" : manual);
+}
+
 function cleanIsoDate(value: unknown) {
   const raw = cleanText(value, 40);
   if (!raw) return "";
@@ -256,6 +274,8 @@ export function normalizeAiMemory(
 ): AiMemory {
   const source = asRecord(value);
   const includePremium = options.includePremium !== false;
+  const hasManualNews = Object.hasOwn(source, "recentNewsManualItems") || Object.hasOwn(source, "recent_news_manual_items");
+  const manualNews = normalizeRecentNewsManualItems(source.recentNewsManualItems ?? source.recent_news_manual_items);
   const rawMission = cleanText(source.mission ?? source.purpose ?? source.raison_d_etre, 800);
   const rawDetailedDescription = cleanText(
     source.detailedDescription ?? source.detailed_description,
@@ -319,15 +339,15 @@ export function normalizeAiMemory(
     objectionResponses: normalizeBusinessDnaPlainText(rawObjectionResponses, 3_000),
     editorialStrategy: normalizeBusinessDnaPlainText(rawEditorialStrategy, 5_000),
     campaignCalendar: normalizeBusinessDnaPlainText(rawCampaignCalendar, 3_000),
-    recentNewsItems: cleanList(
+    ...(hasManualNews ? { recentNewsManualItems: manualNews } : {}),
+    recentNewsItems: recentNewsWithManualItems(
       source.recentNewsItems ?? source.recent_news_items ?? [
         source.recentCompanyNews ?? source.recent_company_news,
         source.recentOffersHighlights ?? source.recent_offers_highlights,
         source.recentAchievements ?? source.recent_achievements,
         source.recentPriorities ?? source.recent_priorities,
       ],
-      4,
-      2_000,
+      manualNews,
     ),
     recentNewsUpdatedAt: cleanIsoDate(
       source.recentNewsUpdatedAt ?? source.recent_news_updated_at,
@@ -358,6 +378,19 @@ export function normalizeAiMemory(
           campaignCalendar: "",
         },
   };
+}
+
+/** Only an explicit editor action creates provenance; model suggestions never do. */
+export function updateAiMemoryRecentNewsItem(value: unknown, index: number, text: string): AiMemory {
+  const current = normalizeAiMemory(value);
+  if (!Number.isInteger(index) || index < 0 || index > 3) return current;
+  const manualItems = Array.from({ length: 4 }, (_, itemIndex) => current.recentNewsManualItems?.[itemIndex] ?? null);
+  // Keep draft whitespace while the user types (notably a trailing space).
+  // Persistence applies the same bounded text normalization as other fields.
+  manualItems[index] = String(text ?? "").replace(/\u0000/g, "").replace(/\r\n?/g, "\n").slice(0, 2_000);
+  const items = Array.from({ length: 4 }, (_, itemIndex) => current.recentNewsItems[itemIndex] || "");
+  items[index] = manualItems[index] || "";
+  return { ...current, recentNewsItems: items, recentNewsManualItems: manualItems };
 }
 
 export function normalizeAiBusinessKnowledge(value: unknown): AiBusinessKnowledge {
@@ -430,6 +463,7 @@ export function mergeAiMemoryUpdate(
     ["editorialStrategy", ["editorialStrategy", "editorial_strategy"]],
     ["campaignCalendar", ["campaignCalendar", "campaign_calendar"]],
     ["recentNewsItems", ["recentNewsItems", "recent_news_items"]],
+    ["recentNewsManualItems", ["recentNewsManualItems", "recent_news_manual_items"]],
     ["recentNewsUpdatedAt", ["recentNewsUpdatedAt", "recent_news_updated_at"]],
     ["recentNewsWindowStart", ["recentNewsWindowStart", "recent_news_window_start"]],
     ["recentNewsWindowEnd", ["recentNewsWindowEnd", "recent_news_window_end"]],
@@ -572,6 +606,9 @@ export function mergeAiBusinessDnaAnalysis(
   const suggested = normalizeAiMemory(suggestedMemory, { includePremium });
   const suggestedBusiness = normalizeAiBusinessKnowledge(suggestedBusinessKnowledge);
   const hasFreshNewsSnapshot = Boolean(suggested.recentNewsUpdatedAt);
+  const suggestedManualTexts = new Set((suggested.recentNewsManualItems || [])
+    .filter((item): item is string => Boolean(item)).map((item) => item.toLocaleLowerCase()));
+  const freshNewsItems = suggested.recentNewsItems.filter((item) => !suggestedManualTexts.has(item.toLocaleLowerCase()));
 
   const businessKnowledge = normalizeAiBusinessKnowledge({
     description: currentBusiness.description || suggestedBusiness.description || suggested.detailedDescription,
@@ -622,7 +659,7 @@ export function mergeAiBusinessDnaAnalysis(
       ? current.campaignCalendar || suggested.campaignCalendar
       : current.campaignCalendar,
     recentNewsItems: hasFreshNewsSnapshot
-      ? suggested.recentNewsItems
+      ? recentNewsWithManualItems(freshNewsItems, current.recentNewsManualItems || [])
       : current.recentNewsItems,
     recentNewsUpdatedAt: hasFreshNewsSnapshot
       ? suggested.recentNewsUpdatedAt
@@ -757,7 +794,9 @@ export function hasAiMemoryContent(memory: unknown) {
       key === "recentNewsWindowStart" ||
       key === "recentNewsWindowEnd" ||
       key === "recentNewsSourceKeys"
+      || key === "recentNewsManualItems"
     ) return false;
+    if (key === "recentNewsItems") return cleanList(value, 4, 2_000).length > 0;
     return Array.isArray(value) ? value.length > 0 : Boolean(value);
   });
 }

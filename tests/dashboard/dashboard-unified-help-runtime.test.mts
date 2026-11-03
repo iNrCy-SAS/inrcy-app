@@ -154,7 +154,7 @@ function guideHarness(edition: DashboardEdition = "standard", inrAgentEnabled = 
 const goals = ["publish", "media", "grow", "reviews", "contacts", "stats"] as const;
 function themeLabels(h: ReturnType<typeof guideHarness>) {
   const copy = h.dictionary.dashboard.helpCenter;
-  return [copy.setupTitle, ...["channels", "dna", "ai"].map(key => copy[key].title), ...goals.map(key => copy.goals[key].title), copy.landmarksTitle] as string[];
+  return [copy.setupTitle, ...["channels", "personalization"].map(key => copy[key].title), ...goals.map(key => copy.goals[key].title), copy.landmarksTitle] as string[];
 }
 function selectTheme(h: ReturnType<typeof guideHarness>, label: string) {
   click(button(section(h.render(), "sidebar"), label));
@@ -172,43 +172,43 @@ test("the mobile theme selector opens the same sheet and actions, retaining cont
   const h = guideHarness();
   const initial = currentMobileSelect(h);
   assert.equal(initial.props["aria-controls"], "help-test-sheet");
-  assert.equal(elements(initial).filter(node => node.type === "option").length, 11);
-  (initial.props.onChange as (event: unknown) => void)({ currentTarget: { value: "dna" } });
-  assert.equal(text(find(section(h.render(), "main"), node => node.type === "h2")), messages.dashboard.helpCenter.dna.title);
-  click(button(section(h.render(), "main"), messages.dashboard.helpCenter.dna.action));
-  assert.deepEqual(h.routes, ["/dashboard/adn-entreprise"]);
+  assert.equal(elements(initial).filter(node => node.type === "option").length, 10);
+  (initial.props.onChange as (event: unknown) => void)({ currentTarget: { value: "personalization" } });
+  assert.equal(text(find(section(h.render(), "main"), node => node.type === "h2")), messages.dashboard.helpCenter.personalization.title);
+  click(button(section(h.render(), "main"), messages.dashboard.helpCenter.personalization.action));
+  assert.deepEqual(h.routes, ["/dashboard/personnalisation"]);
   change(currentInput(h), "zzzz-no-guide-matches-this");
   const filtered = currentMobileSelect(h);
-  assert.equal(filtered.props.value, "dna");
+  assert.equal(filtered.props.value, "personalization");
   const retained = elements(filtered).filter(node => node.type === "option");
   assert.equal(retained.length, 1);
   assert.equal(retained[0].props.disabled, true);
   assert.equal(text(section(h.render(), "mobileEmpty")), messages.dashboard.helpCenter.noResults);
   (filtered.props.onChange as (event: unknown) => void)({ currentTarget: { value: "missing" } });
-  assert.equal(currentMobileSelect(h).props.value, "dna");
+  assert.equal(currentMobileSelect(h).props.value, "personalization");
   change(currentInput(h), "");
-  assert.equal(elements(currentMobileSelect(h)).filter(node => node.type === "option").length, 11);
+  assert.equal(elements(currentMobileSelect(h)).filter(node => node.type === "option").length, 10);
 });
 
-test("the unified help starts with real preparation values and a single list of eleven themes", () => {
+test("the unified help starts with real preparation values and a single list of ten themes", () => {
   const h = guideHarness();
   const tree = h.render();
   const main = section(tree, "main");
   assert.equal(text(find(main, node => node.type === "h2")), messages.dashboard.helpCenter.setupTitle);
   const navigation = elements(section(tree, "navigation")).filter(node => node.type === "button");
-  assert.equal(navigation.length, 11);
+  assert.equal(navigation.length, 10);
   assert.equal(elements(section(tree, "goals")).filter(node => node.type === "button").length, 6);
   assert.equal(navigation.some(node => text(node).includes(messages.dashboard.helpCenter.articles)), false);
   const gauges = elements(main).filter(node => node.props.role === "progressbar");
-  assert.deepEqual(gauges.map(node => node.props["aria-valuenow"]), [35, 100, 82]);
+  assert.deepEqual(gauges.map(node => node.props["aria-valuenow"]), [35]);
   assert.ok(text(main).includes("4 / 13 connectés"));
-  assert.ok(text(main).includes("Terminé"));
+  assert.ok(text(main).includes(messages.dashboard.helpCenter.personalization.autosave));
   const html = renderToStaticMarkup(tree);
   assert.ok(html.includes('data-testid="dashboard-unified-help"'));
   assert.ok(html.includes('style="width:35%"'));
   h.props.progress.channels = -20;
   h.props.progress.ai = 140;
-  assert.deepEqual(elements(h.render()).filter(node => node.props.role === "progressbar").map(node => node.props["aria-valuenow"]), [0, 100, 100]);
+  assert.deepEqual(elements(h.render()).filter(node => node.props.role === "progressbar").map(node => node.props["aria-valuenow"]), [0]);
   assert.deepEqual(h.routes, []);
 });
 
@@ -220,12 +220,11 @@ test("every theme changes its detail and focus while actual setup and cockpit bu
     assert.deepEqual(h.routes, []);
   }
   h.flushFocus();
-  assert.equal(h.focused.length, 11);
+  assert.equal(h.focused.length, 10);
   assert.ok(h.focused.every(options => JSON.stringify(options) === JSON.stringify({ preventScroll: true })));
   const setup = [
     ["channels", "/dashboard?helpAction=channels"],
-    ["dna", "/dashboard/adn-entreprise"],
-    ["ai", "/dashboard/configuration-ia"],
+    ["personalization", "/dashboard/personnalisation"],
   ] as const;
   for (const [key, route] of setup) {
     selectTheme(h, messages.dashboard.helpCenter[key].title);
@@ -278,7 +277,7 @@ test("all main tool buttons reach the right tool or the Standard subscription ga
   }
 });
 
-test("the same eleven detailed themes are translated in all nine locales and pilot content stays gated", () => {
+test("the same ten detailed themes are translated in all nine locales and pilot content stays gated", () => {
   const locales = ["fr-FR", "en-GB", "es-ES", "de-DE", "it-IT", "pt-PT", "nl-NL", "th-TH", "zh-CN"];
   for (const locale of locales) {
     const h = guideHarness("standard", true, undefined, locale);
@@ -307,13 +306,33 @@ test("FAQ search selects its theme and exposes the answer on the same sheet with
   const question = messages.gps[faqSource.title] as string;
   const query = question.toUpperCase();
   change(currentInput(h), query);
-  const tree = selectTheme(h, messages.dashboard.helpCenter.dna.title);
+  const tree = selectTheme(h, messages.dashboard.helpCenter.personalization.title);
   assert.equal(currentInput(h).props.value, query);
-  assert.equal(button(section(tree, "navigation"), messages.dashboard.helpCenter.dna.title).props["aria-current"], "page");
+  assert.equal(button(section(tree, "navigation"), messages.dashboard.helpCenter.personalization.title).props["aria-current"], "page");
   assert.ok(text(section(tree, "main")).includes(question));
   assert.ok(text(section(tree, "main")).includes(messages.gps[faqSource.intro]));
   assert.ok(text(section(tree, "main")).includes(messages.dashboard.helpCenter.faq));
   assert.deepEqual(h.routes, []);
+});
+
+test("the personalization guide documents all three tabs, safe analysis limits and automatic saving in every locale", () => {
+  for (const locale of ["fr-FR", "en-GB", "es-ES", "de-DE", "it-IT", "pt-PT", "nl-NL", "th-TH", "zh-CN"]) {
+    const h = guideHarness("standard", true, undefined, locale);
+    const copy = h.dictionary.dashboard.helpCenter.personalization;
+    const dashboard = h.dictionary.dashboard;
+    const main = section(selectTheme(h, copy.title), "main");
+    const rendered = text(main);
+    for (const label of [dashboard.aiMemory.tabAnalysis, dashboard.personalization.companyTitle, dashboard.personalization.communicationTitle]) {
+      assert.ok(rendered.includes(label), `${locale}: ${label} is covered`);
+    }
+    for (const key of ["analysis", "analysisLimits", "company", "communication", "autosave", "reset"] as const) {
+      assert.ok(rendered.includes(copy[key]), `${locale}: ${key} includes its actual instructions`);
+      assert.doesNotMatch(copy[key], /\$[A-Z]+/);
+    }
+    assert.equal(elements(main).filter(node => node.props.role === "progressbar").length, 0, "the guide does not invent an average personalization score");
+    click(button(section(main, "toolActions"), copy.action));
+    assert.equal(h.routes.at(-1), "/dashboard/personnalisation");
+  }
 });
 
 test("the practical sheets contain the important checks and explain outcomes without article subpages", () => {
@@ -348,7 +367,7 @@ test("empty search keeps the current sheet and Escape restores all themes withou
   (currentInput(h).props.onKeyDown as (event: unknown) => void)({ key: "Escape", preventDefault: () => calls.push("prevent"), stopPropagation: () => calls.push("stop") });
   assert.deepEqual(calls, ["prevent", "stop"]);
   assert.equal(currentInput(h).props.value, "");
-  assert.equal(elements(section(h.render(), "navigation")).filter(node => node.type === "button").length, 11);
+  assert.equal(elements(section(h.render(), "navigation")).filter(node => node.type === "button").length, 10);
   assert.deepEqual(h.routes, []);
 });
 
@@ -393,7 +412,7 @@ test("search moves from one theme to another with accent-insensitive terms while
   selectTheme(h, messages.dashboard.helpCenter.goals.media.title);
   change(currentInput(h), "PÉRIODES");
   const sidebar = section(h.render(), "sidebar");
-  assert.ok(elements(sidebar).filter(node => node.type === "button").length < 11);
+  assert.ok(elements(sidebar).filter(node => node.type === "button").length < 10);
   selectTheme(h, messages.dashboard.helpCenter.goals.stats.title);
   assert.equal(currentInput(h).props.value, "PÉRIODES");
   assert.equal(button(section(h.render(), "navigation"), messages.dashboard.helpCenter.goals.stats.title).props["aria-current"], "page");

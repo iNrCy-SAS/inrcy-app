@@ -7,7 +7,7 @@ const source = readFileSync(
   "utf8",
 );
 
-test("GPS startup follows profile, channels, analysis, DNA and AI configuration", () => {
+test("GPS startup follows the two cockpit entries, then analysis, company review and communication", () => {
   const profile = source.indexOf('"startup_step_profile_20260905"');
   const channels = source.indexOf('"startup_step_channels_20260905"');
   const analysis = source.indexOf('"startup_step_analyze_20260905"');
@@ -15,16 +15,17 @@ test("GPS startup follows profile, channels, analysis, DNA and AI configuration"
   const ai = source.indexOf('"startup_step_configure_ai_20260905"');
 
   assert.ok(profile >= 0);
-  assert.ok(profile < channels);
   assert.ok(channels < analysis);
-  assert.ok(analysis < dna);
+  assert.ok(analysis < profile);
+  assert.ok(profile < dna);
   assert.ok(dna < ai);
   assert.match(source, /maxSteps: 5/);
 });
 
-test("GPS startup actions open the four real workspaces", () => {
-  assert.match(source, /href: "\/dashboard\/mon-profil"/);
+test("GPS startup actions open channels and the three real personalization tabs", () => {
   assert.match(source, /label: "ouvrir_les_canaux_9322102a", href: "\/dashboard"/);
-  assert.match(source, /href: "\/dashboard\/adn-entreprise"/);
-  assert.match(source, /href: "\/dashboard\/configuration-ia"/);
+  assert.match(source, /href: "\/dashboard\/personnalisation"/);
+  assert.match(source, /href: "\/dashboard\/personnalisation\?section=company"/);
+  assert.match(source, /href: "\/dashboard\/personnalisation\?section=communication"/);
+  assert.doesNotMatch(source, /href: "\/dashboard\/(?:mon-profil|adn-entreprise|configuration-ia)(?:\?|"|\/)/);
 });

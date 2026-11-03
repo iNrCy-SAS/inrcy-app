@@ -11,7 +11,7 @@ import type { GpsArticleSource } from "../gps/noticeContent.ts";
 export const HELP_GOALS = ["publish", "media", "grow", "reviews", "contacts", "stats"] as const;
 export type HelpGoal = (typeof HELP_GOALS)[number];
 
-export const HELP_SETUP = ["channels", "dna", "ai"] as const;
+export const HELP_SETUP = ["channels", "personalization"] as const;
 export type HelpSetup = (typeof HELP_SETUP)[number];
 
 export type HelpArticle = { sectionId: string; article: GpsArticleSource };
@@ -28,8 +28,7 @@ const GOAL_ARTICLES: Record<HelpGoal, readonly string[]> = {
 
 const SETUP_ARTICLES: Record<HelpSetup, readonly string[]> = {
   channels: ["canaux-express", "canaux-threads"],
-  dna: ["demarrer-express", "demarrer-rangement"],
-  ai: ["demarrer-express", "booster-express"],
+  personalization: ["demarrer-express", "demarrer-rangement"],
 };
 
 /** Keep the existing edition overrides and pilot articles as the source of truth. */
@@ -112,5 +111,10 @@ export function normalizeHelpSearch(value: string): string {
 /** Adapt old guide links without changing explicit panel, tool or external links. */
 export function getHelpArticleDestination(href: string): string {
   if (href === "/dashboard" || href === "/dashboard/") return "/dashboard?helpAction=channels";
-  return href.replace(/^\/dashboard\/profil-entreprise(?=\/?(?:[?#]|$))\/?/, "/dashboard/adn-entreprise");
+  if (/^\/dashboard\/(?:profil-entreprise|mon-profil|settings\/profil|settings\/activite)(?:\/?(?:[?#]|$))/.test(href)) {
+    return "/dashboard/personnalisation?section=company";
+  }
+  if (/^\/dashboard\/adn-entreprise(?:\/?(?:[?#]|$))/.test(href)) return "/dashboard/personnalisation";
+  if (/^\/dashboard\/configuration-ia(?:\/?(?:[?#]|$))/.test(href)) return "/dashboard/personnalisation?section=communication";
+  return href;
 }
