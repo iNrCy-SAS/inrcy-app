@@ -126,15 +126,6 @@ export default function DashboardHero({
                     <small>{step.title}</small>
                     <span className={styles.cockpitStageArrow} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></span>
                   </button>
-                  <button
-                    type="button"
-                    className={styles.cockpitInfoButton}
-                    aria-label={step.infoAria}
-                    aria-expanded={openInfo === step.key}
-                    onClick={() => setOpenInfo((current) => current === step.key ? null : step.key)}
-                  >
-                    i
-                  </button>
                 </div>
               </div>
               {openInfo === step.key ? (
@@ -158,6 +149,15 @@ export default function DashboardHero({
                 </div>
               ) : null}
               <div className={styles.cockpitStageProgress}>
+                <button
+                  type="button"
+                  className={styles.cockpitInfoButton}
+                  aria-label={step.infoAria}
+                  aria-expanded={openInfo === step.key}
+                  onClick={() => setOpenInfo((current) => current === step.key ? null : step.key)}
+                >
+                  i
+                </button>
                 {step.key === "channels" ? (
                   <span className={styles.cockpitChannelCount} aria-label={`${connectedChannels} / ${totalChannels} ${channelsT("connected")}`}>
                     <i aria-hidden="true" /><b>{connectedChannels} / {totalChannels}</b> <span>{channelsT("connected")}</span>

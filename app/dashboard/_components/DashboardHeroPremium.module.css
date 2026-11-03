@@ -261,7 +261,7 @@
   position: relative;
   width: 100%;
   min-height: 44px;
-  padding: 9px 80px 9px 34px;
+  padding: 9px 40px 9px 34px;
   border: 0;
   border-radius: inherit;
   background: transparent;
@@ -272,13 +272,13 @@
 }
 .cockpitStageTrigger:hover { background: rgba(var(--stage), .12); }
 .cockpitStageTrigger:focus-visible { outline: 2px solid #e1f3ff; outline-offset: 3px; }
-.cockpitStageArrow { position: absolute; right: 46px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 20px; height: 20px; color: rgb(var(--stage)); }
+.cockpitStageArrow { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 20px; height: 20px; color: rgb(var(--stage)); }
 .cockpitStageArrow svg { width: 100%; height: 100%; }
-.cockpitStages[data-layout="unified"] .cockpitInfoButton { right: 9px; width: 22px; height: 22px; font-size: 12px; }
-.cockpitStages[data-layout="unified"] .cockpitStageProgress { grid-column: 2; grid-row: 1; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+.cockpitStages[data-layout="unified"] .cockpitInfoButton { position: static; transform: none; grid-column: 1; grid-row: 1; justify-self: start; width: 22px; height: 22px; font-size: 12px; }
+.cockpitStages[data-layout="unified"] .cockpitStageProgress { grid-column: 2; grid-row: 1; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 7px; }
 .cockpitStages[data-layout="unified"] .cockpitStageBar { grid-column: 1 / -1; grid-row: 2; height: 6px; }
-.cockpitStages[data-layout="unified"] .cockpitStageScore { grid-column: 2; grid-row: 1; display: flex; align-items: center; gap: 5px; }
-.cockpitStages[data-layout="unified"] .cockpitChannelCount { grid-column: 1; grid-row: 1; justify-self: start; }
+.cockpitStages[data-layout="unified"] .cockpitStageScore { grid-column: 3; grid-row: 1; display: flex; align-items: center; gap: 5px; }
+.cockpitStages[data-layout="unified"] .cockpitChannelCount { grid-column: 2; grid-row: 1; justify-self: center; }
 @media (max-width: 800px) {
   .cockpitStages[data-layout="unified"] .cockpitStage { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; min-height: 98px; gap: 8px; padding: 10px; }
   .cockpitStages[data-layout="unified"] .cockpitStageHeading { grid-template-columns: 30px minmax(0, 1fr); gap: 8px; }
