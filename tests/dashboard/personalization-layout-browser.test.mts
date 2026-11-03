@@ -2,8 +2,20 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { chromium } from "@playwright/test";
+import { chromium, type Page } from "@playwright/test";
 import { ROOT, fixture, html } from "./personalization-browser-fixture.mts";
+
+async function assertActivityCardsFitTheirLists(page: Page) {
+  const cards = await page.locator("[data-activity-services] > section").evaluateAll(nodes => nodes.map(node => {
+    const list = node.querySelector("[data-editable-tags]")!;
+    const card = node.getBoundingClientRect();
+    const content = list.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return { gap: card.bottom - content.bottom, padding: parseFloat(style.paddingBottom) + parseFloat(style.borderBottomWidth) };
+  }));
+  assert.equal(cards.length, 2);
+  for (const card of cards) assert.ok(card.gap <= card.padding + 2, "Activity cards end at their tag editor without an empty stretched area");
+}
 
 test("all personalization tabs keep fields accessible and fit the desktop workspace without horizontal overflow", { timeout: 90_000 }, async t => {
   const browser = await chromium.launch({ headless: true });
@@ -65,6 +77,7 @@ test("all personalization tabs keep fields accessible and fit the desktop worksp
       ]) {
         await subnav.getByRole("button", { name: label, exact: true }).click();
         await page.locator(selector).first().waitFor(); await check(name);
+        if (name === "activity") await assertActivityCardsFitTheirLists(page);
         if (name === "activity" && viewport.width >= 1000) {
           const bounds = await page.locator('[data-ai-memory-active-tab="activity"]').evaluate(node => {
             const box=(selector:string)=>{const rect=node.querySelector(selector)!.getBoundingClientRect();return {left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom,width:rect.width}};
@@ -219,7 +232,7 @@ test("populated tag groups and long strategy text remain contained and reachable
   const browser = await chromium.launch({ headless: true });
   const violations: string[] = [];
   try {
-    for (const viewport of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }, { width: 390, height: 844 }]) {
+    for (const viewport of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }, { width: 2560, height: 1346 }, { width: 390, height: 844 }]) {
       const page = await browser.newPage({ viewport });
       const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
       await page.route("**/*", route => {
@@ -237,6 +250,7 @@ test("populated tag groups and long strategy text remain contained and reachable
         const panel = page.locator(selector);
         await panel.waitFor();
         await page.waitForTimeout(80);
+        if (name === "activity") await assertActivityCardsFitTheirLists(page);
         const groups = panel.locator("[data-editable-tags]");
         assert.equal(await groups.count(), expectedTagCounts.length, `${name}: expected populated tag groups are rendered`);
         for (let index = 0; index < expectedTagCounts.length; index++) {

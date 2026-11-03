@@ -62,8 +62,8 @@
 .workspace :global([data-memory-field="specialties"]) { border-color: #ee96c247; background: #52283f33; }
 .workspace :global([data-memory-field="description"]) { align-content: start; }
 .workspace :global([data-memory-field="description"]) [role="textbox"] { min-height: 180px !important; height: clamp(180px, calc(100dvh - 430px), 480px); max-height: 480px; overflow-y: auto; }
-.workspace :global([data-activity-services]) { align-content: stretch; gap: 14px !important; }
-.workspace :global([data-activity-services]) > section { min-height: 135px; align-content: start; padding: 16px !important; border-radius: 18px !important; }
+.workspace :global([data-activity-services]) { align-self: start; align-content: start; gap: 14px !important; }
+.workspace :global([data-activity-services]) > section { min-height: 0; align-content: start; padding: 16px !important; border-radius: 18px !important; }
 
 /* Clients: customer types stay together, then two equally weighted cards. */
 .workspace :global([data-memory-two-columns]) { gap: 12px !important; }
@@ -132,7 +132,7 @@
   .workspace :global([data-ai-memory-tab="activity-foundation"]) { grid-column: 1; grid-row: 1; padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none; }
   .workspace :global([data-memory-field="description"]) { grid-column: 1; grid-row: 2; }
   .workspace :global([data-memory-field="description"]) [role="textbox"] { min-height: 108px !important; height: clamp(108px, calc(100dvh - 606px), 360px); max-height: 360px; }
-  .workspace :global([data-activity-services]) { grid-column: 2; grid-row: 1 / 3; grid-template-rows: repeat(2, minmax(0, 1fr)); }
+  .workspace :global([data-activity-services]) { grid-column: 2; grid-row: 1 / 3; grid-template-rows: repeat(2, max-content); }
   .workspace :global([data-identity-core]) { grid-template-columns: minmax(300px, .85fr) minmax(0, 1.15fr) !important; align-items: stretch; }
   .workspace :global([data-identity-core]) > :global([data-identity-tag-grid]) { grid-auto-rows: 1fr; }
   .workspace :global([data-ai-memory-tab="local"]:not([hidden])) { display: grid !important; grid-template-columns: minmax(280px, .7fr) minmax(0, 1.3fr); grid-template-rows: auto minmax(0, 1fr); }
