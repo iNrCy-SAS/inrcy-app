@@ -138,6 +138,173 @@ test("all personalization tabs keep fields accessible and fit the desktop worksp
   } finally { await browser.close(); }
 });
 
+test("eight and ten analysis documents scroll inside their card while channels and document metadata stay fixed", { timeout: 60_000 }, async t => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const viewport of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }, { width: 390, height: 844 }]) {
+      for (const count of [8, 10]) {
+        const page = await browser.newPage({ viewport });
+        const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+        await page.route("**/*", route => {
+          if (route.request().resourceType() === "document") return route.fulfill({ contentType: "text/html", body: html });
+          const asset = path.resolve(ROOT, "public", `.${new URL(route.request().url()).pathname}`);
+          if (asset.startsWith(path.resolve(ROOT, "public") + path.sep) && existsSync(asset)) return route.fulfill({ contentType: asset.endsWith(".svg") ? "image/svg+xml" : "image/png", body: readFileSync(asset) });
+          return route.abort();
+        });
+        await page.goto("https://personalization.fixture.invalid/dashboard/personnalisation");
+        await page.evaluate(value => { (window as unknown as { fixtureDocumentCount: number }).fixtureDocumentCount = value; }, count);
+        await page.addScriptTag({ content: fixture });
+        const list = page.locator("[data-reference-document-list]");
+        await list.waitFor();
+        const documents = page.locator("[data-analysis-documents]");
+        const rows = list.locator("[data-reference-document]");
+        await rows.nth(count - 1).waitFor();
+        await page.waitForTimeout(300);
+        assert.equal(await rows.count(), count);
+        assert.match(await documents.locator("[data-reference-document-count]").innerText(), new RegExp(`${count}/10`));
+        const measure = () => page.evaluate(() => {
+          const rect = (selector: string) => {
+            const bounds = document.querySelector(selector)!.getBoundingClientRect();
+            return { top: bounds.top, bottom: bounds.bottom, left: bounds.left, right: bounds.right, height: bounds.height };
+          };
+          const list = document.querySelector<HTMLElement>("[data-reference-document-list]")!;
+          return {
+            header: rect("[data-dashboard-workspace-header]"), channels: rect("[data-analysis-channel-panel]"),
+            card: rect('[data-ai-memory-tab="documents"]'), title: rect('[data-ai-memory-tab="documents"] [data-memory-section-heading]'),
+            storage: rect("[data-document-storage]"), list: rect("[data-reference-document-list]"), footer: rect("[data-analysis-action-group]"),
+            listHeight: list.clientHeight, listContentHeight: list.scrollHeight, listScrollTop: list.scrollTop,
+            listOverflow: getComputedStyle(list).overflowY, columnScrollTop: document.querySelector("[data-analysis-source-panels]")!.scrollTop,
+            pageScrollTop: window.scrollY, pageHeight: document.documentElement.scrollHeight,
+            horizontal: document.documentElement.scrollWidth > innerWidth + 1,
+          };
+        });
+        const before = await measure();
+        assert.equal(before.horizontal, false, `${count} documents: no horizontal overflow at ${viewport.width}px`);
+        assert.ok(before.listHeight > 50, "the document list has usable space");
+        assert.ok(before.listContentHeight > before.listHeight + 1, "the populated list has its own scrollable overflow");
+        assert.equal(before.listOverflow, "auto");
+        assert.ok(before.list.left >= before.card.left && before.list.right <= before.card.right, "document rows fit inside the card width");
+        assert.ok(before.list.top >= before.storage.bottom && before.list.bottom < before.card.bottom, "the list stays below fixed storage and above the card border");
+        if (viewport.width >= 1366) {
+          assert.ok(before.pageHeight <= viewport.height + 2, "populated documents do not create desktop page scrolling");
+          assert.ok(before.channels.top >= before.header.bottom && before.channels.bottom <= before.card.top, "the channels remain completely visible above documents");
+          assert.ok(before.card.bottom <= viewport.height && before.footer.bottom <= viewport.height, "documents and actions fit the desktop viewport");
+        } else {
+          assert.ok(before.listHeight <= 300, "mobile document scrolling remains bounded");
+        }
+        await list.evaluate(node => { node.scrollTop = node.scrollHeight; });
+        const lastButton = rows.last().getByRole("button");
+        assert.equal(await lastButton.isEnabled(), true, "the final document can still be deleted");
+        const lastBounds = await lastButton.boundingBox();
+        const after = await measure();
+        assert.ok(lastBounds && lastBounds.y >= after.list.top && lastBounds.y + lastBounds.height <= after.list.bottom, "the final document action is inside the list after scrolling");
+        assert.ok(after.listScrollTop > 0);
+        for (const key of ["header", "channels", "title", "storage", "footer"] as const) assert.deepEqual(after[key], before[key], `${key} remains fixed while files scroll`);
+        assert.equal(after.columnScrollTop, 0, "the entire source column never scrolls");
+        assert.equal(after.pageScrollTop, before.pageScrollTop, "list scrolling never moves the page");
+        assert.deepEqual(errors, []);
+        assert.equal(await page.evaluate(() => (window as unknown as { mutations: number }).mutations), 0, "rendering and scrolling existing documents never writes data");
+        if (process.env.INRCY_PERSONALIZATION_PROOF) {
+          mkdirSync(process.env.INRCY_PERSONALIZATION_PROOF, { recursive: true });
+          await page.screenshot({ path: path.join(process.env.INRCY_PERSONALIZATION_PROOF, `analysis-${count}-documents-${viewport.width}.png`), fullPage: true, animations: "disabled", timeout: 10_000 });
+        }
+        t.diagnostic(JSON.stringify({ viewport, count, listHeight: after.listHeight, contentHeight: after.listContentHeight, pageHeight: after.pageHeight }));
+        await page.close();
+      }
+    }
+  } finally { await browser.close(); }
+});
+
+test("populated tag groups and long strategy text remain contained and reachable at all responsive sizes", { timeout: 90_000 }, async t => {
+  const browser = await chromium.launch({ headless: true });
+  const violations: string[] = [];
+  try {
+    for (const viewport of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }, { width: 390, height: 844 }]) {
+      const page = await browser.newPage({ viewport });
+      const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+      await page.route("**/*", route => {
+        if (route.request().resourceType() === "document") return route.fulfill({ contentType: "text/html", body: html });
+        const asset = path.resolve(ROOT, "public", `.${new URL(route.request().url()).pathname}`);
+        if (asset.startsWith(path.resolve(ROOT, "public") + path.sep) && existsSync(asset)) return route.fulfill({ contentType: asset.endsWith(".svg") ? "image/svg+xml" : "image/png", body: readFileSync(asset) });
+        return route.abort();
+      });
+      await page.goto("https://personalization.fixture.invalid/dashboard/personnalisation");
+      await page.evaluate(() => { (window as unknown as { fixtureStressContent: boolean }).fixtureStressContent = true; });
+      await page.addScriptTag({ content: fixture });
+      await page.locator("[data-business-dna-channel-analysis]").waitFor();
+      const primary = page.locator("[data-dashboard-workspace-navigation]");
+      const check = async (name: string, selector: string, expectedTagCounts: number[]) => {
+        const panel = page.locator(selector);
+        await panel.waitFor();
+        await page.waitForTimeout(80);
+        const groups = panel.locator("[data-editable-tags]");
+        assert.equal(await groups.count(), expectedTagCounts.length, `${name}: expected populated tag groups are rendered`);
+        for (let index = 0; index < expectedTagCounts.length; index++) {
+          const group = groups.nth(index);
+          const list = group.locator("[data-editable-tags-list]");
+          assert.equal(await list.count(), 1, `${name}: the tag list has its own bounded scrolling region`);
+          const tags = list.locator("[data-editable-tag]");
+          assert.equal(await tags.count(), expectedTagCounts[index], `${name}: every saved tag is preserved`);
+          const dimensions = await list.evaluate(node => {
+            const list = node as HTMLElement, box = list.getBoundingClientRect(), group = list.parentElement!.getBoundingClientRect();
+            return { height: list.clientHeight, content: list.scrollHeight, left: box.left, right: box.right, top: box.top, bottom: box.bottom, groupBottom: group.bottom, overflow: getComputedStyle(list).overflowY };
+          });
+          if (dimensions.height <= 0 || dimensions.height > 320) violations.push(`${viewport.width}/${name}/${index}: tag-list height ${dimensions.height}`);
+          if (dimensions.bottom > dimensions.groupBottom + 1) violations.push(`${viewport.width}/${name}/${index}: tags escape their editor`);
+          if (dimensions.left < -1 || dimensions.right > viewport.width + 1) violations.push(`${viewport.width}/${name}/${index}: tags overflow horizontally`);
+          if (dimensions.content > dimensions.height + 1 && !["auto", "scroll"].includes(dimensions.overflow)) violations.push(`${viewport.width}/${name}/${index}: overflowing tags cannot scroll`);
+          await list.evaluate(node => { node.scrollTop = node.scrollHeight; });
+          const last = await tags.last().getByRole("button").boundingBox();
+          const listBounds = await list.boundingBox();
+          if (!last || !listBounds || last.y < listBounds.y - 1 || last.y + last.height > listBounds.y + listBounds.height + 1) violations.push(`${viewport.width}/${name}/${index}: final remove action is unreachable`);
+        }
+        const measurement = await page.evaluate(() => ({ horizontal: document.documentElement.scrollWidth > innerWidth + 1, pageHeight: document.documentElement.scrollHeight, viewportHeight: innerHeight }));
+        if (measurement.horizontal) violations.push(`${viewport.width}/${name}: horizontal page overflow`);
+        if (viewport.width >= 1366 && measurement.pageHeight > viewport.height + 2) violations.push(`${viewport.width}/${name}: page height ${measurement.pageHeight}/${viewport.height}`);
+        if (process.env.INRCY_PERSONALIZATION_PROOF) {
+          mkdirSync(process.env.INRCY_PERSONALIZATION_PROOF, { recursive: true });
+          await page.screenshot({ path: path.join(process.env.INRCY_PERSONALIZATION_PROOF, `stress-${name}-${viewport.width}.png`), fullPage: true, animations: "disabled", timeout: 10_000 });
+        }
+        t.diagnostic(JSON.stringify({ viewport, name, ...measurement }));
+      };
+      await primary.getByRole("button", { name: "Mon entreprise", exact: true }).click();
+      const company = page.getByRole("navigation", { name: "Mon entreprise", exact: true });
+      for (const [name, label, selector, counts] of [
+        ["activity", "Activité", '[data-ai-memory-active-tab="activity"]', [20, 16]],
+        ["audience", "Clients", '[data-ai-memory-tab="audience"]', [16, 16]],
+        ["local", "Zones", '[data-ai-memory-tab="local"]', [30]],
+        ["identity", "Identité", '[data-ai-memory-tab="identity"]', [16, 16, 12, 12]],
+      ] as const) {
+        await company.getByRole("button", { name: label, exact: true }).click();
+        await check(name, selector, [...counts]);
+      }
+      await primary.getByRole("button", { name: "Ma communication", exact: true }).click();
+      const communication = page.getByRole("navigation", { name: "Ma communication", exact: true });
+      await communication.getByRole("button", { name: "Consignes et exemples", exact: true }).click();
+      await check("vocabulary", '[data-ai-section="instructions"]', [16, 16]);
+      await communication.getByRole("button", { name: "Objectifs et stratégie", exact: true }).click();
+      await check("strategy", '[data-ai-memory-tab="strategy"]', []);
+      const editors = page.locator('[data-ai-memory-tab="strategy"] [role="textbox"]');
+      assert.equal(await editors.count(), 6);
+      for (let index = 0; index < 6; index++) {
+        const editor = editors.nth(index);
+        assert.ok((await editor.innerText()).length > 2500, "the strategy test uses saved long text rather than empty placeholders");
+        const dimensions = await editor.evaluate(node => {
+          const editor = node as HTMLElement;
+          editor.scrollTop = editor.scrollHeight;
+          return { height: editor.clientHeight, content: editor.scrollHeight, scrollTop: editor.scrollTop, overflow: getComputedStyle(editor).overflowY };
+        });
+        if (dimensions.height < (viewport.width >= 1600 ? 140 : 100)) violations.push(`${viewport.width}/strategy/${index}: editor height ${dimensions.height} wastes available space`);
+        if (!(["auto", "scroll"].includes(dimensions.overflow) && dimensions.scrollTop > 0)) violations.push(`${viewport.width}/strategy/${index}: long text cannot scroll locally`);
+      }
+      assert.deepEqual(errors, []);
+      assert.equal(await page.evaluate(() => (window as unknown as { mutations: number }).mutations), 0, "reading full saved content never writes data");
+      await page.close();
+    }
+    assert.deepEqual(violations, []);
+  } finally { await browser.close(); }
+});
+
 test("rich strategy formatting survives a controlled remount without any network write", { timeout: 30_000 }, async () => {
   const browser = await chromium.launch({ headless: true });
   try {

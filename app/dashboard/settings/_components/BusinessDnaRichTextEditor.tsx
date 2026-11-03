@@ -212,7 +212,7 @@ export default function BusinessDnaRichTextEditor({
   ] as const;
 
   return (
-    <div style={{ display: "grid", gap: 7, minWidth: 0 }}>
+    <div data-business-dna-rich-editor style={{ display: "grid", gap: 7, minWidth: 0 }}>
       <div style={toolbarStyle}>
         {label ? <span style={editorLabelStyle}>{label}</span> : null}
         <span style={toolbarActionsStyle}>
@@ -244,7 +244,7 @@ export default function BusinessDnaRichTextEditor({
         </span>
       </div>
 
-      <div style={{ position: "relative", minWidth: 0 }}>
+      <div data-business-dna-rich-editor-body style={{ position: "relative", minWidth: 0 }}>
         {empty ? <span style={placeholderStyle}>{placeholder}</span> : null}
         <div
           id={id}

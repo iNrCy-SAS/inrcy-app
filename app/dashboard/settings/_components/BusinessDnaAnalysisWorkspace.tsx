@@ -39,8 +39,8 @@ export default function BusinessDnaAnalysisWorkspace({
   return (
     <section className={styles.workspace} data-business-dna-channel-analysis data-analysis-running={analyzing ? "true" : "false"}>
       <aside className={styles.sources} aria-label={t("analysisSourcesTitle")}>
-        <div className={styles.sourceScroll}>
-          <section className={styles.channelSection}>
+        <div className={styles.sourceScroll} data-analysis-source-panels>
+          <section className={styles.channelSection} data-analysis-channel-panel>
           <header className={styles.sourceHeading}><h2>{t("analysisChannelsTitle")}</h2></header>
           <div className={styles.channelGrid} data-business-dna-channel-states aria-label={t("analysisChannelsAria")}>
             {channels.map((channel) => {

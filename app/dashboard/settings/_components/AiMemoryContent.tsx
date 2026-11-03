@@ -1539,7 +1539,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   iconLabel={t("documentsUploadButton")}
                   iconDisabled={documentUploadState !== "idle" || documentStorage.status === "reached" || memory.referenceDocuments.length >= AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS}
                   trailing={(
-                    <span style={documentsCountStyle}>
+                    <span data-reference-document-count style={documentsCountStyle}>
                       {t("documentsCount", {
                         count: memory.referenceDocuments.length,
                         limit: AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS,
@@ -1608,9 +1608,9 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                 {!memory.referenceDocuments.length ? <div data-document-empty>{t("documentsDropHint")}</div> : null}
 
                 {memory.referenceDocuments.length ? (
-                  <div style={documentsListStyle}>
+                  <div data-reference-document-list role="region" aria-label={t("tabDocuments")} tabIndex={0} style={documentsListStyle}>
                     {memory.referenceDocuments.map((document) => (
-                      <article key={document.id} style={documentItemStyle}>
+                      <article key={document.id} data-reference-document={document.id} style={documentItemStyle}>
                         <span style={documentFileIconStyle} aria-hidden>
                           {document.mimeType.startsWith("image/") ? "🖼️" : "📄"}
                         </span>

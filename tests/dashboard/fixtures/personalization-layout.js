@@ -15,6 +15,23 @@ window.releaseFixtureAuth=index=>window.authWaiters[index]();
 const profile = { company_legal_name:"Atelier Lumière",contact_email:"contact@atelier.example",first_name:"Camille",last_name:"Martin",phone:"06 12 34 56 78",hq_zip:"62000",hq_city:"Arras" };
 const business = { sector:"[[SECTOR:autre]] Conseil",activity_description:"Un atelier local au service des professionnels.",services:["Conseil","Création","Accompagnement"],strengths:["Proximité","Réactivité","Expertise"],intervention_zones:["Arras","Lens"],customer_typologies:["particuliers","professionnels"] };
 const memory = { mission:"Rendre les projets de nos clients plus simples et plus efficaces.",values:["Qualité","Écoute"],brandPersonality:["Chaleureuse","Experte"],commitments:["Suivi personnalisé"],preferredVocabulary:["Ensemble","Local"],forbiddenVocabulary:["Miracle"],targetAudiences:["Indépendants","Commerçants"],customerNeeds:["Gagner du temps","Développer leur visibilité"],specialties:["Communication locale"],recentNewsItems:["Une nouvelle offre de conseil pour les professionnels.","Notre atelier accueille de nouveaux collaborateurs.","Participation à un événement local.","Une réalisation menée avec un artisan partenaire."],offersAndArguments:"Une offre claire et un accompagnement adapté à chaque projet.",keyArguments:"Un interlocuteur local, une expérience concrète et des résultats suivis.",proofsAndObjections:"Des projets documentés et des retours clients vérifiables.",objectionResponses:"Nous adaptons le calendrier et le périmètre à votre besoin.",editorialStrategy:"Partager des conseils, des réalisations et la vie de l’équipe.",campaignCalendar:"Préparer les temps forts de l’activité chaque mois." };
+memory.referenceDocuments = Array.from({length:window.fixtureDocumentCount || 0},(_,index)=>({
+ id:`reference-${index+1}`,name:`${String(index+1).padStart(2,'0')}-Catalogue des prestations et références professionnelles.pdf`,
+ bucket:'inrcy-ai-documents',path:`users/${account}/ai-memory-documents/reference-${index+1}.pdf`,
+ mimeType:'application/pdf',size:2400000,status:'analysed',extractedText:'Présentation des prestations et références professionnelles.',
+ note:'Prestations, tarifs et références de notre entreprise.',createdAt:'2026-11-03T09:00:00.000Z'
+}));
+if(window.fixtureStressContent){
+ const tags=(label,count)=>Array.from({length:count},(_,index)=>`${label} ${String(index+1).padStart(2,'0')} — Un accompagnement professionnel complet et personnalisé pour nos clients et partenaires locaux`);
+ business.services=tags('Prestation',20);business.strengths=tags('Force',16);business.intervention_zones=tags('Zone',30);
+ for(const [key,label] of Object.entries({values:'Valeur',brandPersonality:'Trait',commitments:'Engagement',specialties:'Spécialité',targetAudiences:'Public',customerNeeds:'Besoin',preferredVocabulary:'Expression préférée',forbiddenVocabulary:'Expression interdite'}))memory[key]=tags(label,['brandPersonality','commitments'].includes(key)?12:16);
+ memory.mission='Notre mission est de simplifier chaque projet grâce à un accompagnement local et concret. '.repeat(8).slice(0,790);
+ business.activity_description='Notre atelier accompagne les professionnels dans la préparation, la création et le suivi de leurs projets. '.repeat(30).slice(0,4900);
+ for(const key of ['offersAndArguments','keyArguments','proofsAndObjections','objectionResponses','editorialStrategy','campaignCalendar']){
+  const limit=['keyArguments','objectionResponses','campaignCalendar'].includes(key)?2900:4900;
+  memory[key]=('Nous préparons un accompagnement adapté aux objectifs du client, avec des exemples concrets, un suivi régulier et des résultats documentés.\n\n'.repeat(40)).slice(0,limit-40)+`\nFin du champ ${key}.`;
+ }
+}
 function translate(namespace) {
   if(translations.has(namespace))return translations.get(namespace);
   const translator=(key,args={})=>{

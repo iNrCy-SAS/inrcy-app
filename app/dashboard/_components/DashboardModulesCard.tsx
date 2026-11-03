@@ -397,7 +397,10 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
               <span className={signatureStyles.boosterAura} aria-hidden="true" />
               <DashboardToolArtwork kind="rocket" className={signatureStyles.boosterArtwork} />
               <div className={signatureStyles.boosterCopy}>
-                <h4>{t.modules.publishTitle}</h4>
+                <h4 className={signatureStyles.boosterTitle}>
+                  <span className={signatureStyles.boosterStepNumber} aria-hidden="true">3</span>
+                  <span>{t.modules.publishTitle}</span>
+                </h4>
                 <p>{standardT("boosterLine1")}<br /><strong>{standardT("boosterLine2")}</strong></p>
               </div>
               <div className={signatureStyles.boosterPublishAction}>

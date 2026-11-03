@@ -16,10 +16,15 @@ test("the unified analysis occupies the remaining desktop viewport with its acti
   assert.match(css, /\.footer\s*\{[^}]*grid-column: 2;[^}]*grid-row: 2/);
 });
 
-test("source documents can grow locally and the narrow-screen workspace returns to natural page flow", () => {
-  assert.match(css, /\.sourceScroll\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto/);
+test("only the reference list scrolls while source panels stay fixed and mobile returns to natural page flow", () => {
+  assert.match(css, /\.sourceScroll\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden/);
+  assert.match(css, /\.channelSection\s*\{[^}]*flex:\s*0 0 auto/);
+  assert.match(css, /\.documents > section\s*\{[^}]*flex-direction:\s*column;[^}]*min-height:\s*0;[^}]*overflow:\s*hidden/);
+  assert.match(css, /\[data-reference-document-list\][^}]*min-height:\s*0;[^}]*overflow-y:\s*auto/);
+  assert.match(memory, /data-reference-document-list role="region" aria-label=\{t\("tabDocuments"\)\} tabIndex=\{0\}/);
   assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.workspace\s*\{[^}]*height: auto;[^}]*min-height: 0/);
   assert.match(css, /\.sourceScroll\s*\{[^}]*max-height: none;[^}]*overflow: visible/);
+  assert.match(css, /max-height:\s*300px/);
   assert.match(workspace, /data-analysis-action-group/);
 });
 

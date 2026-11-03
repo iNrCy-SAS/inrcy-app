@@ -95,6 +95,10 @@ export default function EditableTags({
   return (
     <div data-editable-tags data-compact={compact ? "true" : undefined} style={{ display: "grid", gap: compact ? 5 : 9 }}>
       <div
+        data-editable-tags-list
+        role="region"
+        aria-label={addLabel}
+        tabIndex={0}
         style={{
           display: "flex",
           flexWrap: "wrap",
@@ -105,6 +109,7 @@ export default function EditableTags({
       >
         {values.map((value) => (
           <span
+            data-editable-tag
             key={value}
             style={{
               display: "inline-flex",

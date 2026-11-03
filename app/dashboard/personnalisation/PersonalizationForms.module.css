@@ -3,6 +3,7 @@
 .workspace {
   --form-accent: 124, 211, 252;
   --form-radius: 18px;
+  --tag-list-height: clamp(120px, calc(100dvh - 560px), 320px);
 }
 
 .workspace :global([data-ai-memory-active-tab="audience"]) { --form-accent: 244, 143, 201; }
@@ -60,7 +61,7 @@
 .workspace :global([data-memory-field="services"]) { border-color: #bb96f147; background: #3c24503b; }
 .workspace :global([data-memory-field="specialties"]) { border-color: #ee96c247; background: #52283f33; }
 .workspace :global([data-memory-field="description"]) { align-content: start; }
-.workspace :global([data-memory-field="description"]) [role="textbox"] { min-height: clamp(180px, calc(100dvh - 430px), 480px) !important; max-height: 480px; overflow-y: auto; }
+.workspace :global([data-memory-field="description"]) [role="textbox"] { min-height: 180px !important; height: clamp(180px, calc(100dvh - 430px), 480px); max-height: 480px; overflow-y: auto; }
 .workspace :global([data-activity-services]) { align-content: stretch; gap: 14px !important; }
 .workspace :global([data-activity-services]) > section { min-height: 135px; align-content: start; padding: 16px !important; border-radius: 18px !important; }
 
@@ -73,7 +74,7 @@
 .workspace :global([data-ai-memory-tab="identity"]) > section { display: grid; gap: 12px !important; }
 .workspace :global([data-identity-core]) { display: grid !important; gap: 12px !important; }
 .workspace :global([data-identity-mission]) { min-width: 0; padding: 14px !important; border-color: #80ccef59 !important; background: linear-gradient(145deg, #133d5a80, #12254180) !important; }
-.workspace :global([data-identity-mission]) :is(textarea, [role="textbox"]) { min-height: clamp(180px, calc(100dvh - 420px), 540px) !important; }
+.workspace :global([data-identity-mission]) :is(textarea, [role="textbox"]) { min-height: 0 !important; height: clamp(160px, calc(100dvh - 490px), 580px); max-height: 580px; overflow-y: auto; }
 .workspace :global([data-identity-tag-grid]) { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px !important; }
 .workspace :global([data-identity-tag-card]) { display: grid !important; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 9px !important; padding: 12px !important; border-color: #bd9aed47 !important; background: linear-gradient(135deg, #41336670, #231c3f80) !important; }
 .workspace :global([data-identity-tag-card]):nth-child(2n) { border-color: #ed9bc152 !important; background: linear-gradient(135deg, #5b2f5270, #2b203e80) !important; }
@@ -81,9 +82,21 @@
 .workspace :global([data-identity-tag-card]) > div { min-width: 0; }
 .workspace :global([data-identity-vocabulary]) { border-top: 0 !important; padding-top: 0 !important; display: grid; gap: 9px !important; }
 .workspace :global([data-identity-vocabulary-heading]) { display: none !important; }
-.workspace :global([data-editable-tags]) { min-width: 0; }
+.workspace :global([data-business-dna-rich-editor]) { min-height: 0; align-content: start; }
+.workspace :global([data-business-dna-rich-editor-body]) { min-height: 0; }
+.workspace :global([data-editable-tags]) { min-width: 0; min-height: 0; align-content: start; align-items: start; }
 .workspace :global([data-editable-tags]) > div { min-height: 30px !important; gap: 6px !important; }
+.workspace :global([data-editable-tags-list]) { max-height: var(--tag-list-height); min-width: 0; align-content: flex-start; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 2px; }
+.workspace :global([data-editable-tags-list]) > :is(button, span) { align-self: flex-start; flex-shrink: 0; }
+.workspace :global([data-editable-tag]) { min-width: 0; max-width: 100%; }
+.workspace :global([data-editable-tag]) > span { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.workspace :global([data-editable-tags]) > button { align-self: start; justify-self: start; }
 .workspace :global([data-editable-tags]) button { font-size: 12px !important; }
+.workspace :global([data-activity-services]) { --tag-list-height: clamp(80px, calc((100dvh - 500px) / 2), 260px); }
+.workspace :global([data-identity-core]) { --tag-list-height: clamp(80px, calc((100dvh - 510px) / 2), 240px); min-height: 0; }
+.workspace :global([data-identity-tag-card]),
+.workspace :global([data-memory-two-columns]) > div { min-height: 0; align-content: start; }
+.workspace :global([data-identity-vocabulary]) { --tag-list-height: clamp(70px, calc((100dvh - 560px) / 3), 180px); }
 
 /* Locations: address and service area share the left column, schedule the right. */
 .workspace :global([data-ai-memory-tab="local"]) { gap: 12px !important; align-items: start; }
@@ -109,7 +122,7 @@
 .workspace :global([data-ai-memory-premium-row]) > span { display: none !important; }
 .workspace :global([data-ai-memory-news-row]) textarea { min-height: 112px !important; height: 112px; }
 .workspace :global([data-ai-memory-premium-row]) textarea,
-.workspace :global([data-ai-memory-premium-row]) [role="textbox"] { min-height: 94px !important; max-height: 180px; height: 94px; overflow-y: auto; }
+.workspace :global([data-ai-memory-premium-row]) [role="textbox"] { min-height: 104px !important; max-height: 340px; height: clamp(104px, calc((100dvh - 550px) / 2), 340px); overflow-y: auto; }
 
 @media (min-width: 1000px) {
   .workspace :global([data-profile-form-grid]) { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
@@ -118,7 +131,7 @@
   .workspace :global([data-ai-memory-tab="activity"]) { display: contents !important; }
   .workspace :global([data-ai-memory-tab="activity-foundation"]) { grid-column: 1; grid-row: 1; padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none; }
   .workspace :global([data-memory-field="description"]) { grid-column: 1; grid-row: 2; }
-  .workspace :global([data-memory-field="description"]) [role="textbox"] { min-height: clamp(108px, calc(100dvh - 606px), 360px) !important; }
+  .workspace :global([data-memory-field="description"]) [role="textbox"] { min-height: 108px !important; height: clamp(108px, calc(100dvh - 606px), 360px); max-height: 360px; }
   .workspace :global([data-activity-services]) { grid-column: 2; grid-row: 1 / 3; grid-template-rows: repeat(2, minmax(0, 1fr)); }
   .workspace :global([data-identity-core]) { grid-template-columns: minmax(300px, .85fr) minmax(0, 1.15fr) !important; align-items: stretch; }
   .workspace :global([data-identity-core]) > :global([data-identity-tag-grid]) { grid-auto-rows: 1fr; }
