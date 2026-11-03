@@ -215,7 +215,11 @@
     "generatedContactsHint": "Schätzung anhand der Aktivitäten Ihrer Kanäle.",
     "capturedLeads": "Generierte Kontakte",
     "last7": "Letzte 7 Tage",
-    "last30": "Letzte 30 Tage"
+    "last30": "Letzte 30 Tage",
+    "connectChannelsLabel": "Meine Kanäle verbinden",
+    "personalizeApplicationLabel": "Meine Anwendung anpassen",
+    "personalizationInfoAria": "Fortschritt der Personalisierung verstehen",
+    "personalizationInfoHint": "Dieser Fortschritt umfasst Ihre Unternehmensdaten und Kommunikationseinstellungen."
   },
   "generatorSteps": {
     "profile": {
@@ -711,7 +715,22 @@
     "saving": "Speichern…",
     "save": "Unternehmens-DNA speichern",
     "analysisBackgroundHint": "Sie können diese Seite verlassen: Die Analyse läuft weiter und das Ergebnis wird automatisch gespeichert.",
-    "analysisSaved": "Analyse gespeichert: {fields} Bereiche ergänzt und {items} neue Elemente."
+    "analysisSaved": "Analyse gespeichert: {fields} Bereiche ergänzt und {items} neue Elemente.",
+    "analysisSourcesTitle": "Analysequellen",
+    "analysisChannelsTitle": "Kanäle",
+    "analysisChannelsDescription": "Verbundene Kanäle sind vorausgewählt. Wählen Sie die zu analysierenden Kanäle.",
+    "analysisResetButton": "Unternehmens-DNA zurücksetzen",
+    "analysisReportTitle": "Analysebericht",
+    "analysisPreviewEyebrow": "Ihr Analysebereich",
+    "analysisSelectedRunHint": "Lassen Sie dieses Fenster während der Analyse der ausgewählten Kanäle geöffnet.",
+    "analysisSourceItems": "{count} Elemente gelesen",
+    "analysisSourceUnavailable": "Quelle nicht verfügbar",
+    "analysisQuotaLoading": "Kontingent wird geladen…",
+    "analysisQuotaHint": "Monatliches Kontingent manueller Analysen",
+    "analysisNoSourcesHint": "Verbinden Sie einen Kanal oder fügen Sie ein Dokument hinzu, um die Analyse zu starten.",
+    "documentsAnalysisTitle": "Dokumente zur Analyse hinzufügen",
+    "documentsDropHint": "PDF, Bilder oder Dokumente · 20 MB pro Datei",
+    "presentationTitle": "Vorstellung"
   },
   "aiConfiguration": {
     "pageDescription": "Legen Sie fest, wie die KI Inhalte schreibt und an Ihre Ziele anpasst.",
@@ -1161,5 +1180,25 @@
       "maximum": "Maximal neun weitere Kategorien.",
       "review": "Eine Kategorieänderung kann eine erneute Bestätigung durch Google erfordern."
     }
+  },
+  "personalization": {
+    "title": "Meine Anwendung anpassen",
+    "mobileTitle": "Personalisierung",
+    "subtitle": "Ihr Unternehmen, Ihre Identität und Kommunikation an einem Ort.",
+    "close": "Schließen",
+    "companyTitle": "Mein Unternehmen",
+    "companyDescription": "Kontaktdaten, Tätigkeit, Kunden und lokale Präsenz.",
+    "identityTitle": "Mein Markenbild",
+    "identityDescription": "Mission, Werte, Persönlichkeit und Wortwahl.",
+    "communicationTitle": "Meine Kommunikation",
+    "communicationDescription": "Stil, Vorgaben, Ziele und Handlungsaufrufe.",
+    "profileLabel": "Kontakt & Logo",
+    "parametersTab": "Stil und Einstellungen",
+    "instructionsTab": "Vorgaben und Beispiele",
+    "ctasTab": "CTA je Kanal",
+    "strategyTab": "Ziele und Strategie",
+    "analysisEntry": "Meine Kanäle und Dokumente analysieren",
+    "analysisEntryHint": "Meine Informationen ausfüllen und ergänzen",
+    "logoShortcut": "Logo und Kontaktdaten bearbeiten"
   }
 }

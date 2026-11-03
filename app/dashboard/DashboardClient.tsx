@@ -3974,11 +3974,8 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
               label: fluxBubbleItems.find((item) => item.key === step.key)?.name ?? step.key,
             }))}
             onOpenChannels={() => setChannelConnectionsOpen(true)}
-            onOpenDna={() => {
-              void requestNavigation(() => router.push("/dashboard/adn-entreprise"));
-            }}
-            onOpenAi={() => {
-              void requestNavigation(() => router.push("/dashboard/configuration-ia"));
+            onOpenPersonalization={() => {
+              void requestNavigation(() => router.push("/dashboard/personnalisation"));
             }}
           />
         )}

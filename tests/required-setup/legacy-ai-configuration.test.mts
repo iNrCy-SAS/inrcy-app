@@ -157,11 +157,12 @@ test("Configuration IA blocks persistence after a failed or incomplete load", ()
   assert.match(source, /loadSucceededRef\.current = false/);
   assert.match(source, /loadSucceededRef\.current = true/);
 
-  const saveIndex = source.indexOf("const save = async");
+  const saveIndex = source.indexOf("const save = (reason:");
   const guardIndex = source.indexOf("if (!loadSucceededRef.current)", saveIndex);
   const upsertIndex = source.indexOf(".upsert", saveIndex);
   assert.ok(saveIndex >= 0 && guardIndex > saveIndex);
   assert.ok(upsertIndex > guardIndex, "the load guard must run before Supabase persistence");
+  assert.match(source.slice(guardIndex, upsertIndex), /if \(!loadSucceededRef\.current\)[\s\S]*?return Promise\.resolve\(false\)/);
   assert.match(
     source,
     /disabled=\{saving \|\| voiceBusy \|\| !loadSucceededRef\.current\}/,
@@ -177,14 +178,17 @@ test("Config IA keeps old readers and a pre-migration schema safe on save", () =
   assert.match(source, /upsert\(basePayload/);
   assert.match(source, /option value="local_humain"/);
   assert.match(source, /option value="auto"/);
-  assert.match(source, /communication_style: form\.textStyle/);
-  assert.match(source, /ai_voice: form\.pronoun/);
+  assert.match(source, /const submitted = formRef\.current/);
+  assert.match(source, /communication_style: submitted\.textStyle/);
+  assert.match(source, /ai_voice: submitted\.pronoun/);
 });
 
 test("Config IA scopes browser settings per active account without deleting the legacy key", () => {
   const source = read("app/dashboard/settings/_components/AiConfigurationContent.tsx");
   assert.match(source, /readAccountCacheValue\(STORAGE_KEY, activeUserId\)/);
-  assert.match(source, /writeAccountCacheValue\(STORAGE_KEY, JSON\.stringify\(safeForm\), activeUserId\)/);
+  assert.match(source, /const ownerId = activeUserIdRef\.current/);
+  assert.match(source, /resolveActiveBrowserUserId\(authOwnerId\) !== ownerId/);
+  assert.match(source, /assertOwner\(\);\s*writeAccountCacheValue\(STORAGE_KEY, JSON\.stringify\(safeForm\), ownerId\)/);
   assert.match(source, /cacheSelection\.source === "legacy-global"/);
   assert.doesNotMatch(source, /localStorage\.removeItem\(STORAGE_KEY\)/);
   assert.match(source, /writeAccountCacheValue\(STORAGE_KEY, "\{\}", activeUserId\)/);

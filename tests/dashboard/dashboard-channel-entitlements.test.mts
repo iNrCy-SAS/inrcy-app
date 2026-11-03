@@ -148,7 +148,7 @@ test("les quatorze canaux contribuent à la puissance sans redistribuer le poids
 });
 
 test("le cockpit ouvre une infobulle par étape et détaille tous les canaux disponibles", () => {
-  assert.match(heroSource, /useState<"channels" \| "dna" \| "ai" \| null>\(null\)/);
+  assert.match(heroSource, /useState<"channels" \| "dna" \| null>\(null\)/);
   assert.match(heroSource, /openInfo === step\.key \? styles\.cockpitStageInfoOpen/);
   assert.match(heroSource, /className=\{styles\.cockpitInfoPopover\} role="dialog"/);
   assert.match(

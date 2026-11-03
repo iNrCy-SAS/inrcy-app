@@ -215,7 +215,11 @@
     "generatedContactsHint": "ประมาณการจากกิจกรรมในช่องทางของคุณ",
     "capturedLeads": "ผู้ติดต่อที่สร้างขึ้น",
     "last7": "7 วันที่ผ่านมา",
-    "last30": "30 วันที่ผ่านมา"
+    "last30": "30 วันที่ผ่านมา",
+    "connectChannelsLabel": "เชื่อมต่อช่องทางของฉัน",
+    "personalizeApplicationLabel": "ปรับแต่งแอปของฉัน",
+    "personalizationInfoAria": "ดูความคืบหน้าการปรับแต่ง",
+    "personalizationInfoHint": "ความคืบหน้านี้รวมข้อมูลธุรกิจและการตั้งค่าการสื่อสารของคุณ"
   },
   "generatorSteps": {
     "profile": {
@@ -711,7 +715,22 @@
     "saving": "กำลังบันทึก…",
     "save": "บันทึก DNA ของธุรกิจ",
     "analysisBackgroundHint": "คุณสามารถออกจากหน้านี้ได้ การวิเคราะห์จะดำเนินต่อและบันทึกผลโดยอัตโนมัติ",
-    "analysisSaved": "บันทึกการวิเคราะห์แล้ว: เพิ่มข้อมูลใน {fields} ส่วนและเพิ่ม {items} รายการใหม่"
+    "analysisSaved": "บันทึกการวิเคราะห์แล้ว: เพิ่มข้อมูลใน {fields} ส่วนและเพิ่ม {items} รายการใหม่",
+    "analysisSourcesTitle": "แหล่งข้อมูลสำหรับการวิเคราะห์",
+    "analysisChannelsTitle": "ช่องทาง",
+    "analysisChannelsDescription": "ระบบเลือกช่องทางที่เชื่อมต่อไว้ล่วงหน้า เลือกช่องทางที่ต้องการวิเคราะห์",
+    "analysisResetButton": "รีเซ็ตข้อมูล DNA ธุรกิจ",
+    "analysisReportTitle": "รายงานการวิเคราะห์",
+    "analysisPreviewEyebrow": "พื้นที่วิเคราะห์ของคุณ",
+    "analysisSelectedRunHint": "เปิดหน้าจอนี้ค้างไว้ระหว่างวิเคราะห์ช่องทางที่เลือก",
+    "analysisSourceItems": "อ่านแล้ว {count} รายการ",
+    "analysisSourceUnavailable": "แหล่งข้อมูลไม่พร้อมใช้งาน",
+    "analysisQuotaLoading": "กำลังโหลดโควตา…",
+    "analysisQuotaHint": "โควตาการวิเคราะห์ด้วยตนเองรายเดือน",
+    "analysisNoSourcesHint": "เชื่อมต่อช่องทางหรือแนบเอกสารเพื่อเริ่มวิเคราะห์",
+    "documentsAnalysisTitle": "แนบเอกสารสำหรับการวิเคราะห์",
+    "documentsDropHint": "PDF รูปภาพ หรือเอกสาร · 20 MB ต่อไฟล์",
+    "presentationTitle": "แนะนำธุรกิจ"
   },
   "aiConfiguration": {
     "pageDescription": "กำหนดวิธีที่ AI เขียนและปรับเนื้อหาแต่ละชิ้นให้ตรงกับเป้าหมายของคุณ",
@@ -1161,5 +1180,25 @@
       "maximum": "เพิ่มหมวดหมู่เพิ่มเติมได้สูงสุด 9 หมวดหมู่",
       "review": "การเปลี่ยนหมวดหมู่อาจต้องยืนยันธุรกิจกับ Google อีกครั้ง"
     }
+  },
+  "personalization": {
+    "title": "ปรับแต่งแอปของฉัน",
+    "mobileTitle": "การปรับแต่ง",
+    "subtitle": "รวมข้อมูลธุรกิจ เอกลักษณ์ และการสื่อสารไว้ในที่เดียว",
+    "close": "ปิด",
+    "companyTitle": "ธุรกิจของฉัน",
+    "companyDescription": "ข้อมูลติดต่อ กิจกรรม ลูกค้า และพื้นที่ให้บริการ",
+    "identityTitle": "ภาพลักษณ์ของฉัน",
+    "identityDescription": "พันธกิจ ค่านิยม บุคลิก และคำศัพท์",
+    "communicationTitle": "การสื่อสารของฉัน",
+    "communicationDescription": "รูปแบบ คำแนะนำ เป้าหมาย และคำกระตุ้นให้ดำเนินการ",
+    "profileLabel": "ข้อมูลติดต่อและโลโก้",
+    "parametersTab": "รูปแบบและการตั้งค่า",
+    "instructionsTab": "คำแนะนำและตัวอย่าง",
+    "ctasTab": "CTA ของแต่ละช่องทาง",
+    "strategyTab": "เป้าหมายและกลยุทธ์",
+    "analysisEntry": "วิเคราะห์ช่องทางและเอกสารของฉัน",
+    "analysisEntryHint": "กรอกและเสริมข้อมูลของฉัน",
+    "logoShortcut": "แก้ไขโลโก้และข้อมูลติดต่อ"
   }
 }

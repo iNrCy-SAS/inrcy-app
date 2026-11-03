@@ -97,8 +97,9 @@ test("historical questions bypass static navigation so the assistant can recall 
 
 test("a first vague question receives current cockpit destinations", () => {
   const text = runtime.getInrAssistantAppKnowledge("Je dois faire quoi ?");
-  assert.match(text, /Canaux actifs/);
-  assert.match(text, /\/dashboard\/adn-entreprise/);
+  assert.match(text, /Connecter mes canaux/);
+  assert.match(text, /Personnaliser mon application/);
+  assert.match(text, /\/dashboard\/personnalisation/);
   assert.match(text, /\/dashboard\?action=publish/);
 });
 
@@ -170,4 +171,18 @@ test("legacy intervention and profile URLs describe their real redirect destinat
   const profile = readFileSync(resolve(root, "app/dashboard/mon-profil/page.tsx"), "utf8");
   assert.match(profile, /resolved\.section\) === "activity" \? "activity" : "profile"/);
   assert.match(profile, /redirect\(`\/dashboard\/adn-entreprise\?tab=\$\{tab\}`\)/);
+});
+
+test("personalization guide describes the unified tabs, automatic saving and document consent", () => {
+  const dna = runtime.INR_ASSISTANT_APP_GUIDES.find(({ id }) => id === "business-dna")!;
+  const ai = runtime.INR_ASSISTANT_APP_GUIDES.find(({ id }) => id === "ai-configuration")!;
+  assert.match(dna.content, /\/dashboard\/personnalisation/);
+  assert.match(dna.content, /Analyse, Mon entreprise et Ma communication/);
+  assert.match(dna.content, /trombone[\s\S]*?autorisation/);
+  assert.match(dna.content, /enregistrées automatiquement/);
+  assert.match(dna.content, /sélection personnalisée[\s\S]*?outil ouvert/);
+  assert.ok(dna.sourceFiles.includes("app/dashboard/personnalisation/page.tsx"));
+  assert.match(ai.content, /Ma communication[\s\S]*?Vocabulaire/);
+  assert.match(ai.content, /enregistrement automatique/);
+  assert.doesNotMatch(ai.content, /liens site sont incompatibles avec Instagram, TikTok et X/);
 });

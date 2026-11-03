@@ -13,24 +13,19 @@ test("iNrADN provides a confirmed reset at the bottom of every tab", () => {
   assert.match(ui, /justifyContent: "flex-end"/);
   assert.match(ui, /const resetCurrentTab = async/);
   assert.match(ui, /Cette action efface uniquement les informations de cet onglet/);
-  assert.match(ui, /body: JSON\.stringify\(\{ tab: tabToReset \}\)/);
+  assert.match(ui, /body: JSON\.stringify\(\{ tab: tabToReset, preserveVocabulary: hideNavigation && tabToReset === "identity" \}\)/);
   assert.match(ui, /activeTab !== "analysis"/);
 });
 
 test("the analysis tab keeps only the confirmed global iNrADN reset below the monthly quota", () => {
   const ui = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
-
-  const analysis = ui.slice(
-    ui.indexOf('data-business-dna-channel-analysis'),
-    ui.indexOf('{activeTab === "activity" ? (', ui.indexOf('data-business-dna-channel-analysis')),
-  );
-  assert.match(analysis, /Réinitialiser votre ADN/);
-  assert.match(analysis, /resetCurrentTab\("all"\)/);
-  assert.doesNotMatch(analysis, /Réinitialiser l’analyse/);
-  assert.doesNotMatch(analysis, /analysisPrivacyStyle/);
-  assert.match(analysis, /analysisQuota[\s\S]*Réinitialiser votre ADN/);
+  const analysis = read("app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx");
+  const footer = analysis.slice(analysis.indexOf('<footer'), analysis.indexOf('</footer>'));
+  assert.match(ui, /onReset=\{\(\) => void resetCurrentTab\("all"\)\}/);
+  assert.equal((footer.match(/onClick=\{onReset\}/g) || []).length, 1);
+  assert.match(footer, /analysisQuota[\s\S]*?className=\{styles\.actions\}[\s\S]*?className=\{styles\.footerMeta\}[\s\S]*?t\("analysisResetButton"\)/);
+  assert.doesNotMatch(analysis, /Réinitialiser l’analyse|analysisPrivacyStyle/);
   assert.match(ui, /toutes les informations iNr’ADN, y compris les documents importés et leurs fichiers/);
-  assert.match(ui, /analysisLandingStyle[^;]*minHeight: "max\(610px, calc\(100svh - 190px\)\)"/);
 });
 
 test("the reset API is authenticated, account-scoped, and restricts document deletion to owned paths", () => {

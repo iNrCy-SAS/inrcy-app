@@ -458,7 +458,7 @@ test("every professional page and legacy alias has a reviewed guide and public i
     "/dashboard/factures": "invoices", "/dashboard/factures/new": "invoices", "/dashboard/fideliser": "emailing",
     "/dashboard/generer-media": "studio-create", "/dashboard/gps": "help", "/dashboard/interventions": "calendar",
     "/dashboard/mails": "send", "/dashboard/mediatheque": "media-library", "/dashboard/mon-profil": "business-dna",
-    "/dashboard/propulser": "emailing", "/dashboard/settings/abonnement": "subscription", "/dashboard/settings/activite": "business-dna",
+    "/dashboard/personnalisation": "business-dna", "/dashboard/propulser": "emailing", "/dashboard/settings/abonnement": "subscription", "/dashboard/settings/activite": "business-dna",
     "/dashboard/settings/contact": "help", "/dashboard/settings/ia": "ai-configuration",
     "/dashboard/settings/preferences": "account-preferences-privacy", "/dashboard/settings/profil": "business-dna", "/dashboard/stats": "stats",
   };

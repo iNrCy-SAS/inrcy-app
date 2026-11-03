@@ -66,3 +66,241 @@
   color: #c1cede;
   opacity: 0.80;
 }
+
+/* The unified personalization page shares one compact form language. The
+   standalone configuration drawer retains its existing, roomier layout. */
+.configuration[data-personalization-configuration="true"] {
+  gap: 10px !important;
+  --ai-control-background: #0a1630;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-configuration-body] {
+  gap: 10px !important;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-parameters-grid="workspace"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-auto-rows: auto !important;
+  gap: 12px !important;
+  align-items: stretch;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-section] {
+  min-width: 0;
+  align-content: start;
+  gap: 12px !important;
+  padding: 16px !important;
+  border-radius: 18px !important;
+  --ai-section-border: rgba(var(--ai-section-accent), .38);
+  --ai-section-shadow: inset 0 1px 0 #ffffff10, 0 10px 30px #01071826;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-section="foundation"] {
+  --ai-section-top: #123955;
+  --ai-section-bottom: #15233e;
+  --ai-control-background: #0b2035;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-content: start;
+  align-items: start;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-section="style"] {
+  --ai-section-top: #372757;
+  --ai-section-bottom: #25203f;
+  --ai-control-background: #1b1733;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-section="voice"] {
+  --ai-section-top: #4b294e;
+  --ai-section-bottom: #2c203f;
+  --ai-control-background: #26192f;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-section="goals"] {
+  --ai-section-accent: 255, 180, 127;
+  --ai-section-top: #493045;
+  --ai-section-bottom: #29213e;
+  --ai-control-background: #291c2e;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-card-heading] {
+  grid-column: 1 / -1;
+  gap: 10px !important;
+  padding-bottom: 10px !important;
+  margin: 0;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-card-heading] > span:first-child {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 9px !important;
+  background: rgba(var(--ai-section-accent), .14) !important;
+  color: rgb(var(--ai-section-accent)) !important;
+  box-shadow: none !important;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-hint] {
+  display: none;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-length-label] {
+  color: #c5cde4 !important;
+  font-size: 11px !important;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-card-fields] {
+  gap: 10px 12px !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.configuration[data-personalization-configuration="true"] [data-style-secondary-fields] {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 10px 12px !important;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-goals-fields] {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.configuration[data-personalization-configuration="true"] :is(select, input:not([type="checkbox"]), [role="combobox"]) {
+  min-height: 36px !important;
+  padding-block: 7px !important;
+  font-size: 13px !important;
+  border-radius: 10px !important;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-section="instructions"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-section="instructions"] > [data-ai-card-heading] {
+  display: none;
+}
+
+.configuration[data-personalization-configuration="true"] :is([data-custom-instructions], [data-instruction-examples]) {
+  display: contents !important;
+}
+
+.configuration[data-personalization-configuration="true"] [data-instruction-vocabulary-slot] {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-instruction-tone] {
+  min-width: 0;
+  padding: 14px !important;
+  gap: 8px !important;
+  border-radius: 17px !important;
+  --ai-section-border: rgba(var(--ai-section-accent), .38);
+  --ai-section-background: radial-gradient(ellipse at 0 0, rgba(var(--ai-section-accent), .15), transparent 70%), linear-gradient(130deg, #172440, #211a38);
+  --ai-section-shadow: inset 0 1px 0 #ffffff12;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-instruction-tone] textarea {
+  min-height: 104px !important;
+  height: clamp(104px, 15dvh, 165px);
+  padding: 10px !important;
+  border-radius: 11px !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-section="instructions"]:has([data-instruction-vocabulary-slot]) textarea {
+  min-height: 95px !important;
+  height: clamp(95px, calc((100dvh - 580px) / 2), 180px);
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-configuration-actions] {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px !important;
+  padding-top: 0;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-auto-save-status] {
+  flex: 1 1 160px;
+  margin-right: auto;
+  color: #c7d8ef;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.configuration[data-personalization-configuration="true"] [data-ai-configuration-actions] button {
+  flex: 0 0 auto;
+  width: auto !important;
+  min-height: 34px !important;
+  padding: 7px 12px !important;
+  font-size: 12px !important;
+}
+
+@media (min-width: 1200px) {
+  .configuration[data-personalization-configuration="true"] [data-ai-parameters-grid="workspace"] {
+    grid-template-columns: minmax(0, .85fr) minmax(0, 1.2fr) minmax(0, 1.15fr) minmax(0, .9fr) !important;
+  }
+
+  .configuration[data-personalization-configuration="true"] [data-ai-section="foundation"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .configuration[data-personalization-configuration="true"] [data-ai-card-fields] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .configuration[data-personalization-configuration="true"] [data-style-secondary-fields] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .configuration[data-personalization-configuration="true"] [data-ai-goals-fields] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 1000px) and (min-width: 761px) {
+  .configuration[data-personalization-configuration="true"] [data-ai-card-fields] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .configuration[data-personalization-configuration="true"] [data-ai-parameters-grid="workspace"],
+  .configuration[data-personalization-configuration="true"] [data-ai-section="instructions"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .configuration[data-personalization-configuration="true"] [data-ai-section] {
+    padding: 14px !important;
+  }
+
+  .configuration[data-personalization-configuration="true"] [data-ai-section="foundation"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .configuration[data-personalization-configuration="true"] [data-ai-card-fields],
+  .configuration[data-personalization-configuration="true"] [data-style-secondary-fields] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .configuration[data-personalization-configuration="true"] [data-ai-instruction-tone] textarea {
+    min-height: 130px !important;
+    height: 130px;
+  }
+
+  .configuration[data-personalization-configuration="true"] [data-ai-section="instructions"]:has([data-instruction-vocabulary-slot]) textarea {
+    min-height: 130px !important;
+    height: 130px;
+  }
+}
+
+@media (max-width: 400px) {
+  .configuration[data-personalization-configuration="true"] [data-ai-card-fields],
+  .configuration[data-personalization-configuration="true"] [data-style-secondary-fields] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}

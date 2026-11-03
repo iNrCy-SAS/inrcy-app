@@ -39,7 +39,7 @@ const sources: Record<string, string> = {
   "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
   scheduler: packageSource("scheduler", "scheduler.production.js"),
 };
-for (const file of ["app/dashboard/agenda/agenda.shared.ts", "lib/inrCalendarGoogleSyncConstants.ts", "lib/visioAppointmentLifecycle.ts", "lib/aiMemory.ts", "lib/businessDnaRichText.ts", "lib/businessWeeklySchedule.ts", "lib/aiPromptBudget.ts", "lib/businessDnaManualAnalysisJob.ts", "lib/businessDnaChannelAvailability.ts", "app/dashboard/e-reputation/review-page-cache.ts"]) sources[file] = compile(file);
+for (const file of ["app/dashboard/agenda/agenda.shared.ts", "lib/inrCalendarGoogleSyncConstants.ts", "lib/visioAppointmentLifecycle.ts", "lib/aiMemory.ts", "lib/businessDnaRichText.ts", "lib/businessWeeklySchedule.ts", "lib/aiPromptBudget.ts", "lib/businessDnaManualAnalysisJob.ts", "lib/businessDnaChannelAvailability.ts", "lib/reconcileSavedDraft.ts", "app/dashboard/e-reputation/review-page-cache.ts"]) sources[file] = compile(file);
 
 async function setup(page: Page, screen: keyof typeof screens, scenario = "") {
   await page.clock.install();

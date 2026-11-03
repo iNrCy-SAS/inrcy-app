@@ -256,6 +256,7 @@ export function normalizeAiMemory(
 ): AiMemory {
   const source = asRecord(value);
   const includePremium = options.includePremium !== false;
+  const rawMission = cleanText(source.mission ?? source.purpose ?? source.raison_d_etre, 800);
   const rawDetailedDescription = cleanText(
     source.detailedDescription ?? source.detailed_description,
     5_000,
@@ -279,10 +280,14 @@ export function normalizeAiMemory(
     ? cleanText(source.campaignCalendar ?? source.campaign_calendar, 3_000)
     : "";
   const richText = normalizeBusinessDnaRichText(source.richText ?? source.rich_text, {
+    mission: rawMission,
     detailedDescription: rawDetailedDescription,
     offersAndArguments: rawOffersAndArguments,
+    keyArguments: rawKeyArguments,
     proofsAndObjections: rawProofsAndObjections,
+    objectionResponses: rawObjectionResponses,
     editorialStrategy: rawEditorialStrategy,
+    campaignCalendar: rawCampaignCalendar,
   });
 
   return {
@@ -294,7 +299,7 @@ export function normalizeAiMemory(
         } }
       : {}),
     detailedDescription: normalizeBusinessDnaPlainText(rawDetailedDescription, 5_000),
-    mission: cleanText(source.mission ?? source.purpose ?? source.raison_d_etre, 800),
+    mission: normalizeBusinessDnaPlainText(rawMission, 800),
     specialties: cleanList(source.specialties),
     targetAudiences: cleanList(source.targetAudiences ?? source.target_audiences),
     customerNeeds: cleanList(source.customerNeeds ?? source.customer_needs),
@@ -346,8 +351,11 @@ export function normalizeAiMemory(
       : {
           ...richText,
           offersAndArguments: "",
+          keyArguments: "",
           proofsAndObjections: "",
+          objectionResponses: "",
           editorialStrategy: "",
+          campaignCalendar: "",
         },
   };
 }
@@ -435,10 +443,14 @@ export function mergeAiMemoryUpdate(
     if (!next.found) continue;
     merged[canonicalKey] = next.value;
     if (
+      canonicalKey === "mission" ||
       canonicalKey === "detailedDescription" ||
       canonicalKey === "offersAndArguments" ||
+      canonicalKey === "keyArguments" ||
       canonicalKey === "proofsAndObjections" ||
-      canonicalKey === "editorialStrategy"
+      canonicalKey === "objectionResponses" ||
+      canonicalKey === "editorialStrategy" ||
+      canonicalKey === "campaignCalendar"
     ) {
       changedPlainRichFields.add(canonicalKey);
     }
@@ -448,10 +460,14 @@ export function mergeAiMemoryUpdate(
   const richTextUpdate = asRecord(rawRichText.value);
   const mergedRichText: Record<string, unknown> = { ...current.richText };
   for (const key of [
+    "mission",
     "detailedDescription",
     "offersAndArguments",
+    "keyArguments",
     "proofsAndObjections",
+    "objectionResponses",
     "editorialStrategy",
+    "campaignCalendar",
   ] as const) {
     const richField = firstOwnValue(richTextUpdate, [
       key,
@@ -522,8 +538,11 @@ export function mergeAiMemoryPremiumFields(
     richText: {
       ...core.richText,
       offersAndArguments: premium.richText.offersAndArguments,
+      keyArguments: premium.richText.keyArguments,
       proofsAndObjections: premium.richText.proofsAndObjections,
+      objectionResponses: premium.richText.objectionResponses,
       editorialStrategy: premium.richText.editorialStrategy,
+      campaignCalendar: premium.richText.campaignCalendar,
     },
   };
 }

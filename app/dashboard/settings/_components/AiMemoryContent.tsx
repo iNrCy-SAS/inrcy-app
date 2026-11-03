@@ -17,6 +17,7 @@ import {
   type SetStateAction,
 } from "react";
 import { useTranslations } from "next-intl";
+import { createPortal } from "react-dom";
 
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 import { uploadFileToPreparedStorageIntent } from "@/lib/universalMediaUploadClient";
@@ -48,10 +49,13 @@ import {
 import { type DashboardEdition } from "@/lib/dashboardEdition";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { reconcileSavedDraft } from "@/lib/reconcileSavedDraft";
 import MediaSubjectVoiceButton from "../../_components/MediaSubjectVoiceButton";
 import BusinessDnaRichTextEditor from "./BusinessDnaRichTextEditor";
 import BusinessDnaAnalysisScheduleModal from "./BusinessDnaAnalysisScheduleModal";
 import BusinessScheduleEditor from "./BusinessScheduleEditor";
+import BusinessDnaAnalysisWorkspace from "./BusinessDnaAnalysisWorkspace";
 import EditableTags from "./EditableTags";
 import ActivityContent, { type ActivityContentHandle } from "./ActivityContent";
 import ProfilContent, { type ProfilContentHandle } from "./ProfilContent";
@@ -129,6 +133,9 @@ const RECENT_NEWS_SOURCE_LABELS: Record<string, string> = {
 type Props = {
   edition?: DashboardEdition;
   initialTab?: AiMemoryWorkspaceTab;
+  visibleTabs?: readonly AiMemoryWorkspaceTab[];
+  hideNavigation?: boolean;
+  vocabularyPortalTarget?: HTMLDivElement | null;
   profileLabel?: string;
   onTabChange?: (tab: AiMemoryWorkspaceTab) => void;
   onProfileSaved?: () => unknown | Promise<unknown>;
@@ -137,6 +144,7 @@ type Props = {
   onActivityReset?: () => unknown | Promise<unknown>;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
   onVoiceBusyChange?: (busy: boolean) => void;
+  onAnalysisCompleted?: () => void;
 };
 
 export type AiMemoryContentHandle = {
@@ -144,6 +152,7 @@ export type AiMemoryContentHandle = {
   savePendingChanges: () => Promise<boolean>;
   /** Abandonne explicitement les modifications locales encore en attente. */
   discardPendingChanges: () => void;
+  selectTab?: (tab: AiMemoryWorkspaceTab) => void;
 };
 
 type WorkspaceSaveReason = "manual" | "auto" | "tab-change" | "analysis" | "exit";
@@ -218,6 +227,9 @@ function parseAnalysisChannels(value: unknown): BusinessDnaDashboardChannelAvail
 
 const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemoryContent({
   initialTab = "analysis",
+  visibleTabs,
+  hideNavigation = false,
+  vocabularyPortalTarget = null,
   profileLabel = "Mon profil",
   onTabChange,
   onProfileSaved,
@@ -226,12 +238,12 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   onActivityReset,
   onUnsavedChange,
   onVoiceBusyChange,
+  onAnalysisCompleted,
 }: Props, ref) {
   const { metaPilotEnabled } = useDashboardViewerAccess();
   const t = useTranslations("dashboard.aiMemory");
-  const moduleT = useTranslations("dashboard.moduleCards");
   const settingsT = useTranslations("settings");
-  const [activeTab, setActiveTab] = useState<AiMemoryWorkspaceTab>(initialTab);
+  const [activeTab, setActiveTab] = useState<AiMemoryWorkspaceTab>(initialTab === "documents" ? "analysis" : initialTab);
   const [mountedEmbeddedTabs, setMountedEmbeddedTabs] = useState<Set<EmbeddedWorkspaceTab>>(
     () => new Set(
       initialTab === "profile" || initialTab === "activity" || initialTab === "local" ? [initialTab] : [],
@@ -265,6 +277,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [analysisError, setAnalysisError] = useState("");
   const [analysisSummary, setAnalysisSummary] = useState<AnalysisSummary | null>(null);
+  const [excludedAnalysisChannels, setExcludedAnalysisChannels] = useState<Set<string>>(() => new Set());
   const [analysisQuota, setAnalysisQuota] = useState<AnalysisQuota | null>(null);
   const [analysisScheduleOpen, setAnalysisScheduleOpen] = useState(false);
   const [documentAnalysisConsent, setDocumentAnalysisConsent] = useState(false);
@@ -287,9 +300,22 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const activityContentRef = useRef<ActivityContentHandle | null>(null);
   const businessLocationRef = useRef<BusinessLocationFieldsHandle | null>(null);
   const [activityContentRevision, setActivityContentRevision] = useState(0);
+  const [profileContentRevision, setProfileContentRevision] = useState(0);
+  const [locationContentRevision, setLocationContentRevision] = useState(0);
   const autoSaveTimerRef = useRef<number | null>(null);
   const failedAutoSaveSignatureRef = useRef<string | null>(null);
   const workspaceSavePromiseRef = useRef<Promise<boolean> | null>(null);
+  const profileDraftRef = useRef({ dirty: false, signature: "" });
+  const activityDraftRef = useRef({ dirty: false, signature: "" });
+  const locationDraftRef = useRef({ dirty: false, signature: "" });
+  const workspaceOwnerRef = useRef({ accountId: "", browserScope: "" });
+  const workspaceMountedRef = useRef(true);
+  const memorySaveRunningRef = useRef(false);
+
+  useEffect(() => {
+    workspaceMountedRef.current = true;
+    return () => { workspaceMountedRef.current = false; };
+  }, []);
 
   const updateMemory = useCallback((update: SetStateAction<AiMemory>) => {
     const nextMemory = typeof update === "function" ? update(memoryRef.current) : update;
@@ -362,6 +388,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
 
   const handleProfileUnsavedChange = useCallback(
     (dirty: boolean, draftSignature = "") => {
+      profileDraftRef.current = { dirty, signature: draftSignature };
       setProfileDirty(dirty);
       setProfileDraftSignature(draftSignature);
       if (dirty) markWorkspaceDraftUpdated();
@@ -371,6 +398,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
 
   const handleActivityUnsavedChange = useCallback(
     (dirty: boolean, draftSignature = "") => {
+      activityDraftRef.current = { dirty, signature: draftSignature };
       setActivityDirty(dirty);
       setActivityDraftSignature(draftSignature);
       if (dirty) markWorkspaceDraftUpdated();
@@ -380,6 +408,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
 
   const handleLocationUnsavedChange = useCallback(
     (dirty: boolean, draftSignature = "") => {
+      locationDraftRef.current = { dirty, signature: draftSignature };
       setLocationDirty(dirty);
       setLocationDraftSignature(draftSignature);
       if (dirty) markWorkspaceDraftUpdated();
@@ -409,7 +438,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   }, [hasWorkspaceChanges]);
 
   useEffect(() => {
-    setActiveTab(initialTab);
+    setActiveTab(initialTab === "documents" ? "analysis" : initialTab);
     if (initialTab === "profile" || initialTab === "activity" || initialTab === "local") {
       setMountedEmbeddedTabs((current) => {
         if (current.has(initialTab)) return current;
@@ -434,6 +463,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   useEffect(() => {
     let active = true;
     const load = async () => {
+      const browserScope = getActiveBrowserUserId() || "";
       setLoading(true);
       setLoaded(false);
       setError("");
@@ -448,7 +478,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
           ? await quotaResponse.json().catch(() => ({}))
           : {};
         if (!response.ok) throw new Error(apiErrorMessage(payload, t("loadError")));
-        if (!active) return;
+        if (!active || (getActiveBrowserUserId() || "") !== browserScope) return;
 
         const nextStrategyEnabled = payload.strategyEnabled !== false;
         const rawFoundation = payload.profileFoundation || {};
@@ -475,7 +505,9 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         updateBusinessKnowledge(nextBusinessKnowledge);
         setAnalysisQuota(parseAnalysisQuota(quotaPayload.quota));
         setAnalysisChannels(parseAnalysisChannels(quotaPayload.channels));
-        analysisAccountIdRef.current = String(quotaPayload.accountId || "");
+        setExcludedAnalysisChannels(new Set());
+        analysisAccountIdRef.current = String(payload.accountId || quotaPayload.accountId || "");
+        workspaceOwnerRef.current = { accountId: analysisAccountIdRef.current, browserScope };
         const job = parseBusinessDnaManualAnalysisJob(quotaPayload.job);
         setAnalysisJob(job);
         setAnalyzing(isBusinessDnaManualAnalysisPending(job));
@@ -549,6 +581,9 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
           updateMemory(next.memory);
           updateBusinessKnowledge(next.businessKnowledge);
           if (!activityDirty) setActivityContentRevision((current) => current + 1);
+          if (!profileDirty) setProfileContentRevision((current) => current + 1);
+          if (!locationDirty) setLocationContentRevision((current) => current + 1);
+          onAnalysisCompleted?.();
           void invalidateBoosterGenerationContextClient("professional");
           void refreshPublicProfileDependents("activity");
           setAnalysisSummary(summaryFromAnalysisJob(job));
@@ -570,7 +605,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     void refresh();
     const timer = window.setInterval(() => { void refresh(); }, 3_000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [analysisJob?.id, analysisJob?.status, analysisJobPending, activityDirty, strategyEnabled, t, updateBusinessKnowledge, updateMemory]);
+  }, [analysisJob?.id, analysisJob?.status, analysisJobPending, activityDirty, profileDirty, locationDirty, onAnalysisCompleted, strategyEnabled, t, updateBusinessKnowledge, updateMemory]);
 
   const setField = <K extends keyof AiMemory>(key: K, value: AiMemory[K]) => {
     setSaved(false);
@@ -639,8 +674,14 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const uploadReferenceDocuments = async (files: File[]) => {
     if (!files.length || documentUploadState !== "idle") return;
     if (!documentAnalysisConsent) {
-      setDocumentUploadError(t("documentsConsentRequired"));
-      return;
+      const approved = await confirmInrcy({
+        title: t("documentsConsentTitle"),
+        message: t("documentsConsentDescription"),
+        confirmLabel: t("documentsUploadButton"),
+        cancelLabel: settingsT("annuler_49ba3292"),
+      });
+      if (!approved) return;
+      setDocumentAnalysisConsent(true);
     }
 
     const remaining = Math.max(
@@ -804,7 +845,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         cache: "no-store",
-        body: JSON.stringify({ tab: tabToReset }),
+        body: JSON.stringify({ tab: tabToReset, preserveVocabulary: hideNavigation && tabToReset === "identity" }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload, t("saveError")));
@@ -858,8 +899,19 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     }));
   };
 
+  const setMissionRichField = (next: { text: string; html: string }) => {
+    setSaved(false);
+    setError("");
+    markWorkspaceDraftUpdated();
+    updateMemory((current) => ({
+      ...current,
+      mission: next.text,
+      richText: { ...current.richText, mission: next.html },
+    }));
+  };
+
   const setPremiumRichField = (
-    key: "offersAndArguments" | "proofsAndObjections" | "editorialStrategy",
+    key: "offersAndArguments" | "keyArguments" | "proofsAndObjections" | "objectionResponses" | "editorialStrategy" | "campaignCalendar",
     next: { text: string; html: string },
   ) => {
     setSaved(false);
@@ -885,15 +937,24 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       memory?: AiMemory;
       businessKnowledge?: AiBusinessKnowledge;
       profession?: unknown;
+      reconciliationBase?: { memory: AiMemory; businessKnowledge: AiBusinessKnowledge };
     } = {},
   ): Promise<{ ok: boolean; message?: string }> => {
-    if (saving || !loaded || voiceTargetRef.current) return { ok: false };
+    if (memorySaveRunningRef.current || !loaded || voiceTargetRef.current) return { ok: false };
+    memorySaveRunningRef.current = true;
     setSaving(true);
     setSaved(false);
     setError("");
+    const owner = workspaceOwnerRef.current;
+    const assertOwner = () => {
+      if (!workspaceMountedRef.current || !owner.accountId || workspaceOwnerRef.current !== owner ||
+          (getActiveBrowserUserId() || "") !== owner.browserScope) throw new Error(t("saveError"));
+    };
     try {
+      assertOwner();
       const draftMemory = draft.memory ?? memoryRef.current;
       const draftBusinessKnowledge = draft.businessKnowledge ?? businessKnowledgeRef.current;
+      const reconciliationBase = draft.reconciliationBase ?? { memory: draftMemory, businessKnowledge: draftBusinessKnowledge };
       const synchronizedMemory = normalizeAiMemory({
         ...draftMemory,
         detailedDescription: draftBusinessKnowledge.description,
@@ -914,6 +975,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         }),
       });
       const payload = await response.json().catch(() => ({}));
+      assertOwner();
       const nextQuota = parseAnalysisQuota(payload.quota);
       if (nextQuota) setAnalysisQuota(nextQuota);
       if (!response.ok) throw new Error(apiErrorMessage(payload, t("saveError")));
@@ -925,25 +987,29 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       const nextMemory = normalizeAiMemory(payload.memory, {
         includePremium: nextStrategyEnabled,
       });
-      updateMemory(nextMemory);
-      updateBusinessKnowledge(nextBusinessKnowledge);
+      const reconciledMemory = reconcileSavedDraft(reconciliationBase.memory, memoryRef.current, nextMemory);
+      const reconciledBusinessKnowledge = reconcileSavedDraft(reconciliationBase.businessKnowledge, businessKnowledgeRef.current, nextBusinessKnowledge);
+      updateMemory(reconciledMemory);
+      updateBusinessKnowledge(reconciledBusinessKnowledge);
       savedSignatureRef.current = workspaceSignature(nextMemory, nextBusinessKnowledge);
-      setSaved(true);
+      setSaved(workspaceSignature(reconciledMemory, reconciledBusinessKnowledge) === savedSignatureRef.current);
 
       const [publicProfileRefreshed] = await Promise.all([
         refreshPublicProfileDependents("activity"),
         invalidateBoosterGenerationContextClient("professional"),
       ]);
       if (!publicProfileRefreshed) console.warn("[business-dna] public profile refresh deferred");
+      assertOwner();
       return { ok: true };
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : t("saveError");
-      setError(message);
+      if (workspaceMountedRef.current && workspaceOwnerRef.current === owner) setError(message);
       return { ok: false, message };
     } finally {
-      setSaving(false);
+      memorySaveRunningRef.current = false;
+      if (workspaceMountedRef.current) setSaving(false);
     }
-  }, [saving, loaded, t, updateMemory, updateBusinessKnowledge]);
+  }, [loaded, t, updateMemory, updateBusinessKnowledge]);
 
   const restoreAiMemoryDraft = useCallback(() => {
     try {
@@ -964,17 +1030,23 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     }
   }, [strategyEnabled, updateMemory, updateBusinessKnowledge]);
 
+  const hasPendingWorkspaceChanges = useCallback(() =>
+    profileDraftRef.current.dirty || activityDraftRef.current.dirty || locationDraftRef.current.dirty ||
+    workspaceSignature(memoryRef.current, businessKnowledgeRef.current) !== savedSignatureRef.current,
+  []);
+
   const saveWorkspace = useCallback(async (options: WorkspaceSaveOptions = {}): Promise<boolean> => {
     const inFlightSave = workspaceSavePromiseRef.current;
     if (inFlightSave) return inFlightSave;
-    if (!loaded || voiceTargetRef.current || saving) return false;
+    if (!loaded || voiceTargetRef.current || memorySaveRunningRef.current) return false;
 
     const saveReason = options.reason || "manual";
-    const shouldSaveProfile = profileDirty;
-    const shouldSaveActivity = activityDirty;
+    const shouldSaveProfile = profileDraftRef.current.dirty;
+    const shouldSaveActivity = activityDraftRef.current.dirty;
     const backgroundSave = saveReason === "auto" || saveReason === "tab-change";
-    const shouldSaveLocation = locationDirty && (!backgroundSave || businessLocationRef.current?.canAutoSave() === true);
-    const shouldSaveAiMemory = Boolean(options.aiMemoryDraft) || memoryDirty || shouldSaveActivity;
+    const shouldSaveLocation = locationDraftRef.current.dirty && (!backgroundSave || businessLocationRef.current?.canAutoSave() === true);
+    const shouldSaveAiMemory = Boolean(options.aiMemoryDraft) || workspaceSignature(memoryRef.current, businessKnowledgeRef.current) !== savedSignatureRef.current || shouldSaveActivity;
+    const reconciliationBase = { memory: memoryRef.current, businessKnowledge: businessKnowledgeRef.current };
 
     if (!shouldSaveProfile && !shouldSaveActivity && !shouldSaveLocation && !shouldSaveAiMemory) {
       setAutoSaveState("idle");
@@ -1000,8 +1072,6 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
             if (shouldSurfaceFailure) changeTab("profile");
             return false;
           }
-          setProfileDirty(false);
-          setProfileDraftSignature("");
         }
 
         if (shouldSaveLocation) {
@@ -1011,12 +1081,10 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
             if (shouldSurfaceFailure) changeTab("local");
             return false;
           }
-          setLocationDirty(false);
-          setLocationDraftSignature("");
         }
 
-        let nextMemory = options.aiMemoryDraft?.memory ?? memoryRef.current;
-        let nextBusinessKnowledge = options.aiMemoryDraft?.businessKnowledge ?? businessKnowledgeRef.current;
+        let nextMemory = options.aiMemoryDraft?.memory ?? reconciliationBase.memory;
+        let nextBusinessKnowledge = options.aiMemoryDraft?.businessKnowledge ?? reconciliationBase.businessKnowledge;
         if (shouldSaveActivity) {
           const activity = activityContentRef.current;
           if (!activity?.isReady()) {
@@ -1045,8 +1113,6 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
             detailedDescription: nextBusinessKnowledge.description,
             differentiators: nextBusinessKnowledge.strengths,
           });
-          setActivityDirty(false);
-          setActivityDraftSignature("");
         }
 
         if (shouldSaveAiMemory) {
@@ -1054,6 +1120,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
             memory: nextMemory,
             businessKnowledge: nextBusinessKnowledge,
             profession: options.aiMemoryDraft?.profession,
+            reconciliationBase,
           });
           if (!result.ok) {
             setWorkspaceError(result.message || t("saveError"));
@@ -1063,21 +1130,17 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
           // Une analyse enregistrée peut enrichir les champs affichés dans
           // Activité. Recharge ce sous-formulaire au prochain affichage afin
           // qu'il ne conserve jamais une copie antérieure de l'ADN.
-          if (mountedEmbeddedTabs.has("activity")) {
+          if (mountedEmbeddedTabs.has("activity") && !activityDraftRef.current.dirty) {
             setActivityContentRevision((current) => current + 1);
           }
         }
 
         failedAutoSaveSignatureRef.current = null;
-        setProfileDirty(false);
-        setActivityDirty(false);
-        setProfileDraftSignature("");
-        setActivityDraftSignature("");
         setWorkspaceError("");
         setAutoSaveState("idle");
-        const locationStillPending = locationDirty && !shouldSaveLocation;
-        setSaved(!locationStillPending);
-        onUnsavedChange?.(locationStillPending);
+        const stillPending = hasPendingWorkspaceChanges();
+        setSaved(!stillPending);
+        onUnsavedChange?.(stillPending);
         return true;
       } finally {
         setWorkspaceSaving(false);
@@ -1109,18 +1172,14 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       }
     }
   }, [
-    activityDirty,
     changeTab,
     saveAiMemory,
     loaded,
-    locationDirty,
-    memoryDirty,
     mountedEmbeddedTabs,
     onUnsavedChange,
-    profileDirty,
-    saving,
     t,
     workspaceDraftSignature,
+    hasPendingWorkspaceChanges,
   ]);
 
   const discardAllWorkspaceChanges = useCallback(() => {
@@ -1132,6 +1191,9 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     activityContentRef.current?.cancelChanges();
     businessLocationRef.current?.cancelChanges();
     restoreAiMemoryDraft();
+    profileDraftRef.current = { dirty: false, signature: "" };
+    activityDraftRef.current = { dirty: false, signature: "" };
+    locationDraftRef.current = { dirty: false, signature: "" };
     failedAutoSaveSignatureRef.current = null;
     setProfileDirty(false);
     setActivityDirty(false);
@@ -1147,15 +1209,18 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const cancelActiveTabChanges = async () => {
     if (workspaceSaving || voiceTargetRef.current) return;
     if (activeTab === "profile") {
+      profileDraftRef.current = { dirty: false, signature: "" };
       profileContentRef.current?.cancelChanges();
       setProfileDirty(false);
       setProfileDraftSignature("");
     } else if (activeTab === "activity") {
+      activityDraftRef.current = { dirty: false, signature: "" };
       activityContentRef.current?.cancelChanges();
       setActivityDirty(false);
       setActivityDraftSignature("");
     } else {
       if (activeTab === "local") {
+        locationDraftRef.current = { dirty: false, signature: "" };
         businessLocationRef.current?.cancelChanges();
         setLocationDirty(false);
         setLocationDraftSignature("");
@@ -1225,9 +1290,22 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   ]);
 
   useImperativeHandle(ref, () => ({
-    savePendingChanges: () => saveWorkspace({ reason: "exit" }),
+    savePendingChanges: async () => {
+      const inFlight = workspaceSavePromiseRef.current;
+      if (inFlight && !await inFlight) return false;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (!hasPendingWorkspaceChanges()) return true;
+        if (!await saveWorkspace({ reason: "exit" })) return false;
+      }
+      return !hasPendingWorkspaceChanges();
+    },
     discardPendingChanges: discardAllWorkspaceChanges,
-  }), [discardAllWorkspaceChanges, saveWorkspace]);
+    selectTab: (tab) => {
+      if (voiceTargetRef.current || tab === activeTab) return;
+      if (hasWorkspaceChanges) void saveWorkspace({ reason: "tab-change" });
+      changeTab(tab);
+    },
+  }), [activeTab, changeTab, discardAllWorkspaceChanges, hasPendingWorkspaceChanges, hasWorkspaceChanges, saveWorkspace]);
 
   const resetWorkspace = async () => {
     if (voiceTargetRef.current) return;
@@ -1255,6 +1333,10 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     setAnalysisError("");
   };
 
+  const visibleAnalysisChannels = analysisChannels.filter((channel) => channel.key !== "threads" || metaPilotEnabled);
+  const selectedAnalysisChannels = new Set(visibleAnalysisChannels.filter((channel) => channel.status === "connected" && channel.analyzable && !excludedAnalysisChannels.has(channel.key)).map((channel) => channel.key));
+  const selectiveAnalysis = visibleAnalysisChannels.some((channel) => channel.status === "connected" && channel.analyzable && excludedAnalysisChannels.has(channel.key));
+
   const analyzeChannels = async () => {
     if (analyzing || loading || !loaded || voiceTargetRef.current) return;
     setAnalyzing(true);
@@ -1264,10 +1346,11 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     let backgroundAccepted = false;
     try {
       if (!(await saveWorkspace({ reason: "analysis" }))) throw new Error(t("saveError"));
-      const response = await fetch("/api/ai-memory/analyze-channels?background=1", {
+      const response = await fetch(selectiveAnalysis ? "/api/ai-memory/analyze-channels" : "/api/ai-memory/analyze-channels?background=1", {
         method: "POST",
         credentials: "include",
         cache: "no-store",
+        ...(selectiveAnalysis ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ selectedChannels: [...selectedAnalysisChannels] }) } : {}),
       });
       const payload = await response.json().catch(() => ({}));
       if (response.status === 202) {
@@ -1333,6 +1416,9 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         addedItems: merged.addedItems,
         sources,
       });
+      if (!profileDirty) setProfileContentRevision((current) => current + 1);
+      if (!locationDirty) setLocationContentRevision((current) => current + 1);
+      onAnalysisCompleted?.();
     } catch (analysisFailure) {
       setAnalysisError(
         analysisFailure instanceof Error ? analysisFailure.message : t("analysisError"),
@@ -1389,6 +1475,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       emptyText={t("tagsEmpty")}
       maxItems={16}
       inlineAdd={inlineAdd}
+      compact={hideNavigation}
     />
   );
 
@@ -1403,9 +1490,202 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       })
     : "";
 
+  // The unified page places these same controlled fields between instructions
+  // and examples. Keep a single draft and persistence queue for the ADN data.
+  const vocabularySection = (
+    <div data-identity-vocabulary data-personalization-vocabulary style={identityVocabularySectionStyle}>
+      {!hideNavigation ? <div data-identity-vocabulary-heading style={identityVocabularyHeadingStyle}>
+        <strong style={identityVocabularyTitleStyle}>{t("languageTitle")}</strong>
+        <span style={hintStyle}>{t("languageDescription")}</span>
+      </div> : null}
+      <div data-identity-tag-grid style={identityTagRowsStyle}>
+        <div data-identity-tag-card style={identityTagRowStyle}>
+          <span style={identityTagLabelStyle}>{t("preferredVocabularyLabel")}</span>
+          <div style={identityTagContentStyle}>
+            {memoryTags("preferredVocabulary", t("preferredVocabularyAdd"), t("preferredVocabularyPlaceholder"), true)}
+          </div>
+        </div>
+        <div data-identity-tag-card style={identityTagRowStyle}>
+          <span style={identityTagLabelStyle}>{t("forbiddenVocabularyLabel")}</span>
+          <div style={identityTagContentStyle}>
+            {memoryTags("forbiddenVocabulary", t("forbiddenVocabularyAdd"), t("forbiddenVocabularyPlaceholder"), true)}
+          </div>
+        </div>
+      </div>
+      {vocabularyPortalTarget ? (
+        workspaceError || error ? <div role="alert" style={errorStyle}>{workspaceError || error}</div>
+          : autoSaveState === "saving" ? <small role="status" style={autoSaveStatusStyle}>{t("saving")}</small>
+          : saved ? <small role="status" style={autoSaveStatusStyle}>{t("saved")}</small> : null
+      ) : null}
+    </div>
+  );
+
+  const referenceDocumentsSection = (
+<section
+                data-ai-memory-tab="documents"
+                data-has-documents={memory.referenceDocuments.length > 0 ? "true" : "false"}
+                onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (documentUploadState === "idle") void uploadReferenceDocuments(Array.from(event.dataTransfer.files));
+                }}
+                style={{ ...cardStyle, ...documentsCardStyle }}
+              >
+                <SectionHeader
+                  icon="📎"
+                  title={t("tabDocuments")}
+                  description=""
+                  onIconClick={() => documentInputRef.current?.click()}
+                  iconLabel={t("documentsUploadButton")}
+                  iconDisabled={documentUploadState !== "idle" || documentStorage.status === "reached" || memory.referenceDocuments.length >= AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS}
+                  trailing={(
+                    <span style={documentsCountStyle}>
+                      {t("documentsCount", {
+                        count: memory.referenceDocuments.length,
+                        limit: AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS,
+                      })}
+                    </span>
+                  )}
+                />
+
+                <div
+                  data-document-storage
+                  style={{
+                    ...documentsStorageStyle,
+                    ...(documentStorage.status === "reached"
+                      ? documentsStorageReachedStyle
+                      : documentStorage.status === "near"
+                        ? documentsStorageNearStyle
+                        : null),
+                  }}
+                >
+                  <span style={documentsStorageHeadingStyle}>
+                    <span style={documentsStorageCopyStyle}>
+                      <strong>{t("documentsStorageTitle")}</strong>
+                      <small>{documentStorageStatusLabel}</small>
+                    </span>
+                    <strong style={documentsStorageValueStyle}>{documentStorageLabel}</strong>
+                  </span>
+                  <span
+                    role="progressbar"
+                    aria-label={t("documentsStorageTitle")}
+                    aria-valuemin={0}
+                    aria-valuemax={documentStorage.limitBytes}
+                    aria-valuenow={Math.min(documentStorage.usedBytes, documentStorage.limitBytes)}
+                    aria-valuetext={`${documentStorageLabel} · ${documentStorageStatusLabel}`}
+                    style={documentsStorageTrackStyle}
+                  >
+                    <span
+                      aria-hidden
+                      style={{
+                        ...documentsStorageFillStyle,
+                        width: `${documentStorage.percent}%`,
+                        background:
+                          documentStorage.status === "reached"
+                            ? "linear-gradient(90deg, #f97316, #ef4444)"
+                            : documentStorage.status === "near"
+                              ? "linear-gradient(90deg, #facc15, #f97316)"
+                              : documentsStorageFillStyle.background,
+                      }}
+                    />
+                  </span>
+                </div>
+
+                  <input
+                    ref={documentInputRef}
+                    type="file"
+                    multiple
+                    hidden
+                    accept=".pdf,.docx,.txt,.md,.csv,.json,.html,.htm,.png,.jpg,.jpeg,.webp,.gif,image/*,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*"
+                    onChange={(event) => {
+                      const files = Array.from(event.target.files || []);
+                      event.target.value = "";
+                      void uploadReferenceDocuments(files);
+                    }}
+                  />
+
+                {documentUploadState !== "idle" ? <div role="status" data-document-upload-status>{t(documentUploadState === "uploading" ? "documentsUploading" : "documentsAnalysing")}</div> : null}
+                {!memory.referenceDocuments.length ? <div data-document-empty>{t("documentsDropHint")}</div> : null}
+
+                {memory.referenceDocuments.length ? (
+                  <div style={documentsListStyle}>
+                    {memory.referenceDocuments.map((document) => (
+                      <article key={document.id} style={documentItemStyle}>
+                        <span style={documentFileIconStyle} aria-hidden>
+                          {document.mimeType.startsWith("image/") ? "🖼️" : "📄"}
+                        </span>
+                        <span style={documentItemCopyStyle}>
+                          <strong>{document.name}</strong>
+                          <small>
+                            {document.size
+                              ? `${Math.max(1, Math.round(document.size / 1024))} Ko · `
+                              : ""}
+                            {document.status === "analysed"
+                              ? t("documentsStatusAnalysed")
+                              : document.status === "error"
+                                ? t("documentsStatusError")
+                                : t("documentsStatusMetadata")}
+                          </small>
+                          {document.note ? <small>{document.note}</small> : null}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={documentUploadState !== "idle"}
+                          aria-label={t("documentsDeleteAria", { name: document.name })}
+                          onClick={() => void deleteReferenceDocument(document)}
+                          style={documentDeleteButtonStyle}
+                        >
+                          ×
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  null
+                )}
+
+                {documentUploadError ? (
+                  <div style={errorStyle}>{documentUploadError}</div>
+                ) : null}
+              </section>
+  );
+
+  const analysisAnimation = (
+<div data-business-dna-analysis-orb style={analysisOrbStageStyle}>
+                  <span aria-hidden data-analysis-aura style={analysisOrbAuraStyle} />
+                  <span aria-hidden data-dna-stream="left" style={analysisStreamLeftStyle}>
+                    {Array.from({ length: 6 }, (_, index) => (
+                      <i key={index} style={{ ...analysisStreamParticleStyle, top: `${12 + index * 14}%`, animationDelay: `${-index * 0.31}s` }} />
+                    ))}
+                  </span>
+                  <span aria-hidden data-dna-stream="right" style={analysisStreamRightStyle}>
+                    {Array.from({ length: 6 }, (_, index) => (
+                      <i key={index} style={{ ...analysisStreamParticleStyle, top: `${16 + index * 13}%`, animationDelay: `${-index * 0.27}s` }} />
+                    ))}
+                  </span>
+                  <div data-dna-assembly style={analysisDnaAssemblyStyle}>
+                    <div data-dna-model aria-hidden="true" style={analysisDnaModelStyle}>
+                      {Array.from({ length: 15 }, (_, index) => (
+                        <span
+                          key={index}
+                          data-dna-rung
+                          style={{
+                            top: `${3 + index * 6.7}%`,
+                            "--dna-delay": `${-index * 0.22}s`,
+                          } as CSSProperties}
+                        >
+                          <i data-dna-bridge />
+                          <i data-dna-node="a" />
+                          <i data-dna-node="b" />
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+  );
+
   const tabs: Array<{ key: AiMemoryWorkspaceTab; icon: string; label: string }> = [
     { key: "analysis", icon: "✦", label: t("tabAnalysis") },
-    { key: "documents", icon: "📎", label: t("tabDocuments") },
     { key: "profile", icon: "👤", label: profileLabel },
     { key: "activity", icon: "🏢", label: t("tabActivity") },
     { key: "audience", icon: "🎯", label: t("tabAudience") },
@@ -1413,7 +1693,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     { key: "identity", icon: "🧭", label: t("tabIdentity") },
     { key: "news", icon: "⚡", label: t("tabNews") },
     { key: "strategy", icon: "🧠", label: t("tabStrategy") },
-  ];
+  ].filter((tab) => !visibleTabs || visibleTabs.includes(tab.key as AiMemoryWorkspaceTab)) as Array<{ key: AiMemoryWorkspaceTab; icon: string; label: string }>;
   const activeTabIndex = Math.max(0, tabs.findIndex((tab) => tab.key === activeTab));
   const activeTabDefinition = tabs[activeTabIndex] ?? tabs[0];
   const activeTabRequiresAiMemory = activeTab !== "profile" && activeTab !== "activity";
@@ -1431,8 +1711,8 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
 
   return (
     <div data-ai-memory-workspace style={pageStyle}>
-      <DrawerHeaderTabs>
-      <nav data-ai-memory-desktop-tabs aria-label={t("title")} role="tablist" style={tabListStyle}>
+      {!hideNavigation && tabs.length > 1 ? <DrawerHeaderTabs>
+      <nav data-ai-memory-desktop-tabs aria-label={t("title")} role="tablist" style={{ ...tabListStyle, gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
         {tabs.map((tab) => {
           const active = activeTab === tab.key;
           return (
@@ -1459,7 +1739,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         ariaLabel={t("title")}
         disabled={voiceBusy}
       />
-      </DrawerHeaderTabs>
+      </DrawerHeaderTabs> : null}
 
       <div
         role="tabpanel"
@@ -1495,6 +1775,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                 style={activeTab === "profile" ? sectionStackStyle : hiddenWorkspaceTabStyle}
               >
                 <ProfilContent
+                  key={`profile-${profileContentRevision}`}
                   ref={profileContentRef}
                   mode="page"
                   showIntro={false}
@@ -1543,218 +1824,36 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
             {!loading && loaded ? (
               <>
             {activeTab === "analysis" ? (
-              <section
-                data-business-dna-channel-analysis
-                data-analysis-running={analyzing ? "true" : "false"}
-                style={analysisLandingStyle}
-              >
-                <div data-dna-score-summary style={analysisScoreBubbleStyle}>
-                  <span>{t("scoreLabel")} :</span>
-                  <strong>{completionScore}%</strong>
-                  <span
-                    data-dna-score-help
-                    data-tooltip={t("scoreHelp")}
-                    tabIndex={0}
-                    role="img"
-                    aria-label={t("scoreHelp")}
-                    style={analysisScoreHelpStyle}
-                  >
-                    i
-                  </span>
-                </div>
-
-                <div data-business-dna-analysis-orb style={analysisOrbStageStyle}>
-                  <span aria-hidden data-analysis-aura style={analysisOrbAuraStyle} />
-                  <span aria-hidden data-dna-stream="left" style={analysisStreamLeftStyle}>
-                    {Array.from({ length: 6 }, (_, index) => (
-                      <i key={index} style={{ ...analysisStreamParticleStyle, top: `${12 + index * 14}%`, animationDelay: `${-index * 0.31}s` }} />
-                    ))}
-                  </span>
-                  <span aria-hidden data-dna-stream="right" style={analysisStreamRightStyle}>
-                    {Array.from({ length: 6 }, (_, index) => (
-                      <i key={index} style={{ ...analysisStreamParticleStyle, top: `${16 + index * 13}%`, animationDelay: `${-index * 0.27}s` }} />
-                    ))}
-                  </span>
-                  <div data-dna-assembly style={analysisDnaAssemblyStyle}>
-                    <div data-dna-model aria-hidden="true" style={analysisDnaModelStyle}>
-                      {Array.from({ length: 15 }, (_, index) => (
-                        <span
-                          key={index}
-                          data-dna-rung
-                          style={{
-                            top: `${3 + index * 6.7}%`,
-                            "--dna-delay": `${-index * 0.22}s`,
-                          } as CSSProperties}
-                        >
-                          <i data-dna-bridge />
-                          <i data-dna-node="a" />
-                          <i data-dna-node="b" />
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={analysisIntroStyle}>
-                  <h2 style={analysisTitleStyle}>{t("analysisTitle")}</h2>
-                  <p style={analysisDescriptionStyle}>{t("analysisDescription")}</p>
-                </div>
-
-                {analysisChannels.length ? (
-                  <div
-                    data-business-dna-channel-states
-                    aria-label={t("analysisChannelsAria")}
-                    style={analysisChannelRailStyle}
-                  >
-                    {analysisChannels.filter((channel) => channel.key !== "threads" || metaPilotEnabled).map((channel) => {
-                      const channelName = moduleT(`${channel.key}.name`);
-                      const statusLabel = channel.status === "connected"
-                        ? t("analysisChannelConnected")
-                        : channel.status === "needs_reconnect"
-                          ? t("analysisChannelReconnect")
-                          : t("analysisChannelDisconnected");
-                      const coverageLabel = channel.analyzable
-                        ? t("analysisChannelIncluded")
-                        : t("analysisChannelNotIncluded");
-                      const tooltip = t("analysisChannelTooltip", {
-                        status: statusLabel,
-                        coverage: coverageLabel,
-                      });
-                      return (
-                        <span
-                          key={channel.key}
-                          data-channel-key={channel.key}
-                          data-channel-status={channel.status}
-                          data-channel-analyzable={channel.analyzable ? "true" : "false"}
-                          title={tooltip}
-                          aria-label={`${channelName} — ${tooltip}`}
-                          style={{
-                            ...analysisChannelPillStyle,
-                            ...(channel.status === "connected"
-                              ? analysisChannelConnectedStyle
-                              : channel.status === "needs_reconnect"
-                                ? analysisChannelReconnectStyle
-                                : analysisChannelDisconnectedStyle),
-                          }}
-                        >
-                          <span
-                            aria-hidden
-                            style={{
-                              ...analysisChannelDotStyle,
-                              ...(channel.status === "connected"
-                                ? analysisChannelConnectedDotStyle
-                                : channel.status === "needs_reconnect"
-                                  ? analysisChannelReconnectDotStyle
-                                  : analysisChannelDisconnectedDotStyle),
-                            }}
-                          />
-                          <span>{channelName}</span>
-                          {channel.status === "needs_reconnect" ? (
-                            <span aria-hidden style={analysisChannelReconnectIconStyle}>↻</span>
-                          ) : null}
-                        </span>
-                      );
-                    })}
-                  </div>
-                ) : null}
-
-                {analyzing && isBusinessDnaManualAnalysisPending(analysisJob) ? (
-                  <p role="status" style={{ color: "#a5f3fc", fontSize: 12, margin: "10px 0" }}>
-                    {t("analysisBackgroundHint")}
-                  </p>
-                ) : null}
-
-                {analyzing ? (
-                  <div
-                    data-analysis-progress
-                    data-running="true"
-                    role="progressbar"
-                    aria-label={t("analysisRunning")}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={analysisProgress}
-                    style={analysisProgressStyle}
-                  >
-                    <div style={progressTrackStyle}>
-                      <span style={{ ...progressValueStyle, width: `${analysisProgress}%` }} />
-                    </div>
-                    <strong style={scoreStyle}>{analysisProgress}%</strong>
-                  </div>
-                ) : null}
-
-                <div data-analysis-action-group style={analysisActionGroupStyle}>
-                  <button
-                    type="button"
-                    disabled={voiceBusy || analyzing || analysisQuota?.remaining === 0}
-                    aria-busy={analyzing}
-                    onClick={() => void analyzeChannels()}
-                    style={{
-                      ...analysisButtonStyle,
-                      opacity: voiceBusy || analyzing || analysisQuota?.remaining === 0 ? 0.58 : 1,
-                      cursor: voiceBusy || analyzing || analysisQuota?.remaining === 0 ? "default" : "pointer",
-                    }}
-                  >
-                    {analyzing
-                      ? t("analysisRunning")
-                      : analysisQuota?.remaining === 0
-                        ? t("analysisQuotaReachedButton")
-                        : t("analysisButton")}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={voiceBusy || analyzing}
-                    onClick={() => setAnalysisScheduleOpen(true)}
-                    style={{
-                      ...analysisScheduleButtonStyle,
-                      opacity: voiceBusy || analyzing ? 0.58 : 1,
-                      cursor: voiceBusy || analyzing ? "default" : "pointer",
-                    }}
-                  >
-                    <span aria-hidden>◷</span>
-                    <span>{t("analysisScheduleButton")}</span>
-                  </button>
-                  {analysisQuota ? (
-                    <span style={analysisQuotaStyle}>
-                      <span aria-hidden style={analysisQuotaDotStyle} />
-                      {t("analysisQuota", {
-                        remaining: analysisQuota.remaining,
-                        limit: analysisQuota.limit,
-                      })}
-                    </span>
-                  ) : null}
-                  <button
-                    type="button"
-                    disabled={voiceBusy || analyzing || saving || workspaceSaving}
-                    onClick={() => void resetCurrentTab("all")}
-                    style={{ ...dangerButtonStyle, minHeight: 42, marginTop: 10 }}
-                  >
-                    Réinitialiser votre ADN
-                  </button>
-                </div>
-
-                {analysisSummary?.analyzedAt ? (
-                  <div style={analysisReportStyle}>
-                    <strong style={{ color: analysisSummary.changedFields.length ? "#a5f3fc" : "#cbd5e1", fontSize: 12 }}>
-                      {analysisSummary.changedFields.length
-                        ? t("analysisSaved", {
-                            fields: analysisSummary.changedFields.length,
-                            items: analysisSummary.addedItems,
-                          })
-                        : t("analysisNoChange")}
-                    </strong>
-                  </div>
-                ) : null}
-                {analysisError ? <div style={analysisErrorStyle}>{analysisError}</div> : null}
-              </section>
+              <BusinessDnaAnalysisWorkspace
+                channels={visibleAnalysisChannels}
+                selectedChannels={selectedAnalysisChannels}
+                onToggleChannel={(key) => setExcludedAnalysisChannels((current) => {
+                  const next = new Set(current);
+                  if (next.has(key)) next.delete(key); else next.add(key);
+                  return next;
+                })}
+                documents={referenceDocumentsSection}
+                animation={analysisAnimation}
+                completionScore={completionScore}
+                analyzing={analyzing}
+                progress={analysisProgress}
+                quota={analysisQuota}
+                summary={analysisSummary}
+                error={analysisError}
+                busy={voiceBusy || saving || workspaceSaving || documentUploadState !== "idle"}
+                hasSources={selectedAnalysisChannels.size > 0 || memory.referenceDocuments.length > 0}
+                selective={selectiveAnalysis}
+                onAnalyze={() => void analyzeChannels()}
+                onSchedule={() => setAnalysisScheduleOpen(true)}
+                onReset={() => void resetCurrentTab("all")}
+              />
             ) : null}
 
             {activeTab === "activity" ? (
               <div data-ai-memory-tab="activity" style={sectionStackStyle}>
-                <section style={cardStyle}>
-                  <SectionHeader icon="🏢" title={t("identityTitle")} description={t("identityDescription")} />
-                  <div style={fieldStyle}>
+                <section data-memory-field="description" style={cardStyle}>
                     <BusinessDnaRichTextEditor
-                      label={t("detailedDescriptionLabel")}
+                      label={t("presentationTitle")}
                       value={businessKnowledge.description}
                       html={memory.richText.detailedDescription}
                       maxLength={5000}
@@ -1764,10 +1863,12 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                       placeholder={t("detailedDescriptionPlaceholder")}
                       minHeight={165}
                     />
-                  </div>
-                  <div style={fieldStyle}>
+                </section>
+                <div data-activity-services style={sectionStackStyle}>
+                  <section data-memory-field="services" style={cardStyle}>
                     <span style={labelStyle}>{t("baseServicesLabel")}</span>
                     <EditableTags
+                      compact={hideNavigation}
                       values={businessKnowledge.services}
                       onChange={(values) => setBusinessField("services", values)}
                       disabled={voiceBusy}
@@ -1777,13 +1878,13 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                       maxItems={20}
                       inlineAdd
                     />
-                    <span style={hintStyle}>{settingsT("inrcy_propose_automatiquement_les_prestations_li_7e2f1891")}</span>
-                  </div>
-                  <div style={fieldStyle}>
+                    {!hideNavigation ? <span style={hintStyle}>{settingsT("inrcy_propose_automatiquement_les_prestations_li_7e2f1891")}</span> : null}
+                  </section>
+                  <section data-memory-field="specialties" style={cardStyle}>
                     <span style={labelStyle}>{t("specialtiesLabel")}</span>
-                    {memoryTags("specialties", t("specialtiesAdd"), t("specialtiesPlaceholder"))}
-                  </div>
-                </section>
+                    {memoryTags("specialties", t("specialtiesAdd"), t("specialtiesPlaceholder"), true)}
+                  </section>
+                </div>
               </div>
             ) : null}
 
@@ -1793,7 +1894,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   <SectionHeader
                     icon="🤝"
                     title={t("audienceTitle")}
-                    description={t("audienceDescription")}
+                    description={hideNavigation ? "" : t("audienceDescription")}
                     trailing={<CompletionPill label={t("completion")} score={completionScore} />}
                   />
                   <div style={fieldStyle}>
@@ -1813,9 +1914,9 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                         );
                       })}
                     </div>
-                    <span style={hintStyle}>{settingsT("aide_l_ia_a_adapter_les_35ed6a9c")}</span>
+                    {!hideNavigation ? <span style={hintStyle}>{settingsT("aide_l_ia_a_adapter_les_35ed6a9c")}</span> : null}
                   </div>
-                  <div style={twoColumnsStyle}>
+                  <div data-memory-two-columns style={twoColumnsStyle}>
                     <div style={fieldStyle}>
                       <span style={labelStyle}>{t("targetAudiencesLabel")}</span>
                       {memoryTags("targetAudiences", t("targetAudiencesAdd"), t("targetAudiencesPlaceholder"))}
@@ -1833,6 +1934,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
               <section data-ai-memory-tab="local" hidden={activeTab !== "local"}
                 style={activeTab === "local" ? localTabStyle : hiddenWorkspaceTabStyle}>
                 <BusinessLocationFields
+                  key={`location-${locationContentRevision}`}
                   ref={businessLocationRef}
                   value={memory.contentLocation ?? { useHeadquarters: true, primaryArea: "" }}
                   onChange={(value) => setField("contentLocation", value)}
@@ -1840,9 +1942,10 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   onUnsavedChange={handleLocationUnsavedChange}
                 />
                 <div data-local-presence-grid style={localPresenceGridStyle}>
-                  <div style={localZonesCardStyle}>
+                  <div data-local-zones style={localZonesCardStyle}>
                     <span style={labelStyle}>{settingsT("zones_d_intervention_a4999f61")}</span>
                     <EditableTags
+                      compact={hideNavigation}
                       values={businessKnowledge.interventionZones}
                       onChange={(values) => setBusinessField("interventionZones", values)}
                       disabled={voiceBusy}
@@ -1851,12 +1954,12 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                       emptyText={settingsT("ajoutez_les_villes_secteurs_ou_rayons_dc934f3a")}
                       maxItems={30}
                     />
-                    <span style={hintStyle}>{settingsT("une_zone_par_tag_aide_l_7516e004")}</span>
+                    {!hideNavigation ? <span style={hintStyle}>{settingsT("une_zone_par_tag_aide_l_7516e004")}</span> : null}
                   </div>
-                  <div style={localScheduleCardStyle}>
+                  <div data-local-schedule style={localScheduleCardStyle}>
                     <div style={{ display: "grid", gap: 3 }}>
                       <span style={labelStyle}>{t("openingScheduleLabel")}</span>
-                      <span style={hintStyle}>{t("openingScheduleHint")}</span>
+                      {!hideNavigation ? <span style={hintStyle}>{t("openingScheduleHint")}</span> : null}
                     </div>
                     <BusinessScheduleEditor
                       value={businessKnowledge.weeklySchedule}
@@ -1875,45 +1978,30 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   <SectionHeader
                     icon="🧭"
                     title={t("expertiseTitle")}
-                    description={t("expertiseDescription")}
+                    description={hideNavigation ? "" : t("expertiseDescription")}
                     trailing={<CompletionPill label={t("completion")} score={completionScore} />}
                   />
-                  <div style={identityCoreGridStyle}>
-                    <div style={identityMissionCardStyle}>
-                      <span style={identityMissionHeadingStyle}>
-                        <label htmlFor="business-dna-mission" style={labelStyle}>{t("missionLabel")}</label>
-                        <span style={identityMissionActionsStyle}>
-                          <MediaSubjectVoiceButton
-                            disabled={voiceDisabledFor("mission")}
-                            value={memory.mission}
-                            contextLabel={t("missionLabel")}
-                            onChange={(next) => setField("mission", next.slice(0, 800))}
-                            onBusyChange={(busy) => handleVoiceBusyChange("mission", busy)}
-                            purpose="content"
-                            placement="inline"
-                            mergeMode="paragraph"
-                            maxLength={800}
-                          />
-                          <span style={identityCounterStyle}>{memory.mission.length}/800</span>
-                        </span>
-                      </span>
-                      <textarea
+                  <div data-identity-core style={identityCoreGridStyle}>
+                    <div data-identity-mission style={identityMissionCardStyle}>
+                      <BusinessDnaRichTextEditor
                         id="business-dna-mission"
+                        label={t("missionLabel")}
                         value={memory.mission}
-                        readOnly={voiceOperationsLocked || voiceBusy}
-                        aria-busy={voiceTarget === "mission"}
-                        onChange={(event) => setField("mission", event.target.value.slice(0, 800))}
+                        html={memory.richText.mission}
+                        disabled={voiceDisabledFor("mission")}
+                        onVoiceBusyChange={(busy) => handleVoiceBusyChange("mission", busy)}
+                        onChange={setMissionRichField}
                         maxLength={800}
-                        rows={3}
+                        minHeight={120}
                         placeholder={t("missionPlaceholder")}
-                        style={identityTextareaStyle}
                       />
                     </div>
-                    <div style={identityTagRowsStyle}>
-                      <div style={identityTagRowStyle}>
+                    <div data-identity-tag-grid style={identityTagRowsStyle}>
+                      <div data-identity-tag-card style={identityTagRowStyle}>
                         <span style={identityTagLabelStyle}>{settingsT("vos_forces_29964107")}</span>
                         <div style={identityTagContentStyle}>
                         <EditableTags
+                      compact={hideNavigation}
                           values={businessKnowledge.strengths}
                           onChange={(values) => setBusinessField("strengths", values)}
                           disabled={voiceBusy}
@@ -1925,13 +2013,13 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                         />
                         </div>
                       </div>
-                      <div style={identityTagRowStyle}>
+                      <div data-identity-tag-card style={identityTagRowStyle}>
                         <span style={identityTagLabelStyle}>{t("valuesLabel")}</span>
                         <div style={identityTagContentStyle}>
                           {memoryTags("values", t("valuesAdd"), t("valuesPlaceholder"), true)}
                         </div>
                       </div>
-                      <div style={identityTagRowStyle}>
+                      <div data-identity-tag-card style={identityTagRowStyle}>
                         <span style={identityTagLabelStyle}>{t("brandPersonalityLabel")}</span>
                         <div style={identityTagContentStyle}>
                           {memoryTags(
@@ -1942,7 +2030,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                           )}
                         </div>
                       </div>
-                      <div style={identityTagRowStyle}>
+                      <div data-identity-tag-card style={identityTagRowStyle}>
                         <span style={identityTagLabelStyle}>{t("commitmentsLabel")}</span>
                         <div style={identityTagContentStyle}>
                           {memoryTags(
@@ -1956,36 +2044,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                     </div>
                   </div>
 
-                  <div style={identityVocabularySectionStyle}>
-                    <div style={identityVocabularyHeadingStyle}>
-                      <strong style={identityVocabularyTitleStyle}>{t("languageTitle")}</strong>
-                      <span style={hintStyle}>{t("languageDescription")}</span>
-                    </div>
-                    <div style={identityTagRowsStyle}>
-                      <div style={identityTagRowStyle}>
-                        <span style={identityTagLabelStyle}>{t("preferredVocabularyLabel")}</span>
-                        <div style={identityTagContentStyle}>
-                          {memoryTags(
-                            "preferredVocabulary",
-                            t("preferredVocabularyAdd"),
-                            t("preferredVocabularyPlaceholder"),
-                            true,
-                          )}
-                        </div>
-                      </div>
-                      <div style={identityTagRowStyle}>
-                        <span style={identityTagLabelStyle}>{t("forbiddenVocabularyLabel")}</span>
-                        <div style={identityTagContentStyle}>
-                          {memoryTags(
-                            "forbiddenVocabulary",
-                            t("forbiddenVocabularyAdd"),
-                            t("forbiddenVocabularyPlaceholder"),
-                            true,
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  {!hideNavigation ? vocabularySection : null}
                 </section>
               </div>
             ) : null}
@@ -1995,13 +2054,13 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                 <SectionHeader
                   icon="⚡"
                   title={t("newsTitle")}
-                  description={t("newsDescription")}
+                  description={hideNavigation ? "" : t("newsDescription")}
                   trailing={<span style={newsWindowBadgeStyle}>{t("newsWindowBadge")}</span>}
                 />
                 <div data-ai-memory-news-status style={newsStatusStyle}>
                   <span style={newsStatusCopyStyle}>
                     <strong>{t("newsAutomaticTitle")}</strong>
-                    <span>{t("newsAutomaticHint")}</span>
+                    {!hideNavigation ? <span>{t("newsAutomaticHint")}</span> : null}
                   </span>
                   <span style={newsSourceRailStyle}>
                     {recentNewsSourceLabels.length ? recentNewsSourceLabels.map((label) => (
@@ -2036,186 +2095,13 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
               </section>
             ) : null}
 
-            {activeTab === "documents" ? (
-              <section
-                data-ai-memory-tab="documents"
-                style={{ ...cardStyle, ...documentsCardStyle }}
-              >
-                <SectionHeader
-                  icon="📎"
-                  title={t("documentsTitle")}
-                  description={t("documentsDescription")}
-                  trailing={(
-                    <span style={documentsCountStyle}>
-                      {t("documentsCount", {
-                        count: memory.referenceDocuments.length,
-                        limit: AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS,
-                      })}
-                    </span>
-                  )}
-                />
-
-                <div
-                  style={{
-                    ...documentsStorageStyle,
-                    ...(documentStorage.status === "reached"
-                      ? documentsStorageReachedStyle
-                      : documentStorage.status === "near"
-                        ? documentsStorageNearStyle
-                        : null),
-                  }}
-                >
-                  <span style={documentsStorageHeadingStyle}>
-                    <span style={documentsStorageCopyStyle}>
-                      <strong>{t("documentsStorageTitle")}</strong>
-                      <small>{documentStorageStatusLabel}</small>
-                    </span>
-                    <strong style={documentsStorageValueStyle}>{documentStorageLabel}</strong>
-                  </span>
-                  <span
-                    role="progressbar"
-                    aria-label={t("documentsStorageTitle")}
-                    aria-valuemin={0}
-                    aria-valuemax={documentStorage.limitBytes}
-                    aria-valuenow={Math.min(documentStorage.usedBytes, documentStorage.limitBytes)}
-                    aria-valuetext={`${documentStorageLabel} · ${documentStorageStatusLabel}`}
-                    style={documentsStorageTrackStyle}
-                  >
-                    <span
-                      aria-hidden
-                      style={{
-                        ...documentsStorageFillStyle,
-                        width: `${documentStorage.percent}%`,
-                        background:
-                          documentStorage.status === "reached"
-                            ? "linear-gradient(90deg, #f97316, #ef4444)"
-                            : documentStorage.status === "near"
-                              ? "linear-gradient(90deg, #facc15, #f97316)"
-                              : documentsStorageFillStyle.background,
-                      }}
-                    />
-                  </span>
-                </div>
-
-                <label style={documentsConsentStyle}>
-                  <input
-                    type="checkbox"
-                    checked={documentAnalysisConsent}
-                    disabled={documentUploadState !== "idle"}
-                    onChange={(event) => {
-                      setDocumentAnalysisConsent(event.target.checked);
-                      setDocumentUploadError("");
-                    }}
-                  />
-                  <span style={documentsConsentCopyStyle}>
-                    <strong style={documentsConsentTitleStyle}>
-                      {t("documentsConsentTitle")}
-                    </strong>
-                    <small style={documentsConsentDescriptionStyle}>
-                      {t("documentsConsentDescription")}
-                    </small>
-                  </span>
-                </label>
-
-                <div style={documentsUploadCardStyle}>
-                  <input
-                    ref={documentInputRef}
-                    type="file"
-                    multiple
-                    hidden
-                    accept=".pdf,.docx,.txt,.md,.csv,.json,.html,.htm,.png,.jpg,.jpeg,.webp,.gif,image/*,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*"
-                    onChange={(event) => {
-                      const files = Array.from(event.target.files || []);
-                      event.target.value = "";
-                      void uploadReferenceDocuments(files);
-                    }}
-                  />
-                  <span style={documentsUploadIconStyle} aria-hidden>＋</span>
-                  <span style={documentsUploadCopyStyle}>
-                    <strong>{t("documentsUploadTitle")}</strong>
-                    <small>{t("documentsUploadHint")}</small>
-                  </span>
-                  <button
-                    type="button"
-                    disabled={
-                      !documentAnalysisConsent ||
-                      documentUploadState !== "idle" ||
-                      documentStorage.status === "reached" ||
-                      memory.referenceDocuments.length >=
-                        AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS
-                    }
-                    aria-busy={documentUploadState !== "idle"}
-                    onClick={() => documentInputRef.current?.click()}
-                    style={{
-                      ...primaryButtonStyle,
-                      opacity:
-                        !documentAnalysisConsent ||
-                        documentUploadState !== "idle" ||
-                        documentStorage.status === "reached" ||
-                        memory.referenceDocuments.length >=
-                          AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS
-                          ? 0.58
-                          : 1,
-                    }}
-                  >
-                    {documentUploadState === "uploading"
-                      ? t("documentsUploading")
-                      : documentUploadState === "analysing"
-                        ? t("documentsAnalysing")
-                        : t("documentsUploadButton")}
-                  </button>
-                </div>
-
-                {memory.referenceDocuments.length ? (
-                  <div style={documentsListStyle}>
-                    {memory.referenceDocuments.map((document) => (
-                      <article key={document.id} style={documentItemStyle}>
-                        <span style={documentFileIconStyle} aria-hidden>
-                          {document.mimeType.startsWith("image/") ? "🖼️" : "📄"}
-                        </span>
-                        <span style={documentItemCopyStyle}>
-                          <strong>{document.name}</strong>
-                          <small>
-                            {document.size
-                              ? `${Math.max(1, Math.round(document.size / 1024))} Ko · `
-                              : ""}
-                            {document.status === "analysed"
-                              ? t("documentsStatusAnalysed")
-                              : document.status === "error"
-                                ? t("documentsStatusError")
-                                : t("documentsStatusMetadata")}
-                          </small>
-                          {document.note ? <small>{document.note}</small> : null}
-                        </span>
-                        <button
-                          type="button"
-                          disabled={documentUploadState !== "idle"}
-                          aria-label={t("documentsDeleteAria", { name: document.name })}
-                          onClick={() => void deleteReferenceDocument(document)}
-                          style={documentDeleteButtonStyle}
-                        >
-                          ×
-                        </button>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={documentsEmptyStyle}>{t("documentsEmpty")}</div>
-                )}
-
-                {documentUploadError ? (
-                  <div style={errorStyle}>{documentUploadError}</div>
-                ) : null}
-              </section>
-            ) : null}
-
             {activeTab === "strategy" ? (
               <section data-ai-memory-tab="strategy" style={{ ...cardStyle, ...premiumCardStyle }}>
                 <div data-ai-memory-strategy-heading style={sectionHeadingRowStyle}>
                   <SectionHeader
                     icon="🧠"
                     title={t("premiumTitle")}
-                    description={t("premiumDescription")}
+                    description={hideNavigation ? "" : t("premiumDescription")}
                     trailing={<CompletionPill label={t("completion")} score={completionScore} />}
                   />
                 </div>
@@ -2234,14 +2120,15 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   </div>
                   <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
                     <span aria-hidden style={premiumFieldNumberStyle}>2</span>
-                    <MemoryVoiceTextarea
+                    <PremiumTextarea
                       label={t("argumentsLabel")}
                       placeholder={t("argumentsPlaceholder")}
                       value={memory.keyArguments}
+                      html={memory.richText.keyArguments}
                       disabled={voiceDisabledFor("keyArguments")}
                       maxLength={3000}
                       onVoiceBusyChange={(busy) => handleVoiceBusyChange("keyArguments", busy)}
-                      onChange={(next) => setField("keyArguments", next.slice(0, 3000))}
+                      onChange={(next) => setPremiumRichField("keyArguments", next)}
                     />
                   </div>
                   <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
@@ -2258,14 +2145,15 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   </div>
                   <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
                     <span aria-hidden style={premiumFieldNumberStyle}>4</span>
-                    <MemoryVoiceTextarea
+                    <PremiumTextarea
                       label={t("objectionsLabel")}
                       placeholder={t("objectionsPlaceholder")}
                       value={memory.objectionResponses}
+                      html={memory.richText.objectionResponses}
                       disabled={voiceDisabledFor("objectionResponses")}
                       maxLength={3000}
                       onVoiceBusyChange={(busy) => handleVoiceBusyChange("objectionResponses", busy)}
-                      onChange={(next) => setField("objectionResponses", next.slice(0, 3000))}
+                      onChange={(next) => setPremiumRichField("objectionResponses", next)}
                     />
                   </div>
                   <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
@@ -2282,14 +2170,15 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   </div>
                   <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
                     <span aria-hidden style={premiumFieldNumberStyle}>6</span>
-                    <MemoryVoiceTextarea
+                    <PremiumTextarea
                       label={t("campaignCalendarLabel")}
                       placeholder={t("campaignCalendarPlaceholder")}
                       value={memory.campaignCalendar}
+                      html={memory.richText.campaignCalendar}
                       disabled={voiceDisabledFor("campaignCalendar")}
                       maxLength={3000}
                       onVoiceBusyChange={(busy) => handleVoiceBusyChange("campaignCalendar", busy)}
-                      onChange={(next) => setField("campaignCalendar", next.slice(0, 3000))}
+                      onChange={(next) => setPremiumRichField("campaignCalendar", next)}
                     />
                   </div>
                 </div>
@@ -2316,6 +2205,12 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       ) : null}
 
       {workspaceError ? <div style={errorStyle}>{workspaceError}</div> : null}
+      {vocabularyPortalTarget ? createPortal(
+        loading ? <p role="status">{t("loading")}</p> : loaded ? vocabularySection : <div role="alert" style={errorStyle}>
+          {t("loadError")} <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)} style={secondaryButtonStyle}>{t("retry")}</button>
+        </div>,
+        vocabularyPortalTarget,
+      ) : null}
       {activeTabRequiresAiMemory && error ? <div style={errorStyle}>{error}</div> : null}
       {saved ? <div style={successStyle}>{t("saved")}</div> : null}
       {autoSaveState === "saving" ? (
@@ -2624,13 +2519,13 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
 
 export default AiMemoryContent;
 
-function SectionHeader({ icon, title, description, trailing }: { icon: string; title: string; description: string; trailing?: ReactNode }) {
+function SectionHeader({ icon, title, description, trailing, onIconClick, iconLabel, iconDisabled }: { icon: string; title: string; description: string; trailing?: ReactNode; onIconClick?: () => void; iconLabel?: string; iconDisabled?: boolean }) {
   return (
-    <header style={sectionHeaderStyle}>
-      <span aria-hidden style={sectionIconStyle}>{icon}</span>
+    <header data-memory-section-heading style={sectionHeaderStyle}>
+      {onIconClick ? <button type="button" onClick={onIconClick} disabled={iconDisabled} aria-label={iconLabel} title={iconLabel} style={{ ...sectionIconStyle, color: "inherit", cursor: iconDisabled ? "default" : "pointer", padding: 0, font: "inherit", opacity: iconDisabled ? .5 : 1 }}>{icon}</button> : <span aria-hidden style={sectionIconStyle}>{icon}</span>}
       <span style={{ display: "grid", gap: 3, minWidth: 0 }}>
         <strong style={{ color: "white", fontSize: 15 }}>{title}</strong>
-        <span style={hintStyle}>{description}</span>
+        {description ? <span style={hintStyle}>{description}</span> : null}
       </span>
       {trailing ? <span style={{ marginLeft: "auto", flex: "0 0 auto" }}>{trailing}</span> : null}
     </header>
@@ -2700,6 +2595,7 @@ function PremiumTextarea({
   placeholder,
   value,
   html,
+  maxLength = 5000,
   disabled,
   onVoiceBusyChange,
   onChange,
@@ -2708,6 +2604,7 @@ function PremiumTextarea({
   placeholder: string;
   value: string;
   html: string;
+  maxLength?: number;
   disabled: boolean;
   onVoiceBusyChange: (busy: boolean) => void;
   onChange: (next: { text: string; html: string }) => void;
@@ -2719,7 +2616,7 @@ function PremiumTextarea({
         value={value}
         html={html}
         disabled={disabled}
-        maxLength={5000}
+        maxLength={maxLength}
         minHeight={112}
         onVoiceBusyChange={onVoiceBusyChange}
         onChange={onChange}
@@ -2731,40 +2628,13 @@ function PremiumTextarea({
 
 const pageStyle: CSSProperties = { display: "grid", gap: 11, width: "100%", maxWidth: "none", margin: 0, paddingBottom: "max(14px, var(--inrcy-safe-area-bottom))" };
 const cardStyle: CSSProperties = { display: "grid", gap: 18, padding: "clamp(14px, 2.2vw, 22px)", borderRadius: 20, border: "1px solid rgba(125,211,252,0.17)", background: "linear-gradient(145deg, rgba(11,27,52,0.82), rgba(31,23,58,0.70))", boxShadow: "0 16px 44px rgba(0,0,0,0.18)", minWidth: 0 };
-const analysisLandingStyle: CSSProperties = { position: "relative", isolation: "isolate", overflow: "hidden", width: "100%", height: "auto", minHeight: "max(610px, calc(100svh - 190px))", boxSizing: "border-box", display: "grid", justifyItems: "center", alignContent: "center", gap: "clamp(15px, 1.8vh, 22px)", padding: "clamp(28px, 3vw, 40px) clamp(14px, 3vw, 34px) clamp(32px, 3.4vw, 46px)", borderRadius: 22, border: "1px solid rgba(125,211,252,0.20)", background: "radial-gradient(circle at 50% 28%, rgba(79,70,229,0.22), transparent 31%), radial-gradient(circle at 15% 15%, rgba(6,182,212,0.10), transparent 28%), radial-gradient(circle at 88% 86%, rgba(236,72,153,0.10), transparent 29%), linear-gradient(145deg, rgba(5,18,39,0.96), rgba(24,11,48,0.93))", boxShadow: "0 24px 68px rgba(0,0,0,0.24)", textAlign: "center" };
 const analysisOrbStageStyle: CSSProperties = { position: "relative", width: "min(530px, 92vw)", height: 300, boxSizing: "border-box", paddingTop: 42, display: "grid", placeItems: "center", perspective: 760 };
-const analysisScoreBubbleStyle: CSSProperties = { position: "relative", zIndex: 8, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 34, maxWidth: "calc(100% - 24px)", padding: "7px 9px 7px 13px", borderRadius: 999, border: "1px solid rgba(125,211,252,.30)", background: "linear-gradient(115deg, rgba(3,20,48,.96), rgba(45,25,91,.96) 58%, rgba(91,22,72,.94))", boxShadow: "0 12px 30px rgba(0,0,0,.30), 0 0 25px rgba(124,58,237,.20)", color: "rgba(226,232,240,.82)", fontSize: 11.5, fontWeight: 800, whiteSpace: "nowrap", letterSpacing: ".01em" };
-const analysisScoreHelpStyle: CSSProperties = { position: "relative", width: 19, height: 19, display: "inline-grid", placeItems: "center", borderRadius: "50%", border: "1px solid rgba(165,243,252,.38)", background: "rgba(56,189,248,.12)", color: "#a5f3fc", fontSize: 10.5, fontWeight: 950, lineHeight: 1, cursor: "help", outline: "none", boxShadow: "0 0 12px rgba(56,189,248,.18)" };
 const analysisOrbAuraStyle: CSSProperties = { position: "absolute", inset: "4% 12%", borderRadius: "46%", background: "radial-gradient(ellipse, rgba(124,58,237,0.40), rgba(6,182,212,0.14) 43%, rgba(236,72,153,.08) 58%, transparent 74%)", filter: "blur(23px)", opacity: 0.72 };
 const analysisDnaAssemblyStyle: CSSProperties = { position: "relative", zIndex: 4, width: 210, height: 220, display: "grid", placeItems: "center", transformStyle: "preserve-3d" };
 const analysisDnaModelStyle: CSSProperties = { position: "relative", width: 184, height: 188, transform: "translateY(-13px) rotate(-2deg)", transformStyle: "preserve-3d", filter: "drop-shadow(0 0 22px rgba(139,92,246,.24))" };
 const analysisStreamLeftStyle: CSSProperties = { position: "absolute", zIndex: 2, left: 0, top: "16%", width: "calc(50% - 110px)", height: "68%", overflow: "hidden", maskImage: "linear-gradient(90deg, transparent, black 20%, black)" };
 const analysisStreamRightStyle: CSSProperties = { position: "absolute", zIndex: 2, right: 0, top: "16%", width: "calc(50% - 110px)", height: "68%", overflow: "hidden", maskImage: "linear-gradient(270deg, transparent, black 20%, black)" };
 const analysisStreamParticleStyle: CSSProperties = { position: "absolute", width: 5, height: 5, borderRadius: "50%", background: "#fdf2f8", boxShadow: "0 0 8px #f472b6, 0 0 20px rgba(56,189,248,.72)", opacity: 0.24 };
-const analysisIntroStyle: CSSProperties = { width: "min(680px, 100%)", display: "grid", justifyItems: "center", gap: 8, marginTop: -14 };
-const analysisTitleStyle: CSSProperties = { margin: 0, color: "white", fontSize: "clamp(22px, 2.7vw, 34px)", lineHeight: 1.08, letterSpacing: "-0.035em", textWrap: "balance" };
-const analysisDescriptionStyle: CSSProperties = { margin: 0, maxWidth: 720, color: "rgba(238,244,255,0.92)", fontSize: "clamp(13px, 1.35vw, 15px)", fontWeight: 650, lineHeight: 1.48, textWrap: "balance", textShadow: "0 1px 14px rgba(56,189,248,0.16)" };
-const analysisChannelRailStyle: CSSProperties = { width: "min(1060px, 100%)", display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 6, minWidth: 0 };
-const analysisChannelPillStyle: CSSProperties = { minHeight: 27, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "5px 9px", borderRadius: 999, fontSize: 10.5, fontWeight: 850, lineHeight: 1, whiteSpace: "nowrap", transition: "border-color .18s ease, background .18s ease, box-shadow .18s ease, color .18s ease" };
-const analysisChannelConnectedStyle: CSSProperties = { border: "1px solid rgba(103,232,249,.34)", background: "linear-gradient(115deg, rgba(8,145,178,.18), rgba(109,40,217,.18) 60%, rgba(219,39,119,.15))", color: "rgba(240,249,255,.94)", boxShadow: "0 0 15px rgba(56,189,248,.12), 0 0 18px rgba(168,85,247,.10)" };
-const analysisChannelDisconnectedStyle: CSSProperties = { border: "1px solid rgba(148,163,184,.13)", background: "rgba(71,85,105,.09)", color: "rgba(203,213,225,.46)" };
-const analysisChannelReconnectStyle: CSSProperties = { border: "1px solid rgba(251,146,60,.38)", background: "linear-gradient(115deg, rgba(194,65,12,.18), rgba(190,24,93,.18))", color: "#fed7aa", boxShadow: "0 0 16px rgba(244,114,182,.12)" };
-const analysisChannelDotStyle: CSSProperties = { width: 6, height: 6, flex: "0 0 auto", borderRadius: "50%" };
-const analysisChannelConnectedDotStyle: CSSProperties = { background: "#38bdf8", boxShadow: "0 0 7px #38bdf8, 0 0 13px rgba(244,114,182,.72)" };
-const analysisChannelDisconnectedDotStyle: CSSProperties = { background: "#64748b", boxShadow: "none" };
-const analysisChannelReconnectDotStyle: CSSProperties = { background: "#fb923c", boxShadow: "0 0 8px rgba(251,146,60,.78)" };
-const analysisChannelReconnectIconStyle: CSSProperties = { color: "#f9a8d4", fontSize: 11.5, fontWeight: 950, lineHeight: 1 };
-const analysisQuotaStyle: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, color: "rgba(221,214,254,.78)", fontSize: 10.5, fontWeight: 800 };
-const analysisQuotaDotStyle: CSSProperties = { width: 6, height: 6, borderRadius: "50%", background: "#f472b6", boxShadow: "0 0 10px rgba(244,114,182,.72)" };
-const analysisProgressStyle: CSSProperties = { width: "min(650px, 88%)", display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 11, padding: "3px 0" };
-const analysisActionGroupStyle: CSSProperties = { display: "grid", justifyItems: "center", gap: 9 };
-const analysisButtonStyle: CSSProperties = { minHeight: 42, borderRadius: 13, border: "1px solid rgba(103,232,249,0.40)", background: "linear-gradient(105deg, rgba(8,145,178,0.96), rgba(109,40,217,0.96) 58%, rgba(219,39,119,0.92))", color: "white", padding: "9px 18px", fontSize: 12.5, fontWeight: 950, boxShadow: "0 13px 32px rgba(124,58,237,0.24)" };
-const analysisScheduleButtonStyle: CSSProperties = { minHeight: 38, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, border: "1px solid rgba(125,211,252,0.28)", background: "linear-gradient(115deg, rgba(8,47,79,0.74), rgba(49,32,91,0.76))", color: "rgba(240,249,255,.92)", padding: "8px 15px", fontSize: 11.5, fontWeight: 900, boxShadow: "0 9px 23px rgba(14,116,144,0.12)" };
-const analysisReportStyle: CSSProperties = { display: "grid", gap: 9, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)" };
-const analysisErrorStyle: CSSProperties = { borderRadius: 11, border: "1px solid rgba(248,113,113,0.26)", background: "rgba(127,29,29,0.16)", color: "#fecaca", padding: "9px 11px", fontSize: 11.5, fontWeight: 750 };
-const scoreStyle: CSSProperties = { minWidth: 38, color: "#ddd6fe", fontSize: 12, textAlign: "right" };
-const progressTrackStyle: CSSProperties = { height: 5, overflow: "hidden", borderRadius: 999, background: "rgba(255,255,255,0.09)" };
-const progressValueStyle: CSSProperties = { display: "block", height: "100%", minWidth: 4, borderRadius: 999, background: "linear-gradient(90deg, #38bdf8, #8b5cf6 58%, #ec4899)", boxShadow: "0 0 18px rgba(139,92,246,.42)", transition: "width .25s ease" };
 const tabListStyle: CSSProperties = { position: "relative", zIndex: 2, display: "grid", gridTemplateColumns: "repeat(9, minmax(0, 1fr))", gap: 5, padding: 6, overflow: "hidden", borderRadius: 16, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(5,13,28,0.94)", boxShadow: "0 12px 34px rgba(0,0,0,0.20)", backdropFilter: "blur(18px)" };
 const tabButtonStyle: CSSProperties = { minWidth: 0, display: "flex", justifyContent: "center", alignItems: "center", gap: 6, borderRadius: 11, border: "1px solid transparent", background: "transparent", color: "rgba(255,255,255,0.66)", padding: "9px 5px", cursor: "pointer", fontSize: 11.5, fontWeight: 850, whiteSpace: "nowrap", overflow: "hidden" };
 const activeTabButtonStyle: CSSProperties = { border: "1px solid rgba(125,211,252,0.28)", background: "linear-gradient(135deg, rgba(14,165,233,0.18), rgba(124,58,237,0.18))", color: "white", boxShadow: "0 7px 22px rgba(14,165,233,0.10)" };
@@ -2783,7 +2653,6 @@ const hintStyle: CSSProperties = { color: "rgba(255,255,255,0.60)", fontSize: 11
 const twoColumnsStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap: 18, minWidth: 0 };
 const identityCoreGridStyle: CSSProperties = { display: "grid", gap: 12, minWidth: 0 };
 const identityMissionCardStyle: CSSProperties = { display: "grid", gap: 8, minWidth: 0, padding: 13, borderRadius: 16, border: "1px solid rgba(56,189,248,0.18)", background: "linear-gradient(145deg, rgba(8,47,73,.28), rgba(20,20,54,.38))" };
-const identityMissionHeadingStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 };
 const identityMissionActionsStyle: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 8 };
 const identityTagRowsStyle: CSSProperties = { display: "grid", gap: 8, minWidth: 0 };
 const identityTagRowStyle: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "8px 18px", minWidth: 0, padding: "10px 12px", borderRadius: 14, border: "1px solid rgba(167,139,250,0.14)", background: "linear-gradient(145deg, rgba(30,41,79,.34), rgba(41,23,70,.25))" };
@@ -2825,19 +2694,11 @@ const documentsStorageCopyStyle: CSSProperties = { display: "grid", gap: 2, minW
 const documentsStorageValueStyle: CSSProperties = { color: "#e0f2fe", fontSize: 12, fontWeight: 950, whiteSpace: "nowrap" };
 const documentsStorageTrackStyle: CSSProperties = { display: "block", width: "100%", height: 7, overflow: "hidden", borderRadius: 999, background: "rgba(2,6,23,.56)", boxShadow: "inset 0 1px 3px rgba(0,0,0,.36)" };
 const documentsStorageFillStyle: CSSProperties = { display: "block", minWidth: 0, height: "100%", borderRadius: "inherit", background: "linear-gradient(90deg, #22d3ee, #8b5cf6)", transition: "width 240ms ease" };
-const documentsConsentStyle: CSSProperties = { display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", alignItems: "start", gap: 11, padding: 13, borderRadius: 15, border: "1px solid rgba(56,189,248,.22)", background: "rgba(8,47,73,.26)", color: "white", cursor: "pointer" };
-const documentsConsentCopyStyle: CSSProperties = { minWidth: 0, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 5 };
-const documentsConsentTitleStyle: CSSProperties = { display: "block", lineHeight: 1.35 };
-const documentsConsentDescriptionStyle: CSSProperties = { display: "block", color: "rgba(226,232,240,.76)", fontSize: 11, lineHeight: 1.5 };
-const documentsUploadCardStyle: CSSProperties = { display: "grid", gridTemplateColumns: "46px minmax(0, 1fr) auto", alignItems: "center", gap: 13, padding: 15, borderRadius: 17, border: "1px dashed rgba(167,139,250,.38)", background: "linear-gradient(115deg, rgba(30,41,90,.46), rgba(72,31,88,.34))" };
-const documentsUploadIconStyle: CSSProperties = { width: 44, height: 44, display: "grid", placeItems: "center", borderRadius: 14, border: "1px solid rgba(103,232,249,.28)", background: "linear-gradient(145deg, rgba(14,165,233,.18), rgba(124,58,237,.20))", color: "#a5f3fc", fontSize: 24, lineHeight: 1 };
-const documentsUploadCopyStyle: CSSProperties = { minWidth: 0, display: "grid", gap: 4, color: "white", fontSize: 12, lineHeight: 1.4 };
 const documentsListStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", gap: 10 };
 const documentItemStyle: CSSProperties = { minWidth: 0, display: "grid", gridTemplateColumns: "42px minmax(0, 1fr) 34px", alignItems: "center", gap: 10, padding: 12, borderRadius: 15, border: "1px solid rgba(255,255,255,.10)", background: "rgba(4,11,31,.45)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.025)" };
 const documentFileIconStyle: CSSProperties = { width: 40, height: 40, display: "grid", placeItems: "center", borderRadius: 12, background: "rgba(124,58,237,.16)", fontSize: 18 };
 const documentItemCopyStyle: CSSProperties = { minWidth: 0, display: "grid", gap: 3, color: "white", fontSize: 11.5, lineHeight: 1.35, overflowWrap: "anywhere" };
 const documentDeleteButtonStyle: CSSProperties = { width: 32, height: 32, display: "grid", placeItems: "center", borderRadius: 10, border: "1px solid rgba(248,113,113,.22)", background: "rgba(127,29,29,.15)", color: "#fecaca", cursor: "pointer", fontSize: 19, lineHeight: 1 };
-const documentsEmptyStyle: CSSProperties = { padding: "18px 14px", borderRadius: 15, border: "1px solid rgba(148,163,184,.13)", background: "rgba(15,23,42,.34)", color: "rgba(203,213,225,.68)", textAlign: "center", fontSize: 12, lineHeight: 1.45 };
 const premiumCardStyle: CSSProperties = { border: "1px solid rgba(251,191,36,0.28)", background: "linear-gradient(145deg, rgba(92,55,7,0.20), rgba(49,24,71,0.66))" };
 const premiumGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr)", alignItems: "stretch", gap: 11 };
 const premiumFieldCardStyle: CSSProperties = { minWidth: 0, display: "grid", gridTemplateColumns: "40px minmax(0, 1fr)", alignItems: "start", gap: 13, padding: 14, borderRadius: 17, border: "1px solid rgba(251,191,36,.17)", background: "linear-gradient(115deg, rgba(92,55,7,.17), rgba(42,23,67,.48) 58%, rgba(76,29,70,.28))", boxShadow: "inset 0 1px 0 rgba(255,255,255,.025), 0 10px 28px rgba(0,0,0,.10)" };

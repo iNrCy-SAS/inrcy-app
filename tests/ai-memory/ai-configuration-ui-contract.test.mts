@@ -11,8 +11,8 @@ test("the three secondary style controls share one aligned row with help below",
 
   assert.match(configuration, /data-style-secondary-fields/);
   assert.match(configuration, /gridTemplateColumns: "repeat\(3, minmax\(0, 1fr\)\)"/);
-  assert.match(configuration, /<ContentLengthSelect[\s\S]*?<span style=\{hint\}>\{memoryT\("webLengthLabel"\)\}<\/span>/);
-  assert.match(configuration, /<ContentLengthSelect[\s\S]*?<span style=\{hint\}>\{memoryT\("socialLengthLabel"\)\}<\/span>/);
+  assert.match(configuration, /<ContentLengthSelect[\s\S]*?<span data-ai-length-label style=\{hint\}>\{memoryT\("webLengthLabel"\)\}<\/span>/);
+  assert.match(configuration, /<ContentLengthSelect[\s\S]*?<span data-ai-length-label style=\{hint\}>\{memoryT\("socialLengthLabel"\)\}<\/span>/);
   assert.match(configuration, /<select style=\{input\} value=\{form\.emojiLevel\}[\s\S]*?configurationT\("emojiHint"\)/);
 });
 
@@ -30,17 +30,19 @@ test("content-length menus are opaque and portaled above neighbouring cards", ()
   for (const [, background] of backgrounds) assert.match(background, /^#[\da-f]{6}$/i, "controls retain opaque backgrounds");
 });
 
-test("two liked examples are distinct, persisted and laid out above full-width instructions", () => {
+test("two liked examples stay distinct and persist from a captured draft below the instructions", () => {
   const configuration = read("app/dashboard/settings/_components/AiConfigurationContent.tsx");
   const compatibility = read("lib/aiConfigurationCompatibility.ts");
 
   assert.match(compatibility, /likedExample2: string/);
   assert.match(compatibility, /firstMeaningful\(source, \["likedExample2"\]\)/);
   assert.match(compatibility, /result\.likedExample2 = String\(likedExample2\)/);
-  assert.match(configuration, /ai_liked_example_2: form\.likedExample2\.trim\(\)/);
+  assert.match(configuration, /const submitted = formRef\.current/);
+  assert.match(configuration, /ai_liked_example_2: submitted\.likedExample2\.trim\(\)/);
   assert.match(configuration, /value=\{form\.likedExample2\}/);
   assert.match(configuration, /data-instruction-examples/);
   assert.match(configuration, /data-custom-instructions/);
+  assert.ok(configuration.indexOf("data-custom-instructions") < configuration.indexOf("data-instruction-examples"));
   assert.match(configuration, /gridTemplateColumns: "repeat\(2, minmax\(0, 1fr\)\)"/);
 });
 

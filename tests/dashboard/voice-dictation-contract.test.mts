@@ -234,7 +234,7 @@ test("iNrADN équipe tous ses champs libres avec le micro corrigé partagé", ()
   assert.equal(
     richVoiceButtons.length,
     1,
-    "l'éditeur riche commun doit fournir le micro à la présentation et aux trois champs Premium enrichis",
+    "l'éditeur riche commun fournit le même micro à la présentation, la mission et aux six champs Stratégie",
   );
   const richVoiceButton = elementWithValue(richVoiceButtons, "value");
   assert.match(richVoiceButton, /disabled=\{disabled\}/);
@@ -248,7 +248,7 @@ test("iNrADN équipe tous ses champs libres avec le micro corrigé partagé", ()
 
   assert.match(
     businessDnaRichTextEditor,
-    /const applyVoiceChange = \(nextValue: string\) => \{[\s\S]*?sanitizeBusinessDnaRichHtml\([\s\S]*?businessDnaTextToHtml\(appendedText\)[\s\S]*?const synchronizedText = businessDnaHtmlToPlainText\(nextHtml\)\.slice\(0, maxLength\)[\s\S]*?onChange\(\{ text: synchronizedText, html: nextHtml \}\)/,
+    /const applyVoiceChange = \(nextValue: string\) => \{[\s\S]*?sanitizeBusinessDnaRichHtml\([\s\S]*?businessDnaTextToHtml\(appendedText\)[\s\S]*?const synchronizedText = businessDnaHtmlToPlainText\(nextHtml\)\.slice\(0, maxLength\)[\s\S]*?const canonicalHtml = editor\?\.innerHTML \?\? nextHtml[\s\S]*?onChange\(\{ text: synchronizedText, html: canonicalHtml \}\)/,
   );
   assert.match(
     businessDnaRichTextEditor,
@@ -266,8 +266,8 @@ test("iNrADN équipe tous ses champs libres avec le micro corrigé partagé", ()
   const richEditors = jsxElements(aiMemoryContent, "BusinessDnaRichTextEditor");
   assert.equal(
     richEditors.length,
-    2,
-    "la présentation directe et le renderer Premium doivent rester branchés sur l'éditeur riche commun",
+    3,
+    "la présentation, la mission et le renderer Stratégie restent branchés sur l'éditeur riche commun",
   );
   const detailedDescription = elementWithValue(
     richEditors,
@@ -286,7 +286,7 @@ test("iNrADN équipe tous ses champs libres avec le micro corrigé partagé", ()
 
   const premiumRenderer = elementWithValue(richEditors, "value");
   assert.match(premiumRenderer, /disabled=\{disabled\}/);
-  assert.match(premiumRenderer, /maxLength=\{5000\}/);
+  assert.match(premiumRenderer, /maxLength=\{maxLength\}/);
   assert.match(
     premiumRenderer,
     /onVoiceBusyChange=\{onVoiceBusyChange\}/,
@@ -294,8 +294,11 @@ test("iNrADN équipe tous ses champs libres avec le micro corrigé partagé", ()
 
   const premiumFields = [
     "offersAndArguments",
+    "keyArguments",
     "proofsAndObjections",
+    "objectionResponses",
     "editorialStrategy",
+    "campaignCalendar",
   ] as const;
   const premiumTextareas = jsxElements(aiMemoryContent, "PremiumTextarea");
   assert.equal(premiumTextareas.length, premiumFields.length);
@@ -323,15 +326,15 @@ test("iNrADN équipe tous ses champs libres avec le micro corrigé partagé", ()
   const plainTextareas = jsxElements(aiMemoryContent, "MemoryVoiceTextarea");
   assert.equal(
     plainTextareas.length,
-    4,
-    "le renderer vocal commun doit servir les actualités et les trois nouveaux leviers Premium",
+    1,
+    "le renderer vocal simple reste utilisé pour les actualités, les six leviers Stratégie utilisent l'éditeur riche",
   );
   for (const field of ["keyArguments", "objectionResponses", "campaignCalendar"] as const) {
-    const textarea = elementWithValue(plainTextareas, `memory.${field}`);
+    const textarea = elementWithValue(premiumTextareas, `memory.${field}`);
     assert.match(
       textarea,
       new RegExp(
-        `disabled=\{!premiumEnabled \|\| voiceDisabledFor\("${field}"\)\}`,
+        `disabled=\\{voiceDisabledFor\\("${field}"\\)\\}`,
       ),
     );
     assert.match(textarea, /maxLength=\{3000\}/);
@@ -349,23 +352,22 @@ test("iNrADN équipe tous ses champs libres avec le micro corrigé partagé", ()
   );
   assert.equal(
     aiMemoryVoiceButtons.length,
-    2,
-    "la mission et le renderer des zones de texte utilisent directement le micro partagé",
+    1,
+    "le renderer des actualités conserve le micro partagé ; la mission le reçoit via l'éditeur riche",
   );
-  const missionButton = elementWithValue(aiMemoryVoiceButtons, "memory.mission");
-  assert.match(missionButton, /disabled=\{voiceDisabledFor\("mission"\)\}/);
-  assert.match(missionButton, /contextLabel=\{t\("missionLabel"\)\}/);
-  assert.match(missionButton, /purpose="content"/);
-  assert.match(missionButton, /placement="inline"/);
-  assert.match(missionButton, /mergeMode="paragraph"/);
-  assert.match(missionButton, /maxLength=\{800\}/);
+  const missionEditor = elementWithValue(richEditors, "memory.mission");
+  assert.match(missionEditor, /id="business-dna-mission"/);
+  assert.match(missionEditor, /label=\{t\("missionLabel"\)\}/);
+  assert.match(missionEditor, /html=\{memory\.richText\.mission\}/);
+  assert.match(missionEditor, /disabled=\{voiceDisabledFor\("mission"\)\}/);
+  assert.match(missionEditor, /maxLength=\{800\}/);
   assert.match(
-    missionButton,
-    /onChange=\{\(next\) => setField\("mission", next\.slice\(0, 800\)\)\}/,
+    missionEditor,
+    /onChange=\{setMissionRichField\}/,
   );
   assert.match(
-    missionButton,
-    /onBusyChange=\{\(busy\) => handleVoiceBusyChange\("mission", busy\)\}/,
+    missionEditor,
+    /onVoiceBusyChange=\{\(busy\) => handleVoiceBusyChange\("mission", busy\)\}/,
   );
   const reusableTextButton = elementWithValue(aiMemoryVoiceButtons, "value");
   assert.match(reusableTextButton, /contextLabel=\{label\}/);
@@ -373,15 +375,6 @@ test("iNrADN équipe tous ses champs libres avec le micro corrigé partagé", ()
   assert.match(reusableTextButton, /placement="inline"/);
   assert.match(reusableTextButton, /mergeMode="paragraph"/);
   assert.match(reusableTextButton, /maxLength=\{maxLength\}/);
-  const missionTextarea = elementWithValue(
-    jsxElements(aiMemoryContent, "textarea"),
-    "memory.mission",
-  );
-  assert.match(missionTextarea, /maxLength=\{800\}/);
-  assert.match(
-    missionTextarea,
-    /readOnly=\{voiceOperationsLocked \|\| voiceBusy\}/,
-  );
 
   const scheduleVoiceButtons = jsxElements(
     businessScheduleEditor,

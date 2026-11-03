@@ -104,15 +104,18 @@ test("l'analyse automatique contourne seulement le quota manuel via le cron priv
   assert.match(vercel, /"path": "\/api\/cron\/business-dna-analysis"/);
 });
 
-test("le bouton de programmation reste sous l'action manuelle et ouvre une modale", () => {
+test("la programmation partage le groupe d’actions de l’analyse et ouvre sa modale", () => {
   const content = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
+  const workspace = read("app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx");
   const modal = read(
     "app/dashboard/settings/_components/BusinessDnaAnalysisScheduleModal.tsx",
   );
   assert.match(
-    content,
-    /t\("analysisButton"\)[\s\S]*?t\("analysisScheduleButton"\)/,
+    workspace,
+    /className=\{styles\.actions\}[\s\S]*?onClick=\{onSchedule\}[\s\S]*?t\("analysisScheduleButton"\)[\s\S]*?onClick=\{onAnalyze\}/,
   );
+  assert.match(content, /onSchedule=\{\(\) => setAnalysisScheduleOpen\(true\)\}/);
+  assert.match(content, /<BusinessDnaAnalysisScheduleModal[\s\S]*?open=\{analysisScheduleOpen\}/);
   assert.match(modal, /role="dialog"/);
   assert.match(modal, /analysisScheduleQuotaHint/);
 });

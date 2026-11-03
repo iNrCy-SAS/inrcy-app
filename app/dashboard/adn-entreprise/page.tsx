@@ -116,7 +116,7 @@ export default function BusinessDnaPage() {
   return (
     <main
       data-business-dna-page
-      data-analysis-viewport={activeWorkspaceTab === "analysis" ? "locked" : undefined}
+      data-analysis-viewport={activeWorkspaceTab === "analysis" ? "scrollable" : undefined}
       data-disable-pull-refresh={voiceBusy ? "true" : undefined}
       style={dashboardWorkspacePageStyle}
     >
@@ -175,53 +175,7 @@ export default function BusinessDnaPage() {
         />
       </section>
 
-      <style jsx global>{`
-        @media (min-width: 721px) and (min-height: 820px) {
-          html:has(main[data-business-dna-page][data-analysis-viewport="locked"]),
-          body:has(main[data-business-dna-page][data-analysis-viewport="locked"]),
-          .inrcy-dashboard-shell:has(main[data-business-dna-page][data-analysis-viewport="locked"]) {
-            height: 100svh !important;
-            min-height: 0 !important;
-            overflow: hidden !important;
-          }
 
-          main[data-business-dna-page][data-analysis-viewport="locked"] {
-            height: 100svh !important;
-            min-height: 0 !important;
-            overflow: hidden !important;
-            display: grid !important;
-            grid-template-rows: auto minmax(0, 1fr);
-            padding-bottom: 14px !important;
-          }
-
-          main[data-business-dna-page][data-analysis-viewport="locked"] > section,
-          main[data-business-dna-page][data-analysis-viewport="locked"] [data-ai-memory-workspace],
-          main[data-business-dna-page][data-analysis-viewport="locked"] [role="tabpanel"] {
-            min-height: 0;
-            display: grid;
-          }
-
-          main[data-business-dna-page][data-analysis-viewport="locked"] [data-ai-memory-workspace] {
-            height: 100%;
-            grid-template-rows: auto minmax(0, 1fr);
-            padding-bottom: 0 !important;
-          }
-
-          main[data-business-dna-page][data-analysis-viewport="locked"] section[data-business-dna-channel-analysis] {
-            height: 100% !important;
-            min-height: 0 !important;
-            align-content: space-between !important;
-            gap: clamp(14px, 1.8vh, 20px) !important;
-            padding: clamp(20px, 2vw, 28px) clamp(14px, 3vw, 34px) clamp(20px, 2.1vw, 28px) !important;
-          }
-
-          main[data-business-dna-page][data-analysis-viewport="locked"] [data-business-dna-analysis-orb] {
-            height: 270px !important;
-            padding-top: 34px !important;
-          }
-
-        }
-      `}</style>
     </main>
   );
 }

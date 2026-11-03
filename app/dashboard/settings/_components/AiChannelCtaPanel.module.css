@@ -372,3 +372,256 @@
 @media (max-height: 800px) and (min-width: 851px) {
   .card, .previewCard { min-height: 310px; padding-top: 23px; padding-bottom: 23px; }
 }
+
+/* Compact CTA editor inside the unified personalization page. */
+:global([data-personalization-configuration="true"]) .panel {
+  gap: 12px;
+}
+
+:global([data-personalization-configuration="true"]) .intro {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 17px;
+  border-color: #a78bfa40;
+  background: radial-gradient(ellipse at 0 0, #38bdf81c, transparent 60%), linear-gradient(115deg, #132b48, #27203f);
+  box-shadow: inset 0 1px 0 #ffffff12;
+}
+
+:global([data-personalization-configuration="true"]) .intro h2 {
+  font-size: 17px;
+  letter-spacing: -.015em;
+}
+
+:global([data-personalization-configuration="true"]) .intro p {
+  display: none;
+}
+
+:global([data-personalization-configuration="true"]) .progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+}
+
+:global([data-personalization-configuration="true"]) .progress strong {
+  font-size: 19px;
+}
+
+:global([data-personalization-configuration="true"]) .channelTabs {
+  gap: 6px;
+  padding: 0;
+}
+
+:global([data-personalization-configuration="true"]) .channelTab {
+  min-height: 33px;
+  padding: 7px 11px;
+  font-size: 11px;
+}
+
+:global([data-personalization-configuration="true"]) .channelTabReady {
+  border-color: #67d7fa66;
+}
+
+:global([data-personalization-configuration="true"]) .dotReady {
+  background: #6dd9ff;
+  box-shadow: 0 0 8px #5ac9ff66;
+}
+
+:global([data-personalization-configuration="true"]) .editorCarousel {
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  gap: 10px;
+}
+
+:global([data-personalization-configuration="true"]) .navArrow {
+  width: 36px;
+  height: 48px;
+  border-radius: 12px;
+  font-size: 28px;
+}
+
+:global([data-personalization-configuration="true"]) .framePair {
+  gap: 14px;
+}
+
+:global([data-personalization-configuration="true"]) :is(.card, .previewCard) {
+  min-height: 265px;
+  padding: 18px;
+  gap: 12px;
+  border-radius: 18px;
+}
+
+:global([data-personalization-configuration="true"]) :is(.cardHeading, .previewHeading) {
+  gap: 10px;
+  padding-bottom: 10px;
+}
+
+:global([data-personalization-configuration="true"]) .cardTitle {
+  gap: 3px;
+}
+
+:global([data-personalization-configuration="true"]) .cardTitle strong {
+  font-size: 20px;
+}
+
+:global([data-personalization-configuration="true"]) :is(.cardTitle small, .previewEyebrow) {
+  font-size: 9px;
+  letter-spacing: .1em;
+}
+
+:global([data-personalization-configuration="true"]) .cardIndex {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+:global([data-personalization-configuration="true"]) .status {
+  padding: 6px 9px;
+  font-size: 10px;
+}
+
+:global([data-personalization-configuration="true"]) .status.ready {
+  border-color: #67d7fa66;
+  background: #0891b21c;
+  color: #b6edff;
+}
+
+:global([data-personalization-configuration="true"]) .controls {
+  gap: 12px;
+}
+
+:global([data-personalization-configuration="true"]) :is(.field, .details) {
+  gap: 6px;
+}
+
+:global([data-personalization-configuration="true"]) .details {
+  column-gap: 10px;
+}
+
+:global([data-personalization-configuration="true"]) .field > span {
+  font-size: 12px;
+}
+
+:global([data-personalization-configuration="true"]) .field input {
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+:global([data-personalization-configuration="true"]) .selectTrigger {
+  min-height: 44px;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 12px;
+}
+
+:global([data-personalization-configuration="true"]) .selectIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  font-size: 16px;
+}
+
+:global([data-personalization-configuration="true"]) .selectValue {
+  font-size: 14px;
+}
+
+:global([data-personalization-configuration="true"]) .dropdownMenu {
+  top: calc(100% + 7px);
+  max-height: min(315px, 43dvh);
+  gap: 6px;
+  padding: 8px;
+  border-radius: 14px;
+}
+
+:global([data-personalization-configuration="true"]) .dropdownOption {
+  min-height: 54px;
+  gap: 8px;
+  padding: 7px 9px;
+}
+
+:global([data-personalization-configuration="true"]) .optionIcon {
+  width: 29px;
+  height: 29px;
+  font-size: 15px;
+}
+
+:global([data-personalization-configuration="true"]) .previewCanvas,
+:global([data-personalization-configuration="true"]) .previewEmpty {
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+}
+
+:global([data-personalization-configuration="true"]) .previewText {
+  padding: 11px 17px;
+  border-radius: 12px;
+  font-size: 15px;
+}
+
+:global([data-personalization-configuration="true"]) :is(.destination, .capability, .previewTarget) {
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+:global([data-personalization-configuration="true"]) .destination {
+  padding: 7px 10px;
+}
+
+@media (max-width: 760px) {
+  :global([data-personalization-configuration="true"]) .intro {
+    align-items: flex-start;
+  }
+
+  :global([data-personalization-configuration="true"]) .intro h2 {
+    font-size: 15px;
+  }
+
+  :global([data-personalization-configuration="true"]) .progress {
+    gap: 4px;
+    padding: 6px 8px;
+  }
+
+  :global([data-personalization-configuration="true"]) :is(.card, .previewCard) {
+    min-height: 0;
+    padding: 14px;
+  }
+
+  :global([data-personalization-configuration="true"]) .previewCanvas {
+    min-height: 135px;
+  }
+}
+
+@media (max-width: 450px) {
+  :global([data-personalization-configuration="true"]) .editorCarousel {
+    grid-template-columns: 26px minmax(0, 1fr) 26px;
+    gap: 4px;
+  }
+
+  :global([data-personalization-configuration="true"]) .navArrow {
+    width: 26px;
+    height: 42px;
+    font-size: 22px;
+  }
+
+  :global([data-personalization-configuration="true"]) .status {
+    padding: 5px 6px;
+  }
+
+  :global([data-personalization-configuration="true"]) .details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global([data-personalization-configuration="true"]) :is(.channelTab, .navArrow, .dropdownOption) {
+    transition: none;
+    transform: none;
+  }
+}

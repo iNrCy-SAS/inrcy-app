@@ -167,13 +167,16 @@ test("every dashboard locale displays the shared document-count limit", () => {
   }
 });
 
-test("the Documents tab uses the signed resumable transport and supports explicit deletion", () => {
+test("the single document attachment action uses signed resumable transport and supports explicit deletion", () => {
   const ui = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
   const transport = read("lib/universalMediaUploadClient.ts");
   const policy = read("lib/mediaUploadPolicy.ts");
 
   assert.match(ui, /\| "documents"/);
-  assert.match(ui, /\{ key: "documents", icon: "📎", label: t\("tabDocuments"\) \}/);
+  assert.doesNotMatch(ui, /\{ key: "documents", icon:/);
+  assert.match(ui, /documents=\{referenceDocumentsSection\}/);
+  assert.match(ui, /onIconClick=\{\(\) => documentInputRef\.current\?\.click\(\)\}/);
+  assert.equal((ui.match(/documentInputRef\.current\?\.click\(\)/g) || []).length, 1, "only the paperclip opens the document picker");
   assert.match(ui, /if \(!documentAnalysisConsent\)/);
   assert.match(ui, /uploadFileToPreparedStorageIntent/);
   assert.match(ui, /prepared\.protocol === "tus"/);
@@ -228,22 +231,13 @@ test("the Documents storage meter derives its usage from the shared backend quot
   assert.equal(reached.status, "reached");
 });
 
-test("the document consent description stays on a distinct readable line", () => {
+test("a consent dialog is required before any document preparation or upload", () => {
   const ui = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
-
-  assert.match(ui, /<span style=\{documentsConsentCopyStyle\}>/);
-  assert.match(
-    ui,
-    /<strong style=\{documentsConsentTitleStyle\}>[\s\S]*?documentsConsentTitle[\s\S]*?<small style=\{documentsConsentDescriptionStyle\}>[\s\S]*?documentsConsentDescription/,
-  );
-  assert.match(
-    ui,
-    /documentsConsentCopyStyle[^;]*display: "grid"[^;]*gap: 5/,
-  );
-  assert.match(
-    ui,
-    /documentsConsentDescriptionStyle[^;]*display: "block"[^;]*lineHeight: 1\.5/,
-  );
+  const uploader = ui.slice(ui.indexOf("const uploadReferenceDocuments = async"), ui.indexOf("const deleteReferenceDocument"));
+  assert.match(uploader, /if \(!documentAnalysisConsent\) \{[\s\S]*?await confirmInrcy\(\{[\s\S]*?title: t\("documentsConsentTitle"\),[\s\S]*?message: t\("documentsConsentDescription"\)/);
+  assert.match(uploader, /if \(!approved\) return;[\s\S]*?setDocumentAnalysisConsent\(true\)/);
+  assert.ok(uploader.indexOf("if (!approved) return") < uploader.indexOf('fetch("/api/ai-memory/documents"'));
+  assert.doesNotMatch(ui, /data-document-consent|documentsConsentCopyStyle/, "the dialog replaces the redundant checkbox block");
 });
 
 test("reference document extracts are part of the shared AI context", () => {
@@ -276,5 +270,5 @@ test("instruction sections remain backward-compatible and allow 1200 characters 
   assert.match(sections, /encodeAiInstructionSections/);
   assert.match(sections, /decodeAiInstructionSections/);
   assert.match(configuration, /maxLength=\{AI_INSTRUCTION_SECTION_MAX_LENGTH\}/);
-  assert.match(configuration, /forbiddenInstructions: form\.forbiddenStyle/);
+  assert.match(configuration, /forbiddenInstructions: submitted\.forbiddenStyle/);
 });

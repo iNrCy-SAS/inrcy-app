@@ -12,11 +12,13 @@ import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import { chooseInrcy, confirmInrcy } from "@/lib/inrcyDialog";
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
   useState,
+  type SetStateAction,
 } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import {
@@ -59,10 +61,10 @@ export type ActivityContentHandle = {
   save: () => Promise<boolean>;
   reset: (options?: { confirm?: boolean }) => Promise<boolean>;
   cancelChanges: () => void;
-  getBusinessKnowledgePatch: () => Pick<
+  getBusinessKnowledgePatch: () => Partial<Pick<
     AiBusinessKnowledge,
     "description" | "services" | "interventionZones" | "strengths" | "customerTypes"
-  >;
+  >>;
 };
 
 type BusinessActivityForm = {
@@ -108,7 +110,17 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
     [],
   );
 
-  const [form, setForm] = useState<BusinessActivityForm>(initial);
+  const [form, setFormState] = useState<BusinessActivityForm>(initial);
+  const formRef = useRef(initial);
+  const loadedOwnerRef = useRef<string | null>(null);
+  const loadedAuthOwnerRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+  const savingRef = useRef(false);
+  const setForm = useCallback((update: SetStateAction<BusinessActivityForm>) => {
+    const next = typeof update === "function" ? update(formRef.current) : update;
+    formRef.current = next;
+    setFormState(next);
+  }, []);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -154,8 +166,6 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
     () => searchActivityJobs(jobSearch, 8),
     [jobSearch],
   );
-
-  const allSelectedServices = form.services;
 
   const card: React.CSSProperties = {
     padding: 16,
@@ -267,6 +277,8 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
   };
 
   useEffect(() => {
+    let active = true;
+    mountedRef.current = true;
     const load = async () => {
       setLoading(true);
       setError("");
@@ -278,14 +290,18 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
         if (authErr) throw new Error(authErr.message);
         const user = authData?.user;
         if (!user) { setError({ loadError: null, unauthenticated: true }); return; }
+        const ownerId = resolveActiveBrowserUserId(user.id);
 
         const { data, error: dbErr } = await supabase
           .from(TABLE)
           .select("*")
-          .eq("user_id", resolveActiveBrowserUserId(user.id))
+          .eq("user_id", ownerId)
           .maybeSingle();
 
         if (dbErr) throw new Error(dbErr.message);
+        if (!active || resolveActiveBrowserUserId(user.id) !== ownerId) return;
+        loadedOwnerRef.current = ownerId;
+        loadedAuthOwnerRef.current = user.id;
         if (!data) {
           loadSucceededRef.current = true;
           return;
@@ -337,14 +353,15 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
         loadSucceededRef.current = true;
       } catch (e: unknown) {
         console.error(e);
-        setError({ loadError: e });
+        if (active) setError({ loadError: e });
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     load();
-  }, []);
+    return () => { active = false; mountedRef.current = false; };
+  }, [setForm]);
 
   useEffect(() => {
     if (loading) return;
@@ -454,19 +471,45 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
     }));
   };
 
+  const getBusinessKnowledgePatch = (): ReturnType<ActivityContentHandle["getBusinessKnowledgePatch"]> => {
+    const current = formRef.current;
+    if (isProfileCore) {
+      // The embedded profession panel does not display description, clients,
+      // strengths or zones. It must never resend stale copies of those fields.
+      const baseline = JSON.parse(activityBaselineRef.current || "{}") as Partial<BusinessActivityForm>;
+      return JSON.stringify(current.services) === JSON.stringify(baseline.services ?? [])
+        ? {} : { services: current.services };
+    }
+    return {
+      description: current.activityDescription.trim(),
+      services: current.services,
+      interventionZones: current.interventionZones,
+      strengths: current.strengths,
+      customerTypes: current.customerTypes,
+    };
+  };
+
   const save = async (): Promise<boolean> => {
-    if (saving || loading) return false;
+    if (savingRef.current || loading) return false;
     if (!loadSucceededRef.current) {
       setSaved(false);
       setError(i18nT("profile_load_failed"));
       return false;
     }
 
+    const submitted = formRef.current;
+    const submittedKnowledgePatch = getBusinessKnowledgePatch();
+    const ownerId = loadedOwnerRef.current;
+    const authOwnerId = loadedAuthOwnerRef.current;
+    const assertOwner = () => {
+      if (!mountedRef.current || !ownerId || !authOwnerId || loadedOwnerRef.current !== ownerId ||
+          resolveActiveBrowserUserId(authOwnerId) !== ownerId) throw new Error(i18nT("activity_save_failed"));
+    };
     const missingRequiredFields: string[] = [];
-    if (!form.sectorCategory.trim()) {
+    if (!submitted.sectorCategory.trim()) {
       missingRequiredFields.push(i18nT("secteur_d_activite_04b6a420"));
     }
-    if (!form.sector.trim()) {
+    if (!submitted.sector.trim()) {
       missingRequiredFields.push(i18nT("metier_96ffe41e"));
     }
     if (missingRequiredFields.length > 0) {
@@ -479,35 +522,39 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
       return false;
     }
 
+    savingRef.current = true;
     setSaving(true);
     setSaved(false);
     setError("");
     try {
+      assertOwner();
       const supabase = createClient();
       const { data: authData, error: authErr } = await supabase.auth.getUser();
       if (authErr) throw new Error(authErr.message);
       const user = authData?.user;
-      if (!user) throw new Error(i18nT("user_not_authenticated"));
+      if (!user || user.id !== authOwnerId) throw new Error(i18nT("user_not_authenticated"));
+      assertOwner();
 
       const payload = {
-        user_id: resolveActiveBrowserUserId(user.id),
+        user_id: ownerId,
         sector: encodeBusinessSector(
-          form.sectorCategory,
-          getJobLabel(form.sectorCategory, form.sector) || form.sector.trim(),
+          submitted.sectorCategory,
+          getJobLabel(submitted.sectorCategory, submitted.sector) || submitted.sector.trim(),
         ),
-        services: allSelectedServices,
-        business_description: form.activityDescription.trim(),
-        intervention_zones: form.interventionZones,
+        ...(!isProfileCore || "services" in submittedKnowledgePatch
+          ? { services: submitted.services } : {}),
         // Dans Mon profil, les horaires appartiennent désormais à l'ADN : ils
         // sont volontairement omis afin de préserver le planning structuré.
         ...(!isProfileCore
           ? {
+              business_description: submitted.activityDescription.trim(),
+              intervention_zones: submitted.interventionZones,
               opening_days: "",
-              opening_hours: normalizeOpeningScheduleText(form.openingSchedule),
+              opening_hours: normalizeOpeningScheduleText(submitted.openingSchedule),
+              strengths: submitted.strengths,
+              customer_typologies: submitted.customerTypes,
             }
           : {}),
-        strengths: form.strengths,
-        customer_typologies: form.customerTypes,
         updated_at: new Date().toISOString(),
       };
 
@@ -515,6 +562,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
         .from(TABLE)
         .upsert(payload, { onConflict: "user_id" });
       if (upErr) throw new Error(upErr.message);
+      assertOwner();
       const [publicProfileRefreshed] = await Promise.all([
         refreshPublicProfileDependents("activity"),
         invalidateBoosterGenerationContextClient("professional"),
@@ -524,9 +572,10 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
       }
 
       const isComplete =
-        form.sectorCategory.trim().length > 0 &&
-        form.sector.trim().length > 0;
+        submitted.sectorCategory.trim().length > 0 &&
+        submitted.sector.trim().length > 0;
 
+      assertOwner();
       if (isComplete) {
         try {
           const resAward = await fetch("/api/loyalty/award", {
@@ -548,18 +597,23 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
         }
       }
 
-      activityBaselineRef.current = activitySnapshot(form);
-      onUnsavedChange?.(false);
-      setSaved(true);
+      assertOwner();
+      activityBaselineRef.current = activitySnapshot(submitted);
+      const stillDirty = activitySnapshot(formRef.current) !== activityBaselineRef.current;
+      onUnsavedChange?.(stillDirty, activitySnapshot(formRef.current));
+      setSaved(!stillDirty);
       await onActivitySaved?.();
       if (mode === "drawer") {
-        window.setTimeout(() => onCloseDrawer?.(), 700);
+        window.setTimeout(() => {
+          if (mountedRef.current && resolveActiveBrowserUserId(authOwnerId!) === ownerId &&
+              activitySnapshot(formRef.current) === activityBaselineRef.current) onCloseDrawer?.();
+        }, 700);
       } else {
         window.setTimeout(() => setSaved(false), 2500);
       }
       return true;
     } catch (e: unknown) {
-      setError(
+      if (mountedRef.current) setError(
         getClientUserFacingErrorMessage(
           e,
           i18nT("activity_save_failed"),
@@ -567,7 +621,8 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
       );
       return false;
     } finally {
-      setSaving(false);
+      savingRef.current = false;
+      if (mountedRef.current) setSaving(false);
     }
   };
 
@@ -626,17 +681,11 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
   };
 
   useImperativeHandle(ref, () => ({
-    isReady: () => !loading && !saving,
+    isReady: () => loadSucceededRef.current && !savingRef.current,
     save,
     reset: handleReset,
     cancelChanges: handleCancelChanges,
-    getBusinessKnowledgePatch: () => ({
-      description: form.activityDescription.trim(),
-      services: allSelectedServices,
-      interventionZones: form.interventionZones,
-      strengths: form.strengths,
-      customerTypes: form.customerTypes,
-    }),
+    getBusinessKnowledgePatch,
   }));
 
   return (
@@ -697,7 +746,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
             }}
           >
             <section data-activity-section="identity" style={{ ...sectionCard, position: "relative", zIndex: jobSearchResultsVisible ? 30 : undefined }}>
-              <div style={sectionHeader}>
+              <div data-activity-heading style={sectionHeader}>
                 {!isProfileCore ? <span style={sectionBubble}>1</span> : null}
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 950 }}>
@@ -707,7 +756,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
                 </div>
               </div>
 
-            <div style={label}>
+            <div data-activity-search style={label}>
               <span style={{ ...labelTitle, fontSize: 15 }}>
                 {i18nT("trouvez_votre_metier_ab343504")}{" "}</span>
               <div style={{ position: "relative" }}>

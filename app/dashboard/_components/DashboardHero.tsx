@@ -32,8 +32,7 @@ type DashboardHeroProps = {
   totalChannels: number;
   uiBalance: number;
   onOpenChannels: () => void;
-  onOpenDna: () => void;
-  onOpenAi: () => void;
+  onOpenPersonalization: () => void;
 };
 
 export default function DashboardHero({
@@ -45,13 +44,12 @@ export default function DashboardHero({
   totalChannels,
   uiBalance,
   onOpenChannels,
-  onOpenDna,
-  onOpenAi,
+  onOpenPersonalization,
 }: DashboardHeroProps) {
   const heroT = useTranslations("dashboard.hero");
   const channelsT = useTranslations("dashboard.channels");
   const locale = useLocale();
-  const [openInfo, setOpenInfo] = useState<"channels" | "dna" | "ai" | null>(null);
+  const [openInfo, setOpenInfo] = useState<"channels" | "dna" | null>(null);
   const cockpitRef = useRef<HTMLDivElement | null>(null);
   const globalPower = Math.round(
     ([generatorPower, dnaPower, aiPower]
@@ -84,8 +82,7 @@ export default function DashboardHero({
   const setupSteps = [
     {
       key: "channels",
-      title: heroT("channelsStepLabel"),
-      actionLabel: heroT("connectStep"),
+      title: heroT("connectChannelsLabel"),
       value: generatorPower,
       action: onOpenChannels,
       infoAria: heroT("channelsInfoAria"),
@@ -94,23 +91,12 @@ export default function DashboardHero({
     },
     {
       key: "dna",
-      title: heroT("dnaStepLabel"),
-      actionLabel: heroT("enrichStep"),
-      value: dnaPower,
-      action: onOpenDna,
-      infoAria: heroT("dnaInfoAria"),
-      infoTitle: heroT("dnaInfoTitle"),
-      infoHint: heroT("dnaInfoHint"),
-    },
-    {
-      key: "ai",
-      title: heroT("aiStepLabel"),
-      actionLabel: heroT("configureStep"),
-      value: aiPower,
-      action: onOpenAi,
-      infoAria: heroT("aiInfoAria"),
-      infoTitle: heroT("aiInfoTitle"),
-      infoHint: heroT("aiInfoHint"),
+      title: heroT("personalizeApplicationLabel"),
+      value: Math.round((Math.min(100, Math.max(0, dnaPower)) + Math.min(100, Math.max(0, aiPower))) / 2),
+      action: onOpenPersonalization,
+      infoAria: heroT("personalizationInfoAria"),
+      infoTitle: heroT("personalizeApplicationLabel"),
+      infoHint: heroT("personalizationInfoHint"),
     },
   ] as const;
 
@@ -140,7 +126,7 @@ export default function DashboardHero({
           </span>
         </header>
 
-        <div className={styles.cockpitStages}>
+        <div className={styles.cockpitStages} data-layout="unified">
           {setupSteps.map((step, index) => (
             <article
               className={`${styles.cockpitStage} ${openInfo === step.key ? styles.cockpitStageInfoOpen : ""}`}
@@ -151,10 +137,11 @@ export default function DashboardHero({
               <div className={styles.cockpitStageHeading}>
                 <span className={styles.cockpitStageNumber}>{index + 1}</span>
                 <div className={styles.cockpitStageTitleWrap}>
-                  <span className={styles.cockpitStageIcon}><HeroIcon name={step.key} /></span>
-                  <div className={styles.cockpitStageLabel}>
+                  <button type="button" onClick={step.action} className={styles.cockpitStageTrigger}>
+                    <span className={styles.cockpitStageIcon}><HeroIcon name={step.key} /></span>
                     <small>{step.title}</small>
-                  </div>
+                    <span className={styles.cockpitStageArrow} aria-hidden="true">›</span>
+                  </button>
                   <button
                     type="button"
                     className={styles.cockpitInfoButton}
@@ -209,7 +196,6 @@ export default function DashboardHero({
                   </span>
                 </div>
               </div>
-              <button type="button" onClick={step.action}>{step.actionLabel}</button>
             </article>
           ))}
         </div>

@@ -256,9 +256,14 @@ test("les informations du header sont lisibles et Fermer ne contient plus de cro
   assert.doesNotMatch(modalCss, /\.close\s*\{[^}]*font-size: 0/);
 });
 
-test("le cockpit garde ses trois actions et son solde UI, les métriques réelles restent dans Stats", () => {
+test("le cockpit réunit deux étapes cliquables et garde son solde UI, les métriques restent dans Stats", () => {
   assert.match(hero, /import styles from "\.\/DashboardHeroPremium\.module\.css"/);
-  for (const action of ["onOpenChannels", "onOpenDna", "onOpenAi"]) assert.ok(hero.includes(`action: ${action}`), action);
+  for (const action of ["onOpenChannels", "onOpenPersonalization"]) assert.ok(hero.includes(`action: ${action}`), action);
+  assert.doesNotMatch(hero, /onOpenDna|onOpenAi/);
+  const steps = hero.slice(hero.indexOf("const setupSteps"), hero.indexOf("] as const", hero.indexOf("const setupSteps")));
+  assert.equal((steps.match(/action:/g) || []).length, 2);
+  assert.match(hero, /<button type="button" onClick=\{step\.action\} className=\{styles\.cockpitStageTrigger\}>/);
+  assert.equal((hero.match(/onClick=\{step\.action\}/g) || []).length, 1, "the title button replaces the duplicate action button");
   assert.match(hero, /uiBalance\.toLocaleString\(locale\)/);
   for (const metric of ["leadsWeek", "leadsMonth", "oppTotal", "estimatedValue"]) assert.ok(modules.includes(`overview.${metric}`), metric);
   assert.match(generator, /onClick=\{onRefreshGenerator\}[\s\S]*?disabled=\{kpisLoading\}/);

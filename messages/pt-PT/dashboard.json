@@ -215,7 +215,11 @@
     "generatedContactsHint": "Estimativa baseada na atividade dos seus canais.",
     "capturedLeads": "Contactos gerados",
     "last7": "Últimos 7 dias",
-    "last30": "Últimos 30 dias"
+    "last30": "Últimos 30 dias",
+    "connectChannelsLabel": "Ligar os meus canais",
+    "personalizeApplicationLabel": "Personalizar a minha aplicação",
+    "personalizationInfoAria": "Compreender o progresso da personalização",
+    "personalizationInfoHint": "Este progresso reúne os dados da sua empresa e as definições de comunicação."
   },
   "generatorSteps": {
     "profile": {
@@ -711,7 +715,22 @@
     "saving": "A guardar…",
     "save": "Guardar o ADN da empresa",
     "analysisBackgroundHint": "Pode sair desta página: a análise continua e o resultado será guardado automaticamente.",
-    "analysisSaved": "Análise guardada: {fields} secções enriquecidas e {items} novos elementos."
+    "analysisSaved": "Análise guardada: {fields} secções enriquecidas e {items} novos elementos.",
+    "analysisSourcesTitle": "Fontes da análise",
+    "analysisChannelsTitle": "Canais",
+    "analysisChannelsDescription": "Os canais ligados estão pré-selecionados. Escolha quais analisar.",
+    "analysisResetButton": "Repor os dados do ADN",
+    "analysisReportTitle": "Balanço da análise",
+    "analysisPreviewEyebrow": "O seu espaço de análise",
+    "analysisSelectedRunHint": "Mantenha este ecrã aberto durante a análise dos canais selecionados.",
+    "analysisSourceItems": "{count} elementos lidos",
+    "analysisSourceUnavailable": "Fonte indisponível",
+    "analysisQuotaLoading": "A carregar a quota…",
+    "analysisQuotaHint": "Quota mensal de análises manuais",
+    "analysisNoSourcesHint": "Ligue um canal ou anexe um documento para iniciar a análise.",
+    "documentsAnalysisTitle": "Anexar documentos à análise",
+    "documentsDropHint": "PDF, imagens ou documentos · 20 MB por ficheiro",
+    "presentationTitle": "Apresentação"
   },
   "aiConfiguration": {
     "pageDescription": "Defina como a IA escreve e adapta cada conteúdo aos seus objetivos.",
@@ -1161,5 +1180,25 @@
       "maximum": "Até nove atividades secundárias.",
       "review": "Alterar a atividade pode exigir uma nova validação pelo Google."
     }
+  },
+  "personalization": {
+    "title": "Personalizar a minha aplicação",
+    "mobileTitle": "Personalização",
+    "subtitle": "A sua empresa, identidade e comunicação no mesmo espaço.",
+    "close": "Fechar",
+    "companyTitle": "A minha empresa",
+    "companyDescription": "Contactos, atividade, clientes e presença local.",
+    "identityTitle": "A minha imagem",
+    "identityDescription": "Missão, valores, personalidade e vocabulário.",
+    "communicationTitle": "A minha comunicação",
+    "communicationDescription": "Estilo, instruções, objetivos e apelos à ação.",
+    "profileLabel": "Contactos e logótipo",
+    "parametersTab": "Estilo e preferências",
+    "instructionsTab": "Instruções e exemplos",
+    "ctasTab": "CTA por canal",
+    "strategyTab": "Objetivos e estratégia",
+    "analysisEntry": "Analisar os meus canais e documentos",
+    "analysisEntryHint": "Preencher e enriquecer os meus dados",
+    "logoShortcut": "Editar o meu logótipo e contactos"
   }
 }

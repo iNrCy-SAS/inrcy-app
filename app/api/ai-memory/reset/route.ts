@@ -29,7 +29,7 @@ function ownedDocumentPath(accountId: string, path: string) {
     !path.includes("..") && !/[\u0000-\u001f]/.test(path);
 }
 
-function resetMemoryForTab(memory: AiMemory, tab: string): AiMemory {
+function resetMemoryForTab(memory: AiMemory, tab: string, preserveVocabulary = false): AiMemory {
   switch (tab) {
     case "local":
       return normalizeAiMemory({ ...memory, contentLocation: undefined }, { includePremium: true });
@@ -46,12 +46,13 @@ function resetMemoryForTab(memory: AiMemory, tab: string): AiMemory {
       return normalizeAiMemory({
         ...memory,
         mission: "",
+        richText: { ...memory.richText, mission: "" },
         differentiators: [],
         values: [],
         brandPersonality: [],
         commitments: [],
-        preferredVocabulary: [],
-        forbiddenVocabulary: [],
+        preferredVocabulary: preserveVocabulary ? memory.preferredVocabulary : [],
+        forbiddenVocabulary: preserveVocabulary ? memory.forbiddenVocabulary : [],
       }, { includePremium: true });
     case "news":
       return normalizeAiMemory({
@@ -74,8 +75,11 @@ function resetMemoryForTab(memory: AiMemory, tab: string): AiMemory {
         richText: {
           ...memory.richText,
           offersAndArguments: "",
+          keyArguments: "",
           proofsAndObjections: "",
+          objectionResponses: "",
           editorialStrategy: "",
+          campaignCalendar: "",
         },
       }, { includePremium: true });
     default:
@@ -145,7 +149,7 @@ export async function POST(request: Request) {
         );
       if (error) throw error;
     } else if (tab !== "documents") {
-      memory = resetMemoryForTab(memory, tab);
+      memory = resetMemoryForTab(memory, tab, body?.preserveVocabulary === true);
       if (tab !== "analysis" && tab !== "profile") {
         const { error } = await supabase
           .from("business_ai_memories")

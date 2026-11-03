@@ -1,0 +1,37 @@
+
+.content { display:grid; align-content:start; gap:12px; min-width:0; min-height:0; }
+.sections { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; padding:5px; border:1px solid #818cf84d; border-radius:15px; background:#08142c99; }
+.sectionButton { min-width:0; min-height:42px; padding:9px 12px; border:1px solid transparent; border-radius:10px; color:#bbc7e0; background:transparent; font:inherit; font-size:13px; cursor:pointer; }
+.sectionButton[aria-pressed="true"] { border-color:#71d9f180; background:linear-gradient(120deg,#145478b8,#523573ad); color:white; box-shadow:inset 0 1px 0 #ffffff26; }
+.sectionButton:hover { border-color:#a2c1f6; }
+.sectionButton:focus-visible { outline:2px solid #bae6fd; outline-offset:3px; }
+.sectionButton:disabled { cursor:wait; }
+.panel { min-width:0; min-height:0; }
+.panel[hidden] { display:none; }
+.score { display:grid; place-items:center; min-width:48px; min-height:38px; border:1px solid #bf9eff7a; border-radius:999px; color:white; background:linear-gradient(125deg,#225d85,#653781); font-weight:850; font-variant-numeric:tabular-nums; }
+.subsections { display:flex; flex-wrap:wrap; gap:6px; padding:5px; border:1px solid #a5b4fc33; border-radius:14px; background:#08142c99; }
+.subsections button { --sub-color:125,211,252; display:flex; justify-content:center; align-items:center; gap:10px; flex:1; min-height:46px; padding:6px 12px; border:1px solid transparent; border-radius:10px; color:#c6cee1; background:transparent; font:inherit; font-size:13px; font-weight:750; cursor:pointer; }
+.subsections button[data-subsection="activity"],.subsections button[data-subsection="ctas"] { --sub-color:110,182,255; }
+.subsections button[data-subsection="audience"],.subsections button[data-subsection="instructions"] { --sub-color:247,140,196; }
+.subsections button[data-subsection="identity"],.subsections button[data-subsection="strategy"] { --sub-color:195,156,255; }
+.subsections button[data-subsection="news"] { --sub-color:255,173,119; }
+.subsectionIcon { display:grid; place-items:center; width:32px; height:32px; flex:0 0 32px; border:1px solid rgba(var(--sub-color),.4); border-radius:10px; color:rgb(var(--sub-color)); background:linear-gradient(135deg,rgba(var(--sub-color),.23),rgba(var(--sub-color),.07)); box-shadow:inset 0 1px 0 #ffffff12; }
+.subsections button:hover { background:rgba(var(--sub-color),.07); }
+.subsections button:focus-visible { outline:2px solid rgb(var(--sub-color)); outline-offset:2px; }
+.subsections button[aria-pressed="true"] { color:white; border-color:#a78bfa66; background:linear-gradient(120deg,#19557a66,#6d3c8c66); }
+@media (min-width:761px) {
+ :global(html:has(main[data-personalization-page][data-analysis-view="true"])), :global(body:has(main[data-personalization-page][data-analysis-view="true"])), :global(.inrcy-dashboard-shell:has(main[data-personalization-page][data-analysis-view="true"])) { height:100dvh !important; min-height:0 !important; overflow:hidden !important; }
+ .page[data-analysis-view="true"] { height:100dvh !important; min-height:0 !important; display:grid !important; grid-template-rows:auto minmax(0,1fr) !important; gap:12px !important; padding:14px 20px !important; overflow:hidden; }
+ .page[data-analysis-view="true"] > .content { height:100%; grid-template-rows:minmax(0,1fr); }
+ .page[data-analysis-view="true"] .panel { height:100%; }
+ .page[data-analysis-view="true"] :global([data-ai-memory-workspace]) { display:grid; height:100%; min-height:0; grid-template-rows:minmax(0,1fr); gap:8px !important; padding-bottom:0 !important; }
+ .page[data-analysis-view="true"] :global([data-ai-memory-active-tab="analysis"]) { height:100%; min-height:0; }
+ .page[data-analysis-view="true"] :global([data-business-dna-channel-analysis]) { height:100% !important; min-height:0 !important; }
+}
+@media (min-width:1101px) {
+ .page > :global([data-dashboard-workspace-header]) { grid-template-columns:minmax(0,1fr) minmax(0,1.65fr) minmax(0,1fr) !important; }
+ .page :global([data-dashboard-workspace-navigation]) { width:100%; justify-self:center; }
+ .page > :global([data-dashboard-workspace-header]) > nav { justify-self:end; }
+}
+@media (max-width:1100px) { .sectionButton { min-height:36px; font-size:12px; } }
+@media (max-width:650px) { .sections { gap:3px; padding:4px; } .sectionButton { padding:7px 5px; min-height:35px; font-size:11px; } .subsections button { flex-basis:calc(50% - 6px); font-size:12px; } }

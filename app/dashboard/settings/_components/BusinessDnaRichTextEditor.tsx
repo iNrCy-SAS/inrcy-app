@@ -11,6 +11,7 @@ import {
 import MediaSubjectVoiceButton from "../../_components/MediaSubjectVoiceButton";
 
 type Props = {
+  id?: string;
   label?: string;
   value: string;
   html: string;
@@ -22,7 +23,48 @@ type Props = {
   onVoiceBusyChange?: (busy: boolean) => void;
 };
 
+type EditorTextSelection = { start: number; end: number };
+
+function captureTextSelection(editor: HTMLDivElement): EditorTextSelection | null {
+  if (document.activeElement !== editor) return null;
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return null;
+  const range = selection.getRangeAt(0);
+  if (!editor.contains(range.commonAncestorContainer)) return null;
+  const prefix = range.cloneRange();
+  prefix.selectNodeContents(editor);
+  prefix.setEnd(range.startContainer, range.startOffset);
+  const start = prefix.toString().length;
+  prefix.setEnd(range.endContainer, range.endOffset);
+  return { start, end: prefix.toString().length };
+}
+
+function restoreTextSelection(editor: HTMLDivElement, saved: EditorTextSelection | null) {
+  if (!saved) return;
+  const boundary = (position: number) => {
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+    let remaining = position;
+    let node = walker.nextNode();
+    while (node) {
+      const length = node.textContent?.length ?? 0;
+      if (remaining <= length) return { node, offset: remaining };
+      remaining -= length;
+      node = walker.nextNode();
+    }
+    return { node: editor as Node, offset: editor.childNodes.length };
+  };
+  const start = boundary(saved.start);
+  const end = boundary(saved.end);
+  const range = document.createRange();
+  range.setStart(start.node, start.offset);
+  range.setEnd(end.node, end.offset);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
 export default function BusinessDnaRichTextEditor({
+  id,
   label,
   value,
   html,
@@ -49,7 +91,7 @@ export default function BusinessDnaRichTextEditor({
     const nextHtml = sanitizeBusinessDnaRichHtml(html || businessDnaTextToHtml(value));
     if (nextHtml === lastHtmlRef.current || nextHtml === editor.innerHTML) return;
     editor.innerHTML = nextHtml;
-    lastHtmlRef.current = nextHtml;
+    lastHtmlRef.current = editor.innerHTML;
     setEmpty(!value.trim());
   }, [html, value]);
 
@@ -80,11 +122,18 @@ export default function BusinessDnaRichTextEditor({
     if (nextText.length > maxLength) {
       nextText = nextText.slice(0, maxLength);
       nextHtml = businessDnaTextToHtml(nextText);
-      editor.innerHTML = nextHtml;
     }
-    lastHtmlRef.current = nextHtml;
+    if (nextHtml !== editor.innerHTML) {
+      const selection = captureTextSelection(editor);
+      editor.innerHTML = nextHtml;
+      restoreTextSelection(editor, selection);
+    }
+    // Keep the live DOM and persisted HTML identical, including after a
+    // formatting command that created an invalid paragraph/list structure.
+    const canonicalHtml = editor.innerHTML;
+    lastHtmlRef.current = canonicalHtml;
     setEmpty(!nextText.trim());
-    onChange({ text: nextText, html: nextHtml });
+    onChange({ text: nextText, html: canonicalHtml });
   };
 
   const applyVoiceChange = (nextValue: string) => {
@@ -113,9 +162,10 @@ export default function BusinessDnaRichTextEditor({
     const synchronizedText = businessDnaHtmlToPlainText(nextHtml).slice(0, maxLength);
     const editor = editorRef.current;
     if (editor) editor.innerHTML = nextHtml;
-    lastHtmlRef.current = nextHtml;
+    const canonicalHtml = editor?.innerHTML ?? nextHtml;
+    lastHtmlRef.current = canonicalHtml;
     setEmpty(!synchronizedText);
-    onChange({ text: synchronizedText, html: nextHtml });
+    onChange({ text: synchronizedText, html: canonicalHtml });
   };
 
   const handleVoiceBusyChange = (busy: boolean) => {
@@ -197,6 +247,7 @@ export default function BusinessDnaRichTextEditor({
       <div style={{ position: "relative", minWidth: 0 }}>
         {empty ? <span style={placeholderStyle}>{placeholder}</span> : null}
         <div
+          id={id}
           ref={editorRef}
           contentEditable={!editorLocked}
           suppressContentEditableWarning

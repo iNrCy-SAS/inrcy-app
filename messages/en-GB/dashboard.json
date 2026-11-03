@@ -215,7 +215,11 @@
     "generatedContactsHint": "Estimated from activity across your channels.",
     "capturedLeads": "Contacts generated",
     "last7": "Last 7 days",
-    "last30": "Last 30 days"
+    "last30": "Last 30 days",
+    "connectChannelsLabel": "Connect my channels",
+    "personalizeApplicationLabel": "Personalise my application",
+    "personalizationInfoAria": "Understand personalisation progress",
+    "personalizationInfoHint": "This progress combines your business information and communication settings."
   },
   "generatorSteps": {
     "profile": {
@@ -711,7 +715,22 @@
     "saving": "Saving…",
     "save": "Save Business DNA",
     "analysisBackgroundHint": "You can leave this page: the analysis will continue and its result will be saved automatically.",
-    "analysisSaved": "Analysis saved: {fields} sections enriched and {items} new items."
+    "analysisSaved": "Analysis saved: {fields} sections enriched and {items} new items.",
+    "analysisSourcesTitle": "Analysis sources",
+    "analysisChannelsTitle": "Channels",
+    "analysisChannelsDescription": "Connected channels are preselected. Choose which ones to analyse.",
+    "analysisResetButton": "Reset business DNA information",
+    "analysisReportTitle": "Analysis report",
+    "analysisPreviewEyebrow": "Your analysis workspace",
+    "analysisSelectedRunHint": "Keep this screen open while the selected channels are analysed.",
+    "analysisSourceItems": "{count} items read",
+    "analysisSourceUnavailable": "Source unavailable",
+    "analysisQuotaLoading": "Loading quota…",
+    "analysisQuotaHint": "Monthly manual analysis allowance",
+    "analysisNoSourcesHint": "Connect a channel or attach a document to start the analysis.",
+    "documentsAnalysisTitle": "Attach documents to the analysis",
+    "documentsDropHint": "PDF, images or documents · 20 MB per file",
+    "presentationTitle": "Overview"
   },
   "aiConfiguration": {
     "pageDescription": "Set how AI writes and adapts every piece of content to your goals.",
@@ -1161,5 +1180,25 @@
       "maximum": "Up to nine additional categories.",
       "review": "Changing a category may require Google to verify your business again."
     }
+  },
+  "personalization": {
+    "title": "Personalise my application",
+    "mobileTitle": "Personalisation",
+    "subtitle": "Your business, identity and communication, together in one place.",
+    "close": "Close",
+    "companyTitle": "My business",
+    "companyDescription": "Contact details, activity, customers and local presence.",
+    "identityTitle": "My identity",
+    "identityDescription": "Mission, values, personality and vocabulary.",
+    "communicationTitle": "My communication",
+    "communicationDescription": "Style, instructions, goals and calls to action.",
+    "profileLabel": "Contact & logo",
+    "parametersTab": "Style and preferences",
+    "instructionsTab": "Instructions and examples",
+    "ctasTab": "CTAs by channel",
+    "strategyTab": "Goals and strategy",
+    "analysisEntry": "Analyse my channels and documents",
+    "analysisEntryHint": "Fill in and enrich my information",
+    "logoShortcut": "Edit my logo and contact details"
   }
 }

@@ -14,7 +14,7 @@ import {
 } from "@/lib/browserAccountCache";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 
-import { useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type Ref } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabaseClient";
 import { APP_LANGUAGE_OPTIONS, APP_LANGUAGE_STORAGE_KEY, type AppLanguageCode, normalizeAppLanguage } from "@/lib/appLanguage";
@@ -53,13 +53,23 @@ type Props = {
   edition?: DashboardEdition;
   onOpenAiMemory?: () => void;
   onSaved?: () => void | Promise<void>;
+  onAutoSaved?: () => void | Promise<void>;
+  persistenceRef?: Ref<AiConfigurationContentHandle>;
+  onVocabularyTargetChange?: (target: HTMLDivElement | null) => void;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
   onVoiceBusyChange?: (busy: boolean) => void;
   hideAiMemoryShortcut?: boolean;
   workspaceMode?: boolean;
+  initialTab?: AiConfigurationTab;
+  hideNavigation?: boolean;
 };
 
-type AiConfigurationTab = "parameters" | "ctas" | "instructions";
+export type AiConfigurationTab = "parameters" | "ctas" | "instructions";
+export type AiConfigurationContentHandle = {
+  savePendingChanges: () => Promise<boolean>;
+  discardPendingChanges: () => void;
+};
+type SaveReason = "manual" | "automatic" | "flush";
 type AiConfigurationVoiceTarget =
   | "likedExample"
   | "likedExample2"
@@ -443,17 +453,23 @@ export default function AiConfigurationContent({
   edition = "standard",
   onOpenAiMemory,
   onSaved,
+  onAutoSaved,
+  persistenceRef,
+  onVocabularyTargetChange,
   onUnsavedChange,
   onVoiceBusyChange,
   hideAiMemoryShortcut = false,
   workspaceMode = false,
+  initialTab = "parameters",
+  hideNavigation = false,
 }: Props) {
   const i18nT = useTranslations("settings");
   const sectionT = useTranslations("dashboard.settingsSections");
   const memoryT = useTranslations("dashboard.aiMemory");
   const configurationT = useTranslations("dashboard.aiConfiguration");
   const premiumAccess = hasPremiumDashboardAccess(edition);
-  const [activeTab, setActiveTab] = useState<AiConfigurationTab>("parameters");
+  const [activeTab, setActiveTab] = useState<AiConfigurationTab>(initialTab);
+  useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
   const [form, setForm] = useState<AiConfigForm>(initialForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -463,11 +479,23 @@ export default function AiConfigurationContent({
   const [voiceTarget, setVoiceTarget] = useState<AiConfigurationVoiceTarget | null>(null);
   const voiceFieldIdPrefix = useId();
   const savedFormSignatureRef = useRef("");
+  const savedFormRef = useRef<AiConfigForm>(initialForm);
+  const formRef = useRef<AiConfigForm>(initialForm);
+  const inFlightSaveRef = useRef<Promise<boolean> | null>(null);
+  const failedSaveSignatureRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
   const loadSucceededRef = useRef(false);
   const activeUserIdRef = useRef<string | null>(null);
+  const authUserIdRef = useRef<string | null>(null);
   const voiceTargetRef = useRef<AiConfigurationVoiceTarget | null>(null);
   const selectedEngineOption = getAiEngineOption(form.preferredEngine);
   const voiceBusy = voiceTarget !== null;
+  const draftSignature = configurationSignature(form);
+  const hasUnsavedChanges = savedFormSignatureRef.current !== "" && savedFormSignatureRef.current !== draftSignature;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   useEffect(() => { onVoiceBusyChange?.(voiceBusy); }, [onVoiceBusyChange, voiceBusy]);
 
   useEffect(() => {
@@ -579,6 +607,8 @@ export default function AiConfigurationContent({
 
   const onConfigurationLoaded = useEffectEvent((input: Omit<Parameters<typeof resolveCompatibleAiConfiguration>[0], "edition">) => {
     const nextForm = resolveCompatibleAiConfiguration({ ...input, edition });
+    formRef.current = nextForm;
+    savedFormRef.current = nextForm;
     setForm(nextForm);
     savedFormSignatureRef.current = configurationSignature(nextForm);
     loadSucceededRef.current = true;
@@ -589,6 +619,7 @@ export default function AiConfigurationContent({
   });
 
   useEffect(() => {
+    let cancelled = false;
     const load = async () => {
       setLoading(true);
       setError("");
@@ -598,8 +629,10 @@ export default function AiConfigurationContent({
         const { data: authData, error: authErr } = await supabase.auth.getUser();
         if (authErr) throw new Error(authErr.message);
         const user = authData?.user;
+        if (cancelled) return;
         const activeUserId = user ? resolveActiveBrowserUserId(user.id) : null;
         activeUserIdRef.current = activeUserId;
+        authUserIdRef.current = user?.id ?? null;
 
         let legacyGlobalValue: string | null = null;
         try { legacyGlobalValue = localStorage.getItem(STORAGE_KEY); } catch {}
@@ -646,6 +679,7 @@ export default function AiConfigurationContent({
           );
         }
 
+        if (cancelled) return;
         onConfigurationLoaded({
           local,
           businessProfile,
@@ -653,18 +687,21 @@ export default function AiConfigurationContent({
           useDbLanguage,
         });
       } catch (e) {
-        onConfigurationLoadFailed(e);
+        if (!cancelled) onConfigurationLoadFailed(e);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     load();
+    return () => { cancelled = true; };
   }, []);
 
   const set = <K extends keyof AiConfigForm>(key: K, value: AiConfigForm[K]) => {
     setSaved(false);
     setError("");
-    setForm((current) => ({ ...current, [key]: value }));
+    const next = { ...formRef.current, [key]: value };
+    formRef.current = next;
+    setForm(next);
   };
 
   const voiceDisabledFor = (target: AiConfigurationVoiceTarget) =>
@@ -682,50 +719,83 @@ export default function AiConfigurationContent({
     set("language", value);
   };
 
-  const save = async () => {
-    if (saving || voiceBusy) return;
+  const notifyManualSave = () => {
+    if (!onSaved) return;
+    const ownerId = activeUserIdRef.current;
+    const authOwnerId = authUserIdRef.current;
+    // Existing drawers close from onSaved. Let their dirty guards settle and
+    // never close over edits or dictation started during this short delay.
+    window.setTimeout(() => {
+      if (!mountedRef.current || voiceTargetRef.current || !authOwnerId ||
+          resolveActiveBrowserUserId(authOwnerId) !== ownerId || ownerId !== activeUserIdRef.current ||
+          configurationSignature(formRef.current) !== savedFormSignatureRef.current) return;
+      void Promise.resolve().then(() => onSaved()).catch(() => undefined);
+    }, 900);
+  };
+
+  const save = (reason: SaveReason = "manual"): Promise<boolean> => {
+    if (inFlightSaveRef.current) return inFlightSaveRef.current;
+    if (voiceTargetRef.current) return Promise.resolve(false);
     if (!loadSucceededRef.current) {
       setError(i18nT("ai_configuration_load_failed"));
-      return;
+      return Promise.resolve(false);
     }
+    const submitted = formRef.current;
+    const submittedSignature = configurationSignature(submitted);
+    if (submittedSignature === savedFormSignatureRef.current) {
+      if (reason === "manual") notifyManualSave();
+      return Promise.resolve(true);
+    }
+    const ownerId = activeUserIdRef.current;
+    const authOwnerId = authUserIdRef.current;
+    // A draft belongs to the account that loaded it. Resolving the account
+    // again must never send that draft to a newly selected account.
+    const assertOwner = () => {
+      if (!ownerId || !authOwnerId || activeUserIdRef.current !== ownerId ||
+          authUserIdRef.current !== authOwnerId || resolveActiveBrowserUserId(authOwnerId) !== ownerId) {
+        throw new Error(i18nT("ai_configuration_save_failed"));
+      }
+    };
+    failedSaveSignatureRef.current = null;
     setSaving(true);
     setSaved(false);
     setError("");
-    try {
-      const normalizedChannelCtas = normalizeAiChannelCtaMap(form.channelCtas);
-      const ctaDestinations: AiChannelCtaDestinations | null = Object.keys(form.channelCtas).length
-        ? await fetch("/api/booster/cta-defaults", { cache: "no-store", credentials: "include" })
-          .then(async (response) => response.ok ? response.json() as Promise<AiChannelCtaDestinations> : null)
-          .catch(() => null)
-        : null;
-      const incompleteChannel = AI_CTA_CHANNELS.find(({ key }) =>
-        form.channelCtas[key] && !isAiChannelCtaComplete(key, normalizedChannelCtas[key], ctaDestinations),
-      );
-      if (incompleteChannel) {
-        setActiveTab("ctas");
-        throw new Error(`Complétez le lien ou le numéro du CTA ${incompleteChannel.label} avant d’enregistrer.`);
-      }
-      const safeWebLength = enforceAiContentLengthForEdition(form.webLength, edition);
-      const safeSocialLength = enforceAiContentLengthForEdition(form.socialLength, edition);
-      const safeForm = {
-        ...form,
-        channelCtas: normalizedChannelCtas,
-        webLength: safeWebLength,
-        socialLength: safeSocialLength,
-      };
-      const supabase = createClient();
-      const { data: authData, error: authErr } = await supabase.auth.getUser();
-      if (authErr) throw new Error(authErr.message);
-      const user = authData?.user;
-      const activeUserId = user ? resolveActiveBrowserUserId(user.id) : activeUserIdRef.current;
-      activeUserIdRef.current = activeUserId;
-      if (user) {
+    const request = Promise.resolve().then(async () => {
+      try {
+        assertOwner();
+        const normalizedChannelCtas = normalizeAiChannelCtaMap(submitted.channelCtas);
+        const ctaDestinations: AiChannelCtaDestinations | null = Object.keys(submitted.channelCtas).length
+          ? await fetch("/api/booster/cta-defaults", { cache: "no-store", credentials: "include" })
+            .then(async (response) => response.ok ? response.json() as Promise<AiChannelCtaDestinations> : null)
+            .catch(() => null)
+          : null;
+        const incompleteChannel = AI_CTA_CHANNELS.find(({ key }) =>
+          submitted.channelCtas[key] && !isAiChannelCtaComplete(key, normalizedChannelCtas[key], ctaDestinations),
+        );
+        if (incompleteChannel) {
+          if (reason === "manual") setActiveTab("ctas");
+          throw new Error(`Complétez le lien ou le numéro du CTA ${incompleteChannel.label} avant d’enregistrer.`);
+        }
+        const safeWebLength = enforceAiContentLengthForEdition(submitted.webLength, edition);
+        const safeSocialLength = enforceAiContentLengthForEdition(submitted.socialLength, edition);
+        const safeForm = {
+          ...submitted,
+          channelCtas: normalizedChannelCtas,
+          webLength: safeWebLength,
+          socialLength: safeSocialLength,
+        };
+        const supabase = createClient();
+        const { data: authData, error: authErr } = await supabase.auth.getUser();
+        if (authErr) throw new Error(authErr.message);
+        const user = authData?.user;
+        if (!user || user.id !== authOwnerId) throw new Error(i18nT("ai_configuration_save_failed"));
+        assertOwner();
         const basePayload = {
-          user_id: activeUserId,
-          ai_preferred_engine: form.preferredEngine,
-          tone: form.tone,
-          communication_style: form.textStyle,
-          emoji_level: form.emojiLevel,
+          user_id: ownerId,
+          ai_preferred_engine: submitted.preferredEngine,
+          tone: submitted.tone,
+          communication_style: submitted.textStyle,
+          emoji_level: submitted.emojiLevel,
           // Compatibilité descendante : les anciens clients continuent à
           // comprendre ai_length jusqu'à leur migration complète.
           ai_length: safeSocialLength === "long" || safeSocialLength === "deep"
@@ -735,83 +805,121 @@ export default function AiConfigurationContent({
               : safeSocialLength,
           ai_web_length: safeWebLength,
           ai_social_length: safeSocialLength,
-          address_mode: form.addressMode,
-          ai_voice: form.pronoun,
-          ai_creativity: form.originality,
-          ai_commercial_level: form.commercialLevel,
-          ai_technicality_level: form.technicalityLevel,
-          ai_humor_level: form.humorLevel,
-          ai_main_goal: form.mainGoal,
-          ai_preferred_angle: form.preferredAngle,
-          ai_language: form.language,
-          ai_liked_example: form.likedExample.trim(),
+          address_mode: submitted.addressMode,
+          ai_voice: submitted.pronoun,
+          ai_creativity: submitted.originality,
+          ai_commercial_level: submitted.commercialLevel,
+          ai_technicality_level: submitted.technicalityLevel,
+          ai_humor_level: submitted.humorLevel,
+          ai_main_goal: submitted.mainGoal,
+          ai_preferred_angle: submitted.preferredAngle,
+          ai_language: submitted.language,
+          ai_liked_example: submitted.likedExample.trim(),
           ai_custom_instructions: encodeAiInstructionSections({
-            instructions: form.instructions,
-            forbiddenInstructions: form.forbiddenStyle,
+            instructions: submitted.instructions,
+            forbiddenInstructions: submitted.forbiddenStyle,
           }),
           updated_at: new Date().toISOString(),
         };
         const ctaPayload = { ...basePayload, ai_channel_ctas: normalizedChannelCtas };
         let { error: upErr } = await supabase.from(TABLE).upsert(
-          { ...ctaPayload, ai_liked_example_2: form.likedExample2.trim() },
+          { ...ctaPayload, ai_liked_example_2: submitted.likedExample2.trim() },
           { onConflict: "user_id" },
         );
         if (upErr && /ai_liked_example_2|schema cache|column/i.test(upErr.message) && !/ai_channel_ctas/i.test(upErr.message)) {
+          assertOwner();
           ({ error: upErr } = await supabase.from(TABLE).upsert(ctaPayload, { onConflict: "user_id" }));
         }
         if (upErr && /ai_channel_ctas/i.test(upErr.message)) {
           if (Object.keys(normalizedChannelCtas).length) {
             throw new Error("La configuration CTA n’est pas encore disponible sur ce compte. Réessayez après sa mise à jour.");
           }
+          assertOwner();
           ({ error: upErr } = await supabase.from(TABLE).upsert(basePayload, { onConflict: "user_id" }));
         }
         if (upErr) throw new Error(upErr.message);
+        assertOwner();
         await invalidateBoosterGenerationContextClient("professional");
-      }
-      if (activeUserId) {
-        writeAccountCacheValue(STORAGE_KEY, JSON.stringify(safeForm), activeUserId);
-        markAiLanguageCustom(activeUserId);
-      }
+        assertOwner();
+        writeAccountCacheValue(STORAGE_KEY, JSON.stringify(safeForm), ownerId);
+        markAiLanguageCustom(ownerId);
 
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("inrcy:ai-configuration-updated", {
-          detail: {
-              aiPreferredEngine: form.preferredEngine,
-              aiLanguage: form.language,
-              channelCtas: normalizedChannelCtas,
-              aiWebLength: safeWebLength,
-              aiSocialLength: safeSocialLength,
-          },
-        }));
-      }
-
-      // Reflect normalized links/phone numbers as well as edition-safe lengths
-      // so the unsaved-change guard matches the persisted configuration.
-      setForm(safeForm);
-      savedFormSignatureRef.current = configurationSignature(safeForm);
-      // The saved signature changes without changing `form`, so the dirty
-      // effect does not necessarily rerun. Clear the parent guard immediately
-      // before the drawer's delayed close callback executes.
-      onUnsavedChange?.(false);
-      setSaved(true);
-      if (onSaved) {
         if (typeof window !== "undefined") {
-          window.setTimeout(() => onSaved(), 900);
-        } else {
-          onSaved();
+          window.dispatchEvent(new CustomEvent("inrcy:ai-configuration-updated", {
+            detail: {
+                aiPreferredEngine: submitted.preferredEngine,
+                aiLanguage: submitted.language,
+                channelCtas: normalizedChannelCtas,
+                aiWebLength: safeWebLength,
+                aiSocialLength: safeSocialLength,
+            },
+          }));
         }
+
+        // Only normalize the submitted draft if the user has not typed more
+        // since the request started. Newer edits stay dirty for the next save.
+        savedFormSignatureRef.current = configurationSignature(safeForm);
+        savedFormRef.current = safeForm;
+        const unchanged = configurationSignature(formRef.current) === submittedSignature;
+        if (unchanged) formRef.current = safeForm;
+        if (mountedRef.current) {
+          if (unchanged) setForm(safeForm);
+          const stillDirty = configurationSignature(formRef.current) !== savedFormSignatureRef.current;
+          onUnsavedChange?.(stillDirty);
+          setSaved(!stillDirty);
+          if (reason === "manual" && !stillDirty) notifyManualSave();
+          else if (reason !== "manual") void Promise.resolve().then(() => onAutoSaved?.()).catch(() => undefined);
+        }
+        return true;
+      } catch (e) {
+        failedSaveSignatureRef.current = submittedSignature;
+        if (!mountedRef.current) return false;
+        const message = e instanceof Error ? e.message : String(e);
+        if (/ai_preferred_engine|ai_commercial_level|ai_technicality_level|ai_humor_level|ai_main_goal|ai_preferred_angle|ai_liked_example|ai_language|ai_web_length|ai_social_length/i.test(message)) {
+          setError(i18nT("il_faut_d_abord_executer_le_eaabb47e"));
+        } else {
+          setError(getClientUserFacingErrorMessage(e, i18nT("ai_configuration_save_failed")));
+        }
+        return false;
+      } finally {
+        inFlightSaveRef.current = null;
+        if (mountedRef.current) setSaving(false);
       }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      if (/ai_preferred_engine|ai_commercial_level|ai_technicality_level|ai_humor_level|ai_main_goal|ai_preferred_angle|ai_liked_example|ai_language|ai_web_length|ai_social_length/i.test(message)) {
-        setError(i18nT("il_faut_d_abord_executer_le_eaabb47e"));
-      } else {
-        setError(getClientUserFacingErrorMessage(e, i18nT("ai_configuration_save_failed")));
-      }
-    } finally {
-      setSaving(false);
-    }
+    });
+    inFlightSaveRef.current = request;
+    return request;
   };
+
+  const performAutomaticSave = useEffectEvent(() => { void save("automatic"); });
+  useEffect(() => {
+    if (loading || saving || voiceBusy || !loadSucceededRef.current || !hasUnsavedChanges ||
+        failedSaveSignatureRef.current === draftSignature) return;
+    const timer = window.setTimeout(() => performAutomaticSave(), 800);
+    return () => window.clearTimeout(timer);
+  }, [draftSignature, hasUnsavedChanges, loading, saving, voiceBusy]);
+
+  useImperativeHandle(persistenceRef, () => ({
+    savePendingChanges: async () => {
+      if (voiceTargetRef.current) return false;
+      if (inFlightSaveRef.current && !await inFlightSaveRef.current) return false;
+      // If typing continued while a request was running, persist that newer
+      // draft before allowing navigation to close the workspace.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (configurationSignature(formRef.current) === savedFormSignatureRef.current) return true;
+        if (!await save("flush")) return false;
+      }
+      return configurationSignature(formRef.current) === savedFormSignatureRef.current;
+    },
+    discardPendingChanges: () => {
+      if (inFlightSaveRef.current || voiceTargetRef.current) return;
+      formRef.current = savedFormRef.current;
+      setForm(savedFormRef.current);
+      failedSaveSignatureRef.current = null;
+      setSaved(false);
+      setError("");
+      onUnsavedChange?.(false);
+    },
+  }));
 
   const reset = async () => {
     if (voiceBusy) return;
@@ -822,7 +930,9 @@ export default function AiConfigurationContent({
       variant: "warning",
     });
     if (!confirmed) return;
-    setForm({ ...initialForm, language: readDefaultAppLanguage() });
+    const next = { ...initialForm, language: readDefaultAppLanguage() };
+    formRef.current = next;
+    setForm(next);
     setSaved(false);
     setError("");
     const activeUserId = activeUserIdRef.current;
@@ -838,6 +948,7 @@ export default function AiConfigurationContent({
     <div
       className={colorStyles.configuration}
       data-ai-configuration-workspace={workspaceMode ? "true" : "false"}
+      data-personalization-configuration={hideNavigation && workspaceMode ? "true" : undefined}
       aria-busy={voiceBusy}
       style={{ display: "grid", gap: workspaceMode ? 13 : 16, minWidth: 0, maxWidth: "100%", overflow: "visible" }}
     >
@@ -882,13 +993,13 @@ export default function AiConfigurationContent({
           <span aria-hidden style={{ fontSize: 24 }}>🧠</span>
           <span style={{ display: "grid", gap: 3, minWidth: 0 }}>
             <strong style={{ fontSize: 14 }}>{memoryT("openTitle")}</strong>
-            <span style={hint}>{memoryT("openDescription")}</span>
+            <span data-ai-hint style={hint}>{memoryT("openDescription")}</span>
           </span>
           <span aria-hidden style={{ color: "#c4b5fd", fontSize: 20 }}>›</span>
         </button>
       ) : null}
 
-      <DrawerHeaderTabs>
+      {!hideNavigation ? <DrawerHeaderTabs>
       <nav
         data-ai-configuration-desktop-tabs
         aria-label={configurationT("tabsLabel")}
@@ -952,26 +1063,26 @@ export default function AiConfigurationContent({
         ariaLabel={configurationT("tabsLabel")}
         disabled={voiceBusy}
       />
-      </DrawerHeaderTabs>
+      </DrawerHeaderTabs> : null}
 
       <div style={loading ? card : { display: "grid", gap: 12 }}>
         {loading ? (
           <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 13 }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
-          <div style={{ display: "grid", gap: workspaceMode ? 14 : 14 }}>
+          <div data-ai-configuration-body style={{ display: "grid", gap: workspaceMode ? 14 : 14 }}>
             {activeTab === "parameters" ? (
               <div
                 data-ai-parameters-grid={workspaceMode ? "workspace" : "default"}
                 style={workspaceMode ? workspaceParametersGridStyle : defaultParametersGridStyle}
               >
             <section data-ai-section="foundation" style={workspaceMode ? { ...configurationCard, height: "100%" } : configurationCard}>
-              <div style={configurationHeader}>
+              <div data-ai-card-heading style={configurationHeader}>
                 <span style={configurationBubble}>1</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 950 }}>
                     {sectionT("aiFoundationTitle")}
                   </div>
-                  <div style={hint}>{sectionT("aiFoundationDescription")}</div>
+                  <div data-ai-hint style={hint}>{sectionT("aiFoundationDescription")}</div>
                 </div>
               </div>
 
@@ -1015,7 +1126,7 @@ export default function AiConfigurationContent({
                     </option>
                   ))}
                 </select>
-                <span style={hint}>
+                <span data-ai-hint style={hint}>
                   {i18nT("tendance_f01115d3")}{" "}{selectedEngineOption.naturalTendency} {" "}{i18nT("inrcy_garde_vos_regles_metier_3bcab680")}{" "}{!selectedEngineOption.supportsVision
                     ? i18nT("les_images_passent_par_une_analyse_95521dc0")
                     : ""}
@@ -1034,13 +1145,13 @@ export default function AiConfigurationContent({
             </section>
 
             <section data-ai-section="style" style={workspaceMode ? { ...configurationCard, height: "100%", zIndex: 4 } : configurationCard}>
-              <div style={configurationHeader}>
+              <div data-ai-card-heading style={configurationHeader}>
                 <span style={configurationBubble}>2</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 950 }}>
                     {i18nT("style_des_contenus_c6452c23")}
                   </div>
-                  <div style={hint}>{sectionT("aiVoiceDescription")}</div>
+                  <div data-ai-hint style={hint}>{sectionT("aiVoiceDescription")}</div>
                 </div>
               </div>
 
@@ -1099,7 +1210,7 @@ export default function AiConfigurationContent({
                       }}
                       controlStyle={input}
                     />
-                    <span style={hint}>{memoryT("webLengthLabel")}</span>
+                    <span data-ai-length-label style={hint}>{memoryT("webLengthLabel")}</span>
                   </div>
 
                   <div style={styleSecondaryFieldStyle}>
@@ -1119,7 +1230,7 @@ export default function AiConfigurationContent({
                       }}
                       controlStyle={input}
                     />
-                    <span style={hint}>{memoryT("socialLengthLabel")}</span>
+                    <span data-ai-length-label style={hint}>{memoryT("socialLengthLabel")}</span>
                   </div>
 
                   <label style={styleSecondaryFieldStyle}>
@@ -1129,7 +1240,7 @@ export default function AiConfigurationContent({
                       <option value="light" style={selectOption}>{i18nT("leger_8ad52b02")}</option>
                       <option value="dynamic" style={selectOption}>{i18nT("beaucoup_32bb785f")}</option>
                     </select>
-                    <span style={hint}>{configurationT("emojiHint")}</span>
+                    <span data-ai-hint style={hint}>{configurationT("emojiHint")}</span>
                   </label>
                 </div>
 
@@ -1138,13 +1249,13 @@ export default function AiConfigurationContent({
             </section>
 
             <section data-ai-section="voice" style={workspaceMode ? { ...configurationCard, height: "100%" } : configurationCard}>
-              <div style={configurationHeader}>
+              <div data-ai-card-heading style={configurationHeader}>
                 <span style={configurationBubble}>3</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 950 }}>
                     {i18nT("facon_de_parler_aa932a4e")}
                   </div>
-                  <div style={hint}>{configurationT("voiceCardDescription")}</div>
+                  <div data-ai-hint style={hint}>{configurationT("voiceCardDescription")}</div>
                 </div>
               </div>
 
@@ -1199,19 +1310,19 @@ export default function AiConfigurationContent({
             </section>
 
             <section data-ai-section="goals" style={workspaceMode ? { ...configurationCard, height: "100%" } : configurationCard}>
-              <div style={configurationHeader}>
+              <div data-ai-card-heading style={configurationHeader}>
                 <span style={configurationBubble}>4</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 950 }}>
                     {sectionT("aiGoalsTitle")}
                   </div>
-                  <div style={hint}>{sectionT("aiGoalsDescription")}</div>
+                  <div data-ai-hint style={hint}>{sectionT("aiGoalsDescription")}</div>
                 </div>
               </div>
 
             <div style={{ display: "grid", gap: 12 }}>
               <div style={sectionTitle}>{i18nT("objectif_des_contenus_2c129870")}</div>
-              <div style={grid2}>
+              <div data-ai-goals-fields style={grid2}>
                 <label style={label}>
                   <span style={labelTitle}>{i18nT("objectif_principal_cbb91d55")}</span>
                   <select style={input} value={form.mainGoal} onChange={(e) => set("mainGoal", e.target.value as AiConfigForm["mainGoal"])}>
@@ -1253,13 +1364,13 @@ export default function AiConfigurationContent({
                 data-ai-section="instructions"
                 style={configurationCard}
               >
-                <div style={configurationHeader}>
+                <div data-ai-card-heading style={configurationHeader}>
                   <span style={configurationBubble}>🧭</span>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 950 }}>
                       {configurationT("instructionsTitle")}
                     </div>
-                    <div style={hint}>{configurationT("instructionsDescription")}</div>
+                    <div data-ai-hint style={hint}>{configurationT("instructionsDescription")}</div>
                   </div>
                 </div>
 
@@ -1305,7 +1416,7 @@ export default function AiConfigurationContent({
                       onChange={(e) => set("instructions", e.target.value.slice(0, AI_INSTRUCTION_SECTION_MAX_LENGTH))}
                       placeholder={configurationT("customInstructionsPlaceholder")}
                     />
-                    <span style={hint}>{configurationT("customInstructionsHint")}</span>
+                    <span data-ai-hint style={hint}>{configurationT("customInstructionsHint")}</span>
                   </div>
 
                   <div data-ai-instruction-tone="amber" style={{ ...label, ...instructionPanelStyle }}>
@@ -1340,9 +1451,11 @@ export default function AiConfigurationContent({
                       onChange={(e) => set("forbiddenStyle", e.target.value.slice(0, AI_INSTRUCTION_SECTION_MAX_LENGTH))}
                       placeholder={configurationT("forbiddenInstructionsPlaceholder")}
                     />
-                    <span style={hint}>{configurationT("forbiddenInstructionsHint")}</span>
+                    <span data-ai-hint style={hint}>{configurationT("forbiddenInstructionsHint")}</span>
                   </div>
                 </div>
+
+                {onVocabularyTargetChange ? <div data-instruction-vocabulary-slot ref={onVocabularyTargetChange} /> : null}
 
                 <div data-instruction-examples style={instructionExamplesGridStyle}>
                   <div data-ai-instruction-tone="cyan" style={{ ...label, ...instructionPanelStyle }}>
@@ -1375,7 +1488,7 @@ export default function AiConfigurationContent({
                       onChange={(e) => set("likedExample", e.target.value.slice(0, 1200))}
                       placeholder={configurationT("likedContentPlaceholder")}
                     />
-                    <span style={hint}>{configurationT("likedContentHint")}</span>
+                    <span data-ai-hint style={hint}>{configurationT("likedContentHint")}</span>
                   </div>
 
                   <div data-ai-instruction-tone="violet" style={{ ...label, ...instructionPanelStyle }}>
@@ -1408,22 +1521,25 @@ export default function AiConfigurationContent({
                       onChange={(e) => set("likedExample2", e.target.value.slice(0, 1200))}
                       placeholder={configurationT("likedContentPlaceholder")}
                     />
-                    <span style={hint}>{configurationT("likedContentHint")}</span>
+                    <span data-ai-hint style={hint}>{configurationT("likedContentHint")}</span>
                   </div>
                 </div>
               </section>
             ) : null}
 
-            {error ? <div style={{ color: "rgba(248,113,113,0.95)", fontWeight: 800 }}>{error}</div> : null}
-            {saved ? <div style={{ color: "rgba(34,197,94,0.95)", fontWeight: 900 }}>{i18nT("configuration_ia_enregistree_1ad4bba6")}</div> : null}
+            {error ? <div role="alert" data-ai-configuration-error style={{ color: "rgba(248,113,113,0.95)", fontWeight: 800 }}>{error}</div> : null}
+            {!workspaceMode && saved ? <div role="status" style={{ color: "#bae6fd", fontWeight: 900 }}>{i18nT("configuration_ia_enregistree_1ad4bba6")}</div> : null}
 
             <div
               data-ai-configuration-actions
               style={workspaceMode ? workspaceActionsStyle : defaultActionsStyle}
             >
+              {workspaceMode ? <span data-ai-auto-save-status role="status" aria-live="polite" style={{ alignSelf: "center", color: "#bbcce4", fontSize: 12 }}>
+                {error ? "" : saving || hasUnsavedChanges ? i18nT("enregistrement_e7d5f232") : i18nT("enregistre_a5dfbc23")}
+              </span> : null}
               <button type="button" disabled={saving || voiceBusy} onClick={() => void reset()} style={{ minHeight: workspaceMode ? 38 : 44, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "white", borderRadius: workspaceMode ? 11 : 14, padding: workspaceMode ? "8px 10px" : "10px 12px", cursor: saving || voiceBusy ? "default" : "pointer", fontWeight: 850, fontSize: workspaceMode ? 12 : 16 }}>
                 {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
-              <button type="button" style={primaryBtn} disabled={saving || voiceBusy || !loadSucceededRef.current} onClick={() => void save()}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button>
+              {!workspaceMode || hasUnsavedChanges || error ? <button type="button" style={primaryBtn} disabled={saving || voiceBusy || !loadSucceededRef.current} onClick={() => void save()}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button> : null}
             </div>
           </div>
         )}

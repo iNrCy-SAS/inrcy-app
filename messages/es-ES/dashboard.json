@@ -215,7 +215,11 @@
     "generatedContactsHint": "Estimación basada en la actividad de tus canales.",
     "capturedLeads": "Contactos generados",
     "last7": "Últimos 7 días",
-    "last30": "Últimos 30 días"
+    "last30": "Últimos 30 días",
+    "connectChannelsLabel": "Conectar mis canales",
+    "personalizeApplicationLabel": "Personalizar mi aplicación",
+    "personalizationInfoAria": "Entender el progreso de personalización",
+    "personalizationInfoHint": "Este progreso reúne la información de tu empresa y tus ajustes de comunicación."
   },
   "generatorSteps": {
     "profile": {
@@ -711,7 +715,22 @@
     "saving": "Guardando…",
     "save": "Guardar el ADN de la empresa",
     "analysisBackgroundHint": "Puedes salir de esta página: el análisis continuará y el resultado se guardará automáticamente.",
-    "analysisSaved": "Análisis guardado: {fields} secciones enriquecidas y {items} elementos nuevos."
+    "analysisSaved": "Análisis guardado: {fields} secciones enriquecidas y {items} elementos nuevos.",
+    "analysisSourcesTitle": "Fuentes del análisis",
+    "analysisChannelsTitle": "Canales",
+    "analysisChannelsDescription": "Los canales conectados están preseleccionados. Elige cuáles analizar.",
+    "analysisResetButton": "Restablecer la información del ADN",
+    "analysisReportTitle": "Informe del análisis",
+    "analysisPreviewEyebrow": "Tu espacio de análisis",
+    "analysisSelectedRunHint": "Mantén esta pantalla abierta durante el análisis de los canales seleccionados.",
+    "analysisSourceItems": "{count} elementos leídos",
+    "analysisSourceUnavailable": "Fuente no disponible",
+    "analysisQuotaLoading": "Cargando cuota…",
+    "analysisQuotaHint": "Cuota mensual de análisis manuales",
+    "analysisNoSourcesHint": "Conecta un canal o adjunta un documento para iniciar el análisis.",
+    "documentsAnalysisTitle": "Adjuntar documentos al análisis",
+    "documentsDropHint": "PDF, imágenes o documentos · 20 MB por archivo",
+    "presentationTitle": "Presentación"
   },
   "aiConfiguration": {
     "pageDescription": "Configura cómo la IA escribe y adapta cada contenido a tus objetivos.",
@@ -1161,5 +1180,25 @@
       "maximum": "Hasta nueve actividades secundarias.",
       "review": "Cambiar la actividad puede requerir una nueva verificación de Google."
     }
+  },
+  "personalization": {
+    "title": "Personalizar mi aplicación",
+    "mobileTitle": "Personalización",
+    "subtitle": "Tu empresa, tu identidad y tu comunicación en un mismo lugar.",
+    "close": "Cerrar",
+    "companyTitle": "Mi empresa",
+    "companyDescription": "Datos de contacto, actividad, clientes y presencia local.",
+    "identityTitle": "Mi imagen",
+    "identityDescription": "Misión, valores, personalidad y vocabulario.",
+    "communicationTitle": "Mi comunicación",
+    "communicationDescription": "Estilo, instrucciones, objetivos y llamadas a la acción.",
+    "profileLabel": "Contacto y logo",
+    "parametersTab": "Estilo y preferencias",
+    "instructionsTab": "Instrucciones y ejemplos",
+    "ctasTab": "CTA por canal",
+    "strategyTab": "Objetivos y estrategia",
+    "analysisEntry": "Analizar mis canales y documentos",
+    "analysisEntryHint": "Completar y enriquecer mi información",
+    "logoShortcut": "Editar mi logo y mis datos de contacto"
   }
 }

@@ -160,11 +160,13 @@ function websiteBusinessIdentities(value: unknown): Record<string, unknown>[] {
 
 function ownWebsiteIdentities(source: BusinessLocationSource) {
   const content = source.content.slice(0, 60_000);
+  const websiteUrl = source.url || content.match(/^PAGE\s+(https?:\/\/\S+)/mu)?.[1] || "";
   let host = "";
-  try { host = new URL(source.url || content.match(/^PAGE\s+(https?:\/\/\S+)/mu)?.[1] || "").hostname.replace(/^www\./u, ""); } catch { /* No trusted website host. */ }
+  try { host = new URL(websiteUrl).hostname.replace(/^www\./u, ""); } catch { /* No trusted website host. */ }
   return embeddedJson(content).flatMap(websiteBusinessIdentities).filter((item) => {
     const url = text(item.url) || text(item["@id"]);
-    try { return Boolean(host) && new URL(url).hostname.replace(/^www\./u, "") === host; }
+    if (!url) return false;
+    try { return Boolean(host) && new URL(url, websiteUrl).hostname.replace(/^www\./u, "") === host; }
     catch { return false; }
   });
 }
@@ -181,6 +183,7 @@ function ownWebsiteText(source: BusinessLocationSource) {
 function sourceCandidates(source: BusinessLocationSource): BusinessLocationCandidate[] {
   if (source.status !== "analyzed" || !source.content || ["inr_search", "inrcy_publications"].includes(source.key)) return [];
   const content = source.content.slice(0, 60_000);
+  if (source.key === "reference_documents") return explicitOwnAddress(content, source.key, 45);
   const payload = ownProfilePayload(content);
   if (source.key === "google_business") {
     const item = candidate(record(payload.details).address, source.key, 0);

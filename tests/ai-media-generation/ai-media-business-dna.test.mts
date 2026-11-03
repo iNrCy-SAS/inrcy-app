@@ -82,10 +82,14 @@ function buildProfile(premiumEnabled: boolean): MediaDnaProfile {
       recentNewsSourceKeys: ["instagram"],
       referenceDocuments: [],
       richText: {
+        mission: "",
         detailedDescription: "",
         offersAndArguments: "",
+        keyArguments: "",
         proofsAndObjections: "",
+        objectionResponses: "",
         editorialStrategy: "",
+        campaignCalendar: "",
       },
     },
     request: {

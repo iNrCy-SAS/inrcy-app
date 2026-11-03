@@ -405,7 +405,7 @@ test("les blocs inférieurs Standard conservent Stats, Publications, Booster, iN
   // checks premiumOnly at both action and prefetch boundaries (tested below).
   assert.match(sharedModulesSource, /signatureStyles\.boosterCard/);
   assert.match(sharedModulesSource, /signatureStyles\.toolButton/);
-  assert.match(dashboardClientSource, /onOpenDna=\{/);
+  assert.match(dashboardClientSource, /onOpenPersonalization=\{\(\) => \{[\s\S]*?requestNavigation\(\(\) => router\.push\("\/dashboard\/personnalisation"\)\)/);
   assert.doesNotMatch(sharedModulesSource, /signatureStyles\.dnaCard/);
 });
 

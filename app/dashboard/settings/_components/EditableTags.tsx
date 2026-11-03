@@ -14,6 +14,7 @@ type EditableTagsProps = {
   maxItems?: number;
   inlineAdd?: boolean;
   disabled?: boolean;
+  compact?: boolean;
 };
 
 function cleanTag(value: string) {
@@ -54,6 +55,7 @@ export default function EditableTags({
   maxItems = 30,
   inlineAdd = false,
   disabled = false,
+  compact = false,
 }: EditableTagsProps) {
   const i18nT = useTranslations("settings");
   const [adding, setAdding] = useState(false);
@@ -91,7 +93,7 @@ export default function EditableTags({
   };
 
   return (
-    <div style={{ display: "grid", gap: 9 }}>
+    <div data-editable-tags data-compact={compact ? "true" : undefined} style={{ display: "grid", gap: compact ? 5 : 9 }}>
       <div
         style={{
           display: "flex",
@@ -151,7 +153,7 @@ export default function EditableTags({
           </span>
         ))}
 
-        {!values.length && emptyText ? (
+        {!compact && !values.length && emptyText ? (
           <span style={{ color: "rgba(255,255,255,0.56)", fontSize: 12.5 }}>
             {emptyText}
           </span>
@@ -171,6 +173,7 @@ export default function EditableTags({
         {values.length < maxItems ? (
           <span
             data-editable-tags-voice
+            title={i18nT("tags_voice_help")}
             onMouseDown={(event) => event.preventDefault()}
             style={{ display: "inline-flex", alignItems: "center" }}
           >
@@ -262,7 +265,7 @@ export default function EditableTags({
         </button>
       ) : null}
 
-      {values.length < maxItems ? (
+      {!compact && values.length < maxItems ? (
         <span
           data-editable-tags-voice-help
           style={{ color: "rgba(186,230,253,0.66)", fontSize: 11.5, lineHeight: 1.45 }}

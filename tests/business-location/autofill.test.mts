@@ -55,6 +55,22 @@ test("plusieurs adresses également fiables demandent un choix et ne sont pas fu
     source("instagram", { profile: { location: { city: "Harnes" } } })]), null);
 });
 
+test("un identifiant JSON-LD relatif conserve l’adresse et les contacts du même site", () => {
+  const identity = { "@type": "LocalBusiness", "@id": "#organization", name: "Entreprise réelle",
+    address: { postalCode: "62440", addressLocality: "Harnes" }, telephone: "06 31 26 08 12", email: "contact@pro.example" };
+  const website = source("website", `PAGE https://pro.example/\n${JSON.stringify(identity)}`);
+  assert.equal(resolveBusinessLocationCandidate([website])?.city, "Harnes");
+  assert.equal(resolveBusinessIdentitySuggestions([website]).contact_email?.value, "contact@pro.example");
+  assert.equal(resolveBusinessLocationCandidate([source("website", `PAGE https://pro.example/\n${JSON.stringify({ ...identity, "@id": "//hebergeur.example/#organization" })}`)]), null);
+});
+
+test("un document peut compléter le siège explicite, sans utiliser une adresse client ni une zone d’intervention", () => {
+  assert.deepEqual(resolveBusinessLocationCandidate([source("reference_documents", "[Document fourni — brochure.pdf]\nSiège social : 12 rue des Lilas\n62440 Harnes")]), { postalCode:"62440", city:"Harnes", source:"reference_documents", priority:45 });
+  assert.equal(resolveBusinessLocationCandidate([source("reference_documents", "Adresse du client : 12 rue des Lilas\n75002 Paris")]), null);
+  assert.equal(resolveBusinessLocationCandidate([source("reference_documents", "Zone d’intervention : 59000 Lille, 62440 Harnes")]), null);
+  assert.equal(resolveBusinessLocationCandidate([source("reference_documents", "Siège social : 62440 Harnes\n\nSiège social : 59000 Lille")]), null);
+});
+
 test("une longue liste de posts tronquée conserve le profil initial sans lire les profils des posts", () => {
   const complete = gmb();
   const truncated = complete.content.slice(0, -1) + ',"localPosts":[{"summary":"' + "x".repeat(35_000);

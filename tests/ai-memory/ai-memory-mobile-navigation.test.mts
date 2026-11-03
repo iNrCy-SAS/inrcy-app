@@ -34,8 +34,9 @@ function evaluate(expression: string, globals: Record<string, unknown>) {
 }
 
 test("every DNA selector destination retains unsaved edits through the existing autosave handler", () => {
-  const tabs = evaluate(declaration("tabs"), { t: (key: string) => key, profileLabel: "Profil" });
-  assert.deepEqual(Array.from(tabs, (tab: { key: string }) => tab.key), ["analysis", "documents", "profile", "activity", "audience", "local", "identity", "news", "strategy"]);
+  const tabs = evaluate(declaration("tabs"), { t: (key: string) => key, profileLabel: "Profil", visibleTabs: undefined });
+  assert.deepEqual(Array.from(tabs, (tab: { key: string }) => tab.key), ["analysis", "profile", "activity", "audience", "local", "identity", "news", "strategy"]);
+  assert.match(source, /initialTab === "documents" \? "analysis" : initialTab/, "legacy document links land on the shared analysis tab");
   for (const target of tabs) {
     const events: string[] = [];
     const selectTab = evaluate(declaration("selectTab"), {

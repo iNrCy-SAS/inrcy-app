@@ -215,7 +215,11 @@
     "generatedContactsHint": "根据您的渠道活动估算。",
     "capturedLeads": "带来的联系",
     "last7": "过去 7 天",
-    "last30": "过去 30 天"
+    "last30": "过去 30 天",
+    "connectChannelsLabel": "连接我的渠道",
+    "personalizeApplicationLabel": "个性化我的应用",
+    "personalizationInfoAria": "了解个性化设置进度",
+    "personalizationInfoHint": "此进度汇总您的企业信息和沟通设置。"
   },
   "generatorSteps": {
     "profile": {
@@ -711,7 +715,22 @@
     "saving": "正在保存…",
     "save": "保存企业 DNA",
     "analysisBackgroundHint": "您可以离开此页面：分析将继续进行，结果会自动保存。",
-    "analysisSaved": "分析已保存：已完善 {fields} 个部分，新增 {items} 项内容。"
+    "analysisSaved": "分析已保存：已完善 {fields} 个部分，新增 {items} 项内容。",
+    "analysisSourcesTitle": "分析来源",
+    "analysisChannelsTitle": "渠道",
+    "analysisChannelsDescription": "已连接的渠道已预选。请选择要分析的渠道。",
+    "analysisResetButton": "重置企业 DNA 信息",
+    "analysisReportTitle": "分析报告",
+    "analysisPreviewEyebrow": "您的分析工作区",
+    "analysisSelectedRunHint": "分析所选渠道期间，请保持此页面打开。",
+    "analysisSourceItems": "已读取 {count} 项",
+    "analysisSourceUnavailable": "来源不可用",
+    "analysisQuotaLoading": "正在加载配额…",
+    "analysisQuotaHint": "每月手动分析配额",
+    "analysisNoSourcesHint": "请连接渠道或附加文档以开始分析。",
+    "documentsAnalysisTitle": "为分析附加文档",
+    "documentsDropHint": "PDF、图片或文档 · 每个文件 20 MB",
+    "presentationTitle": "企业介绍"
   },
   "aiConfiguration": {
     "pageDescription": "设置 AI 如何编写内容并根据您的目标进行调整。",
@@ -1161,5 +1180,25 @@
       "maximum": "最多可添加九个其他类别。",
       "review": "更改类别后，Google 可能要求重新验证商家。"
     }
+  },
+  "personalization": {
+    "title": "个性化我的应用",
+    "mobileTitle": "个性化设置",
+    "subtitle": "在同一位置管理企业、品牌形象和沟通设置。",
+    "close": "关闭",
+    "companyTitle": "我的企业",
+    "companyDescription": "联系方式、业务、客户和本地服务范围。",
+    "identityTitle": "我的品牌形象",
+    "identityDescription": "使命、价值观、个性和用语。",
+    "communicationTitle": "我的沟通方式",
+    "communicationDescription": "风格、指令、目标和行动号召。",
+    "profileLabel": "联系方式和标志",
+    "parametersTab": "风格与偏好",
+    "instructionsTab": "指令与示例",
+    "ctasTab": "各渠道的 CTA",
+    "strategyTab": "目标与策略",
+    "analysisEntry": "分析我的渠道和文档",
+    "analysisEntryHint": "填写并完善我的信息",
+    "logoShortcut": "修改标志和联系方式"
   }
 }

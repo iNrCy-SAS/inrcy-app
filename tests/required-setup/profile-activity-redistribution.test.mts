@@ -118,8 +118,9 @@ test("profile save rejects a missing sector or profession before persistence and
   assert.ok(successIndex > persistenceIndex);
 
   const guardSource = source.slice(guardIndex, persistenceIndex);
-  assert.match(guardSource, /!form\.sectorCategory\.trim\(\)/);
-  assert.match(guardSource, /!form\.sector\.trim\(\)/);
+  assert.match(source.slice(saveIndex, guardIndex), /const submitted = formRef\.current/);
+  assert.match(guardSource, /!submitted\.sectorCategory\.trim\(\)/);
+  assert.match(guardSource, /!submitted\.sector\.trim\(\)/);
   assert.match(guardSource, /pour_continuer_completez_value_ad238d6f/);
   assert.match(guardSource, /if \(missingRequiredFields\.length > 0\)[\s\S]*return false/);
 });

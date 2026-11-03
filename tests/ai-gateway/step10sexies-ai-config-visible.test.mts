@@ -77,7 +77,11 @@ test("Step 10 sexies keeps engine info and AI configuration surfaces above the m
 
   assert.match(aiConfig, /onSaved\?: \(\) => void/);
   assert.match(aiConfig, /i18nT\("configuration_ia_enregistree_1ad4bba6"\)/);
-  assert.match(aiConfig, /window\.setTimeout\(\(\) => onSaved\(\), 900\)/);
+  const manualNotification = aiConfig.slice(aiConfig.indexOf("const notifyManualSave"), aiConfig.indexOf("const save =", aiConfig.indexOf("const notifyManualSave")));
+  assert.match(manualNotification, /window\.setTimeout\(\(\) => \{[\s\S]*?configurationSignature\(formRef\.current\) !== savedFormSignatureRef\.current\) return;[\s\S]*?onSaved\(\)[\s\S]*?\}, 900\)/);
+  assert.match(manualNotification, /!mountedRef\.current \|\| voiceTargetRef\.current/);
+  assert.match(aiConfig, /reason === "manual" && !stillDirty\) notifyManualSave\(\)/);
+  assert.match(aiConfig, /reason !== "manual"[\s\S]*?onAutoSaved\?\.\(\)/);
   assert.match(
     publishDrawer,
     /onSaved=\{\(\) => \{[\s\S]*setHasUnsavedChanges\(false\);[\s\S]*onClose\(\);[\s\S]*\}\}/,

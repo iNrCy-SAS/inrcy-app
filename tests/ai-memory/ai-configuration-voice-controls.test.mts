@@ -27,8 +27,9 @@ test("technicality and humour are persisted and consumed by every shared writing
 
   assert.match(compatibility, /technicalityLevel: "accessible" \| "balanced" \| "expert"/);
   assert.match(compatibility, /humorLevel: "none" \| "light" \| "present"/);
-  assert.match(configuration, /ai_technicality_level: form\.technicalityLevel/);
-  assert.match(configuration, /ai_humor_level: form\.humorLevel/);
+  assert.match(configuration, /const submitted = formRef\.current/);
+  assert.match(configuration, /ai_technicality_level: submitted\.technicalityLevel/);
+  assert.match(configuration, /ai_humor_level: submitted\.humorLevel/);
   assert.match(profile, /technicalityLevel: AiTechnicalityLevel/);
   assert.match(profile, /humorLevel: AiHumorLevel/);
   assert.match(profile, /"ai_technicality_level"/);
@@ -68,7 +69,7 @@ test("all dashboard catalogues expose the new AI configuration labels", () => {
   }
 });
 
-test("Configuration IA stays in the cockpit and keeps its yellow monogram in the ADN mobile header", () => {
+test("personalization opens shared AI settings from the cockpit and legacy headers keep their monogram", () => {
   const menu = read("app/dashboard/_components/DashboardTopbar.tsx");
   const mobileMenu = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
   const businessDnaPage = read("app/dashboard/adn-entreprise/page.tsx");
@@ -81,7 +82,9 @@ test("Configuration IA stays in the cockpit and keeps its yellow monogram in the
   assert.doesNotMatch(mobileMenu, /label=\{t\.userMenu\.ai\}/);
   assert.match(read("lib/mobileShortcutPolicy.ts"), /id: "ai_configuration", href: "\/dashboard\/configuration-ia"/);
   assert.doesNotMatch(mobileMenu, /<AiConfigurationIcon/);
-  assert.match(read("app/dashboard/_components/DashboardHero.tsx"), /action: onOpenAi/);
+  assert.match(read("app/dashboard/_components/DashboardHero.tsx"), /action: onOpenPersonalization/);
+  assert.match(read("app/dashboard/DashboardClient.tsx"), /onOpenPersonalization=\{[\s\S]*?\/dashboard\/personnalisation/);
+  assert.match(read("app/dashboard/personnalisation/page.tsx"), /<AiConfigurationContent[\s\S]*?hideNavigation/);
   assert.match(businessDnaPage, /<AiConfigurationIcon/);
   assert.match(businessDnaPage, /mobileBare: true/);
   assert.match(businessDnaPage, /mobileIcon: \(/);

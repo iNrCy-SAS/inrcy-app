@@ -344,7 +344,7 @@ function websitePageToText(html: string) {
 }
 
 function discoverUsefulWebsiteLinks(html: string, pageUrl: URL) {
-  const keywords = /(a-propos|about|qui-sommes|entreprise|equipe|team|histoire|valeurs?|services?|prestations?|expertise|solutions?|offres?|contact|tarifs?|prix|realisations?|portfolio|projets?|temoignages?|avis|faq|blog|actualites?)/i;
+  const keywords = /(a-propos|about|qui-sommes|entreprise|equipe|team|histoire|valeurs?|services?|prestations?|expertise|solutions?|offres?|contact|mentions[-_]?legales|legal[-_]?notice|impressum|tarifs?|prix|realisations?|portfolio|projets?|temoignages?|avis|faq|blog|actualites?)/i;
   const candidates = new Map<string, number>();
   for (const match of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"'#]+)["'][^>]*>/gi)) {
     try {
@@ -1288,6 +1288,7 @@ export async function collectBusinessDnaChannelSources(args: {
   proToolsConfig: unknown;
   companyName?: string;
   metaPilotEnabled?: boolean;
+  selectedSourceKeys?: readonly string[];
 }) {
   const metaPilotEnabled = args.metaPilotEnabled !== false && await isMetaChannelPilotEnabledForAccount(supabaseAdmin, args.userId);
   const now = new Date();
@@ -1308,15 +1309,19 @@ export async function collectBusinessDnaChannelSources(args: {
   const tiktokRow = latestIntegration(rows, "tiktok", "tiktok", "tiktok");
   const youtubeRow = latestIntegration(rows, "youtube", "youtube_shorts", "youtube_shorts");
 
+  const selectedSources = args.selectedSourceKeys === undefined ? undefined : new Set(args.selectedSourceKeys);
+  const executeSelectedSource = (input: Parameters<typeof executeSource>[0]) => (
+    selectedSources && !selectedSources.has(input.key) ? Promise.resolve(null) : executeSource(input)
+  );
   const sources = await Promise.all([
-    executeSource({
+    executeSelectedSource({
       key: "website",
       label: "Site internet",
       connected: Boolean(states.site_web.connected && states.site_web.url),
       url: states.site_web.url,
       collect: async () => collectWebsite(states.site_web.url || ""),
     }),
-    executeSource({
+    executeSelectedSource({
       key: "google_business",
       label: "Google Business",
       connected: states.gmb.connected,
@@ -1330,7 +1335,7 @@ export async function collectBusinessDnaChannelSources(args: {
         recentWindow,
       ),
     }),
-    executeSource({
+    executeSelectedSource({
       key: "facebook",
       label: "Facebook",
       connected: Boolean(states.facebook.connected && facebookRow),
@@ -1339,7 +1344,7 @@ export async function collectBusinessDnaChannelSources(args: {
       url: states.facebook.page_url,
       collect: async () => collectFacebook(facebookRow || {}, historyWindow, recentWindow),
     }),
-    executeSource({
+    executeSelectedSource({
       key: "instagram",
       label: "Instagram",
       connected: Boolean(states.instagram.connected && instagramRow),
@@ -1348,7 +1353,7 @@ export async function collectBusinessDnaChannelSources(args: {
       url: states.instagram.profile_url,
       collect: async () => collectInstagram(instagramRow || {}, historyWindow, recentWindow),
     }),
-    ...(metaPilotEnabled ? [executeSource({
+    ...(metaPilotEnabled ? [executeSelectedSource({
       key: "threads", label: "Threads", connected: Boolean(states.threads.connected && threadsRow), requiresUpdate: states.threads.requiresUpdate, url: states.threads.profile_url,
       collect: async () => {
         const token = await ensureMetaDirectAccessToken(supabaseAdmin, threadsRow || {});
@@ -1356,7 +1361,7 @@ export async function collectBusinessDnaChannelSources(args: {
         return { content: compactJson({ username: states.threads.username, posts: posts.map(post => ({ text: clampText(post.text, 1000), publishedAt: asString(post.timestamp), publicUrl: asString(post.permalink), mediaType: asString(post.media_type) })) }), itemCount: posts.length, recentItemCount: posts.filter(post => isBusinessDnaPublicationInWindow(asString(post.timestamp), recentWindow)).length };
       },
     })] : []),
-    executeSource({
+    executeSelectedSource({
       key: "linkedin",
       label: "LinkedIn",
       connected: states.linkedin.connected,
@@ -1365,7 +1370,7 @@ export async function collectBusinessDnaChannelSources(args: {
       url: states.linkedin.organization_url || states.linkedin.profile_url,
       collect: async () => collectLinkedIn(args.userId, historyWindow, recentWindow),
     }),
-    executeSource({
+    executeSelectedSource({
       key: "x",
       label: "X",
       connected: states.x.connected,
@@ -1374,7 +1379,7 @@ export async function collectBusinessDnaChannelSources(args: {
       url: states.x.profile_url,
       collect: async () => collectX(args.userId, historyWindow, recentWindow),
     }),
-    executeSource({
+    executeSelectedSource({
       key: "tiktok",
       label: "TikTok",
       connected: Boolean(states.tiktok.connected && tiktokRow),
@@ -1388,7 +1393,7 @@ export async function collectBusinessDnaChannelSources(args: {
         recentWindow,
       ),
     }),
-    executeSource({
+    executeSelectedSource({
       key: "youtube",
       label: "YouTube",
       connected: Boolean(states.youtube_shorts.connected && youtubeRow),
@@ -1402,7 +1407,7 @@ export async function collectBusinessDnaChannelSources(args: {
         recentWindow,
       ),
     }),
-    executeSource({
+    executeSelectedSource({
       key: "pinterest",
       label: "Pinterest",
       connected: states.pinterest.accountConnected,
@@ -1411,7 +1416,7 @@ export async function collectBusinessDnaChannelSources(args: {
       url: states.pinterest.profile_url,
       collect: async () => collectPinterest(args.userId, historyWindow, recentWindow),
     }),
-    executeSource({
+    executeSelectedSource({
       key: "inr_search",
       label: "iNr’Search",
       connected: states.inr_search.connected,
@@ -1425,7 +1430,7 @@ export async function collectBusinessDnaChannelSources(args: {
         itemCount: 1,
       }),
     }),
-    executeSource({
+    executeSelectedSource({
       key: "inrcy_publications",
       label: "Publications iNrCy",
       connected: true,
@@ -1438,5 +1443,5 @@ export async function collectBusinessDnaChannelSources(args: {
     }),
   ]);
 
-  return withoutThreadsData(sources, metaPilotEnabled);
+  return withoutThreadsData(sources.filter((source): source is BusinessDnaSourceResult => source !== null), metaPilotEnabled);
 }

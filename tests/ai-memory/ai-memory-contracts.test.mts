@@ -53,8 +53,8 @@ test("Business DNA strategy is available to Standard and Premium generations", (
   assert.doesNotMatch(memoryUi, /customInstructions/);
   assert.match(configurationUi, /edition = "standard"/);
   assert.match(configurationUi, /ai_custom_instructions: encodeAiInstructionSections\(\{/);
-  assert.match(configurationUi, /instructions: form\.instructions/);
-  assert.match(configurationUi, /forbiddenInstructions: form\.forbiddenStyle/);
+  assert.match(configurationUi, /instructions: submitted\.instructions/);
+  assert.match(configurationUi, /forbiddenInstructions: submitted\.forbiddenStyle/);
   assert.match(configurationUi, /AI_INSTRUCTION_SECTION_MAX_LENGTH/);
   assert.match(configurationUi, /function ContentLengthSelect/);
   assert.match(configurationUi, /const locked = premiumOption && !premiumAccess/);
@@ -139,6 +139,7 @@ test("channel analysis is private, bounded, cumulative and monthly limited", () 
     "ops/sql/2026-09-06_business_dna_premium_monthly_limit_5_postflight_read_only.sql",
   );
   const ui = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
+  const analysisWorkspace = read("app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx");
 
   assert.match(route, /collectBusinessDnaChannelSources/);
   assert.match(route, /consumeBusinessDnaAnalysisQuota/);
@@ -183,7 +184,9 @@ test("channel analysis is private, bounded, cumulative and monthly limited", () 
   );
   assert.doesNotMatch(migration, /on conflict \(account_id, period_start\) do nothing/);
   assert.match(ui, /mergeAiBusinessDnaAnalysis/);
-  assert.match(ui, /analysisQuota\?\.remaining === 0/);
+  assert.match(ui, /quota=\{analysisQuota\}/);
+  assert.match(analysisWorkspace, /quota\?\.remaining === 0/);
+  assert.match(analysisWorkspace, /disabled=\{launchDisabled\}/);
 });
 
 test("Business DNA rich text uses a safe visual toolbar instead of exposing markdown code", () => {
@@ -219,14 +222,16 @@ test("identity, values and brand vocabulary stay together in Business DNA", () =
 
   assert.match(memoryUi, /\| "profile"\s*\| "activity"\s*\| "audience"\s*\| "local"\s*\| "identity"\s*\| "news"\s*\| "strategy"/);
   assert.match(memoryUi, /t\("tabIdentity"\)/);
-  assert.match(memoryUi, /\{ key: "analysis"[\s\S]*?\{ key: "documents"[\s\S]*?\{ key: "profile"[\s\S]*?\{ key: "activity"/);
+  assert.match(memoryUi, /\{ key: "analysis"[\s\S]*?\{ key: "profile"[\s\S]*?\{ key: "activity"/);
+  assert.doesNotMatch(memoryUi, /\{ key: "documents", icon:/);
   assert.match(memoryUi, /\{ key: "news"[\s\S]*?\{ key: "strategy"/);
-  assert.match(memoryUi, /gridTemplateColumns: "repeat\(9, minmax\(0, 1fr\)\)"/);
+  assert.match(memoryUi, /gridTemplateColumns: `repeat\(\$\{tabs\.length\}, minmax\(0, 1fr\)\)`/);
   assert.doesNotMatch(memoryUi, /activeTab === "voice"/);
   assert.doesNotMatch(memoryUi, /configurationLink/);
   assert.match(memoryUi, /memoryTags\([\s\S]*?"preferredVocabulary"/);
   assert.match(memoryUi, /memoryTags\([\s\S]*?"forbiddenVocabulary"/);
-  assert.match(memoryUi, /setField\("mission"/);
+  assert.match(memoryUi, /setMissionRichField/);
+  assert.match(memoryUi, /html=\{memory\.richText\.mission\}/);
   assert.match(memoryUi, /"brandPersonality"/);
   assert.match(memoryUi, /"commitments"/);
   assert.doesNotMatch(configurationUi, /preferredVocabulary/);
@@ -236,8 +241,9 @@ test("identity, values and brand vocabulary stay together in Business DNA", () =
   assert.match(memory, /vocabulaire_a_privilegier/);
 });
 
-test("recent news and strategy use responsive full-width stacked rows", () => {
+test("recent news and strategy retain their independent fields in responsive workspace grids", () => {
   const memoryUi = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
+  const layout = read("app/dashboard/personnalisation/PersonalizationForms.module.css");
 
   assert.match(memoryUi, /data-ai-memory-news-rows style=\{newsGridStyle\}/);
   assert.match(memoryUi, /data-ai-memory-premium-rows style=\{premiumGridStyle\}/);
@@ -246,7 +252,7 @@ test("recent news and strategy use responsive full-width stacked rows", () => {
   assert.equal(
     (memoryUi.match(/data-ai-memory-premium-row style=/g) || []).length,
     6,
-    "Strategy must stay split into six independent stacked fields",
+    "Strategy keeps six independently editable fields",
   );
   assert.match(
     memoryUi,
@@ -257,6 +263,8 @@ test("recent news and strategy use responsive full-width stacked rows", () => {
     /const premiumGridStyle:[\s\S]*?gridTemplateColumns: "minmax\(0, 1fr\)"/,
   );
   assert.match(memoryUi, /div\[data-ai-memory-news-row\],[\s\S]*?div\[data-ai-memory-premium-row\]/);
+  assert.match(layout, /\[data-ai-memory-premium-rows\][\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(layout, /@media \(max-width: 760px\)[\s\S]*?\[data-ai-memory-premium-rows\][\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
 });
 
 test("every shared writing generator loads the complete professional DNA context", () => {
@@ -278,12 +286,11 @@ test("every shared writing generator loads the complete professional DNA context
 
 test("the analysis separates the persistent DNA score from live loading progress", () => {
   const memoryUi = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
-
-  assert.match(memoryUi, /data-dna-score-summary/);
-  assert.match(memoryUi, /t\("scoreLabel"\)/);
-  assert.match(memoryUi, /data-tooltip=\{t\("scoreHelp"\)\}/);
-  assert.match(memoryUi, /\{analyzing \? \([\s\S]*?analysisProgress/);
-  assert.doesNotMatch(memoryUi, /ADN · \{completionScore\}%/);
+  const workspace = read("app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx");
+  assert.match(memoryUi, /completionScore=\{completionScore\}[\s\S]*?progress=\{analysisProgress\}/);
+  assert.match(workspace, /data-dna-score-summary title=\{t\("scoreHelp"\)\}>\{completionScore\}%/);
+  assert.match(workspace, /\{analyzing \? \([\s\S]*?role="progressbar"[\s\S]*?aria-valuenow=\{progress\}/);
+  assert.doesNotMatch(workspace, /data-dna-score-summary[^>]*>\{progress\}/);
 });
 
 test("a failed memory load can be retried but can never overwrite data with the empty form", () => {

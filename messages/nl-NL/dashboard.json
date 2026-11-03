@@ -215,7 +215,11 @@
     "generatedContactsHint": "Schatting op basis van de activiteit op je kanalen.",
     "capturedLeads": "Gegenereerde contacten",
     "last7": "Laatste 7 dagen",
-    "last30": "Laatste 30 dagen"
+    "last30": "Laatste 30 dagen",
+    "connectChannelsLabel": "Mijn kanalen koppelen",
+    "personalizeApplicationLabel": "Mijn applicatie personaliseren",
+    "personalizationInfoAria": "De voortgang van personalisatie begrijpen",
+    "personalizationInfoHint": "Deze voortgang combineert uw bedrijfsgegevens en communicatie-instellingen."
   },
   "generatorSteps": {
     "profile": {
@@ -711,7 +715,22 @@
     "saving": "Opslaan…",
     "save": "Bedrijfs-DNA opslaan",
     "analysisBackgroundHint": "Je kunt deze pagina verlaten: de analyse gaat door en het resultaat wordt automatisch opgeslagen.",
-    "analysisSaved": "Analyse opgeslagen: {fields} onderdelen aangevuld en {items} nieuwe items."
+    "analysisSaved": "Analyse opgeslagen: {fields} onderdelen aangevuld en {items} nieuwe items.",
+    "analysisSourcesTitle": "Analysebronnen",
+    "analysisChannelsTitle": "Kanalen",
+    "analysisChannelsDescription": "Gekoppelde kanalen zijn vooraf geselecteerd. Kies welke u wilt analyseren.",
+    "analysisResetButton": "Bedrijfs-DNA resetten",
+    "analysisReportTitle": "Analyseverslag",
+    "analysisPreviewEyebrow": "Uw analysewerkruimte",
+    "analysisSelectedRunHint": "Houd dit scherm open tijdens de analyse van de geselecteerde kanalen.",
+    "analysisSourceItems": "{count} items gelezen",
+    "analysisSourceUnavailable": "Bron niet beschikbaar",
+    "analysisQuotaLoading": "Quotum laden…",
+    "analysisQuotaHint": "Maandelijks quotum voor handmatige analyses",
+    "analysisNoSourcesHint": "Koppel een kanaal of voeg een document toe om de analyse te starten.",
+    "documentsAnalysisTitle": "Documenten aan de analyse toevoegen",
+    "documentsDropHint": "PDF, afbeeldingen of documenten · 20 MB per bestand",
+    "presentationTitle": "Presentatie"
   },
   "aiConfiguration": {
     "pageDescription": "Stel in hoe AI elk onderdeel schrijft en aan uw doelen aanpast.",
@@ -1161,5 +1180,25 @@
       "maximum": "Maximaal negen extra categorieën.",
       "review": "Een categoriewijziging kan een nieuwe verificatie door Google vereisen."
     }
+  },
+  "personalization": {
+    "title": "Mijn applicatie personaliseren",
+    "mobileTitle": "Personalisatie",
+    "subtitle": "Uw bedrijf, identiteit en communicatie op één plek.",
+    "close": "Sluiten",
+    "companyTitle": "Mijn bedrijf",
+    "companyDescription": "Contactgegevens, activiteiten, klanten en lokale aanwezigheid.",
+    "identityTitle": "Mijn uitstraling",
+    "identityDescription": "Missie, waarden, persoonlijkheid en woordkeuze.",
+    "communicationTitle": "Mijn communicatie",
+    "communicationDescription": "Stijl, instructies, doelen en oproepen tot actie.",
+    "profileLabel": "Contact & logo",
+    "parametersTab": "Stijl en voorkeuren",
+    "instructionsTab": "Instructies en voorbeelden",
+    "ctasTab": "CTA per kanaal",
+    "strategyTab": "Doelen en strategie",
+    "analysisEntry": "Mijn kanalen en documenten analyseren",
+    "analysisEntryHint": "Mijn gegevens invullen en aanvullen",
+    "logoShortcut": "Mijn logo en contactgegevens wijzigen"
   }
 }

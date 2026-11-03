@@ -67,16 +67,21 @@ test("the nine pills remain present when every channel is disconnected", () => {
 test("the analysis endpoint and hero use current Dashboard states, not the last analysis result", () => {
   const route = read("app/api/ai-memory/analyze-channels/route.ts");
   const content = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
+  const workspace = read("app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx");
 
   assert.match(route, /getChannelConnectionStates\(supabase, activeUserId\)/);
   assert.match(route, /buildBusinessDnaDashboardChannelAvailability/);
   assert.match(route, /\{ ok: true, quota, channels, accountId: activeUserId, job:/);
   assert.match(content, /parseAnalysisChannels\(quotaPayload\.channels\)/);
-  assert.match(content, /data-business-dna-channel-states/);
-  assert.match(content, /data-channel-status=\{channel\.status\}/);
+  assert.match(content, /channels=\{visibleAnalysisChannels\}/);
+  assert.match(workspace, /data-business-dna-channel-states/);
+  assert.match(workspace, /data-channel-status=\{channel\.status\}/);
   assert.match(content, /useState<BusinessDnaDashboardChannelAvailability\[\]>\(disconnectedAnalysisChannels\)/);
   assert.match(content, /if \(!Array\.isArray\(value\)\) return disconnectedAnalysisChannels\(\)/);
-  assert.match(content, /analysisChannels\.filter\(\(channel\) => channel\.key !== "threads" \|\| metaPilotEnabled\)\.map/);
+  assert.match(content, /const visibleAnalysisChannels = analysisChannels\.filter\(\(channel\) => channel\.key !== "threads" \|\| metaPilotEnabled\)/);
+  assert.match(workspace, /channels\.map\(\(channel\) =>/);
+  assert.match(workspace, /const selectable = channel\.status === "connected" && channel\.analyzable/);
+  assert.match(workspace, /disabled=\{!selectable \|\| busy \|\| analyzing\}/);
   assert.doesNotMatch(content, /analysisChannels\.filter\([^\n]*(?:channel\.status|analyzed|not_connected)/);
   assert.doesNotMatch(content, /analysisSummary\?\.sources\.filter\(/);
 });

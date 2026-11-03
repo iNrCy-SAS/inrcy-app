@@ -5,11 +5,13 @@ import { useTranslations } from "next-intl";
 
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
   useState,
+  type SetStateAction,
 } from "react";
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
@@ -25,6 +27,7 @@ import {
 import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
 import { createClient } from "@/lib/supabaseClient";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
+import { reconcileSavedDraft } from "@/lib/reconcileSavedDraft";
 type Props = {
   mode?: "page" | "drawer";
   onProfileSaved?: () => unknown | Promise<unknown>;
@@ -95,7 +98,17 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
   const baselineRef = useRef("");
   const persistedFormRef = useRef<ProfileForm | null>(null);
   const loadSucceededRef = useRef(false);
-  const [form, setForm] = useState<ProfileForm>(initial);
+  const [form, setFormState] = useState<ProfileForm>(initial);
+  const formRef = useRef(initial);
+  const loadedOwnerRef = useRef<string | null>(null);
+  const loadedAuthOwnerRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+  const savingRef = useRef(false);
+  const setForm = useCallback((update: SetStateAction<ProfileForm>) => {
+    const next = typeof update === "function" ? update(formRef.current) : update;
+    formRef.current = next;
+    setFormState(next);
+  }, []);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -108,6 +121,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
 
   useEffect(() => {
     let active = true;
+    mountedRef.current = true;
     const load = async () => {
       loadSucceededRef.current = false;
       try {
@@ -116,12 +130,13 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
         if (authError) throw authError;
         const user = authData?.user;
         if (!user || !active) return;
+        const ownerId = resolveActiveBrowserUserId(user.id);
 
         const authenticatedEmail = user.email?.trim() || "";
         const { data, error } = await supabase
           .from("profiles")
           .select("contact_email,first_name,last_name,phone,company_legal_name,logo_path,logo_url")
-          .eq("user_id", resolveActiveBrowserUserId(user.id))
+          .eq("user_id", ownerId)
           .maybeSingle();
         if (error) throw error;
 
@@ -131,7 +146,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
               logo_url: data.logo_url ?? null,
             })
           : { logoUrl: "", logoPath: "" };
-        if (!active) return;
+        if (!active || resolveActiveBrowserUserId(user.id) !== ownerId) return;
 
         const next: ProfileForm = {
           contactEmail: data?.contact_email?.trim() || authenticatedEmail,
@@ -147,6 +162,8 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
         persistedFormRef.current = next;
         baselineRef.current = profileSnapshot(next);
         loadSucceededRef.current = true;
+        loadedOwnerRef.current = ownerId;
+        loadedAuthOwnerRef.current = user.id;
       } catch (error) {
         console.error(error);
         if (active) {
@@ -159,8 +176,9 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
     void load();
     return () => {
       active = false;
+      mountedRef.current = false;
     };
-  }, []);
+  }, [setForm]);
 
   useEffect(() => {
     if (loading || !baselineRef.current) return;
@@ -181,7 +199,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
     setForm((current) => ({ ...current, [key]: value }));
   };
 
-  const validate = () => {
+  const validate = (form: ProfileForm) => {
     const next: Record<string, string> = {};
     const email = form.contactEmail.trim();
     if (!email) {
@@ -199,7 +217,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
     return Object.keys(next).length === 0;
   };
 
-  const isProfileComplete = () => {
+  const isProfileComplete = (form: ProfileForm) => {
     const required = [
       form.firstName,
       form.lastName,
@@ -213,7 +231,8 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
     );
   };
 
-  async function uploadLogo(file: File) {
+  async function uploadLogo(file: File, assertOwner: () => void) {
+    assertOwner();
     const prepareResponse = await fetch("/api/profile/logo", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -224,6 +243,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
       }),
     });
     const prepared = await prepareResponse.json().catch(() => ({}));
+    assertOwner();
     if (
       !prepareResponse.ok ||
       !prepared?.ok ||
@@ -246,11 +266,13 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
     if (uploadError) {
       throw new Error(i18nT("logo_upload_failed"));
     }
+    assertOwner();
 
     const completeResponse = await fetch(
       `/api/profile/logo?path=${encodeURIComponent(prepared.path)}`,
     );
     const completed = await completeResponse.json().catch(() => ({}));
+    assertOwner();
     if (!completeResponse.ok || !completed?.ok || !completed?.path || !completed?.displayUrl) {
       throw new Error(completed?.error || i18nT("logo_preview_failed"));
     }
@@ -258,46 +280,54 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
   }
 
   const handleSave = async (): Promise<boolean> => {
-    if (saving || loading) return false;
+    if (savingRef.current || loading) return false;
     if (!loadSucceededRef.current) {
       setGlobalError(i18nT("profile_load_failed"));
       return false;
     }
     setGlobalError("");
     setSaved(false);
-    if (!validate()) {
+    const submitted = formRef.current;
+    const ownerId = loadedOwnerRef.current;
+    const authOwnerId = loadedAuthOwnerRef.current;
+    const assertOwner = () => {
+      if (!mountedRef.current || !ownerId || !authOwnerId || loadedOwnerRef.current !== ownerId ||
+          resolveActiveBrowserUserId(authOwnerId) !== ownerId) throw new Error(i18nT("profile_save_failed"));
+    };
+    if (!validate(submitted)) {
       setGlobalError(i18nT("certaines_informations_sont_invalides_verifiez_l_4906f2b7"));
       return false;
     }
 
+    savingRef.current = true;
     setSaving(true);
     try {
+      assertOwner();
       const supabase = createClient();
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
       const user = authData?.user;
-      if (!user) throw new Error(i18nT("user_not_authenticated"));
+      if (!user || user.id !== authOwnerId) throw new Error(i18nT("user_not_authenticated"));
+      assertOwner();
 
-      let logoUrl = form.logoPreview || "";
-      let logoPath = form.logoPath || extractLogoPathFromUrl(form.logoPreview) || "";
-      if (form.logoFile) {
-        const previousPreview = form.logoPreview;
-        const uploaded = await uploadLogo(form.logoFile);
-        revokeBlobUrl(previousPreview);
+      let logoUrl = submitted.logoPreview || "";
+      let logoPath = submitted.logoPath || extractLogoPathFromUrl(submitted.logoPreview) || "";
+      if (submitted.logoFile) {
+        const uploaded = await uploadLogo(submitted.logoFile, assertOwner);
         logoUrl = uploaded.signedUrl;
         logoPath = uploaded.path;
       }
 
       const { error } = await supabase.from("profiles").upsert(
         {
-          user_id: resolveActiveBrowserUserId(user.id),
-          contact_email: form.contactEmail.trim(),
-          first_name: form.firstName.trim(),
-          last_name: form.lastName.trim(),
-          phone: form.phone.trim(),
+          user_id: ownerId,
+          contact_email: submitted.contactEmail.trim(),
+          first_name: submitted.firstName.trim(),
+          last_name: submitted.lastName.trim(),
+          phone: submitted.phone.trim(),
           // Le nom public reste sur la colonne historique afin que tous les
           // outils et les comptes existants continuent de fonctionner.
-          company_legal_name: form.companyName.trim(),
+          company_legal_name: submitted.companyName.trim(),
           logo_path: logoPath || null,
           logo_url: logoPath
             ? logoUrl || getProfileLogoDisplayUrl(logoPath)
@@ -306,6 +336,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
         { onConflict: "user_id" },
       );
       if (error) throw error;
+      assertOwner();
 
       const [publicProfileRefreshed] = await Promise.all([
         refreshPublicProfileDependents("profile"),
@@ -315,7 +346,8 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
         console.warn("[profile] iNrBadge/iNrSearch refresh deferred");
       }
 
-      if (isProfileComplete()) {
+      assertOwner();
+      if (isProfileComplete(submitted)) {
         try {
           await fetch("/api/loyalty/award", {
             method: "POST",
@@ -334,31 +366,39 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
       }
 
       const savedForm: ProfileForm = {
-        ...form,
+        ...submitted,
         logoPreview: logoUrl,
         logoPath,
         logoFile: null,
       };
-      setForm(savedForm);
+      assertOwner();
+      const reconciled = reconcileSavedDraft(submitted, formRef.current, savedForm);
+      setForm(reconciled);
       persistedFormRef.current = savedForm;
       baselineRef.current = profileSnapshot(savedForm);
-      onUnsavedChange?.(false);
-      setSaved(true);
+      const stillDirty = profileSnapshot(reconciled) !== baselineRef.current;
+      onUnsavedChange?.(stillDirty, profileSnapshot(reconciled));
+      setSaved(!stillDirty);
+      if (submitted.logoFile) revokeBlobUrl(submitted.logoPreview);
       await onProfileSaved?.();
       if (mode === "drawer") {
-        window.setTimeout(() => onCloseDrawer?.(), 450);
+        window.setTimeout(() => {
+          if (mountedRef.current && resolveActiveBrowserUserId(authOwnerId!) === ownerId &&
+              profileSnapshot(formRef.current) === baselineRef.current) onCloseDrawer?.();
+        }, 450);
       } else {
         window.setTimeout(() => setSaved(false), 2500);
       }
       return true;
     } catch (error) {
       console.error(error);
-      setGlobalError(
+      if (mountedRef.current) setGlobalError(
         getClientUserFacingErrorMessage(error, i18nT("profile_save_failed")),
       );
       return false;
     } finally {
-      setSaving(false);
+      savingRef.current = false;
+      if (mountedRef.current) setSaving(false);
     }
   };
 
@@ -402,7 +442,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
   };
 
   useImperativeHandle(ref, () => ({
-    isReady: () => !loading && !saving,
+    isReady: () => loadSucceededRef.current && !savingRef.current,
     save: handleSave,
     reset: handleReset,
     cancelChanges: handleCancelChanges,
@@ -504,7 +544,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
               {errors.phone ? <span style={errorStyle}>{errors.phone}</span> : null}
             </label>
 
-            <div style={{ display: "grid", gap: 8 }}>
+            <div data-profile-logo style={{ display: "grid", gap: 8 }}>
               <span style={labelTextStyle}>{i18nT("logo_de_l_entreprise_a1d7bdb9")}{" "}<em style={optionalStyle}>{i18nT("optional_label")}</em></span>
               <input
                 ref={fileInputRef}

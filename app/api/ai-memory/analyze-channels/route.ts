@@ -38,6 +38,7 @@ import {
 } from "@/lib/businessDnaManualAnalysisJobs";
 import { BUSINESS_DNA_PRIMARY_TIMEOUT_MS, BUSINESS_DNA_COMPLETION_LATEST_START_MS } from "@/lib/businessDnaAnalysisTiming";
 import { buildBusinessDnaDashboardChannelAvailability } from "@/lib/businessDnaChannelAvailability";
+import { parseBusinessDnaAnalysisSelection } from "@/lib/businessDnaAnalysisSelection";
 import {
   buildBusinessDnaAnalysisSourcePayload,
   hasReadableBusinessDnaAnalysisSource,
@@ -344,7 +345,18 @@ export async function POST(request: Request) {
     authUserId = userContext.authUserId;
   }
 
-  const background = !automatic && params.get("background") === "1";
+  let selectedSourceKeys: string[] | undefined;
+  if (!automatic && request.headers.get("content-type")?.includes("application/json")) {
+    try {
+      selectedSourceKeys = parseBusinessDnaAnalysisSelection(await request.json());
+    } catch {
+      return NextResponse.json({ error: "Sélection des canaux invalide." }, { status: 400 });
+    }
+  }
+  // The existing durable full analysis remains unchanged. An explicitly
+  // restricted run uses the synchronous suggestion/merge path so its source
+  // selection never gets lost by the legacy background queue or cron recovery.
+  const background = !automatic && selectedSourceKeys === undefined && params.get("background") === "1";
   if (background) {
     const existingJob = await getBusinessDnaManualAnalysisJob(activeUserId);
     if (existingJob?.status === "queued" || existingJob?.status === "running") {
@@ -387,7 +399,7 @@ export async function POST(request: Request) {
     }
   }
 
-  return analyzeBusinessDna({ supabase, activeUserId, authUserId, automatic });
+  return analyzeBusinessDna({ supabase, activeUserId, authUserId, automatic, selectedSourceKeys });
 }
 
 type ManualJobContext = { accountId: string; actorAuthUserId: string; jobId: string; lockToken: string };
@@ -397,12 +409,13 @@ function runManualJobAnalysis(job: ManualJobContext) {
     authUserId: job.actorAuthUserId, automatic: false, manualJob: job });
 }
 
-async function analyzeBusinessDna({ supabase, activeUserId, authUserId, automatic, manualJob }: {
+async function analyzeBusinessDna({ supabase, activeUserId, authUserId, automatic, manualJob, selectedSourceKeys }: {
   supabase: typeof supabaseAdmin;
   activeUserId: string;
   authUserId: string;
   automatic: boolean;
   manualJob?: ManualJobContext;
+  selectedSourceKeys?: readonly string[];
 }) {
   let consumedQuotaContext: {
     accountId: string;
@@ -487,6 +500,7 @@ async function analyzeBusinessDna({ supabase, activeUserId, authUserId, automati
         businessProfile: businessResult.data,
         proToolsConfig: toolsResult.data,
         companyName,
+        selectedSourceKeys,
       }),
       refreshBusinessDnaReferenceDocuments(storedMemory.referenceDocuments, {
         accountId: activeUserId, engine: preferredEngine,
@@ -501,13 +515,21 @@ async function analyzeBusinessDna({ supabase, activeUserId, authUserId, automati
         itemCount: 0, recentItemCount: 0, contentChars: 0, content: "",
         message: "Les canaux sont momentanément indisponibles. Les autres sources ont été conservées.",
       }];
+    const analysisDocuments = documentCollection.status === "fulfilled"
+      ? documentCollection.value : storedMemory.referenceDocuments;
+    if (channelCollection.status === "rejected" || documentCollection.status === "rejected") {
+      console.warn("[business-dna] unavailable source collection skipped", {
+        channels: channelCollection.status, documents: documentCollection.status,
+      });
+    }
+    const sources = [...channelSources, ...buildBusinessDnaReferenceDocumentSources(analysisDocuments)];
     // Persist only explicit physical address evidence, before writing the ADN.
     // This does not consume an AI call and never replaces a manual location.
     try {
-      await autofillBusinessLocationFromSources({ supabase, accountId: activeUserId, sources: channelSources,
+      await autofillBusinessLocationFromSources({ supabase, accountId: activeUserId, sources,
         expectedLocation: { postalCode: profile.hq_zip, city: profile.hq_city } });
       const identitySaved = await autofillBusinessIdentityFromSources({ supabase, accountId: activeUserId,
-        sources: channelSources, expectedProfile: profile });
+        sources, expectedProfile: profile });
       if (identitySaved.changed) {
         const refreshed = await supabase.from("profiles").select("company_legal_name")
           .eq("user_id", activeUserId).maybeSingle();
@@ -519,14 +541,6 @@ async function analyzeBusinessDna({ supabase, activeUserId, authUserId, automati
     } catch {
       console.warn("[business-dna] location autofill unavailable", { accountId: activeUserId });
     }
-    const analysisDocuments = documentCollection.status === "fulfilled"
-      ? documentCollection.value : storedMemory.referenceDocuments;
-    if (channelCollection.status === "rejected" || documentCollection.status === "rejected") {
-      console.warn("[business-dna] unavailable source collection skipped", {
-        channels: channelCollection.status, documents: documentCollection.status,
-      });
-    }
-    const sources = [...channelSources, ...buildBusinessDnaReferenceDocumentSources(analysisDocuments)];
     const publicSources = getPublicBusinessDnaSourceResults(sources);
     if (!hasReadableBusinessDnaAnalysisSource(sources)) {
       return NextResponse.json(
