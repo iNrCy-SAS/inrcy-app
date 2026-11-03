@@ -100,7 +100,7 @@ function harness(options: Options = {}) {
     const loaded = { exports: {} as Record<string, unknown> }; cache.set(name, loaded.exports);
     new Function("module", "exports", "require", "console", code)(loaded, loaded.exports, (id: string) => {
       if (id in dependencies) return dependencies[id];
-      if (["inrAgentScheduleService", "inrAgentSchedulePolicy", "inrAgentScheduledMediaSnapshot", "inrAgentActions", "inrAgentScheduledActions"].some(name => id === `@/lib/${name}`)) return load(id.slice("@/lib/".length));
+      if (["inrAgentScheduleService", "inrAgentSchedulePolicy", "inrAgentScheduledMediaSnapshot", "inrAgentActions", "inrAgentScheduledActions", "boosterCtaActions"].some(name => id === `@/lib/${name}`)) return load(id.slice("@/lib/".length));
       throw new Error(`Unexpected dependency ${id}`);
     }, { warn() {}, error() {} });
     return loaded.exports;

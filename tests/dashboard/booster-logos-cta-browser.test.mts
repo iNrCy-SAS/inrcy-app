@@ -119,11 +119,11 @@ test("real Booster logos keep their circular geometry before decode, after accou
     }
     await page.locator("#root img").evaluateAll(images => Promise.all(images.map(img => (img as HTMLImageElement).decode())));
     const initialCount = await page.locator("#root img").count(); assert.equal(initialCount, order.length);
-    await page.evaluate(() => { const w = window as FixtureWindow; w.imagesBefore = [...document.querySelectorAll('#root img')]; w.ready = true; w.draw(); });
-    const sameImages = await page.evaluate(() => { const w = window as FixtureWindow; return [...document.querySelectorAll('#root img')].every((image, index) => image === w.imagesBefore[index]); });
+    await page.evaluate(() => { const w = window as unknown as FixtureWindow; w.imagesBefore = [...document.querySelectorAll('#root img')]; w.ready = true; w.draw(); });
+    const sameImages = await page.evaluate(() => { const w = window as unknown as FixtureWindow; return [...document.querySelectorAll('#root img')].every((image, index) => image === w.imagesBefore[index]); });
     assert.equal(sameImages, true, "Decoded logos must survive pending → ready without DOM replacement");
     for (let opening = 0; opening < 3; opening++) {
-      await page.evaluate((isMobile) => { const w = window as FixtureWindow; w.visible=false;w.draw();w.mobile=isMobile;w.ready=false;w.visible=true;w.draw();w.ready=true;w.draw(); }, mobile);
+      await page.evaluate((isMobile) => { const w = window as unknown as FixtureWindow; w.visible=false;w.draw();w.mobile=isMobile;w.ready=false;w.visible=true;w.draw();w.ready=true;w.draw(); }, mobile);
       await page.locator("#root img").evaluateAll(images => Promise.all(images.map(img => (img as HTMLImageElement).decode())));
       for (const value of await geometry()) { assert(value.radius >= value.width / 2); assert.equal(value.width, mobile ? 24 : 43); }
     }
@@ -149,17 +149,17 @@ test("real CTA settings offer added actions on every compatible channel and pres
   await page.getByRole("tab", { name: "Instagram", exact: true }).click();
   await page.getByRole("button", { name: "Action à proposer", exact: true }).click();
   await page.getByRole("option").filter({ hasText: /^.*Aucun CTA/ }).click();
-  const saved = await page.evaluate(() => JSON.parse(JSON.stringify((window as FixtureWindow).saved)));
+  const saved = await page.evaluate(() => JSON.parse(JSON.stringify((window as unknown as FixtureWindow).saved)));
   assert.equal(saved.instagram.choice, "none");
-  await page.evaluate((value) => { const w=window as FixtureWindow;w.saved=JSON.parse(JSON.stringify(value));w.visible=false;w.draw();w.visible=true;w.draw(); }, saved);
+  await page.evaluate((value) => { const w=window as unknown as FixtureWindow;w.saved=JSON.parse(JSON.stringify(value));w.visible=false;w.draw();w.visible=true;w.draw(); }, saved);
   await page.getByRole("tab", { name: "Instagram", exact: true }).click();
   assert.match(await page.getByRole("button", { name: "Action à proposer", exact: true }).innerText(), /Aucun CTA/);
   await page.getByRole("tab", { name: "Google Business", exact: true }).click();
   await page.getByRole("button", { name: "Action à proposer", exact: true }).click();
   await page.getByRole("option").filter({ hasText: "Réserver" }).click();
   await page.getByLabel("Lien de l’action · à renseigner").fill("https://booking.example.test/reserver");
-  assert.equal((await page.evaluate(() => (window as FixtureWindow).saved)).gmb.choice, "reserver");
-  assert.equal((await page.evaluate(() => (window as FixtureWindow).saved)).gmb.url, "https://booking.example.test/reserver");
+  assert.equal((await page.evaluate(() => (window as unknown as FixtureWindow).saved)).gmb.choice, "reserver");
+  assert.equal((await page.evaluate(() => (window as unknown as FixtureWindow).saved)).gmb.url, "https://booking.example.test/reserver");
   assert.deepEqual(errors, []);await page.close();
 });
 
@@ -169,7 +169,7 @@ test("CTA defaults ignore an old account response after switching accounts", { t
   await page.goto(`${origin}/cta`, { waitUntil: "domcontentloaded" });
   assert.deepEqual(errors, []);
   await page.waitForSelector('[data-ai-section="channel-ctas"]', { timeout: 4000 });
-  await page.evaluate(() => { const w=window as FixtureWindow;w.fixtureScope.account='account-b';window.dispatchEvent(new Event('fixture-account-change'));w.draw(); });
+  await page.evaluate(() => { const w=window as unknown as FixtureWindow;w.fixtureScope.account='account-b';window.dispatchEvent(new Event('fixture-account-change'));w.draw(); });
   await page.getByRole("button", { name: "Action à proposer", exact: true }).filter({ hasText: "Appeler" }).waitFor();
   await page.waitForFunction(() => document.body.textContent?.includes('0698765432'));
   await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 200)));

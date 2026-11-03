@@ -99,7 +99,8 @@ test("wrong account, concurrent edits, Google refusal and a changed selection bl
 test("statistics never recover by selecting an unrelated establishment",async()=>{
   const code=ts.transpileModule(readFileSync("lib/googleBusiness.ts","utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   const exports:{gmbFetchDailyMetricsNormalizedWithRecovery?:(args:unknown)=>Promise<unknown>}={};let calls=0;
-  new Function("require","exports","fetch",code)((name:string)=>{if(name==="@/lib/googleStats"||name==="@/lib/googleBusinessPostTransport"||name==="@/lib/googleBusinessLocations")return{};throw Error(name);},exports,async()=>{calls++;return Response.json({error:{message:"NOT_FOUND"}},{status:404});});
+  const ctaActions = await import("../../lib/boosterCtaActions.ts");
+  new Function("require","exports","fetch",code)((name:string)=>{if(name==="@/lib/boosterCtaActions")return ctaActions;if(name==="@/lib/googleStats"||name==="@/lib/googleBusinessPostTransport"||name==="@/lib/googleBusinessLocations")return{};throw Error(name);},exports,async()=>{calls++;return Response.json({error:{message:"NOT_FOUND"}},{status:404});});
   await assert.rejects(exports.gmbFetchDailyMetricsNormalizedWithRecovery!({accessToken:"fixture",locationName:"locations/chosen",preferredAccountName:"accounts/parent",start:new Date("2026-10-01"),end:new Date("2026-10-28")}));
   assert.equal(calls,1,"A missing selected location must not trigger discovery or choose another business");
 });
