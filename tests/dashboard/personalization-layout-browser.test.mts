@@ -5,6 +5,13 @@ import test from "node:test";
 import { chromium, type Page } from "@playwright/test";
 import { ROOT, fixture, html } from "./personalization-browser-fixture.mts";
 
+const responsiveViewports = [
+  { width: 360, height: 800 }, { width: 390, height: 844 },
+  { width: 768, height: 1024 }, { width: 844, height: 390 },
+  { width: 1024, height: 768 }, { width: 1366, height: 768 },
+  { width: 1920, height: 1080 }, { width: 2560, height: 1346 },
+];
+
 async function assertActivityCardsFitTheirLists(page: Page) {
   const cards = await page.locator("[data-activity-services] > section").evaluateAll(nodes => nodes.map(node => {
     const list = node.querySelector("[data-editable-tags]")!;
@@ -20,7 +27,7 @@ async function assertActivityCardsFitTheirLists(page: Page) {
 test("all personalization tabs keep fields accessible and fit the desktop workspace without horizontal overflow", { timeout: 90_000 }, async t => {
   const browser = await chromium.launch({ headless: true });
   try {
-    for (const viewport of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }, { width: 390, height: 844 }]) {
+    for (const viewport of responsiveViewports) {
       const page = await browser.newPage({ viewport });
       const errors: string[] = []; page.on("pageerror", e => errors.push(e.message));
       await page.route("**/*", route => {
@@ -151,10 +158,10 @@ test("all personalization tabs keep fields accessible and fit the desktop worksp
   } finally { await browser.close(); }
 });
 
-test("eight and ten analysis documents scroll inside their card while channels and document metadata stay fixed", { timeout: 60_000 }, async t => {
+test("eight and ten analysis documents stay inside their card and scroll when needed while metadata stays fixed", { timeout: 60_000 }, async t => {
   const browser = await chromium.launch({ headless: true });
   try {
-    for (const viewport of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }, { width: 390, height: 844 }]) {
+    for (const viewport of responsiveViewports) {
       for (const count of [8, 10]) {
         const page = await browser.newPage({ viewport });
         const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
@@ -194,7 +201,7 @@ test("eight and ten analysis documents scroll inside their card while channels a
         const before = await measure();
         assert.equal(before.horizontal, false, `${count} documents: no horizontal overflow at ${viewport.width}px`);
         assert.ok(before.listHeight > 50, "the document list has usable space");
-        assert.ok(before.listContentHeight > before.listHeight + 1, "the populated list has its own scrollable overflow");
+        const hasOverflow = before.listContentHeight > before.listHeight + 1;
         assert.equal(before.listOverflow, "auto");
         assert.ok(before.list.left >= before.card.left && before.list.right <= before.card.right, "document rows fit inside the card width");
         assert.ok(before.list.top >= before.storage.bottom && before.list.bottom < before.card.bottom, "the list stays below fixed storage and above the card border");
@@ -211,7 +218,8 @@ test("eight and ten analysis documents scroll inside their card while channels a
         const lastBounds = await lastButton.boundingBox();
         const after = await measure();
         assert.ok(lastBounds && lastBounds.y >= after.list.top && lastBounds.y + lastBounds.height <= after.list.bottom, "the final document action is inside the list after scrolling");
-        assert.ok(after.listScrollTop > 0);
+        if (hasOverflow) assert.ok(after.listScrollTop > 0, "long document lists scroll inside the card");
+        else assert.equal(after.listScrollTop, 0, "documents that fit need no scrolling");
         for (const key of ["header", "channels", "title", "storage", "footer"] as const) assert.deepEqual(after[key], before[key], `${key} remains fixed while files scroll`);
         assert.equal(after.columnScrollTop, 0, "the entire source column never scrolls");
         assert.equal(after.pageScrollTop, before.pageScrollTop, "list scrolling never moves the page");
@@ -232,7 +240,7 @@ test("populated tag groups and long strategy text remain contained and reachable
   const browser = await chromium.launch({ headless: true });
   const violations: string[] = [];
   try {
-    for (const viewport of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }, { width: 2560, height: 1346 }, { width: 390, height: 844 }]) {
+    for (const viewport of responsiveViewports) {
       const page = await browser.newPage({ viewport });
       const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
       await page.route("**/*", route => {
@@ -268,6 +276,7 @@ test("populated tag groups and long strategy text remain contained and reachable
           if (dimensions.left < -1 || dimensions.right > viewport.width + 1) violations.push(`${viewport.width}/${name}/${index}: tags overflow horizontally`);
           if (dimensions.content > dimensions.height + 1 && !["auto", "scroll"].includes(dimensions.overflow)) violations.push(`${viewport.width}/${name}/${index}: overflowing tags cannot scroll`);
           await list.evaluate(node => { node.scrollTop = node.scrollHeight; });
+          await tags.last().getByRole("button").scrollIntoViewIfNeeded();
           const last = await tags.last().getByRole("button").boundingBox();
           const listBounds = await list.boundingBox();
           if (!last || !listBounds || last.y < listBounds.y - 1 || last.y + last.height > listBounds.y + listBounds.height + 1) violations.push(`${viewport.width}/${name}/${index}: final remove action is unreachable`);

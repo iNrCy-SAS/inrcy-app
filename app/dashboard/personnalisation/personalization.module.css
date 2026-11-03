@@ -19,7 +19,7 @@
 .subsections button:hover { background:rgba(var(--sub-color),.07); }
 .subsections button:focus-visible { outline:2px solid rgb(var(--sub-color)); outline-offset:2px; }
 .subsections button[aria-pressed="true"] { color:white; border-color:#a78bfa66; background:linear-gradient(120deg,#19557a66,#6d3c8c66); }
-@media (min-width:761px) {
+@media (min-width:761px) and (min-height:700px) {
  :global(html:has(main[data-personalization-page][data-analysis-view="true"])), :global(body:has(main[data-personalization-page][data-analysis-view="true"])), :global(.inrcy-dashboard-shell:has(main[data-personalization-page][data-analysis-view="true"])) { height:100dvh !important; min-height:0 !important; overflow:hidden !important; }
  .page[data-analysis-view="true"] { height:100dvh !important; min-height:0 !important; display:grid !important; grid-template-rows:auto minmax(0,1fr) !important; gap:12px !important; padding:14px 20px !important; overflow:hidden; }
  .page[data-analysis-view="true"] > .content { height:100%; grid-template-rows:minmax(0,1fr); }
