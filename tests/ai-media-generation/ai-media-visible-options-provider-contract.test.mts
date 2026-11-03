@@ -869,7 +869,7 @@ test("la compaction ne supprime aucune option Image autoritaire du prompt fourni
     { length: 15 },
     (_, index) => `Preuve ${index + 1} ${longText}`,
   );
-  profile.preferences.customInstructions = longText;
+  profile.preferences.customInstructions = longText.slice(0, 1_200);
   const request = normalizeAiMediaGenerationRequest(
     baseRequest({
       kind: "image",
@@ -1007,7 +1007,7 @@ test("les prompts canoniques Image et Vidéo gardent 2 000 + 2 400 caractères e
       { length: 15 },
       (_, index) => `Preuve ${index + 1} ${verboseContext}`,
     );
-    profile.preferences.customInstructions = verboseContext;
+    profile.preferences.customInstructions = verboseContext.slice(0, 1_200);
     const request = normalizeAiMediaGenerationRequest(
       baseRequest({
         kind,
@@ -1065,12 +1065,13 @@ test("les prompts canoniques Image et Vidéo gardent 2 000 + 2 400 caractères e
       assert.match(prompt, reference, `${kind}: rôle/usage perdu`);
     }
     assert.match(prompt, /ORIGINALITY:/);
-    assert.match(prompt, /COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION/);
     if (kind === "video") {
+      assert.match(prompt, /HABILLAGE LOCAL : plans sans texte, chiffre, téléphone, coordonnée, logo, enseigne ni interface lisible ; seul l’habillage validé est ajouté au montage/);
       assert.ok(prompt.includes(exactText), "video: texte exact tronqué");
       assert.match(prompt, /DURÉE EXACTE : 20 secondes/);
       assert.match(prompt, /AUDIO ET PAROLE/);
     } else {
+      assert.match(prompt, /COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION/);
       assert.doesNotMatch(prompt, /TEXTE EXACT VALIDÉ/);
       assert.match(prompt, /TYPE DE CRÉATION STRUCTURÉ — FLYER COMMERCIAL/);
     }

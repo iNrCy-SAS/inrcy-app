@@ -6,6 +6,7 @@ import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
+import { buildAiMediaGlobalConstraints } from "./aiMediaGlobalConstraints.ts";
 import { buildAiContentLocationInstruction, resolveAiContentLocation } from "./aiContentLocation.ts";
 import { isAiMediaTechnicalCopyAllowed } from "./aiMediaTechnicalText.ts";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
@@ -517,6 +518,7 @@ export async function writeAiMediaNarration(args: {
           process.env.AI_MEDIA_COPY_MODEL || getAiEngineOption("openai").model
         ).trim(),
         system: [
+          buildAiMediaGlobalConstraints(args.profile),
           "Tu es le concepteur-rédacteur et scénariste voix off de cette création professionnelle.",
           args.request.subjectSource === "custom" ? "" : buildAiContentLocationInstruction(args.profile),
           `Rédige uniquement le texte oral d'une vidéo professionnelle de ${duration} secondes, en ${language}.`,
@@ -623,6 +625,9 @@ export async function writeAiMediaNarration(args: {
   }
 
   if (!script) {
+    if (buildAiMediaGlobalConstraints(args.profile)) {
+      throw new Error("ai_media_narration_unavailable");
+    }
     script = safeFallback({
       ...args,
       recentPublications: args.recentPublications || [],

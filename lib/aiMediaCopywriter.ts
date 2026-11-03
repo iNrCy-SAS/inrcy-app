@@ -5,6 +5,7 @@ import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
 import { buildAiContentLocationInstruction } from "./aiContentLocation.ts";
+import { buildAiMediaGlobalConstraints } from "./aiMediaGlobalConstraints.ts";
 import { isAiMediaTechnicalCopyAllowed } from "./aiMediaTechnicalText.ts";
 import {
   aiMediaDialogueSignature,
@@ -178,7 +179,13 @@ function recoverCopywriterFailure(args: {
   characterDialogueRequested: boolean;
   language: string;
   idea: string;
+  globalMediaConstraints?: string;
 }) {
+  if (args.globalMediaConstraints && (args.textMode === "ai" || args.keepSpokenCopy || args.characterDialogueRequested)) {
+    // Local copy cannot interpret arbitrary account rules. Preserve the
+    // existing controlled failure instead of claiming the fallback obeys them.
+    throw new Error(args.characterDialogueRequested ? "ai_media_character_dialogue_unavailable" : "ai_media_visible_copy_unavailable");
+  }
   let plan = args.plan;
   if (
     args.characterDialogueRequested &&
@@ -643,6 +650,7 @@ export async function writeAiMediaHeadline(args: {
           process.env.AI_MEDIA_COPY_MODEL || getAiEngineOption("openai").model
         ).trim(),
         system: [
+          buildAiMediaGlobalConstraints(args.profile),
           "Tu es le directeur éditorial multilingue de cette création professionnelle.",
           args.request.subjectSource === "custom" ? "" : buildAiContentLocationInstruction(args.profile),
           buildAiLanguageInstruction(args.profile),
@@ -734,6 +742,7 @@ export async function writeAiMediaHeadline(args: {
       rejectedCopy = summarizeRejectedCopy(generated);
     }
     return recoverCopywriterFailure({
+      globalMediaConstraints: buildAiMediaGlobalConstraints(args.profile),
       textMode,
       plan: args.plan,
       recentPublications: args.recentPublications || [],
@@ -750,6 +759,7 @@ export async function writeAiMediaHeadline(args: {
       throw error;
     }
     return recoverCopywriterFailure({
+      globalMediaConstraints: buildAiMediaGlobalConstraints(args.profile),
       textMode,
       plan: args.plan,
       recentPublications: args.recentPublications || [],

@@ -6,6 +6,7 @@ import ts from "typescript";
 
 import type { NormalizedAiGenerationProfile } from "../../lib/aiGenerationProfile.ts";
 import * as freePrompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import * as globalConstraints from "../../lib/aiMediaGlobalConstraints.ts";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import { buildAiMediaBusinessDnaPayload } from "../../lib/aiMediaBusinessDna.ts";
 import { getAiMediaVideoSegmentCount, getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
@@ -53,6 +54,7 @@ function transpileModule(relative: string, modules: Map<string, unknown>) {
   const nativeRequire = createRequire(import.meta.url);
   new Function("module", "exports", "require", output)(record, record.exports, (specifier: string) => {
     if (specifier.startsWith("node:")) return nativeRequire(specifier);
+    if (specifier === "./aiMediaGlobalConstraints.ts") return globalConstraints;
     assert.ok(modules.has(specifier), `Dépendance inattendue : ${specifier}`);
     return modules.get(specifier);
   });
@@ -177,7 +179,8 @@ test("les prompts libres préservent le brief complet et le format sans importer
     const prompt = build(input);
     assert.ok(prompt.includes(freePrompt));
     assert.ok(prompt.includes("9:16"));
-    assert.doesNotMatch(prompt, /CONSIGNE_GUIDEE_INTERDITE|TEXTE_GUIDE_INTERDIT|METIER_ADN_NON_SOLLICITE|INSTRUCTION_GUIDEE_RESIDUELLE/);
+    assert.doesNotMatch(prompt, /CONSIGNE_GUIDEE_INTERDITE|TEXTE_GUIDE_INTERDIT|METIER_ADN_NON_SOLLICITE/);
+    assert.match(prompt, /GLOBAL MEDIA RULES[\s\S]*INSTRUCTIONS:[\s\S]*INSTRUCTION_GUIDEE_RESIDUELLE/);
     assert.doesNotMatch(prompt, /#abcdef/);
   }
 });
@@ -242,7 +245,8 @@ test("l’option ADN conserve le brief Libre et ajoute une identité par défaut
     assert.ok(prompt.includes(freePrompt));
     assert.match(prompt, /METIER_ADN_NON_SOLLICITE/);
     assert.match(prompt, /demande créative reste prioritaire/);
-    assert.doesNotMatch(prompt, /configuration_ia|INSTRUCTION_GUIDEE_RESIDUELLE/);
+    assert.doesNotMatch(prompt, /configuration_ia/);
+    assert.match(prompt, /GLOBAL MEDIA RULES[\s\S]*INSTRUCTIONS:[\s\S]*INSTRUCTION_GUIDEE_RESIDUELLE/);
     assert.match(prompt, /#abcdef/);
     assert.match(prompt, /logo officiel/);
   }

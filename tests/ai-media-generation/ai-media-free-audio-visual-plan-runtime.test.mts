@@ -6,6 +6,7 @@ import test from "node:test";
 import ts from "typescript";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as prompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import * as globalConstraints from "../../lib/aiMediaGlobalConstraints.ts";
 import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
 import { buildAiMediaVideoProviderContract, hashAiMediaCanonicalPrompt } from "../../lib/aiMediaVideoProviderContract.ts";
 import { usesSeparateAiMediaFreeVoiceover } from "../../lib/aiMediaFreeVoiceoverPolicy.ts";
@@ -37,6 +38,7 @@ function loadPlanner(response: Record<string, unknown>) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
   }).outputText;
   const modules = new Map<string, unknown>([
+    ["./aiMediaGlobalConstraints.ts", globalConstraints],
     ["server-only", {}],
     ["@/lib/aiGatewayClient", { aiGenerateJSON: async (input: AiGenerateJsonOptions) => {
       calls.push(input);

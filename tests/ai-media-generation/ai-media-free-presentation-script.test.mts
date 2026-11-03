@@ -6,6 +6,7 @@ import test from "node:test";
 import ts from "typescript";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as prompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import * as globalConstraints from "../../lib/aiMediaGlobalConstraints.ts";
 import * as catalog from "../../lib/aiMediaModelCatalog.ts";
 import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
 import * as boundary from "../../lib/aiMediaVideoProviderContract.ts";
@@ -90,6 +91,7 @@ for (const engine of ["wan27", "wan3", "heygen"] as const) {
   test(`${engine}: exact presentation script reaches the provider and QA once despite duplicated planner visual quotes`, async () => {
     const input = request(engine); const plannerCalls: AiGenerateJsonOptions[] = [];
     const planner = load<typeof import("../../lib/aiMediaFreeGenerationPlan.ts")>("lib/aiMediaFreeGenerationPlan.ts", new Map([
+      ["./aiMediaGlobalConstraints.ts", globalConstraints],
       ["@/lib/aiGatewayClient", { aiGenerateJSON: async (options: AiGenerateJsonOptions) => {
         plannerCalls.push(options);
         const response = { direction: `Le personnage présente l'application : « ${LINE} »`,

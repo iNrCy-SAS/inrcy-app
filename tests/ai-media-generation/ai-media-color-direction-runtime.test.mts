@@ -253,7 +253,7 @@ test("un ADN et un brief longs ne peuvent supprimer la garde anti-nuancier du pr
   const longText = "Le jardin professionnel respecte les végétaux et les saisons dans chaque création. ".repeat(80);
   const longList = Array.from({ length: 15 }, (_, index) => `Repère ${index + 1} : ${longText}`);
   profile.preferences.premiumEnabled = true;
-  profile.preferences.customInstructions = longText;
+  profile.preferences.customInstructions = longText.slice(0, 1_200);
   profile.preferences.likedExample = longText;
   profile.preferences.likedExample2 = longText;
   profile.business.description = longText;
@@ -296,8 +296,12 @@ test("un ADN et un brief longs ne peuvent supprimer la garde anti-nuancier du pr
     assert.ok(prompt.includes(SUBJECT));
     assert.ok(prompt.includes(INSTRUCTION));
     assert.ok(prompt.includes(ANTI_SWATCH_RULE), `${kind}: la garde finale doit rester complète`);
-    assert.match(prompt, /Ne pas recopier les annotations techniques autour du sujet des références/);
-    assert.match(prompt, /COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE/);
+    assert.match(prompt, /Ne pas recopier les annotations techniques autour du sujet des références|ne jamais afficher paramètres, couleurs ni annotations des références|ni paramètres, couleurs ou annotations visibles/);
+    if (kind === "video") {
+      assert.match(prompt, /HABILLAGE LOCAL : plans sans texte, chiffre, téléphone, coordonnée, logo, enseigne ni interface lisible ; seul l’habillage validé est ajouté au montage/);
+    } else {
+      assert.match(prompt, /COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE/);
+    }
     assert.doesNotMatch(prompt, HEX_CODE);
   }
 });

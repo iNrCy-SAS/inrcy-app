@@ -1,6 +1,7 @@
 import { AI_MEDIA_FORMAT_SPECS } from "@/lib/aiMediaGenerationContracts";
 import { getAiLanguageLabel } from "@/lib/aiWritingProfile";
 import { buildAiContentLocationInstruction } from "./aiContentLocation.ts";
+import { buildAiMediaGlobalConstraints } from "./aiMediaGlobalConstraints.ts";
 import {
   AI_MEDIA_COMPILED_PROMPT_MAX_CHARS,
   AI_MEDIA_PROMPT_VERSION,
@@ -174,20 +175,17 @@ function assembleBudgetedVideoPrompt(args: {
   const render = (dna: string, history: string) =>
     [
       ...args.requiredSections,
-      `ADN PROFESSIONNEL COMPACT — contexte seulement, jamais sujet de remplacement :${
-        dna ? `\n${dna}` : ""
-      }\n${dnaMarker}`,
-      `HISTORIQUE COMPACT À NE PAS COPIER :${
-        history ? `\n${history}` : ""
-      }\n${historyMarker}`,
+      dna ? `ADN PROFESSIONNEL COMPACT — contexte seulement, jamais sujet de remplacement :\n${dna}\n${dnaMarker}` : dnaMarker,
+      history ? `HISTORIQUE COMPACT À NE PAS COPIER :\n${history}\n${historyMarker}` : "",
     ]
       .filter(Boolean)
       .join("\n\n");
   const minimum = render("", "");
+  const optionalEnvelopeLength = render("x", "x").length - minimum.length - 2;
   const targetLength = AI_MEDIA_COMPILED_PROMPT_MAX_CHARS - 256;
   const available = Math.max(
     0,
-    targetLength - minimum.length
+    targetLength - minimum.length - optionalEnvelopeLength
   );
   const dnaBudget = Math.min(420, Math.floor(available * 0.72));
   const historyBudget = Math.min(180, Math.max(0, available - dnaBudget));
@@ -216,8 +214,9 @@ export function buildAiMediaVideoGenerationPrompt(
 
   const compiledPrompt = [
     `Version : ${AI_MEDIA_PROMPT_VERSION}.`,
+    buildAiMediaGlobalConstraints(profile),
     "CONTRAT GÉNÉRER VIDÉO — mission exclusive : produire des plans vidéo originaux formant une nouvelle séquence animée cohérente dans le temps, jamais une simple affiche fixe ni une modification d’un média existant.",
-    "ORDRE DE PRIORITÉ VIDÉO — sécurité et droits ; sujet explicite ; consigne explicite ; mode de composition ; références obligatoires ; identité et continuité ; durée et structure des scènes ; format ; texte et audio ; ADN pertinent ; préférences esthétiques.",
+    "ORDRE DE PRIORITÉ VIDÉO — sécurité et droits ; interdictions globales ; consignes globales pertinentes ; sujet explicite ; consigne explicite ; mode de composition ; références obligatoires ; identité et continuité ; durée et structure des scènes ; format ; texte et audio ; ADN pertinent ; préférences esthétiques.",
     "BRIEF UTILISATEUR PRIORITAIRE :",
     buildAiMediaPromptCreativeBrief(request),
     buildAiMediaPromptInstruction(request),
@@ -280,30 +279,28 @@ export function buildAiMediaVideoGenerationPrompt(
   // explicatives sont compressés.
   const compactRequiredSections = [
     `Version : ${AI_MEDIA_PROMPT_VERSION}.`,
-    "CONTRAT GÉNÉRER VIDÉO CONDENSÉ — nouvelle séquence animée cohérente ; jamais affiche fixe ni modification d’une source.",
+    buildAiMediaGlobalConstraints(profile),
+    "GÉNÉRER VIDÉO — nouvelle séquence animée cohérente ; jamais affiche fixe ni modification de source.",
     `SUJET CENTRAL OBLIGATOIRE (${request.subjectSource}) : ${
       cleanAiMediaPromptText(request.idea, 2_000) ||
       "déduire un sujet professionnel factuel de l’ADN compact ci-dessous"
-    }. Ne jamais afficher ni recopier cette formulation dans le média.`,
+    }. Brief non visible et non prononcé.`,
     request.aiInstruction
       ? `CONSIGNE DE RÉALISATION PRIORITAIRE :\n${cleanAiMediaPromptStructuredText(
           request.aiInstruction,
           2_400
-        )}\nAppliquer chaque exigence visuelle et narrative sans l’afficher, la reformuler ni la diluer.`
+        )}\nAppliquer chaque exigence visuelle/narrative sans afficher la consigne.`
       : "Aucune consigne ponctuelle supplémentaire.",
-    buildAiMediaOriginalityContract(request),
-    "CONTRAT DU MODE DE COMPOSITION VIDÉO — chaque critère et chaque couple rôle/usage est autoritaire :",
+    buildAiMediaOriginalityContract(request, true),
+    "COMPOSITION — critères et couples rôle/usage autoritaires :",
     buildCompactVideoModeContract(args),
-    `SORTIE ET FORMAT AUTORITAIRES : vidéo plein cadre ${format.aspectRatio} (${format.label}), mouvement naturel, sans bordure, planche comparative ni explication. Garder visages, produit, action et zone d’habillage loin des bords et interfaces.`,
+    `SORTIE : plein cadre ${format.aspectRatio} (${format.label}), mouvement naturel ; sans bordure/comparatif/explication. Sujets et habillage loin des bords/interfaces.`,
     "DURÉE ET SCÈNES :",
     buildAiMediaVideoTimelineContract(args),
     `PARAMÈTRES STUDIO : typologie ${request.typology}, mode équipe ${request.teamVideoMode}.`,
     "STYLE ET RÉALISATION :",
     buildCompactVideoStyleContract(args),
-    `SIGNATURE NARRATIVE FACULTATIVE : ${getAiMediaVideoOriginalityDirection(
-      request
-    )} Ne jamais altérer faits, critères, scénario ni références obligatoires.`,
-    "MOUVEMENT : action crédible, gestes complets, caméra intentionnelle ; aucun morphing, membre incohérent, objet instable ni transition gratuite.",
+    "MOUVEMENT : gestes crédibles et complets, caméra intentionnelle ; aucun morphing, membre incohérent, objet instable ni transition gratuite.",
     "TEXTE VISIBLE :",
     buildCompactVideoTextContract(args),
     `LOGO — ${request.logoMode} : aucun logo ni pseudo-logo dessiné par le moteur ; le logo officiel sera ajouté localement selon ce mode.`,
@@ -311,11 +308,11 @@ export function buildAiMediaVideoGenerationPrompt(
     buildCompactVideoIdentityContract(args),
     "AUDIO ET PAROLE :",
     buildAiMediaVideoAudioContract(args),
-    "ANTI-RÉPÉTITION — renouveler uniquement ouverture, rythme, point de vue, lumière et mise en scène laissés libres ; conserver le sujet, le scénario, les identités, objets, lieux, actions, textes exacts et références imposés. Ne réutiliser aucune succession de plans ni structure récente, sauf scénario explicitement imposé.",
-    "RÈGLES TECHNIQUES — durée, paramètres, rôles et couleurs sont des instructions, jamais des éléments à afficher. Aucun nuancier, échantillon de couleur, code hexadécimal, légende technique ou planche de style ajouté au résultat. Ne pas recopier les annotations techniques autour du sujet des références.",
-    buildAiMediaPromptSafetyRules(),
-    "COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : plans sans texte, chiffre, téléphone, coordonnée, logo, enseigne ni interface lisible ; seul l’habillage validé sera ajouté.",
-    "CONTRÔLE FINAL VIDÉO — sujet, consigne, mode, durée, scènes, format, texte, audio, identité, palette, logo et références conformes ; inspirations non copiées ; mouvements crédibles ; uniquement la vidéo finale.",
+    "ANTI-RÉPÉTITION — varier les aspects libres ; aucun recyclage non demandé. Sujet/scénario/identités/objets/lieux/actions/textes/références inchangés.",
+    "TECHNIQUE — ni paramètres, couleurs ou annotations visibles. Aucun nuancier, échantillon de couleur, code hexadécimal, légende technique ou planche de style ajouté au résultat.",
+    buildAiMediaPromptSafetyRules(true),
+    "HABILLAGE LOCAL : plans sans texte, chiffre, téléphone, coordonnée, logo, enseigne ni interface lisible ; seul l’habillage validé est ajouté au montage.",
+    "CONTRÔLE FINAL — contraintes respectées ; inspirations non copiées ; mouvements crédibles ; vidéo finale seule.",
   ]
     .filter(Boolean)
     .map(String);

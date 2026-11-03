@@ -12,6 +12,7 @@ import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
 import * as boundary from "../../lib/aiMediaVideoProviderContract.ts";
 import * as providerTypes from "../../lib/aiVideoProviderTypes.ts";
 import * as freePrompt from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import * as globalConstraints from "../../lib/aiMediaGlobalConstraints.ts";
 import * as sensitiveText from "../../lib/aiMediaSensitiveText.ts";
 import { bufferFromUint8ArrayView } from "../../lib/aiMediaBuffer.ts";
 import { AiMediaRequestValidationError, normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
@@ -187,6 +188,7 @@ test("the creative planner and canonical prompt retain voice choices without fil
   const source = readFileSync(path.join(process.cwd(), "lib/aiMediaFreeGenerationPlan.ts"), "utf8");
   const javascript = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const stubs = new Map<string, unknown>([
+    ["./aiMediaGlobalConstraints.ts", globalConstraints],
     ["server-only", {}], ["./aiMediaCharacterVoices.ts", characterVoices], ["@/lib/aiMediaCharacterVoices", characterVoices], ["node:crypto", crypto], ["@/lib/aiGatewayClient", { aiGenerateJSON: async (input: { system: string; input: string }) => {
       observed = { system: input.system, input: input.input };
       return { direction: "Les deux artisans échangent naturellement.", scenes: [{ visualBrief: "character1 salue character2.", spokenLine: "Bonjour !" }] };

@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import ts from "typescript";
 import * as prompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import * as globalConstraints from "../../lib/aiMediaGlobalConstraints.ts";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
 import { AI_MEDIA_VIDEO_MODELS } from "../../lib/aiMediaModelCatalog.ts";
@@ -35,6 +36,7 @@ function loadPlanner(response: Record<string, unknown>) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
   }).outputText;
   const modules = new Map<string, unknown>([
+    ["./aiMediaGlobalConstraints.ts", globalConstraints],
     ["server-only", {}],
     ["@/lib/aiGatewayClient", { aiGenerateJSON: async (input: AiGenerateJsonOptions) => {
       calls.push(input);
@@ -59,7 +61,8 @@ function loadPlanner(response: Record<string, unknown>) {
 function provider(request: contracts.AiMediaGenerationRequest, plan: AiMediaCreativePlan, nativeNarrationLines?: string[]): AiVideoProviderGenerationArgs {
   return {
     request, plan, contentLanguage: "fr", nativeNarrationLines,
-    providerContract: buildAiMediaVideoProviderContract({ request, durationSeconds: request.durationSeconds || 8, brandColors: [], nativeNarrationLines }),
+    providerContract: buildAiMediaVideoProviderContract({ request, durationSeconds: request.durationSeconds || 8, brandColors: [], nativeNarrationLines,
+      globalMediaConstraints: globalConstraints.buildAiMediaGlobalConstraints(profile) }),
   } as AiVideoProviderGenerationArgs;
 }
 
@@ -77,7 +80,8 @@ test("le réalisateur et le transport gardent la demande brute avec un cadre uni
     assert.match(prompt, /No split screen, panels, collage or duplicate views unless requested/);
     assert.match(prompt, /SUBTITLES OFF/);
     assert.match(prompt, /no subtitles, captions or automatic speech transcription on screen/);
-    assert.doesNotMatch(prompt, /REGLAGE_GUIDE_INTERDIT/);
+    assert.match(prompt, /GLOBAL MEDIA RULES[\s\S]*INSTRUCTIONS:[\s\S]*REGLAGE_GUIDE_INTERDIT/);
+    assert.doesNotMatch(prompt, /configuration_ia/);
   }
   assert.ok(canonical.includes(brief));
   assert.ok(transport.includes(plan.subline));

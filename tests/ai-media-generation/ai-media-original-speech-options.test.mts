@@ -65,7 +65,7 @@ test("caption choice is independent of other requested visual text and exact spo
 
 test("the prepared first frame never draws the dedicated speech or pre-burns captions", () => {
   const args = provider({ withSubtitles: true });
-  const prompt = buildAiMediaFreeSceneFramePrompt({ request: args.request, profile: { business: { companyName: "" } } } as never);
+  const prompt = buildAiMediaFreeSceneFramePrompt({ request: args.request, profile: { business: { companyName: "" }, preferences: {} } } as never);
   assert.match(prompt, /SUBTITLES OFF/);
   assert.ok(!prompt.includes(script));
   assert.ok(prompt.includes("enseigne"));

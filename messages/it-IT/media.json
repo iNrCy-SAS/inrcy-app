@@ -941,7 +941,7 @@
   "ai_generator_use_business_dna_info_sources": "L’IA usa le informazioni professionali salvate e pertinenti alla richiesta: profilo, DNA aziendale, documenti di riferimento, sito e social, servizi, zona, punti di forza e tariffe indicate.",
   "ai_generator_use_business_dna_info_identity": "Il DNA aziendale applica i colori del tuo marchio. Nelle immagini, il logo salvato viene aggiunto automaticamente anche senza questa opzione, salvo indicazioni diverse nel prompt.",
   "ai_generator_use_business_dna_info_contacts": "I tuoi contatti e link vengono aggiunti al contenuto solo se lo richiedi, senza doverli riscrivere.",
-  "ai_generator_use_business_dna_info_freedom": "La creazione resta libera: il tuo prompt ha la priorità. Se la casella non è selezionata, le altre informazioni aziendali non vengono aggiunte automaticamente.",
+  "ai_generator_use_business_dna_info_freedom": "Il tuo prompt guida la creazione. Senza DNA, non vengono aggiunte le altre informazioni aziendali. Le istruzioni e i divieti di La mia comunicazione restano validi.",
   "ai_generator_prompt_helper_title_image": "Come descrivere bene la tua immagine?",
   "ai_generator_prompt_helper_title_video": "Come descrivere bene il tuo video?",
   "ai_generator_prompt_helper_intro": "Descrivi il risultato che vuoi vedere. Questi consigli sono facoltativi.",

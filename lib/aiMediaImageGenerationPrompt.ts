@@ -2,6 +2,7 @@ import { describeAiMediaBrandColors } from "@/lib/aiMediaColorDirection";
 import { AI_MEDIA_FORMAT_SPECS } from "@/lib/aiMediaGenerationContracts";
 import { getAiLanguageLabel } from "@/lib/aiWritingProfile";
 import { buildAiContentLocationInstruction } from "./aiContentLocation.ts";
+import { buildAiMediaGlobalConstraints } from "./aiMediaGlobalConstraints.ts";
 import {
   AI_MEDIA_COMPILED_PROMPT_MAX_CHARS,
   AI_MEDIA_PROMPT_VERSION,
@@ -441,20 +442,17 @@ function assembleBudgetedImagePrompt(args: {
   const render = (dna: string, history: string) =>
     [
       ...args.requiredSections,
-      `ADN PROFESSIONNEL COMPACT — contexte seulement, jamais sujet de remplacement :${
-        dna ? `\n${dna}` : ""
-      }\n${dnaMarker}`,
-      `HISTORIQUE COMPACT À NE PAS COPIER :${
-        history ? `\n${history}` : ""
-      }\n${historyMarker}`,
+      dna ? `ADN PROFESSIONNEL COMPACT — contexte seulement, jamais sujet de remplacement :\n${dna}\n${dnaMarker}` : dnaMarker,
+      history ? `HISTORIQUE COMPACT À NE PAS COPIER :\n${history}\n${historyMarker}` : "",
     ]
       .filter(Boolean)
       .join("\n\n");
   const minimum = render("", "");
+  const optionalEnvelopeLength = render("x", "x").length - minimum.length - 2;
   const targetLength = AI_MEDIA_COMPILED_PROMPT_MAX_CHARS - 256;
   const available = Math.max(
     0,
-    targetLength - minimum.length
+    targetLength - minimum.length - optionalEnvelopeLength
   );
   const dnaBudget = Math.min(420, Math.floor(available * 0.72));
   const historyBudget = Math.min(180, Math.max(0, available - dnaBudget));
@@ -482,8 +480,9 @@ export function buildAiMediaImageGenerationPrompt(
 
   const compiledPrompt = [
     `Version : ${AI_MEDIA_PROMPT_VERSION}.`,
+    buildAiMediaGlobalConstraints(profile),
     "CONTRAT GÉNÉRER IMAGE — mission exclusive : composer une nouvelle image originale, jamais modifier une source ni préparer une animation.",
-    "ORDRE DE PRIORITÉ IMAGE — sécurité et droits ; sujet explicite ; consigne explicite ; références obligatoires ; texte exact ou habillage local ; format et zones sûres ; ADN pertinent ; préférences esthétiques. Une couche inférieure ne doit jamais diluer une exigence supérieure.",
+    "ORDRE DE PRIORITÉ IMAGE — sécurité et droits ; interdictions globales ; consignes globales pertinentes ; sujet explicite ; consigne explicite ; références obligatoires ; texte exact ou habillage local ; format et zones sûres ; ADN pertinent ; préférences esthétiques. Une couche inférieure ne doit jamais diluer une exigence supérieure.",
     "BRIEF UTILISATEUR PRIORITAIRE :",
     buildAiMediaPromptCreativeBrief(request),
     buildAiMediaPromptInstruction(request),
@@ -542,7 +541,8 @@ export function buildAiMediaImageGenerationPrompt(
   // verbeux.
   const compactRequiredSections = [
     `Version : ${AI_MEDIA_PROMPT_VERSION}.`,
-    "CONTRAT GÉNÉRER IMAGE CONDENSÉ — produire une nouvelle image originale jusqu’aux quatre bords, sans bandes blanches/noires ni fond flouté autour ; ne jamais modifier une source ni préparer une animation.",
+    buildAiMediaGlobalConstraints(profile),
+    "GÉNÉRER IMAGE — nouvelle image plein cadre sans bandes ni fond flouté ; jamais modifier une source ni animer.",
     `SUJET CENTRAL OBLIGATOIRE (${request.subjectSource}) : ${
       cleanAiMediaPromptText(request.idea, 2_000) ||
       "déduire un sujet professionnel factuel de l’ADN compact ci-dessous"
@@ -553,7 +553,7 @@ export function buildAiMediaImageGenerationPrompt(
           2_400
         )}\nL’appliquer visuellement sans l’afficher ni la diluer.`
       : "Aucune consigne ponctuelle supplémentaire.",
-    buildAiMediaOriginalityContract(request),
+    buildAiMediaOriginalityContract(request, true),
     buildImageGenerationModeContract(args),
     buildCompactImagePurposeContract(args),
     buildImageVisualDirectionContract(args),
@@ -566,15 +566,15 @@ export function buildAiMediaImageGenerationPrompt(
     buildImagePaletteContract(args),
     "CONTRAT DES RÉFÉRENCES IMAGE — chaque rôle et usage est autoritaire :",
     buildCompactImageReferenceContract(args),
-    `MODE IDENTITÉ : ${request.identityMode}. Toute référence Personnage obligatoire doit conserver séparément chaque personne distincte détectée ; aucune omission, fusion, duplication ni substitution générique.`,
+    `IDENTITÉ ${request.identityMode} : chaque personne distincte des références Personnage obligatoires conservée séparément ; aucune omission, fusion, duplication ni substitution.`,
     args.castingDirection || "",
-    "ANTI-RÉPÉTITION — renouveler uniquement les aspects laissés libres ; conserver le sujet et toutes les contraintes explicites, y compris les références et textes exacts. Ne réutiliser aucune accroche, aucun slogan ni structure récente, sauf élément explicitement imposé.",
-    "RÈGLES TECHNIQUES IMAGE — les paramètres et couleurs sont des instructions, jamais des éléments à afficher. Aucun nuancier, échantillon de couleur, code hexadécimal, légende technique ou planche de style ajouté au résultat. Ne pas recopier les annotations techniques autour du sujet des références.",
-    buildAiMediaPromptSafetyRules(),
+    "ANTI-RÉPÉTITION — varier seulement les aspects libres ; sujet, contraintes, références et textes exacts inchangés. Aucun recyclage récent sauf demande.",
+    "RÈGLES TECHNIQUES IMAGE — ne jamais afficher paramètres, couleurs ni annotations des références. Aucun nuancier, échantillon de couleur, code hexadécimal, légende technique ou planche de style ajouté au résultat.",
+    buildAiMediaPromptSafetyRules(true),
     args.deferVisibleElementsToComposer
       ? "COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo. Les valeurs exactes restent hors du prompt fournisseur et seront posées localement."
       : "",
-    "CONTRÔLE FINAL IMAGE — sujet et consigne respectés ; références obligatoires fidèles ; inspirations non copiées ; format, texte, identité, palette et logo conformes ; une seule image finale sans explication.",
+    "CONTRÔLE FINAL — sujet, consigne, références, format, texte, identité, palette et logo conformes ; inspirations non copiées ; une image finale sans explication.",
   ]
     .filter(Boolean)
     .map(String);

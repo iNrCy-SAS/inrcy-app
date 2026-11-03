@@ -379,7 +379,7 @@ export function buildGoogleVideoSafetyFallbackPrompt(prompt: string) {
       "Create a fresh original scene faithful to the requested business subject and visual direction.",
     );
   return fitDerivedGoogleVideoPrompt(
-    "SAFETY RECOVERY: no reference files supplied; create an original scene, never copy a real face/identity. Mature adults 25+ only. " + withoutReferenceInstructions,
+    "SAFETY RECOVERY: no reference files supplied; create an original scene, never copy a real face/identity. Any humans allowed by GLOBAL MEDIA RULES must be mature adults 25+ only. " + withoutReferenceInstructions,
     "safety",
   );
 }
@@ -681,7 +681,7 @@ export function buildGoogleVideoContinuityContract(
   );
   return compact(
     [
-      `CAST ${buildGoogleVideoContinuityCast(
+      `CAST ${args.providerContract?.globalMediaConstraints ? "only if allowed by GLOBAL MEDIA RULES: " : ""}${buildGoogleVideoContinuityCast(
         args.request,
         args.identityTeamMemberCount,
       )}`,
@@ -842,13 +842,16 @@ export function buildGoogleVideoScenePrompt(
   const adultSafety =
     args.request.peopleMode === "none"
       ? "PEOPLE: none, including silhouettes/faces."
-      : "PEOPLE: mature adults 25+ only; no minors.";
+      : providerContract.globalMediaConstraints
+        ? "PEOPLE: only if allowed by GLOBAL MEDIA RULES; mature adults 25+ only; no minors."
+        : "PEOPLE: mature adults 25+ only; no minors.";
   const selectedParameters = providerContract.parameters;
 
   // Contrat commun image→vidéo : l'ordre reflète la hiérarchie produit. Les
   // garde-fous de texte arrivent avant tout contexte facultatif afin que Veo
   // ne génère plus de faux panneaux (« Agenice », « Agenue », etc.).
   const requiredSections = () => [
+    providerContract.globalMediaConstraints || "",
     compactGeneratedDirections && options.continuationFrame
       ? `${options.firstFrameTag ? "[# Sources <FIRST_FRAME>@Image1] " : ""}Continue prior frame's motion; no reset/cut.`
       : compactGeneratedDirections && !options.continuation

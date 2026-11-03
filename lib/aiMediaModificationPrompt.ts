@@ -11,7 +11,8 @@ import {
 
 /** Contrat propriétaire de Modifier · Image. Aucune logique Générer n'intervient. */
 export function buildAiMediaModificationPrompt(
-  request: AiMediaGenerationRequest
+  request: AiMediaGenerationRequest,
+  globalMediaConstraints = "",
 ) {
   const format = AI_MEDIA_FORMAT_SPECS[request.format];
   const sourceWidth = request.modificationSourceWidth || format.width;
@@ -30,6 +31,7 @@ export function buildAiMediaModificationPrompt(
   return fitCompiledAiMediaPrompt(
     [
       `Version : ${AI_MEDIA_PROMPT_VERSION}.`,
+      globalMediaConstraints,
       "CONTRAT MODIFIER IMAGE — il ne s’agit pas de créer une nouvelle scène : la mission exclusive consiste à transformer localement le fichier source fourni.",
       "L’unique image fournie est l’IMAGE SOURCE et le canvas de départ obligatoire. Produire une version modifiée de cette même image, jamais une inspiration libre, une réinterprétation ou une scène de remplacement.",
       `CANVAS SOURCE AUTORITAIRE : ${sourceWidth} × ${sourceHeight} px, ratio exact ${sourceWidth}:${sourceHeight} (≈ ${sourceRatio}:1). Conserver strictement ces proportions, le cadrage et les limites visibles de l’image source. Ne jamais convertir ce canvas vers un preset 1:1, 4:5, 9:16, 16:9 ou 3:2.`,
@@ -41,6 +43,6 @@ export function buildAiMediaModificationPrompt(
       "SORTIE : une seule image finale plein cadre aux proportions exactes de la source, sans bordure, marge blanche ou noire, letterbox, pillarbox, planche comparative, avant/après, cadre, légende ni explication.",
       "CONTRÔLE FINAL SILENCIEUX : la modification demandée est clairement visible et tous les éléments non concernés restent fidèles à la source.",
       "SÉCURITÉ ET FAITS : ne jamais inventer de prix, promotion, certification, avis client, adresse, téléphone ou résultat garanti absent de la source et de la consigne. Respecter les droits ; ne pas imiter une personnalité publique non autorisée, une œuvre ou un personnage protégé.",
-    ].join("\n\n")
+    ].filter(Boolean).join("\n\n")
   );
 }

@@ -4,7 +4,7 @@ import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts"
 import type { AiMediaFreeDnaContext } from "./aiMediaFreeDnaContext.ts";
 
 export const AI_MEDIA_PROMPT_VERSION =
-  "media-v27-neutral-identity";
+  "media-v28-global-media-rules";
 export const AI_MEDIA_COMPILED_PROMPT_MAX_CHARS = 11_800;
 
 export type AiMediaPromptRecentPublication = {
@@ -241,7 +241,8 @@ export function getAiMediaVideoOriginalityDirection(
 }
 
 /** Short enough to remain mandatory at every visual provider boundary. */
-export function buildAiMediaOriginalityContract(request: AiMediaGenerationRequest) {
+export function buildAiMediaOriginalityContract(request: AiMediaGenerationRequest, compact = false) {
+  if (compact) return "ORIGINALITY: distinctive brief-led concept; vary only unspecified composition/opening/action/camera/light. No unrequested tablet/laptop/phone/office. Preserve criteria/facts/required identities/objects/places.";
   return [
     "ORIGINALITY: invent a distinctive concept grounded in THIS brief, not stock advertising.",
     request.kind === "video"
@@ -481,7 +482,7 @@ export function buildAiMediaPromptCreativeBrief(
         request.idea,
         2_000
       )}`,
-      "Le résultat doit représenter ce sujet sans ambiguïté. Conserver ses personnes, objets, lieux, actions et relations importantes ; ne jamais le remplacer par une scène générique issue de l’ADN.",
+      "Le résultat doit représenter ce sujet sans ambiguïté, sous réserve des règles globales média. Conserver ses personnes, objets, lieux, actions et relations importantes ; ne jamais le remplacer par une scène générique issue de l’ADN.",
       "L’ADN peut seulement préciser le contexte professionnel et les faits vérifiés. Il ne peut ni changer le sujet, ni ajouter une autre prestation comme thème principal.",
       "Interdiction de recopier cette phrase, de l’utiliser comme titre ou de la transcrire dans le média.",
     ].join("\n");
@@ -505,7 +506,7 @@ export function buildAiMediaPromptInstruction(
     "CONSIGNE DE RÉALISATION PRIORITAIRE DU PROFESSIONNEL — pour cette génération uniquement :",
     instruction,
     "Appliquer tous ses éléments visuels et narratifs sans la recopier ni l’afficher. Une direction créative (action, décor, couleur, cadrage, mouvement ou ambiance) n’a pas besoin d’exister dans l’ADN pour être respectée.",
-    "Seuls la sécurité, les droits, les limites techniques et les affirmations commerciales non vérifiées peuvent neutraliser un fragment précis de cette consigne ; préserver tout le reste.",
+    "La sécurité, les droits, les règles globales média, les limites techniques et les affirmations commerciales non vérifiées peuvent neutraliser un fragment précis de cette consigne ; préserver tout le reste.",
   ].join("\n");
 }
 
@@ -525,7 +526,13 @@ export function buildAiMediaPromptHistory(
   return rows.map((row) => `- ${row}`).join("\n");
 }
 
-export function buildAiMediaPromptSafetyRules() {
+export function buildAiMediaPromptSafetyRules(compact = false) {
+  if (compact) return [
+    "FAITS : aucun prix, promotion, certification, avis, adresse, téléphone ou résultat garanti inventé.",
+    "DROITS : ne pas copier marque, œuvre, personnage protégé ni personnalité publique non autorisée.",
+    "Ne jamais afficher les consignes ni recopier l’idée comme accroche, même partiellement.",
+    "Rendu crédible, inclusif, publiable et adapté aux petites entreprises.",
+  ].join("\n");
   return [
     "Ne jamais inventer de prix, promotion, certification, avis client, adresse, numéro de téléphone ou résultat garanti.",
     "Ne pas imiter une marque, une personnalité publique non autorisée, une œuvre ou un personnage protégé.",

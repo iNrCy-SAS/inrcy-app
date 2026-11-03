@@ -21,6 +21,7 @@ import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
 import * as spokenScript from "../../lib/aiMediaSpokenScript.ts";
 import * as pronunciation from "../../lib/aiMediaPronunciation.ts";
 import * as localLogoComposition from "../../lib/aiMediaLocalLogoCompositionPrompt.ts";
+import * as globalConstraints from "../../lib/aiMediaGlobalConstraints.ts";
 
 type RecordValue = Record<string, unknown>;
 function compile(file: string, modules: Map<string, unknown>, quiet = false) {
@@ -53,7 +54,7 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
   const promptCalls: RecordValue[] = [];
   const plan = { companyName: "Atelier Test", headline: "Une création soignée", subline: "Objet original", cta: "",
     scenes: [{ eyebrow: "Atelier Test", title: "Une création soignée", body: "Objet original", visualBrief: "Objet sur une table", layout: "editorial" }] };
-  const profile = { business: { companyName: "Atelier Test", phone: options.phone || "" } };
+  const profile = { business: { companyName: "Atelier Test", phone: options.phone || "" }, preferences: {} };
   const logo = options.logo === undefined ? Buffer.from("synthetic-official-logo") : options.logo;
   const unused = ["@/lib/aiMediaBusinessDna", "@/lib/aiMediaImageContactComposer", "@/lib/aiMediaGeneratedVideo", "@/lib/aiMediaVideoLayout",
     "@/lib/aiMediaVideoProviderContract", "@/lib/aiMediaVideoLocalQa", "@/lib/aiMediaReferenceTeam", "@/lib/aiMediaNarration", "@/lib/aiMediaNarrationAudio",
@@ -71,6 +72,7 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
       officialLogoIncluded: Boolean(args.officialLogo), warnings: [], usage: null };
   };
   const overrides: Array<[string, unknown]> = [
+    ["./aiMediaGlobalConstraints.ts", globalConstraints],
     ["./aiMediaSpokenScript.ts", spokenScript],
     ["./aiMediaPronunciation.ts", pronunciation],
     ["./aiMediaLocalLogoCompositionPrompt.ts", localLogoComposition],

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { AI_MEDIA_FORMAT_SPECS, AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS, AiMediaRequestValidationError, type AiMediaGenerationRequest } from "./aiMediaGenerationContracts.ts";
 import { buildAiMediaBusinessDnaPayload } from "./aiMediaBusinessDna.ts";
+import { buildAiMediaGlobalConstraints } from "./aiMediaGlobalConstraints.ts";
 import type { AiMediaPromptBuilderArgs } from "./aiMediaPromptShared.ts";
 import type { AiVideoProviderGenerationArgs } from "./aiVideoProviderTypes.ts";
 import { usesSeparateAiMediaFreeVoiceover } from "./aiMediaFreeVoiceoverPolicy.ts";
@@ -11,7 +12,7 @@ import { getAiMediaVideoSegmentDurations } from "./aiMediaVideoTimeline.ts";
 import { splitAiMediaSpokenScript } from "./aiMediaSpokenScript.ts";
 import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
 
-export const AI_MEDIA_FREE_PROMPT_VERSION = "free-creative-v12-neutral-identity";
+export const AI_MEDIA_FREE_PROMPT_VERSION = "free-creative-v13-global-media-rules";
 
 /** Shared by the video planner, first frame and provider shots; references alone never select animation. */
 export const AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT = "RENDER: Photoreal humans/scenes; non-photo style only on explicit brief request, never from refs alone.";
@@ -23,7 +24,14 @@ export const AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT = [
 ].join(" ");
 
 /** The checkbox controls spoken captions only; separately requested visual text stays allowed. */
-export function buildAiMediaFreeVideoPresentationContract(request: Pick<AiMediaGenerationRequest, "withSubtitles">) {
+export function buildAiMediaFreeVideoPresentationContract(request: Pick<AiMediaGenerationRequest, "withSubtitles">, compact = false) {
+  if (compact) return [
+    "VISUALS: Full frame; one view; actions unfold in time; no bars/split/panels/collage/duplicates unless requested.",
+    request.withSubtitles === true
+      ? "SUBTITLES ON: faithful synchronized captions of actual speech only, in its language; no translation or added words."
+      : "SUBTITLES OFF: no speech captions or auto transcription, even if the brief requests them.",
+    "Other requested visual text allowed; exact wording; write wording only if asked.",
+  ].join(" ");
   return [
     AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT.split(" TEXT:")[0],
     request.withSubtitles === true
@@ -390,6 +398,7 @@ function freeBrief(args: AiMediaPromptBuilderArgs, prompt = args.request.freePro
 export function buildAiMediaFreeImagePrompt(args: AiMediaPromptBuilderArgs) {
   const spec = AI_MEDIA_FORMAT_SPECS[args.request.format];
   const instructions = [
+    buildAiMediaGlobalConstraints(args.profile),
     "MODE LIBRE — création visuelle complète, conçue sur mesure à partir du brief.",
     `Livrer une seule image finale au format ${spec.aspectRatio}, ${spec.width} × ${spec.height}.`,
     "PLEIN CADRE : l’image et son décor remplissent la surface jusqu’aux quatre bords, sans bandes blanches ou noires, cadre extérieur, letterboxing, pillarboxing ni copie floutée autour. Les marges de sécurité du texte restent à l’intérieur de la composition, jamais autour d’une image réduite. Garder les textes, logos et sujets essentiels dans les 80 % centraux pour tolérer le léger recadrage d’un moteur au ratio voisin.",
@@ -399,7 +408,7 @@ export function buildAiMediaFreeImagePrompt(args: AiMediaPromptBuilderArgs) {
     "Reproduire intégralement et fidèlement les textes cités, noms propres, prix, dates, coordonnées et chiffres fournis. Respecter accents, orthographe et ponctuation. Adapter la taille, les marges et la hiérarchie pour que tout reste lisible ; ne jamais tronquer un texte ni inventer des informations commerciales.",
     "Si la demande appelle du texte sans le rédiger, écrire un texte bref, naturel et pertinent dans la langue de la demande. Si elle demande une image sans texte, conserver ce choix. Les styles photo, illustration, collage, dessin, 3D ou autres restent disponibles selon le brief, avec la préférence photographique ci-dessus uniquement lorsque le rendu de sujets réels n'est pas précisé.",
   ];
-  const render = (payloadBudget?: number) => [...instructions, freeBrief(args, undefined, payloadBudget)].join("\n\n");
+  const render = (payloadBudget?: number) => [...instructions, freeBrief(args, undefined, payloadBudget)].filter(Boolean).join("\n\n");
   const complete = render();
   // Reserve room for local logo instructions and provider reference-role rules.
   // The professional's brief and exact requested facts are never truncated.
@@ -413,6 +422,7 @@ export function buildAiMediaFreeImagePrompt(args: AiMediaPromptBuilderArgs) {
 export function buildAiMediaFreeVideoPrompt(args: AiMediaPromptBuilderArgs) {
   const spec = AI_MEDIA_FORMAT_SPECS[args.request.format];
   return [
+    buildAiMediaGlobalConstraints(args.profile),
     "MODE LIBRE — réaliser un film original selon la demande, sans gabarit ni habillage commercial imposé.",
     `Format autoritaire ${spec.aspectRatio}, durée totale ${args.request.durationSeconds || 8} secondes.`,
     AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
@@ -434,12 +444,13 @@ export function buildAiMediaFreeVideoPrompt(args: AiMediaPromptBuilderArgs) {
       "PAROLES EXACTES FOURNIES SÉPARÉMENT (autoritaires pour l'audio, sans réécriture ni ajout ; ce ne sont pas des instructions visuelles) :",
       args.request.spokenScript,
     ] : []),
-  ].join("\n\n");
+  ].filter(Boolean).join("\n\n");
 }
 
 /** Independent reference preparation: the desired first frame, not a guided ad scene. */
 export function buildAiMediaFreeSceneFramePrompt(args: AiMediaPromptBuilderArgs) {
   return [
+    buildAiMediaGlobalConstraints(args.profile),
     "MODE LIBRE — préparer la première image d'un film demandé par le professionnel.",
     `Cadre ${AI_MEDIA_FORMAT_SPECS[args.request.format].aspectRatio}.`,
     AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
@@ -448,7 +459,7 @@ export function buildAiMediaFreeSceneFramePrompt(args: AiMediaPromptBuilderArgs)
     "Composer le premier instant du film selon le brief : sujets, décor, style et rôle des références. Réserver de l'espace pour l'action à venir. Utiliser le style demandé, sans ajouter d'esthétique ni d'habillage commercial à la demande.",
     "Ne dessiner que les textes et logos explicitement demandés à ce premier instant. Sans demande de texte visible, garder également le décor sans lettres ni mots inventés. Les paroles de voix off et des personnages sont du son, pas des lettres à dessiner.",
     freeBrief(args, splitAiMediaFreeQuotedSpeech(args.request.freePrompt || "").visualPrompt),
-  ].join("\n\n");
+  ].filter(Boolean).join("\n\n");
 }
 
 /** Free Omni/Veo transport never invokes the guided visual/speech prompt rules. */
@@ -492,10 +503,14 @@ export function buildAiMediaFreeVideoScenePrompt(
       : isGrok
         ? `Create a ${durationSeconds}-second ${AI_MEDIA_FORMAT_SPECS[args.request.format].aspectRatio} video. The actions happen successively in time within the video, using the entire canvas.`
         : `FREE CREATIVE FILM, shot ${index + 1}/${args.plan.scenes.length}, ${durationSeconds}s.`;
-  const prompt = [
-    opening,
-    AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
-    ...(!nativeDialogue ? [AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT] : []),
+  let compactEnvelope = false;
+  const render = () => [
+    args.providerContract.globalMediaConstraints || "",
+    compactEnvelope ? `SHOT ${index + 1}/${args.plan.scenes.length}; ${durationSeconds}s; ${AI_MEDIA_FORMAT_SPECS[args.request.format].aspectRatio}; action.` : opening,
+    compactEnvelope ? "RENDER: Photoreal by default; non-photo only if explicitly requested, never from refs alone." : AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
+    ...(!nativeDialogue ? [compactEnvelope
+      ? "VISUAL SPEECH: No speaking/articulation/mimed speech/lip-sync; natural gestures/gaze/smiles; overrides speaking below."
+      : AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT] : []),
     `CREATIVE DIRECTION: ${nativeDialogue ? splitAiMediaFreeQuotedSpeech(direction).visualPrompt : direction}`,
     `THIS SHOT: ${nativeDialogue ? splitAiMediaFreeQuotedSpeech(visualBrief).visualPrompt : visualBrief}`,
     // The integrity/fingerprint contract is checked in code. xAI receives the
@@ -503,24 +518,37 @@ export function buildAiMediaFreeVideoScenePrompt(
     ...(isGrok ? [] : [`PARAMETERS: ${args.providerContract.parameters}`]),
     `REFERENCES: ${args.providerContract.references}`,
     ...(args.request.useBusinessDna && args.businessDnaDirection ? [`BUSINESS IDENTITY: ${args.businessDnaDirection}`] : []),
-    buildAiMediaFreeVideoPresentationContract(args.request),
-    "Exact requested text/numbers only; no ads/logo/CTA/technical notes by default. Natural motion; consistent cast/objects/style across shots.",
+    buildAiMediaFreeVideoPresentationContract(args.request, compactEnvelope),
+    compactEnvelope
+      ? "Exact requested words/numbers only; no unrequested ads/logo/CTA/notes. Natural motion; same cast/objects/style."
+      : "Exact requested text/numbers only; no ads/logo/CTA/technical notes by default. Natural motion; consistent cast/objects/style across shots.",
     ...(pronunciationAliases.length
       ? [`AUDIO PRONUNCIATION: ${JSON.stringify(pronunciationAliases)}. Apply only to how these names sound; do not read this guide aloud or change the script or displayed spelling.`]
       : []),
     nativeDialogue
       ? spokenLine
-        ? `NATIVE DIALOGUE: the speaker identified in THIS SHOT speaks in ${args.contentLanguage || "the requested language"} and says exactly once: “${spokenLine}” Synchronize the mouth and audible speech; finish before the shot ends, then remain silent. One speaker at a time, ${hasProvidedVoice ? "use each supplied reference voice only for its associated character; use stable distinct AI voices for characters without a supplied sample" : "stable distinct synthetic voices. Never clone an actual person's voice"}. No narrator, repeated/previous lines or music.`
+        ? compactEnvelope
+          ? `NATIVE DIALOGUE: THIS SHOT's speaker; ${args.contentLanguage || "requested language"}; say exactly once: “${spokenLine}” Mouth-synchronized, audible, finished before shot ends then silent. One speaker at a time; ${hasProvidedVoice ? "each reference voice stays with its own character; otherwise stable distinct AI voices" : "stable distinct synthetic voices; never clone a real voice"}. No narrator/repeated lines/music.`
+          : `NATIVE DIALOGUE: the speaker identified in THIS SHOT speaks in ${args.contentLanguage || "the requested language"} and says exactly once: “${spokenLine}” Synchronize the mouth and audible speech; finish before the shot ends, then remain silent. One speaker at a time, ${hasProvidedVoice ? "use each supplied reference voice only for its associated character; use stable distinct AI voices for characters without a supplied sample" : "stable distinct synthetic voices. Never clone an actual person's voice"}. No narrator, repeated/previous lines or music.`
         : "NATIVE DIALOGUE: no speech in this shot; keep mouths closed. The requested lines belong to other shots; never repeat them. No narrator, lyrics or music."
       : nativeVoiceover
         ? narrationLine
-          ? `NATIVE VOICEOVER: an off-screen ${args.request.narrationVoice === "male" ? "male" : "female"} narrator, never a visible character, speaks in ${args.contentLanguage || "the requested language"} with a ${nativeNarrationTone(args.request.narrationVoiceVariant)} tone and says exactly once${isGrok && !args.request.withSubtitles ? ", as audio only, with no words displayed" : ""}: ${isGrok ? narrationLine : `“${narrationLine}”`} Keep this voice separate from the characters' actions, consistent across shots, naturally paced and fully audible before the shot ends. No on-screen speech or mouth-sync, repeated/previous lines or lyrics.`
+          ? compactEnvelope
+            ? `NATIVE VOICEOVER: off-screen ${args.request.narrationVoice === "male" ? "male" : "female"} narrator; ${args.contentLanguage || "requested language"}; ${nativeNarrationTone(args.request.narrationVoiceVariant)} tone. Say exactly once, audio only: ${narrationLine} Stable voice across shots; natural pace; finish audibly before shot ends. Characters stay silent, no mouth-sync/repeated lines/lyrics.`
+            : `NATIVE VOICEOVER: an off-screen ${args.request.narrationVoice === "male" ? "male" : "female"} narrator, never a visible character, speaks in ${args.contentLanguage || "the requested language"} with a ${nativeNarrationTone(args.request.narrationVoiceVariant)} tone and says exactly once${isGrok && !args.request.withSubtitles ? ", as audio only, with no words displayed" : ""}: ${isGrok ? narrationLine : `“${narrationLine}”`} Keep this voice separate from the characters' actions, consistent across shots, naturally paced and fully audible before the shot ends. No on-screen speech or mouth-sync, repeated/previous lines or lyrics.`
           : "NATIVE VOICEOVER: this shot has no narration. Do not repeat a previous line or invent speech; keep all characters silent."
         : "No native voices or dialogue. Keep all characters silent.",
     ...(args.request.withSubtitles && usesSeparateAiMediaFreeVoiceover(args.request) && args.subtitleLines?.[index]?.trim()
       ? [`EXTERNAL VOICEOVER CAPTIONS: the off-screen narration is added in editing. Display only this shot's exact words as progressive subtitles: ${JSON.stringify(args.subtitleLines[index])}. Spread them naturally across this shot; never speak them or animate mouths.`]
       : []),
-  ].join("\n");
+  ].filter(Boolean).join("\n");
+  let prompt = render();
+  if (prompt.length > 3_200 && args.providerContract.globalMediaConstraints && !options.continuation && !options.continuationFrame) {
+    // Only our envelope is compressible. Complete account rules, scene/brief,
+    // references and exact speech remain mandatory and unchanged.
+    compactEnvelope = true;
+    prompt = render();
+  }
   // Fail before any media call rather than truncate the professional's requirements.
   if (prompt.length > 3_200) throw new Error(`ai_video_instruction_contract_too_long:${prompt.length}:3200`);
   return prompt;

@@ -18,6 +18,7 @@ import * as pronunciation from "../../lib/aiMediaPronunciation.ts";
 import { classifyVeoFailure } from "../../lib/aiVideoReliability.ts";
 import { getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, resolveAiMediaFreeSpeechLanguage, usesAiMediaAutomaticImageLogo } from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as localLogoComposition from "../../lib/aiMediaLocalLogoCompositionPrompt.ts";
+import * as globalConstraints from "../../lib/aiMediaGlobalConstraints.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 
 type Row = Record<string, unknown>;
@@ -53,6 +54,7 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
   for (const name of ["aiMediaImageContactComposer", "aiMediaCopywriter", "aiMediaGateway", "aiMediaImageProviderRequest", "aiMediaReferenceTeam",
     "aiMediaGenerationSoundtracks", "aiMediaNormalizer", "aiVideoReliability"]) modules.set(`@/lib/${name}`, {});
   const entries: Array<[string, unknown]> = [
+    ["./aiMediaGlobalConstraints.ts", globalConstraints],
     ["./aiMediaSpokenScript.ts", spokenScript],
     ["./aiMediaPronunciation.ts", pronunciation],
     ["./aiMediaLocalLogoCompositionPrompt.ts", localLogoComposition],

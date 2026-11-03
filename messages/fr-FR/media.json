@@ -941,7 +941,7 @@
   "ai_generator_use_business_dna_info_sources": "L’IA utilise les informations professionnelles enregistrées et utiles à votre demande : profil, ADN, documents de référence, site et réseaux, prestations, zone, points forts et tarifs renseignés.",
   "ai_generator_use_business_dna_info_identity": "L’ADN applique les couleurs de votre marque. Sur les images, le logo enregistré est ajouté automatiquement même sans ADN, sauf indication contraire dans votre prompt.",
   "ai_generator_use_business_dna_info_contacts": "Vos coordonnées et vos liens sont ajoutés au média uniquement si vous le demandez, sans avoir à les ressaisir.",
-  "ai_generator_use_business_dna_info_freedom": "La création reste libre : votre prompt est prioritaire. Case décochée, les autres informations de l’entreprise ne sont pas ajoutées automatiquement.",
+  "ai_generator_use_business_dna_info_freedom": "Votre prompt guide la création. Sans ADN, les autres informations de l’entreprise ne sont pas ajoutées. Les consignes et interdictions de Ma communication restent appliquées.",
   "ai_generator_prompt_helper_title_image": "Comment bien décrire votre image ?",
   "ai_generator_prompt_helper_title_video": "Comment bien décrire votre vidéo ?",
   "ai_generator_prompt_helper_intro": "Décrivez le résultat que vous voulez voir. Ces conseils sont facultatifs.",

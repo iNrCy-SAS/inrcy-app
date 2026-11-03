@@ -5,6 +5,7 @@ import sharp from "sharp";
 
 import { buildNormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import { buildAiMediaVideoDnaBrief } from "@/lib/aiMediaBusinessDna";
+import { buildAiMediaGlobalConstraints } from "./aiMediaGlobalConstraints.ts";
 import { loadAiMediaBrandKit } from "@/lib/aiMediaBrandKit";
 import { loadAiMediaFreeDnaContext } from "@/lib/aiMediaFreeDnaContextServer";
 import {
@@ -371,7 +372,9 @@ export async function generateAndSaveAiMedia(args: {
         supabase: args.supabase,
         userId: args.accountId,
         edition: args.edition,
-        ...(args.request.creationMode === "free" && args.request.useBusinessDna ? { freshProfessional: true } : {}),
+        // Account rules apply even with ADN disabled. A missed cache
+        // invalidation must not keep yesterday's media prohibitions for 24 h.
+        freshProfessional: true,
       })
     ),
   ]);
@@ -480,6 +483,7 @@ export async function generateAndSaveAiMedia(args: {
       context: "",
     },
   });
+  const globalMediaConstraints = buildAiMediaGlobalConstraints(profile);
   const logoBrief = providerRequest.operation === "modify" ? providerRequest.aiInstruction
     : isFreeCreation ? providerRequest.freePrompt || "" : `${providerRequest.idea}\n${providerRequest.aiInstruction}`;
   const freeBrandPolicy = isFreeCreation
@@ -603,6 +607,9 @@ export async function generateAndSaveAiMedia(args: {
   const getLocalFallbackFrame = (
     includeLogo = providerRequest.kind === "image"
   ) => {
+    if (globalMediaConstraints) {
+      throw new AiMediaRequestValidationError("Le rendu de secours ne peut pas appliquer vos consignes et interdictions. Aucune vidéo de remplacement n’a été créée.");
+    }
     const cacheKey = includeLogo ? "with-logo" : "without-logo";
     const cached = localFallbackFrameTasks.get(cacheKey);
     if (cached) return cached;
@@ -1090,6 +1097,7 @@ export async function generateAndSaveAiMedia(args: {
           : "";
       const providerContract = buildAiMediaVideoProviderContract({
         request: modelRequest,
+        globalMediaConstraints,
         durationSeconds: getAiMediaVideoSegmentDurations(request.durationSeconds || 8, request.videoEngine, request.videoResolution, request.sceneMode)[0],
         brandColors: effectiveColors,
         profileFallback,

@@ -20,6 +20,8 @@ export type AiMediaVideoProviderContract = Readonly<{
   parameters: string;
   /** Inventaire et politique de fidélité de chaque média transmis au moteur. */
   references: string;
+  /** Complete account media rules, independent of the ADN checkbox or subject. */
+  globalMediaConstraints?: string;
   /** Empreinte du contenu ci-dessus, vérifiée avant tout appel réseau payant. */
   sha256: string;
 }>;
@@ -195,13 +197,16 @@ export function buildAiMediaVideoParameterContract(args: {
 function serializeContract(
   contract: Omit<AiMediaVideoProviderContract, "sha256">,
 ) {
-  return [
+  const sections = [
     contract.version,
     contract.subject,
     contract.instruction,
     contract.parameters,
     contract.references,
-  ].join("\u001e");
+  ];
+  // Preserve existing fingerprints when no global rules are configured.
+  if (contract.globalMediaConstraints) sections.push(contract.globalMediaConstraints);
+  return sections.join("\u001e");
 }
 
 export function hashAiMediaVideoProviderContract(
@@ -219,7 +224,9 @@ export function buildAiMediaVideoProviderContract(args: {
   identityTeamPrecomposed?: boolean;
   identityTeamMemberCount?: 2 | 3;
   profileFallback?: string;
+  globalMediaConstraints?: string;
 }): AiMediaVideoProviderContract {
+  const globalMediaConstraints = clean(args.globalMediaConstraints, 3_000);
   if (args.request.creationMode === "free") {
     const separateVoiceover = usesSeparateAiMediaFreeVoiceover(args.request);
     const nativeNarrationFingerprint = !separateVoiceover && args.nativeNarrationLines?.length
@@ -235,6 +242,7 @@ export function buildAiMediaVideoProviderContract(args: {
       instruction: clean(args.request.freePrompt, 4_000),
       parameters: `mode=free;format=${args.request.format};film=${args.request.durationSeconds || 8}s;scenes=${args.request.sceneMode || "single"};characters=${args.request.teamVideoSpeechMode === "characters" ? "native-dialogue" : "silent"};voiceover=${args.request.withNarration ? separateVoiceover ? "separate" : "native" : "none"}${nativeNarrationFingerprint}${speechFingerprint};subtitles=${args.request.withSubtitles ? "on" : "off"}${subtitleFingerprint};music=${args.request.withMusic ? "separate" : "none"};style/composition/text=brief-led`,
       references: buildAiMediaVideoReferenceContract(args),
+      ...(globalMediaConstraints ? { globalMediaConstraints } : {}),
     } satisfies Omit<AiMediaVideoProviderContract, "sha256">;
     return Object.freeze({ ...base, sha256: hashAiMediaVideoProviderContract(base) });
   }
@@ -251,6 +259,7 @@ export function buildAiMediaVideoProviderContract(args: {
     ),
     parameters: buildAiMediaVideoParameterContract(args),
     references: buildAiMediaVideoReferenceContract(args),
+    ...(globalMediaConstraints ? { globalMediaConstraints } : {}),
   } satisfies Omit<AiMediaVideoProviderContract, "sha256">;
   return Object.freeze({
     ...base,

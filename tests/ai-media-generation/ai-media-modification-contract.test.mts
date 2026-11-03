@@ -368,8 +368,11 @@ test("Modifier ignore les habillages et options de marque hérités de Générer
 test("Modifier garde les corrections textuelles explicites sans originalité ni ADN", () => {
   const aiInstruction = "Remplacer uniquement « Ancien numéro » par « Contact : 01 02 03 04 05 ». Conserver tous les autres mots, le décor et les personnages.";
   const request = normalizeAiMediaGenerationRequest(modificationRequest({ aiInstruction, creativity: "bold" }));
-  const profile = new Proxy({}, {
-    get() { throw new Error("modification_must_not_read_business_dna"); },
+  const profile = new Proxy({ preferences: {} }, {
+    get(target, key) {
+      if (key === "preferences") return target.preferences;
+      throw new Error("modification_must_not_read_business_dna");
+    },
   });
   const prompt = buildAiMediaPrompt({ request, profile: profile as never });
   assert.ok(prompt.includes(aiInstruction));
@@ -440,14 +443,14 @@ test("la consigne Modifier Image conserve jusqu'à 1 200 caractères de bout en 
     /1.?200 caractères/i
   );
 
-  const prompt = buildAiMediaPrompt({ request, profile: {} as never });
+  const prompt = buildAiMediaPrompt({ request, profile: { preferences: {} } as never });
   assert.match(prompt, /FIN-1200/);
   assert.doesNotMatch(prompt, /HORS-LIMITE/);
   assert.throws(
     () =>
       buildAiMediaPrompt({
         request: { ...request, aiInstruction: overflowInstruction },
-        profile: {} as never,
+        profile: { preferences: {} } as never,
       }),
     /ai_media_modification_instruction_too_long/
   );
@@ -500,7 +503,7 @@ test("le moteur nominal et le fallback reçoivent la consigne 1 200, la source e
   );
   const compiledPrompt = buildAiMediaPrompt({
     request,
-    profile: {} as never,
+    profile: { preferences: {} } as never,
   });
   const sourceBytes = Buffer.from("source-webp-assainie-modifier-image");
   const { runtime, captures } = loadImageGatewayBoundaryRuntime();
@@ -676,8 +679,8 @@ test("le prompt Modifier conserve la source et n'ordonne jamais une nouvelle sc�
   ) as AiMediaGenerationRequest;
   const prompt = buildAiMediaPrompt({
     request,
-    // Le chemin `modify` est autonome et ne lit pas le profil de génération.
-    profile: {} as never,
+    // Modifier ne lit que les règles globales, pas le contexte de génération.
+    profile: { preferences: {} } as never,
   });
 
   assert.match(prompt, /IMAGE SOURCE/i);

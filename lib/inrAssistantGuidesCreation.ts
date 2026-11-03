@@ -39,7 +39,7 @@ Accès : Standard (essai inclus) et Premium ; les canaux utilisables dépendent 
     title: "iNrStudio : générer une image ou une vidéo",
     keywords: ["studio", "inrstudio", "générer", "generation", "image", "vidéo", "prompt", "création", "paroles", "crédits"],
     content: `Ouvrir [iNrStudio](/dashboard/generer-media), puis l’onglet Générer. Le menu supérieur devient un menu déroulant sur mobile. Choisir Image ou Vidéo.
-Les sous-onglets de génération sont Prompt et Critères. Dans Prompt, remplir « Votre demande » avec la scène, l’ambiance et les textes exacts souhaités. « Utiliser mon ADN » ajoute les informations professionnelles pertinentes ; logo/couleurs sont repris par défaut, coordonnées seulement sur demande. La demande reste prioritaire ; décocher pour une création indépendante de l’ADN.
+Dans Prompt, décrire scène, ambiance et textes exacts. « Utiliser mon ADN » ajoute les informations professionnelles pertinentes, logo/couleurs par défaut, coordonnées sur demande. Décoché : pas d’autres informations ADN. Consignes ET Interdictions de Personnalisation → Ma communication restent transmises, dans Studio et iNrAgent ; les interdictions priment. Les règles ne sont jamais coupées : un budget insuffisant ou un montage brut incapable de les appliquer provoque une erreur explicite. Une image déjà générée avec les règles peut être animée.
 Dans Critères, choisir le Format et, pour la vidéo, la Durée et les options disponibles. Les « Médias d’inspiration » viennent d’Importer ou Médiathèque : préciser le type et l’utilisation de chaque référence. Les compatibilités, le nombre de références et les durées dépendent du moteur affiché. Ne pas promettre qu’un moteur accepte toutes les références.
 Pour les paroles vidéo : choisir Voix off ou Personnages dans Critères, puis « Ajouter paroles » et remplir « Paroles à prononcer ». « Sans parole » désactive cette saisie. Respecter l’autorisation proposée pour l’animation des personnes et la transmission des références.
 Vérifier le coût et le solde, puis « Générer une image » ou « Générer une vidéo ». Le rendu peut rester temporaire : cliquer « Enregistrer dans la Médiathèque » pour le conserver, ou « Utiliser ce média » si Studio a été ouvert depuis un autre outil. « Réajuster » permet de reprendre la demande ; une nouvelle génération peut consommer de nouveaux crédits. « Récupérer le résultat » reprend une tentative récupérable, sans promettre un résultat terminé.
@@ -50,6 +50,8 @@ Accès : Standard et Premium, avec les quotas/crédits et moteurs disponibles du
       "app/dashboard/_components/MediaGeneratorModal.tsx",
       "app/dashboard/_components/MediaFreeGenerator.tsx",
       "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx",
+      "lib/aiMediaGlobalConstraints.ts",
+      "lib/aiMediaGenerationServer.ts",
       "lib/inrStudioModalPolicy.ts",
       "messages/fr-FR/media.json",
       "lib/dashboardEdition.ts",

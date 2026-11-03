@@ -7,6 +7,7 @@ import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import { AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS, AiMediaRequestValidationError, type AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import type { AiMediaNarration } from "@/lib/aiMediaNarration";
 import type { AiMediaFreeDnaContext } from "./aiMediaFreeDnaContext.ts";
+import { buildAiMediaGlobalConstraints } from "./aiMediaGlobalConstraints.ts";
 import { getAiMediaVideoSegmentCount, getAiMediaVideoSegmentDurations } from "@/lib/aiMediaVideoTimeline";
 import { AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT, buildAiMediaFreeVideoPresentationContract, buildAiMediaFreeBusinessContext, getAiMediaFreeBrandPolicy, getAiMediaFreeRequestedDialogueLines, getAiMediaFreeRequestedLanguage, getAiMediaFreeSpeechBudget, resolveAiMediaFreeSpeechLanguage, resolveAiMediaFreeDialogueSequence, splitAiMediaFreeQuotedSpeech, validateAiMediaFreeDialogueLine } from "@/lib/aiMediaFreeGenerationPrompt";
 
@@ -86,6 +87,7 @@ export async function prepareAiMediaFreeCreativePlan(args: {
     feature: "media.video",
     model: model(),
     system: [
+      buildAiMediaGlobalConstraints(args.profile),
       "Tu es réalisateur d'un film créatif. Transforme le brief en direction créative et plans exécutables, sans gabarit publicitaire, accroche ni CTA imposés.",
       AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
       args.request.useBusinessDna
@@ -239,6 +241,7 @@ export async function writeAiMediaFreeNarration(args: {
     const generated = await aiGenerateJSON<{ script?: unknown; language?: unknown }>({
       accountId: args.accountId, feature: "media.video", model: model(),
       system: [
+        buildAiMediaGlobalConstraints(args.profile),
         "Écris uniquement la voix off souhaitée pour ce film créatif. Respecte le sujet, le ton et la langue explicitement demandés ; sinon utilise la langue du brief.",
         "Ne récite pas les consignes de réalisation ni des descriptions techniques. Aucune publicité, accroche, promesse ni invitation imposée. Aucune information commerciale inventée.",
         ...(args.request.useBusinessDna ? ["L’ADN choisi est une source de faits pertinents uniquement. La demande créative et ses exclusions restent prioritaires ; les réglages éditoriaux historiques de l’entreprise ne sont pas des consignes à appliquer."] : []),
