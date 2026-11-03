@@ -15,7 +15,7 @@ test.describe('integrations', () => {
 
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
 
-    await page.getByRole('button', { name: 'Connecter', exact: true }).click();
+    await page.getByRole('button', { name: 'Connecter mes canaux', exact: true }).click();
     const channels = page.getByRole('dialog', { name: /^Mes canaux/ });
     await expect(channels).toBeVisible({ timeout: 20_000 });
 
