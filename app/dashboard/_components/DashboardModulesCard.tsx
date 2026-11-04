@@ -293,9 +293,8 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
     { path: "/dashboard?action=campaigns", title: copy.mailCampaigns, description: signatureT("mailCampaignDescription"), tone: "campaignCard", glyph: "mail", action: t.modules.campaignsCta, premiumOnly: true, onOpen: openCampaignModal, loading: isVisible("modal:campaigns"), testId: standardMode ? "standard-campaign-mails" : "premium-campaign-open" },
   ];
   const agentControls = (workspace: InrAgentWorkspace, className: string) => {
-    if (basicMode) return null;
     const definition = INR_AGENT_WORKSPACES[workspace];
-    const locked = workspace === "campaigns" && standardMode;
+    const locked = basicMode || (workspace === "campaigns" && standardMode);
     return (
       <div className={`${signatureStyles.agentControls} ${className}${basicMode ? ` ${signatureStyles.standardAgentPreview}` : ""}`}>
         <DashboardAgentLogoButton workspace={workspace} enabled={inrAgentEnabled && !locked}

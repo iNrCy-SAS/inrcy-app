@@ -262,7 +262,7 @@ test("Basic keeps publication, Stats, Studio, media library and Send history usa
   }
 });
 
-test("Basic presents only the two Standard agents with disabled execution and planning controls", () => {
+test("Basic previews the two Standard agents disabled while keeping manual publication planning accessible", () => {
   for (const variant of basicVariants) {
     const view = harness(variant);
     const tree = view.render().tree;
@@ -277,8 +277,8 @@ test("Basic presents only the two Standard agents with disabled execution and pl
       assert.ok(String(agent.props["aria-label"]).includes(availabilityHint));
     }
     const planning = elements(tree).filter((node) => node.props["data-agent-planning-workspace"]);
-    assert.deepEqual(planning.map((node) => node.props["data-agent-planning-workspace"]), ["publications", "stats"]);
-    assert.ok(planning.every((node) => node.props.disabled === true));
+    assert.deepEqual(planning.map((node) => node.props["data-agent-planning-workspace"]), ["publications"]);
+    assert.equal(planning[0].props.disabled, false);
     assert.equal(elements(tree).some((node) => hasClass(node, "standardEditionBadge")), false);
     const contexts = elements(tree).filter((node) => hasClass(node, "contextual"));
     assert.equal(contexts.length, 2);
@@ -292,6 +292,9 @@ test("Basic presents only the two Standard agents with disabled execution and pl
     assert.deepEqual(view.calls.routes, []);
     assert.deepEqual(view.calls.panels, []);
     assert.deepEqual(view.calls.warmups, []);
+    click(planning[0]);
+    assert.deepEqual(view.calls.routes, ["/dashboard/agent/publications"]);
+    assert.deepEqual(view.calls.panels, []);
   }
 });
 
