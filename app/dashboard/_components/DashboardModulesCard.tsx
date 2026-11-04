@@ -305,8 +305,8 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
     );
   };
   const planningControl = (workspace: InrAgentWorkspace) => {
-    if (basicMode && workspace !== "publications") return null;
-    const locked = workspace === "campaigns" && standardMode;
+    const locked = (basicMode && workspace !== "publications")
+      || (workspace === "campaigns" && standardMode);
     return (
         <button type="button" className={`${signatureStyles.planningButton} ${signatureStyles.modulePlanning}`}
           data-agent-planning-workspace={workspace}

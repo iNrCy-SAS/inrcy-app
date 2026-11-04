@@ -294,6 +294,7 @@
 .statsCard .signatureArt { width: 28px; height: 28px; flex-basis: 28px; }
 .statsAgent { position: static; }
 .statsSettings { top: 12px; right: 54px; }
+.statsCard .planningButton:disabled { background: #36405c; color: #b0b7c7; border-color: #818a9d66; box-shadow: none; }
 .statsCard .signatureCopy { padding-right: 82px; }
 .statsAgent > div > img { width: 44px; height: 44px; }
 .statsAgent > div button { min-width: 84px; padding: 7px 11px; min-height: 34px; font-size: 12px; }
