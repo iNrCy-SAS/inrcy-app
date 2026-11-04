@@ -120,51 +120,71 @@ export async function markPublishChannelReconnectRequired(params: {
   if (!key || !params.userId) return false;
   if (!isPublishReconnectRequiredError(params.channel, params.error, params.userMessage, params.stage)) return false;
 
-  const { data, error: readError } = await supabaseAdmin
-    .from("integrations")
-    .select("id,meta")
-    .eq("user_id", params.userId)
-    .eq("provider", key.provider)
-    .eq("source", key.source)
-    .eq("product", key.product)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  try {
+    const { data, error: readError } = await supabaseAdmin
+      .from("integrations")
+      .select("id,meta,updated_at")
+      .eq("user_id", params.userId)
+      .eq("provider", key.provider)
+      .eq("source", key.source)
+      .eq("product", key.product)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  if (readError || !data?.id) return false;
-  const currentMeta = data.meta && typeof data.meta === "object" && !Array.isArray(data.meta)
-    ? data.meta as Record<string, unknown>
-    : {};
-  const attemptStartedAtMs = Date.parse(String(params.attemptStartedAt || ""));
-  const latestConnectionAtMs = Date.parse(
-    String(currentMeta.connection_version_updated_at || ""),
-  );
-  if (
-    Number.isFinite(attemptStartedAtMs) &&
-    Number.isFinite(latestConnectionAtMs) &&
-    latestConnectionAtMs > attemptStartedAtMs
-  ) {
-    // The user completed a newer OAuth connection while this publication was
-    // running. A late failure from the old token must never poison the new one.
+    if (readError || !data?.id) return false;
+    const currentMeta = data.meta && typeof data.meta === "object" && !Array.isArray(data.meta)
+      ? data.meta as Record<string, unknown>
+      : {};
+    const attemptStartedAtMs = Date.parse(String(params.attemptStartedAt || ""));
+    const latestConnectionAtMs = Date.parse(
+      String(currentMeta.connection_version_updated_at || currentMeta.token_issued_at || ""),
+    );
+    if (
+      Number.isFinite(attemptStartedAtMs) &&
+      Number.isFinite(latestConnectionAtMs) &&
+      latestConnectionAtMs > attemptStartedAtMs
+    ) {
+      // The user completed a newer OAuth connection while this publication was
+      // running. A late failure from the old token must never poison the new one.
+      return false;
+    }
+    if (currentMeta.needs_reconnect === true) return true;
+    const now = new Date().toISOString();
+    const update = supabaseAdmin
+      .from("integrations")
+      .update({
+        updated_at: now,
+        meta: {
+          ...currentMeta,
+          needs_reconnect: true,
+          needs_reconnect_at: now,
+          needs_reconnect_channel: params.channel,
+          needs_reconnect_reason: "provider_authentication_failed",
+          needs_reconnect_stage: params.stage || null,
+        },
+      })
+      .eq("id", data.id)
+      .eq("user_id", params.userId);
+
+    // Compare and swap: a new OAuth connection or preference write between the
+    // read and update must not be overwritten by this older failure.
+    const metadataGuard = data.meta == null
+      ? update.is("meta", null)
+      : update.eq("meta", JSON.stringify(data.meta));
+    const guardedUpdate = data.updated_at
+      ? metadataGuard.eq("updated_at", data.updated_at)
+      : metadataGuard.is("updated_at", null);
+    const { data: changed, error: updateError } = await guardedUpdate.select("id").maybeSingle();
+    if (updateError) {
+      log.warn("channel_reconnect_marker_failed", { channel: params.channel, code: updateError.code });
+    }
+    return !updateError && Boolean(changed);
+  } catch {
+    // Recording the warning must never mask the original provider failure.
+    log.warn("channel_reconnect_marker_failed", { channel: params.channel });
     return false;
   }
-  const now = new Date().toISOString();
-  const { error: updateError } = await supabaseAdmin
-    .from("integrations")
-    .update({
-      meta: {
-        ...currentMeta,
-        needs_reconnect: true,
-        needs_reconnect_at: now,
-        needs_reconnect_channel: params.channel,
-        needs_reconnect_reason: "provider_authentication_failed",
-        needs_reconnect_stage: params.stage || null,
-      },
-    })
-    .eq("id", data.id)
-    .eq("user_id", params.userId);
-
-  return !updateError;
 }
 
 function sanitizeDiagnostics(value: unknown, depth = 0): unknown {
@@ -199,12 +219,15 @@ export function getPublishChannelUserMessage(
   // session here is an internal execution-context problem, not proof that the
   // provider connection has expired.
   if (isApplicationSessionAuthenticationError(raw)) return fallbackMessage;
+  const reconnectMessage = CHANNEL_RECONNECTS[channel];
+  if (reconnectMessage && isPublishReconnectRequiredError(channel, error, undefined, "publish")) {
+    return reconnectMessage;
+  }
 
   const providerMessage = getProviderPublicationErrorMessage(channel, raw);
   const message = providerMessage || getSimpleFrenchErrorMessage(`${label} ${raw}`, fallbackMessage);
 
-  // Si l'erreur brute indique clairement une connexion/tokens invalides mais que le mapper
-  // global est passé à côté, on garde un message court et actionnable.
+  // Pinterest can refuse editing a pin without invalidating the connection.
   const lower = raw.toLowerCase();
   if (
     channel === "pinterest" &&
@@ -213,14 +236,6 @@ export function getPublishChannelUserMessage(
   ) {
     return "Pinterest n’autorise pas encore la modification directe de cette épingle pour l’accès actuel.";
   }
-  const reconnectMessage = CHANNEL_RECONNECTS[channel];
-  if (
-    reconnectMessage
-    && /(authorization|autorisation|authorisation|unauthorized|unauthorised|not authorized|permission|scope|access token|oauth|token expired|expired token|invalid_grant|refresh token|session has expired|\(#?(10|190|200)\)|\b401\b)/i.test(lower)
-  ) {
-    return reconnectMessage;
-  }
-
   return ensureFrenchPublicationErrorMessage(message, fallbackMessage);
 }
 

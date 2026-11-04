@@ -64,7 +64,7 @@ import {
 } from "@/lib/pinterestPublish";
 import { buildVideoSettingsByChannel, normalizeChannelVideoSettings } from "@/lib/boosterVideoSettings";
 import { INSTAGRAM_RECONNECT_USER_MESSAGE, isInstagramAuthorizationLikeMessage } from "@/lib/userFacingErrors";
-import { getPublishChannelUserMessage, logPublishChannelFailure } from "@/lib/channelPublishDiagnostics";
+import { getPublishChannelUserMessage, logPublishChannelFailure, markPublishChannelReconnectRequired } from "@/lib/channelPublishDiagnostics";
 import { ensureSystemManagedInrSearch, notifyInrSearchIndexing, revalidateInrSearchPublicRoutes } from "@/lib/inrSearchProvisioning";
 import { getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
 import { limitBoosterChannelContent } from "@/lib/boosterChannelRules";
@@ -2748,12 +2748,15 @@ function buildCancelledPayload(params: {
 
 export function createPublicationChannelHandlers(channel: ChannelKey) {
   async function PATCH(req: Request, context: { params: Promise<{ publicationId: string }> }) {
+    const attemptStartedAt = new Date().toISOString();
+    let providerAccountId: string | null = null;
     let unpersistedCreatedStoragePaths: string[] = [];
     const imageUseGuard = createPublicationImageUseGuard();
     let threadsRetryLockId: string | null = null;
     try {
       const { activeUserId, errorResponse } = await requireUser();
       if (errorResponse) return errorResponse;
+      providerAccountId = activeUserId;
       const directIntegration = channel === "instagram" ? await getLatestIntegrationRow(activeUserId, "instagram", "instagram", "instagram", "meta") : null;
       if ((channel === "threads" || resolveInstagramAuthMode(asRecord(directIntegration).meta) === "instagram_login") && !(await isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, activeUserId))) return metaChannelPilotDeniedResponse();
 
@@ -3031,6 +3034,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         provider: channel,
       });
       const userMessage = getPublishChannelUserMessage(channel, e, "La modification de la publication a échoué.");
+      if (providerAccountId) await markPublishChannelReconnectRequired({ channel, userId: providerAccountId, error: e, userMessage, stage: "publish", attemptStartedAt });
       logPublishChannelFailure({
         route: "inrsend_publication_channel_update",
         channel,
@@ -3043,10 +3047,13 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
   }
 
   async function DELETE(req: Request, context: { params: Promise<{ publicationId: string }> }) {
+    const attemptStartedAt = new Date().toISOString();
+    let providerAccountId: string | null = null;
   const i18nT = await getTranslations("mails");
     try {
       const { activeUserId, errorResponse } = await requireUser();
       if (errorResponse) return errorResponse;
+      providerAccountId = activeUserId;
       const directIntegration = channel === "instagram" ? await getLatestIntegrationRow(activeUserId, "instagram", "instagram", "instagram", "meta") : null;
       if ((channel === "threads" || resolveInstagramAuthMode(asRecord(directIntegration).meta) === "instagram_login") && !(await isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, activeUserId))) return metaChannelPilotDeniedResponse();
 
@@ -3153,6 +3160,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         provider: channel,
       });
       const userMessage = getPublishChannelUserMessage(channel, e, "La suppression de la publication a échoué.");
+      if (providerAccountId) await markPublishChannelReconnectRequired({ channel, userId: providerAccountId, error: e, userMessage, stage: "publish", attemptStartedAt });
       logPublishChannelFailure({
         route: "inrsend_publication_channel_delete",
         channel,

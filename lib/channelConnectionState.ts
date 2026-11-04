@@ -346,7 +346,7 @@ export async function getChannelConnectionStates(
   const threadsSettings = metaPilotEnabled ? asRecord(settings.threads) : {};
   const threadsExpired = metaPilotEnabled && isExpired(threads.expires_at);
   const threadsConnected = Boolean(threads.status === "connected" && threads.resource_id && threads.access_token_enc && !threadsExpired);
-  const threadsRequiresUpdate = Boolean(metaPilotEnabled && (threadsExpired || threadsMeta.needs_reconnect === true || threadsMeta.requires_reconnect === true));
+  const threadsRequiresUpdate = Boolean(metaPilotEnabled && (threadsExpired || getConnectionDisplayStatus(threadsConnected, "channel:threads", threadsMeta) === "needs_update" || threadsMeta.requires_reconnect === true));
   const threadsUsername = metaPilotEnabled ? (asString(threadsMeta.username) || asString(threads.resource_label) || asString(threadsSettings.username) || "").replace(/^@+/, "") : "";
 
   const li = latestIntegration(rows, "linkedin", "linkedin", "linkedin");

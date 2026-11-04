@@ -16,6 +16,7 @@ import { decodeBusinessSector } from "@/lib/activitySectors";
 import { buildSnapshotWindow } from "@/lib/stats/snapshotWindow";
 import { log } from "@/lib/observability/logger";
 import { markPublishChannelReconnectRequired } from "@/lib/channelPublishDiagnostics";
+import type { OAuthPublicationChannel } from "@/lib/channelReconnectPolicy";
 import { getLinkedInAccessToken } from "@/lib/linkedinOAuth";
 import { refreshTiktokAccessToken } from "@/lib/tiktokOAuth";
 import { fetchTiktokAnalyticsSnapshot } from "@/lib/tiktokAnalytics";
@@ -35,13 +36,11 @@ import {
   clearTiktokStatsReconnectNeeded,
   collectLinkedInMetricErrors,
   cubeHasUsableData,
-  flagTiktokStatsReconnectNeeded,
   getErrorMessage,
   getLinkedInRateLimitErrorFromMetrics,
   hasUsableLinkedInMetrics,
   isExpired,
   isStatsActiveConnection,
-  isTiktokReconnectError,
   mergeCachedSourcesWithLiveState,
   mergePinterestLocalPublicationStats,
   mergeTiktokLocalPublicationStats,
@@ -80,6 +79,7 @@ export async function buildStatsOverview(args: {
   inrcyPublishedActivityLoader?: InrcyPublishedActivityLoader;
 }): Promise<OverviewPayload> {
   const { supabase, userId, fresh = false } = args;
+  const attemptStartedAt = new Date().toISOString();
   const metaPilotEnabled = args.metaPilotEnabled !== false && await isMetaChannelPilotEnabledForAccount(supabase, userId);
   const days = Math.min(Math.max(Number(args.days || 28), 7), 90);
   const includeRaw = (args.includeRaw || "").trim();
@@ -227,6 +227,7 @@ export async function buildStatsOverview(args: {
       hasFacebookStoredToken,
       hasActiveStoredIntegration,
       userId,
+      attemptStartedAt,
       startDateYmd: dateWindow.startDateYmd,
       endDateYmd: dateWindow.endDateYmd,
       pinterestLocalPublicationStats,
@@ -609,6 +610,14 @@ export async function buildStatsOverview(args: {
   };
 
   const channelStates = await channelStatesPromise;
+  async function recordProviderRefusal(channel: OAuthPublicationChannel, error: unknown) {
+    const marked = await markPublishChannelReconnectRequired({
+      channel, userId, error, stage: "stats_provider_metrics", attemptStartedAt,
+    });
+    const source = sourcesStatus[channel];
+    if (marked && source) source.connected = false;
+    return marked;
+  }
 
   // source commune des états de connexion
   sourcesStatus.youtube_shorts.connected = isStatsActiveConnection(channelStates.youtube_shorts);
@@ -634,7 +643,7 @@ export async function buildStatsOverview(args: {
     const youtubeStatus = String(youtubeRow["status"] || "");
     const youtubeHasAuth = Boolean(youtubeRow["access_token_enc"] || youtubeRow["refresh_token_enc"]);
     const youtubeExpiredWithoutRefresh = isExpired(youtubeRow["expires_at"]) && !youtubeRow["refresh_token_enc"];
-    sourcesStatus.youtube_shorts.connected = Boolean(
+    sourcesStatus.youtube_shorts.connected = isStatsActiveConnection(channelStates.youtube_shorts) && Boolean(
       (youtubeStatus === "connected" || youtubeStatus === "account_connected") &&
         youtubeRow["resource_id"] &&
         youtubeHasAuth &&
@@ -709,30 +718,7 @@ export async function buildStatsOverview(args: {
         );
       } catch (e) {
         const rawMessage = e instanceof Error ? e.message : String(e || "");
-        const lowerMessage = rawMessage.toLowerCase();
-        const needsReconnect =
-          lowerMessage.includes("scope") ||
-          lowerMessage.includes("permission") ||
-          lowerMessage.includes("autorisation") ||
-          lowerMessage.includes("unauthorized") ||
-          lowerMessage.includes("forbidden") ||
-          lowerMessage.includes("access token") ||
-          lowerMessage.includes("invalid_grant") ||
-          lowerMessage.includes("reconnect") ||
-          lowerMessage.includes("reconnecte") ||
-          lowerMessage.includes("expired") ||
-          lowerMessage.includes("revoked");
-        const reconnectPersisted = needsReconnect
-          ? await markPublishChannelReconnectRequired({
-              channel: "youtube_shorts",
-              userId,
-              error: e,
-              stage: "stats_provider_metrics",
-            })
-          : false;
-        if (reconnectPersisted) {
-          sourcesStatus.youtube_shorts.connected = false;
-        }
+        const needsReconnect = await recordProviderRefusal("youtube_shorts", e);
         if (needsReconnect) {
           console.info("[youtube-stats] reconnect required", {
             code: "youtube_credentials_expired",
@@ -845,11 +831,7 @@ export async function buildStatsOverview(args: {
         );
       } catch (e) {
         const rawMessage = getErrorMessage(e);
-        const needsReconnect = isTiktokReconnectError(e);
-
-        if (needsReconnect) {
-          await flagTiktokStatsReconnectNeeded({ supabase, userId, tiktokRow, rawMessage });
-        }
+        const needsReconnect = await recordProviderRefusal("tiktok", e);
 
         sourcesStatus.tiktok.metrics = mergeTiktokLocalPublicationStats(
           {
@@ -893,6 +875,7 @@ export async function buildStatsOverview(args: {
       sourcesStatus.pinterest.metrics = null;
     } else if (sourcesStatus.pinterest.connected) {
       sourcesStatus.pinterest.metrics = await fetchPinterestMetricsLive();
+      if (asRecord(sourcesStatus.pinterest.metrics).needs_reconnect === true) sourcesStatus.pinterest.connected = false;
     } else if (pinterestLocalPublicationStats.posts > 0) {
       sourcesStatus.pinterest.metrics = mergePinterestLocalPublicationStats({}, pinterestLocalPublicationStats);
     } else {
@@ -908,7 +891,7 @@ export async function buildStatsOverview(args: {
       "facebook",
       hasFacebookStoredToken,
     );
-    sourcesStatus.facebook.connected = hasActiveStoredIntegration(
+    sourcesStatus.facebook.connected = isStatsActiveConnection(channelStates.facebook) && hasActiveStoredIntegration(
       fbRow,
       hasFacebookStoredToken(fbRow),
     );
@@ -944,10 +927,15 @@ export async function buildStatsOverview(args: {
           start,
           end,
         );
+        if (await recordProviderRefusal("facebook", sourcesStatus.facebook.metrics)) {
+          sourcesStatus.facebook.metrics = { ...asRecord(sourcesStatus.facebook.metrics), needs_reconnect: true };
+        }
       } catch (e) {
+        const needsReconnect = await recordProviderRefusal("facebook", e);
         console.error("[FB_STATS_REAL_ERROR]", e);
         sourcesStatus.facebook.metrics = {
           error: e instanceof Error ? e.message : String(e),
+          needs_reconnect: needsReconnect,
         };
       }
     } else {
@@ -991,12 +979,14 @@ export async function buildStatsOverview(args: {
           end,
           resolveInstagramAuthMode(igRow["meta"]),
         );
+        const needsReconnect = await recordProviderRefusal("instagram", baseMetrics);
         if (!baseMetrics)
           throw new Error(
             "Impossible de récupérer les statistiques Instagram pour le moment.",
           );
         sourcesStatus.instagram.metrics = {
           ...baseMetrics,
+          needs_reconnect: needsReconnect,
           raw: {
             ...(baseMetrics.raw || {}),
             supportedMetrics: {
@@ -1021,9 +1011,11 @@ export async function buildStatsOverview(args: {
           },
         };
       } catch (e) {
+        const needsReconnect = await recordProviderRefusal("instagram", e);
         console.error("[IG_STATS_REAL_ERROR]", e);
         sourcesStatus.instagram.metrics = {
           error: e instanceof Error ? e.message : String(e),
+          needs_reconnect: needsReconnect,
         };
       }
     } else {
@@ -1220,6 +1212,7 @@ export async function buildStatsOverview(args: {
                     });
                   }
                 } catch (sourceError) {
+                  await recordProviderRefusal("linkedin", sourceError);
                   const rawSourceMessage = sourceError instanceof Error
                     ? sourceError.message
                     : String(sourceError);
@@ -1263,6 +1256,7 @@ export async function buildStatsOverview(args: {
               }
 
               const metrics = liAggregateAnalytics(sourceResults, start, end);
+              await recordProviderRefusal("linkedin", collectLinkedInMetricErrors(metrics));
               linkedInHistoryVerified = sourceResults.length > 0
                 && sourceResults.every(source => source.mode === "live" || source.mode === "live_partial")
                 && hasUsableLinkedInMetrics(metrics);
@@ -1307,6 +1301,7 @@ export async function buildStatsOverview(args: {
                     : annotateLinkedInMetrics(metrics, "live_partial");
               }
             } catch (e) {
+              await recordProviderRefusal("linkedin", e);
               const rawMessage = e instanceof Error ? e.message : String(e);
               const blockedUntil = isLinkedInRateLimitMessage(rawMessage)
                 ? await writeLinkedInQuotaGuard(rawMessage)
@@ -1349,7 +1344,9 @@ export async function buildStatsOverview(args: {
           }
         }
       } catch (e) {
+        const needsReconnect = await recordProviderRefusal("linkedin", e);
         sourcesStatus.linkedin.metrics = {
+          needs_reconnect: needsReconnect,
           error: getSimpleFrenchErrorMessage(
             e,
             "Impossible de récupérer les statistiques LinkedIn pour le moment.",
@@ -1405,6 +1402,7 @@ export async function buildStatsOverview(args: {
             userId,
             error: e,
             stage: "stats_provider_metrics",
+            attemptStartedAt,
           });
           if (reconnectPersisted) {
             sourcesStatus.gmb.connected = false;
@@ -1464,7 +1462,8 @@ export async function buildStatsOverview(args: {
         const token = await ensureMetaDirectAccessToken(supabaseAdmin, row);
         sourcesStatus.threads.metrics = await fetchThreadsAccountInsights(token, String(row["resource_id"]), dateWindow.start, dateWindow.end);
       } catch (error) {
-        sourcesStatus.threads.metrics = { error: getSimpleFrenchErrorMessage(error, "Statistiques Threads indisponibles.") };
+        const needsReconnect = await recordProviderRefusal("threads", error);
+        sourcesStatus.threads.metrics = { error: getSimpleFrenchErrorMessage(error, "Statistiques Threads indisponibles."), needs_reconnect: needsReconnect };
       }
     }
   }

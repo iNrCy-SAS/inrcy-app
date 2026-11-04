@@ -27,6 +27,7 @@ function runtime(options: Fixture = {}) {
   const reads: Array<{ table: string; columns: string; filters: Array<[string, unknown]> }> = [];
   const writes: Array<{ table: string; patch: unknown; filters: Array<[string, unknown]> }> = [];
   const nativeCalls: unknown[] = [];
+  const reconnectCalls: Array<Record<string, unknown>> = [];
   const before = structuredClone(state);
   const database = { from: (table: string) => {
     const filters: Array<[string, unknown]> = [];
@@ -80,7 +81,11 @@ function runtime(options: Fixture = {}) {
     "@/lib/xPublish": { deleteXPost: async (args: unknown) => { nativeCalls.push(["x-delete", args]); if (options.xDeleteError) throw options.xDeleteError; } },
     "@/lib/apiUserFacingErrors": { jsonUserFacingError: (error: unknown, opts: { status: number; code?: string }) => Response.json({ ok: false, error: String(error), code: opts.code }, { status: opts.status }) },
     "@/lib/observability/sentry": { captureApiException: (...args: unknown[]) => { nativeCalls.push(["unexpected-exception", ...args]); } },
-    "@/lib/channelPublishDiagnostics": { getPublishChannelUserMessage: (_channel: string, error: Error) => error.message, logPublishChannelFailure: () => undefined },
+    "@/lib/channelPublishDiagnostics": {
+      getPublishChannelUserMessage: (_channel: string, error: Error) => error.message,
+      logPublishChannelFailure: () => undefined,
+      markPublishChannelReconnectRequired: async (args: Record<string, unknown>) => { reconnectCalls.push(args); return false; },
+    },
     "crypto": { createHash, randomUUID },
   };
   const source = readFileSync(new URL("../../lib/inrsend/publicationChannelActions.ts", import.meta.url), "utf8");
@@ -88,8 +93,21 @@ function runtime(options: Fixture = {}) {
   const exported: any = {};
   new Function("exports", "require", code)(exported, (name: string) => mocks[name] ?? unused);
   const handlers = exported.createPublicationChannelHandlers(channel);
-  return { before, state, reads, writes, nativeCalls, run: (body: unknown = {}) => handlers.DELETE(new Request("https://fixture.test/api/inrsend/publications/publication/instagram", { method: "DELETE", body: JSON.stringify(body) }), { params: Promise.resolve({ publicationId: "publication" }) }) as Promise<Response> };
+  return { before, state, reads, writes, nativeCalls, reconnectCalls, run: (body: unknown = {}) => handlers.DELETE(new Request("https://fixture.test/api/inrsend/publications/publication/instagram", { method: "DELETE", body: JSON.stringify(body) }), { params: Promise.resolve({ publicationId: "publication" }) }) as Promise<Response> };
 }
+
+test("A native provider refusal during deletion reaches reconnect detection for the active account", async () => {
+  const error = Object.assign(new Error("X HTTP 401 Unauthorized"), { status: 401 });
+  const fixture = runtime({ channel: "x", result: { ok: true, external_id: "1234567890" }, xDeleteError: error });
+  const response = await fixture.run();
+  assert.equal(response.status, 500);
+  assert.equal(fixture.reconnectCalls.length, 1);
+  assert.equal(fixture.reconnectCalls[0].channel, "x");
+  assert.equal(fixture.reconnectCalls[0].userId, "owned-account");
+  assert.equal(fixture.reconnectCalls[0].error, error);
+  assert.ok(Number.isFinite(Date.parse(String(fixture.reconnectCalls[0].attemptStartedAt))));
+  assert.deepEqual(fixture.state, fixture.before);
+});
 
 test("Published Instagram deletion is blocked for direct and Facebook login before Graph, refresh or persistence", async () => {
   const previousFetch = globalThis.fetch;

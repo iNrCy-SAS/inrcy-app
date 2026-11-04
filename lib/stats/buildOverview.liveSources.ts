@@ -4,6 +4,7 @@ import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { getPinterestAccessToken } from "@/lib/pinterestOAuth";
 import { fetchPinterestAnalyticsSnapshot } from "@/lib/pinterestAnalytics";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
+import { markPublishChannelReconnectRequired } from "@/lib/channelPublishDiagnostics";
 import {
   asRecord,
   isStatsActiveConnection,
@@ -30,6 +31,7 @@ export function createOverviewLiveSourceTools({
   hasFacebookStoredToken,
   hasActiveStoredIntegration,
   userId,
+  attemptStartedAt = new Date().toISOString(),
   startDateYmd,
   endDateYmd,
   pinterestLocalPublicationStats,
@@ -41,6 +43,7 @@ export function createOverviewLiveSourceTools({
   hasFacebookStoredToken: (row: Record<string, unknown>) => boolean;
   hasActiveStoredIntegration: (row: Record<string, unknown>, hasToken: boolean) => boolean;
   userId: string;
+  attemptStartedAt?: string;
   startDateYmd: string;
   endDateYmd: string;
   pinterestLocalPublicationStats: PinterestLocalPublicationStats;
@@ -87,7 +90,7 @@ export function createOverviewLiveSourceTools({
         connected: { ga4: states.site_web.ga4, gsc: states.site_web.gsc },
       },
       gmb: { connected: isStatsActiveConnection(states.gmb), metrics: null },
-      facebook: { connected: facebookConnected, metrics: null },
+      facebook: { connected: isStatsActiveConnection(states.facebook) && facebookConnected, metrics: null },
       instagram: { connected: isStatsActiveConnection(states.instagram) && instagramConnected, metrics: null },
       ...(states.threads.pilotEnabled ? { threads: { connected: isStatsActiveConnection(states.threads), metrics: null } } : {}),
       linkedin: {
@@ -131,19 +134,16 @@ export function createOverviewLiveSourceTools({
         start: startDateYmd,
         end: endDateYmd,
       });
+      const needsReconnect = await markPublishChannelReconnectRequired({
+        channel: "pinterest", userId, error: remote, stage: "stats_provider_metrics", attemptStartedAt,
+      });
+      if (needsReconnect) return mergePinterestLocalPublicationStats({ ...asRecord(remote), needs_reconnect: true }, pinterestLocalPublicationStats);
       return mergePinterestLocalPublicationStats(remote, pinterestLocalPublicationStats);
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : String(error || "");
-      const lower = rawMessage.toLowerCase();
-      const needsReconnect =
-        lower.includes("access token") ||
-        lower.includes("invalid token") ||
-        lower.includes("expired") ||
-        lower.includes("unauthorized") ||
-        lower.includes("forbidden") ||
-        lower.includes("scope") ||
-        lower.includes("permission") ||
-        lower.includes("reconnect");
+      const needsReconnect = await markPublishChannelReconnectRequired({
+        channel: "pinterest", userId, error, stage: "stats_provider_metrics", attemptStartedAt,
+      });
       return mergePinterestLocalPublicationStats(
         {
           error: needsReconnect
@@ -153,6 +153,7 @@ export function createOverviewLiveSourceTools({
                 "Impossible de récupérer les statistiques Pinterest pour le moment.",
               ),
           needs_reconnect: needsReconnect,
+          raw_error: rawMessage,
         },
         pinterestLocalPublicationStats,
       );
@@ -173,6 +174,7 @@ export function createOverviewLiveSourceTools({
         ...sources,
         pinterest: {
           ...pinterest,
+          ...(asRecord(liveMetrics).needs_reconnect === true ? { connected: false } : {}),
           metrics: liveMetrics,
         },
       },

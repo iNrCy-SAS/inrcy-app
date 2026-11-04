@@ -39,7 +39,11 @@ const PROVIDER_TOKEN_FAILURE_RE =
 const PROVIDER_PERMISSION_FAILURE_RE =
   /(?:\bnot\s+authori[sz]ed\b|\bunauthori[sz]ed\b|\bauthori[sz]ation\s+(?:failed|denied|required)\b|\baccess\s+denied\b|\binsufficient\s+(?:permission|scope)s?\b|\bpermission\s+denied\b|\bcaller\s+does\s+not\s+have\s+permission\b)/i;
 const PROVIDER_SESSION_FAILURE_RE =
-  /(?:\bsession\s+has\s+expired\b|\bauthentication[_\s-]*failed\b)/i;
+  /(?:\bsession\s+(?:(?:has|had)\s+(?:been\s+)?|is\s+)?(?:expired|invalidated|revoked)\b|\berror\s+validating\s+access\s+token\b|\bauthentication[_\s-]*failed\b)/i;
+const PROVIDER_REAUTHORIZATION_RE =
+  /(?:\binsufficient\s+permissions?\b|\bscope\s+permission\s+missed\b|\bmeta\s+direct\s+reconnect\s+required\b|\binvalid\s+credentials?\b|\bconnexion\b.{0,60}\b(?:expiree?|invalide|plus\s+valide)\b|\bautorisation\b.{0,60}\b(?:expiree?|revoquee?)\b)/i;
+const PROVIDER_OPERATIONAL_FAILURE_RE =
+  /(?:\bquota\s*(?:exceeded)?\b|\brate\s*limit|\btoo\s+many\s+requests\b|\busage\s+capped\b|\bapplication\s+request\s+limit\b|\bclient\s+forbidden\b|\binvalid\s+client\b|\bunauthorized\s+client\b)/i;
 const STATUS_401_RE =
   /(?:\bhttp\s*401\b|\bstatus[\s"':=]*401\b|\bcode[\s"':=]*401\b|\b401\s+(?:unauthori[sz]ed|authentication|required)\b)/i;
 const NON_AUTHENTICATION_RESOURCE_RE =
@@ -56,10 +60,21 @@ export function stringifyReconnectError(input: unknown): string {
   if (typeof input === "string") return input;
   if (input instanceof Error) {
     const record = input as Error & Record<string, unknown>;
-    return [record.message, record.code, record.status, record.statusCode]
-      .filter((value) => value != null && String(value).trim())
-      .map(String)
-      .join(" ");
+    // Keep typed provider codes/statuses: a safe, translated Error.message can
+    // intentionally omit the original OAuth message (notably Meta direct login).
+    const details: Record<string, unknown> = {};
+    for (const key of ["code", "status", "statusCode", "httpStatus"] as const) {
+      if (typeof record[key] === "string" || typeof record[key] === "number") details[key] = record[key];
+    }
+    if (record.diagnostics && typeof record.diagnostics === "object") {
+      const diagnostic = record.diagnostics as Record<string, unknown>;
+      for (const key of ["metaCode", "metaSubcode", "httpStatus"]) {
+        if (typeof diagnostic[key] === "number") details[key] = diagnostic[key];
+      }
+    }
+    return Object.keys(details).length > 0
+      ? `${record.message} ${JSON.stringify(details)}`
+      : record.message;
   }
   try {
     return JSON.stringify(input);
@@ -70,6 +85,7 @@ export function stringifyReconnectError(input: unknown): string {
 
 function normalize(value: unknown) {
   return stripDiacritics(String(value || ""))
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
     .toLowerCase()
     .replace(/[_:./\\-]+/g, " ")
     .replace(/\s+/g, " ")
@@ -81,7 +97,7 @@ function hasChannelProviderContext(
   normalizedRaw: string,
 ) {
   return CHANNEL_ALIASES[channel].some((alias) =>
-    normalizedRaw.includes(normalize(alias)),
+    alias === "x" ? /\bx\b/.test(normalizedRaw) : normalizedRaw.includes(normalize(alias)),
   );
 }
 
@@ -107,6 +123,15 @@ export function isProviderAuthenticationFailure(params: {
   const normalizedRaw = normalize(raw);
   if (!normalizedRaw) return false;
   if (isApplicationSessionAuthenticationError(raw)) return false;
+  if (PROVIDER_OPERATIONAL_FAILURE_RE.test(normalizedRaw)) return false;
+  if (NON_AUTHENTICATION_RESOURCE_RE.test(normalizedRaw)) return false;
+
+  // Meta also uses OAuthException for rate limits and content failures. Only
+  // its documented authentication/permission codes require a new connection.
+  if (["facebook", "instagram", "threads"].includes(params.channel)) {
+    if (/\b(?:meta\s*code|code)[\s"':=]*(?:4|17|32|613)\b/.test(normalizedRaw)) return false;
+    if (/\b(?:meta\s*code|code)[\s"':=]*(?:10|102|190|200)\b/.test(normalizedRaw)) return true;
+  }
 
   if (PROVIDER_TOKEN_FAILURE_RE.test(normalizedRaw)) return true;
 
@@ -125,11 +150,12 @@ export function isProviderAuthenticationFailure(params: {
     "poll",
   ].includes(stage) || stage.includes("provider metrics");
   if (
-    PROVIDER_SESSION_FAILURE_RE.test(normalizedRaw) &&
+    (PROVIDER_SESSION_FAILURE_RE.test(normalizedRaw) || PROVIDER_REAUTHORIZATION_RE.test(normalizedRaw)) &&
     (providerContext || providerStage)
   ) {
     return true;
   }
+  if (isExplicitReconnectMessageForChannel(params.channel, normalizedRaw)) return true;
   if (
     PROVIDER_PERMISSION_FAILURE_RE.test(normalizedRaw) &&
     (
@@ -153,9 +179,7 @@ function isExplicitReconnectMessageForChannel(
 ) {
   const normalizedMessage = normalize(userMessage);
   if (!EXPLICIT_RECONNECT_ACTION_RE.test(normalizedMessage)) return false;
-  return CHANNEL_ALIASES[channel].some((alias) =>
-    normalizedMessage.includes(normalize(alias)),
-  );
+  return hasChannelProviderContext(channel, normalizedMessage);
 }
 
 export function isProviderReconnectRequired(params: {
