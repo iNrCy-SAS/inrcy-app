@@ -172,6 +172,7 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
 
           <div
             className={styles.newsOrbitFocus}
+            data-media-type={activePublication.videoUrl ? "video" : "image"}
             onClick={openModal}
           >
             <div className={styles.newsOrbitFocusMedia}>

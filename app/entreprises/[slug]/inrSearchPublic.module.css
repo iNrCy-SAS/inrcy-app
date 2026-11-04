@@ -13306,6 +13306,20 @@
   min-height: 0 !important;
 }
 
+/* Native video dimensions preserve portrait, landscape and square players.
+   The image stage keeps its existing fixed frame. */
+.newsOrbitFocusMedia > video,
+.newsOrbitModalMedia > video {
+  position: relative !important;
+  inset: auto !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+}
+
 @media (max-width: 900px) {
   .newsOrbitStage {
     display: block !important;
@@ -13329,6 +13343,19 @@
   .newsOrbitFocusContent {
     grid-column: 1 !important;
     grid-row: 2 !important;
+  }
+
+  .newsOrbitFocus[data-media-type="video"] {
+    grid-template-rows: auto auto !important;
+  }
+
+  .newsOrbitFocus[data-media-type="video"] .newsOrbitFocusMedia {
+    min-height: 0;
+  }
+
+  .newsOrbitFocusMedia > video {
+    max-height: min(70vh, 720px) !important;
+    max-height: min(70svh, 720px) !important;
   }
 
   .newsPulseGenerator {
@@ -13425,5 +13452,264 @@
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 164, 124, .3) transparent;
+  }
+}
+
+/* Long business descriptions stay inside their identity, area and trust cards. */
+.presentationMediaOrb {
+  container-type: inline-size;
+}
+
+.presentationMediaFallback > img,
+.presentationMediaFallback > .presentationLogoFallback {
+  position: absolute;
+  top: 10%;
+  left: 25%;
+  width: 50%;
+  height: 42%;
+  max-height: none;
+  margin: 0;
+  padding: 10px;
+}
+
+.presentationMediaCaption {
+  top: 57%;
+  bottom: 12%;
+  left: 16%;
+  right: 16%;
+  min-width: 0;
+  align-content: center;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.presentationMediaCaption small,
+.presentationMediaCaption span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentationMediaCaption strong {
+  max-width: 100%;
+  max-height: 2.2em;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: clamp(14px, 7cqi, 24px);
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.presentationFactRail .presentationFactText strong {
+  max-height: 7.1em;
+  display: block;
+  overflow: auto !important;
+  -webkit-line-clamp: unset;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(121, 195, 255, .35) transparent;
+}
+
+.presentationFactRail .presentationSatellite[data-kind] {
+  align-items: start !important;
+}
+
+.zoneOrbitCore {
+  container-type: inline-size;
+}
+
+.zoneOrbitCore strong {
+  min-width: 0;
+  max-width: 100%;
+  font-size: clamp(11px, 14cqi, 20px) !important;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.zoneOrbitCore small,
+.zoneOrbitCore em {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.strengthNewtonDetail {
+  min-width: 0;
+  max-height: 210px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(121, 195, 255, .35) transparent;
+}
+
+.strengthNewtonDetail > strong,
+.strengthNewtonDetail p,
+.strengthDesktopList button > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 901px) {
+  .strengthNewtonScene {
+    display: grid;
+    grid-template-columns: minmax(150px, .34fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 18px;
+    padding: clamp(16px, 2vw, 26px);
+  }
+
+  .strengthDesktopList {
+    position: relative;
+    inset: auto;
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-content: start;
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    padding: 3px 7px 3px 3px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(121, 195, 255, .35) transparent;
+  }
+
+  .strengthNewtonDetail {
+    position: relative;
+    inset: auto;
+    grid-column: 2;
+    grid-row: 2;
+    align-self: end;
+    min-height: 0;
+    width: 100%;
+    max-height: min(235px, 32vh);
+    padding: 18px;
+  }
+
+  .strengthNewtonDetail > strong {
+    font-size: clamp(21px, 1.9vw, 28px) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .strengthNewtonDetail {
+    max-height: 185px;
+  }
+
+  .strengthNewtonBall > strong {
+    display: none !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .strengthNewtonBalls {
+    height: 178px !important;
+  }
+
+  .strengthNewtonDetail {
+    top: 225px !important;
+    min-height: 0 !important;
+  }
+}
+
+/* Complete service descriptions and FAQ answers remain keyboard-scrollable. */
+.servicesOrbitFocus,
+.faqCarouselCard {
+  min-width: 0;
+  justify-content: flex-start;
+  overflow-x: hidden;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(121, 195, 255, .35) transparent;
+}
+
+.servicesOrbitFocus > :not(.servicesOrbitFocusBeam),
+.faqCarouselCard > * {
+  flex: 0 0 auto;
+}
+
+.servicesOrbitFocus h3,
+.servicesOrbitFocus p,
+.faqCarouselCard h3,
+.faqCarouselCard p {
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+
+.servicesOrbitCard strong {
+  max-height: 3.6em;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow-wrap: anywhere !important;
+}
+
+.contactCore {
+  min-width: 0;
+  padding: 20px;
+}
+
+.contactCore > img,
+.contactCore > .contactCoreFallback {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+}
+
+.contactCore > small {
+  max-width: 100%;
+  max-height: 2.4em;
+  margin-top: 7px;
+  font-size: 9px !important;
+  line-height: 1.2;
+}
+
+.contactCore > strong {
+  min-width: 0;
+  max-width: 100%;
+  max-height: 2.2em;
+  font-size: clamp(16px, 1.8vw, 24px);
+  line-height: 1.08;
+}
+
+.contactCore > small,
+.contactCore > strong {
+  flex: 0 0 auto;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.contactCore > em {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contactCore > button {
+  max-width: 100%;
+  min-height: 40px !important;
+  margin-top: 10px;
+}
+
+@media (max-width: 900px) {
+  .servicesOrbitFocus,
+  .faqCarouselCard[data-position="active"] {
+    max-height: min(650px, 72svh);
   }
 }

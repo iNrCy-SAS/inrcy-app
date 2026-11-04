@@ -62,7 +62,7 @@ function fixture() {
       const canReviewSelectedAction=${agentExpression('canReviewSelectedAction')};
       const savePublishPlacement=(next,include)=>{window.placementCalls.push({primaryPlacement:next,includeStory:include});setPlacement(next);setStory(include);},savePublishSoundtrack=props.actualSave?actualSavePublishSoundtrack:id=>{if(activeMetaPublicationChannel)setSelection(previous=>({...previous,[activeMetaPublicationChannel]:id}));};
       const secondaryStoryAvailable=false,showingSecondaryStory=false,secondaryStoryKey='',setPublishStoryPreviewKey=()=>{},publishMediaPreview={kind:'image'},asRecord=value=>value,scheduledEditSession=null;
-      const canReviseInrAgentPublication=()=>true,scheduledEditDirty=false,saveState='idle',publishSaveState='idle',prepareActionState='idle',testNowKey=null,publishRegeneration=null,publishPreparationInProgress=false;
+      const manualPlanningOnly=!!props.manualPlanningOnly,canReviseInrAgentPublication=()=>true,scheduledEditDirty=false,saveState='idle',publishSaveState='idle',prepareActionState='idle',testNowKey=null,publishRegeneration=null,publishPreparationInProgress=false;
       const canEditSelectedPublication=${agentExpression('canEditSelectedPublication')},canRegenerateSelectedPublication=${agentExpression('canRegenerateSelectedPublication')},agentWorking=${agentExpression('agentWorking')};
       window.actionGates={canReviewSelectedAction,canEditSelectedPublication,canRegenerateSelectedPublication,agentWorking};
       const saveTiktokPhotoFormat=()=>{},metaPilotEnabled=false,activeThreadsPublicationMode='classic',threadsModeEnabled=true,threadsModeSaveState='idle',threadsPublicationPreferences={},getEnabledThreadsPublicationModes=()=>['classic'],saveThreadsPublicationMode=()=>{};

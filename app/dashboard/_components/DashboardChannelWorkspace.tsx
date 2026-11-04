@@ -23,6 +23,7 @@ import NativeChannelSettingsContent from "../settings/_components/NativeChannelS
 
 const ThreadsPublicationSettings = lazy(() => import("./ThreadsPublicationSettings"));
 const InrBadgeSettingsContent = lazy(() => import("../settings/_components/InrBadgeSettingsContent"));
+const InrSearchPresentationSettings = lazy(() => import("../settings/_components/InrSearchPresentationSettings"));
 const GoogleBusinessProfileEditor = lazy(() => import("./GoogleBusinessProfileEditor"));
 const GoogleBusinessReviews = lazy(() => import("../e-reputation/EReputationReviewsClient"));
 // Load controls with the workspace so switching bubbles never shows an incomplete action row.
@@ -95,7 +96,7 @@ export default function DashboardChannelWorkspace(props: Props) {
     case "mails": return <MailsSettingsContent key={revision} renderBubble={renderBubble} onUnsavedChange={setDirty} />;
     case "inrbadge":
     case "inr_directory":
-    case "inr_search": return <NativeChannelSettingsContent channelKey={item.key} renderBubble={renderBubble} initialStates={props.nativeChannelStates} companyName={props.inrBadgeSettingsProps.profile.companyLegalName} badgeProfile={props.inrBadgeSettingsProps.profile} badgeParameters={<InrBadgeSettingsContent {...props.inrBadgeSettingsProps} />} />;
+    case "inr_search": return <NativeChannelSettingsContent channelKey={item.key} renderBubble={renderBubble} initialStates={props.nativeChannelStates} companyName={props.inrBadgeSettingsProps.profile.companyLegalName} badgeProfile={props.inrBadgeSettingsProps.profile} badgeParameters={<InrBadgeSettingsContent {...props.inrBadgeSettingsProps} />} searchParameters={<InrSearchPresentationSettings onDirtyChange={setDirty} />} />;
   }
 
   let connection: ChannelBubbleConnection;
@@ -150,7 +151,7 @@ export default function DashboardChannelWorkspace(props: Props) {
         connectNotice: t("instagramProfessionalRequired"),
         connectOptions: [
           ...(metaPilotEnabled ? [{ label: t("directConnection"), primary: true, href: "/api/integrations/instagram-direct/start?returnTo=%2Fdashboard%3Fpanel%3Dinstagram", onConnect: ig.connectInstagramDirectAccount }] : []),
-          { label: t("classicConnection"), menu: t("facebookConnection"), href: `/api/integrations/instagram/start?returnTo=%2Fdashboard%3Fpanel%3Dinstagram&mode=standard${item.bubbleStatus === "reconnect" ? "&repair=1" : ""}`, onConnect: item.bubbleStatus === "reconnect" ? () => ig.connectInstagramAccount({ repair: true }) : ig.connectInstagramAccount },
+          { label: t("classicConnection"), menu: t("facebookConnection"), menuInfo: t("instagramFacebookAssociationRequired"), href: `/api/integrations/instagram/start?returnTo=%2Fdashboard%3Fpanel%3Dinstagram&mode=standard${item.bubbleStatus === "reconnect" ? "&repair=1" : ""}`, onConnect: item.bubbleStatus === "reconnect" ? () => ig.connectInstagramAccount({ repair: true }) : ig.connectInstagramAccount },
           { label: t("businessConnection"), menu: t("facebookConnection"), href: "/api/integrations/instagram/start?returnTo=%2Fdashboard%3Fpanel%3Dinstagram&mode=business", onConnect: ig.connectInstagramBusinessAccount },
         ],
         onDisconnect: ig.instagramConnected ? ig.disconnectInstagramProfile : ig.disconnectInstagramAccount,

@@ -4,6 +4,7 @@ import test from "node:test";
 import ts from "typescript";
 import * as identity from "../../lib/professionalBusinessIdentity.ts";
 import { isInrDirectoryEnabled } from "../../lib/inrDirectorySettings.ts";
+import * as displaySettings from "../../lib/inrSearchDisplaySettings.ts";
 
 type Row = Record<string, unknown>;
 const ACCOUNT = "00000000-0000-4000-8000-000000000011";
@@ -26,6 +27,7 @@ function harness(initial: Row | null = initialSettings()) {
   let indexings = 0;
   const neighbor = { user_id: OTHER, settings: { facebook: { pageId: "neighbor-page" } } };
   const invalidations: string[] = [];
+  const tagInvalidations: Array<{ tag: string; mode: unknown }> = [];
   const database = {
     from(table: string) {
       let action = "read";
@@ -83,7 +85,8 @@ function harness(initial: Row | null = initialSettings()) {
   const dependencies: Row = {
     "server-only": {},
     "@/lib/inrDirectorySettings": { isInrDirectoryEnabled },
-    "next/cache": { revalidatePath: (path: string) => invalidations.push(path), revalidateTag: (tag: string) => invalidations.push(tag) },
+    "@/lib/inrSearchDisplaySettings": displaySettings,
+    "next/cache": { revalidatePath: (path: string) => invalidations.push(path), revalidateTag: (tag: string, mode: unknown) => { invalidations.push(tag); tagInvalidations.push({ tag, mode }); } },
     "@/lib/inrSearchPublic": { getInrSearchPublicPageCacheTag: (slug: string) => `page:${slug}` },
     "@/lib/inrSearchSeo": { buildInrSearchIndexingUrls: async (slug: string) => [slug], submitInrSearchUrlsToIndexNow: async () => { indexings++; return { ok: true }; } },
     "@/lib/supabaseAdmin": { supabaseAdmin: database },
@@ -97,7 +100,8 @@ function harness(initial: Row | null = initialSettings()) {
   });
   return {
     ensure: () => loaded.exports.ensureSystemManagedInrSearch(database, ACCOUNT),
-    get settings() { return settings; }, get writes() { return writes; }, get indexings() { return indexings; }, neighbor, invalidations,
+    get settings() { return settings; }, get writes() { return writes; }, get indexings() { return indexings; }, neighbor, invalidations, tagInvalidations,
+    invalidate: (immediate = false) => loaded.exports.revalidateInrSearchPublicRoutes("jardins-du-nord", immediate),
     changeBeforeWrite(change: (value: Row) => Row) { beforeWrite = () => { settings = change(settings || {}); }; },
     insertRace() { duplicateInsert = true; beforeWrite = () => { settings = { facebook: { pageId: "created-concurrently" }, inrDirectory: { enabled: false } }; }; },
     conflictForever() { alwaysConflict = true; },
@@ -146,4 +150,33 @@ test("provisioning retries stop after four conflicts and do not invalidate an un
   assert.equal(h.writes, 4);
   assert.deepEqual(h.invalidations, []);
   assert.equal(h.indexings, 0);
+});
+
+test("profile synchronisation preserves manual visibility, SEO overrides and the public URL", async () => {
+  const h = harness({
+    ...initialSettings(),
+    inrSearch: { ...initialSettings().inrSearch, sections: { news: false, contact: false }, display: { phone: false, address: false }, pageTitleOverride: "Notre page personnalisée", pageDescriptionOverride: "Notre description choisie." },
+  });
+  const first = await h.ensure();
+  const second = await h.ensure();
+  assert.equal(first.inrSearch.slug, "jardins-du-nord");
+  assert.equal(second.inrSearch.sections.news, false);
+  assert.equal(second.inrSearch.sections.contact, false);
+  assert.equal(second.inrSearch.sections.services, true);
+  assert.equal(second.inrSearch.display.phone, false);
+  assert.equal(second.inrSearch.display.address, false);
+  assert.equal(second.inrSearch.display.email, true);
+  assert.equal(second.inrSearch.pageTitleOverride, "Notre page personnalisée");
+  assert.equal(second.inrSearch.pageDescriptionOverride, "Notre description choisie.");
+  assert.equal(second.changed, false);
+  assert.equal(h.writes, 1);
+  assert.deepEqual(h.settings!.facebook, { pageId: "original-page" });
+});
+
+test("privacy changes can expire public cache immediately instead of serving stale contact details", () => {
+  const h = harness();
+  h.invalidate();
+  assert.equal(h.tagInvalidations[0].mode, "max");
+  h.invalidate(true);
+  assert.deepEqual(h.tagInvalidations[1], { tag: "page:jardins-du-nord", mode: { expire: 0 } });
 });

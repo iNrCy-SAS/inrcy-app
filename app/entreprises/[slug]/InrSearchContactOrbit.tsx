@@ -153,9 +153,9 @@ export default function InrSearchContactOrbit({
             height={126}
             fallbackClassName={styles.contactCoreFallback}
           />
-          <small>{profession || i18nT("entreprise_d03e74b6")}</small>
-          <strong>{companyName}</strong>
-          <em>{city || i18nT("a_votre_ecoute_0a2de931")}</em>
+          <small title={profession || undefined}>{profession || i18nT("entreprise_d03e74b6")}</small>
+          <strong title={companyName}>{companyName}</strong>
+          <em title={city || undefined}>{city || i18nT("a_votre_ecoute_0a2de931")}</em>
           <button type="button" onClick={(event) => openForm(event.currentTarget)}>{i18nT("presenter_mon_besoin_7ee41902")}{" "}<span aria-hidden="true">↗</span></button>
         </div>
 

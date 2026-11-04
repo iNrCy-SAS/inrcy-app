@@ -158,6 +158,8 @@ export default function InrSearchFaqOrbit({ companyName, items, contactHref }: P
                 key={`${item.question}-${position}`}
                 role="listitem"
                 aria-current={active ? "true" : undefined}
+                tabIndex={active ? 0 : undefined}
+                onKeyDown={event => event.stopPropagation()}
               >
                 <div className={styles.faqCarouselCardTopline}>
                   <span>{String(index + 1).padStart(2, "0")}</span>

@@ -10,6 +10,7 @@ import * as policy from "../../lib/storageDeliveryPolicy.ts";
 import * as payloads from "../../lib/inrAgentScheduledPayload.ts";
 import * as metaImageMotionTiming from "../../lib/metaImageMotionTiming.ts";
 import * as agentSoundtrack from "../../lib/inrAgentPublicationSoundtrack.ts";
+import * as standardAgentPolicy from "../../lib/standardAgentPolicy.ts";
 
 const account = "11111111-1111-4111-8111-111111111111";
 const other = "22222222-2222-4222-8222-222222222222";
@@ -119,6 +120,7 @@ function scheduledRoute(file: string) {
     single: async () => ({ data: { ...row, id: "schedule-a" }, error: null }),
     maybeSingle: async () => ({ data: { ...row, id: "schedule-a" }, error: null }) };
   const route = load(file, {
+    "node:crypto": nativeRequire("node:crypto"),
     "@/lib/boosterSoundtracks": soundtrackSelection,
     "@/lib/inrAgentPublicationSoundtrack": agentSoundtrack,
     "@/lib/inrAssistantActionPreview": actionPreview,
@@ -127,9 +129,10 @@ function scheduledRoute(file: string) {
     "@/lib/inrAgentActions": { INR_AGENT_ACTION_TYPES: [], INR_AGENT_TARGET_TOOLS: [] },
     "@/lib/requireUser": { requireUser: async () => ({ activeUserId: account, authUserId: other, user: { id: other }, errorResponse: null }) },
     "@/lib/dashboardEditionServer": { getDashboardEditionForAuthUser: async () => "premium" },
-    "@/lib/standardAgentPolicy": {}, "@/lib/inrAgentPublicationHistory": {}, "@/lib/scheduledPublicationDedupe": {},
+    "@/lib/standardAgentPolicy": standardAgentPolicy, "@/lib/inrAgentPublicationHistory": {}, "@/lib/scheduledPublicationDedupe": {},
     "@/lib/inrAgentPublicationChannelSelectionServer": { saveAgentPublicationChannels: () => assert.fail("Storage-only updates must not change publication channel selection") },
     "@/lib/scheduledCampaignDedupe": {}, "@/lib/mediaWorkspaceConsumption": {}, "@/lib/scheduledPublicationMediaSnapshot": {},
+    "@/lib/scheduledPublicationMediaRevision": { createScheduledPublicationMediaRevision: () => assert.fail("Storage-only updates must not create media revisions") },
     "@/lib/supabaseAdmin": { supabaseAdmin: { from: () => query } },
     "@/lib/storageContentUrl": { buildAbsoluteStorageContentUrl: (bucket: string, path: string) => { minted.push(`${bucket}:${path}`); return `https://app.test/signed/${bucket}/${path}`; } },
   }) as { POST(request: Request): Promise<Response>; PATCH(request: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> };

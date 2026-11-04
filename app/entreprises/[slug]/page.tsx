@@ -566,7 +566,7 @@ function buildJsonLd(data: InrSearchPublicPageData, i18nT: (_key: string, _value
         : undefined,
     hasMap: data.googleBusinessUrl || undefined,
     potentialAction:
-      data.phone || data.email
+      data.sections.cta && (data.phone || data.email)
         ? {
             "@type": "CommunicateAction",
             name: i18nT("contacter_value_78104412", {
@@ -658,7 +658,9 @@ function buildWebPageJsonLd(
         }
       : undefined,
     hasPart: [
-      { "@type": "WebPageElement", "@id": `${url}#presentation`, name: i18nT("presentation_aa245f5f") },
+      ...(data.sections.identity || data.sections.presentation
+        ? [{ "@type": "WebPageElement", "@id": `${url}#presentation`, name: i18nT("presentation_aa245f5f") }]
+        : []),
       ...(data.sections.services && data.services.length
         ? [{ "@type": "WebPageElement", "@id": `${url}#prestations`, name: i18nT("expertises_ecd4aa4e") }]
         : []),
@@ -687,7 +689,7 @@ function buildNewsJsonLd(
   i18nT: (_key: string, _values?: Record<string, string>) => string,
   locale: string,
 ) {
-  if (!data.publications.length) return null;
+  if (!data.sections.news || !data.publications.length) return null;
   return {
     "@context": "https://schema.org",
     "@type": "ItemList",
@@ -815,7 +817,9 @@ export default async function InrSearchCompanyPage({ params }: PageProps) {
     : "";
   const inrBadgeOpenUrl = withSource(data.inrBadgeUrl, "inrsearch");
   const navItems = [
-    { href: "#presentation", label: i18nT("identite_3138be1c") },
+    ...(data.sections.identity || data.sections.presentation
+      ? [{ href: "#presentation", label: i18nT("identite_3138be1c") }]
+      : []),
     ...(data.sections.services && data.services.length
       ? [{ href: "#prestations", label: i18nT("expertises_ecd4aa4e") }]
       : []),
@@ -950,7 +954,7 @@ export default async function InrSearchCompanyPage({ params }: PageProps) {
         <span className={styles.presentationFactIcon}><Icon name={fact.icon} /></span>
         <span className={styles.presentationFactText}>
           <small>{fact.label}</small>
-          <strong>{fact.value}</strong>
+          <strong tabIndex={fact.kind === "strengths" || fact.kind === "availability" ? 0 : undefined} title={fact.value}>{fact.value}</strong>
         </span>
       </>
     );
@@ -1042,7 +1046,7 @@ export default async function InrSearchCompanyPage({ params }: PageProps) {
         aria-describedby="orbit-instructions"
         aria-label={i18nT("parcours_de_value_d9df712e", { value0: data.companyName })}
       >
-        <section
+        {data.sections.identity || data.sections.presentation ? <section
           className={`${styles.orbitPanel} ${styles.presentationOrbit}`}
           id="presentation"
           tabIndex={-1}
@@ -1071,10 +1075,10 @@ export default async function InrSearchCompanyPage({ params }: PageProps) {
                   <p className={styles.presentationDescription}>{presentationLead}</p>
                 ) : null}
 
-                <details className={styles.presentationSummary} open>
+                {data.sections.presentation ? <details className={styles.presentationSummary} open>
                   <summary>{i18nT("informations_essentielles_9792d409")}</summary>
                   <p>{conversionSummary || factualSummary}</p>
-                </details>
+                </details> : null}
 
                 {data.sections.cta ? (
                   <div className={styles.presentationActions}>
@@ -1091,7 +1095,7 @@ export default async function InrSearchCompanyPage({ params }: PageProps) {
                 ) : null}
               </div>
 
-              <div className={styles.presentationUniverse} aria-label={i18nT("identite_visuelle_de_value_316874b8", { value0: data.companyName })}>
+              {data.sections.identity ? <div className={styles.presentationUniverse} aria-label={i18nT("identite_visuelle_de_value_316874b8", { value0: data.companyName })}>
                 <div className={styles.presentationHalo} aria-hidden="true" />
                 <div className={styles.presentationMediaOrb}>
                   <div className={styles.presentationMediaFallback}>
@@ -1134,7 +1138,7 @@ export default async function InrSearchCompanyPage({ params }: PageProps) {
                     </div>
                   ) : null}
                 </div>
-              </div>
+              </div> : null}
             </div>
 
             <div className={styles.presentationSwipeHint} aria-hidden="true">
@@ -1142,7 +1146,7 @@ export default async function InrSearchCompanyPage({ params }: PageProps) {
               <strong>→</strong>
             </div>
           </div>
-        </section>
+        </section> : null}
 
         {data.sections.services && data.services.length ? (
           <section
@@ -1287,7 +1291,7 @@ export default async function InrSearchCompanyPage({ params }: PageProps) {
             aria-label={i18nT("contact_b37456c4")}
           >
             <div className={styles.contactOrbitInner}>
-              <div data-reveal>
+              <div data-reveal data-nosnippet>
                 <InrSearchContactOrbit
                   slug={data.slug}
                   companyName={data.companyName}

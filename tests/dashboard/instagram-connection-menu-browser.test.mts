@@ -46,7 +46,7 @@ function Fixture({disabled=false}) {
   return open ? React.createElement(Dialog,{name:'Instagram',title:'Connecter — Instagram',onClose:()=>setOpen(false)},
     React.createElement('div',{className:'connectChoices'},
       React.createElement('button',{type:'button',className:'actionBtn connectBtn connectPrimary',disabled,onClick:()=>window.calls.push('direct')},icon,'Connexion directe'),
-      React.createElement(Menu,{label:'Connexion via Facebook',disabled,icon,options:[{label:'Connexion classique',onConnect:()=>window.calls.push('classic')},{label:'Connexion Business',onConnect:()=>window.calls.push('business')}],onChoose:option=>option.onConnect()})
+      React.createElement(Menu,{label:'Connexion via Facebook',info:'Votre compte Instagram professionnel doit être associé à la Page Facebook professionnelle connectée à iNrCy.',disabled,icon,options:[{label:'Connexion classique',onConnect:()=>window.calls.push('classic')},{label:'Connexion Business',onConnect:()=>window.calls.push('business')}],onChoose:option=>option.onConnect()})
     )) : React.createElement('button',{onClick:()=>setOpen(true)},'Ouvrir');
 }
 const root=require('react-dom/client').createRoot(document.getElementById('root'));
@@ -74,7 +74,25 @@ test("Instagram menu keeps both Facebook flows, keyboard focus and the parent di
       assert.ok(directBounds.height >= 44 && directBounds.height <= 60, "Connection choices remain compact touch targets");
       const evidenceDirectory = process.env.INRCY_INSTAGRAM_LAYOUT_EVIDENCE_DIR;
       if (evidenceDirectory) { mkdirSync(evidenceDirectory, { recursive: true }); await page.screenshot({ path: path.join(evidenceDirectory, `instagram-connexion-${width}-2026-10-28.png`) }); }
-      assert.equal(await dialog.getByRole("button").count(), 3, "Only close, direct and Facebook are initially visible");
+      assert.equal(await dialog.getByRole("button").count(), 4, "Close, direct, Facebook and its information button are initially visible");
+      const info = page.getByRole("button", { name: "Votre compte Instagram professionnel doit être associé à la Page Facebook professionnelle connectée à iNrCy.", exact: true });
+      await info.click();
+      const note = page.getByRole("note");
+      await note.waitFor();
+      assert.equal(await info.getAttribute("aria-expanded"), "true");
+      assert.equal(await trigger.getAttribute("aria-expanded"), "false", "Information never opens the OAuth choices");
+      assert.equal(await note.textContent(), await info.getAttribute("aria-label"));
+      const noteBounds = await note.boundingBox();
+      assert.ok(noteBounds && noteBounds.x >= 0 && noteBounds.x + noteBounds.width <= width, "Information fits the viewport");
+      assert.deepEqual(await page.evaluate(() => (window as unknown as { calls: string[] }).calls), [], "Information never starts an OAuth connection");
+      await page.keyboard.press("Escape");
+      assert.equal(await dialog.isVisible(), true, "Escape closes information before its parent dialog");
+      assert.equal(await info.getAttribute("aria-expanded"), "false");
+      assert.equal(await info.evaluate(element => element === document.activeElement), true);
+      await info.press("Space");
+      await note.waitFor();
+      await page.getByRole("heading", { name: "Connecter — Instagram", exact: true }).click();
+      await note.waitFor({ state: "hidden" });
       await page.getByRole("button", { name: "Connexion directe", exact: true }).click();
       await trigger.click();
       assert.equal(await trigger.getAttribute("aria-expanded"), "true");

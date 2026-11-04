@@ -90,7 +90,7 @@ test("iNrSearch news renews publication media from durable storage before histor
   assert.match(publicData, /const storageUrl = await resolveStorageMediaUrl/);
   assert.match(publicData, /normalizeBoosterPublicationEvents\(boosterEventsRes\.data, userId\)/);
   assert.match(publicData, /normalizeDurableInrSearchPublications/);
-  assert.match(publicData, /"inr-search-public-page-v6"/);
+  assert.match(publicData, /"inr-search-public-page-v7"/);
   assert.match(publicData, /if \(cachedPage\) return cachedPage/);
   assert.match(publicData, /return loadInrSearchPublicPageUncached\(slug\)/);
   assert.doesNotMatch(publicData, /inr_search_page_missing_do_not_cache/);

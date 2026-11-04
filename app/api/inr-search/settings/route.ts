@@ -4,7 +4,9 @@ import { NextResponse } from "next/server";
 
 import { syncNativeChannelsForAccount } from "@/lib/nativeChannelActivationServer";
 import { getInrSearchMinimalPublicStatus } from "@/lib/inrSearchMinimalStatus";
-import { ensureSystemManagedInrSearch } from "@/lib/inrSearchProvisioning";
+import { ensureSystemManagedInrSearch, revalidateInrSearchPublicRoutes } from "@/lib/inrSearchProvisioning";
+import { normalizeInrSearchDisplaySettings, normalizeInrSearchSections } from "@/lib/inrSearchDisplaySettings";
+import { saveInrSearchPresentationSettings, validateInrSearchPresentationPatch } from "@/lib/inrSearchPresentationServer";
 import { requireUser } from "@/lib/requireUser";
 import { clearAllToolCaches } from "@/lib/statsCache";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
@@ -29,7 +31,13 @@ async function syncSystemManagedPage(directoryCache?: DirectoryCacheSync) {
     return NextResponse.json(
       {
         ok: true,
-        inrSearch: provisioned.inrSearch,
+        accountId: activeUserId,
+        inrSearch: { ...provisioned.inrSearch,
+          display: normalizeInrSearchDisplaySettings(provisioned.inrSearch.display),
+          sections: normalizeInrSearchSections(provisioned.inrSearch.sections),
+          pageTitleOverride: typeof provisioned.inrSearch.pageTitleOverride === "string" ? provisioned.inrSearch.pageTitleOverride : "",
+          pageDescriptionOverride: typeof provisioned.inrSearch.pageDescriptionOverride === "string" ? provisioned.inrSearch.pageDescriptionOverride : "",
+        },
         directoryEnabled: isInrDirectoryEnabled(provisioned.root),
         publication: {
           allowed: publicStatus.published,
@@ -46,15 +54,29 @@ async function syncSystemManagedPage(directoryCache?: DirectoryCacheSync) {
   }
 }
 
-type InrSearchAction = "connect" | "disconnect" | "directory";
+type InrSearchAction = "connect" | "disconnect" | "directory" | "presentation";
 
 async function applyAction(request: Request) {
   const { supabase, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
-  const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+  const rawBody: unknown = await request.json().catch(() => null);
+  if (!rawBody || typeof rawBody !== "object" || Array.isArray(rawBody)) return NextResponse.json({ ok: false, error: "La demande est invalide." }, { status: 400, headers: { "Cache-Control": "no-store" } });
+  const body = rawBody as Record<string, unknown>;
   const action = typeof body.action === "string" ? body.action as InrSearchAction : null;
   if (!action) return syncSystemManagedPage();
+  if (action === "presentation") {
+    if (body.accountId !== activeUserId) return NextResponse.json({ ok: false, error: "L’établissement actif a changé. Rechargez les réglages." }, { status: 409 });
+    if (!validateInrSearchPresentationPatch(body)) return NextResponse.json({ ok: false, error: "Les réglages de présentation sont invalides." }, { status: 400 });
+    try {
+      const saved = await saveInrSearchPresentationSettings(supabase, activeUserId, body);
+      revalidateInrSearchPublicRoutes(String(saved.slug || ""), true);
+      await clearAllToolCaches(supabase, activeUserId);
+      return syncSystemManagedPage();
+    } catch (error) {
+      return NextResponse.json({ ok: false, error: getSimpleFrenchErrorMessage(error, "Les réglages n’ont pas pu être enregistrés.") }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    }
+  }
   if (action === "directory") return updateDirectorySettings(new Request(request.url, { method: "POST", headers: request.headers, body: JSON.stringify({ enabled: body.enabled }) }));
 
   if (!["connect", "disconnect", "directory"].includes(action)) {

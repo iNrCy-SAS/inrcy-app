@@ -116,7 +116,7 @@ export default function InrSearchServicesOrbit({ companyName, services, audience
       </div>
 
       <div className={styles.servicesOrbitStage}>
-        <article className={styles.servicesOrbitFocus} aria-live="polite">
+        <article className={styles.servicesOrbitFocus} aria-live="polite" tabIndex={0} onKeyDown={event => event.stopPropagation()}>
           <span className={styles.servicesOrbitFocusBeam} aria-hidden="true" />
           <div className={styles.servicesOrbitFocusTopline}>
             <span className={styles.servicesOrbitGlyph}><ServiceGlyph index={activeIndex} /></span>
@@ -164,6 +164,7 @@ export default function InrSearchServicesOrbit({ companyName, services, audience
                 aria-hidden={visible ? undefined : true}
                 aria-current={active ? "true" : undefined}
                 aria-label={i18nT("selectionner_value_b74d84aa", { value0: service.name })}
+                title={service.name}
               >
                 <span className={styles.servicesOrbitGlyph}><ServiceGlyph index={index} /></span>
                 <strong>{service.name}</strong>

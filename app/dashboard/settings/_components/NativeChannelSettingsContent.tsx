@@ -16,10 +16,10 @@ import local from "./NativeChannelSettingsContent.module.css";
 type Props = {
   channelKey: NativeChannelKey; renderBubble: ChannelBubbleRenderer;
   initialStates?: NativeChannelStates | null; companyName?: string;
-  badgeProfile: InrBadgeProfileSummary; badgeParameters?: ReactNode;
+  badgeProfile: InrBadgeProfileSummary; badgeParameters?: ReactNode; searchParameters?: ReactNode;
 };
 
-export default function NativeChannelSettingsContent({ channelKey, renderBubble, initialStates, companyName, badgeProfile, badgeParameters }: Props) {
+export default function NativeChannelSettingsContent({ channelKey, renderBubble, initialStates, companyName, badgeProfile, badgeParameters, searchParameters }: Props) {
   const t = useTranslations("dashboard.nativeChannels");
   const bubble = useTranslations("dashboard.channelBubble");
   const [snapshot, setSnapshot] = useState<NativeChannelSnapshot | null>(null);
@@ -95,6 +95,7 @@ export default function NativeChannelSettingsContent({ channelKey, renderBubble,
     </div>,
     extraActions: <><InrBadgeQrButton publicUrl={publicUrl} companyName={name} compact /><InrBadgeDownloadButton publicUrl={publicUrl} profile={{ ...badgeProfile, companyLegalName: name }} /><InrBadgeCopyButton publicUrl={publicUrl} onNotice={setNotice} onError={setError} /></>,
     afterContent: <>{notice ? <p className={local.notice} role="status">{notice}</p> : null}{state && !state.allowed ? <p className={local.notice}>{t("unavailable")}</p> : null}</>,
-    error, parameters: channelKey === "inrbadge" && published ? badgeParameters : undefined, parametersFullScreen: true,
+    error, parameters: channelKey === "inr_search" ? searchParameters : channelKey === "inrbadge" && published ? badgeParameters : undefined,
+    parametersAlwaysVisible: channelKey === "inr_search", parametersFullScreen: true,
   });
 }

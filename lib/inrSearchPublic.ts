@@ -11,6 +11,15 @@ import { resolveFrenchGeography } from "@/lib/frenchGeography";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { combineOpeningSchedule } from "@/lib/openingSchedule";
 import {
+  DEFAULT_INR_SEARCH_SECTIONS,
+  normalizeInrSearchSections,
+  normalizeInrSearchDisplaySettings,
+  applyInrSearchPublicDisplaySettings,
+  createInrSearchPublicTextSanitizer,
+  type InrSearchSections,
+} from "@/lib/inrSearchDisplaySettings";
+export type { InrSearchSectionKey, InrSearchSections } from "@/lib/inrSearchDisplaySettings";
+import {
   hasSuccessfulInrSearchChannel,
   mergeInrSearchPublicationFeeds,
 } from "@/lib/inrSearchPublicationFeed";
@@ -25,23 +34,6 @@ import {
   resolveProfessionalCompanyNameFromProfile,
   sanitizeProfessionalIdentityText,
 } from "@/lib/professionalBusinessIdentity";
-
-export type InrSearchSectionKey =
-  | "identity"
-  | "presentation"
-  | "contact"
-  | "hours"
-  | "services"
-  | "sectors"
-  | "areas"
-  | "media"
-  | "news"
-  | "socials"
-  | "faq"
-  | "trust"
-  | "cta";
-
-export type InrSearchSections = Record<InrSearchSectionKey, boolean>;
 
 export type InrSearchPublication = {
   id: string;
@@ -157,21 +149,7 @@ export type InrSearchDirectoryEntry = {
   count: number;
 };
 
-const DEFAULT_SECTIONS: InrSearchSections = {
-  identity: true,
-  presentation: true,
-  contact: true,
-  hours: true,
-  services: true,
-  sectors: true,
-  areas: true,
-  media: true,
-  news: true,
-  socials: true,
-  faq: true,
-  trust: true,
-  cta: true,
-};
+const DEFAULT_SECTIONS = DEFAULT_INR_SEARCH_SECTIONS;
 
 const PUBLIC_ORIGIN = ((process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, "") === "https://inrcy.com" ? "https://app.inrcy.com" : (process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, ""));
 const MEDIA_SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 30;
@@ -223,15 +201,6 @@ export function normalizeInrSearchDirectorySlug(value: unknown) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 120);
-}
-
-function normalizeSections(value: unknown): InrSearchSections {
-  const source = asRecord(value);
-  const sections = { ...DEFAULT_SECTIONS };
-  for (const key of Object.keys(DEFAULT_SECTIONS) as InrSearchSectionKey[]) {
-    if (Object.prototype.hasOwnProperty.call(source, key)) sections[key] = Boolean(source[key]);
-  }
-  return sections;
 }
 
 function listFromUnknown(value: unknown): string[] {
@@ -1231,7 +1200,6 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
     { key: "pinterest", label: "Pinterest", url: normalizeExternalUrl(channelStates.pinterest.profile_url) },
   ].filter((item) => Boolean(item.url));
 
-  const faq = buildFaq({ companyName, profession, city, services, zones, customerTypes, phone, email, openingDays, openingHours });
   const [eventPublications, durablePublications] = await Promise.all([
     normalizeBoosterPublicationEvents(boosterEventsRes.data, userId),
     normalizeDurableInrSearchPublications(durablePublicationsRes.data, userId),
@@ -1248,13 +1216,13 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
     publications[0]?.createdAt,
   ]);
 
-  return {
+  const publicData = applyInrSearchPublicDisplaySettings({
     userId,
     slug: normalizedSlug,
-    pageTitle: clean(config.pageTitle, 180) || companyName,
-    pageDescription: clean(config.pageDescription, 500) || description,
+    pageTitle: clean(config.pageTitleOverride, 160) || clean(config.pageTitle, 180) || companyName,
+    pageDescription: clean(config.pageDescriptionOverride, 500) || clean(config.pageDescription, 500) || description,
     enabled: true,
-    sections: normalizeSections(config.sections),
+    sections: normalizeInrSearchSections(config.sections),
     updatedAt,
     companyName,
     contactName,
@@ -1282,10 +1250,13 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
     socialLinks,
     publications,
     media,
-    faq,
+    faq: [] as InrSearchFaq[],
     inrBadgeUrl,
     inrBadgeQrUrl,
-  };
+  }, config, { phone, email, address, zip, city, country, contactName });
+  // Derive FAQs only from the already-filtered public projection.
+  publicData.faq = publicData.sections.faq ? buildFaq(publicData) : [];
+  return publicData;
 }
 
 export function getInrSearchPublicPageCacheTag(slugValue: unknown) {
@@ -1300,7 +1271,7 @@ const loadInrSearchPublicPageCached = cache(async (slugValue: string) => {
   if (!slug) return null;
   const readCachedPage = unstable_cache(
     async () => loadInrSearchPublicPageRequestCached(slug),
-    ["inr-search-public-page-v6", slug],
+    ["inr-search-public-page-v7", slug],
     { revalidate: 300, tags: [getInrSearchPublicPageCacheTag(slug)] },
   );
   const cachedPage = await readCachedPage();
@@ -1398,37 +1369,50 @@ async function listPublishedInrSearchCompaniesUncached(): Promise<PublishedInrSe
     .map((item) => {
       const profile = profiles.get(item.userId) || {};
       const business = businesses.get(item.userId) || {};
+      const display = normalizeInrSearchDisplaySettings(item.config.display);
+      const sections = normalizeInrSearchSections(item.config.sections);
+      const sanitize = createInrSearchPublicTextSanitizer({
+        ...display,
+        phone: display.phone && sections.contact,
+        email: display.email && sections.contact,
+        address: display.address && sections.contact,
+        contactName: display.contactName && sections.contact,
+      }, {
+        phone: profile.phone, email: profile.contact_email, address: profile.hq_address,
+        zip: profile.hq_zip, city: profile.hq_city,
+        contactName: [clean(profile.first_name, 80), clean(profile.last_name, 80)].filter(Boolean).join(" "),
+      });
       const decodedSector = decodeBusinessSector(clean(business.sector, 300));
       const companyName = resolveProfessionalCompanyNameFromProfile(
         clean(profile.company_legal_name, 180),
         clean(item.config.pageTitle, 180),
       ) || "Entreprise";
-      const pageDescription = sanitizeProfessionalIdentityText(
-        clean(item.config.pageDescription, 300)
+      const pageDescription = sections.presentation ? sanitize(sanitizeProfessionalIdentityText(
+        clean(item.config.pageDescriptionOverride, 500) || clean(item.config.pageDescription, 300)
           || clean(business.business_description || business.activity_description, 300)
           || `${companyName}${clean(profile.hq_city, 120) ? ` à ${clean(profile.hq_city, 120)}` : ""}.`,
         companyName,
-      );
-      const city = clean(profile.hq_city, 120);
+      )) : "";
+      const city = display.address && sections.contact ? clean(profile.hq_city, 120) : "";
       const geography = resolveFrenchGeography(profile.hq_zip, city);
-      const department = clean(
+      const department = display.address && sections.contact ? clean(
         profile.hq_department
           || profile.department
           || profile.address_department,
         120,
-      ) || geography?.department || "";
-      const region = clean(
+      ) || geography?.department || "" : "";
+      const region = display.address && sections.contact ? clean(
         profile.hq_region
           || profile.region
           || profile.address_region,
         160,
-      ) || geography?.region || "";
-      const profession = clean(decodedSector.profession, 180);
-      const sectorLabel = getActivitySectorLabel(decodedSector.sectorCategory);
+      ) || geography?.region || "" : "";
+      const profession = sections.sectors ? clean(decodedSector.profession, 180) : "";
+      const sectorLabel = sections.sectors ? getActivitySectorLabel(decodedSector.sectorCategory) : "";
       return {
         slug: item.slug,
-        companyName,
-        pageTitle: clean(item.config.pageTitle, 180) || companyName,
+        companyName: sanitize(companyName),
+        pageTitle: sanitize(clean(item.config.pageTitleOverride, 160) || clean(item.config.pageTitle, 180) || companyName),
         pageDescription,
         city,
         citySlug: normalizeInrSearchDirectorySlug(city),
@@ -1438,7 +1422,7 @@ async function listPublishedInrSearchCompaniesUncached(): Promise<PublishedInrSe
         regionSlug: normalizeInrSearchDirectorySlug(region),
         profession,
         professionSlug: normalizeInrSearchDirectorySlug(profession),
-        sectorCategory: decodedSector.sectorCategory,
+        sectorCategory: sections.sectors ? decodedSector.sectorCategory : "",
         sectorLabel,
         sectorSlug: normalizeInrSearchDirectorySlug(sectorLabel),
         updatedAt: latestIsoDate([

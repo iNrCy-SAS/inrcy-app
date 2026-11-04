@@ -7,26 +7,11 @@ import { getInrSearchPublicPageCacheTag } from "@/lib/inrSearchPublic";
 import { buildInrSearchIndexingUrls, submitInrSearchUrlsToIndexNow } from "@/lib/inrSearchSeo";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asRecord } from "@/lib/tsSafe";
+import { normalizeInrSearchSections, normalizeInrSearchDisplaySettings } from "@/lib/inrSearchDisplaySettings";
 import {
   resolveProfessionalCompanyNameFromProfile,
   sanitizeProfessionalIdentityText,
 } from "@/lib/professionalBusinessIdentity";
-
-const DEFAULT_SECTIONS = {
-  identity: true,
-  presentation: true,
-  contact: true,
-  hours: true,
-  services: true,
-  sectors: true,
-  areas: true,
-  media: true,
-  news: true,
-  socials: true,
-  faq: true,
-  trust: true,
-  cta: true,
-} as const;
 
 // iNr'Search est disponible dès la création d'un compte. Le profil et l'ADN
 // enrichissent ensuite la page, mais ne doivent jamais empêcher le
@@ -85,18 +70,13 @@ async function slugAlreadyUsed(slug: string, currentUserId: string) {
   });
 }
 
-function sameSections(value: unknown) {
-  const sections = asRecord(value);
-  return Object.entries(DEFAULT_SECTIONS).every(([key, expected]) => sections[key] === expected);
-}
-
-export function revalidateInrSearchPublicRoutes(slug = "") {
+export function revalidateInrSearchPublicRoutes(slug = "", immediate = false) {
   revalidatePath("/api/public/inrsearch/directory");
   revalidatePath("/entreprises");
   revalidatePath("/entreprises/[slug]", "page");
   if (slug) {
     revalidatePath(`/entreprises/${slug}`);
-    revalidateTag(getInrSearchPublicPageCacheTag(slug), "max");
+    revalidateTag(getInrSearchPublicPageCacheTag(slug), immediate ? { expire: 0 } : "max");
   }
   revalidatePath("/metiers");
   revalidatePath("/metiers/[metier]", "page");
@@ -227,7 +207,10 @@ export async function ensureSystemManagedInrSearch(
     pageTitle: companyName,
     pageDescription: description,
     identityProvisional,
-    sections: { ...DEFAULT_SECTIONS },
+    sections: normalizeInrSearchSections(current.sections),
+    display: normalizeInrSearchDisplaySettings(current.display),
+    pageTitleOverride: clean(current.pageTitleOverride, 160),
+    pageDescriptionOverride: clean(current.pageDescriptionOverride, 500),
     systemManaged: true,
     updatedAt: clean(current.updatedAt, 80) || now,
     indexingRequestedAt: pageEnabled ? clean(current.indexingRequestedAt, 80) || now : null,
@@ -241,7 +224,10 @@ export async function ensureSystemManagedInrSearch(
     clean(current.pageTitle, 160) !== companyName ||
     clean(current.pageDescription, 320) !== description ||
     current.identityProvisional !== identityProvisional ||
-    !sameSections(current.sections);
+    JSON.stringify(current.sections) !== JSON.stringify(next.sections) ||
+    JSON.stringify(current.display) !== JSON.stringify(next.display) ||
+    current.pageTitleOverride !== next.pageTitleOverride ||
+    current.pageDescriptionOverride !== next.pageDescriptionOverride;
 
   if (changed) {
     next.updatedAt = now;

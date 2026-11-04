@@ -122,7 +122,7 @@ export default function InrSearchZoneOrbit({ companyName, city, profession, zone
           <div className={styles.zoneOrbitCore}>
             <span className={styles.zoneOrbitCorePulse} aria-hidden="true" />
             <small>{i18nT("point_d_ancrage_083608b0")}</small>
-            <strong>{city || activeZone}</strong>
+            <strong title={city || activeZone}>{city || activeZone}</strong>
             <em>{profession || i18nT("zone_principale_8fb59c5f")}</em>
           </div>
 

@@ -142,6 +142,8 @@ export default function InrSearchStrengthsOrbit({ companyName, strengths, inrBad
                 key={`${strength || "empty"}-${index}`}
                 onClick={() => activate(index)}
                 role="listitem"
+                aria-label={strength}
+                title={strength}
                 aria-current={Boolean(strength) && index === activeIndex ? "true" : undefined}
                 aria-disabled={strength ? undefined : true}
                 disabled={!strength}
@@ -155,7 +157,7 @@ export default function InrSearchStrengthsOrbit({ companyName, strengths, inrBad
             ))}
           </div>
 
-          <article className={styles.strengthNewtonDetail} aria-live="polite">
+          <article className={styles.strengthNewtonDetail} aria-live="polite" tabIndex={0}>
             <small>{i18nT("engagement_selectionne_a9da550d")}</small>
             <strong>{activeStrength}</strong>
             <p>{strengthDefinition(activeStrength || "", companyName)}</p>

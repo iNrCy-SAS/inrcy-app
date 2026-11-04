@@ -21,9 +21,10 @@ test("all new trials keep Standard for 21 days, even with Basic selected for lat
 test("Basic has zero included media credits but can use the Studio with purchased credits",()=>{
  for(const [edition,expected] of [["basic",0],["standard",735],["premium",2530]] as const){const limit=AI_MEDIA_MONTHLY_LIMITS[edition];assert.equal(legacyAiMediaAmountToCredits("image",limit.image)+legacyAiMediaAmountToCredits("video",limit.video),expected);assert.equal(limit.studioEnabled,true);}
 });
-test("Basic permits manual tools and blocks every agent route and Premium tool",()=>{
- for(const route of ["/dashboard","/dashboard/generer-media","/dashboard/mediatheque","/dashboard/stats","/dashboard/e-reputation"]) assert.equal(isDashboardRouteAllowedForEdition(route,undefined,"basic"),true,route);
- for(const route of ["/dashboard/agent","/dashboard/agent/publications","/dashboard/agent/stats","/dashboard/ads","/dashboard/crm","/dashboard/agenda"]) assert.equal(isDashboardRouteAllowedForEdition(route,undefined,"basic"),false,route);
+test("Basic permits manual tools and publication planning but blocks agent automation and Premium tools",()=>{
+ for(const route of ["/dashboard","/dashboard/generer-media","/dashboard/mediatheque","/dashboard/stats","/dashboard/e-reputation","/dashboard/agent","/dashboard/agent/publications"]) assert.equal(isDashboardRouteAllowedForEdition(route,undefined,"basic"),true,route);
+ for(const route of ["/dashboard/agent/stats","/dashboard/agent/campaigns","/dashboard/ads","/dashboard/crm","/dashboard/agenda"]) assert.equal(isDashboardRouteAllowedForEdition(route,undefined,"basic"),false,route);
+ for(const route of ["/api/agent/scheduled-actions","/api/agent/scheduled-actions/manual-publication","/api/agent/scheduled-actions/manual-publication/execute"]) assert.equal(isApiRouteAllowedForEdition(route,undefined,"basic"),true,route);
  for(const route of ["/api/agent/actions","/api/agent/actions/execute","/api/agent/settings","/api/crm/contacts","/api/ads/campaigns"]) assert.equal(isApiRouteAllowedForEdition(route,undefined,"basic"),false,route);
  assert.equal(isApiRouteAllowedForEdition("/api/booster/publish-now",undefined,"basic"),true);assert.equal(hasAgentAutomationAccess("basic"),false);assert.equal(hasPremiumDashboardAccess("basic"),false);
  assert.equal(hasAgentAutomationAccess("standard"),true);assert.equal(hasPremiumDashboardAccess("premium"),true);
