@@ -199,7 +199,13 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
               {!activePublication.videoUrl ? renderImageNavigation("stage") : null}
               {!activePublication.videoUrl ? <span className={styles.newsOrbitFocusShade} /> : null}
             </div>
-            <span className={styles.newsOrbitFocusContent}>
+            <span
+              className={styles.newsOrbitFocusContent}
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown", " "].includes(event.key)) event.stopPropagation();
+              }}
+            >
               <span className={styles.newsOrbitFocusMeta}>
                 <small>{i18nT("dernier_signal_e6e228e7")}</small>
                 {activePublication.createdAt ? <time dateTime={activePublication.createdAt}>{formatDate(activePublication.createdAt)}</time> : null}

@@ -13713,3 +13713,88 @@
     max-height: min(650px, 72svh);
   }
 }
+
+/* A long company name must not stretch the social system's circular core. */
+.socialOrbitCore {
+  --social-core-size: clamp(135px, 13vw, 182px);
+  width: var(--social-core-size);
+  height: var(--social-core-size);
+  min-width: 0;
+  min-height: 0;
+  padding: 10px;
+}
+
+.socialOrbitCore > img,
+.socialOrbitCore > .socialOrbitFallback {
+  width: clamp(42px, 4vw, 58px);
+  height: clamp(42px, 4vw, 58px);
+}
+
+.socialOrbitCore > small,
+.socialOrbitCore > strong {
+  min-width: 0;
+  max-width: 100%;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.socialOrbitCore > small {
+  max-height: 2.4em;
+  font-size: 7px;
+  line-height: 1.2;
+}
+
+.socialOrbitCore > strong {
+  max-height: 2.16em;
+  font-size: clamp(14px, 1.2vw, 19px);
+  line-height: 1.08;
+}
+
+.socialOrbitCore > em {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.socialOrbitDetail {
+  min-width: 0;
+  justify-content: flex-start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(173, 132, 255, .35) transparent;
+}
+
+.socialOrbitDetail > :not(.socialOrbitDetailCoordinates) {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* Start long news at the top: centering overflowing flex content hides its start. */
+.newsOrbitFocusContent {
+  justify-content: flex-start;
+}
+
+.newsOrbitFocusContent > * {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .socialOrbitCore {
+    --social-core-size: 170px;
+  }
+}
+
+@media (max-width: 700px) {
+  .socialOrbitCore {
+    --social-core-size: 158px;
+  }
+}

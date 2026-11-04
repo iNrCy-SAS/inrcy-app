@@ -81,9 +81,9 @@ export default function InrSearchSocialOrbit({ companyName, logoUrl, profession,
               height={132}
               fallbackClassName={styles.socialOrbitFallback}
             />
-            <small>{profession || i18nT("entreprise_d03e74b6")}</small>
-            <strong>{companyName}</strong>
-            {city ? <em>{city}</em> : null}
+            <small title={profession || undefined}>{profession || i18nT("entreprise_d03e74b6")}</small>
+            <strong title={companyName}>{companyName}</strong>
+            {city ? <em title={city}>{city}</em> : null}
           </div>
 
           <div className={styles.socialOrbitNodes}>
@@ -121,7 +121,7 @@ export default function InrSearchSocialOrbit({ companyName, logoUrl, profession,
         </div>
 
         {activeLink ? (
-          <aside className={styles.socialOrbitDetail} aria-live="polite">
+          <aside className={styles.socialOrbitDetail} aria-live="polite" tabIndex={0}>
             <span className={`${styles.socialOrbitDetailGlyph} ${styles[`social_${activeLink.key}`] || ""}`}>
               {NETWORK_ICONS[activeLink.key] ? <Image src={NETWORK_ICONS[activeLink.key]} alt="" width={48} height={48} /> : activeLink.key === "website" ? "◎" : activeLink.label.slice(0, 1).toUpperCase()}
             </span>

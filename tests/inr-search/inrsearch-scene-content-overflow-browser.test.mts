@@ -56,6 +56,8 @@ async function setup(page: Page) {
     services: compile(read("app/entreprises/[slug]/InrSearchServicesOrbit.tsx")),
     faq: compile(read("app/entreprises/[slug]/InrSearchFaqOrbit.tsx")),
     contact: compile(read("app/entreprises/[slug]/InrSearchContactOrbit.tsx")),
+    social: compile(read("app/entreprises/[slug]/InrSearchSocialOrbit.tsx")),
+    news: compile(read("app/entreprises/[slug]/InrSearchNewsShowcase.tsx")),
     "./InrSearchLogo": compile(read("app/entreprises/[slug]/InrSearchLogo.tsx")),
     "./InrSearchLeadForm": compile("exports.default=()=>null;"),
     "./inrSearchContactEvents": compile(read("app/entreprises/[slug]/inrSearchContactEvents.ts")),
@@ -70,7 +72,7 @@ async function setup(page: Page) {
     function require(name){
       if(name.endsWith('.css'))return{__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
       if(name==='next-intl')return{useTranslations:()=> (key,values={})=>Object.entries(values).reduce((text,[key,value])=>text.replaceAll('{'+key+'}',String(value)),messages[key]||key)};
-      if(name==='next/image')return{__esModule:true,default:props=>require('react').createElement('img',props)};
+      if(name==='next/image')return{__esModule:true,default:props=>require('react').createElement('img',{...props,src:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000"><rect width="1600" height="1000" fill="lightblue"/></svg>'})};
       if(loaded[name])return loaded[name].exports;
       if(!sources[name])throw Error('Unexpected public scene fixture dependency '+name);
       const module=loaded[name]={exports:{}};new Function('require','module','exports','process',sources[name])(require,module,module.exports,process);return module.exports;
@@ -81,8 +83,10 @@ async function setup(page: Page) {
       const props={identity:{},zone:{companyName,city:'Montpellier',profession:'Écrivain et auteur de récits personnels et relationnels',zones:['Montpellier','Saint-Rémy-en-Bouzemont-Saint-Genest-et-Isson']},
         strengths:{companyName,strengths,inrBadgeUrl:'',inrBadgeQrUrl:''},services:{companyName,services:strengths.map(name=>({name,description})),audiences:[]},
         faq:{companyName,items:[{question:strengths[1]+' ?',answer:description},{question:'Comment prendre contact ?',answer:'Présentez votre besoin.'}],contactHref:'#contact'},
-        contact:{slug:'isolated-test',companyName:('Christophe Auteur et accompagnement littéraire des lecteurs dans les échanges personnels et professionnels ').repeat(2),logoUrl:'',profession:strengths[1],city:'Saint-Rémy-en-Bouzemont-Saint-Genest-et-Isson',phone:'',phoneHref:'',email:'',emailHref:'',addressLine:'',websiteUrl:'',directionsUrl:''}}[scene];
-      const section={identity:'presentationOrbit',zone:'zoneOrbitSection',strengths:'strengthOrbitSection',services:'servicesSection',faq:'faqOrbitSection',contact:'contactOrbit'}[scene];
+        contact:{slug:'isolated-test',companyName:('Christophe Auteur et accompagnement littéraire des lecteurs dans les échanges personnels et professionnels ').repeat(2),logoUrl:'',profession:strengths[1],city:'Saint-Rémy-en-Bouzemont-Saint-Genest-et-Isson',phone:'',phoneHref:'',email:'',emailHref:'',addressLine:'',websiteUrl:'',directionsUrl:''},
+        social:{companyName:('Christophe Auteur et accompagnement littéraire des lecteurs dans les échanges personnels et professionnels ').repeat(2),profession:strengths[1],city:'Saint-Rémy-en-Bouzemont-Saint-Genest-et-Isson',logoUrl:'',links:[{key:'facebook',label:'Facebook',url:'https://example.com/facebook'},{key:'instagram',label:'Instagram',url:'https://example.com/instagram'}]},
+        news:{companyName,publications:[{id:'one',title:strengths[1]+' dans la région de Montpellier et pour les lecteurs de toute la France',content:description,createdAt:'2026-11-04T10:00:00Z',imageUrl:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000"><rect width="1600" height="1000" fill="lightblue"/></svg>',videoUrl:null}]}}[scene];
+      const section={identity:'presentationOrbit',zone:'zoneOrbitSection',strengths:'strengthOrbitSection',services:'servicesSection',faq:'faqOrbitSection',contact:'contactOrbit',social:'socialOrbitSection',news:'newsSection'}[scene];
       root.render(React.createElement('section',{className:'orbitPanel '+section,'data-fixture-scene':scene},React.createElement(component,props)));
     };window.showScene('identity');
   ` });
@@ -93,7 +97,7 @@ async function setup(page: Page) {
 type Bounds = { left: number; top: number; right: number; bottom: number; width: number; height: number };
 const bounds = (element: Element): Bounds => { const r = element.getBoundingClientRect(); return { left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height }; };
 
-test("long public content stays contained and usable in six scenes at five screen widths", async () => {
+test("long public content stays contained and usable in eight scenes at five screen widths", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
     for (const width of [320, 390, 768, 1366, 1920]) {
@@ -182,6 +186,49 @@ test("long public content stays contained and usable in six scenes at five scree
       }
       assert.ok((await page.locator(".contactCore > strong").getAttribute("title"))!.length > 126, "The complete long company name remains available");
       if (process.env.INRCY_SCENE_PROOF) await page.screenshot({ path: `${process.env.INRCY_SCENE_PROOF}-contact-${width}.png` });
+
+      await page.evaluate("window.showScene('social')");
+      await page.locator(".socialOrbitCore").waitFor();
+      const socialCore = await page.locator(".socialOrbitCore").evaluate(bounds);
+      assert.ok(Math.abs(socialCore.width - socialCore.height) <= 1, `${width}: the social core stays circular with a long name and profession`);
+      for (const child of await page.locator(".socialOrbitCore > small,.socialOrbitCore > strong,.socialOrbitCore > em,.socialOrbitCore > .socialOrbitFallback").all()) {
+        const rectangle = await child.evaluate(bounds);
+        assert.ok(rectangle.left >= socialCore.left - 1 && rectangle.right <= socialCore.right + 1 && rectangle.top >= socialCore.top - 1 && rectangle.bottom <= socialCore.bottom + 1, `${width}: social labels and logo stay in their circle`);
+      }
+      assert.ok((await page.locator(".socialOrbitCore > strong").getAttribute("title"))!.length > 126);
+      await page.locator('.socialOrbitNode[data-network="instagram"]').focus();
+      assert.equal(await page.locator(".socialOrbitDetail > strong").textContent(), "Instagram", "Keyboard focus still selects the network details");
+      const socialAction = page.locator(".socialOrbitDetail > a");
+      await socialAction.scrollIntoViewIfNeeded();
+      const socialDetail = await page.locator(".socialOrbitDetail").evaluate(bounds), socialActionBounds = await socialAction.evaluate(bounds);
+      assert.ok(socialActionBounds.top >= socialDetail.top - 1 && socialActionBounds.bottom <= socialDetail.bottom + 1, `${width}: the network action remains reachable`);
+      if (process.env.INRCY_SCENE_PROOF) await page.screenshot({ path: `${process.env.INRCY_SCENE_PROOF}-social-${width}.png` });
+
+      await page.evaluate("window.showScene('news')");
+      const newsContent = page.locator(".newsOrbitFocusContent");
+      await newsContent.waitFor();
+      assert.equal(await newsContent.getAttribute("tabindex"), "0", "The news summary can be scrolled with the keyboard");
+      const newsTitle = await newsContent.locator("strong").textContent();
+      const newsStart = await newsContent.evaluate(bounds), newsTitleStart = await newsContent.locator("strong").evaluate(bounds);
+      assert.ok(newsTitleStart.top >= newsStart.top - 1, `${width}: a long headline starts inside its scroll window`);
+      await newsContent.focus();
+      await newsContent.press("End");
+      await newsContent.locator(".newsOrbitRead").scrollIntoViewIfNeeded();
+      const newsEnd = await newsContent.evaluate(bounds), newsAction = await newsContent.locator(".newsOrbitRead").evaluate(bounds);
+      assert.ok(newsAction.top >= newsEnd.top - 1 && newsAction.bottom <= newsEnd.bottom + 1, `${width}: the news reading action remains reachable`);
+      assert.equal(await newsContent.locator("strong").textContent(), newsTitle, "Reading a long headline does not switch the selected publication");
+      if (process.env.INRCY_SCENE_PROOF) await page.screenshot({ path: `${process.env.INRCY_SCENE_PROOF}-news-${width}.png` });
+      await newsContent.locator(".newsOrbitRead").click();
+      await page.locator("#news-orbit-modal").waitFor();
+      assert.equal(await page.locator("#news-orbit-modal-title").textContent(), newsTitle, "The complete headline opens in the news reader");
+      await page.waitForFunction(() => document.activeElement?.classList.contains("newsOrbitModalClose"));
+      await page.keyboard.press("Escape");
+      await page.locator("#news-orbit-modal").waitFor({ state: "hidden" });
+      await newsContent.press("Enter");
+      await page.locator("#news-orbit-modal").waitFor();
+      assert.equal(await page.locator("#news-orbit-modal-title").textContent(), newsTitle, "The focused news summary still opens with Enter");
+      await page.waitForFunction(() => document.activeElement?.classList.contains("newsOrbitModalClose"));
+      await page.keyboard.press("Escape");
       assert.deepEqual(errors, [], `${width}: no render or interaction error`);
       assert.deepEqual(requests, [], "The fixture never contacts a real account or external service");
       await page.close();
