@@ -152,9 +152,9 @@ test("le rafraîchissement du planning conserve le mois choisi et masque les cam
     "le mois ne doit être réinitialisé qu'à l'ouverture de la modale"
   );
   assert.match(scheduleModalSource, /showCampaigns = true/);
-  assert.match(scheduleModalSource, /scheduleFilterKey\(item\) !== "campaigns"/);
+  assert.match(scheduleModalSource, /showCampaigns \|\| category !== "campaigns"/);
   assert.match(client, /showCampaigns=\{workspace === "campaigns"\}/);
-  assert.match(dashboardPlanning, /showCampaigns=\{!standardMode && \(!workspace \|\| workspace === "campaigns"\)\}/);
+  assert.match(dashboardPlanning, /showCampaigns=\{!manualPlanningOnly && !standardMode && \(!workspace \|\| workspace === "campaigns"\)\}/);
 });
 
 test("les filtres restent sûrs et la corbeille retire toute publication éditoriale programmée", () => {

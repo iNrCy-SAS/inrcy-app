@@ -1,4 +1,10 @@
 {
+  "manual_planning_help_title": "Manage my scheduled posts",
+  "manual_planning_help_intro": "Find posts scheduled from Booster here.",
+  "manual_planning_help_details": "View the schedule, edit the text, media or date, and cancel a post before it is published.",
+  "manual_planning_empty_title": "No posts scheduled yet.",
+  "manual_planning_empty_description": "Prepare a post in Booster, then choose when to publish it.",
+  "manual_planning_help_label": "Scheduled posts help",
   "manual_credits_insufficient": "Insufficient AI credits",
   "manual_credits_insufficient_help": "This one-off generation requires available AI credits. Automatic iNr’Agent scheduling continues normally.",
   "manual_credits_checking": "Checking credits…",

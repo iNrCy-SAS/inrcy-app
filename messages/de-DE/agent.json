@@ -1,4 +1,10 @@
 {
+  "manual_planning_help_title": "Meine geplanten Beiträge verwalten",
+  "manual_planning_help_intro": "Hier finden Sie die in Booster geplanten Beiträge.",
+  "manual_planning_help_details": "Sehen Sie den Zeitplan ein, ändern Sie Text, Medien oder Datum und stornieren Sie einen Beitrag vor der Veröffentlichung.",
+  "manual_planning_empty_title": "Zurzeit sind keine Beiträge geplant.",
+  "manual_planning_empty_description": "Erstellen Sie einen Beitrag in Booster und wählen Sie dann den Veröffentlichungstermin.",
+  "manual_planning_help_label": "Hilfe zu geplanten Beiträgen",
   "manual_credits_insufficient": "Nicht genügend KI-Credits",
   "manual_credits_insufficient_help": "Diese einmalige Generierung benötigt verfügbares KI-Guthaben. Die automatische iNr’Agent-Planung läuft normal weiter.",
   "manual_credits_checking": "Credits werden geprüft…",

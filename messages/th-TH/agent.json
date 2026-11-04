@@ -1,4 +1,10 @@
 {
+  "manual_planning_help_title": "จัดการโพสต์ที่ตั้งเวลาไว้",
+  "manual_planning_help_intro": "ดูโพสต์ที่ตั้งเวลาไว้จาก Booster ได้ที่นี่",
+  "manual_planning_help_details": "ดูปฏิทิน แก้ไขข้อความ สื่อ หรือวันที่ และยกเลิกโพสต์ก่อนเผยแพร่",
+  "manual_planning_empty_title": "ยังไม่มีโพสต์ที่ตั้งเวลาไว้",
+  "manual_planning_empty_description": "เตรียมโพสต์ใน Booster แล้วเลือกวันและเวลาเผยแพร่",
+  "manual_planning_help_label": "ความช่วยเหลือเกี่ยวกับโพสต์ที่ตั้งเวลาไว้",
   "manual_credits_insufficient": "เครดิต AI ไม่เพียงพอ",
   "manual_credits_insufficient_help": "การสร้างครั้งเดียวนี้ต้องมีเครดิต AI เพียงพอ การวางแผนอัตโนมัติของ iNr’Agent ยังคงทำงานตามปกติ",
   "manual_credits_checking": "กำลังตรวจสอบเครดิต…",

@@ -1,4 +1,10 @@
 {
+  "manual_planning_help_title": "管理我的定时发布",
+  "manual_planning_help_intro": "在此查看通过 Booster 设置的定时发布。",
+  "manual_planning_help_details": "查看日程，修改文字、媒体或日期，并在发布前取消帖子。",
+  "manual_planning_empty_title": "目前没有定时发布的帖子。",
+  "manual_planning_empty_description": "在 Booster 中准备帖子，然后选择发布时间。",
+  "manual_planning_help_label": "定时发布帮助",
   "manual_credits_insufficient": "AI 额度不足",
   "manual_credits_insufficient_help": "此次单次生成需要足够的 AI 额度。iNr’Agent 的自动规划将照常运行。",
   "manual_credits_checking": "正在检查额度…",

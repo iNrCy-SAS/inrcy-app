@@ -824,6 +824,7 @@ type AgentScheduleModalProps = {
   readOnly?: boolean;
   inspectionOnly?: boolean;
   closeLabel?: string;
+  showStats?: boolean;
   showCampaigns?: boolean;
   onClose: () => void;
   onOpenContent: (item: ScheduleListItem) => void;
@@ -839,6 +840,7 @@ export function AgentScheduleModal({
   readOnly = false,
   inspectionOnly = false,
   closeLabel,
+  showStats = true,
   showCampaigns = true,
   onClose,
   onOpenContent,
@@ -854,11 +856,12 @@ export function AgentScheduleModal({
     Record<string, number>
   >({});
   const eligibleItems = useMemo(
-    () =>
-      showCampaigns
-        ? items
-        : items.filter((item) => scheduleFilterKey(item) !== "campaigns"),
-    [items, showCampaigns]
+    () => items.filter((item) => {
+      const category = scheduleFilterKey(item);
+      return (showStats || category !== "stats") &&
+        (showCampaigns || category !== "campaigns");
+    }),
+    [items, showCampaigns, showStats]
   );
   const initialMonth = useMemo(() => {
     const currentParis = parisHistoryCalendarParts(new Date());
@@ -913,9 +916,9 @@ export function AgentScheduleModal({
   const filteredItems = useMemo(
     () =>
       visibleMonthItems.filter(
-        (item) => activeFilters[scheduleFilterKey(item)]
+        (item) => (!showStats && !showCampaigns) || activeFilters[scheduleFilterKey(item)]
       ),
-    [activeFilters, visibleMonthItems]
+    [activeFilters, visibleMonthItems, showCampaigns, showStats]
   );
   const groupedItems = useMemo(
     () => groupScheduleItems(filteredItems),
@@ -983,7 +986,9 @@ export function AgentScheduleModal({
     label: string;
   }> = [
     { key: "publications", label: i18nT("planning_filter_publications") },
-    { key: "stats", label: i18nT("planning_filter_stats") },
+    ...(showStats
+      ? [{ key: "stats" as const, label: i18nT("planning_filter_stats") }]
+      : []),
     ...(showCampaigns
       ? [{ key: "campaigns" as const, label: i18nT("planning_filter_campaigns") }]
       : []),
@@ -1038,7 +1043,7 @@ export function AgentScheduleModal({
               <strong>{groupedItems.length}</strong>
               <span>{i18nT("planning_month_actions")}</span>
             </div>
-            <div className={styles.scheduleFilterPopover}>
+            {scheduleFilters.length > 1 ? <div className={styles.scheduleFilterPopover}>
               <button
                 type="button"
                 className={styles.scheduleFilterMenuButton}
@@ -1090,7 +1095,7 @@ export function AgentScheduleModal({
                   ))}
                 </div>
               ) : null}
-            </div>
+            </div> : null}
             <button
               type="button"
               className={styles.scheduleCloseButton}

@@ -1,4 +1,10 @@
 {
+  "manual_planning_help_title": "Mijn geplande berichten beheren",
+  "manual_planning_help_intro": "Hier vindt u de berichten die vanuit Booster zijn ingepland.",
+  "manual_planning_help_details": "Bekijk de planning, wijzig de tekst, media of datum en annuleer een bericht voordat het wordt gepubliceerd.",
+  "manual_planning_empty_title": "Er zijn nog geen berichten ingepland.",
+  "manual_planning_empty_description": "Bereid een bericht voor in Booster en kies wanneer u het wilt publiceren.",
+  "manual_planning_help_label": "Hulp bij geplande berichten",
   "manual_credits_insufficient": "Onvoldoende AI-credits",
   "manual_credits_insufficient_help": "Deze eenmalige generatie vereist beschikbare AI-credits. De automatische planning van iNr’Agent gaat normaal door.",
   "manual_credits_checking": "Credits controleren…",

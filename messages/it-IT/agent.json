@@ -1,4 +1,10 @@
 {
+  "manual_planning_help_title": "Gestire i miei post programmati",
+  "manual_planning_help_intro": "Qui trova i post programmati da Booster.",
+  "manual_planning_help_details": "Consulti il calendario, modifichi il testo, i contenuti multimediali o la data e annulli un post prima della pubblicazione.",
+  "manual_planning_empty_title": "Al momento non ci sono post programmati.",
+  "manual_planning_empty_description": "Prepari un post in Booster, poi scelga quando pubblicarlo.",
+  "manual_planning_help_label": "Guida ai post programmati",
   "manual_credits_insufficient": "Crediti IA insufficienti",
   "manual_credits_insufficient_help": "Questa generazione occasionale richiede crediti IA disponibili. La pianificazione automatica di iNr’Agent continua normalmente.",
   "manual_credits_checking": "Verifica dei crediti…",

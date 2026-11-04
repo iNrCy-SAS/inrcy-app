@@ -106,7 +106,8 @@ function DashboardAgentPlanningContent({
       readOnly
       inspectionOnly={inspectionOnly}
       closeLabel={closeLabel}
-      showCampaigns={!standardMode && (!workspace || workspace === "campaigns")}
+      showStats={!manualPlanningOnly}
+      showCampaigns={!manualPlanningOnly && !standardMode && (!workspace || workspace === "campaigns")}
       onClose={onClose}
       onOpenContent={openPilotage}
       onReschedule={openPilotage}

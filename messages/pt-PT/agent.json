@@ -1,4 +1,10 @@
 {
+  "manual_planning_help_title": "Gerir as minhas publicações agendadas",
+  "manual_planning_help_intro": "Encontre aqui as publicações agendadas a partir do Booster.",
+  "manual_planning_help_details": "Consulte o calendário, altere o texto, os ficheiros multimédia ou a data e cancele uma publicação antes de ser publicada.",
+  "manual_planning_empty_title": "Ainda não existem publicações agendadas.",
+  "manual_planning_empty_description": "Prepare uma publicação no Booster e escolha quando a publicar.",
+  "manual_planning_help_label": "Ajuda sobre publicações agendadas",
   "manual_credits_insufficient": "Créditos IA insuficientes",
   "manual_credits_insufficient_help": "Esta geração pontual requer créditos IA disponíveis. O planeamento automático do iNr’Agent continua normalmente.",
   "manual_credits_checking": "A verificar os créditos…",

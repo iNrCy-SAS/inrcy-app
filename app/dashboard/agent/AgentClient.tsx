@@ -6252,12 +6252,12 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                                   <div className={styles.publishEmptyHint}>
                                     <strong>
                                       {i18nT(
-                                        "aucune_publication_automatique_preparee_pour_le_a48148f5"
+                                        manualPlanningOnly ? "manual_planning_empty_title" : "aucune_publication_automatique_preparee_pour_le_a48148f5"
                                       )}{" "}
                                     </strong>
                                     <span>
                                       {i18nT(
-                                        "le_futur_contenu_du_canal_selectionne_1b1512d5"
+                                        manualPlanningOnly ? "manual_planning_empty_description" : "le_futur_contenu_du_canal_selectionne_1b1512d5"
                                       )}{" "}
                                     </span>
                                   </div>
@@ -7778,6 +7778,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         items={upcomingScheduleItems}
         mutationState={scheduleMutationState}
         showCampaigns={workspace === "campaigns"}
+        showStats={!manualPlanningOnly}
         onClose={() => setScheduleOpen(false)}
         onOpenContent={handleScheduleRowOpenContent}
         onReschedule={handleScheduleRowReschedule}
@@ -7974,7 +7975,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
             className={`${styles.settingsModal} ${styles.helpModal}`}
             role="dialog"
             aria-modal="true"
-            aria-label={i18nT("aide_inr_agent_ec5c0488")}
+            aria-label={i18nT(manualPlanningOnly ? "manual_planning_help_label" : "aide_inr_agent_ec5c0488")}
             onClick={(event) => event.stopPropagation()}
           >
             <button
@@ -7986,8 +7987,12 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
               ×
             </button>
             <p className={styles.modalEyebrow}>{i18nT("helper_1e7eebdb")}</p>
-            <h2>{i18nT("qu_est_ce_qu_inr_agent_0290f6c1")}</h2>
+            <h2>{i18nT(manualPlanningOnly ? "manual_planning_help_title" : "qu_est_ce_qu_inr_agent_0290f6c1")}</h2>
             <div className={styles.helpContent}>
+              {manualPlanningOnly ? <>
+                <p>{i18nT("manual_planning_help_intro")}</p>
+                <p>{i18nT("manual_planning_help_details")}</p>
+              </> : <>
               <p>{i18nT("inr_agent_est_votre_programmateur_d_d3776182")} </p>
               <ul>
                 <li>
@@ -8018,6 +8023,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                 </li>
               </ul>
               <p>{i18nT("les_roues_de_reglages_permettent_de_c517f1c9")} </p>
+              </>}
             </div>
           </section>
         </div>

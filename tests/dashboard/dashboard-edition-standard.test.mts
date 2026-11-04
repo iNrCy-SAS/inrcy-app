@@ -431,7 +431,8 @@ test("les calendriers des trois agents réutilisent la modale avec le bon périm
   );
   assert.match(dashboardAgentPlanningSource, /<AgentScheduleModal/);
   assert.match(dashboardAgentPlanningSource, /standardMode = true/);
-  assert.match(dashboardAgentPlanningSource, /showCampaigns=\{!standardMode && \(!workspace \|\| workspace === "campaigns"\)\}/);
+  assert.match(dashboardAgentPlanningSource, /showStats=\{!manualPlanningOnly\}/);
+  assert.match(dashboardAgentPlanningSource, /showCampaigns=\{!manualPlanningOnly && !standardMode && \(!workspace \|\| workspace === "campaigns"\)\}/);
   assert.match(dashboardAgentPlanningSource, /buildAgentScheduleItems/);
   assert.match(agentClientSource, /buildAgentScheduleItems/);
   assert.match(agentClientSource, /showCampaigns=\{workspace === "campaigns"\}/);
