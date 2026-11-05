@@ -6,7 +6,7 @@ const BASIC_SUPPORT_TOOLS = new Set([
   "discoverCapabilities",
   "proposeHumanSupport", "readAppGuide", "getBusinessDna", "searchMedia", "getRecentPublications",
   "getAccountDiagnostics", "readWorkspaceSection", "recallPastDiscussions", "guideChannelConnection",
-  "readToolSettings", "readChannelStatus", "readAttachedDocument", "navigateApplication", "getPublicationStatus", "getBusinessDnaAnalysis", "prepareStudioPrompt",
+  "readToolSettings", "readChannelStatus", "readAttachedDocument", "navigateApplication", "runScreenCommand", "getPublicationStatus", "getBusinessDnaAnalysis", "prepareStudioPrompt",
   "updateBusinessDna", "updateAiConfiguration", "configureBusinessCta", "startBusinessDnaAnalysis",
   "generateMedia", "modifyMedia", "getMediaGeneration", "cancelMediaGeneration", "updateMediaMetadata",
   "preparePublication", "executePublication", "editPublication", "readPublicationWorkspace", "previewPublicationLifecycleAction", "applyPublicationLifecycleAction",
@@ -14,6 +14,17 @@ const BASIC_SUPPORT_TOOLS = new Set([
   "readGoogleBusinessProfile", "searchGoogleBusinessCategories", "previewGoogleBusinessProfileUpdate", "applyGoogleBusinessProfileUpdate", "setNativeChannelActivation", "updateChannelPublicUrl",
   "listImportableMediaAttachments", "importMediaAttachment", "prepareMediaDownload", "previewMediaDeletion", "applyMediaDeletion",
   "refreshStatsSources", "readStatsReports", "prepareStatsReportDownload",
+  "previewWebsiteAnalyticsDisconnection", "applyWebsiteAnalyticsDisconnection",
+  "readSocialPublicationPreferences", "updateSocialPublicationPreferences", "previewPinterestBoardMutation", "applyPinterestBoardMutation",
+  "previewWebsiteReset", "applyWebsiteReset", "readBusinessDnaSchedule", "updateBusinessDnaSchedule", "previewReferralSubmission", "applyReferralSubmission",
+  "acceptMediaGeneration", "discardMediaGeneration",
+  "readGeneratorBusinessSettings", "updateGeneratorBusinessSettings",
+  "readAccountServices", "markNotificationsRead", "prepareAccountDocumentDownload", "configureCookieConsent",
+  "readBusinessDnaSources", "previewBusinessDnaDocumentRemoval", "applyBusinessDnaDocumentRemoval", "readWebsiteConfiguration", "updateWebsiteConfiguration",
+  "readNativeChannelPresentation", "updateNativeChannelPresentation", "readPublicationOptions", "quoteMediaGeneration", "readBusinessIdentity", "searchBusinessProfessions", "updateBusinessIdentity",
+  "readChannelResources", "previewChannelResourceSelection", "previewChannelDisconnection", "applyChannelConfiguration", "updateLinkedInPersonalSharing",
+  "listGoogleReviews", "previewGoogleReviewReplyAction", "applyGoogleReviewReplyAction", "readStatsEvolution",
+  "previewScheduledPublicationEdit", "readScheduledPublications", "previewScheduledPublicationAction", "applyScheduledPublicationAction",
 ]);
 
 export function assistantToolsForEdition<T>(tools: Record<string, T>, edition: DashboardEdition): Record<string, T> {

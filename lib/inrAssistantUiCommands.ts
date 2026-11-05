@@ -1,4 +1,10 @@
 import { isInrAssistantMediaUiCommandName, isInrAssistantMediaUiCommandText, parseInrAssistantMediaUiCommand, type InrAssistantMediaUiCommand } from "./inrAssistantMediaUiCommands.ts";
+import { INR_ASSISTANT_STUDIO_UI_COMMANDS, isInrAssistantStudioUiRequest, parseInrAssistantStudioUiCommand, type InrAssistantStudioUiCommand } from "./inrAssistantStudioUiCommands.ts";
+import { isInrAssistantStatsUiCommandName, isInrAssistantStatsUiCommandText, parseInrAssistantStatsUiCommand, type InrAssistantStatsUiCommand } from "./inrAssistantStatsUiCommands.ts";
+import { isInrAssistantBadgeQrRequest, parseInrAssistantBadgeUiCommand, type InrAssistantBadgeUiCommand } from "./inrAssistantBadgeUiCommands.ts";
+import { parseInrAssistantAccountDocumentCommand, type InrAssistantAccountDocumentCommand } from "./inrAssistantAccountDocuments.ts";
+import { INR_ASSISTANT_ACCOUNT_UI_COMMANDS, isInrAssistantAccountUiRequest } from "./inrAssistantAccountUiIntent.ts";
+import { INR_ASSISTANT_WEBSITE_UI_COMMANDS, isInrAssistantWebsiteUiRequest, parseInrAssistantWebsiteUiCommand, type InrAssistantWebsiteUiCommand } from "./inrAssistantWebsiteUiCommands.ts";
 import { getAssistantInternalDestination } from "./inrAssistantNavigation.ts";
 import { INR_ASSISTANT_MAIL_LIFECYCLE, isInrAssistantMailLifecycleRequest, parseInrAssistantMailLifecycle, type InrAssistantMailLifecycleCommand } from "./inrAssistantMailLifecycle.ts";
 import { parseInrAssistantAdsPatch, isInrAssistantAdsSaveRequest, isInrAssistantAdsEditRequest, type InrAssistantAdsPatch, type InrAssistantAdsSaveCommand } from "./inrAssistantAdsUiCommands.ts";
@@ -11,8 +17,10 @@ import { parseInrAssistantDocumentMailCommand, parseInrAssistantDocumentTemplate
 export const INR_ASSISTANT_NAVIGATION = {
   home: "/dashboard", channels: "/dashboard?action=channels", crm: "/dashboard/crm",
   calendar: "/dashboard/agenda", studio: "/dashboard/generer-media", media: "/dashboard/mediatheque",
+  studio_image_retouch: "/dashboard/generer-media?studio_tab=retouch&studio_media_type=image",
+  studio_video_retouch: "/dashboard/generer-media?studio_tab=retouch&studio_media_type=video",
   booster: "/dashboard?action=publish", campaigns: "/dashboard?action=campaigns",
-  reputation: "/dashboard/e-reputation", stats: "/dashboard?stats=1", mail: "/dashboard/mails",
+  reputation: "/dashboard/e-reputation", stats: "/dashboard/stats", mail: "/dashboard/mails",
   ads: "/dashboard/ads", quotes: "/dashboard/devis", invoices: "/dashboard/factures",
   dna: "/dashboard/adn-entreprise", ai: "/dashboard/configuration-ia",
   account: "/dashboard?panel=compte", subscription: "/dashboard?panel=abonnement",
@@ -39,10 +47,15 @@ export type InrAssistantVideoPatch = { format?: "original" | "9_16" | "1_1" | "1
 export type InrAssistantNativeCommand =
   InrAssistantMailCommand | { command: "configure_ads_draft"; selection: { kind: "campaign"; id: string }; revision: string; patch: InrAssistantAdsPatch }
   | { command: "configure_video_retouch"; selection: { kind: "media"; id: string }; revision: string; patch: InrAssistantVideoPatch };
-export type InrAssistantUiCommand = InrAssistantAdsSaveCommand | InrAssistantMailLifecycleCommand | InrAssistantMediaUiCommand | InrAssistantDocumentMailCommand | InrAssistantDocumentTemplateCommand | InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
+export type InrAssistantUiCommand = InrAssistantWebsiteUiCommand | InrAssistantAccountDocumentCommand | InrAssistantBadgeUiCommand | InrAssistantStudioUiCommand | InrAssistantStatsUiCommand | InrAssistantAdsSaveCommand | InrAssistantMailLifecycleCommand | InrAssistantMediaUiCommand | InrAssistantDocumentMailCommand | InrAssistantDocumentTemplateCommand | InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
   | { command: "download_media"; selection: { kind: "media"; id: string }; mediaIds: string[]; pathname: "/dashboard/mediatheque"; selectionMode?: "current" }
   | { command: "download_stats_report"; selection: { kind: "stats_report"; id: string }; reportId: string };
 export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiCommand | null {
+  const website = parseInrAssistantWebsiteUiCommand(value); if (website) return website;
+  const accountDocument = parseInrAssistantAccountDocumentCommand(value); if (accountDocument) return accountDocument;
+  const badge = parseInrAssistantBadgeUiCommand(value); if (badge) return badge;
+  const studio = parseInrAssistantStudioUiCommand(value); if (studio) return studio;
+  const stats = parseInrAssistantStatsUiCommand(value); if (stats) return stats;
   const mailLifecycle = parseInrAssistantMailLifecycle(value);
   if (mailLifecycle) return mailLifecycle;
   const media = parseInrAssistantMediaUiCommand(value);
@@ -126,13 +139,18 @@ export function isInrAssistantNavigationRequest(message: string): boolean {
   return /\b(?:ouvre|ouvrez|ouvrir|affiche|affichez|afficher|montre|montrez|montrer|emmene|emmenez|emmener|amene|amenez|amener|conduis|conduisez|conduire|navigate|open|show)\b|\b(?:va|allez|aller|go)\s+(?:dans|sur|a|au|aux|to)\b/.test(text);
 }
 
-export function isInrAssistantScreenCommandRequest(message: string, command?: "export_document_pdf" | "prepare_document_mail" | "create_document_template" | "save_ads_draft" | InrAssistantNativeCommand["command"] | InrAssistantMediaUiCommand["command"] | InrAssistantMailLifecycleCommand["command"]): boolean {
+export function isInrAssistantScreenCommandRequest(message: string, command?: InrAssistantUiCommand["command"]): boolean {
   const text = navigationRequestText(message);
+  if (command && INR_ASSISTANT_WEBSITE_UI_COMMANDS.some(name => name === command)) return isInrAssistantWebsiteUiRequest(message, command);
+  if (command && INR_ASSISTANT_ACCOUNT_UI_COMMANDS.some(name => name === command)) return isInrAssistantAccountUiRequest(message, command);
+  if (command === "download_badge_qr") return isInrAssistantBadgeQrRequest(message, "pdf") || isInrAssistantBadgeQrRequest(message, "png");
   if (command === "create_document_template") return isInrAssistantDocumentTemplateInstruction(message, "create");
   if (command && INR_ASSISTANT_MAIL_LIFECYCLE.includes(command as InrAssistantMailLifecycleCommand["command"])) return isInrAssistantMailLifecycleRequest(text, command);
   if (!command && isInrAssistantMailLifecycleRequest(text)) return true;
   if (command === "save_ads_draft") return isInrAssistantAdsSaveRequest(text);
   if (command === "configure_ads_draft") return isInrAssistantAdsEditRequest(text);
+  if (isInrAssistantStatsUiCommandName(command)) return isInrAssistantStatsUiCommandText(text);
+  if (command && INR_ASSISTANT_STUDIO_UI_COMMANDS.some(name => name === command)) return isInrAssistantStudioUiRequest(message, command);
   if (isInrAssistantMediaUiCommandName(command)) return isInrAssistantMediaUiCommandText(text, command);
   if (/^(?:comment|pourquoi|explique|how|why|si |imagine)\b|\b(?:ne |n['’]|sans |do not |don't ).{0,35}(?:telecharg|export|gener|prepar|download|modifi|chang|regl|appli|rempl|config|recadr|adapt|pass|met|renomm|joins|joign|ajout|attach|redig|ecri)/.test(text) || /\b(?:si|if|quand|when|apres confirmation|after approval|demain|tomorrow)\b/.test(text)) return false;
   const documentMail = /\b(?:prepare\w*|ouvre\w*|redige\w*|rempli\w*|open|draft)\b/.test(text)
@@ -144,7 +162,7 @@ export function isInrAssistantScreenCommandRequest(message: string, command?: "e
   const ads = isInrAssistantAdsEditRequest(text);
   const video = edit && /\b(?:video|cadrage|format|recadrage)\b/.test(text);
   const mail = !documentMail && (edit || /\b(?:redig\w*|ecris|prepare\w*|joins|joignez|ajoute\w*|attache\w*)\b/.test(text)) && /\b(?:mail|email|courriel|message|composeur)\b/.test(text) && !/\b(?:campagne|newsletter|publicitaire)\b/.test(text);
-  return command === "export_document_pdf" ? pdf : command === "configure_video_retouch" ? video : command === "configure_mail_draft" ? mail : documentMail || pdf || ads || video || mail || isInrAssistantAdsSaveRequest(text) || isInrAssistantMediaUiCommandText(text);
+  return command === "export_document_pdf" ? pdf : command === "configure_video_retouch" ? video : command === "configure_mail_draft" ? mail : documentMail || pdf || ads || video || mail || isInrAssistantAdsSaveRequest(text) || isInrAssistantMediaUiCommandText(text) || isInrAssistantStudioUiRequest(message) || isInrAssistantStatsUiCommandText(text) || isInrAssistantBadgeQrRequest(message, "pdf") || isInrAssistantBadgeQrRequest(message, "png");
 }
 
 export function inrAssistantMailPatchRequested(message: string, patch: InrAssistantMailCommand["patch"]): boolean {
@@ -166,6 +184,8 @@ const DIRECT_DESTINATION_ALIASES: ReadonlyArray<readonly [keyof typeof INR_ASSIS
   ["stats_agent", /^agent (?:de |des )?(?:stats|statistiques)\b/],
   ["preferences", /^(?:preferences(?: generales)?|reglages generaux|parametres generaux)\b/], ["notifications", /^notifications\b/],
   ["crm", /^(?:inr'?\s*)?crm\b/], ["calendar", /^(?:agenda|calendrier|(?:inr'?\s*)?calendar)\b/],
+  ["studio_image_retouch", /^(?:retouche(?:ur)? (?:d.image|image|photo)|(?:inr.?studio|studio) retouche image)\b/],
+  ["studio_video_retouch", /^(?:retouche(?:ur)? video|(?:inr.?studio|studio) retouche video)\b/],
   ["channels", /^canaux\b/], ["studio", /^(?:inr'?\s*)?studio\b/],
   ["media", /^(?:mediatheque|medias)\b/], ["stats", /^(?:(?:inr'?\s*)?stats|statistiques)\b/],
   ["account", /^compte\b/], ["subscription", /^abonnement\b/],
@@ -200,16 +220,24 @@ function parseDirectNavigationRequest(message: string): (DirectNavigationRequest
   const text = navigationRequestText(message).replace(/^(?:(?:bonjour|salut|merci)[,!]?\s+|(?:s'il (?:te|vous) plait|stp|svp)[,!]?\s+)/, "");
   const opening = text.match(/^(?:(?:peux|pourrais|pouvez|pourriez)[ -](?:tu|vous)\s+(?:m'|me\s+|nous\s+)?)?(?:(?:ouvre|ouvrez|ouvrir|affiche|affichez|afficher|montre|montrez|montrer|open|show)(?:-moi|-nous)?\s+|(?:emmene|emmenez|emmener|amene|amenez|amener|conduis|conduisez|conduire)(?:-moi|-nous|\s+moi|\s+nous)?\s+(?:dans|sur|vers|a|au|aux)\s+|(?:va|allez|aller|go)\s+(?:dans|sur|a|au|aux|to)\s+)(?:(les|le|la|mon|ma|mes|the|my)\s+|l'\s*)?((?:module|panneau|page|ecran|outil)\s+)?/);
   if (!opening) return null;
-  const remainder = text.slice(opening[0].length);
+  let remainder = text.slice(opening[0].length);
+  // Descriptors belong to the explicitly named module, never to an arbitrary
+  // destination. Keep the remaining target inside the existing alias catalogue.
+  const moduleDescription = opening[2]
+    ? remainder.match(/^(?:(?:complete?|principale?|detaillee?)\s+)?(?:(de|du|des)\s+)?(?:(les|le|la|mon|ma|mes|notre|nos|votre|vos)\s+|l'\s*)?/)
+    : null;
+  if (moduleDescription) remainder = remainder.slice(moduleDescription[0].length);
   for (const [destination, pattern] of DIRECT_DESTINATION_ALIASES) {
     const match = remainder.match(pattern);
     if (!match) continue;
     if (destination === "quotes" && ["mon", "le", "my", "the"].includes(opening[1]) && !opening[2]) return null;
+    if (destination === "quotes" && moduleDescription && (moduleDescription[1] === "du" || ["mon", "le"].includes(moduleDescription[2]))) return null;
     const after = remainder.slice(match[0].length);
     const suffix = after.replace(/^\s+(?:de l'application|de mon application)\b/, "");
     if (!/^(?:\s*(?:$|[.!?,;])|\s+(?:et|puis|and|then|pour moi|sans|seulement|s'il|stp|svp|please|maintenant|merci)\b)/.test(suffix)) return null;
     if (isInrAssistantNavigationRequest(suffix)) return null;
     const secondTarget = suffix.match(/^\s*(?:[,;]\s*)?(?:(?:et|puis|ou|and|then|or)\s+)?(?:(?:les|le|la|mon|ma|mes|the|my)\s+|l')?(.*)$/)?.[1] ?? "";
+    if (/^(?:module|panneau|page|ecran|outil)\b/.test(secondTarget)) return null;
     if (DIRECT_DESTINATION_ALIASES.some(([, alias]) => alias.test(secondTarget))) return null;
     return { destination, instructionQuote: message, suffix };
   }

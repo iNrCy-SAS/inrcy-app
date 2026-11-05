@@ -373,7 +373,7 @@
     "cashTitle": "Pagamentos",
     "cashSub": "Orçamentos e faturas",
     "cashCta": "Pagamentos",
-    "reputationTitle": "E-reputation",
+    "reputationTitle": "Avaliações Google",
     "reputationSub": "Gira avaliações Google",
     "reputationCta": "Gerir",
     "cashModalTitle": "Pagamentos",
@@ -876,7 +876,7 @@
     "statsCta": "Veja as estatísticas",
     "sendDescription": "Histórico da sua atividade.",
     "sendCta": "Ver histórico",
-    "reputationName": "Reputação",
+    "reputationName": "Avaliações Google",
     "reputationDescription": "Gerir as suas avaliações Google",
     "reputationCta": "Gerir minhas avaliações",
     "loading": "A carregar…",
@@ -1069,11 +1069,11 @@
       },
       "reviews": {
         "title": "Gerir as minhas avaliações",
-        "subtitle": "Reputação · Google Business",
+        "subtitle": "Google Business",
         "intro": "Consulte as avaliações do Google e prepare respostas adequadas.",
         "steps": {
-          "step1": "Verifique se a sua ficha do Google Business está ligada.",
-          "step2": "Abra Reputação e escolha uma avaliação.",
+          "step1": "Verifique se o perfil Google Business está ligado e selecionado.",
+          "step2": "Em Canais, abra a bolha Google Business, selecione Avaliações e escolha uma avaliação.",
           "step3": "Reveja a resposta proposta e valide-a antes de publicar."
         }
       },
@@ -1133,7 +1133,7 @@
     "media": "Biblioteca multimédia",
     "ads": "iNr’ADS",
     "campaigns": "Campanhas de email",
-    "reputation": "Reputação",
+    "reputation": "Avaliações Google",
     "stats": "iNr’Stats",
     "send": "iNr’Send",
     "calendar": "iNr’Calendar",

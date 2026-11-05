@@ -6,6 +6,8 @@ import ts from "typescript";
 import { normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
 import * as catalogue from "../../lib/aiMediaModelCatalog.ts";
 import * as mediaIntent from "../../lib/inrAssistantMediaIntent.ts";
+import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
+import * as mediaPreview from "../../lib/inrAssistantMediaPreview.ts";
 import type * as MediaTools from "../../lib/inrAssistantMediaTools.ts";
 
 const mediaId = "20000000-0000-4000-8000-000000000001";
@@ -14,13 +16,14 @@ const imageInput = { mediaType: "image", prompt: "Une photo réaliste de mon ate
 const sourceMediaId = "30000000-0000-4000-8000-000000000001";
 const sourceReference = { reference: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jlpQAAAAASUVORK5CYII=", role: "inspiration", usage: "required" }, width: 1080, height: 1350, format: "portrait" };
 
-type HarnessOptions = { currentUserMessage?: string; statusReadOnly?: boolean; accepted?: boolean; sourceUnavailable?: boolean; subscriptionActive?: boolean; canStartWork?: boolean; creditsReady?: boolean; remaining?: number; maxDuration?: number; generateError?: boolean; generateBroken?: boolean; acceptError?: boolean; status?: string; statusResponse?: number; statusCode?: string; statusBroken?: boolean };
+type HarnessOptions = { currentUserMessage?: string; statusReadOnly?: boolean; saveAuthorizedRequestIds?: string[]; previewTarget?: { requestId: string; mediaId: string }; accepted?: boolean; sourceUnavailable?: boolean; subscriptionActive?: boolean; canStartWork?: boolean; creditsReady?: boolean; remaining?: number; maxDuration?: number; generateError?: boolean; generateBroken?: boolean; acceptError?: boolean; acceptBroken?: boolean; discardBroken?: boolean; discardWrongReadback?: boolean; status?: string; statusResponse?: number; statusCode?: string; statusBroken?: boolean };
 function harness(options: HarnessOptions = {}) {
   const calls: { stage: string; body?: Record<string, unknown>; request?: Request; id?: string }[] = [];
   const callbacks: string[] = [];
   const results: MediaTools.InrAssistantMediaResult[] = [];
   let generatedKind = "image";
   let storedStatus = options.status ?? "missing";
+  let accepted = options.accepted === true, discarded = false;
   const json = (body: unknown, status = 200) => Response.json(body, { status });
   const stubs: Record<string, unknown> = {
     "server-only": {},
@@ -28,6 +31,8 @@ function harness(options: HarnessOptions = {}) {
     "./aiMediaGenerationContracts.ts": { normalizeAiMediaGenerationRequest },
     "./aiMediaModelCatalog.ts": catalogue,
     "./inrAssistantMediaIntent.ts": mediaIntent,
+    "./inrAssistantRequestClauses.ts": requestClauses,
+    "./inrAssistantMediaPreview.ts": mediaPreview,
     "./inrAssistantMediaSource.ts": { loadInrAssistantImageReference: async (id: string) => {
       calls.push({ stage: "source", id });
       if (options.sourceUnavailable) throw new Error("Private Storage path users/other-account/secret.png unavailable");
@@ -58,14 +63,20 @@ function harness(options: HarnessOptions = {}) {
     } },
     "@/app/api/media-generation/drafts/[id]/accept/route": { POST: async (request: Request, context: { params: Promise<{ id: string }> }) => {
       const { id } = await context.params; calls.push({ stage: "accept", request, id });
-      return options.acceptError ? json({ ok: false, error: "Enregistrement indisponible." }, 500) : json({ ok: true, item: { ...item, media_type: generatedKind } });
+      if (options.acceptError) return json({ ok: false, error: "Enregistrement indisponible." }, 500);
+      accepted = true; if (options.acceptBroken) throw new Error("lost native acceptance response"); return json({ ok: true, item: { ...item, media_type: generatedKind } });
+    } },
+    "@/app/api/media-generation/drafts/[id]/route": { DELETE: async (request: Request, context: { params: Promise<{ id: string }> }) => {
+      const { id } = await context.params; assert.equal(id, mediaId); assert.equal(request.method, "DELETE"); calls.push({ stage: "discard", request, id });
+      discarded = !options.discardWrongReadback; if (options.discardBroken) throw new Error("lost native discard response"); return json({ ok: true, discarded: true, accepted: false });
     } },
     "@/app/api/media-generation/status/route": { GET: async (request: Request) => {
       calls.push({ stage: "status", request });
+      if (discarded) return json({ ok: false, status: "completed", code: "AI_MEDIA_RESULT_UNAVAILABLE" }, 410);
       if (options.statusBroken) throw new Error("Synthetic status service outage");
       if (options.statusResponse) return json({ ok: false, code: options.statusCode, error: "Vérification indisponible." }, options.statusResponse);
       if (storedStatus === "missing") return json({ ok: false, status: "missing", code: "AI_MEDIA_GENERATION_NOT_FOUND" }, 404);
-      return json({ ok: true, status: storedStatus, draft: options.accepted !== true, item: { ...item, media_type: generatedKind }, creditsUsed: 5, error: "La génération a échoué." }, storedStatus === "processing" ? 202 : 200);
+      return json({ ok: true, status: storedStatus, draft: !accepted, item: { ...item, media_type: generatedKind }, creditsUsed: 5, error: "La génération a échoué." }, storedStatus === "processing" ? 202 : 200);
     } },
   };
   const output = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantMediaTools.ts", import.meta.url), "utf8"), {
@@ -82,13 +93,28 @@ function harness(options: HarnessOptions = {}) {
     requestId: "10000000-0000-4000-8000-000000000001",
     currentUserMessage: options.currentUserMessage,
     statusReadOnly: options.statusReadOnly,
+    saveAuthorizedRequestIds: options.saveAuthorizedRequestIds,
+    previewTarget: options.previewTarget,
     canStartWork: () => options.canStartWork !== false,
     onWorkStarted: (id) => callbacks.push(id), onResult: (result) => results.push(result),
   });
   type TestTool = { execute: (input: unknown) => Promise<MediaTools.InrAssistantMediaResult>; inputSchema: { validate?: (input: unknown) => { success: boolean } }; toModelOutput: (args: { output: MediaTools.InrAssistantMediaResult }) => unknown };
-  type TestTools = { generateMedia: TestTool; modifyMedia: TestTool; getMediaGeneration: TestTool; cancelMediaGeneration: TestTool };
+  type TestTools = { generateMedia: TestTool; quoteMediaGeneration: TestTool; modifyMedia: TestTool; getMediaGeneration: TestTool; cancelMediaGeneration: TestTool; acceptMediaGeneration: TestTool; discardMediaGeneration: TestTool };
   return { runtime, tools: createTools() as unknown as TestTools, retryTools: () => createTools() as unknown as TestTools, calls, callbacks, results };
 }
+
+test("all media provider schemas require every declared property while legacy runtime calls retain defaults", () => {
+  const h = harness();
+  const inspect = (value: unknown, location: string) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return;
+    const schema = value as Record<string, unknown>;
+    if (schema.properties && typeof schema.properties === "object") assert.deepEqual([...(schema.required as string[] ?? [])].sort(), Object.keys(schema.properties).sort(), location);
+    for (const [key, child] of Object.entries(schema)) if (key !== "enum") { if (Array.isArray(child)) child.forEach((entry, index) => inspect(entry, `${location}.${key}[${index}]`)); else inspect(child, `${location}.${key}`); }
+  };
+  for (const [name, tool] of Object.entries(h.tools)) inspect((tool.inputSchema as unknown as { schema: unknown }).schema, name);
+  assert.equal(h.tools.generateMedia.inputSchema.validate?.(imageInput).success, true);
+  assert.equal(h.tools.modifyMedia.inputSchema.validate?.({ sourceMediaId, instruction: "Éclaircis le fond" }).success, true);
+});
 
 test("a read-only follow-up distinguishes ready draft from saved media without accepting or generating", async()=>{
   for(const accepted of [false,true]) {
@@ -134,6 +160,128 @@ test("creation reuses quota, signed quote, real generation and draft acceptance 
   assert.equal(h.calls.find((call) => call.stage === "accept")?.id, mediaId);
 });
 
+test("a Studio cost question calls the native quote only and never accepts an existing draft", async () => {
+  const h = harness({ status: "completed", currentUserMessage: "Combien coûte cette image ?" });
+  const result = await h.tools.quoteMediaGeneration.execute({ ...imageInput, settings: [{ field: "imageEngine", valueJson: '"openai"' }, { field: "useBusinessDna", valueJson: "false" }] });
+  assert.equal(result.status, "quoted"); assert.equal(result.creditsUsed, 5); assert.deepEqual(h.calls.map(call => call.stage), ["access", "quota", "quote"]); assert.equal(h.results.length, 0); assert.equal(h.callbacks.length, 0);
+  assert.equal(h.calls.find(call => call.stage === "quote")!.body!.imageEngine, "openai");
+});
+
+test("Studio image references are resolved by owned IDs and included in native quote and generation", async () => {
+  const h = harness();
+  const result = await h.tools.generateMedia.execute({ ...imageInput, settings: [{ field: "referenceMediaIds", valueJson: JSON.stringify([sourceMediaId]) }, { field: "useBusinessDna", valueJson: "false" }] });
+  assert.equal(result.status, "completed", JSON.stringify(result)); assert.equal(h.calls.find(call => call.stage === "source")!.id, sourceMediaId);
+  const quote = h.calls.find(call => call.stage === "quote")!.body!, body = h.calls.find(call => call.stage === "generate")!.body!;
+  assert.equal(quote.inspirationImagesCount, 1); assert.equal(body.useBusinessDna, false); assert.equal(body.identityConsent, false); assert.equal((body.inspirationImages as unknown[]).length, 1);
+  const serialized = JSON.stringify(h.tools.generateMedia.toModelOutput({ output: result })); assert.equal(serialized.includes(sourceReference.reference.data), false);
+});
+
+test("Studio narration and exact script reach the native generation instead of remaining in prompt prose", async () => {
+  const h = harness();
+  const result = await h.tools.generateMedia.execute({ mediaType: "video", prompt: "Une présentation filmée de mon atelier", format: "story", durationSeconds: 8, settings: [{ field: "videoEngine", valueJson: '"grok-lite"' }, { field: "withMusic", valueJson: "true" }, { field: "withNarration", valueJson: "true" }, { field: "narrationVoice", valueJson: '"male"' }, { field: "spokenScript", valueJson: '"Bienvenue dans notre atelier."' }] });
+  assert.equal(result.status, "completed"); const body = h.calls.find(call => call.stage === "generate")!.body!; assert.equal(body.videoEngine, "grok-lite"); assert.equal(body.spokenScript, "Bienvenue dans notre atelier."); assert.equal(body.withMusic, true); assert.equal(body.withNarration, true); assert.equal(body.narrationVoice, "male");
+});
+
+test("fabricated engines, duplicate settings, external reference URLs and implicit identity consent fail before native work", async () => {
+  for (const settings of [[{ field: "imageEngine", valueJson: '"invented"' }], [{ field: "useBusinessDna", valueJson: "false" }, { field: "useBusinessDna", valueJson: "true" }], [{ field: "referenceMediaIds", valueJson: '["https://attacker.invalid/photo.jpg"]' }], [{ field: "identityConsent", valueJson: "true" }]]) {
+    const h = harness(); await assert.rejects(h.tools.generateMedia.execute({ ...imageInput, settings })); assert.equal(h.calls.length, 0);
+  }
+});
+
+test("preview generation remains a native temporary draft across fresh status-only follow-ups", async () => {
+  const options: HarnessOptions = { currentUserMessage: "Crée une image en aperçu" }, h = harness(options);
+  const preview = await h.tools.generateMedia.execute({ ...imageInput, resultMode: "preview" });
+  assert.equal(preview.status, "ready_to_save"); assert.equal(preview.ok, true); assert.equal(preview.draft, true); assert.equal(preview.resultMode, "preview"); assert.equal(preview.media?.id, mediaId);
+  assert.equal(h.calls.some(call => call.stage === "accept"), false);
+  options.currentUserMessage = "Vérifie ma création"; const read = await h.retryTools().getMediaGeneration.execute({ requestId: preview.requestId }); assert.equal(read.status, "ready_to_save"); assert.equal(read.draft, true); assert.equal(read.resultMode, undefined, "a read never invents the original save decision");
+  options.currentUserMessage = "Enregistre cet aperçu"; const stillRead = await h.retryTools().getMediaGeneration.execute({ requestId: preview.requestId }); assert.equal(stillRead.status, "ready_to_save"); assert.equal(h.calls.some(call => call.stage === "accept"), false, "GET cannot accept even when saving is mentioned");
+  const text = JSON.stringify(h.tools.generateMedia.toModelOutput({ output: preview })); assert.equal(text.includes("private.invalid"), false); assert.equal(text.includes('"draft":true'), true);
+});
+
+test("native scene/speech controls and required product/environment references reach quote and generation unchanged", async () => {
+  const h = harness();
+  const input = { mediaType: "video", prompt: "Un film en deux scènes de notre produit dans notre atelier", format: "story", durationSeconds: 16, resultMode: "preview", settings: [
+    { field: "videoEngine", valueJson: '"grok-lite"' }, { field: "sceneMode", valueJson: '"multi"' }, { field: "teamVideoSpeechMode", valueJson: '"characters"' }, { field: "spokenScript", valueJson: '"Découvrez notre savoir-faire."' },
+    { field: "references", valueJson: JSON.stringify([{ mediaId: sourceMediaId, role: "product", usage: "required", characterIndex: null }, { mediaId, role: "environment", usage: "inspiration", characterIndex: null }]) },
+  ] };
+  const result = await h.tools.generateMedia.execute(input); assert.equal(result.status, "ready_to_save", JSON.stringify(result));
+  const body = h.calls.find(call => call.stage === "generate")!.body!, quote = h.calls.find(call => call.stage === "quote")!.body!;
+  assert.equal(body.sceneMode, "multi"); assert.equal(body.teamVideoSpeechMode, "characters"); assert.equal(body.identityConsent, false); assert.equal(quote.inspirationImagesCount, 2);
+  const references = body.inspirationImages as Array<Record<string, unknown>>; assert.equal(references[0].role, "product"); assert.equal(references[0].usage, "required"); assert.equal(references[1].role, "environment"); assert.equal(references[1].usage, "inspiration"); assert.equal(h.calls.some(call => call.stage === "accept"), false);
+});
+
+test("non-identical character inspiration works but faithful identity, provided voice and malformed reference roles cannot acquire implicit consent", async () => {
+  const character = [{ mediaId: sourceMediaId, role: "character", usage: "inspiration", characterIndex: 1 }], h = harness();
+  assert.equal((await h.tools.generateMedia.execute({ ...imageInput, resultMode: "preview", settings: [{ field: "references", valueJson: JSON.stringify(character) }] })).status, "ready_to_save");
+  const personal = harness(); const blocked = await personal.tools.generateMedia.execute({ ...imageInput, settings: [{ field: "references", valueJson: JSON.stringify([{ ...character[0], usage: "required" }]) }] }); assert.equal(blocked.ok, false); assert.match(blocked.message, /confirmation personnelle/); assert.deepEqual(personal.calls.map(call => call.stage), ["status"]);
+  for (const references of [[{ ...character[0], voiceMode: "provided", voiceSample: { path: "private/voice.wav" } }], [{ ...character[0], role: "logo" }], [{ ...character[0], usage: "required", characterIndex: null }], [character[0], { ...character[0], mediaId }]]) {
+    const bad = harness(); await assert.rejects(bad.tools.generateMedia.execute({ ...imageInput, settings: [{ field: "references", valueJson: JSON.stringify(references) }] })); assert.equal(bad.calls.length, 0);
+  }
+  await assert.rejects(harness().tools.generateMedia.execute({ ...imageInput, settings: [{ field: "referenceMediaIds", valueJson: JSON.stringify([mediaId]) }, { field: "references", valueJson: "[]" }] }));
+});
+
+test("explicit draft acceptance binds exact job/media, verifies native readback and remains idempotent", async () => {
+  const message = "Enregistre cet aperçu image dans Mes médias", h = harness({ status: "completed", currentUserMessage: message }), input = { requestId: "assistant_previous_generation", mediaId, instructionQuote: message };
+  const [one, two] = await Promise.all([h.tools.acceptMediaGeneration.execute(input), h.tools.acceptMediaGeneration.execute(input)]); assert.equal(one.status, "completed"); assert.equal(one, two); assert.equal(h.calls.filter(call => call.stage === "accept").length, 1); assert.deepEqual(h.calls.map(call => call.stage), ["status", "accept", "status"]);
+  const replay = await h.retryTools().acceptMediaGeneration.execute(input); assert.equal(replay.status, "completed"); assert.equal(h.calls.filter(call => call.stage === "accept").length, 1);
+  const other = harness({ status: "completed", currentUserMessage: message }); assert.equal((await other.tools.acceptMediaGeneration.execute({ ...input, mediaId: sourceMediaId })).ok, false); assert.equal(other.calls.some(call => call.stage === "accept"), false);
+  const namedMessage = "Enregistre cet aperçu « Atelier »", named = harness({ status: "completed", currentUserMessage: namedMessage }); assert.equal((await named.tools.acceptMediaGeneration.execute({ ...input, instructionQuote: namedMessage })).status, "completed");
+});
+
+test("paid modification supports a preview without accepting its new draft or touching the source", async () => {
+  const h = harness({ currentUserMessage: "Retouche cette image en aperçu" }); const result = await h.tools.modifyMedia.execute({ sourceMediaId, instruction: "Éclaircir légèrement le fond", resultMode: "preview" });
+  assert.equal(result.status, "ready_to_save"); assert.equal(result.resultMode, "preview"); assert.equal(h.calls.some(call => call.stage === "accept"), false); assert.equal(h.calls.find(call => call.stage === "source")?.id, sourceMediaId);
+});
+
+test("explicit draft discard uses DELETE then owned job absence and never deletes an accepted media", async () => {
+  const message = "Refuse ce brouillon image", h = harness({ status: "completed", currentUserMessage: message }), input = { requestId: "assistant_previous_generation", mediaId, instructionQuote: message };
+  assert.equal((await h.tools.discardMediaGeneration.execute(input)).status, "discarded"); assert.equal((await h.tools.discardMediaGeneration.execute(input)).status, "discarded"); assert.deepEqual(h.calls.map(call => call.stage), ["status", "discard", "status"]);
+  assert.equal((await h.retryTools().discardMediaGeneration.execute(input)).ok, false); assert.equal(h.calls.filter(call => call.stage === "discard").length, 1, "missing prior ownership cannot authorize another deletion");
+  const saved = harness({ status: "completed", accepted: true, currentUserMessage: message }); assert.equal((await saved.tools.discardMediaGeneration.execute(input)).ok, false); assert.deepEqual(saved.calls.map(call => call.stage), ["status"]);
+});
+
+test("a clicked preview target restricts both draft decisions without granting permission or trusting provider IDs", async () => {
+  const requestId = "assistant_previous_generation", previewTarget = { requestId, mediaId };
+  for (const action of ["acceptMediaGeneration", "discardMediaGeneration"] as const) {
+    const message = action === "acceptMediaGeneration" ? "Enregistre cet aperçu" : "Refuse ce brouillon";
+    for (const changed of [{ requestId: "assistant_other_generation", mediaId }, { requestId, mediaId: sourceMediaId }]) {
+      const h = harness({ status: "completed", currentUserMessage: message, previewTarget }); assert.equal((await h.tools[action].execute({ ...changed, instructionQuote: message })).ok, false); assert.equal(h.calls.length, 0);
+    }
+    const question = "Comment enregistrer cet aperçu ?", no = harness({ status: "completed", currentUserMessage: question, previewTarget }); assert.equal((await no.tools[action].execute({ ...previewTarget, instructionQuote: question })).ok, false); assert.equal(no.calls.length, 0);
+  }
+});
+
+test("all nine localized preview buttons authorize only their exact operation and still reject a substituted target or quoted request", async () => {
+  const requestId = "assistant_localized_preview", previewTarget = { requestId, mediaId };
+  for (const locale of ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"]) {
+    const copy = mediaPreview.inrAssistantMediaPreviewCopy(locale);
+    for (const action of ["accept", "discard"] as const) {
+      const message = action === "accept" ? copy.keepRequest : copy.discardRequest, tool = action === "accept" ? "acceptMediaGeneration" : "discardMediaGeneration", h = harness({ status: "completed", currentUserMessage: message, previewTarget });
+      assert.equal((await h.tools[tool].execute({ requestId, mediaId, instructionQuote: message })).status, action === "accept" ? "completed" : "discarded", `${locale}:${action}`);
+      const wrong = harness({ status: "completed", currentUserMessage: message, previewTarget }); assert.equal((await wrong.tools[tool].execute({ requestId, mediaId: sourceMediaId, instructionQuote: message })).ok, false); assert.equal(wrong.calls.length, 0);
+      const quoted = `« ${message} »`, data = harness({ status: "completed", currentUserMessage: quoted, previewTarget }); assert.equal((await data.tools[tool].execute({ requestId, mediaId, instructionQuote: quoted })).ok, false); assert.equal(data.calls.length, 0);
+    }
+  }
+});
+
+test("ambiguous draft decisions remain unknown once and refuse counterfeit successful readbacks", async () => {
+  for (const [action, options] of [["acceptMediaGeneration", { acceptBroken: true }], ["discardMediaGeneration", { discardBroken: true }], ["discardMediaGeneration", { discardWrongReadback: true }]] as const) {
+    const message = action === "acceptMediaGeneration" ? "Enregistre cet aperçu" : "Refuse ce brouillon", h = harness({ status: "completed", currentUserMessage: message, ...options }), input = { requestId: "assistant_previous_generation", mediaId, instructionQuote: message };
+    assert.equal((await h.tools[action].execute(input)).status, "unknown"); assert.equal((await h.tools[action].execute(input)).status, "unknown"); assert.equal(h.calls.filter(call => ["accept", "discard"].includes(call.stage)).length, 1);
+  }
+});
+
+test("only a server-owned default-save receipt can resume native acceptance under an original creation order", async () => {
+  const requestId = "assistant_previous_generation", message = "Crée une photo de mon atelier", input = { requestId, mediaId, instructionQuote: message };
+  const h = harness({ status: "completed", currentUserMessage: message, statusReadOnly: true, saveAuthorizedRequestIds: [requestId] }); assert.equal((await h.tools.acceptMediaGeneration.execute(input)).status, "completed");
+  for (const changed of [{ saveAuthorizedRequestIds: [] }, { saveAuthorizedRequestIds: ["different_generation"] }, { saveAuthorizedRequestIds: [requestId], currentUserMessage: "Crée un aperçu image" }]) {
+    const no = harness({ status: "completed", currentUserMessage: message, statusReadOnly: true, ...changed }); const quote = changed.currentUserMessage ?? message; assert.equal((await no.tools.acceptMediaGeneration.execute({ ...input, instructionQuote: quote })).ok, false); assert.equal(no.calls.length, 0);
+  }
+  for (const message of ["Comment enregistrer cet aperçu ?", "Enregistre cet aperçu demain", "Lis : 'Enregistre cet aperçu'", "Refuse ce brouillon si je confirme", "Ne refuse pas ce brouillon"]) {
+    const no = harness({ status: "completed", currentUserMessage: message }); for (const action of ["acceptMediaGeneration", "discardMediaGeneration"] as const) assert.equal((await no.tools[action].execute({ requestId, mediaId, instructionQuote: message })).ok, false); assert.equal(no.calls.length, 0);
+  }
+});
+
 test("concurrent repeated tool calls and provider fallbacks share one generation promise", async () => {
   const h = harness();
   const [one, two] = await Promise.all([h.tools.generateMedia.execute(imageInput), h.tools.generateMedia.execute(imageInput)]);
@@ -154,7 +302,7 @@ test("a fresh HTTP retry recovers the same paid media after its subscription or 
     assert.equal(recovered.status, "completed");
     assert.equal(recovered.requestId, first.requestId);
     assert.equal(recovered.media?.id, first.media?.id);
-    assert.deepEqual(h.calls.slice(beforeRetry).map(call => call.stage), ["status", "accept"]);
+    assert.deepEqual(h.calls.slice(beforeRetry).map(call => call.stage), ["status"]);
     assert.equal(h.calls.filter(call => call.stage === "generate").length, 1);
     assert.equal(h.calls.filter(call => call.stage === "quote").length, 1);
     assert.equal(h.callbacks.length, 1);
@@ -322,11 +470,11 @@ test("draft save failure cannot claim that a generated media is already in Mes m
   assert.equal(result.media, undefined);
 });
 
-test("status recovery accepts the owned generated draft without quoting or generating again", async () => {
+test("status recovery reads the owned generated draft without accepting, quoting or generating again", async () => {
   const h = harness({ subscriptionActive: false, status: "completed" });
   const result = await h.tools.getMediaGeneration.execute({ requestId: "assistant_previous_media" });
-  assert.equal(result.status, "completed");
-  assert.deepEqual(h.calls.map((call) => call.stage), ["status", "accept"]);
+  assert.equal(result.status, "ready_to_save");
+  assert.deepEqual(h.calls.map((call) => call.stage), ["status"]);
 });
 
 test("processing and failed status cannot announce a ready media", async () => {
@@ -457,6 +605,6 @@ test("explicit current creation or retouch requests still use Studio and the req
 
 test("existing media status remains recoverable without authorizing another creation", async () => {
   const h = harness({ currentUserMessage: "Le bouton Générer ne marche pas", status: "completed" });
-  assert.equal((await h.tools.getMediaGeneration.execute({ requestId: "assistant_previous_media" })).status, "completed");
+  assert.equal((await h.tools.getMediaGeneration.execute({ requestId: "assistant_previous_media" })).status, "ready_to_save");
   assert.equal(h.calls.some(call => call.stage === "generate" || call.stage === "quota"), false);
 });

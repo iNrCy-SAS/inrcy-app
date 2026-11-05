@@ -92,6 +92,26 @@ test("UI replay rejects provider URLs and handles legacy missing envelopes witho
   assert.equal(await harness({ readFailure: true }).api.loadAssistantReplyReplay(scope, turn), null);
 });
 
+test("ready draft preview identifiers survive private reply storage without URLs, save capabilities or invented UI decisions", async () => {
+  const h = harness(), requestId = "assistant_10000000-0000-4000-8000-000000000001_media", mediaId = "20000000-0000-4000-8000-000000000002";
+  const secretUrl = "https://storage.invalid/private/preview.png?token=never-persist-this-token";
+  const expected = { media: { status: "ready_to_save", draft: true, requestId, mediaId, mediaType: "image", resultMode: "preview" }, outcome: "completed" };
+  assert.equal(await h.api.saveAssistantReplyReplay(scope, turn, {
+    media: { ok: true, status: "ready_to_save", draft: true, requestId, resultMode: "preview", media: { id: mediaId, mediaType: "image", url: secretUrl, approvalToken: "invented-media-grant" }, saveAuthorizedRequestIds: [requestId], uiCommand: { command: "accept_media_generation" } },
+    outcome: "completed", approvalToken: "invented-top-grant", saveAuthorizedRequestIds: [requestId], taskState: { receipts: [{ resultMode: "save", requestId }] },
+    uiCommand: { command: "accept_media_generation", requestId, mediaId }, uiActions: [{ id: "invented-save", type: "command", command: { command: "accept_media_generation", requestId, mediaId } }], autoContinueAfterUi: true,
+  }), true);
+  assert.deepEqual(await h.api.loadAssistantReplyReplay(scope, turn), expected);
+  const key = [...h.objects.keys()].find(key => key.endsWith(".reply.json"))!, raw = h.objects.get(key)!.toString();
+  assert.doesNotMatch(raw, /storage\.invalid|never-persist|invented-|approvalToken|saveAuthorized|taskState|uiCommand|uiActions|autoContinue/);
+  const writes = h.calls.filter(call => call.operation === "write").length;
+  assert.deepEqual(await h.api.loadAssistantReplyReplay(scope, turn), expected, "replaying a preview remains an IDs-only read");
+  assert.equal(h.calls.filter(call => call.operation === "write").length, writes);
+  assert.equal(await h.api.loadAssistantReplyReplay({ ...scope, accountId: "99999999-9999-4999-8999-999999999999" }, turn), null);
+  const stored = JSON.parse(raw); stored.reply.media.mediaId = "../../private"; h.objects.set(key, Buffer.from(JSON.stringify(stored)));
+  assert.deepEqual(await h.api.loadAssistantReplyReplay(scope, turn), { outcome: "completed" }, "a malformed persisted target cannot be recovered as a preview");
+});
+
 test("execution journal distinguishes absent, unavailable, invalid and expired proof", async () => {
   const h = harness();
   assert.equal((await h.api.inspectAssistantTaskState(scope, turn)).status, "missing");
@@ -152,7 +172,7 @@ test("private approval capabilities survive journal compaction and oversized cap
   assert.equal(restored.receipts[0].approvalToken, task.receipts[0].approvalToken); assert.equal(restored.receipts[0].approvalReference, "IA-0123456789ab"); assert.equal(restored.receipts[0].approvalKind, "calendar");
   assert.ok([...h.objects.values()].every(value => value.length <= 32_000));
   const key = [...h.objects.keys()].find(key => key.endsWith(".task.json"))!; const saved = JSON.parse(h.objects.get(key)!.toString());
-  for (const kind of ["google_business_profile", "media_delete", "publication_lifecycle", "individual_mail", "commercial_document"]) {
+  for (const kind of ["google_business_profile", "media_delete", "publication_lifecycle", "individual_mail", "commercial_document", "google_review_reply", "channel_resource_selection", "channel_disconnection", "business_dna_document_removal", "website_analytics_disconnection", "pinterest_board_mutation", "website_reset", "referral_submission"]) {
     saved.task.receipts[0].approvalKind = kind; h.objects.set(key, Buffer.from(JSON.stringify(saved)));
     assert.equal((await h.api.loadAssistantTaskState(scope, turn))?.receipts[0].approvalKind, kind);
   }
@@ -161,6 +181,15 @@ test("private approval capabilities survive journal compaction and oversized cap
   saved.task.receipts[0].approvalKind = "calendar";
   saved.task.instruction = "Confirme ce rendez-vous."; saved.task.receipts[0].approvalToken = "x".repeat(24_001); h.objects.set(key, Buffer.from(JSON.stringify(saved)));
   assert.equal((await h.api.inspectAssistantTaskState(scope, turn)).status, "invalid");
+});
+
+test("private generation save choices survive storage and malformed modes never authorize a continuation", async () => {
+  const h=harness();
+  const task:taskPolicy.InrAssistantTaskState={version:1,instruction:"Génère une image",question:"",actionRequestId:"generation_request",startedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+60000).toISOString(),outcome:"processing",requiredTools:["generateMedia"],receipts:[{tool:"generateMedia",ok:true,status:"processing",message:"Génération en cours",requestId:"generation_request",resultMode:"save",draft:true}]};
+  assert.equal(await h.api.saveAssistantTaskState(scope,turn,task),true);
+  const saved=await h.api.loadAssistantTaskState(scope,turn);assert.equal(saved?.receipts[0].resultMode,"save");assert.equal(saved?.receipts[0].draft,true);
+  const key=[...h.objects.keys()].find(path=>path.endsWith(".task.json"))!, record=JSON.parse(h.objects.get(key)!.toString());
+  for(const patch of [{resultMode:"arbitrary"},{draft:"yes"}]) {h.objects.set(key,Buffer.from(JSON.stringify({...record,task:{...record.task,receipts:[{...record.task.receipts[0],...patch}]}})));assert.equal((await h.api.inspectAssistantTaskState(scope,turn)).status,"invalid");}
 });
 
 test("pending tasks are private durable objects bound to the exact actor, account, discussion and turn",async()=>{

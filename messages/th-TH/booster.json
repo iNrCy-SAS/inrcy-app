@@ -1,4 +1,5 @@
 {
+  "studio_open_unavailable": "ไม่สามารถเปิด iNrStudio ได้ในขณะนี้ การเปลี่ยนแปลงของคุณยังคงอยู่ใน Booster โปรดลองอีกครั้ง",
   "adjust_title": "ปรับเนื้อหาที่สร้าง",
   "adjust_channels_title": "ช่องทางที่จะสร้างใหม่",
   "adjust_step": "ขั้นตอน {step} จาก 2",

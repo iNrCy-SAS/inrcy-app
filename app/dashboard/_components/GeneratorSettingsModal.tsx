@@ -5,7 +5,8 @@ import DashboardAssistantTrigger from "./DashboardAssistantTrigger";
 
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { useInrAssistantRefresh } from "../_hooks/useInrAssistantRefresh";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 import {
   estimateGeneratorRevenue,
@@ -49,6 +50,10 @@ export default function GeneratorSettingsModal({
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
+  const savedSignatureRef = useRef("");
+  const currentSignature = JSON.stringify([avgBasket, conversionRate, sector]);
+  const assistantCurrentRef = useRef({ signature: currentSignature, busy: true });
+  assistantCurrentRef.current = { signature: currentSignature, busy: loading || saving };
 
   const recommendation = useMemo(
     () => getGeneratorRecommendation(sector),
@@ -111,6 +116,7 @@ export default function GeneratorSettingsModal({
           profileResult.data?.lead_conversion_rate,
           nextRecommendation,
         );
+        savedSignatureRef.current = JSON.stringify([current.avgBasket, current.conversionRate, storedSector]);
         setSector(storedSector);
         setAvgBasket(current.avgBasket);
         setConversionRate(current.conversionRate);
@@ -133,6 +139,27 @@ export default function GeneratorSettingsModal({
       active = false;
     };
   }, [i18nT, locale]);
+
+  useInrAssistantRefresh({ topics: ["business", "settings", "stats"], scopeKey: "generator-business-settings", blocked: loading || saving || currentSignature !== savedSignatureRef.current, refresh: async ({ accountId, canApply }) => {
+    const signature = assistantCurrentRef.current.signature;
+    const canRefresh = () => canApply() && !assistantCurrentRef.current.busy && signature === assistantCurrentRef.current.signature && signature === savedSignatureRef.current && getActiveBrowserUserId() === accountId;
+    if (!canRefresh()) return false;
+    const supabase = createClient();
+    const [profileResult, activityResult] = await Promise.all([
+      supabase.from("profiles").select("avg_basket,lead_conversion_rate").eq("user_id", accountId).maybeSingle(),
+      supabase.from("business_profiles").select("sector").eq("user_id", accountId).maybeSingle(),
+    ]);
+    if (profileResult.error || activityResult.error || !canRefresh()) return false;
+    const nextSector = activityResult.data?.sector ?? null, nextRecommendation = getGeneratorRecommendation(nextSector);
+    const next = sanitizeGeneratorBusinessSettings(profileResult.data?.avg_basket, profileResult.data?.lead_conversion_rate, nextRecommendation);
+    savedSignatureRef.current = JSON.stringify([next.avgBasket, next.conversionRate, nextSector]);
+    setSector(nextSector);
+    setAvgBasket(next.avgBasket);
+    setConversionRate(next.conversionRate);
+    setSaved(false);
+    setError("");
+    return true;
+  } });
 
   async function save() {
     setSaving(true);
@@ -158,6 +185,7 @@ export default function GeneratorSettingsModal({
         { onConflict: "user_id" },
       );
       if (saveError) throw saveError;
+      savedSignatureRef.current = JSON.stringify([normalized.avgBasket, normalized.conversionRate, sector]);
       setAvgBasket(normalized.avgBasket);
       setConversionRate(normalized.conversionRate);
       await invalidateBoosterGenerationContextClient("professional");

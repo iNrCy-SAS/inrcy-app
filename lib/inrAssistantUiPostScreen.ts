@@ -1,3 +1,4 @@
+import { inrAssistantNavigationForm } from "./inrAssistantNavigationForm.ts";
 import { parseInrAssistantClientContext, type InrAssistantClientScreen } from "./inrAssistantClientContext.ts";
 import type { InrAssistantUiAction } from "./inrAssistantUiActions.ts";
 
@@ -18,6 +19,10 @@ export function parseInrAssistantUiPostScreen(value: unknown): InrAssistantUiPos
 
 /** A report cannot substitute another form for the action's signed target. */
 export function inrAssistantUiPostScreenMatchesAction(action: InrAssistantUiAction, screen: InrAssistantUiPostScreen): boolean {
+  if (action.type === "navigate" && !action.navigation.documentPrefill) {
+    const form = inrAssistantNavigationForm(action.navigation.destination);
+    return Boolean(form && screen.pathname === form.pathname && screen.selection.kind === form.kind);
+  }
   if (action.type === "navigate") return Boolean(action.navigation.documentPrefill
     && JSON.stringify(action.navigation.documentPrefill) === JSON.stringify(screen.documentPrefill)
     && screen.selection.kind === action.navigation.documentPrefill.kind

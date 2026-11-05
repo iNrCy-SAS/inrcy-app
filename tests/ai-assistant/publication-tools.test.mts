@@ -9,6 +9,7 @@ import * as channelPolicy from "../../lib/boosterPublicationPolicy.ts";
 import * as channelRules from "../../lib/boosterChannelRules.ts";
 import * as outcomes from "../../lib/boosterPublicationOutcome.ts";
 import type * as PublicationTools from "../../lib/inrAssistantPublicationTools.ts";
+import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 
 const ACCOUNT = "10000000-0000-4000-8000-000000000001", FOREIGN = "10000000-0000-4000-8000-000000000002";
 const DRAFT = "20000000-0000-4000-8000-000000000001", FOREIGN_DRAFT = "20000000-0000-4000-8000-000000000002";
@@ -31,6 +32,9 @@ function harness(options: {
   throwPublish?: boolean; throwEdit?: boolean; rejectEdit?: boolean; failDb?: string;
   payload?: Row; mediaRows?: Row[]; status?: Row; deadlineAfterConnection?: boolean;
   statusReadOnly?: boolean;
+  rejectScheduleNumber?: number;
+  workspace?: Row;
+  publishResult?: Row;
 } = {}) {
   const calls: Call[] = [], queries: Query[] = [], minted: string[] = [], observed: PublicationTools.InrAssistantPublicationResult[] = [];
   const tables: Record<string, Row[]> = {
@@ -46,6 +50,7 @@ function harness(options: {
       { id: VIDEO, user_id: ACCOUNT, is_active: true, source: "mediatheque", bucket_name: "inrcy-pro-media", storage_path: `users/${ACCOUNT}/video.mp4`, media_type: "video", mime_type: "video/mp4", size_bytes: 1_000, duration_seconds: 10, title: "Vidéo" },
       { id: FOREIGN_MEDIA, user_id: FOREIGN, is_active: true, source: "mediatheque", bucket_name: "inrcy-pro-media", storage_path: `users/${FOREIGN}/image.jpg`, media_type: "image", mime_type: "image/jpeg" },
     ],
+    publication_workspaces: options.workspace ? [options.workspace] : [],
   };
   const scheduled = new Map<string, Row>();
   let deadlineAllowed = true;
@@ -75,6 +80,8 @@ function harness(options: {
     return builder;
   } };
   const stubs: Record<string, unknown> = {
+    "@/lib/boosterCta": runtimeModules()<typeof import("../../lib/boosterCta.ts")>("lib/boosterCta.ts"),
+    "@/lib/metaPublicationTargets": runtimeModules()<typeof import("../../lib/metaPublicationTargets.ts")>("lib/metaPublicationTargets.ts"),
     "server-only": {}, "./inrAssistantActionClause.ts": actionClauses, "node:crypto": { createHash },
     ai: { tool: (definition: unknown) => definition, jsonSchema: (schema: unknown, config: Row) => ({ schema, ...config }) },
     "./boosterPublicationPolicy.ts": channelPolicy, "./boosterChannelRules.ts": channelRules, "./boosterPublicationOutcome.ts": outcomes,
@@ -103,13 +110,14 @@ function harness(options: {
     "@/app/api/booster/publish-now/route": { POST: async (request: Request) => {
       const body = record(await request.json()); calls.push({ action: "publish", request, body });
       if (options.throwPublish) throw new Error("PRIVATE NETWORK token=hidden");
-      return Response.json({ ok: true, done: false, publication_id: PUBLICATION, payload: { access_token: "PRIVATE" } }, { status: 202 });
+      return Response.json(options.publishResult || { ok: true, done: false, publication_id: PUBLICATION, payload: { access_token: "PRIVATE" } }, { status: options.publishResult ? 200 : 202 });
     } },
     "@/app/api/agent/scheduled-actions/route": {
       GET: async (request: Request) => { calls.push({ action: "schedule-get", request }); const key = new URL(request.url).searchParams.get("requestId")!;
         return scheduled.has(key) ? Response.json({ scheduledAction: scheduled.get(key), tableMissing: false }) : Response.json({ scheduledAction: null, tableMissing: false }, { status: 404 }); },
       POST: async (request: Request) => { const body = record(await request.json()); calls.push({ action: "schedule", request, body });
-        const value = { id: body.scheduleRequestId, status: "scheduled", scheduledAt: body.scheduledAt };
+        if (options.rejectScheduleNumber === calls.filter(call => call.action === "schedule").length) return Response.json({}, { status: 503 });
+        const value = { id: body.scheduleRequestId, status: "scheduled", scheduledAt: body.scheduledAt, channels: body.channels, payload: body.payload };
         scheduled.set(String(body.scheduleRequestId), value); return Response.json({ scheduledAction: value, tableMissing: false }); },
     },
     "@/lib/inrsend/publicationChannelActions": { createPublicationChannelHandlers: (channel: string) => ({
@@ -132,6 +140,8 @@ function harness(options: {
     } },
   };
   const source = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantPublicationTools.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  stubs["@/app/api/booster/soundtracks/route"] = { GET: async () => { calls.push({ action: "soundtracks" }); return Response.json({ ok: true, soundtracks: [{ id: "atelier-calm", label: "Atelier calme", privateAsset: "/private/audio.wav" }] }); } };
+  stubs["@/app/api/integrations/pinterest/boards/route"] = { GET: async (request: Request) => { calls.push({ action: "boards", request }); return Response.json({ ok: true, boards: [{ id: "123456789", name: "Réalisations", access_token: "PRIVATE" }] }); } };
   const moduleRecord = { exports: {} };
   vm.runInNewContext(`(function(require,module,exports){${source}\n})`, { Date: FixedDate, Intl, URL, Headers, Request, Response, setTimeout, clearTimeout })((dependency: string) => {
     if (!(dependency in stubs)) throw new Error(`Unexpected dependency: ${dependency}`); return stubs[dependency];
@@ -142,7 +152,7 @@ function harness(options: {
     request: sourceRequest, accountId: ACCOUNT, supabase: supabase as never, currentUserMessage: message, actionRequestId,
     canStartWork: () => deadlineAllowed, onResult: (value) => observed.push(value),
     statusReadOnly: options.statusReadOnly,
-  }) as unknown as Record<"preparePublication" | "executePublication" | "editPublication" | "getPublicationStatus", TestTool>;
+  }) as unknown as Record<"preparePublication" | "executePublication" | "editPublication" | "getPublicationStatus" | "readPublicationOptions", TestTool>;
   return { tools: create(), create, runtime, calls, queries, tables, minted, observed, scheduled };
 }
 const prepare = { posts: [post], mediaIds: null, draftId: null };
@@ -152,7 +162,134 @@ test("Spanish and German creation orders are accepted while help and negation re
  for(const message of ["Crea una publicación en Facebook sobre nuestros servicios.","Erstelle einen Beitrag für Facebook über unsere Leistungen."]) assert.equal(h.runtime.permitsInrAssistantPublicationAction(message,"prepare"),true,message);
  for(const message of ["Como crear una publicación?","Wie erstelle ich einen Beitrag?","No crea una publicación.","Bitte nicht erstelle einen Beitrag."]) assert.equal(h.runtime.permitsInrAssistantPublicationAction(message,"prepare"),false,message);
 });
+test("provider strict object schemas require every declared key while native optional runtime inputs remain compatible", async () => {
+  const h = harness();
+  const inspect = (value: unknown) => {
+    if (!value || typeof value !== "object") return;
+    if (Array.isArray(value)) { value.forEach(inspect); return; }
+    const item = record(value);
+    if (item.properties) { assert.equal(item.additionalProperties, false); assert.deepEqual(Array.from(item.required as string[]).sort(), Object.keys(record(item.properties)).sort()); }
+    Object.values(item).forEach(inspect);
+  };
+  for (const tool of Object.values(h.tools)) inspect(tool.inputSchema.schema);
+  assert.equal((await h.tools.preparePublication.execute({ posts: [post], mediaIds: null, draftId: null })).status, "draft");
+  assert.equal((await h.tools.executePublication.execute({ draftId: DRAFT, mode: "publish", scheduledAt: null, timezone: null })).status, "queued");
+});
 const publish = { draftId: DRAFT, mode: "publish", scheduledAt: null, timezone: null };
+
+test("per-publication CTA uses native modes and destinations, survives execution and never replaces the global preference", async () => {
+  const cta = runtimeModules()<typeof import("../../lib/boosterCta.ts")>("lib/boosterCta.ts");
+  const payload = storedPayload(["gmb", "facebook"]); record(payload.postByChannel).facebook = { ...record(record(payload.postByChannel).facebook), ctaMode: "call", ctaPhone: "+33612345678", cta: "Appelez notre atelier", privateNativeMetadata: "preserved" };
+  const h = harness({ payload, message: "Prépare cette publication sur tous mes canaux avec Réserver comme CTA puis publie-la maintenant" });
+  const prepared = await h.tools.preparePublication.execute({ ...prepare, draftId: DRAFT, posts: [{ ...post, channel: "gmb" }], channelChanges: [{ channel: "gmb", field: "cta", valueJson: JSON.stringify({ ctaMode: "website", cta: "Réserver une visite", ctaUrl: "https://atelier.test/reserver", ctaAction: "BOOK" }) }] });
+  assert.equal(prepared.status, "draft"); assert.equal((await h.tools.executePublication.execute(publish)).status, "queued");
+  const body = h.calls.find(call => call.action === "publish")!.body!, posts = record(body.postByChannel), google = record(posts.gmb), facebook = record(posts.facebook);
+  assert.deepEqual(cta.getBoosterGmbCallToAction(google), { actionType: "BOOK", url: "https://atelier.test/reserver" });
+  assert.equal(facebook.ctaMode, "call"); assert.equal(facebook.ctaPhone, "+33612345678"); assert.equal(facebook.privateNativeMetadata, "preserved");
+  assert.equal(h.queries.some(query => ["business_profiles", "pro_tools_configs"].includes(query.table)), false, "a one-publication CTA never writes global settings");
+});
+
+test("native CTA rejects unavailable modes, missing link/phone and forged hidden fields before draft or dispatch", async () => {
+  for (const [channel, choice] of [ ["gmb", { ctaMode: "message" }], ["facebook", { ctaMode: "call", ctaPhone: "invalid" }], ["facebook", { ctaMode: "website", ctaUrl: "javascript:alert(1)" }], ["inr_search", { ctaMode: "website", ctaUrl: "https://atelier.test" }] ] as const) {
+    const h = harness(), result = await h.tools.preparePublication.execute({ ...prepare, posts: [{ ...post, channel }], channelChanges: [{ channel, field: "cta", valueJson: JSON.stringify(choice) }] });
+    assert.equal(result.ok, false); assert.equal(h.calls.some(call => ["draft-post", "publish", "schedule"].includes(call.action)), false);
+  }
+  const h = harness(); await assert.rejects(h.tools.preparePublication.execute({ ...prepare, channelChanges: [{ channel: "facebook", field: "cta", valueJson: JSON.stringify({ ctaMode: "none", accountId: FOREIGN }) }] }));
+});
+
+test("native render settings and existing per-channel derivatives survive a text-only draft edit and actual dispatch", async () => {
+  const image = { mediaId: IMAGE, imageKey: "original-image-key", storagePath: `users/${ACCOUNT}/image.jpg`, publicUrl: "https://app.inrcy.test/api/image-rendered", transform: { fit: "cover", zoom: 1.4 }, imageMeta: { width: 1000, height: 800 } };
+  const payload = { ...storedPayload(["facebook", "linkedin"]), assistantMediaIds: [IMAGE], images: [image], imageDrafts: [image], imagesByChannel: { facebook: [image], linkedin: [image] }, imagesByPlacement: { facebook: { story: [image] } },
+    imageSettingsByChannel: { facebook: { imageKeys: [image.imageKey], transforms: { [image.imageKey]: { fit: "cover", zoom: 1.4, overlay: { text: "Logo existant" } } }, customizedImageKeys: [image.imageKey] } },
+    videoFormatByChannel: { facebook: "9_16", linkedin: "16_9" }, videoAdaptationModeByChannel: { facebook: "cover_crop" }, videoSettingsByChannel: { facebook: { format: "9_16", adaptationMode: "cover_crop", nativeExtra: "keep" } }, mediaModeByChannel: { facebook: "images", linkedin: "images" } };
+  const h = harness({ payload, message: "Prépare le texte de cette publication puis publie-la sur tous mes canaux maintenant" });
+  assert.equal((await h.tools.preparePublication.execute({ ...prepare, draftId: DRAFT, posts: [{ ...post, content: "Texte corrigé" }] })).status, "draft");
+  assert.equal((await h.tools.executePublication.execute(publish)).status, "queued"); const body = h.calls.find(call => call.action === "publish")!.body!;
+  for (const field of ["imageSettingsByChannel", "imagesByPlacement", "imagesByChannel", "videoFormatByChannel", "videoAdaptationModeByChannel", "videoSettingsByChannel"]) assert.deepEqual(body[field], payload[field as keyof typeof payload], field);
+  assert.equal(record((body.images as Row[])[0]).imageKey, image.imageKey);
+});
+
+test("bounded image/video options use real selected image keys and preserve unrelated native rendering metadata", async () => {
+  const payload = { ...storedPayload(), assistantMediaIds: [IMAGE], images: [{ mediaId: IMAGE, imageKey: "image-one" }], mediaModeByChannel: { facebook: "images" }, imageSettingsByChannel: { facebook: { imageKeys: ["image-one"], transforms: { "image-one": { fit: "contain", zoom: 1, overlay: { text: "Texte conservé" } } } } }, videoSettingsByChannel: { facebook: { format: "original", adaptationMode: "safe_frame", nativeExtra: "keep" } } };
+  const h = harness({ payload });
+  const changes = [{ channel: "facebook", field: "imageTransform", valueJson: JSON.stringify({ imageIndex: 0, fit: "cover", zoom: 1.6, offsetX: 12 }) }, { channel: "facebook", field: "videoFormat", valueJson: '"9_16"' }, { channel: "facebook", field: "videoAdaptationMode", valueJson: '"cover_crop"' }];
+  assert.equal((await h.tools.preparePublication.execute({ ...prepare, draftId: DRAFT, channelChanges: changes })).status, "draft"); assert.equal((await h.tools.executePublication.execute(publish)).status, "queued");
+  const body = h.calls.find(call => call.action === "publish")!.body!, transform = record(record(record(body.imageSettingsByChannel).facebook).transforms)["image-one"] as Row;
+  assert.equal(transform.fit, "cover"); assert.equal(transform.zoom, 1.6); assert.equal(transform.offsetX, 12); assert.deepEqual(transform.overlay, { text: "Texte conservé" });
+  assert.equal(record(record(body.videoSettingsByChannel).facebook).nativeExtra, "keep"); assert.equal(record(body.videoFormatByChannel).facebook, "9_16"); assert.equal(record(body.videoAdaptationModeByChannel).facebook, "cover_crop");
+  const bad = harness({ payload }); await assert.rejects(bad.tools.preparePublication.execute({ ...prepare, draftId: DRAFT, channelChanges: [{ channel: "facebook", field: "imageTransform", valueJson: '{"imageIndex":0,"url":"https://foreign.invalid"}' }] }));
+});
+
+const mixedMessage = "Programme Facebook le 2026-10-27 à 18h puis programme LinkedIn le 2026-10-28 à 19h puis publie Threads maintenant.";
+const mixedPlan = { draftId: DRAFT, mode: "schedule", scheduledAt: null, timezone: "Europe/Paris", channelSchedules: [{ channel: "facebook", scheduledAt: "2026-10-27T18:00:00+01:00" }, { channel: "linkedin", scheduledAt: "2026-10-28T19:00:00+01:00" }], immediateChannels: ["threads"] };
+test("per-channel future dates and explicit immediate channels use native grouped schedules and filtered dispatch with stable receipts", async () => {
+  const payload = { ...storedPayload(["facebook", "linkedin", "threads"]), imageSettingsByChannel: { facebook: { native: "fb" }, linkedin: { native: "li" } }, videoSettingsByChannel: { linkedin: { format: "16_9", adaptationMode: "safe_frame" } } };
+  const h = harness({ payload, message: mixedMessage }), result = await h.tools.executePublication.execute(mixedPlan);
+  assert.equal(result.status, "queued"); const schedules = h.calls.filter(call => call.action === "schedule"), dispatch = h.calls.find(call => call.action === "publish")!.body!;
+  assert.equal(schedules.length, 2); assert.deepEqual(schedules.map(call => call.body!.scheduledAt), ["2026-10-27T17:00:00.000Z", "2026-10-28T18:00:00.000Z"]);
+  for (const item of schedules) { const body = item.body!, publish = record(record(body.payload).publishPayload), channel = (body.channels as string[])[0]; assert.deepEqual(Object.keys(record(publish.postByChannel)), [channel]); assert.deepEqual(Object.keys(record(publish.imageSettingsByChannel)), [channel]); }
+  assert.deepEqual(dispatch.channels, ["threads"]); assert.deepEqual(Object.keys(record(dispatch.postByChannel)), ["threads"]); assert.equal(record(dispatch.videoSettingsByChannel).linkedin, undefined);
+  assert.equal((result.scheduledActions as Row[]).length, 2); assert.deepEqual((await h.tools.executePublication.execute(mixedPlan)).scheduledActions, result.scheduledActions); assert.equal(h.calls.filter(call => call.action === "schedule").length, 2);
+  const recovered = await h.create(mixedMessage).executePublication.execute(mixedPlan); assert.equal(recovered.status, "queued"); assert.equal(h.calls.filter(call => call.action === "schedule").length, 2); assert.equal(h.calls.filter(call => call.action === "publish").at(-1)!.body!.idempotencyKey, dispatch.idempotencyKey);
+});
+test("scheduling partitions reject missing, overlapping or unrequested immediate channels before any native write", async () => {
+  const payload = storedPayload(["facebook", "linkedin", "threads"]);
+  for (const plan of [{ ...mixedPlan, immediateChannels: [] }, { ...mixedPlan, immediateChannels: ["facebook", "threads"] }, { ...mixedPlan, immediateChannels: ["x"] }, { ...mixedPlan, scheduledAt: "2026-10-29T18:00:00+01:00" }]) {
+    const h = harness({ payload, message: mixedMessage }); assert.equal((await h.tools.executePublication.execute(plan)).status, "needs_clarification"); assert.equal(h.calls.some(call => ["publish", "schedule"].includes(call.action)), false);
+  }
+  const h = harness({ payload, message: "Programme Facebook le 2026-10-27 à 18h puis programme LinkedIn le 2026-10-28 à 19h." }); assert.equal((await h.tools.executePublication.execute(mixedPlan)).status, "needs_clarification"); assert.equal(h.calls.some(call => ["publish", "schedule"].includes(call.action)), false);
+});
+test("a failed later schedule preserves confirmed groups, never dispatches immediate channels, and resumes without another copy", async () => {
+  const h = harness({ payload: storedPayload(["facebook", "linkedin", "threads"]), message: mixedMessage, rejectScheduleNumber: 2 });
+  const first = await h.tools.executePublication.execute(mixedPlan); assert.equal(first.status, "partial"); assert.equal((first.scheduledActions as Row[]).length, 1); assert.equal(h.calls.some(call => call.action === "publish"), false);
+  const resumed = await h.create(mixedMessage).executePublication.execute(mixedPlan); assert.equal(resumed.status, "queued"); assert.equal(h.scheduled.size, 2); assert.equal(h.calls.filter(call => call.action === "schedule").length, 3);
+});
+test("a mixed schedule never labels future channels published or discards saved groups after immediate failure", async () => {
+  for (const status of ["published", "failed"]) {
+    const h = harness({ payload: storedPayload(["facebook", "linkedin", "threads"]), message: mixedMessage, publishResult: { done: true, publication_id: PUBLICATION, summary: { entries: [{ channel: "threads", status }] } } });
+    const result = await h.tools.executePublication.execute(mixedPlan); assert.equal(result.status, status === "published" ? "scheduled" : "partial");
+    assert.equal((result.scheduledActions as Row[]).length, 2); assert.deepEqual(JSON.parse(JSON.stringify(result.channels)), [{ channel: "facebook", status: "scheduled" }, { channel: "linkedin", status: "scheduled" }, { channel: "threads", status }]);
+  }
+});
+test("the current native UI draft keeps its owned workspace, channel media modes, image settings and flattened Meta placement", async () => {
+  const native = { ...storedPayload(["instagram"]), mediaWorkspaceId: IMAGE, mediaWorkspaceClientKey: "native-workspace", mediaPipelineCutoverV1: true, channelMediaModes: { instagram: "images" }, mediaType: "images",
+    imageSettingsByChannel: { instagram: { imageKeys: ["native-image"], transforms: { "native-image": { fit: "cover", zoom: 1.2 } }, customizedImageKeys: ["native-image"] } }, instagramPublicationPlacement: "story", instagramStoryEnabled: false };
+  const h = harness({ payload: native, workspace: { id: IMAGE, account_id: ACCOUNT }, message: "Prépare le texte de ma publication Instagram puis publie-la maintenant" });
+  assert.equal((await h.tools.preparePublication.execute({ ...prepare, draftId: DRAFT, posts: [{ ...post, channel: "instagram" }] })).status, "draft");
+  assert.equal((await h.tools.executePublication.execute(publish)).status, "queued"); const body = h.calls.find(call => call.action === "publish")!.body!;
+  assert.equal(body.mediaWorkspaceId, IMAGE); assert.equal(record(body.mediaModeByChannel).instagram, "images"); assert.deepEqual(body.imageSettingsByChannel, native.imageSettingsByChannel); assert.deepEqual(record(body.instagramPublicationSettings).placements, ["story"]);
+  assert.ok(h.queries.some(query => query.table === "publication_workspaces" && query.filters.some(([, field, value]) => field === "account_id" && value === ACCOUNT)));
+  const foreign = harness({ payload: native, workspace: { id: IMAGE, account_id: FOREIGN }, message: "Publie ma publication Instagram maintenant" }); assert.equal((await foreign.tools.executePublication.execute(publish)).status, "blocked"); assert.equal(foreign.calls.some(call => call.action === "publish"), false);
+});
+test("an explicit global media replacement clears the old workspace and derivatives instead of publishing its previous selection", async () => {
+  const payload = { ...storedPayload(), mediaWorkspaceId: IMAGE, mediaPipelineCutoverV1: true, imagesByChannel: { facebook: [{ mediaId: FOREIGN_MEDIA }] }, imagesByPlacement: { facebook: { story: [{ mediaId: FOREIGN_MEDIA }] } }, imageSettingsByChannel: { facebook: { imageKeys: ["old"] } } };
+  const h = harness({ payload }); assert.equal((await h.tools.preparePublication.execute({ ...prepare, draftId: DRAFT, mediaIds: [IMAGE] })).status, "draft");
+  assert.equal((await h.tools.executePublication.execute(publish)).status, "queued"); const body = h.calls.find(call => call.action === "publish")!.body!;
+  assert.equal(body.mediaWorkspaceId, null); assert.equal(body.mediaPipelineCutoverV1, false); assert.deepEqual(body.imagesByPlacement, {}); assert.deepEqual(body.imagesByChannel, {}); assert.equal((body.images as Row[])[0].mediaId, IMAGE); assert.doesNotMatch(JSON.stringify(body), new RegExp(FOREIGN_MEDIA));
+});
+
+test("native Booster options survive draft and actual dispatch, with owned channel-specific images", async () => {
+  const h = harness({ message: "Prépare une publication et publie-la sur tous mes canaux maintenant" });
+  const posts = ["facebook", "instagram", "threads", "pinterest"].map(channel => ({ ...post, channel }));
+  const channelChanges = [{ channel: "facebook", field: "placement", valueJson: '"reel"' }, { channel: "facebook", field: "includeStory", valueJson: "true" }, { channel: "facebook", field: "soundtrackId", valueJson: '"atelier-calm"' }, { channel: "instagram", field: "mediaIds", valueJson: JSON.stringify([IMAGE]) }, { channel: "threads", field: "threadsMode", valueJson: '"ghost"' }, { channel: "threads", field: "mediaIds", valueJson: "[]" }, { channel: "pinterest", field: "mediaIds", valueJson: JSON.stringify([IMAGE]) }, { channel: "pinterest", field: "pinterestBoardId", valueJson: '"123456789"' }];
+  const drafted = await h.tools.preparePublication.execute({ ...prepare, posts, channelChanges, draftId: DRAFT }); assert.equal(drafted.status, "draft");
+  assert.equal((await h.tools.executePublication.execute(publish)).status, "queued"); const body = h.calls.find(call => call.action === "publish")!.body!;
+  assert.deepEqual(record(body.facebookPublicationSettings).placements, ["reel", "story"]); assert.equal(record(body.soundtrackByChannel).facebook, "atelier-calm");
+  assert.equal(record(body.threadsPublicationSettings).mode, "ghost"); assert.equal(record(body.mediaModeByChannel).threads, "none");
+  assert.equal(record(body.pinterestPublicationSettings).boardName, "Réalisations"); assert.equal(record((record(body.imagesByChannel).instagram as Row[])[0]).mediaId, IMAGE); assert.equal(h.minted.includes(FOREIGN_MEDIA), false);
+});
+
+test("publication options reject invented catalogue IDs and foreign channel media before saving or sending", async () => {
+  for (const change of [{ channel: "facebook", field: "soundtrackId", valueJson: '"invented"' }, { channel: "pinterest", field: "pinterestBoardId", valueJson: '"999999"' }, { channel: "instagram", field: "mediaIds", valueJson: JSON.stringify([FOREIGN_MEDIA]) }]) {
+    const h = harness(); const answer = await h.tools.preparePublication.execute({ ...prepare, posts: [{ ...post, channel: change.channel }], channelChanges: [change] }); assert.equal(answer.ok, false); assert.equal(h.calls.some(call => ["draft-post", "publish", "schedule"].includes(call.action)), false);
+  }
+  const h = harness(); for (const change of [{ channel: "threads", field: "placement", valueJson: '"story"' }, { channel: "facebook", field: "consent", valueJson: "true" }]) await assert.rejects(h.tools.preparePublication.execute({ ...prepare, posts: [{ ...post, channel: change.channel }], channelChanges: [change] })); assert.equal(h.calls.length, 0);
+});
+
+test("publication options catalogue only exposes native public ID and label", async () => {
+  const h = harness(); for (const view of ["soundtracks", "pinterest_boards"]) { const output = await h.tools.readPublicationOptions.execute({ view }); assert.equal(output.ok, true); const json = JSON.stringify(output); assert.equal(/PRIVATE|privateAsset|audio.wav/.test(json), false); }
+  assert.equal(h.calls.some(call => ["draft-post", "publish", "schedule"].includes(call.action)), false);
+});
 
 test("the reported Standard request authorizes preparing and publishing to the connected channels", async () => {
   const message = "Non je voudrais que tu me génères une publication pour chaque canal avec 1 image et que tu publies sur tous les canaux via booster";

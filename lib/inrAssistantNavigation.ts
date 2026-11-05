@@ -106,7 +106,8 @@ export function getAssistantInternalDestination(value: string | undefined): { hr
     } else if (url.searchParams.has("helpAction")) return undefined;
     if (!label && url.searchParams.get("help") === "1") label = "Aide iNrCy";
     if (!label && url.searchParams.get("generator") === "1") label = "Générateur de visibilité";
-    if (!label && url.searchParams.get("stats") === "1") label = "iNr’Stats";
+    if (!label && url.searchParams.get("stats") === "1") label = "Bilan Booster";
+    if (!label && url.searchParams.get("panel") === "gmb" && url.searchParams.get("googleReviews") === "1") label = TOOL_ROUTES["/dashboard/e-reputation"];
     if (!label) label = PANEL_NAMES[url.searchParams.get("panel") || ""];
     if (!label && url.searchParams.has("panel")) return undefined;
     label ||= "Accueil";

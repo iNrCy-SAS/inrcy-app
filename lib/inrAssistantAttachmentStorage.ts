@@ -3,7 +3,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { inrAssistantMemoryCutoff, sanitizeInrAssistantMemoryText } from "./inrAssistantMemory.ts";
-import { compactInrAssistantTaskReceipts, inrAssistantTaskTrackingLimit, type InrAssistantTaskState, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
+import { INR_ASSISTANT_APPROVAL_KINDS, compactInrAssistantTaskReceipts, inrAssistantTaskTrackingLimit, type InrAssistantTaskState, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
 import { parseInrAssistantUiSteps } from "./inrAssistantUiTask.ts";
 import { ASSISTANT_ATTACHMENT_BUCKET as BUCKET, ASSISTANT_ATTACHMENT_UUID as UUID, ASSISTANT_ATTACHMENT_TEXT_MAX_CHARS, AssistantAttachmentError, assistantAttachmentFile, parseAssistantAttachments, type AssistantAttachment } from "./inrAssistantAttachments.ts";
 import { parseInrAssistantReplyReplay, type InrAssistantReplyReplay } from "./inrAssistantReplyReplay.ts";
@@ -67,9 +67,10 @@ export async function inspectAssistantTaskState(scope: AssistantAttachmentScope,
       !Array.isArray(task.requiredTools) || task.requiredTools.length > 20 || task.requiredTools.some((name: unknown)=>typeof name !== "string" || !/^[a-zA-Z]{3,60}$/.test(name)) ||
       !Array.isArray(task.receipts) || task.receipts.length > 32 || task.receipts.some((r: Record<string,unknown>)=>!r || typeof r.tool !== "string" || typeof r.status !== "string" || typeof r.message !== "string" || typeof r.ok !== "boolean")) return { status: "invalid" };
     if (task.receipts.some((receipt: Record<string,unknown>) =>
+      receipt.resultMode !== undefined && !["save", "preview"].includes(String(receipt.resultMode)) || receipt.draft !== undefined && typeof receipt.draft !== "boolean" ||
       receipt.approvalToken !== undefined && (typeof receipt.approvalToken !== "string" || receipt.approvalToken.length > 24_000) ||
       receipt.approvalReference !== undefined && (typeof receipt.approvalReference !== "string" || !/^IA-[a-f0-9]{12}$/i.test(receipt.approvalReference)) ||
-      receipt.approvalKind !== undefined && !["calendar", "scheduled_publication", "google_business_profile", "media_delete", "publication_lifecycle", "individual_mail", "commercial_document"].includes(String(receipt.approvalKind)))) return { status: "invalid" };
+      receipt.approvalKind !== undefined && !INR_ASSISTANT_APPROVAL_KINDS.some(kind => kind === receipt.approvalKind))) return { status: "invalid" };
     if (task.requiredCalls !== undefined && (!task.requiredCalls || typeof task.requiredCalls !== "object" || Array.isArray(task.requiredCalls) || Object.keys(task.requiredCalls).length > 20 ||
       Object.entries(task.requiredCalls).some(([name,count])=>!task.requiredTools.includes(name) || !Number.isSafeInteger(count) || Number(count) < 1 || Number(count) > 1_000_000))) return { status: "invalid" };
     if (!validMediaImportSource(task.mediaImportSource)) return { status: "invalid" };
@@ -106,6 +107,8 @@ export async function saveAssistantTaskState(scope: AssistantAttachmentScope, tu
         const key = primary.find(name => typeof r[name] === "string");
         if (key) compact[key] = r[key];
         if (typeof r.requestId === "string") compact.requestId = r.requestId;
+        if (r.resultMode === "save" || r.resultMode === "preview") compact.resultMode = r.resultMode;
+        if (typeof r.draft === "boolean") compact.draft = r.draft;
         if (typeof r.approvalToken === "string") compact.approvalToken = r.approvalToken;
         if (typeof r.approvalReference === "string") compact.approvalReference = r.approvalReference;
         if (r.approvalKind) compact.approvalKind = r.approvalKind;

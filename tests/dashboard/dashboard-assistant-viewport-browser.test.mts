@@ -12,6 +12,26 @@ const compile = (file: string, extra = "") => ts.transpileModule(read(file) + ex
   target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
 } }).outputText;
 const packageSource = (name: string, file: string) => readFileSync(path.join(path.dirname(require.resolve(`${name}/package.json`)), "cjs", file), "utf8");
+/** Compile only dependencies reachable from the reviewed browser entrypoints.
+ * No bare package/server module or path outside lib is admitted by this loader. */
+function browserLibSources(entry: string, output: Record<string, string> = {}) {
+  const normalized = path.posix.normalize(entry.replace(/\\/g, "/")).replace(/\.ts$/, "");
+  assert.ok(!normalized.startsWith("../") && !path.posix.isAbsolute(normalized), normalized);
+  const name = `@/lib/${normalized}`; if (output[name]) return output;
+  const file = `lib/${normalized}.ts`, source = read(file), compiled = compile(file);
+  output[name] = compiled; output[`./${normalized}.ts`] = compiled;
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.ES2022, true);
+  const add = (specifier: string) => {
+    if (specifier.startsWith("@/lib/")) browserLibSources(specifier.slice(6), output);
+    else if (specifier.startsWith("./") || specifier.startsWith("../")) browserLibSources(path.posix.join(path.posix.dirname(normalized), specifier), output);
+  };
+  for (const node of ast.statements) {
+    if (ts.isImportDeclaration(node) && !node.importClause?.isTypeOnly && ts.isStringLiteral(node.moduleSpecifier)) add(node.moduleSpecifier.text);
+    if (ts.isExportDeclaration(node) && !node.isTypeOnly && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) add(node.moduleSpecifier.text);
+  }
+  const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword && node.arguments.length === 1 && ts.isStringLiteral(node.arguments[0])) add(node.arguments[0].text); ts.forEachChild(node, visit); }; visit(ast);
+  return output;
+}
 const sources = {
   react: packageSource("react", "react.production.js"),
   "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
@@ -45,8 +65,11 @@ const sources = {
   "./inrAssistantMailLifecycle.ts": compile("lib/inrAssistantMailLifecycle.ts"),
   "./inrAssistantMailCompose.ts": compile("lib/inrAssistantMailCompose.ts"),
   "./inrAssistantMailAttachments.ts": compile("lib/inrAssistantMailAttachments.ts"),
+  ...Object.assign({}, ...["inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantAttachments", "inrAssistantClientContext", "inrAssistantStudioDraft", "inrAssistantStudioHandoff", "inrAssistantAutoContinuation", "inrAssistantAccountDocuments", "inrAssistantNavigationForm", "inrAssistantMediaPreview"].map(entry => browserLibSources(entry))),
 };
 const fixture = `
+window.viewportFixtureError=null;
+window.addEventListener('error',event=>{window.viewportFixtureError=event.error?.message||event.message});
 const sources=${JSON.stringify(sources)}, loaded={};
 function require(name) {
   if(name.endsWith('.css')) return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
@@ -105,7 +128,7 @@ function require(name){
  if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
  if(name==='./inrAssistantStudioDraft.ts')return require('@/lib/inrAssistantStudioDraft');
- if(name==='next/navigation')return {usePathname:()=>'/dashboard/generer-media',useRouter:()=>({replace(){},push(){}})};
+ if(name==='next/navigation')return {usePathname:()=>'/dashboard/generer-media',useSearchParams:()=>new URLSearchParams(location.search),useRouter:()=>({replace(){},push(){}})};
  if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:()=>key=>key};
  if(name==='@/app/dashboard/_components/DashboardViewerAccessProvider')return {useDashboardViewerAccess:()=>({actorUserId:'actor-fixture',activeAccountId:window.fixtureAccount})};
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.fixtureAccount};
@@ -170,9 +193,11 @@ body{margin:0;background:#080c22;font:16px Arial;color:#fff}button,textarea{font
 type Bounds = { x: number; y: number; width: number; height: number };
 async function assertBounds(page: Page, expected: Bounds) {
   await page.waitForFunction(bounds => {
+    if ((window as unknown as { viewportFixtureError?: string }).viewportFixtureError) return true;
     const rect = document.querySelector("dialog")?.getBoundingClientRect();
     return rect && Object.entries(bounds).every(([key, value]) => Math.abs(rect[key as keyof DOMRect] as number - value) < 1);
   }, expected);
+  assert.equal(await page.evaluate(() => (window as unknown as { viewportFixtureError: string | null }).viewportFixtureError), null, "The real Session fixture must render without module/runtime errors");
   const dialog = await page.getByRole("dialog").boundingBox();
   assert.ok(dialog);
   for (const key of ["x", "y", "width", "height"] as const) assert.ok(Math.abs(dialog[key] - expected[key]) < 1, key);

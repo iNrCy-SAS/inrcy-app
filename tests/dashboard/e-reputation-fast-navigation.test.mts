@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { PRODUCT_GOOGLE_REVIEWS_HREF } from "../../lib/productNavigation.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -10,7 +11,8 @@ test("the retired reputation route opens the Google reviews modal and keeps acco
   const snapshots = read("lib/browserModuleSnapshotCache.ts");
 
   assert.doesNotMatch(page, /force-dynamic|revalidate\s*=\s*0|getGmbToken|gmbListReviews|createSupabaseServer/);
-  assert.match(page, /redirect\("\/dashboard\?panel=gmb&googleReviews=1"\)/);
+  assert.match(page, /redirect\(PRODUCT_GOOGLE_REVIEWS_HREF\)/);
+  assert.equal(PRODUCT_GOOGLE_REVIEWS_HREF, "/dashboard?panel=gmb&googleReviews=1");
   assert.doesNotMatch(page, /EReputationHeader/);
   assert.match(client, /MODULE_SNAPSHOT_KEYS\.eReputationGoogle/);
   assert.match(client, /readModuleSnapshot/);

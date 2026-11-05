@@ -12,9 +12,9 @@ export async function POST(_: Request, ctx: { params: Promise<{ id: string }> })
 
   const { error } = await supabaseAdmin
     .from("notifications")
-    .delete()
+    .update({ read_at: new Date().toISOString() })
     .eq("id", id)
-    .eq("user_id", activeUserId);
+    .eq("user_id", activeUserId).is("read_at", null);
 
   if (error) return jsonUserFacingError(error, { status: 500 });
   return NextResponse.json({ ok: true });

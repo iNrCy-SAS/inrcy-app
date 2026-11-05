@@ -70,3 +70,14 @@ test("all 25 explicitly selected media IDs survive full and compact prompts as v
     assert.ok(json[1].length <= 2400);
   }
 });
+
+test("current product procedures survive compact prompts and outrank old conversation paths", () => {
+  const knowledge = "Accès actuel : Accueil → Connecter mes canaux → Google Business → Avis. Fiche connectée et sélectionnée requise.";
+  for (const compact of [false, true]) {
+    const prompt = buildInrAssistantSystemPrompt("Atelier", undefined, knowledge, "basic", undefined, false, compact);
+    assert.ok(prompt.includes(knowledge), "The supplied procedure must remain available after a tool step");
+    assert.match(prompt, /anciens liens peuvent être des alias/);
+    assert.match(prompt, /sans procédure vérifiée, demande une précision/i);
+    assert.match(prompt, /droits natifs vérifiés du compte priment/);
+  }
+});

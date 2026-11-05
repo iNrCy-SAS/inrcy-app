@@ -373,7 +373,7 @@
     "cashTitle": "Betalingen",
     "cashSub": "Offertes en facturen",
     "cashCta": "Betalingen",
-    "reputationTitle": "E-reputation",
+    "reputationTitle": "Google-reviews",
     "reputationSub": "Beheer Google reviews",
     "reputationCta": "Beheer",
     "cashModalTitle": "Betalingen",
@@ -876,7 +876,7 @@
     "statsCta": "Bekijk statistieken",
     "sendDescription": "Uw activiteitenhistorie.",
     "sendCta": "Bekijk geschiedenis",
-    "reputationName": "Reputatie",
+    "reputationName": "Google-reviews",
     "reputationDescription": "Beheer uw beoordelingen Google",
     "reputationCta": "Beheer mijn beoordelingen",
     "loading": "Laden…",
@@ -1069,11 +1069,11 @@
       },
       "reviews": {
         "title": "Mijn reviews beheren",
-        "subtitle": "Reputatie · Google Business",
+        "subtitle": "Google Business",
         "intro": "Bekijk je Google-reviews en bereid passende antwoorden voor.",
         "steps": {
-          "step1": "Controleer of je Google Business-profiel verbonden is.",
-          "step2": "Open Reputatie en kies een review.",
+          "step1": "Controleer of je Google Business-profiel is verbonden en geselecteerd.",
+          "step2": "Open in Kanalen de Google Business-bubbel, kies Reviews en selecteer een review.",
           "step3": "Lees het voorgestelde antwoord na en keur het goed voordat je het publiceert."
         }
       },
@@ -1133,7 +1133,7 @@
     "media": "Mediabibliotheek",
     "ads": "iNr’ADS",
     "campaigns": "E-mailcampagnes",
-    "reputation": "Reputatie",
+    "reputation": "Google-reviews",
     "stats": "iNr’Stats",
     "send": "iNr’Send",
     "calendar": "iNr’Calendar",

@@ -373,7 +373,7 @@
     "cashTitle": "Incassi",
     "cashSub": "Preventivi e fatture",
     "cashCta": "Incassi",
-    "reputationTitle": "E-reputation",
+    "reputationTitle": "Recensioni Google",
     "reputationSub": "Gestisci recensioni Google",
     "reputationCta": "Gestire",
     "cashModalTitle": "Incassi",
@@ -876,7 +876,7 @@
     "statsCta": "Visualizza le statistiche",
     "sendDescription": "Cronologia delle attività.",
     "sendCta": "Visualizza cronologia",
-    "reputationName": "Reputazione",
+    "reputationName": "Recensioni Google",
     "reputationDescription": "Gestisci le tue recensioni Google",
     "reputationCta": "Gestisci le mie recensioni",
     "loading": "Caricamento in corso…",
@@ -1069,11 +1069,11 @@
       },
       "reviews": {
         "title": "Gestire le mie recensioni",
-        "subtitle": "Reputazione · Google Business",
+        "subtitle": "Google Business",
         "intro": "Consulta le recensioni Google e prepara risposte adatte.",
         "steps": {
-          "step1": "Controlla che la tua scheda Google Business sia collegata.",
-          "step2": "Apri Reputazione e scegli una recensione.",
+          "step1": "Verifica che la scheda Google Business sia collegata e selezionata.",
+          "step2": "In Canali, apri la bolla Google Business, seleziona Recensioni e scegli una recensione.",
           "step3": "Rileggi la risposta proposta e approvala prima della pubblicazione."
         }
       },
@@ -1133,7 +1133,7 @@
     "media": "Libreria multimediale",
     "ads": "iNr’ADS",
     "campaigns": "Campagne email",
-    "reputation": "Reputazione",
+    "reputation": "Recensioni Google",
     "stats": "iNr’Stats",
     "send": "iNr’Send",
     "calendar": "iNr’Calendar",

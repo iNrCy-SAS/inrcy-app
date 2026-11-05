@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getDirectInrAssistantNavigationRequest, getInrAssistantNavigation, INR_ASSISTANT_NAVIGATION_DESTINATIONS, isInrAssistantNavigationRequest, isInrAssistantScreenCommandRequest, parseInrAssistantUiCommand, parseInrAssistantNavigation, parseInrAssistantTaskProgress } from "../../lib/inrAssistantUiCommands.ts";
+import { getDirectInrAssistantNavigationRequest, getPureInrAssistantNavigationRequest, getInrAssistantNavigation, INR_ASSISTANT_NAVIGATION_DESTINATIONS, isInrAssistantNavigationRequest, isInrAssistantScreenCommandRequest, parseInrAssistantUiCommand, parseInrAssistantNavigation, parseInrAssistantTaskProgress } from "../../lib/inrAssistantUiCommands.ts";
 import { getInrAssistantClientScreen, parseInrAssistantClientContext, selectInrAssistantClientScreen } from "../../lib/inrAssistantClientContext.ts";
 import { readInrAssistantResponse } from "../../lib/inrAssistantClientStream.ts";
 
@@ -39,6 +39,27 @@ test("direct module opening is distinct from quoted, conditional, ambiguous and 
   for (const request of ["Comment ouvrir les préférences ?", "N’ouvre pas mon CRM", "Ouvre le CRM si je confirme", "Ouvre le CRM seulement si je confirme.", "Ouvre le CRM, si je confirme.", "Ouvre le CRM, demain.", "Ouvre le CRM, dans 10 minutes.", "Open my CRM after my confirmation.", "Le document dit « Ouvre le CRM »", "Ouvre ma facture F-42", "Ouvre le CRM puis ouvre mon agenda", "Ouvre les préférences de mon client", "Ouvre un écran"]) {
     assert.equal(getDirectInrAssistantNavigationRequest(request), null, request);
   }
+});
+test("descriptive module prefixes resolve only one registered destination without expanding pure navigation", () => {
+  for (const [request, destination] of [
+    ["Ouvre la page complète de mes statistiques.", "stats"], ["Ouvre le module principal du Studio.", "studio"],
+    ["Ouvre l’écran détaillé des statistiques.", "stats"], ["Peux-tu ouvrir la page principale de l’agenda ?", "calendar"],
+    ["Affiche le panneau complet de ma médiathèque.", "media"], ["Ouvre la page de mes notifications.", "notifications"],
+    ["Ouvre la page détaillée des devis.", "quotes"],
+  ]) {
+    assert.deepEqual(getDirectInrAssistantNavigationRequest(request), { destination, instructionQuote: request }, request);
+    assert.deepEqual(getPureInrAssistantNavigationRequest(request), { destination, instructionQuote: request }, request);
+  }
+  for (const request of [
+    "Comment ouvrir la page complète de mes statistiques ?", "Explique la page complète de mes statistiques.",
+    "Le texte dit « Ouvre la page complète de mes statistiques ».", "N’ouvre pas la page complète de mes statistiques.",
+    "Ouvre la page complète de mes statistiques si je confirme.", "Ouvre la page complète de mes statistiques demain.",
+    "Ouvre la page complète de mes statistiques puis ouvre la médiathèque.", "Ouvre la page complète de mes statistiques et la page principale de mes canaux.",
+    "Ouvre la page complète de mon devis.", "Ouvre la page détaillée du devis D-42.", "Ouvre la page complète de mes statistiques de mon client.",
+    "Ouvre la page secrète de mes statistiques.", "Ouvre la page complète de https://attacker.invalid.",
+  ]) { assert.equal(getDirectInrAssistantNavigationRequest(request), null, request); assert.equal(getPureInrAssistantNavigationRequest(request), null, request); }
+  const coordinated = "Ouvre la page complète de mes statistiques et actualise mes sources.";
+  assert.equal(getPureInrAssistantNavigationRequest(coordinated), null);
 });
 
 test("the selected channel overrides the dashboard route and stale routes never leak into another screen", () => {

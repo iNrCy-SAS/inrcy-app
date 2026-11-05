@@ -11,6 +11,25 @@ type Command = {
   batchObject?: string;
 };
 export const INR_ASSISTANT_COMMANDS: Record<string, Command> = {
+  applyWebsiteAnalyticsDisconnection: {family:"business",label:"déconnecter le produit statistique du site après confirmation"},
+  acceptMediaGeneration: {family:"media",label:"enregistrer l’aperçu généré",statusReader:"getMediaGeneration"},
+  discardMediaGeneration: {family:"media",label:"écarter l’aperçu généré"},
+  updateGeneratorBusinessSettings: {family:"business",label:"enregistrer les hypothèses des estimations",clarification:/panier|montant|taux|pourcent|conversion/},
+  updateSocialPublicationPreferences: {family:"business",label:"enregistrer les préférences de formats du canal",clarification:/facebook|instagram|threads|format|defaut|reel|story|stories|ghost/},
+  applyPinterestBoardMutation: {family:"business",label:"appliquer la modification du tableau Pinterest confirmée"},
+  applyWebsiteReset: {family:"business",label:"retirer ou réinitialiser le Site Web après confirmation"},
+  updateBusinessDnaSchedule: {family:"business",label:"enregistrer la programmation mensuelle ADN",clarification:/jour|heure|mensuel|adn|programm/},
+  applyReferralSubmission: {family:"management",label:"transmettre le parrainage confirmé"},
+  markNotificationsRead: {family:"settings",label:"marquer les notifications comme lues"},
+  prepareAccountDocumentDownload: {family:"management",label:"transmettre le téléchargement du document de compte"},
+  configureCookieConsent: {family:"settings",label:"enregistrer la préférence de cookies"},
+  applyBusinessDnaDocumentRemoval: {family:"business",label:"supprimer le document ADN confirmé"},
+  updateWebsiteConfiguration: {family:"business",label:"enregistrer la configuration du site web",clarification:/ga4|gsc|google|analytics|widget|couleur|theme/},
+  updateNativeChannelPresentation: {family:"business",label:"enregistrer la présentation du canal",clarification:/couleur|theme|titre|description|section|visible|affiche|masque/},
+  updateBusinessIdentity: {family:"business",label:"enregistrer l’identité de l’entreprise",clarification:/nom|prenom|entreprise|societe|email|telephone|adresse|ville|postal|profession|metier|logo/},
+  applyChannelConfiguration: {family:"business",label:"appliquer le changement de connexion confirmé"},
+  updateLinkedInPersonalSharing: {family:"business",label:"modifier le partage LinkedIn personnel"},
+  applyGoogleReviewReplyAction: {family:"workspace",label:"appliquer la réponse Google confirmée",batchObject:"avis|reviews?"},
   sendIndividualMail: {family:"workspace",label:"envoyer le mail individuel après confirmation",clarification:/destinataire|expediteur|objet|message|adresse/},
   managePublicationIdeas: { family:"management", label:"mettre à jour les idées de l’agent" },
   setNativeChannelActivation: { family:"business", label:"modifier l’activation du canal" },
@@ -64,7 +83,7 @@ export const INR_ASSISTANT_COMMANDS: Record<string, Command> = {
 };
 
 export const INR_ASSISTANT_PENDING_STATUSES = new Set(["queued","processing","running","ready_to_save","navigation_requested","ui_action_requested"]);
-export const INR_ASSISTANT_UNCERTAIN_STATUSES = new Set(["executing_unconfirmed","unknown","saved_unconfirmed","submitted_unconfirmed","save_unconfirmed"]);
+export const INR_ASSISTANT_UNCERTAIN_STATUSES = new Set(["executing_unconfirmed","unknown","saved_unconfirmed","submitted_unconfirmed","save_unconfirmed","partially_applied"]);
 const REJECTED_STATUSES = new Set(["failed","unknown","partial","executing_unconfirmed","preview_ready","stale_preview","paused","needs_instruction","needs_details","needs_clarification","needs_confirmation","needs_input","blocked","unavailable","saved_unconfirmed","confirmation_required","admin_required","support_required","not_included"]);
 export function isInrAssistantAcceptedReceipt(receipt: {ok:boolean;status:string}): boolean {
   return receipt.ok && !REJECTED_STATUSES.has(receipt.status) && !INR_ASSISTANT_UNCERTAIN_STATUSES.has(receipt.status);

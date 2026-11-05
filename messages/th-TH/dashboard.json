@@ -373,7 +373,7 @@
     "cashTitle": "เงินสดเข้า",
     "cashSub": "ใบเสนอราคาและใบแจ้งหนี้",
     "cashCta": "เงินสดเข้า",
-    "reputationTitle": "E-ชื่อเสียง",
+    "reputationTitle": "รีวิว Google",
     "reputationSub": "จัดการบทวิจารณ์ของคุณ Google",
     "reputationCta": "จัดการ",
     "cashModalTitle": "เงินสดเข้า",
@@ -876,7 +876,7 @@
     "statsCta": "ดูสถิติ",
     "sendDescription": "ประวัติกิจกรรมของคุณ",
     "sendCta": "ดูประวัติ",
-    "reputationName": "ชื่อเสียง",
+    "reputationName": "รีวิว Google",
     "reputationDescription": "จัดการบทวิจารณ์ของคุณ Google",
     "reputationCta": "จัดการรีวิวของฉัน",
     "loading": "กำลังโหลด...",
@@ -1069,11 +1069,11 @@
       },
       "reviews": {
         "title": "จัดการรีวิวของฉัน",
-        "subtitle": "ชื่อเสียง · Google Business",
+        "subtitle": "Google Business",
         "intro": "ดูรีวิวจาก Google และเตรียมคำตอบที่เหมาะสม",
         "steps": {
-          "step1": "ตรวจสอบว่าโปรไฟล์ Google Business เชื่อมต่ออยู่",
-          "step2": "เปิดชื่อเสียงแล้วเลือกรีวิว",
+          "step1": "ตรวจสอบว่าเชื่อมต่อและเลือกโปรไฟล์ Google Business แล้ว",
+          "step2": "ในช่อง ให้เปิดบับเบิล Google Business เลือกรีวิว แล้วเลือกรีวิวที่ต้องการ",
           "step3": "อ่านทบทวนคำตอบที่เสนอและอนุมัติก่อนเผยแพร่"
         }
       },
@@ -1133,7 +1133,7 @@
     "media": "คลังสื่อ",
     "ads": "iNr’ADS",
     "campaigns": "แคมเปญอีเมล",
-    "reputation": "ชื่อเสียง",
+    "reputation": "รีวิว Google",
     "stats": "iNr’Stats",
     "send": "iNr’Send",
     "calendar": "iNr’Calendar",

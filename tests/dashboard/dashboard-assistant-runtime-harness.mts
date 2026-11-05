@@ -13,6 +13,10 @@ import * as studioDraft from "../../lib/inrAssistantStudioDraft.ts";
 import * as studioHandoff from "../../lib/inrAssistantStudioHandoff.ts";
 import * as uiCommands from "../../lib/inrAssistantUiCommands.ts";
 import * as uiActions from "../../lib/inrAssistantUiActions.ts";
+import * as mediaPreview from "../../lib/inrAssistantMediaPreview.ts";
+import * as accountDocuments from "../../lib/inrAssistantAccountDocuments.ts";
+import * as navigationForm from "../../lib/inrAssistantNavigationForm.ts";
+import * as autoContinuation from "../../lib/inrAssistantAutoContinuation.ts";
 import * as taskCopy from "../../app/dashboard/_components/dashboardAssistantTaskCopy.ts";
 
 const require = createRequire(import.meta.url);
@@ -44,7 +48,7 @@ export function invoke(node: Element, name: string, ...args: unknown[]) {
 
 // Execute the real chat callbacks with isolated React state and browser-account
 // access. DOM dialog effects are excluded; the request cleanup runs unchanged.
-export function harness(providerOnly = false, storage = new Map<string, string>(), scope = { actorUserId: "actor-a", activeAccountId: "account-a" }, options: { onboardingWelcome?: boolean; pathname?: string; query?: string } = {}) {
+export function harness(providerOnly = false, storage = new Map<string, string>(), scope = { actorUserId: "actor-a", activeAccountId: "account-a" }, options: { onboardingWelcome?: boolean; pathname?: string; query?: string; locale?: string } = {}) {
   let activeAccountId = scope.activeAccountId;
   const states: unknown[] = [];
   const refs: { current: unknown }[] = [];
@@ -106,7 +110,7 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
       useRef: (initial: unknown) => { const index = refIndex++; return refs[index] ||= { current: initial }; },
       useEffect: (effect: () => void | (() => void)) => effects.push(effect),
     };
-    if (name === "next-intl") return { useLocale: () => "en-GB" };
+    if (name === "next-intl") return { useLocale: () => options.locale ?? "en-GB" };
     if (name === "next/navigation") return { useRouter: () => ({ push: (href: string) => { navigations.push(href); } }), usePathname: () => options.pathname || "/dashboard", useSearchParams: () => new URLSearchParams(options.query ?? "action=publish&token=secret") };
     if (name.endsWith("/useAssistantFirstArrival")) return { useAssistantFirstArrival: (value: typeof arrivalOptions) => { arrivalOptions = value; } };
     if (name === "@/lib/inrAssistantClientContext") return clientContext;
@@ -114,6 +118,10 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
     if (name === "@/lib/inrAssistantRefresh") return { dispatchInrAssistantRefresh: () => false };
     if (name === "@/lib/inrAssistantUiCommands") return uiCommands;
     if (name === "@/lib/inrAssistantUiActions") return uiActions;
+    if (name === "@/lib/inrAssistantMediaPreview") return mediaPreview;
+    if (name === "@/lib/inrAssistantAccountDocuments") return accountDocuments;
+    if (name === "@/lib/inrAssistantNavigationForm") return navigationForm;
+    if (name === "@/lib/inrAssistantAutoContinuation") return autoContinuation;
     if (name === "./dashboardAssistantTaskCopy") return taskCopy;
     if (name === "./DashboardAssistantScreenContext") return { DashboardAssistantScreenContext: require("react").createContext(() => {}) };
     if (name === "./DashboardAssistantCommandContext") return { DashboardAssistantCommandContext: require("react").createContext(() => {}) };

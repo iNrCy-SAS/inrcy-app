@@ -4,30 +4,8 @@ import { useTranslations } from "next-intl";
 import styles from "./LegalPrivacyContent.module.css";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-
-const LS_KEY = "inrcy_cookie_consent";
-
-function getCookiePrefs() {
-  if (typeof window === "undefined") return null as any;
-  try {
-    const raw = window.localStorage.getItem(LS_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function setCookiePrefs(analytics: boolean) {
-  if (typeof window === "undefined") return;
-  try {
-    const next = { v: 1, ts: Date.now(), analytics };
-    window.localStorage.setItem(LS_KEY, JSON.stringify(next));
-    window.dispatchEvent(new CustomEvent("inrcy:cookie-consent", { detail: next }));
-  } catch {
-    // no-op
-  }
-}
+import { useState, useSyncExternalStore } from "react";
+import { cookieConsentSnapshot, parseCookieConsent, setCookieAnalyticsPreference, subscribeCookieConsent } from "@/lib/cookieConsentPreferences";
 
 type Props = {
   mode?: "page" | "drawer";
@@ -49,8 +27,8 @@ export default function RgpdContent({ mode = "page" }: Props) {
   const [busy, setBusy] = useState<"export" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
-  const initialPrefs = useMemo(() => getCookiePrefs(), []);
-  const [analytics, setAnalytics] = useState<boolean>(Boolean(initialPrefs?.analytics));
+  const consentRaw = useSyncExternalStore(subscribeCookieConsent, cookieConsentSnapshot, () => null);
+  const analytics = Boolean(parseCookieConsent(consentRaw)?.analytics);
 
   async function downloadExport() {
     setErr(null);
@@ -79,9 +57,7 @@ export default function RgpdContent({ mode = "page" }: Props) {
   }
 
   function onToggleAnalytics(next: boolean) {
-    setAnalytics(next);
-    setCookiePrefs(next);
-    setDone(i18nT("rgpd_cookie_saved"));
+    if (setCookieAnalyticsPreference(next)) setDone(i18nT("rgpd_cookie_saved"));
   }
 
   return (

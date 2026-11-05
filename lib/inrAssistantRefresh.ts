@@ -4,13 +4,19 @@ export type InrAssistantRefreshTopic = typeof INR_ASSISTANT_REFRESH_TOPICS[numbe
 export type InrAssistantRefresh = { accountId: string; turnId: string; topics: InrAssistantRefreshTopic[] };
 type Receipt = { tool: string; ok: boolean; status: string };
 const TOOLS: Record<string, InrAssistantRefreshTopic[]> = {
+  updateGeneratorBusinessSettings:["business","settings","stats"],
+  updateBusinessIdentity:["business","channels"], applyChannelConfiguration:["channels","stats"], updateLinkedInPersonalSharing:["channels"],
+  updateNativeChannelPresentation:["channels","settings"], updateWebsiteConfiguration:["channels","settings","stats"], applyWebsiteAnalyticsDisconnection:["channels","stats"],
+  applyBusinessDnaDocumentRemoval:["business"], updateBusinessDnaSchedule:["business","settings"], updateSocialPublicationPreferences:["channels","settings"],
+  applyPinterestBoardMutation:["channels"], applyWebsiteReset:["channels","settings","stats"], applyGoogleReviewReplyAction:["channels"],
+  acceptMediaGeneration:["media"], discardMediaGeneration:["media"],
   updateMediaMetadata: ["media"], importMediaAttachment: ["media"], applyMediaDeletion: ["media"], generateMedia: ["media"], modifyMedia: ["media"], getMediaGeneration: ["media"],
   managePublicationIdeas: ["agents"], configureAgentAutomation: ["agents"], editPreparedPublication: ["agents"], applyPublicationLifecycleAction: ["agents"], preparePublication: ["agents"], executePublication: ["agents"], editPublication: ["agents"], applyScheduledPublicationAction: ["agents"], updateScheduledPublication: ["agents"], cancelScheduledPublication: ["agents"], retryScheduledPublication: ["agents"],
   updateToolSettings: ["settings", "channels"], setNativeChannelActivation: ["channels"], updateChannelPublicUrl: ["channels"], applyGoogleBusinessProfileUpdate: ["channels"], replyToGoogleReview: ["channels"],
   updateBusinessDna: ["business", "channels"], updateAiConfiguration: ["business", "settings"], configureBusinessCta: ["business", "channels"],
   refreshStatsSources: ["stats"], sendStatsReport: ["stats", "agents"],
 };
-const CONFIRMED = new Set(["saved", "saved_with_adjustments", "updated", "deleted", "deleted_locally", "cancelled_locally", "imported", "completed", "succeeded", "generated", "ready", "draft", "prepared", "pending_validation", "published", "scheduled", "cancelled", "confirmed", "sent", "restored", "refused", "already_processed", "already_configured", "previous_attempt_recorded", "success"]);
+const CONFIRMED = new Set(["saved", "saved_with_adjustments", "updated", "deleted", "deleted_locally", "cancelled_locally", "imported", "completed", "succeeded", "generated", "ready", "draft", "prepared", "pending_validation", "published", "scheduled", "cancelled", "confirmed", "sent", "restored", "refused", "already_processed", "already_configured", "previous_attempt_recorded", "success", "removed"]);
 /** Project only confirmed native effects. No receipt text, URL, approval or business data leaves the server here. */
 export function assistantRefreshTopics(receipts: readonly Receipt[]): InrAssistantRefreshTopic[] {
   return [...new Set(receipts.filter(receipt => receipt.ok && (CONFIRMED.has(receipt.status) || receipt.tool === "refreshStatsSources" && receipt.status === "read")).flatMap(receipt => TOOLS[receipt.tool] ?? []))];

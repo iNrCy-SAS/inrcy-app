@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { useInrAssistantRefresh } from "../../_hooks/useInrAssistantRefresh";
+import { useInrAssistantBadgeCommands } from "../../_hooks/useInrAssistantBadgeCommands";
 import { createInrBadgeQrMatrix } from "@/lib/inrBadgeQr";
 import { createInrBadgeQrTrackingUrl, type InrBadgeProfileSummary } from "@/lib/inrBadge";
 import { effectiveInrBadgeShareSettings } from "@/lib/inrBadgeEditionPolicy";
@@ -286,13 +287,13 @@ function drawQrOnCanvas(ctx: CanvasRenderingContext2D, matrix: boolean[][], x: n
   });
 }
 
-async function downloadQrPng(publicUrl: string, profile: InrBadgeProfileSummary) {
+async function downloadQrPng(publicUrl: string, profile: InrBadgeProfileSummary, canDownload: () => boolean) {
   const matrix = createInrBadgeQrMatrix(publicUrl);
   const canvas = document.createElement("canvas");
   canvas.width = 1200;
   canvas.height = 1500;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) return false;
 
   ctx.fillStyle = "#f8fafc";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -317,15 +318,18 @@ async function downloadQrPng(publicUrl: string, profile: InrBadgeProfileSummary)
   ctx.fillText(urlText, canvas.width / 2, 1295);
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-  if (!blob) return;
+  if (!blob || !canDownload()) return false;
   downloadBlob(blob, `${safeFilename(trim(profile.companyLegalName) || getDisplayName(profile))}-inrbadge.png`);
+  return true;
 }
 
-export async function downloadInrBadgeQr(publicUrl: string, profile: InrBadgeProfileSummary, format: "png" | "pdf") {
-  if (!publicUrl) return;
+export async function downloadInrBadgeQr(publicUrl: string, profile: InrBadgeProfileSummary, format: "png" | "pdf", canDownload: () => boolean = () => true) {
+  if (!publicUrl || !canDownload()) return false;
   const trackingUrl = createInrBadgeQrTrackingUrl(publicUrl);
-  if (format === "png") return downloadQrPng(trackingUrl, profile);
+  if (format === "png") return downloadQrPng(trackingUrl, profile, canDownload);
+  if (!canDownload()) return false;
   downloadBlob(createPdfBlob(trackingUrl, profile), `${safeFilename(trim(profile.companyLegalName) || getDisplayName(profile))}-inrbadge.pdf`);
+  return true;
 }
 
 function escapePdfText(value: string) {
@@ -507,6 +511,9 @@ export default function InrBadgeSettingsContent({
   const pendingSavesRef = useRef(0);
   const saveRevision = useRef(0);
   const assistantReadOnly = useRef(false);
+  useInrAssistantBadgeCommands({ snapshot: { publicUrl, profile, profileReady }, enabled: Boolean(profileReady && publicUrl && trim(profile.userId) === getActiveBrowserUserId()), pendingChanges: loadingSettings || pendingSaves > 0 || extractingLogoTheme,
+    download: (format, canDownload) => downloadInrBadgeQr(publicUrl, profile, format, () => canDownload() && trim(profile.userId) === getActiveBrowserUserId()),
+  });
   const trackSave = useCallback(async (save: () => Promise<void>) => {
     saveRevision.current++;
     pendingSavesRef.current++;
@@ -520,9 +527,12 @@ export default function InrBadgeSettingsContent({
     const data = await response.json();
     if (!response.ok || !data.settings || !canApply() || pendingSavesRef.current > 0 || revision !== saveRevision.current || accountId !== getActiveBrowserUserId()) return false;
     const next = effectiveInrBadgeShareSettings(normalizeInrBadgeShareSettings(data.settings), dashboardEdition);
+    const nextTheme = normalizeInrBadgeThemeSettings(data.theme);
     assistantReadOnly.current = true;
     setSettings(next);
+    setTheme(nextTheme);
     saveBadgeSettings(storageKey, next, appointmentSettings, selectedMailAccountId);
+    saveThemeSettings(storageKey, nextTheme);
     return true;
   } });
 

@@ -373,7 +373,7 @@
     "cashTitle": "Payments",
     "cashSub": "Quotes and invoices",
     "cashCta": "Payments",
-    "reputationTitle": "E-reputation",
+    "reputationTitle": "Google reviews",
     "reputationSub": "Manage Google reviews",
     "reputationCta": "Manage",
     "cashModalTitle": "Payments",
@@ -876,7 +876,7 @@
     "statsCta": "View statistics",
     "sendDescription": "Your activity history.",
     "sendCta": "View history",
-    "reputationName": "Reputation",
+    "reputationName": "Google reviews",
     "reputationDescription": "Manage your reviews Google.",
     "reputationCta": "Manage my reviews",
     "loading": "Loading…",
@@ -1069,11 +1069,11 @@
       },
       "reviews": {
         "title": "Manage my reviews",
-        "subtitle": "Reputation · Google Business",
+        "subtitle": "Google Business",
         "intro": "Find your Google reviews and prepare suitable replies.",
         "steps": {
-          "step1": "Check that your Google Business profile is connected.",
-          "step2": "Open Reputation and choose a review.",
+          "step1": "Check that your Google Business profile is connected and selected.",
+          "step2": "In Channels, open the Google Business bubble, select Reviews, then choose a review.",
           "step3": "Review the suggested reply and approve it before publishing."
         }
       },
@@ -1133,7 +1133,7 @@
     "media": "Media library",
     "ads": "iNr’ADS",
     "campaigns": "Email campaigns",
-    "reputation": "Reputation",
+    "reputation": "Google reviews",
     "stats": "iNr’Stats",
     "send": "iNr’Send",
     "calendar": "iNr’Calendar",

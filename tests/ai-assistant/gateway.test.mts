@@ -26,6 +26,8 @@ import * as uiActions from "../../lib/inrAssistantUiActions.ts";
 import * as actionCoverage from "../../lib/inrAssistantActionCoverage.ts";
 import * as commandRegistry from "../../lib/inrAssistantCommandRegistry.ts";
 import * as uiCommands from "../../lib/inrAssistantUiCommands.ts";
+import * as statsUiCommands from "../../lib/inrAssistantStatsUiCommands.ts";
+import * as pureStatsViewRequest from "../../lib/inrAssistantPureStatsViewRequest.ts";
 import { getInrAssistantDocumentPrefillNavigation } from "../../lib/inrAssistantDocumentUiCommands.ts";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
 import type * as ToolRegistry from "../../lib/inrAssistantToolRegistry.ts";
@@ -77,6 +79,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   const reservations: { feature: string; reservedOutputTokens: number; estimatedInputTokens: number }[] = [];
   const commits: { model: string; usage: { inputTokens: number; outputTokens: number; totalTokens: number } }[] = [];
   const finalized: { success: boolean }[] = [];
+  const quotaReservations: unknown[] = [];
   const budgetReservations: { accountId: string; edition: string; estimatedCostMicroUsd: number }[] = [];
   const budgetFinalizations: { reservation: unknown; actualCostMicroUsd: number | undefined }[] = [];
   const factories: string[] = [];
@@ -151,7 +154,20 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantActionCoverage.ts": actionCoverage,
     "./inrAssistantCommandRegistry.ts": commandRegistry,
     "./inrAssistantUiCommands.ts": uiCommands,
+    "./inrAssistantPureStatsViewRequest.ts": pureStatsViewRequest,
     "./inrAssistantUiTools.ts": { createInrAssistantUiTools: () => options.extraTools??{} },
+    "./inrAssistantBusinessIdentityTools.ts": {createInrAssistantBusinessIdentityTools:()=>({})},
+    "./inrAssistantChannelConfigurationTools.ts": {createInrAssistantChannelConfigurationTools:()=>({})},
+    "./inrAssistantSocialPublicationPreferencesTools.ts": {createInrAssistantSocialPublicationPreferencesTools:()=>({})},
+    "./inrAssistantPinterestBoardTools.ts": {createInrAssistantPinterestBoardTools:()=>({})},
+    "./inrAssistantWebsiteLifecycleTools.ts": {createInrAssistantWebsiteLifecycleTools:()=>({})},
+    "./inrAssistantDnaScheduleTools.ts": {createInrAssistantDnaScheduleTools:()=>({})},
+    "./inrAssistantReferralTools.ts": {createInrAssistantReferralTools:()=>({})},
+    "./inrAssistantGeneratorSettingsTools.ts": {createInrAssistantGeneratorSettingsTools:()=>({})},
+    "./inrAssistantWebsiteTools.ts": {createInrAssistantWebsiteTools:()=>({})},
+    "./inrAssistantBusinessDnaSourceTools.ts": {createInrAssistantBusinessDnaSourceTools:()=>({})},
+    "./inrAssistantAccountServiceTools.ts": {createInrAssistantAccountServiceTools:()=>({})},
+    "./inrAssistantNativePresentationTools.ts": {createInrAssistantNativePresentationTools:()=>({})},
     "./inrAssistantChannelTools.ts": { createInrAssistantChannelTools: () => ({}) },
     "./inrAssistantCampaignTools.ts": { createInrAssistantCampaignTools: () => ({}) },
     "./inrAssistantMailboxTools.ts": { createInrAssistantMailboxTools: (args:Record<string,unknown>) => options.mailboxFactory?.(args) ?? {} },
@@ -167,7 +183,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
       readPublicationWorkspace: tool({ inputSchema: jsonSchema({ type: "object", properties: { view: { type: "string" }, recordId: { type: ["string", "null"] }, offset: { type: "integer" } } }), execute: async input => options.accountRead?.("readPublicationWorkspace", input) ?? { ok: true, records: [] } }),
     } : {} },
     "./inrAssistantStatsTools.ts": { createInrAssistantStatsTools: (args:Record<string,unknown>) => options.statsFactory?.(args) ?? {} },
-    "./inrAssistantQuota.ts": { reserveInrAssistantRequest: async () => ({ solReserved: options.sol ?? false }),
+    "./inrAssistantQuota.ts": { reserveInrAssistantRequest: async (args: unknown) => { quotaReservations.push(args); return { solReserved: options.sol ?? false }; },
       finalizeInrAssistantRequest: async (_quota: unknown, outcome: { success: boolean }) => { finalized.push(outcome); } },
     "./inrAssistantBudget.ts": {
       reserveInrAssistantBudget: async (args: { accountId: string; edition: string; estimatedCostMicroUsd: number }) => {
@@ -270,7 +286,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, {
     Date, TextEncoder, AbortSignal, console, process: { env: { NODE_ENV: options.productionNoRedis ? "production" : "test" } },
   })((name: string) => { if (!(name in stubs)) throw new Error(`Unexpected dependency: ${name}`); return stubs[name]; }, moduleRecord, moduleRecord.exports);
-  return { runtime: moduleRecord.exports as typeof Gateway, generations, reservations, commits, finalized, budgetReservations, budgetFinalizations, factories, actionFactories, toolScopes, ctaScopes, publicationExecutions, metadataExecutions, crmExecutions, mediaScopes, diagnostics, get mediaExecutions() { return mediaExecutions; } };
+  return { runtime: moduleRecord.exports as typeof Gateway, generations, reservations, commits, finalized, quotaReservations, budgetReservations, budgetFinalizations, factories, actionFactories, toolScopes, ctaScopes, publicationExecutions, metadataExecutions, crmExecutions, mediaScopes, diagnostics, get mediaExecutions() { return mediaExecutions; } };
 }
 
 const basic = { accountId: "account-a", displayName: "Entreprise A", edition: "standard" as const,
@@ -1231,6 +1247,31 @@ test("a pure natural-language navigation executes its authenticated tool once wi
   }
 });
 
+test("Basic full statistics page uses the real authenticated native navigation without a provider", async () => {
+  const message = "Ouvre la page complète de mes statistiques.";
+  let authReads = 0;
+  const [editions, ads, media, mail, studio, stats, website, screenPolicy] = await Promise.all([
+    import("../../lib/dashboardEdition.ts"), import("../../lib/inrAssistantAdsUiCommands.ts"), import("../../lib/inrAssistantMediaUiCommands.ts"),
+    import("../../lib/inrAssistantMailLifecycle.ts"), import("../../lib/inrAssistantStudioUiCommands.ts"), import("../../lib/inrAssistantStatsUiCommands.ts"), import("../../lib/inrAssistantWebsiteUiCommands.ts"), import("../../lib/inrAssistantScreenCommandPolicy.ts"),
+  ]);
+  const unused = () => { throw new Error("Only native navigation is expected"); };
+  const nativeUi = loadClosedModule<typeof import("../../lib/inrAssistantUiTools.ts")>("inrAssistantUiTools.ts", {
+    "server-only": {}, ai: { jsonSchema, tool }, "./requireUser": { requireUser: async () => { authReads++; return { activeUserId: basic.accountId }; } },
+    "./dashboardEdition.ts": editions, "./inrAssistantUiCommands.ts": uiCommands,
+    "./inrAssistantAdsUiCommands.ts": ads, "./inrAssistantMediaUiCommands.ts": media, "./inrAssistantMailLifecycle.ts": mail,
+    "./inrAssistantStudioUiCommands.ts": studio, "./inrAssistantStatsUiCommands.ts": stats, "./inrAssistantWebsiteUiCommands.ts": website,
+    "./inrAssistantScreenCommandPolicy.ts": screenPolicy, "./inrAssistantMailAttachments.ts": { resolveInrAssistantMailAttachments: unused },
+    "./inrAssistantMediaUiTools.ts": { prepareInrAssistantMediaUiAction: unused }, "./inrAssistantAdsUiTools.ts": { prepareInrAssistantAdsUiAction: unused },
+    "./inrAssistantStudioUiTools.ts": { prepareInrAssistantStudioUiAction: unused }, "./inrAssistantStatsUiTools.ts": { prepareInrAssistantStatsUiAction: unused },
+    "./inrAssistantBadgeUiTools.ts": { prepareInrAssistantBadgeUiAction: unused }, "./inrAssistantWebsiteUiTools.ts": { prepareInrAssistantWebsiteUiAction: unused },
+  });
+  const tools = nativeUi.createInrAssistantUiTools({ accountId: basic.accountId, edition: "basic", currentUserMessage: message });
+  const h = harness({ providerError: new Error("Provider must not be used"), noCredential: true, productionNoRedis: true, extraTools: tools });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", messages: [{ role: "user", content: message }] });
+  assert.equal(authReads, 1); assert.equal(reply.navigation?.destination, "stats"); assert.equal(reply.navigation?.href, "/dashboard/stats");
+  assert.equal(reply.outcome, "processing"); assert.match(reply.message, /demandée/); assert.equal(h.generations.length, 0); assert.equal(h.reservations.length, 0); assert.equal(h.budgetReservations.length, 0);
+});
+
 test("a refused or forged native navigation result remains blocked without asking a model to bypass it", async () => {
   for (const output of [
     { ok: false, status: "blocked", message: "Le compte actif doit être vérifié." },
@@ -1397,6 +1438,214 @@ function uiBarrierFixture(onExecute = () => {}) {
   return { runScreenCommand: tool({ inputSchema: jsonSchema<{ command: string; instructionQuote: string }>({ type: "object", properties: { command: { type: "string" }, instructionQuote: { type: "string" } }, required: ["command", "instructionQuote"] }), execute: async () => { onExecute(); return { ok: true, status: "ui_action_requested", message: "Modification du formulaire demandée.", uiCommand: uiBarrierCommand }; } }) };
 }
 const uiBarrierCall = { tool: "runScreenCommand", input: { command: "configure_ads_draft", instructionQuote: uiBarrierClause } };
+
+const statsLiveScreen = { pathname: "/dashboard/stats", tool: "iNr’Stats", selection: { kind: "stats" as const, id: "stats" }, revision: "stats_live_1", availableCommands: ["configure_stats_view" as const] };
+function statsScreenFixture(message: string, onExecute: () => void, screen = statsLiveScreen) {
+  const native = loadClosedModule<typeof import("../../lib/inrAssistantStatsUiTools.ts")>("inrAssistantStatsUiTools.ts", {
+    "server-only": {}, "./requireUser": { requireUser: async () => ({ activeUserId: basic.accountId }) }, "./inrAssistantStatsUiCommands.ts": statsUiCommands,
+  });
+  return { runScreenCommand: tool({ inputSchema: jsonSchema<{ command: string; instructionQuote: string; patch: Record<string, unknown> }>({ type: "object", properties: { command: { type: "string" }, instructionQuote: { type: "string" }, patch: { type: "object" } }, required: ["command", "instructionQuote", "patch"] }), execute: async input => {
+    onExecute(); return native.prepareInrAssistantStatsUiAction(input, { accountId: basic.accountId, currentUserMessage: message, clientContext: { source: "untrusted_client", screen } });
+  } }) };
+}
+function statsLlmContinuation(instruction: string) {
+  const clientContext = { source: "untrusted_client" as const, screen: statsLiveScreen };
+  return { clientContext, actionInstruction: instruction, taskIntent: "continue" as const,
+    taskContext: { version: 1 as const, instruction, actionRequestId: basic.requestId, startedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), outcome: "partial" as const, requiredTools: [], receipts: [], question: "Reprendre l’étape d’écran demandée.", uiSteps: uiTask.inrAssistantUiSteps(instruction, clientContext) },
+    messages: [{ role: "user" as const, content: "Continuer" }] };
+}
+async function authenticatedStatsScreenFixture(message: string, onAuth: () => void, activeUserId = basic.accountId, screen = statsLiveScreen) {
+  const [editions, ads, media, mail, studio, website, screenPolicy] = await Promise.all([
+    import("../../lib/dashboardEdition.ts"), import("../../lib/inrAssistantAdsUiCommands.ts"), import("../../lib/inrAssistantMediaUiCommands.ts"),
+    import("../../lib/inrAssistantMailLifecycle.ts"), import("../../lib/inrAssistantStudioUiCommands.ts"), import("../../lib/inrAssistantWebsiteUiCommands.ts"), import("../../lib/inrAssistantScreenCommandPolicy.ts"),
+  ]);
+  const requireUser = async () => { onAuth(); return { activeUserId }; }, unused = () => { throw new Error("Only the native Stats view command is expected"); };
+  const nativeStats = loadClosedModule<typeof import("../../lib/inrAssistantStatsUiTools.ts")>("inrAssistantStatsUiTools.ts", { "server-only": {}, "./requireUser": { requireUser }, "./inrAssistantStatsUiCommands.ts": statsUiCommands });
+  const nativeUi = loadClosedModule<typeof import("../../lib/inrAssistantUiTools.ts")>("inrAssistantUiTools.ts", {
+    "server-only": {}, ai: { jsonSchema, tool }, "./requireUser": { requireUser }, "./dashboardEdition.ts": editions, "./inrAssistantUiCommands.ts": uiCommands,
+    "./inrAssistantAdsUiCommands.ts": ads, "./inrAssistantMediaUiCommands.ts": media, "./inrAssistantMailLifecycle.ts": mail,
+    "./inrAssistantStudioUiCommands.ts": studio, "./inrAssistantStatsUiCommands.ts": statsUiCommands, "./inrAssistantWebsiteUiCommands.ts": website,
+    "./inrAssistantScreenCommandPolicy.ts": screenPolicy, "./inrAssistantMailAttachments.ts": { resolveInrAssistantMailAttachments: unused },
+    "./inrAssistantMediaUiTools.ts": { prepareInrAssistantMediaUiAction: unused }, "./inrAssistantAdsUiTools.ts": { prepareInrAssistantAdsUiAction: unused },
+    "./inrAssistantStudioUiTools.ts": { prepareInrAssistantStudioUiAction: async () => null }, "./inrAssistantStatsUiTools.ts": nativeStats,
+    "./inrAssistantBadgeUiTools.ts": { prepareInrAssistantBadgeUiAction: async () => null }, "./inrAssistantWebsiteUiTools.ts": { prepareInrAssistantWebsiteUiAction: async () => null },
+  });
+  return nativeUi.createInrAssistantUiTools({ accountId: basic.accountId, edition: "basic", currentUserMessage: message, clientContext: { source: "untrusted_client", screen } });
+}
+test("Basic native Stats Globale and Evolution buttons use the authenticated screen tool without provider or quota", async () => {
+  for (const [view, panel] of [["Globale", "all"], ["Évolution", "evolution"]] as const) {
+    const message = `Affiche la vue ${view} des statistiques.`;
+    let authReads = 0;
+    const h = harness({ providerError: new Error("Provider must not be used"), noCredential: true, productionNoRedis: true, extraTools: await authenticatedStatsScreenFixture(message, () => authReads++) });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", clientContext: { source: "untrusted_client", screen: statsLiveScreen }, messages: [{ role: "user", content: message }] });
+    assert.equal(authReads, 1); assert.equal(reply.uiCommand?.command, "configure_stats_view"); assert.deepEqual(JSON.parse(JSON.stringify(reply.uiCommand)), { command: "configure_stats_view", selection: statsLiveScreen.selection, revision: statsLiveScreen.revision, patch: { panel } });
+    assert.equal(reply.outcome, "processing"); assert.equal(reply.taskState, undefined); assert.match(reply.message, /demand|transmis/); assert.doesNotMatch(reply.message, /vue (?:appliquée|modifiée)|succès/);
+    assert.equal(h.generations.length, 0); assert.equal(h.quotaReservations.length, 0); assert.equal(h.reservations.length, 0); assert.equal(h.budgetReservations.length, 0); assert.equal(h.finalized.length, 0);
+  }
+});
+test("Basic native Stats rejects forged results and native account refusal without provider fallback", async () => {
+  const message = "Affiche la vue Évolution des statistiques.", valid = { command: "configure_stats_view", selection: statsLiveScreen.selection, revision: statsLiveScreen.revision, patch: { panel: "evolution" } };
+  for (const output of [
+    { ok: false, status: "blocked", message: "Le compte actif doit être vérifié." },
+    { ok: true, status: "ui_action_requested", uiCommand: { ...valid, command: "configure_image_retouch" } },
+    { ok: true, status: "ui_action_requested", uiCommand: { ...valid, selection: { kind: "stats", id: "other-stats" } } },
+    { ok: true, status: "ui_action_requested", uiCommand: { ...valid, revision: "stats_other_revision" } },
+    { ok: true, status: "ui_action_requested", uiCommand: { ...valid, patch: { panel: "all" } } },
+    { ok: true, status: "ui_action_requested", uiCommand: { ...valid, patch: { panel: "evolution", metric: "clicks" } } },
+  ]) {
+    const h = harness({ providerError: new Error("Provider must not bypass the native result"), noCredential: true, productionNoRedis: true, extraTools: { runScreenCommand: tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => output }) } });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", clientContext: { source: "untrusted_client", screen: statsLiveScreen }, messages: [{ role: "user", content: message }] });
+    assert.equal(reply.outcome, "blocked", JSON.stringify(output)); assert.equal(reply.uiCommand, undefined); assert.equal(reply.uiActions, undefined); assert.equal(h.generations.length, 0); assert.equal(h.quotaReservations.length, 0); assert.equal(h.reservations.length, 0); assert.equal(h.budgetReservations.length, 0);
+  }
+  let authReads = 0;
+  const h = harness({ noCredential: true, productionNoRedis: true, extraTools: await authenticatedStatsScreenFixture(message, () => authReads++, "another-account") });
+  const refused = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", clientContext: { source: "untrusted_client", screen: statsLiveScreen }, messages: [{ role: "user", content: message }] });
+  assert.equal(authReads, 1); assert.equal(refused.outcome, "blocked"); assert.equal(refused.uiCommand, undefined); assert.equal(h.generations.length, 0); assert.equal(h.quotaReservations.length, 0);
+});
+const nativeStatsSequenceInstruction = "Affiche la vue Globale des statistiques puis affiche la vue Évolution des statistiques.";
+function assertNoStatsProviderOrQuota(h: ReturnType<typeof harness>) {
+  assert.deepEqual([h.generations.length, h.quotaReservations.length, h.reservations.length, h.budgetReservations.length, h.finalized.length], [0, 0, 0, 0, 0]);
+}
+async function startNativeStatsSequence() {
+  let authReads = 0;
+  const h = harness({ noCredential: true, productionNoRedis: true, extraTools: await authenticatedStatsScreenFixture(nativeStatsSequenceInstruction, () => authReads++) });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", clientContext: { source: "untrusted_client", screen: statsLiveScreen }, messages: [{ role: "user", content: nativeStatsSequenceInstruction }] });
+  assert.equal(authReads, 1); assertNoStatsProviderOrQuota(h); assert.equal(reply.outcome, "partial"); assert.ok(reply.uiCommand?.command === "configure_stats_view"); assert.equal(reply.uiCommand.patch.panel, "all"); assert.equal(reply.uiActions?.length, 1);
+  const state = structuredClone(reply.taskState!); assert.equal(state.uiSteps?.length, 2); assert.equal(state.uiSteps?.[0].actions?.length, 1); assert.equal(state.uiSteps?.[1].actions, undefined);
+  state.uiSteps = uiTask.bindInrAssistantUiSteps(state.uiSteps!, reply.uiActions!, { turnId: randomUUID(), createdAt: new Date().toISOString() });
+  return state;
+}
+test("Basic ordered native Stats views wait for each scoped ACK and complete after the second without model or quota", async () => {
+  const state = await startNativeStatsSequence(), nextScreen = { ...statsLiveScreen, revision: "stats_sequence_2" };
+  let noAckExecutions = 0;
+  const waiting = harness({ noCredential: true, productionNoRedis: true, extraTools: await authenticatedStatsScreenFixture(nativeStatsSequenceInstruction, () => noAckExecutions++) });
+  const pending = await waiting.runtime.generateInrAssistantReply({ ...basic, edition: "basic", clientContext: { source: "untrusted_client", screen: statsLiveScreen }, taskContext: structuredClone(state), actionInstruction: nativeStatsSequenceInstruction, taskIntent: "continue", messages: [{ role: "user", content: "Continuer" }] });
+  assert.equal(noAckExecutions, 0); assert.equal(pending.uiCommand, undefined); assert.equal(pending.uiActions?.length ?? 0, 0); assert.equal(pending.outcome, "partial"); assertNoStatsProviderOrQuota(waiting);
+  const firstAck = { stepId: state.uiSteps![0].id, status: "applied" as const, postScreen: { pathname: nextScreen.pathname, selection: nextScreen.selection, revision: nextScreen.revision } };
+  let secondExecutions = 0;
+  const resumed = harness({ noCredential: true, productionNoRedis: true, extraTools: await authenticatedStatsScreenFixture(nativeStatsSequenceInstruction, () => secondExecutions++, basic.accountId, nextScreen) });
+  const second = await resumed.runtime.generateInrAssistantReply({ ...basic, edition: "basic", clientContext: { source: "untrusted_client", screen: nextScreen }, taskContext: structuredClone(state), actionInstruction: nativeStatsSequenceInstruction, taskIntent: "continue", browserStepResults: [firstAck], messages: [{ role: "user", content: "Continuer" }] });
+  assert.equal(secondExecutions, 1); assert.equal(second.outcome, "partial"); assert.ok(second.uiCommand?.command === "configure_stats_view"); assert.equal(second.uiCommand.patch.panel, "evolution"); assert.equal(second.uiCommand.revision, nextScreen.revision); assert.equal(second.uiActions?.length, 1); assertNoStatsProviderOrQuota(resumed);
+  const secondState = structuredClone(second.taskState!); secondState.uiSteps = uiTask.bindInrAssistantUiSteps(secondState.uiSteps!, second.uiActions!, { turnId: randomUUID(), createdAt: new Date().toISOString() });
+  const finalScreen = { ...nextScreen, revision: "stats_sequence_3" };
+  let finalExecutions = 0;
+  const finished = harness({ noCredential: true, productionNoRedis: true, extraTools: await authenticatedStatsScreenFixture(nativeStatsSequenceInstruction, () => finalExecutions++, basic.accountId, finalScreen) });
+  const final = await finished.runtime.generateInrAssistantReply({ ...basic, edition: "basic", clientContext: { source: "untrusted_client", screen: finalScreen }, taskContext: secondState, actionInstruction: nativeStatsSequenceInstruction, taskIntent: "continue", browserStepResults: [firstAck, { stepId: secondState.uiSteps![1].id, status: "applied", postScreen: { pathname: finalScreen.pathname, selection: finalScreen.selection, revision: finalScreen.revision } }], messages: [{ role: "user", content: "Continuer" }] });
+  assert.equal(finalExecutions, 0); assert.equal(final.outcome, "completed"); assert.equal(final.uiCommand, undefined); assert.equal(final.uiActions?.length ?? 0, 0); assertNoStatsProviderOrQuota(finished);
+});
+test("Basic ordered native Stats refuses a mismatched screen scope or revision and an unbound acknowledgement", async () => {
+  const state = await startNativeStatsSequence(), nextScreen = { ...statsLiveScreen, revision: "stats_sequence_2" };
+  for (const mismatch of ["selection", "revision", "source"] as const) {
+    const resumedState = structuredClone(state); if (mismatch === "source") delete resumedState.uiSteps![0].source;
+    let executions = 0;
+    const h = harness({ noCredential: true, productionNoRedis: true, extraTools: await authenticatedStatsScreenFixture(nativeStatsSequenceInstruction, () => executions++, basic.accountId, nextScreen) });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", clientContext: { source: "untrusted_client", screen: nextScreen }, taskContext: resumedState, actionInstruction: nativeStatsSequenceInstruction, taskIntent: "continue", browserStepResults: [{ stepId: state.uiSteps![0].id, status: "applied", postScreen: { pathname: nextScreen.pathname, selection: mismatch === "selection" ? { kind: "stats", id: "other-stats" } : nextScreen.selection, revision: mismatch === "revision" ? "stats_manual_intervening_revision" : nextScreen.revision } }], messages: [{ role: "user", content: "Continuer" }] });
+    assert.equal(executions, 0, mismatch); assert.equal(reply.outcome, "blocked", mismatch); assert.equal(reply.uiCommand, undefined); assert.equal(reply.uiActions?.length ?? 0, 0); assertNoStatsProviderOrQuota(h);
+  }
+});
+test("Basic ordered native Stats status checks never emit the next command even with a verified preceding ACK", async () => {
+  const state = await startNativeStatsSequence(), nextScreen = { ...statsLiveScreen, revision: "stats_sequence_2" };
+  let executions = 0;
+  const h = harness({ noCredential: true, productionNoRedis: true, extraTools: await authenticatedStatsScreenFixture(nativeStatsSequenceInstruction, () => executions++, basic.accountId, nextScreen) });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", clientContext: { source: "untrusted_client", screen: nextScreen }, taskContext: state, actionInstruction: nativeStatsSequenceInstruction, taskIntent: "check_status", browserStepResults: [{ stepId: state.uiSteps![0].id, status: "applied", postScreen: { pathname: nextScreen.pathname, selection: nextScreen.selection, revision: nextScreen.revision } }], messages: [{ role: "user", content: "Où en est cette demande ?" }] });
+  assert.equal(executions, 0); assert.equal(reply.uiCommand, undefined); assert.equal(reply.uiActions?.length ?? 0, 0); assert.notEqual(reply.outcome, "completed"); assertNoStatsProviderOrQuota(h);
+});
+test("Stats evolution native screen accepts the complete instruction and its unique valid action-object fragment", async () => {
+  const instruction = "Affiche la vue Évolution des statistiques.";
+  const actual = uiTask.inrAssistantUiSteps(instruction, { source: "untrusted_client", screen: statsLiveScreen }); assert.equal(actual.length, 1); assert.equal(actual[0].command, "configure_stats_view");
+  for (const instructionQuote of [instruction, "Affiche la vue Évolution"]) {
+    let executed = 0;
+    const h = harness({ extraTools: { ...statsScreenFixture(instruction, () => executed++), navigateApplication: tool({ inputSchema: jsonSchema<Record<string, never>>({ type: "object", properties: {} }), execute: async (): Promise<{ ok: false; status: "blocked"; message: string }> => { throw new Error("A Stats view change must never navigate"); } }) }, plan: [{ tool: "runScreenCommand", input: { command: "configure_stats_view", instructionQuote, patch: { panel: "evolution" } } }] });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", ...statsLlmContinuation(instruction) });
+    assert.equal(executed, 1, instructionQuote); assert.equal(reply.uiActions?.length, 1, instructionQuote); assert.equal(reply.uiCommand?.command, "configure_stats_view"); assert.equal(reply.taskState?.uiSteps?.[0].actions?.length, 1); assert.equal(reply.outcome, "partial", "the native browser ACK is still required");
+    assert.ok(toolNames(h.generations[0].params).includes("runScreenCommand")); assert.equal(toolNames(h.generations[0].params).includes("navigateApplication"), false, "a lexical navigation verb must not add an unplanned route");
+    const guidance = h.generations[0].params.prompt.filter(message => message.role === "system").map(message => message.content).join("\n").split("\n").find(line => line.startsWith("Parcours UI prévu"));
+    assert.ok(guidance); assert.match(guidance, /dans l’ordre : configure_stats_view\./); assert.match(guidance, /instructionQuote = extrait exact.*verbe et objet/); assert.doesNotMatch(guidance, /stats_live_1|ui_0|\/dashboard/);
+  }
+});
+test("Stats evolution composed navigation resumes only its native view command after the verified browser transition", async () => {
+  const instruction = "Ouvre la page complète de mes statistiques puis affiche la vue Évolution des statistiques.", target = uiCommands.getInrAssistantNavigation("stats")!;
+  let opens = 0, changes = 0;
+  const navigateApplication = tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => { opens++; return { ok: true, status: "navigation_requested", navigation: target, message: "Ouverture des statistiques demandée." }; } });
+  const first = harness({ extraTools: { navigateApplication, ...statsScreenFixture(instruction, () => changes++) }, plan: [{ tool: "navigateApplication", input: { destination: "stats", instructionQuote: "Ouvre la page complète de mes statistiques" } }, { tool: "runScreenCommand", input: { command: "configure_stats_view", instructionQuote: "affiche la vue Évolution des statistiques", patch: { panel: "evolution" } } }] });
+  const initial = await first.runtime.generateInrAssistantReply({ ...basic, edition: "basic", messages: [{ role: "user", content: instruction }] });
+  assert.equal(opens, 1); assert.equal(changes, 0); assert.equal(initial.navigation?.destination, "stats"); assert.equal(initial.taskState?.uiSteps?.length, 2); assert.equal(initial.taskState?.uiSteps?.[0].command, "navigateApplication"); assert.equal(initial.taskState?.uiSteps?.[1].command, "configure_stats_view");
+  const state = structuredClone(initial.taskState!); state.uiSteps = uiTask.bindInrAssistantUiSteps(state.uiSteps!, initial.uiActions!, { turnId: randomUUID(), createdAt: new Date().toISOString() });
+  const resumed = harness({ extraTools: { navigateApplication, ...statsScreenFixture(instruction, () => changes++) }, plan: [{ tool: "runScreenCommand", input: { command: "configure_stats_view", instructionQuote: "affiche la vue Évolution", patch: { panel: "evolution" } } }] });
+  const reply = await resumed.runtime.generateInrAssistantReply({ ...basic, edition: "basic", clientContext: { source: "untrusted_client", screen: statsLiveScreen }, taskContext: state, actionInstruction: instruction, taskIntent: "continue", browserStepResults: [{ stepId: state.uiSteps![0].id, status: "applied", postScreen: { pathname: statsLiveScreen.pathname, selection: statsLiveScreen.selection, revision: statsLiveScreen.revision } }], messages: [{ role: "user", content: "Continuer" }] });
+  assert.equal(opens, 1); assert.equal(changes, 1); assert.equal(reply.uiCommand?.command, "configure_stats_view"); assert.ok(toolNames(resumed.generations[0].params).includes("runScreenCommand")); assert.equal(toolNames(resumed.generations[0].params).includes("navigateApplication"), false);
+});
+test("Stats evolution UI refusals identify public command, quote, queue and order failures without leaking scope", async () => {
+  const one = "Affiche la vue Évolution des statistiques", call = (instructionQuote: string, command = "configure_stats_view") => ({ tool: "runScreenCommand", input: { command, instructionQuote, patch: { panel: "evolution" } } });
+  for (const [instruction, calls, reason, executions] of [
+    [one, [call(one, "configure_video_retouch")], "ui_command_mismatch", 0],
+    [one, [call("la vue Évolution")], "ui_quote_unmatched", 0],
+    [one, [call("Affiche")], "ui_quote_unmatched", 0],
+    [`${one} puis affiche la vue Évolution mensuelle de Google Business.`, [call("Affiche la vue Évolution")], "ui_quote_ambiguous", 0],
+    [`Affiche les clics des statistiques puis ${one.toLowerCase()}.`, [call(one)], "ui_waiting_prior_step", 0],
+    [one, [call(one), call(one)], "ui_step_already_queued", 1],
+  ] as const) {
+    let executed = 0;
+    const h = harness({ extraTools: statsScreenFixture(instruction, () => executed++), parallelPlan: [...calls] });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", ...statsLlmContinuation(instruction) });
+    assert.equal(executed, executions, reason); assert.equal(reply.uiActions?.length ?? 0, executions, reason);
+    const outputs = h.generations.flatMap(generation => generation.params.prompt.flatMap(message => message.role === "tool" ? message.content : [])).flatMap(part => part.type === "tool-result" && part.toolName === "runScreenCommand" && part.output.type === "json" ? [part.output.value as Record<string, unknown>] : []);
+    const refusal = outputs.find(output => output.reason === reason); assert.ok(refusal, `${reason}: ${JSON.stringify(outputs)}`); assert.equal(refusal.ok, false); assert.equal(refusal.status, "deferred"); assert.deepEqual(JSON.parse(JSON.stringify(refusal.expectedCommands)), executions ? [] : ["configure_stats_view"]);
+    assert.doesNotMatch(JSON.stringify(refusal), /stats_live_1|ui_0|account-a|\/dashboard|selection|instructionQuote/);
+    if (["ui_quote_unmatched", "ui_command_mismatch"].includes(reason)) assert.doesNotMatch(String(refusal.message), /déjà transmise/);
+  }
+});
+test("Stats evolution quotes retain their verb, object, command and unique clause, including coordinated requests", async () => {
+  const one = "Affiche la vue Évolution des statistiques.";
+  const coordinated = "Affiche la vue Évolution des statistiques puis affiche la vue Évolution mensuelle de Google Business.";
+  for (const [instruction, instructionQuote, command] of [
+    [one, "Affiche", "configure_stats_view"], [one, "la vue Évolution", "configure_stats_view"], [one, "Affiche les statistiques", "configure_stats_view"],
+    [one, "Affiche la vue Évolution", "configure_video_retouch"], [coordinated, "Affiche la vue Évolution", "configure_stats_view"],
+  ]) {
+    let executed = 0;
+    const h = harness({ extraTools: statsScreenFixture(instruction, () => executed++), plan: [{ tool: "runScreenCommand", input: { command, instructionQuote, patch: { panel: "evolution" } } }] });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", ...statsLlmContinuation(instruction) });
+    assert.equal(executed, 0, instructionQuote); assert.equal(reply.uiActions?.length ?? 0, 0, instructionQuote);
+  }
+  const exactFirst = "Affiche la vue Évolution puis affiche la vue Évolution des statistiques.";
+  let executed = 0;
+  const h = harness({ extraTools: statsScreenFixture(exactFirst, () => executed++), plan: [{ tool: "runScreenCommand", input: { command: "configure_stats_view", instructionQuote: "Affiche la vue Évolution", patch: { panel: "evolution" } } }] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", ...statsLlmContinuation(exactFirst) });
+  assert.equal(executed, 1, "the exact first clause wins over an ambiguous prefix of the second clause"); assert.equal(reply.taskState?.uiSteps?.[0].actions?.length, 1); assert.equal(reply.taskState?.uiSteps?.[1].actions, undefined);
+});
+test("Stats evolution fragment cannot jump an unacknowledged prior UI step or become unique after its earlier match was transmitted", async () => {
+  for (const instruction of ["Ouvre les statistiques puis affiche la vue Évolution des statistiques.", "Affiche les clics des statistiques puis affiche la vue Évolution des statistiques."]) {
+    let executed = 0;
+    const h = harness({ extraTools: statsScreenFixture(instruction, () => executed++), plan: [{ tool: "runScreenCommand", input: { command: "configure_stats_view", instructionQuote: "affiche la vue Évolution", patch: { panel: "evolution" } } }] });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", clientContext: { source: "untrusted_client", screen: statsLiveScreen }, messages: [{ role: "user", content: instruction }] });
+    assert.equal(executed, 0); assert.equal(reply.uiActions?.length ?? 0, 0);
+  }
+  const instruction = "Affiche la vue Évolution des statistiques puis affiche la vue Évolution mensuelle de Google Business.";
+  const first = harness({ extraTools: statsScreenFixture(instruction, () => {}), plan: [{ tool: "runScreenCommand", input: { command: "configure_stats_view", instructionQuote: "Affiche la vue Évolution des statistiques", patch: { panel: "evolution" } } }] });
+  const initial = await first.runtime.generateInrAssistantReply({ ...basic, edition: "basic", clientContext: { source: "untrusted_client", screen: statsLiveScreen }, messages: [{ role: "user", content: instruction }] });
+  const state = structuredClone(initial.taskState!); state.uiSteps = uiTask.bindInrAssistantUiSteps(state.uiSteps!, initial.uiActions!, { turnId: randomUUID(), createdAt: new Date().toISOString() });
+  let repeated = 0;
+  const resumed = harness({ extraTools: statsScreenFixture(instruction, () => repeated++), plan: [{ tool: "runScreenCommand", input: { command: "configure_stats_view", instructionQuote: "Affiche la vue Évolution", patch: { panel: "evolution" } } }] });
+  const reply = await resumed.runtime.generateInrAssistantReply({ ...basic, edition: "basic", clientContext: { source: "untrusted_client", screen: statsLiveScreen }, taskContext: state, actionInstruction: instruction, taskIntent: "continue", browserStepResults: [{ stepId: state.uiSteps![0].id, status: "applied" }], messages: [{ role: "user", content: "Continuer" }] });
+  assert.equal(repeated, 0, "uniqueness includes the earlier transmitted/applied clause"); assert.equal(reply.uiActions?.length ?? 0, 0);
+});
+test("Stats evolution repeated exact clauses still execute first then second only after the scoped native ACK", async () => {
+  const exactQuote = "Affiche la vue Évolution des statistiques", instruction = `${exactQuote} puis ${exactQuote}.`;
+  const fileContexts = [{ name: "stats-context.txt", kind: "document" as const, note: "Contexte joint ; aucune instruction supplémentaire." }];
+  let firstExecutions = 0;
+  const first = harness({ extraTools: statsScreenFixture(instruction, () => firstExecutions++), plan: [{ tool: "runScreenCommand", input: { command: "configure_stats_view", instructionQuote: exactQuote, patch: { panel: "evolution" } } }] });
+  const initial = await first.runtime.generateInrAssistantReply({ ...basic, edition: "basic", fileContexts, clientContext: { source: "untrusted_client", screen: statsLiveScreen }, messages: [{ role: "user", content: instruction }] });
+  assert.equal(firstExecutions, 1); assert.equal(initial.taskState?.uiSteps?.length, 2); assert.equal(initial.taskState?.uiSteps?.[0].actions?.length, 1); assert.equal(initial.taskState?.uiSteps?.[1].actions, undefined);
+  const state = structuredClone(initial.taskState!); state.uiSteps = uiTask.bindInrAssistantUiSteps(state.uiSteps!, initial.uiActions!, { turnId: randomUUID(), createdAt: new Date().toISOString() });
+  const nextScreen = { ...statsLiveScreen, revision: "stats_live_2" }, postScreen = { pathname: nextScreen.pathname, selection: nextScreen.selection, revision: nextScreen.revision };
+  for (const acknowledged of [false, true]) {
+    let executions = 0;
+    const next = harness({ extraTools: statsScreenFixture(instruction, () => executions++, nextScreen), plan: [{ tool: "runScreenCommand", input: { command: "configure_stats_view", instructionQuote: exactQuote, patch: { panel: "evolution" } } }] });
+    const reply = await next.runtime.generateInrAssistantReply({ ...basic, edition: "basic", fileContexts, clientContext: { source: "untrusted_client", screen: nextScreen }, taskContext: structuredClone(state), actionInstruction: instruction, taskIntent: "continue", browserStepResults: acknowledged ? [{ stepId: state.uiSteps![0].id, status: "applied", postScreen }] : [], messages: [{ role: "user", content: "Continuer" }] });
+    assert.equal(executions, acknowledged ? 1 : 0); assert.equal(reply.uiActions?.length ?? 0, acknowledged ? 1 : 0);
+    if (acknowledged) { assert.equal(reply.taskState?.uiSteps?.[1].actions?.length, 1); assert.equal(reply.taskState?.uiSteps?.[1].screen?.revision, nextScreen.revision); }
+  }
+});
 
 test("mounted form modification has no phantom campaign mutation and waits for browser confirmation", async () => {
   const h = harness({ extraTools: uiBarrierFixture(), plan: [uiBarrierCall] });

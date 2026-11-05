@@ -278,6 +278,16 @@ export async function gmbListReviews(
   };
 }
 
+/** Fetch the exact review for a scoped reply preview/read-back, independently of pagination. */
+export async function gmbGetReview(accessToken: string, reviewName: string): Promise<NormalizedGmbReview> {
+  const name = normalizeGmbReviewName(reviewName);
+  if (!name) throw new Error("Avis Google introuvable.");
+  const response = await fetch(`https://mybusiness.googleapis.com/v4/${name}`, {
+    method: "GET", headers: { Authorization: `Bearer ${accessToken}`, "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.7" }, cache: "no-store",
+  });
+  return normalizeGmbReview(await fetchJsonOrThrow(response, "Impossible de relire cet avis Google Business."));
+}
+
 
 export async function gmbReplyToReview(accessToken: string, reviewName: string, comment: string): Promise<GmbReviewReplyPayload> {
   const normalizedReviewName = normalizeGmbReviewName(reviewName);

@@ -61,6 +61,11 @@ function harness() {
   const sendNative = async (req: Request) => { await recordNative(req); if (uncertain) throw new Error("mail receipt lost"); afterReportSend?.(); return Response.json({ sent: !forged, recipientEmail: "pro@example.test", filename: "bilan.pdf", action: { id: REPORT } }, { status: nativeReject ? 500 : 200 }); };
   const deps: Row = { "server-only": {}, ai: { tool, jsonSchema }, "./requireUser": { requireUser: async () => { if (authFailure) throw new Error("scope lookup unavailable"); return { activeUserId: activeAccount, authUserId: activeActor }; } }, "./dashboardEditionServer": { getDashboardEditionForAuthUser: async (actor: string) => { assert.equal(actor, ACTOR); return edition; } }, "./accountSubscriptionAccess": { getActiveSubscriptionAccountIds: async (ids: string[]) => { assert.deepEqual([...ids], [ACCOUNT]); return new Set(active ? [ACCOUNT] : []); } }, "./inrAssistantActionPreview.ts": helper, "./inrAssistantMemory.ts": { sanitizeInrAssistantMemoryText: (value: string, max: number) => value.slice(0, max) }, "./inrsend/instagramCapabilities": instagram,
     "./inrAssistantStatsReportDocument.ts": documentHelper, "@/app/api/agent/actions/route": { PATCH: agentNative }, "@/lib/inrsend/publicationChannelActions": { createPublicationChannelHandlers: channelNative }, "@/lib/mediaLibraryContentUrl": { buildMediaLibraryContentUrl: (mediaId: string) => `/api/media-library/${mediaId}/content` }, "@/app/api/stats/channel-refresh/route": { POST: statsNative }, "@/app/api/stats/daily-refresh/route": { POST: statsNative }, "@/app/api/agent/actions/send-stats-report/route": { POST: sendNative }, "@/app/api/inrstats/inrbadge/route": { GET: async (req: Request) => { assert.equal(req.method, "GET"); assert.equal(req.headers.get("cookie"), "session=owned"); calls.push({ route: "/api/inrstats/inrbadge", body: {}, method: "GET" }); return Response.json({ views: { month: 0 }, syncedAt: Date.now() }); } }, "@/app/api/inr-search/analytics/route": { GET: async () => { calls.push({ route: "/api/inr-search/analytics", body: {}, method: "GET" }); return Response.json({ ok: true, analytics: { views: { month: 0 } } }); } } };
+  deps["@/app/api/inrsend/publications/[publicationId]/tiktok/retry/route"] = { POST: async (req: Request, context: { params: Promise<{ publicationId: string }> }) => {
+    assert.equal((await context.params).publicationId, PUBLICATION); await recordNative(req, "tiktok"); if (nativeReject) return Response.json({ ok: false }, { status: 409 });
+    const result = asRow(asRow(asRow(event.payload).results).tiktok); Object.assign(result, { ok: true, error: null, tiktok_status: "PROCESSING_UPLOAD", diagnostics: { ...asRow(result.diagnostics), status: { pending: true }, retry_at: "2026-11-05T12:00:00Z" } });
+    if (uncertain) throw new Error("retry receipt lost"); return Response.json({ ok: true, publication_id: forged ? OTHER : PUBLICATION, result });
+  } };
   const lifecycle = load<Lifecycle>("../../lib/inrAssistantPublicationLifecycleTools.ts", deps), stats = load<Stats>("../../lib/inrAssistantStatsTools.ts", deps);
   const options = (message: string, extra: Row) => ({ request, accountId: ACCOUNT, actorUserId: ACTOR, edition, supabase: db, currentUserMessage: message, canStartWork: () => canStart, resolvePreview: (reference: string) => saved.get(reference) ?? null, ...extra });
   const create = (message: string, extra: Row = {}) => lifecycle.createInrAssistantPublicationLifecycleTools(options(message, extra));
@@ -70,6 +75,29 @@ function harness() {
   const edit = (overrides: Row = {}) => ({ actionId: ACTION, operation: "text", channel: "facebook", channels: null, text: { title: null, content: "Nouveau texte", cta: null, hashtags: null }, mediaId: null, mediaOperation: null, mediaIndex: null, instructionQuote: "Modifie cette publication", ...overrides });
   return { create, createStats, preview, apply, edit, prepared, event, media, report, tables, calls, reads, saved, statsPayload: (value: Row) => { statsPayload = value; }, edition: (value: string) => { edition = value; }, scope: () => { activeAccount = OTHER; }, actor: () => { activeActor = OTHER; }, inactive: () => { active = false; }, stop: () => { canStart = false; }, uncertain: () => { uncertain = true; }, reject: () => { nativeReject = true; }, forge: () => { forged = true; }, switchAfterSend: () => { afterReportSend = () => { activeAccount = OTHER; }; }, failScopeAfterSend: () => { afterReportSend = () => { authFailure = true; }; } };
 }
+
+test("TikTok retry in Basic requires signed approval and reuses only a confirmed failed native publication", async () => {
+  const h = harness(); h.edition("basic"); const settings = { privacyLevel: "SELF_ONLY", musicUsageConfirmed: true, commercialContent: "none" };
+  asRow(asRow(h.event.payload).results).tiktok = { ok: false, tiktok_status: "FAILED", diagnostics: { publicationSettings: settings } };
+  h.tables.publication_deliveries.push({ user_id: ACCOUNT, publication_id: PUBLICATION, channel: "tiktok", status: "failed" });
+  const instructionQuote = "Retente cette publication TikTok";
+  const p = await h.create(instructionQuote).previewPublicationLifecycleAction.execute({ targetId: PUBLICATION, operation: "retry_tiktok", channel: "tiktok", instructionQuote });
+  assert.equal(p.status, "preview_ready"); assert.equal(h.calls.length, 0); h.saved.set(String(p.reference), String(p.token));
+  assert.equal((await h.apply(p, "oui")).status, "confirmation_required");
+  assert.equal((await h.apply(p)).status, "processing"); assert.equal(h.calls.length, 1); assert.equal(h.calls[0].route, `/api/inrsend/publications/${PUBLICATION}/tiktok/retry`); assert.deepEqual(h.calls[0].body, {});
+  assert.equal((await h.apply(p)).status, "stale_preview"); assert.equal(h.calls.length, 1); assert.equal(asRow(asRow(asRow(h.event.payload).results).facebook).status, "published");
+});
+
+test("TikTok retry blocks missing consent, pending/unknown state and uncertain attempt replays", async () => {
+  const instructionQuote = "Retente cette publication TikTok", input = { targetId: PUBLICATION, operation: "retry_tiktok", channel: "tiktok", instructionQuote };
+  for (const result of [{ tiktok_status: "FAILED", ok: false }, { tiktok_status: "PROCESSING_UPLOAD", ok: false }, { tiktok_status: "UNKNOWN", ok: false }, { tiktok_status: "FAILED", ok: false, diagnostics: { publicationSettings: { privacyLevel: "SELF_ONLY", commercialContent: "none", musicUsageConfirmed: false } } }]) {
+    const h = harness(); asRow(asRow(h.event.payload).results).tiktok = result; assert.equal((await h.create(instructionQuote).previewPublicationLifecycleAction.execute(input)).status, "blocked"); assert.equal(h.calls.length, 0);
+  }
+  const h = harness(); asRow(asRow(h.event.payload).results).tiktok = { ok: false, tiktok_status: "FAILED", diagnostics: { publicationSettings: { privacyLevel: "SELF_ONLY", musicUsageConfirmed: true, commercialContent: "none" } } };
+  const p = await h.create(instructionQuote).previewPublicationLifecycleAction.execute(input); h.saved.set(String(p.reference), String(p.token)); h.uncertain();
+  const message = `Confirme ${String(p.reference)}`, apply = h.create(message).applyPublicationLifecycleAction, args = { reference: p.reference, instructionQuote: message };
+  assert.equal((await apply.execute(args)).status, "unknown"); assert.equal((await apply.execute(args)).status, "unknown"); assert.equal(h.calls.length, 1); assert.equal((await h.apply(p)).status, "stale_preview");
+});
 
 test("publication reads paginate owned drafts/history/prepared without executing or exposing campaigns", async () => {
   const h = harness(); for (let n = 0; n < 24; n++) h.tables.app_events.push({ ...clone(h.event), id: `record-${n}` }); h.tables.app_events.push({ ...h.event, user_id: OTHER }); h.tables.inr_agent_actions.push({ ...h.prepared, action_type: "campaign" });

@@ -186,3 +186,66 @@ test("personalization guide describes the unified tabs, automatic saving and doc
   assert.match(ai.content, /enregistrement automatique/);
   assert.doesNotMatch(ai.content, /liens site sont incompatibles avec Instagram, TikTok et X/);
 });
+
+test("Google reviews questions keep the current bubble path at every real context budget", async () => {
+  for (const query of ["Où gérer mes avis Google ?", "Comment répondre à un avis client ?", "Avis client", "Where can I manage my Google reviews?"]) {
+    for (const budget of [650, 1200, 1800, 2400]) {
+      const knowledge = runtime.getInrAssistantAppKnowledge(query, budget);
+      assert.ok(knowledge.length <= budget);
+      assert.match(knowledge, /Connecter mes canaux → Google Business → Avis/, `${query}: ${budget}`);
+      assert.match(knowledge, /googleReviews=1/);
+      assert.doesNotMatch(knowledge, /Menu >|Gérer.*dans Réputation|section Réputation/);
+    }
+    const result = await runtime.createInrAssistantAppGuideTool().execute!({ topic: query }, { toolCallId: "reviews", messages: [] });
+    assert.ok("guides" in result);
+    assert.equal(result.guides[0]?.id, "reputation");
+    assert.match(result.guides[0]?.content ?? "", /Google Business → Avis/);
+  }
+});
+
+test("location answers use shared destinations without swallowing actions, diagnosis or past discussions", () => {
+  for (const query of ["Où gérer mes avis Google ?", "Où est le bouton pour gérer mes avis Google ?"]) {
+    const answer = runtime.getVerifiedInrAssistantNavigation(query);
+    assert.match(answer ?? "", /Connecter mes canaux → Google Business → Avis/);
+    assert.match(answer ?? "", /googleReviews=1/);
+  }
+  for (const query of ["Où sont mes avis Google disparus ? J’ai une erreur.", "Où gérer mes avis Google comme nous en avons parlé hier ?", "Où gérer mes avis Google puis publie une réponse ?", "Où trouver Studio et les statistiques ?", "Donne ton avis sur mon image.", "Où supprimer un avis Google ?", "Où sont mes factures ?", "Où générer une image gratuite en Basique ?"]) {
+    assert.equal(runtime.getVerifiedInrAssistantNavigation(query), null, query);
+  }
+});
+
+test("small offer context preserves Basic Studio eligibility and distinguishes subscription invoices", () => {
+  for (const budget of [1200, 1800, 2400]) {
+    const studio = runtime.getInrAssistantAppKnowledge("Le forfait Basique permet-il de générer une image ?", budget);
+    assert.match(studio, /Basique, Standard et Premium ont accès/);
+    assert.match(studio, /crédits/);
+    assert.doesNotMatch(studio, /Accès : Standard et Premium/);
+    const invoices = runtime.getInrAssistantAppKnowledge("Où trouver mes factures d’abonnement Stripe ?", budget);
+    assert.match(invoices, /Mon compte → Factures/);
+    assert.match(invoices, /panel=factures/);
+  }
+});
+
+test("an unknown guide query does not certify a weak incidental body match", async () => {
+  const result = await runtime.createInrAssistantAppGuideTool().execute!({ topic: "quantique zorbulator" }, { toolCallId: "unknown", messages: [] });
+  assert.ok("found" in result);
+  assert.equal(result.found, false);
+  assert.match(result.message ?? "", /ne pas inventer/);
+});
+
+test("bounded knowledge separates existing documents, business identity and interface language", () => {
+  for (const [question, expected] of [
+    ["Où sont mes factures clients ?", /\[Mes factures\]\(\/dashboard\/factures\)/],
+    ["Où sont mes devis ?", /\[Mes devis\]\(\/dashboard\/devis\)/],
+    ["Où modifier le logo de mon entreprise ?", /Mon entreprise/],
+    ["Où changer mon numéro de téléphone ?", /Mon entreprise/],
+    ["Où répondre aux mails reçus ?", /iNr’Send/],
+  ] as const) assert.match(runtime.getInrAssistantAppKnowledge(question, 1200), expected, question);
+  const language = runtime.getInrAssistantAppKnowledge("Où changer la langue ?", 1200);
+  assert.match(language, /langue de l’interface/);
+  assert.match(language, /langue de rédaction/);
+  assert.match(language, /demander laquelle/);
+  const minimal = runtime.getInrAssistantAppKnowledge("Où gérer mes avis Google ?", 350);
+  assert.ok(minimal.length <= 350);
+  assert.match(minimal, /Google Business → Avis/);
+});

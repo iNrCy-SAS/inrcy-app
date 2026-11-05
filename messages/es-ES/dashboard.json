@@ -373,7 +373,7 @@
     "cashTitle": "Cobros",
     "cashSub": "Presupuestos y facturas",
     "cashCta": "Cobros",
-    "reputationTitle": "E-reputation",
+    "reputationTitle": "Reseñas de Google",
     "reputationSub": "Gestiona reseñas Google",
     "reputationCta": "Gestionar",
     "cashModalTitle": "Cobros",
@@ -876,7 +876,7 @@
     "statsCta": "Ver estadísticas",
     "sendDescription": "Historial de tu actividad.",
     "sendCta": "Ver historial",
-    "reputationName": "Reputación",
+    "reputationName": "Reseñas de Google",
     "reputationDescription": "Gestionar tus reseñas Google",
     "reputationCta": "Gestionar mis reseñas",
     "loading": "Cargando…",
@@ -1069,11 +1069,11 @@
       },
       "reviews": {
         "title": "Gestionar mis reseñas",
-        "subtitle": "Reputación · Google Business",
+        "subtitle": "Google Business",
         "intro": "Consulta tus reseñas de Google y prepara respuestas adecuadas.",
         "steps": {
-          "step1": "Comprueba que tu ficha de Google Business esté conectada.",
-          "step2": "Abre Reputación y elige una reseña.",
+          "step1": "Comprueba que tu ficha de Google Business esté conectada y seleccionada.",
+          "step2": "En Canales, abre la burbuja Google Business, pulsa Reseñas y elige una reseña.",
           "step3": "Revisa la respuesta propuesta y valídala antes de publicarla."
         }
       },
@@ -1133,7 +1133,7 @@
     "media": "Biblioteca multimedia",
     "ads": "iNr’ADS",
     "campaigns": "Campañas de email",
-    "reputation": "Reputación",
+    "reputation": "Reseñas de Google",
     "stats": "iNr’Stats",
     "send": "iNr’Send",
     "calendar": "iNr’Calendar",

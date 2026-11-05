@@ -15,6 +15,8 @@ import type { GpsArticleSource, GpsMessageKey } from "../app/dashboard/gps/notic
 import { DASHBOARD_CHANNEL_CREATE_HREF_BY_KEY } from "../app/dashboard/dashboard.channel-setup.ts";
 import { currentSubscriptionOffer, subscriptionChargeLabel } from "./subscriptionOffers.ts";
 import { INR_ASSISTANT_ACCOUNT_GUIDES, INR_ASSISTANT_CHANNELS_HREF } from "./inrAssistantGuidesAccount.ts";
+import { productNavigationSummary } from "./productNavigation.ts";
+import { INR_ASSISTANT_MANAGEMENT_GUIDES } from "./inrAssistantGuidesManagement.ts";
 
 export const INR_ASSISTANT_KNOWLEDGE_MAX_CHARS = 5_000;
 
@@ -81,7 +83,7 @@ function subscriptionHelp(query: string): string {
   const lines = [
     "Abonnement — parcours existant dans Mon compte, onglet Abonnement : /dashboard?panel=abonnement.",
     `Comparer les trois cartes Basique / Standard / Premium, choisir ${settingsFrench.subscription_cycle_monthly} ou ${settingsFrench.subscription_cycle_yearly}, puis utiliser l’action proposée dans la carte. « Forfait actuel » identifie l’offre du compte.`,
-    "Basique : accompagnement par iNr’Assistant, sans réalisation ni agents d’automatisation et sans crédits médias inclus ; des recharges permettent de créer des médias dans iNr’Studio. Standard : accompagnement et réalisation, 735 crédits médias par mois et 3 agents. Premium : accompagnement et réalisation complexe, 2530 crédits médias par mois et 4 agents, plus les outils Premium. Les nouveaux essais restent Standard pendant 21 jours ; choisir Basique ne réduit pas l’essai.",
+    "Basique : Assistant et outils manuels inclus, sans agents d’automatisation et sans crédits médias mensuels inclus ; des recharges permettent de créer des médias dans iNr’Studio sans changer d’offre. Standard : accompagnement et réalisation, 735 crédits médias par mois et 3 agents. Premium : accompagnement et réalisation complexe, 2530 crédits médias par mois et 4 agents, plus les outils Premium. Les nouveaux essais restent Standard pendant 21 jours ; choisir Basique ne réduit pas l’essai.",
     `${settingsFrench.subscription_standard_plus}. Standard : ${settingsFrench.subscription_ai_agents_included.replace("{count}", "3")}; Premium : ${settingsFrench.subscription_ai_agents_included.replace("{count}", "4")}. Les outils marqués Premium dans les repères complètent Standard.`,
     `Pour changer d’offre ou de périodicité : ${settingsFrench.subscription_change_quote_notice} ${settingsFrench.subscription_confirm_change}. Ne jamais annoncer le prorata ni la date personnelle sans les données vérifiées.`,
   ];
@@ -114,6 +116,7 @@ function currentGoalHelp(query: string): string {
   ] as const;
   const goal = candidates.find(([, pattern]) => pattern.test(query))?.[0];
   if (!goal) return "";
+  if (goal === "reviews") return productNavigationSummary("reviews");
   const source = dashboardFrench.helpCenter.goals[goal];
   const lines = [source.title, source.subtitle, source.intro, ...Object.values(source.steps)];
   if (goal === "media") {
@@ -134,11 +137,18 @@ export function getInrAssistantKnowledge(prompt: string): string {
     const available = INR_ASSISTANT_KNOWLEDGE_MAX_CHARS - parts.join("\n\n").length - 2;
     if (available > 100) parts.push(value.length <= available ? value : `${value.slice(0, available - 1)}…`);
   };
+  // Prioritize current reviews before legacy articles or generic channel connection prose.
+  const reviews = /\bavis\b|reputation|\breviews?\b/.test(query);
+  if (reviews) {
+    append(productNavigationSummary("reviews"));
+    const guide = INR_ASSISTANT_MANAGEMENT_GUIDES.find(item => item.id === "reputation");
+    if (guide) append(guide.content);
+  }
   // Actual bubble controls override old GPS commands and old conversation text.
   const channels = INR_ASSISTANT_ACCOUNT_GUIDES.find(guide => guide.id === "channels-overview");
   if (channels) append(channels.content);
   const channelGuides = INR_ASSISTANT_ACCOUNT_GUIDES.filter(guide => guide.id.startsWith("channel-") && guide.keywords.some(keyword => query.includes(normalizeHelpSearch(keyword))));
-  for (const guide of channelGuides.slice(0, 2)) append(guide.content);
+  for (const guide of channelGuides.slice(0, reviews ? 0 : 2)) append(guide.content);
   const billing = /abonn|offre|forfait|standard|premium|factur|resili|tarif|paiement|mensuel|annuel|cancel|invoice|subscribe|billing/.test(query);
   if (/facebook|\bfb\b/.test(query)) append(facebookHelp());
   if (billing) append(subscriptionHelp(query));
@@ -154,7 +164,7 @@ export function getInrAssistantKnowledge(prompt: string): string {
     const score = terms.reduce((sum, term) => sum + (keywords.includes(term) ? 3 : body.includes(term) ? 1 : 0), 0);
     return { ...item, score };
   }).sort((a, b) => b.score - a.score);
-  const selected = ranked.filter(item => item.score > 0).slice(0, billing ? 1 : 2);
+  const selected = ranked.filter(item => item.score > 0).slice(0, reviews ? 0 : billing ? 1 : 2);
   if (!selected.length && !billing) {
     const start = ARTICLES.find(({ article }) => article.id === "demarrer-express");
     if (start) append(articleText(start.article, "Bien démarrer"));

@@ -36,6 +36,7 @@ export function selectInrAssistantToolFamilies(latest: string, recentUserMessage
     /\b(?:bouton|appeler|call)\b.{0,70}\b(?:facebook|instagram|google|site|telephone)\b|\b(?:telephone|site)\b.{0,70}\bbouton\b/.test(text) ||
     /\b(?:telephone|numero|site|website|lien).{0,70}\b(?:partout|tous|toutes|contenus|publications)\b/.test(text) ||
     /\b(?:complete|remplis|modifie|ajoute|change|mets).{0,60}\b(?:entreprise|business|services|prestations|ton|tone|style)\b/.test(text)) families.add("business");
+  if (/\b(?:identite|profession|metier|societe|adresse|postal|ville|telephone|profil|google|facebook|instagram|linkedin|pinterest|threads|tiktok|youtube|twitter)\b/.test(text)) families.add("business");
   if (/\b(?:abonnement|abonner|souscrire|souscription|resilier|resiliation|facturation|standard|premium|founder|stripe|agents?|automatisation|planning|rapport|bilan|active|desactive)\b|订阅|สมัคร/.test(text)) families.add("management");
   if (/\b(?:crm|clients?|prospects?|contacts?|agenda|rendez.vous|rdv|calendar|campagnes?|email|emails?|mail|mails|newsletter|courriel|fidelis|propuls|reputation|avis|mediatheque|tags?)\b|评论|邮件|客户|อีเมล/.test(text)) families.add("workspace");
   if (/\b(?:crm|devis|factures?|encaisser|clients?|prospects?|contacts?)\b/.test(text)) families.add("commercial");

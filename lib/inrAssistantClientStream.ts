@@ -14,6 +14,8 @@ export type InrAssistantClientReply = {
   uiCommand?: InrAssistantUiCommand;
   uiActions?: InrAssistantUiAction[];
   uiReceiptToken?: string;
+  autoContinueAfterUi?: boolean;
+  turnId?: string;
   uiResults?: InrAssistantUiResult[];
 };
 
@@ -40,6 +42,8 @@ function parseReply(value: unknown): InrAssistantClientReply | null {
   const uiActions = parseInrAssistantUiActions(input.uiActions);
   if (Object.hasOwn(input, "uiActions")) reply.uiActions = uiActions ?? [];
   if (typeof input.uiReceiptToken === "string" && input.uiReceiptToken.length <= 24_000) reply.uiReceiptToken = input.uiReceiptToken;
+  if (input.autoContinueAfterUi === true && uiActions?.length && taskProgress?.outcome === "partial" && taskProgress.remaining.length) reply.autoContinueAfterUi = true;
+  if (typeof input.turnId === "string" && input.turnId.length <= 180) reply.turnId = input.turnId;
   if (Array.isArray(input.uiResults) && input.uiResults.length <= 24) reply.uiResults = input.uiResults.map(parseInrAssistantUiResult).filter((value): value is InrAssistantUiResult => Boolean(value));
   const studioDraft = parseInrAssistantStudioDraft(input.studioDraft);
   if (studioDraft) {

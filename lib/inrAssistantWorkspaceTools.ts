@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { hasPremiumDashboardAccess, type DashboardEdition } from "./dashboardEdition.ts";
 import { currentSubscriptionOffer } from "./subscriptionOffers.ts";
 import { VISIBILITY_INDEX_MODEL } from "./inrstats/visibilityIndexModel.ts";
+import { PRODUCT_GOOGLE_REVIEWS_HREF, productNavigationSummary } from "./productNavigation.ts";
 
 const SECTIONS = ["stats", "subscription", "agents", "crm", "calendar", "reputation", "campaigns", "mail"] as const;
 type Section = typeof SECTIONS[number];
@@ -18,7 +19,7 @@ const GUIDES: Record<Section, { label: string; href: string; guide: string }> = 
   agents: { label: "Agents IA", href: "/dashboard/agent/publications", guide: "Ouvrir l’Agent Publications ou Stats, puis Planning ou Réglages. Premium ajoute Agent Emailings. Une lecture ne prépare ni n’active une automatisation ; l’activation et les changements de planning doivent être revus." },
   crm: { label: "iNr’CRM", href: "/dashboard/crm", guide: "Utiliser Rechercher, Filtres ou Ajouter un contact. Les compteurs ci-dessous ne révèlent aucune identité de client ; retrouver une fiche dans le module pour la modifier." },
   calendar: { label: "iNr’Calendar", href: "/dashboard/agenda", guide: "Ouvrir le jour puis l’évènement pour ses détails. Les créneaux retournés sont anonymisés, sans titre, contact ou lieu. Confirmer un rendez-vous ou le supprimer exige une action distincte." },
-  reputation: { label: "Réputation", href: "/dashboard/e-reputation", guide: "Ouvrir Réputation, Actualiser les avis puis Détails. Les avis d’exemple ne sont pas de vrais clients. Préparer une réponse ne la publie pas ; vérifier l’avis réel avant Publier la réponse." },
+  reputation: { label: "Avis Google", href: PRODUCT_GOOGLE_REVIEWS_HREF, guide: `${productNavigationSummary("reviews")} Actualiser les avis puis ouvrir leur détail. Les avis d’exemple ne sont pas de vrais clients. Préparer une réponse ne la publie pas ; vérifier l’avis réel avant Publier la réponse.` },
   campaigns: { label: "Campagnes mails", href: "/dashboard?action=campaigns", guide: "Choisir Propulser ou Fidéliser. Suivant prépare la finalisation dans iNr’Send ; vérifier les destinataires avant Envoyer ou Programmer. Les compteurs d’envoi ne prouvent pas une livraison au destinataire." },
   mail: { label: "iNr’Send", href: "/dashboard/mails", guide: "Choisir la boîte et le dossier puis retrouver le message. Une boîte enregistrée connectée n’est pas une vérification en direct. Accepté par la messagerie d’envoi ne signifie pas livré." },
 };

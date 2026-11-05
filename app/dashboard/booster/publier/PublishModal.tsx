@@ -103,6 +103,7 @@ import PublishValidationChannelOptions from "./components/PublishValidationChann
 import PublishHelpModal from "./components/PublishHelpModal";
 import PublishWarningModals from "./components/PublishWarningModals";
 import {
+  clearInrStudioHandoff,
   consumeInrStudioReturn,
   createInrStudioHandoff,
   type InrStudioReturnedMedia,
@@ -328,11 +329,13 @@ export default function PublishModal({
     useState<InrStudioReturnedMedia | null>(null);
   const studioReturnApplyingKeyRef = useRef("");
   const inlineStudioReturnKeyRef = useRef("");
+  const studioOpeningRef = useRef(false);
   const { openStudio, studio, completeReturn } = useInrStudioSession({
     onReturned: (result) => {
       inlineStudioReturnKeyRef.current = result.returnKey;
       setPendingStudioReturn(result);
     },
+    onClosed: () => { studioOpeningRef.current = false; },
   });
   const lastSavedStudioVideoDraftRef = useRef<VideoPayload | null>(null);
   const [saving, setSaving] = useState(false);
@@ -4904,10 +4907,15 @@ export default function PublishModal({
   };
 
   const openInrStudioGenerator = async (kind?: "image" | "video") => {
+    if (studioOpeningRef.current) return;
+    studioOpeningRef.current = true;
+    let opened = false;
+    let handoffKey: string | null = null;
     try {
       const draftState = await preparePublicationDraftForStudio();
       if (!draftState) return;
-      const { href } = await createInrStudioHandoff({
+      const { href, handoff } = await createInrStudioHandoff({
+        transport: "embedded",
         tab: "generate",
         origin: "booster-publish",
         returnHref: draftState.returnHref,
@@ -4917,13 +4925,16 @@ export default function PublishModal({
           ...(kind ? { mediaType: kind } : {}),
         },
       });
+      handoffKey = handoff.key;
       openStudio(href);
-    } catch (error) {
-      setImgError(
-        error instanceof Error
-          ? error.message
-          : "Impossible d’ouvrir iNrStudio.",
-      );
+      opened = true;
+    } catch {
+      setImgError(i18nT("studio_open_unavailable"));
+    } finally {
+      if (!opened) {
+        studioOpeningRef.current = false;
+        if (handoffKey) await clearInrStudioHandoff(handoffKey);
+      }
     }
   };
 
@@ -4932,6 +4943,7 @@ export default function PublishModal({
     channel: ChannelKey,
     imageKey: string,
   ) => {
+    if (studioOpeningRef.current) return;
     const sourceFile = images.find((file) => makeImageKey(file) === imageKey);
     const sourceUrl = previewByKey[imageKey] || null;
     const recoveredImage = imagePreparationItems.find(
@@ -4944,6 +4956,9 @@ export default function PublishModal({
       setImgError("Cette image n’est plus disponible pour cette action.");
       return;
     }
+    studioOpeningRef.current = true;
+    let opened = false;
+    let handoffKey: string | null = null;
     try {
       let studioFile = sourceFile || null;
       if (recoveredImage) {
@@ -4967,7 +4982,8 @@ export default function PublishModal({
       }
       const draftState = await preparePublicationDraftForStudio();
       if (!draftState) return;
-      const { href } = await createInrStudioHandoff({
+      const { href, handoff } = await createInrStudioHandoff({
+        transport: "embedded",
         tab,
         origin: "booster-publish",
         returnHref: draftState.returnHref,
@@ -4983,13 +4999,16 @@ export default function PublishModal({
           draftId: draftState.draftId,
         },
       });
+      handoffKey = handoff.key;
       openStudio(href);
-    } catch (error) {
-      setImgError(
-        error instanceof Error
-          ? error.message
-          : "Impossible d’ouvrir iNrStudio.",
-      );
+      opened = true;
+    } catch {
+      setImgError(i18nT("studio_open_unavailable"));
+    } finally {
+      if (!opened) {
+        studioOpeningRef.current = false;
+        if (handoffKey) await clearInrStudioHandoff(handoffKey);
+      }
     }
   };
 
@@ -4997,6 +5016,7 @@ export default function PublishModal({
 
 
   const openInrStudioVideoRetoucher = async (channel: ChannelKey) => {
+    if (studioOpeningRef.current) return;
     const currentDurableSourceUrl = String(
       videoStorageContext?.publicUrl || videoStorageContext?.url || "",
     ).trim();
@@ -5022,6 +5042,9 @@ export default function PublishModal({
       videoFile?.size || videoSourceMetadata?.size || 0,
     );
 
+    studioOpeningRef.current = true;
+    let opened = false;
+    let handoffKey: string | null = null;
     try {
       const draftState = await preparePublicationDraftForStudio();
       if (!draftState) return;
@@ -5051,7 +5074,8 @@ export default function PublishModal({
         url: durableSourceUrl,
         transformedVariants: videoTransformedVariants,
       };
-      const { href } = await createInrStudioHandoff({
+      const { href, handoff } = await createInrStudioHandoff({
+        transport: "embedded",
         tab: "retouch",
         origin: "booster-publish",
         returnHref: draftState.returnHref,
@@ -5087,13 +5111,16 @@ export default function PublishModal({
           deferVideoPreparation: mediaPipelineCutoverEnabled,
         },
       });
+      handoffKey = handoff.key;
       openStudio(href);
-    } catch (error) {
-      setImgError(
-        error instanceof Error
-          ? error.message
-          : "Impossible d’ouvrir iNrStudio.",
-      );
+      opened = true;
+    } catch {
+      setImgError(i18nT("studio_open_unavailable"));
+    } finally {
+      if (!opened) {
+        studioOpeningRef.current = false;
+        if (handoffKey) await clearInrStudioHandoff(handoffKey);
+      }
     }
   };
 

@@ -9,6 +9,7 @@ import {
   resolvePublicAppOrigin,
 } from "@/lib/actusWidgetEmbed";
 import styles from "../dashboard.module.css";
+import { useInrAssistantWebsiteWidgetCommands } from "../_hooks/useInrAssistantWebsiteWidgetCommands";
 import { getNormalizedSiteDomain } from "../dashboard.utils";
 import { normalizeActusAccent } from "../dashboard.types";
 import type { ActusDesign, ActusLayout, ActusTheme } from "../dashboard.types";
@@ -274,10 +275,10 @@ export default function SiteActusWidgetCode({
     if (!codeReady && showCode) onHideCode();
   }, [codeReady, onHideCode, showCode]);
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (canApply: () => boolean = () => true) => {
     if (!hasSavedUrl) {
       setGenerateNotice(i18nT("enregistrez_d_abord_le_lien_du_01d8abe0"));
-      return;
+      return false;
     }
     setIsGenerating(true);
     setCopyNotice(null);
@@ -286,28 +287,45 @@ export default function SiteActusWidgetCode({
       if (!effectiveToken && onRequestToken) {
         effectiveToken = (await onRequestToken()).trim();
       }
-      if (!effectiveToken) {
+      if (!effectiveToken || !canApply()) {
         setGenerateNotice(i18nT("token_du_widget_en_preparation_reessayez_769426a3"));
-        return;
+        return false;
       }
 
       const ok = await onGenerate();
-      if (ok === false) return;
+      if (ok === false || !canApply()) return false;
       const nextConfig = { ...currentConfig, token: effectiveToken };
       const { src } = buildEmbedDefinition(nextConfig);
       if (!isActusWidgetEmbedUrl(src)) {
         setGenerateNotice(i18nT("enregistrement_impossible_pour_le_moment_b9a11825"));
-        return;
+        return false;
       }
       setGeneratedConfig(nextConfig);
       onHideCode();
       setGenerateNotice(i18nT("code_genere_avec_succes_vous_pouvez_d4de2c80"));
+      return true;
     } catch {
       setGenerateNotice(i18nT("enregistrement_impossible_pour_le_moment_b9a11825"));
+      return false;
     } finally {
       setIsGenerating(false);
     }
   };
+
+  useInrAssistantWebsiteWidgetCommands({ snapshot: { savedUrl, source, layout, limit, design, theme, accent, generatedKey: getConfigKey(generatedConfig), installTarget, showCode }, canGenerate: hasSavedUrl && (hasToken || Boolean(onRequestToken)), codeReady, busy: isGenerating,
+    apply: async (command, stillCurrent, scopeCurrent) => {
+      const canApply = () => stillCurrent() && scopeCurrent();
+      if (!canApply()) return false;
+      const target = command.format ?? installTarget;
+      if (command.command === "generate_website_widget_code") { const ok = await handleGenerate(canApply); if (ok && scopeCurrent()) setInstallTarget(target); return ok; }
+      if (!codeReady || !generatedConfig) return false;
+      if (command.command === "show_website_widget_code") { setInstallTarget(target); if (!showCode) onToggle(); return true; }
+      const { src } = buildEmbedDefinition(generatedConfig); if (!isActusWidgetEmbedUrl(src) || !canApply()) return false;
+      await copyText(buildSnippet(generatedConfig, target)); if (!canApply()) return false;
+      setInstallTarget(target); setCopyNotice(i18nT("code_copie_cdc31064")); return true;
+    },
+    isApplied: command => codeReady && (command.format === null || command.format === installTarget) && (command.command !== "show_website_widget_code" || showCode),
+  });
 
   return <>
     <div style={{ display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
@@ -347,7 +365,7 @@ export default function SiteActusWidgetCode({
     <div style={{ display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
       <div className={styles.blockSub}>{i18nT("les_medias_sont_affiches_automatiquement_quand_21342321")}</div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button type="button" className={styles.actionBtn} onClick={handleGenerate} disabled={!hasSavedUrl || (!hasToken && !onRequestToken) || isGenerating} style={!hasSavedUrl || (!hasToken && !onRequestToken) || isGenerating ? { opacity: 0.5, cursor: "not-allowed" } : undefined}>
+        <button type="button" className={styles.actionBtn} onClick={() => void handleGenerate()} disabled={!hasSavedUrl || (!hasToken && !onRequestToken) || isGenerating} style={!hasSavedUrl || (!hasToken && !onRequestToken) || isGenerating ? { opacity: 0.5, cursor: "not-allowed" } : undefined}>
           {isGenerating ? i18nT("enregistrement_e7d5f232") : hasGeneratedCode ? i18nT("reenregistrer_et_regenerer_3c2dcd86") : i18nT("enregistrer_et_generer_le_code_1cb0df54")}
         </button>
         <button type="button" className={styles.actionBtn} onClick={onToggle} disabled={!codeReady} style={!codeReady ? { opacity: 0.5, cursor: "not-allowed" } : undefined}>

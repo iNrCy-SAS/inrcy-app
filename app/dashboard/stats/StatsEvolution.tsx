@@ -8,10 +8,13 @@ import StatsVisibilityIndex from "./StatsVisibilityIndex";
 import type { CubeKey } from "./stats.shared.types";
 import css from "./statsPanorama.module.css";
 
-type Props = { enabled: boolean; accountId: string; refreshKey: number; channels: Array<{ key: CubeKey; title: string }>; ready: boolean };
-export default function StatsEvolution({ enabled, accountId, refreshKey, channels, ready }: Props) {
+type Props = { enabled: boolean; accountId: string; refreshKey: number; channels: Array<{ key: CubeKey; title: string }>; ready: boolean;
+  view: "index" | "measured"; onViewChange: (view: "index" | "measured") => void;
+  metric: "visibility" | "clicks"; onMetricChange: (metric: "visibility" | "clicks") => void;
+  channel: CubeKey | "all"; onChannelChange: (channel: CubeKey | "all") => void;
+};
+export default function StatsEvolution({ enabled, accountId, refreshKey, channels, ready, view, onViewChange: setView, metric, onMetricChange, channel, onChannelChange }: Props) {
   const t = useTranslations("stats");
-  const [view, setView] = useState<"index" | "measured">("measured");
   const [historyRevision, setHistoryRevision] = useState(0);
   const onHistoryLoaded = useCallback(() => setHistoryRevision(value => value + 1), []);
   const tabs = <div className={css.evolutionViewNavigation}>
@@ -27,7 +30,7 @@ export default function StatsEvolution({ enabled, accountId, refreshKey, channel
     />
   </div>;
   return <div className={css.evolutionHost} hidden={!enabled}>
-    <StatsMeasuredEvolution enabled={enabled && view === "measured"} accountId={accountId} refreshKey={refreshKey} channels={channels} ready={ready} tabs={tabs} onHistoryLoaded={onHistoryLoaded} />
+    <StatsMeasuredEvolution enabled={enabled && view === "measured"} accountId={accountId} refreshKey={refreshKey} channels={channels} ready={ready} tabs={tabs} onHistoryLoaded={onHistoryLoaded} metric={metric} onMetricChange={onMetricChange} channel={channel} onChannelChange={onChannelChange} />
     <StatsVisibilityIndex enabled={enabled && view === "index"} accountId={accountId} refreshKey={refreshKey} ready={ready} channels={channels} tabs={tabs} historyRevision={historyRevision} />
   </div>;
 }

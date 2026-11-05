@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getGmbToken } from "@/lib/googleBusiness";
-import { getGmbReviewTargetFromRow, gmbListReviews } from "@/lib/googleBusinessReviews";
+import { getGmbReviewTargetFromRow, gmbListReviews, gmbGetReview, isGmbReviewNameForParent, normalizeGmbReviewName } from "@/lib/googleBusinessReviews";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { requireUser } from "@/lib/requireUser";
 import { asRecord, asString } from "@/lib/tsSafe";
@@ -58,6 +58,14 @@ export async function GET(req: Request) {
     const expectedLocation = url.searchParams.get("locationName");
     if (expectedLocation && expectedLocation !== target.locationName) {
       return NextResponse.json({ error: "google_business_selection_changed", user_message: "La fiche Google sélectionnée a changé. Fermez puis rouvrez les avis." }, { status: 409 });
+    }
+    if (url.searchParams.has("reviewName")) {
+      const reviewName = normalizeGmbReviewName(url.searchParams.get("reviewName"));
+      if (!reviewName || !isGmbReviewNameForParent(reviewName, target.accountName, target.locationName)) return NextResponse.json({ error: "review_scope_mismatch" }, { status: 403 });
+      const review = await gmbGetReview(token.accessToken, reviewName);
+      if (review.name !== reviewName) return NextResponse.json({ error: "review_read_unconfirmed" }, { status: 502 });
+      const { raw: _raw, ...publicReview } = review;
+      return NextResponse.json({ connected: true, configured: true, locationName: target.locationName, review: publicReview });
     }
     const pageSize = Number(url.searchParams.get("pageSize") || 50);
     const pageToken = url.searchParams.get("pageToken");

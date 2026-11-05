@@ -302,7 +302,7 @@ test("le header iNrStudio centralise Action et Image ou Vidéo", () => {
   assert.match(modal, /\["image", "video"\] as const/);
   assert.match(
     studio,
-    /initialMediaType=\{scopedAssistantDraft\?\.draft\.mediaType \|\| handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : "image"\)\}/
+    /initialMediaType=\{scopedAssistantDraft\?\.draft\.mediaType \|\| handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : standaloneMediaType\)\}/
   );
   assert.match(modal, /activeMediaType === "video"/);
   assert.match(modal, /studioTab === "generate"\s*\? freeMediaType/);
@@ -333,7 +333,7 @@ test("le handoff transporte images et vidéos sans télécharger les vidéos dis
   assert.match(navigation, /if \(source\.mediaType === "video"\) return null/);
   assert.match(
     studio,
-    /initialMediaType=\{scopedAssistantDraft\?\.draft\.mediaType \|\| handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : "image"\)\}/
+    /initialMediaType=\{scopedAssistantDraft\?\.draft\.mediaType \|\| handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : standaloneMediaType\)\}/
   );
   assert.match(studio, /if \(!current\(\) \|\| handoff \|\| embeddedHandoff \|\| insertionRef\.current\) return false/,
     "An assistant prompt cannot replace a native publication/source handoff");
@@ -344,8 +344,8 @@ test("le média source reste prioritaire et une génération sans source conserv
   const scopeExpression = studio.match(/const scopedAssistantDraft = ([^\r\n]+);/)?.[1];
   assert.ok(expression, "Le studio doit transmettre le type du média initial");
   assert.ok(scopeExpression, "Le brouillon assistant doit être filtré avant de choisir le type");
-  const resolve = new Function("handoff", "embeddedHandoff", "assistantDraft", "actorUserId", "activeAccountId", `const scopedAssistantDraft = (${scopeExpression}); return (${expression});`);
-  const resolveInitialMediaType = (handoff: unknown, assistantDraft: unknown = null, embeddedHandoff: unknown = null) => resolve(handoff, embeddedHandoff, assistantDraft, "actor-a", "account-a");
+  const resolve = new Function("handoff", "embeddedHandoff", "assistantDraft", "actorUserId", "activeAccountId", "standaloneMediaType", `const scopedAssistantDraft = (${scopeExpression}); return (${expression});`);
+  const resolveInitialMediaType = (handoff: unknown, assistantDraft: unknown = null, embeddedHandoff: unknown = null) => resolve(handoff, embeddedHandoff, assistantDraft, "actor-a", "account-a", "image");
   const imageDraft = { actorUserId: "actor-a", accountId: "account-a", draft: { mediaType: "image" } };
   const videoDraft = { ...imageDraft, draft: { mediaType: "video" } };
 

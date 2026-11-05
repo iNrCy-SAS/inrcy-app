@@ -1,5 +1,6 @@
 "use client";
 import { useInrAssistantLibraryOptimization } from "../_hooks/useInrAssistantLibraryOptimization";
+import { useInrAssistantMediaLibraryCommands } from "../_hooks/useInrAssistantMediaLibraryCommands";
 import { useInrAssistantScreen } from "../_components/DashboardAssistantScreenContext";
 import { useInrAssistantRefresh } from "../_hooks/useInrAssistantRefresh";
 import MediaLibraryVideo from "./MediaLibraryVideo";
@@ -387,6 +388,7 @@ export default function MediaLibraryClient() {
   const [typeFilter, setTypeFilter] = useState<MediaTypeFilter>("all");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("active");
   const [search, setSearch] = useState("");
+  const [loadedFilterKey, setLoadedFilterKey] = useState(initialSnapshot ? JSON.stringify({ search: "", typeFilter: "all", activeFilter: "active" }) : "");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const filtersRef = useRef<HTMLDivElement>(null);
   const filtersTriggerRef = useRef<HTMLButtonElement>(null);
@@ -456,6 +458,7 @@ export default function MediaLibraryClient() {
       // A GET started before a successful edit must never restore the old metadata.
       if (!isCurrentRequest() || revision !== metadataRevisionRef.current || options?.canApply?.() === false) return false;
       const nextItems = (json.items ?? []) as MediaItem[];
+      setLoadedFilterKey(JSON.stringify({ search, typeFilter, activeFilter }));
       setItems(nextItems);
       setSelectedItemIds((prev) => {
         const visibleIds = new Set(nextItems.map((item) => item.id));
@@ -487,10 +490,34 @@ export default function MediaLibraryClient() {
     }
   }, [activeFilter, i18nT, search, typeFilter]);
 
+  const assistantLibraryId = `library_${useId().replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+  const assistantLibrarySnapshot = { search, typeFilter, activeFilter, metadataRevision: metadataRevisionRef.current, ids: items.map(item => [item.id, item.created_at, item.size_bytes, item.title, item.tags]), selected: [...selectedItemIds], preview: previewItem?.id ?? null };
+  const assistantLibrarySignature = JSON.stringify(assistantLibrarySnapshot);
+  const [assistantLibraryVersion, setAssistantLibraryVersion] = useState({ signature: assistantLibrarySignature, value: 0 });
+  if (assistantLibraryVersion.signature !== assistantLibrarySignature) setAssistantLibraryVersion({ signature: assistantLibrarySignature, value: assistantLibraryVersion.value + 1 });
+  const assistantLibraryWorkspace = { id: assistantLibraryId, revision: `${assistantLibraryId}_${assistantLibraryVersion.value}` };
   const assistantOptimization = useInrAssistantLibraryOptimization({
     target: previewItem || (selectedItems.length === 1 ? selectedItems[0] : null), selectedIds: selectedItems.map(item => item.id),
+    workspace: assistantLibraryWorkspace,
     blocked: uploading || importOpen || Boolean(savingId) || metadataEditingKeys.size > 0 || metadataSavingKeys.size > 0 || Boolean(optimizerItem),
     refresh: isCurrent => loadItems({ silent: true, canApply: isCurrent }),
+  });
+
+  useInrAssistantMediaLibraryCommands({
+    snapshot: assistantLibrarySnapshot, workspace: assistantLibraryWorkspace, selectedIds: selectedItems.map(item => item.id), optimizationAvailable: assistantOptimization.available,
+    enabled: !loading && !uploading && !importOpen && !savingId && metadataEditingKeys.size === 0 && metadataSavingKeys.size === 0 && !optimizerItem,
+    pendingChanges: false,
+    apply: command => {
+      const patch = command.patch;
+      if (patch.selectedMediaIds?.some(id => !items.some(item => item.id === id)) || patch.previewMediaId && !items.some(item => item.id === patch.previewMediaId)) return false;
+      if (patch.search !== undefined) setSearch(patch.search);
+      if (patch.typeFilter !== undefined) setTypeFilter(patch.typeFilter);
+      if (patch.activeFilter !== undefined) setActiveFilter(patch.activeFilter);
+      if (patch.selectedMediaIds !== undefined) setSelectedItemIds(new Set(patch.selectedMediaIds));
+      if (patch.previewMediaId !== undefined) setPreviewItem(patch.previewMediaId === null ? null : items.find(item => item.id === patch.previewMediaId) ?? null);
+      return true;
+    },
+    isApplied: command => (!Object.keys(command.patch).some(key => ["search", "typeFilter", "activeFilter"].includes(key)) || !loading && loadedFilterKey === JSON.stringify({ search, typeFilter, activeFilter })) && Object.entries(command.patch).every(([key, value]) => key === "selectedMediaIds" ? JSON.stringify([...selectedItemIds].sort()) === JSON.stringify([...(value as string[])].sort()) : key === "previewMediaId" ? (previewItem?.id ?? null) === value : key === "search" ? search === value : key === "typeFilter" ? typeFilter === value : activeFilter === value),
   });
 
   useInrAssistantRefresh({ topics: ["media"], blocked: uploading || importOpen || Boolean(savingId) || metadataEditingKeys.size > 0 || metadataSavingKeys.size > 0 || Boolean(optimizerItem), refresh: async ({ canApply }) => {

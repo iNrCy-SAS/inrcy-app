@@ -6,6 +6,7 @@ import { isChannelSettingsPanel } from "../../app/dashboard/channel-settings.ts"
 
 const names: Record<keyof typeof INR_ASSISTANT_NAVIGATION, string> = {
   home: "accueil", channels: "canaux", crm: "iNr’CRM", calendar: "agenda", studio: "iNrStudio", media: "médiathèque",
+  studio_image_retouch: "retouche image", studio_video_retouch: "retouche vidéo",
   booster: "Booster", campaigns: "campagnes mails", reputation: "avis Google", stats: "iNr’Stats", mail: "iNr’Send",
   ads: "iNr’ADS", quotes: "devis", invoices: "factures", dna: "ADN de l’entreprise", ai: "configuration IA",
   account: "compte", subscription: "abonnement", subscription_invoices: "factures d’abonnement", referrals: "parrainage",
@@ -16,9 +17,9 @@ const names: Record<keyof typeof INR_ASSISTANT_NAVIGATION, string> = {
   publication_agent: "agent publications", email_agent: "agent emailings", stats_agent: "agent stats", help: "aide iNrCy", contact: "contact", credits: "crédits médias", cash: "encaisser",
 };
 
-test("all 51 registered destinations have a direct unambiguous module name and a canonical route", () => {
+test("all 53 registered destinations have a direct unambiguous module name and a canonical route", () => {
   assert.deepEqual(Object.keys(names).sort(), Object.keys(INR_ASSISTANT_NAVIGATION).sort());
-  assert.equal(Object.keys(names).length, 51);
+  assert.equal(Object.keys(names).length, 53);
   for (const [destination, name] of Object.entries(names)) {
     const request = `Ouvre le module ${name}.`;
     assert.deepEqual(getDirectInrAssistantNavigationRequest(request), { destination, instructionQuote: request });

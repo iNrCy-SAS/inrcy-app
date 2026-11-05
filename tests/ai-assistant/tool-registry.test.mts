@@ -4,10 +4,11 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import * as routing from "../../lib/inrAssistantToolRouting.ts";
+import { inrAssistantObjectives } from "../../lib/inrAssistantObjectives.ts";
 import type * as Registry from "../../lib/inrAssistantToolRegistry.ts";
 
 type Scope = Record<string, unknown>;
-function harness() {
+function harness(unavailableUiTools: string[] = []) {
   const calls: Array<{ factory: string; scope: Scope }> = [];
   const executions: string[] = [];
   const source = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantToolRegistry.ts", import.meta.url), "utf8"), {
@@ -22,6 +23,8 @@ function harness() {
     const factory = `createI${match[1].slice(1)}`;
     return { [factory]: (scope: Scope) => {
       calls.push({ factory, scope });
+      if (factory === "createInrAssistantUiTools") return Object.fromEntries(["navigateApplication", "runScreenCommand"]
+        .filter(name => !unavailableUiTools.includes(name)).map(name => [name, { execute: () => { executions.push(name); } }]));
       const definitions: Record<string, { execute: () => void }> = {};
       return new Proxy(definitions, { get(target, key: string) {
         return target[key] ??= { execute: () => { executions.push(key); } };
@@ -39,6 +42,57 @@ function harness() {
   return { context, calls, executions, build: (changes: Partial<Registry.InrAssistantToolRegistryContext> = {}) => runtime.createInrAssistantToolRegistry({ ...context, ...changes }) };
 }
 
+test("Basic exposes only the native UI tools required by its navigation and screen plan", () => {
+  for (const [navigationRequested, screenCommandRequested, expected] of [
+    [true, false, ["navigateApplication"]],
+    [false, true, ["runScreenCommand"]],
+    [true, true, ["navigateApplication", "runScreenCommand"]],
+    [false, false, []],
+  ] as const) {
+    const h = harness(), clientContext = { source: "untrusted_client" as const, screen: { pathname: "/dashboard/stats", tool: "iNr’Stats", selection: { kind: "stats" as const, id: "stats" }, revision: "stats_1", availableCommands: ["configure_stats_view" as const] } };
+    const args = { ...h.context.args, edition: "basic" as const, clientContext };
+    const registry = h.build({ args, latestRequest: "Affiche la vue Évolution des statistiques.", navigationRequested, screenCommandRequested });
+    assert.deepEqual(Object.keys(registry.uiTools), expected);
+    const uiCalls = h.calls.filter(call => call.factory === "createInrAssistantUiTools");
+    assert.equal(uiCalls.length, expected.length ? 1 : 0);
+    if (uiCalls.length) {
+      assert.equal(uiCalls[0].scope.accountId, args.accountId);
+      assert.equal(uiCalls[0].scope.edition, "basic");
+      assert.equal(uiCalls[0].scope.clientContext, clientContext);
+      assert.equal(uiCalls[0].scope.currentUserMessage, "Affiche la vue Évolution des statistiques.");
+    }
+    assert.deepEqual(h.executions, []);
+  }
+});
+
+test("UI selection never advertises a native handler missing from the factory", () => {
+  const h = harness(["navigateApplication"]);
+  const registry = h.build({ args: { ...h.context.args, edition: "basic" }, navigationRequested: true, screenCommandRequested: true });
+  assert.deepEqual(Object.keys(registry.uiTools), ["runScreenCommand"]);
+  assert.equal(Object.hasOwn(registry.uiTools, "navigateApplication"), false);
+  assert.deepEqual(h.executions, []);
+});
+
+test("monthly visibility and clicks requests expose their required native reader without the word statistics", () => {
+  for (const message of ["Compare ma visibilité sur les trois derniers mois", "Compare les clics mois par mois"]) {
+    const h = harness(), requiredTools = inrAssistantObjectives(message).map(objective => objective.tool);
+    assert.ok(requiredTools.includes("readStatsEvolution"), message);
+    const registry = h.build({ args: { ...h.context.args, edition: "basic" }, latestRequest: message, spokenRequest: message, requiredTools, canExecute: false });
+    assert.ok(Object.hasOwn(registry.additionalTools, "readStatsEvolution"), message);
+    assert.equal(Object.hasOwn(registry.additionalTools, "sendStatsReport"), false);
+    assert.deepEqual(h.executions, []);
+  }
+});
+
+test("an explicit subscription invoice download exposes its native browser preparation in Basic", () => {
+  const h = harness(), message = "Download ma facture d’abonnement INV-001", requiredTools = routing.inrAssistantRequiredTools(message);
+  assert.deepEqual(requiredTools, ["prepareAccountDocumentDownload"]);
+  const base = { args: { ...h.context.args, edition: "basic" as const }, latestRequest: message, spokenRequest: message, requiredTools };
+  assert.ok(Object.hasOwn(h.build(base).additionalTools, "prepareAccountDocumentDownload"));
+  assert.equal(Object.hasOwn(h.build({ ...base, canExecute: false }).additionalTools, "prepareAccountDocumentDownload"), false);
+  assert.deepEqual(h.executions, []);
+});
+
 test("registry construction retains the server scope and never executes a handler", () => {
   const h = harness();
   h.build({ latestRequest: "Erreur de connexion", navigationRequested: true });
@@ -54,6 +108,15 @@ test("registry construction retains the server scope and never executes a handle
     if (scope.request) assert.equal(scope.request, h.context.args.request);
   }
   assert.deepEqual(h.executions, []);
+});
+
+test("a preview button context reaches the media factory as a target restriction and cannot supply save authority", () => {
+  const h = harness(), mediaPreview = { requestId: "assistant_owned_preview", mediaId: "20000000-0000-4000-8000-000000000002" };
+  h.context.args.clientContext = { source: "untrusted_client", mediaPreview, saveAuthorizedRequestIds: [mediaPreview.requestId] } as Registry.InrAssistantToolRegistryContext["args"]["clientContext"];
+  h.build({ families: new Set(["media"]), latestRequest: "Save this preview to my media.", spokenRequest: "Save this preview to my media.", requiredTools: ["acceptMediaGeneration"] });
+  const scope = h.calls.find(call => call.factory === "createInrAssistantMediaTools")!.scope;
+  assert.deepEqual(scope.previewTarget, mediaPreview); assert.equal(Array.isArray(scope.saveAuthorizedRequestIds) && scope.saveAuthorizedRequestIds.includes(mediaPreview.requestId), false);
+  assert.equal(scope.currentUserMessage, "Save this preview to my media."); assert.deepEqual(h.executions, []);
 });
 
 test("campaign advice retains scoped readers and never proposes a write", () => {
@@ -131,7 +194,7 @@ test("the registry keeps write gates while allowing scoped reader construction",
   ]) {
     const h = harness();
     const registry = h.build({ families: new Set(["publication"]), requiredTools: ["executePublication"], ...changes });
-    assert.equal(Object.keys(registry.publicationTools).length, 0);
+    assert.deepEqual(Object.keys(registry.publicationTools), []);
     if(changes.args) assert.ok(!h.calls.some(call => call.factory === "createInrAssistantPublicationTools"));
   }
 });

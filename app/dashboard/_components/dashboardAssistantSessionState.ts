@@ -2,15 +2,17 @@ import { parseInrAssistantClientContext, type InrAssistantClientError } from "@/
 import { parseAssistantAttachments, type AssistantAttachment } from "@/lib/inrAssistantAttachments";
 import { parseInrAssistantTaskProgress, type InrAssistantTaskProgress } from "@/lib/inrAssistantUiCommands";
 import { parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "@/lib/inrAssistantStudioDraft";
+import { parseInrAssistantMediaPreviewReference } from "@/lib/inrAssistantMediaPreview";
 import { parseInrAssistantUiResult, type InrAssistantUiResult } from "@/lib/inrAssistantUiActions";
 
 export type AssistantMedia = {
-  status: "processing" | "completed" | "failed";
+  status: "processing" | "completed" | "failed" | "ready_to_save";
   mediaType?: "image" | "video";
   requestId?: string;
   mediaId?: string;
   url?: string;
   message?: string;
+  draft?:true;
 };
 export type ChatMessage = { role: "user" | "assistant"; content: string; media?: AssistantMedia; studioDraft?: InrAssistantStudioDraft; turnId?: string; attachments?: AssistantAttachment[]; taskProgress?: InrAssistantTaskProgress; uiResults?: InrAssistantUiResult[] };
 const SESSION_STORAGE_PREFIX = "inrcy_assistant_session_v1:";
@@ -38,10 +40,11 @@ export function storedMessages(value: unknown): ChatMessage[] | null {
     if (row.role === "user" && (typeof row.turnId !== "string" || !TURN_ID_PATTERN.test(row.turnId))) return null;
     let attachments: AssistantAttachment[] = [];
     try { if (row.role === "user") attachments = parseAssistantAttachments(row.attachments); } catch { /* An invalid local attachment cannot become a server reference. */ }
+    const preview = row.role === "assistant" ? parseInrAssistantMediaPreviewReference(row.media) : undefined;
     const studioDraft = row.role === "assistant" ? parseInrAssistantStudioDraft(row.studioDraft) : null;
     const taskProgress = row.role === "assistant" ? parseInrAssistantTaskProgress(row.taskProgress) : null;
     const uiResults = row.role === "assistant" && Array.isArray(row.uiResults) && row.uiResults.length <= 24 ? row.uiResults.map(parseInrAssistantUiResult).filter((result: InrAssistantUiResult | null): result is InrAssistantUiResult => Boolean(result)) : [];
-    rows.push({ role: row.role, content: row.content.slice(0, row.role === "user" ? 4000 : 60000), ...(studioDraft ? { studioDraft } : {}), ...(taskProgress ? { taskProgress } : {}), ...(uiResults.length ? { uiResults } : {}), ...(row.role === "user" ? { turnId: row.turnId, ...(attachments.length ? { attachments } : {}) } : {}) });
+    rows.push({ role: row.role, content: row.content.slice(0, row.role === "user" ? 4000 : 60000), ...(preview ? {media:preview} : {}), ...(studioDraft ? { studioDraft } : {}), ...(taskProgress ? { taskProgress } : {}), ...(uiResults.length ? { uiResults } : {}), ...(row.role === "user" ? { turnId: row.turnId, ...(attachments.length ? { attachments } : {}) } : {}) });
   }
   while (rows.length > 1 && rows.reduce((total, row) => total + row.content.length, 0) > 400000) rows.shift();
   return rows;
@@ -91,7 +94,8 @@ export function parseAssistantMedia(value: unknown): AssistantMedia | undefined 
     } catch { /* An invalid provider URL must never become a rendered media source. */ }
   }
   return {
-    status: media.status === "ready_to_save" ? "processing" : media.status as AssistantMedia["status"],
+    status: media.status === "ready_to_save" && media.draft !== true ? "processing" : media.status as AssistantMedia["status"],
+    ...(media.status === "ready_to_save" && media.draft === true ? {draft:true as const} : {}),
     ...(mediaType ? { mediaType } : {}),
     ...(url ? { url } : {}),
     ...(typeof media.requestId === "string" ? { requestId: media.requestId } : {}),

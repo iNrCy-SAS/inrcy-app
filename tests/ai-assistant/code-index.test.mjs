@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { assistantCodeIndexSource, readAssistantCodeInventory } from "../../scripts/build-assistant-code-index.mjs";
+import { assistantCodeIndexSource, readAssistantCodeInventory, verifyAssistantGuideReviews } from "../../scripts/build-assistant-code-index.mjs";
 
 test("the assistant source index matches the current application rather than a stale release", () => {
   const root = fileURLToPath(new URL("../../", import.meta.url));
+  assert.equal(verifyAssistantGuideReviews(root).current, true, "Each current procedure must be revalidated against its own UI sources.");
   const current = readAssistantCodeInventory(root);
   const saved = readFileSync(new URL("../../lib/inrAssistantCodeIndex.generated.ts", import.meta.url), "utf8").replaceAll("\r\n", "\n");
   assert.equal(saved, assistantCodeIndexSource(current), "Review changed guides and regenerate the assistant code index before release.");

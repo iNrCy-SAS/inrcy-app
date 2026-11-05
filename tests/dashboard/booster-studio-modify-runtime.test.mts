@@ -36,6 +36,7 @@ function returnedEffect() {
   return ts.transpileModule(`const handler = () => ${found.body.getText(publish)};`, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText + "\nreturn handler;";
 }
 const handlers = {
+  openGenerator: expression(publish, "openInrStudioGenerator"),
   openImage: expression(publish, "openInrStudioImageTool"),
   modify: expression(publish, "onModifyImage", "PublishMediaPoolPanel"),
   retouch: expression(publish, "onRetouchImage", "PublishMediaPoolPanel"),
@@ -67,7 +68,7 @@ function require(name){
  if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
  if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:translate};
- if(name==='next/navigation')return {useRouter:()=>({replace:noOp,push:noOp})};
+ if(name==='next/navigation')return {useRouter:()=>({replace:noOp,push:noOp}),usePathname:()=>'/dashboard',useSearchParams:()=>new URLSearchParams(location.search)};
  if(name==='next/dynamic')return {__esModule:true,default:()=>require('studio').default};
  if(name==='@/app/dashboard/_components/DashboardViewerAccessProvider')return {useDashboardViewerAccess:()=>({actorUserId:'actor-a',activeAccountId:'account-a'})};
  if(name==='./DashboardAssistantScreenContext')return {useInrAssistantScreen:noOp};
@@ -95,17 +96,19 @@ const original=Array.from({length:5},(_,i)=>new File([bytes],'source-'+(i+1)+'.p
 const keys=original.map(makeImageKey),initialEditors={facebook:{imageKeys:[keys[2],keys[0]],transforms:{},synchronizedImageKeys:keys},instagram:{imageKeys:[keys[1]],transforms:{},synchronizedImageKeys:keys}};
 function Fixture(){
  const[images,setImages]=React.useState(original),[imagePreviews,setImagePreviews]=React.useState(original.map(URL.createObjectURL)),[imageMetaByKey,setImageMetaByKey]=React.useState({}),[channelImageEditors,setChannelImageEditors]=React.useState(initialEditors),[activeImageKeyByChannel,setActiveImageKeyByChannel]=React.useState({facebook:keys[2],instagram:keys[1]}),[pendingStudioReturn,setPendingStudioReturn]=React.useState(null);
- const inlineStudioReturnKeyRef=React.useRef(''),studioReturnApplyingKeyRef=React.useRef('');
- const{openStudio,studio,completeReturn}=require('session').useInrStudioSession({onReturned(result){inlineStudioReturnKeyRef.current=result.returnKey;setPendingStudioReturn(result)}});
+ const inlineStudioReturnKeyRef=React.useRef(''),studioReturnApplyingKeyRef=React.useRef(''),studioOpeningRef=React.useRef(false);
+ const{openStudio,studio,completeReturn}=require('session').useInrStudioSession({onReturned(result){inlineStudioReturnKeyRef.current=result.returnKey;setPendingStudioReturn(result)},onClosed(){studioOpeningRef.current=false}});
  const imageKeys=images.map(makeImageKey),previewByKey=Object.fromEntries(imageKeys.map((key,index)=>[key,imagePreviews[index]]));
  const setImgError=message=>{if(message)window.errors.push(message)};
  const replaceImageFile=bind(handlers.replace,{images,imagePreviews,imageMetaByKey,makeImageKey,isBoosterImageFile:file=>file.type==='image/png',BOOSTER_MAX_IMAGE_BYTES:10e6,BOOSTER_MAX_MEDIA_BYTES:50e6,setImgError,i18nT:translate('booster'),buildLocalImagePresentation:async file=>({preview:URL.createObjectURL(file),meta:{width:1,height:1}}),withMediaImageInteractions:meta=>meta,setImages,setImagePreviews,setImageMetaByKey,setChannelImageEditors,setActiveImageKeyByChannel,getOptimizedTransform:()=>({zoom:1}),syncPersistentWorkspaceImages:noOp});
  React.useEffect(()=>bind(handlers.returned,{pendingStudioReturn,inlineStudioReturnKeyRef,loadedPublicationDraftId:'draft-test',studioReturnApplyingKeyRef,setImgError,mediaT:translate('media'),mediaLibraryItemToFile:async()=>new File([bytes],'modified-result.png',{type:'image/png',lastModified:200}),replaceImageFile,setPendingStudioReturn,completeReturn})(),[pendingStudioReturn]);
- const openInrStudioImageTool=bind(handlers.openImage,{images,makeImageKey,previewByKey,imagePreparationItems:[],setImgError,preparePublicationDraftForStudio:async()=>{window.saves++;return {draftId:'draft-test',returnHref:'/dashboard?action=publish&draftId=draft-test'}},createInrStudioHandoff:async input=>{const result=await nav.createInrStudioHandoff(input);window.handoffs.push(result.handoff);return result},openStudio});
+ const studioDeps={studioOpeningRef,i18nT:translate('booster'),clearInrStudioHandoff:nav.clearInrStudioHandoff,setImgError,preparePublicationDraftForStudio:async()=>{window.saves++;return {draftId:'draft-test',returnHref:'/dashboard?action=publish&draftId=draft-test'}},createInrStudioHandoff:async input=>{const result=await nav.createInrStudioHandoff(input);window.handoffs.push(result.handoff);return result},openStudio};
+ const openInrStudioImageTool=bind(handlers.openImage,{...studioDeps,images,makeImageKey,previewByKey,imagePreparationItems:[]});
+ const openInrStudioGenerator=bind(handlers.openGenerator,{...studioDeps,idea:'Notre projet'});
  const callbacks={openInrStudioImageTool,activeImageChannel:'facebook',imageKeys};
  window.snapshot=()=>({names:images.map(file=>file.name),keys:imageKeys,editors:channelImageEditors,active:activeImageKeyByChannel});
  window.injectCompletedMedia=()=>injectResult({draft:false,item:{id:'10000000-0000-4000-8000-000000000099',media_type:'image',title:'Modifiée',signed_url:'https://fixture.invalid/result.png'},kind:'image',format:'square'});
- return jsx(React.Fragment,null,jsx('output',{'data-testid':'pool-count'},String(images.length)),jsx(require('pool').default,{images,imagePreviews,videoFile:null,videoPreviewUrl:'',isMobile:false,onPickImages:noOp,onPickVideo:noOp,onGenerate:noOp,onLibrary:noOp,onCamera:noOp,onRemoveImage:noOp,onRemoveVideo:noOp,onReorderImage:noOp,onModifyImage:bind(handlers.modify,callbacks),onRetouchImage:bind(handlers.retouch,callbacks),onRetouchVideo:noOp}),studio);
+ return jsx(React.Fragment,null,jsx('output',{'data-testid':'pool-count'},String(images.length)),jsx(require('pool').default,{images,imagePreviews,videoFile:null,videoPreviewUrl:'',isMobile:false,onPickImages:noOp,onPickVideo:noOp,onGenerate:openInrStudioGenerator,onLibrary:noOp,onCamera:noOp,onRemoveImage:noOp,onRemoveVideo:noOp,onReorderImage:noOp,onModifyImage:bind(handlers.modify,callbacks),onRetouchImage:bind(handlers.retouch,callbacks),onRetouchVideo:noOp}),studio);
 }
 window.fetch=async()=>{window.publicationCalls++;throw Error('No API request is allowed during this UI test')};
 require('react-dom/client').createRoot(document.getElementById('root')).render(jsx(Fixture));
@@ -148,6 +151,53 @@ test("Booster Modify opens the actual Studio Modifier with the selected source, 
     await page.locator('section[data-studio-tab="retouch"]').waitFor();
     assert.equal(await page.getByTestId("manual-retoucher").textContent(), "source-2.png");
     assert.deepEqual(await page.evaluate(() => ({ generation: (window as unknown as { generationCalls: number }).generationCalls, api: (window as unknown as { publicationCalls: number }).publicationCalls })), { generation: 0, api: 0 });
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test("Booster Generate opens and closes its real embedded Studio with actual Chromium Storage at quota, keeping the draft and suppressing duplicate clicks", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } }), errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await page.route("**/*", route => route.fulfill({ contentType: "text/html", body: '<html><body><div id="root"></div></body></html>' }));
+    await page.goto("https://fixture.invalid/dashboard?action=publish");
+    const full = await page.evaluate(() => {
+      let low = 0, high = 8 * 1024 * 1024, failures = 0;
+      while (low < high) {
+        const length = Math.ceil((low + high) / 2);
+        try { sessionStorage.setItem("fixture:unrelated-editor", "x".repeat(length)); low = length; }
+        catch (error) { if (!(error instanceof DOMException) || error.name !== "QuotaExceededError") throw error; failures++; high = length - 1; }
+      }
+      sessionStorage.setItem("fixture:unrelated-editor", "x".repeat(low));
+      try { sessionStorage.setItem("fixture:quota-probe", "x"); throw new Error("The Storage quota must really be exhausted"); }
+      catch (error) { if (!(error instanceof DOMException) || error.name !== "QuotaExceededError") throw error; }
+      return { length: low, failures };
+    });
+    assert.ok(full.length > 1_000_000); assert.ok(full.failures > 0);
+    await page.addScriptTag({ content: fixture });
+    const generate = page.getByRole("button", { name: "Générer", exact: true }).first(); await generate.waitFor();
+    await generate.evaluate(element => { (element as HTMLButtonElement).click(); (element as HTMLButtonElement).click(); });
+    await page.locator('section[data-studio-tab="generate"]').waitFor().catch(error => { throw new Error(`${String(error)}\nFixture browser errors: ${errors.join("\n")}`, { cause: error }); });
+    const state = await page.evaluate(() => {
+      const fixture = window as unknown as { saves: number; handoffs: unknown[]; errors: string[]; generationCalls: number; publicationCalls: number; snapshot: () => { names: string[] } };
+      return { saves: fixture.saves, handoffs: fixture.handoffs.length, errors: fixture.errors, generation: fixture.generationCalls, api: fixture.publicationCalls, names: fixture.snapshot().names, storageKeys: Object.keys(sessionStorage), retainedLength: sessionStorage.getItem("fixture:unrelated-editor")?.length };
+    });
+    assert.deepEqual(state, { saves: 1, handoffs: 1, errors: [], generation: 0, api: 0, names: ["source-1.png", "source-2.png", "source-3.png", "source-4.png", "source-5.png"], storageKeys: ["fixture:unrelated-editor"], retainedLength: full.length });
+    await page.locator('section[data-studio-tab="generate"]').getByRole("button", { name: "Fermer", exact: true }).last().click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Repartir dans Booster", exact: true }).click();
+    await page.locator('section[data-studio-tab="generate"]').waitFor({ state: "hidden" });
+    assert.equal(await page.getByTestId("pool-count").textContent(), "5"); assert.deepEqual(errors, []);
+    await page.getByRole("button", { name: "Modifier l’image 3", exact: true }).click(); await page.locator('section[data-studio-tab="modify"]').waitFor();
+    await page.locator('[data-modifier-preview]').waitFor({ state: "hidden" });
+    await page.evaluate(() => (window as unknown as { injectCompletedMedia: () => void }).injectCompletedMedia());
+    await page.getByTestId("accept-tested-media").click();
+    await page.waitForFunction(() => !document.querySelector('[data-studio-tab="modify"]'));
+    const returned = await page.evaluate(() => {
+      const fixture = window as unknown as { saves: number; generationCalls: number; publicationCalls: number; errors: string[]; snapshot: () => { names: string[] } };
+      return { names: fixture.snapshot().names, errors: fixture.errors, saves: fixture.saves, generation: fixture.generationCalls, api: fixture.publicationCalls, storageKeys: Object.keys(sessionStorage), retainedLength: sessionStorage.getItem("fixture:unrelated-editor")?.length };
+    });
+    assert.deepEqual(returned, { names: ["source-1.png", "source-2.png", "modified-result.png", "source-4.png", "source-5.png"], errors: [], saves: 2, generation: 0, api: 0, storageKeys: ["fixture:unrelated-editor"], retainedLength: full.length });
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

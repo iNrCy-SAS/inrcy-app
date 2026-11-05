@@ -19,6 +19,7 @@ import { bindInrAssistantUiActionsToScreen, inrAssistantUiActionsFromToolResult,
 import { createInrAssistantUiReceiptToken, loadInrAssistantUiResults } from "@/lib/inrAssistantUiReceipts";
 import { bindInrAssistantUiSteps } from "@/lib/inrAssistantUiTask";
 import { resolveInrAssistantUiTaskResults } from "@/lib/inrAssistantUiTaskContinuation";
+import { canOfferInrAssistantAutoContinuation } from "@/lib/inrAssistantAutoContinuation";
 
 export const runtime = "nodejs";
 export const maxDuration = 800;
@@ -285,8 +286,11 @@ async function respond(request: Request, requestId: string, onActivity?: (activi
     if (taskState?.uiSteps) taskState.uiSteps = bindInrAssistantUiSteps(taskState.uiSteps, uiActions, { turnId, createdAt: begun.turn!.createdAt });
     const uiReceiptToken = uiActions.length ? createInrAssistantUiReceiptToken(attachmentScope, begun.turn!, uiActions) : undefined;
     const refresh = parseInrAssistantRefresh({ accountId: auth.activeUserId, turnId, topics: assistantRefreshTopics(taskState?.receipts ?? []) });
-    const publicReply = { ...replyData, ...(uiActions.length ? { uiActions, uiReceiptToken } : {}), ...(refresh ? { refresh } : {}) };
     const taskSaved = taskState ? await saveAssistantTaskState(attachmentScope, {turnId,createdAt:begun.turn!.createdAt}, bindMediaImportSource(taskState)) : true;
+    const autoContinueAfterUi = canOfferInrAssistantAutoContinuation({ edition, taskSaved,
+      outcome: taskState?.outcome, needsHuman: reply.needsHuman, remaining: reply.taskProgress?.remaining.length ?? 0,
+      uncertain: taskState?.receipts.some(receipt => INR_ASSISTANT_UNCERTAIN_STATUSES.has(receipt.status)) ?? false, actions: uiActions });
+    const publicReply = { ...replyData, ...(uiActions.length ? { uiActions, uiReceiptToken } : {}), ...(refresh ? { refresh } : {}), ...(autoContinueAfterUi ? { autoContinueAfterUi: true } : {}) };
     if (!taskSaved && taskState && ["partial","needs_input","processing"].includes(taskState.outcome)) publicReply.message += "\n\nLe suivi de cette tâche n’a pas pu être enregistré. Vérifiez les résultats dans les outils avant toute nouvelle action ; les étapes déjà confirmées y sont conservées.";
     if (!await saveAssistantReplyReplay(attachmentScope, begun.turn!, publicReply)) {
       throw Object.assign(new Error("La réponse ne peut pas être conservée pour une reprise fiable."), { code: "assistant_reply_unavailable" });

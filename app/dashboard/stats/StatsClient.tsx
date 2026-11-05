@@ -56,6 +56,7 @@ import { Cube } from "./stats.ui";
 import { useDashboardViewerAccess } from "@/app/dashboard/_components/DashboardViewerAccessProvider";
 import { useDashboardEdition } from "@/app/dashboard/_components/DashboardEditionProvider";
 import { useInrAssistantRefresh } from "../_hooks/useInrAssistantRefresh";
+import { useInrAssistantStatsCommands } from "../_hooks/useInrAssistantStatsCommands";
 
 type StatsClientProps = {
   initialInrSearch?: {
@@ -141,6 +142,9 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   });
   const [summaryHydrated, setSummaryHydrated] = useState(false);
   const [activeStatsPanel, setActiveStatsPanel] = useState<StatsPanelKey>("all");
+  const [statsEvolutionView, setStatsEvolutionView] = useState<"measured" | "index">("measured");
+  const [statsMetric, setStatsMetric] = useState<"visibility" | "clicks">("visibility");
+  const [statsChannel, setStatsChannel] = useState<CubeKey | "all">("all");
   const [statsMenuOpen, setStatsMenuOpen] = useState(false);
   const [dailyBootReady, setDailyBootReady] = useState(false);
   const [mailStats, setMailStats] = useState<MailStatsSnapshot>(EMPTY_MAIL_STATS);
@@ -461,7 +465,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   };
 
   async function generateStatsReportNow() {
-    if (isGeneratingReport) return;
+    if (dashboardEdition === "basic" || isGeneratingReport) return;
 
     setIsGeneratingReport(true);
     setReportNotice(i18nT("report_generation_progress"));
@@ -508,6 +512,21 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     setStatsMenuOpen(false);
   };
 
+  useInrAssistantStatsCommands({ accountId: activeAccountId,
+    snapshot: { panel: activeStatsPanel, evolutionView: statsEvolutionView, metric: statsMetric, channel: statsChannel, channels: models.map(model => model.key) },
+    apply: patch => {
+      const allowed = new Set<string>(["all", "evolution", ...models.map(model => model.key)]);
+      if (patch.panel !== undefined && !allowed.has(patch.panel) || patch.channel !== undefined && !["all", ...models.map(model => model.key)].includes(patch.channel)) return false;
+      if (patch.panel !== undefined) selectStatsPanel(patch.panel);
+      if (patch.evolutionView !== undefined) setStatsEvolutionView(patch.evolutionView);
+      if (patch.metric !== undefined) setStatsMetric(patch.metric);
+      if (patch.channel !== undefined) setStatsChannel(patch.channel);
+      return true;
+    },
+    isApplied: patch => (patch.panel === undefined || activeStatsPanel === patch.panel) && (patch.evolutionView === undefined || statsEvolutionView === patch.evolutionView)
+      && (patch.metric === undefined || statsMetric === patch.metric) && (patch.channel === undefined || statsChannel === patch.channel),
+  });
+
   return (
     <div className={styles.page} data-stats-layout="panorama">
       <div className={styles.header}>
@@ -530,7 +549,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
           <div className={styles.headerActions}>
             <div className={styles.headerCloseControls}>
               <HelpButton onClick={() => setHelpOpen(true)} title={i18nT("aide_inr_stats_14d89e71")} size={34} />
-              <button
+              {dashboardEdition !== "basic" && <button
                 type="button"
                 className={panorama.reportButton}
                 onClick={() => { void generateStatsReportNow(); }}
@@ -540,7 +559,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
               >
                 <ChartIcon />
                 <span>{isGeneratingReport ? i18nT("generation_du_bilan_9b3321bd") : i18nT("panorama_report")}</span>
-              </button>
+              </button>}
               <button
                 type="button"
                 className={styles.statsMobileNavButton}
@@ -655,7 +674,8 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
               />
             }
           />
-          <StatsEvolution key={activeAccountId} enabled={activeStatsPanel === "evolution"} accountId={activeAccountId} refreshKey={refreshNonce} channels={models} ready={bulkStatsReady && !isRefreshing} />
+          <StatsEvolution key={activeAccountId} enabled={activeStatsPanel === "evolution"} accountId={activeAccountId} refreshKey={refreshNonce} channels={models} ready={bulkStatsReady && !isRefreshing}
+            view={statsEvolutionView} onViewChange={setStatsEvolutionView} metric={statsMetric} onMetricChange={setStatsMetric} channel={statsChannel} onChannelChange={setStatsChannel} />
           {activeStatsPanel === "all" ? (
             <StatsOverview
               channels={overviewChannels}

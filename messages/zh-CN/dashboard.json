@@ -373,7 +373,7 @@
     "cashTitle": "兑现",
     "cashSub": "报价单和发票",
     "cashCta": "兑现",
-    "reputationTitle": "电子声誉",
+    "reputationTitle": "Google 评价",
     "reputationSub": "管理您的评论 Google",
     "reputationCta": "管理",
     "cashModalTitle": "兑现",
@@ -876,7 +876,7 @@
     "statsCta": "查看统计数据",
     "sendDescription": "您的活动历史。",
     "sendCta": "查看历史记录",
-    "reputationName": "声誉",
+    "reputationName": "Google 评价",
     "reputationDescription": "管理您的评论 Google。",
     "reputationCta": "管理我的评论",
     "loading": "加载中...",
@@ -1069,11 +1069,11 @@
       },
       "reviews": {
         "title": "管理我的评价",
-        "subtitle": "声誉 · Google Business",
+        "subtitle": "Google Business",
         "intro": "查看 Google 评价，并准备合适的回复。",
         "steps": {
-          "step1": "确认您的 Google Business 商家资料已连接。",
-          "step2": "打开声誉并选择一条评价。",
+          "step1": "确认您的 Google Business 商家资料已连接并已选中。",
+          "step2": "在渠道中打开 Google Business 气泡，选择评价，再选择一条评价。",
           "step3": "检查建议回复，确认后再发布。"
         }
       },
@@ -1133,7 +1133,7 @@
     "media": "媒体库",
     "ads": "iNr’ADS",
     "campaigns": "邮件营销",
-    "reputation": "声誉管理",
+    "reputation": "Google 评价",
     "stats": "iNr’Stats",
     "send": "iNr’Send",
     "calendar": "iNr’Calendar",

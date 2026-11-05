@@ -1,3 +1,5 @@
+import { INR_ASSISTANT_ACCOUNT_UI_COMMANDS, type InrAssistantAccountUiCommandName } from "./inrAssistantAccountUiIntent.ts";
+import { inrAssistantNavigationForm } from "./inrAssistantNavigationForm.ts";
 import { parseInrAssistantClientContext, type InrAssistantClientContext, type InrAssistantClientScreen } from "./inrAssistantClientContext.ts";
 import { getDirectInrAssistantNavigationRequest, isInrAssistantScreenCommandRequest } from "./inrAssistantUiCommands.ts";
 import { parseInrAssistantUiActions, inrAssistantUiSuccessStatus, type InrAssistantUiAction, type InrAssistantUiResult } from "./inrAssistantUiActions.ts";
@@ -6,12 +8,14 @@ import { matchesInrAssistantActionClause } from "./inrAssistantActionClause.ts";
 import { inrAssistantUiPostScreenMatchesAction, type InrAssistantUiPostScreen } from "./inrAssistantUiPostScreen.ts";
 import { isInrAssistantDocumentPrefillInstruction } from "./inrAssistantDocumentUiCommands.ts";
 
-type ScreenCommand = NonNullable<Parameters<typeof isInrAssistantScreenCommandRequest>[1]>;
-export const INR_ASSISTANT_UI_TASK_TOOLS = ["navigateApplication", "runScreenCommand", "prepareCommercialDocumentForm", "prepareCurrentDocumentTemplate"] as const;
+type ScreenCommand = NonNullable<InrAssistantClientScreen["availableCommands"]>[number] | InrAssistantAccountUiCommandName;
+export const INR_ASSISTANT_UI_TASK_TOOLS = ["navigateApplication", "runScreenCommand", "prepareCommercialDocumentForm", "prepareCurrentDocumentTemplate", "prepareAccountDocumentDownload", "configureCookieConsent"] as const;
 export function isInrAssistantUiTaskTool(name: string): boolean {
   return INR_ASSISTANT_UI_TASK_TOOLS.some(tool => tool === name);
 }
 export function inrAssistantUiStepTool(step: InrAssistantUiStep): typeof INR_ASSISTANT_UI_TASK_TOOLS[number] {
+  if (step.command === "download_account_export" || step.command === "download_subscription_invoice") return "prepareAccountDocumentDownload";
+  if (step.command === "configure_cookie_consent") return "configureCookieConsent";
   if (step.command === "create_document_template") return "prepareCurrentDocumentTemplate";
   return step.command === "navigateApplication" || step.command === "prepareCommercialDocumentForm" ? step.command : "runScreenCommand";
 }
@@ -29,6 +33,10 @@ export type InrAssistantUiStep = {
 };
 export type InrAssistantUiStepResult = { stepId: string; status: "applied" | "pending" | "failed" | "cancelled"; postScreen?: InrAssistantUiPostScreen };
 const followupCapabilities: Partial<Record<InrAssistantUiStep["command"], ScreenCommand[]>> = {
+  generate_website_widget_code: ["show_website_widget_code", "copy_website_widget_code"],
+  select_image_source: ["configure_image_retouch", "reset_image_retouch", "save_image_retouch"],
+  configure_image_retouch: ["reset_image_retouch", "save_image_retouch"],
+  reset_image_retouch: ["configure_image_retouch", "save_image_retouch"],
   select_video_source: ["configure_video_retouch", "save_video_retouch"],
   configure_video_retouch: ["save_video_retouch"],
   configure_ads_draft: ["save_ads_draft"],
@@ -39,6 +47,9 @@ const transitionCapabilities: Partial<Record<InrAssistantUiStep["command"], Scre
   prepare_document_mail: ["configure_mail_draft", "save_mail_draft", "send_mail_draft", "open_mail_schedule"],
   prepareCommercialDocumentForm: ["export_document_pdf", "create_document_template"],
 };
+function transitions(step: InrAssistantUiStep): readonly string[] | undefined {
+  return step.command === "navigateApplication" ? inrAssistantNavigationForm(getDirectInrAssistantNavigationRequest(step.instruction)?.destination ?? "")?.commands : transitionCapabilities[step.command];
+}
 const documentFormRequest = (message: string) => isInrAssistantDocumentPrefillInstruction(message, "convert_quote") || isInrAssistantDocumentPrefillInstruction(message, "apply_template");
 
 export function inrAssistantUiStepAcceptsAction(step: InrAssistantUiStep, action: InrAssistantUiAction): boolean {
@@ -51,13 +62,13 @@ export function inrAssistantUiStepAcceptsAction(step: InrAssistantUiStep, action
  * context/parser and its detector also makes it eligible for ordered tracking. */
 export function inrAssistantUiSteps(message: string, context?: InrAssistantClientContext | null): InrAssistantUiStep[] {
   let screen = parseInrAssistantClientContext(context)?.screen;
-  const commands = new Set<ScreenCommand>(["export_document_pdf"]);
+  const commands = new Set<ScreenCommand>(["export_document_pdf", ...INR_ASSISTANT_ACCOUNT_UI_COMMANDS]);
   let afterStepId: string | undefined;
   if (screen?.revision) for (const command of screen.availableCommands ?? []) commands.add(command);
   return inrAssistantRequestClauses(message).flatMap((instruction, index): InrAssistantUiStep[] => {
     if (documentFormRequest(instruction) && matchesInrAssistantActionClause(message, message, documentFormRequest)) {
       const step: InrAssistantUiStep = { id: `ui_${index}`, instruction, command: "prepareCommercialDocumentForm" };
-      commands.clear(); transitionCapabilities.prepareCommercialDocumentForm!.forEach(command => commands.add(command));
+      commands.clear(); INR_ASSISTANT_ACCOUNT_UI_COMMANDS.forEach(command => commands.add(command)); transitionCapabilities.prepareCommercialDocumentForm!.forEach(command => commands.add(command));
       screen = undefined; afterStepId = step.id;
       return [step];
     }
@@ -65,17 +76,20 @@ export function inrAssistantUiSteps(message: string, context?: InrAssistantClien
       && matchesInrAssistantActionClause(message, message, candidate => inrAssistantRequestClauses(candidate).some(clause => isInrAssistantScreenCommandRequest(clause, value))));
     if (!command) {
       const navigation = getDirectInrAssistantNavigationRequest(instruction);
-      return navigation && matchesInrAssistantActionClause(message, message, () => true)
-        ? [{ id: `ui_${index}`, instruction, command: "navigateApplication" }] : [];
+      if (!navigation || !matchesInrAssistantActionClause(message, message, () => true)) return [];
+      const step: InrAssistantUiStep = {id:`ui_${index}`,instruction,command:"navigateApplication"};
+      const following = transitions(step);
+      if (following?.length) { commands.clear(); INR_ASSISTANT_ACCOUNT_UI_COMMANDS.forEach(command => commands.add(command)); following.forEach(command => commands.add(command as ScreenCommand)); screen = undefined; afterStepId = step.id; }
+      return [step];
     }
     // A future native capability is planning only. It cannot execute until its
     // prerequisite is acknowledged and the mounted form actually advertises it.
     for (const following of followupCapabilities[command] ?? []) commands.add(following);
-    const step: InrAssistantUiStep = { id: `ui_${index}`, instruction, command, ...(afterStepId ? { afterStepId } : {}),
-      ...(command !== "export_document_pdf" && screen ? { screen: { ...screen, availableCommands: [command] } } : {}) };
+    const step: InrAssistantUiStep = { id: `ui_${index}`, instruction, command, ...(afterStepId && !INR_ASSISTANT_ACCOUNT_UI_COMMANDS.some(name => name === command) ? { afterStepId } : {}),
+      ...(command !== "export_document_pdf" && !INR_ASSISTANT_ACCOUNT_UI_COMMANDS.some(name => name === command) && screen ? { screen: { ...screen, availableCommands: [command as NonNullable<InrAssistantClientScreen["availableCommands"]>[number]] } } : {}) };
     const transition = transitionCapabilities[command];
     if (transition) {
-      commands.clear(); transition.forEach(command => commands.add(command));
+      commands.clear(); INR_ASSISTANT_ACCOUNT_UI_COMMANDS.forEach(command => commands.add(command)); transition.forEach(command => commands.add(command));
       screen = undefined; afterStepId = step.id;
     }
     return [step];
@@ -92,8 +106,8 @@ export function parseInrAssistantUiSteps(value: unknown): InrAssistantUiStep[] |
     const screen = step.screen === undefined ? undefined : parseInrAssistantClientContext({ screen: step.screen })?.screen;
     if (step.screen !== undefined && !screen) return null;
     const origin = step.afterStepId === undefined ? undefined : parsed.find(previous => previous.id === step.afterStepId);
-    if (step.afterStepId !== undefined && (!origin || !transitionCapabilities[origin.command]?.some(command => command === step.command))) return null;
-    if (!["export_document_pdf", "navigateApplication", "prepareCommercialDocumentForm"].includes(step.command) && (!screen?.revision || !screen.availableCommands?.some(command => command === step.command)) && !origin) return null;
+    if (step.afterStepId !== undefined && (!origin || !transitions(origin)?.some(command => command === step.command))) return null;
+    if (!["export_document_pdf", "navigateApplication", "prepareCommercialDocumentForm", ...INR_ASSISTANT_ACCOUNT_UI_COMMANDS].includes(step.command) && (!screen?.revision || !screen.availableCommands?.some(command => command === step.command)) && !origin) return null;
     if (step.command === "navigateApplication" ? !getDirectInrAssistantNavigationRequest(step.instruction) : step.command === "prepareCommercialDocumentForm" ? !documentFormRequest(step.instruction) : !isInrAssistantScreenCommandRequest(step.instruction, step.command)) return null;
     const actions = step.actions === undefined ? undefined : parseInrAssistantUiActions(step.actions);
     if (step.actions !== undefined && (!actions?.length || !actions.some(action => inrAssistantUiStepAcceptsAction(step, action)) || origin && !screen)) return null;

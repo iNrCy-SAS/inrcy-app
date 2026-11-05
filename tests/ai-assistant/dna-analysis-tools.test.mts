@@ -82,6 +82,16 @@ test("complete my DNA launches the existing durable channel analysis and returns
   assert.doesNotMatch(JSON.stringify(result), /PRIVATE|account_id|lock_token|private\.invalid/);
 });
 
+test("explicit ADN source selection reaches the native analysis without inventing sources", async () => {
+  for (const [message, selectedChannels] of [["Analyse mon ADN à partir de Google Business et Facebook.", ["gmb", "facebook"]], ["Analyse mon ADN avec les documents uniquement.", []]] as const) {
+    const h = harness({ message });
+    assert.equal((await h.tools.startBusinessDnaAnalysis.execute({ instructionQuote: message, selectedChannels })).status, "queued");
+    assert.deepEqual(await h.calls.find(call => call.stage === "start")!.request!.json(), { selectedChannels });
+  }
+  const h = harness(), result = await h.tools.startBusinessDnaAnalysis.execute({ instructionQuote: instruction, selectedChannels: ["gmb"] });
+  assert.equal(result.status, "needs_instruction"); assert.equal(h.calls.some(call => call.stage === "start"), false);
+});
+
 test("concurrent calls and a fresh request reuse a real pending job instead of consuming another quota", async () => {
   const h = harness();
   const [one, two] = await Promise.all([h.tools.startBusinessDnaAnalysis.execute({ instructionQuote: instruction }), h.tools.startBusinessDnaAnalysis.execute({ instructionQuote: instruction })]);

@@ -67,19 +67,21 @@ async function bounded<T>(work: () => PromiseLike<T>, milliseconds = 12_000): Pr
   } finally { if (timer !== undefined) clearTimeout(timer); }
 }
 
-function localRequest(original: Request) {
+function localRequest(original: Request, selectedChannels: string[] | null = null) {
   const headers = new Headers({ accept: "application/json", "content-type": "application/json" });
   for (const name of ["cookie", "authorization"]) { const value = original.headers.get(name); if (value) headers.set(name, value); }
   // No cron credentials, user selector, force flag, model, URL or quota override.
   return new Request(new URL("/api/ai-memory/analyze-channels?background=1", original.url), {
-    method: "POST", headers, body: "{}", signal: original.signal,
+    method: "POST", headers, body: JSON.stringify(selectedChannels === null ? {} : { selectedChannels }), signal: original.signal,
   });
 }
 
-function parseStart(value: unknown): { instructionQuote: string } {
+const ANALYSIS_CHANNELS = ["site_web", "gmb", "facebook", "instagram", "threads", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"];
+const SOURCE_ALIASES: Record<string, RegExp> = { site_web: /\b(?:site|web)\b/, gmb: /\b(?:google(?: business)?|gmb)\b/, facebook: /\bfacebook\b/, instagram: /\binstagram\b/, threads: /\bthreads\b/, linkedin: /\blinkedin\b/, x: /\b(?:x|twitter)\b/, tiktok: /\btiktok\b/, youtube_shorts: /\b(?:youtube|shorts)\b/, pinterest: /\bpinterest\b/ };
+function parseStart(value: unknown): { instructionQuote: string; selectedChannels: string[] | null } {
   const input = record(value);
-  if (Object.keys(input).length !== 1 || typeof input.instructionQuote !== "string" || !input.instructionQuote.trim() || input.instructionQuote.length > 1_200) throw new Error("Précisez la demande actuelle d’analyse de votre ADN.");
-  return { instructionQuote: input.instructionQuote.trim() };
+  if (Object.keys(input).some(key => !["instructionQuote", "selectedChannels"].includes(key)) || typeof input.instructionQuote !== "string" || !input.instructionQuote.trim() || input.instructionQuote.length > 1_200 || input.selectedChannels != null && (!Array.isArray(input.selectedChannels) || input.selectedChannels.length > 10 || input.selectedChannels.some(key => typeof key !== "string" || !ANALYSIS_CHANNELS.includes(key)))) throw new Error("Précisez la demande actuelle d’analyse de votre ADN et ses sources.");
+  return { instructionQuote: input.instructionQuote.trim(), selectedChannels: Array.isArray(input.selectedChannels) ? [...new Set(input.selectedChannels as string[])] : null };
 }
 function emptyInput(value: unknown): Record<string, never> {
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length) throw new Error("Aucun compte ni identifiant n’est attendu pour ce suivi.");
@@ -167,15 +169,20 @@ export function createInrAssistantDnaAnalysisTools(options: {
   }
   return {
     startBusinessDnaAnalysis: tool({ strict: true,
-      description: "Quand le pro demande maintenant de compléter/remplir son ADN, lancer l’analyse réelle des canaux et documents disponibles. Elle conserve les données existantes et enregistre les compléments via la tâche durable de l’ADN, avec son quota habituel. Un statut queued/running n’est pas un résultat terminé : ne pas réclamer encore les champs manquants ni inventer de faits. Relire ensuite getBusinessDnaAnalysis. Une seule tâche par demande, réutilisation de la tâche active.",
-      inputSchema: jsonSchema<{ instructionQuote: string }>({ type: "object", properties: {
+      description: "Quand le pro demande maintenant de compléter/remplir son ADN, lancer l’analyse réelle des canaux et documents disponibles. selectedChannels=null analyse tous les canaux disponibles ; liste explicite uniquement si le pro demande ces sources ; [] signifie documents seuls. Les documents déjà joints restent inclus. Conserve les données existantes, même tâche durable et quota natif. queued/running n’est pas terminé : relire ensuite getBusinessDnaAnalysis sans inventer de faits. Une seule tâche par demande.",
+      inputSchema: jsonSchema<{ instructionQuote: string; selectedChannels: string[] | null }>({ type: "object", properties: {
         instructionQuote: { type: "string", minLength: 1, maxLength: 1_200, description: "Extrait exact de la dernière demande du pro autorisant l’analyse ou le complément de son ADN." },
-      }, required: ["instructionQuote"], additionalProperties: false }, { validate: value => {
+        selectedChannels: { anyOf: [{ type: "array", maxItems: 10, uniqueItems: true, items: { type: "string", enum: ANALYSIS_CHANNELS } }, { type: "null" }] },
+      }, required: ["instructionQuote", "selectedChannels"], additionalProperties: false }, { validate: value => {
         try { return { success: true, value: parseStart(value) }; } catch (error) { return { success: false, error: error as Error }; }
       } }),
       execute: async raw => {
         const input = parseStart(raw);
         if (!permitsInrAssistantDnaAnalysis(options.currentUserMessage, input.instructionQuote)) return result("needs_instruction", "Précisez si vous souhaitez que j’analyse vos canaux pour compléter votre ADN maintenant. Aucune analyse n’a été lancée.");
+        if (input.selectedChannels !== null) {
+          const quote = normalized(input.instructionQuote);
+          if (input.selectedChannels.length ? input.selectedChannels.some(key => !SOURCE_ALIASES[key].test(quote)) || !/\b(?:sources?|uniquement|seulement|depuis|a partir|avec)\b/.test(quote) : !/\bdocuments?\b/.test(quote) || !/\b(?:uniquement|seulement|seuls?)\b/.test(quote)) return result("needs_instruction", "Précisez les sources à analyser, ou demandez explicitement les documents seuls. Aucune source n’a été choisie automatiquement.");
+        }
         if (options.actionStartedAt !== undefined && actionStartedAt === null) return result("blocked", "Le contexte de cette demande n’a pas pu être vérifié. Aucune nouvelle analyse n’a été lancée.");
         if (!startPromise) startPromise = (async () => {
           let dispatched = false;
@@ -195,7 +202,7 @@ export function createInrAssistantDnaAnalysisTools(options: {
             await assertScope();
             const { POST } = await import("@/app/api/ai-memory/analyze-channels/route");
             dispatched = true;
-            const response = await bounded(() => POST(localRequest(options.request))); const body = record(await response.json());
+            const response = await bounded(() => POST(localRequest(options.request, input.selectedChannels))); const body = record(await response.json());
             if (!response.ok || body.ok !== true) {
               const code = String(body.error_code ?? body.code ?? "");
               if (response.status === 429 || /quota_reached|rate_limit/.test(code)) return result("blocked", "La limite d’analyses ou le délai entre demandes est atteint. Aucune nouvelle analyse n’a été confirmée ; consultez le quota et le suivi dans l’ADN.");

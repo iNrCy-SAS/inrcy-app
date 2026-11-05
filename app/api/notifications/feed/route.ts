@@ -12,6 +12,8 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const limit = Math.max(5, Math.min(50, Number(url.searchParams.get("limit") || 12)));
+  const offset = Math.max(0, Math.min(10000, Number(url.searchParams.get("offset") || 0)));
+  if (!Number.isInteger(limit) || !Number.isInteger(offset)) return NextResponse.json({ error: "Page invalide." }, { status: 400 });
 
   const { data: pref } = await supabaseAdmin
     .from("notification_preferences")
@@ -30,7 +32,7 @@ export async function GET(req: Request) {
       .eq("user_id", activeUserId)
       .is("read_at", null)
       .order("created_at", { ascending: false })
-      .limit(limit),
+      .range(offset, offset + limit - 1),
     supabaseAdmin
       .from("notifications")
       .select("id", { count: "exact", head: true })
@@ -47,5 +49,5 @@ export async function GET(req: Request) {
     ? items.length
     : Math.max(0, Number(countResult.count ?? items.length));
 
-  return NextResponse.json({ items, unreadCount, totalCount });
+  return NextResponse.json({ items, unreadCount, totalCount, countKnown: !countResult.error, nextOffset: (countResult.error ? items.length === limit : offset + items.length < totalCount) ? offset + items.length : null });
 }

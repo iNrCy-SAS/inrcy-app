@@ -48,17 +48,20 @@ test("routine Pinterest notices stay out of warning triangles while actionable w
 test("image shortcuts hand the selected source to iNrStudio and keep the publication return context", async () => {
   const calls: Array<{ tab: string; source: { file: unknown }; context: { imageKey: string; channel: string; draftId: string } }> = [];
   const opened: string[] = [];
+  const studioOpeningRef = { current: false };
   const sourceFile = { name: "second.jpg" };
   const openInrStudioImageTool = callback(modal, "openInrStudioImageTool", {
+    studioOpeningRef,
     images: [{ name: "first.jpg" }, sourceFile], makeImageKey: (file: { name: string }) => file.name,
     previewByKey: { "second.jpg": "blob:second" }, imagePreparationItems: [],
     setImgError: (message: string) => assert.fail(message),
     preparePublicationDraftForStudio: async () => ({ draftId: "draft", returnHref: "/dashboard?action=publish&draftId=draft" }),
-    createInrStudioHandoff: async (input: typeof calls[number]) => { calls.push(input); return { href: `/dashboard/generer-media?studio_tab=${input.tab}` }; },
-    openStudio: (href: string) => opened.push(href),
+    createInrStudioHandoff: async (input: typeof calls[number]) => { calls.push(input); return { href: `/dashboard/generer-media?studio_tab=${input.tab}`, handoff: { key: "handoff-test" } }; },
+    openStudio: (href: string) => { opened.push(href); studioOpeningRef.current = false; },
   });
   const props = { openInrStudioImageTool, activeImageChannel: "facebook", imageKeys: ["first.jpg", "second.jpg"] };
   callback(modal, "onModifyImage", props, true, "PublishMediaPoolPanel")(1);
+  await new Promise((resolve) => setImmediate(resolve));
   callback(modal, "onRetouchImage", props, true, "PublishMediaPoolPanel")(1);
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(calls.map((entry) => entry.tab), ["modify", "retouch"]);

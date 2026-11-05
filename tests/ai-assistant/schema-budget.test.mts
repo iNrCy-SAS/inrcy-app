@@ -7,7 +7,7 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import * as sdk from "ai";
-import { normalizeAiMemory } from "../../lib/aiMemory.ts";
+import * as aiMemoryModule from "../../lib/aiMemory.ts";
 import { fitPromptPayloadToJsonBudget } from "../../lib/aiPromptBudget.ts";
 import { getAssistantInternalDestination } from "../../lib/inrAssistantNavigation.ts";
 import { getInrAssistantNavigation } from "../../lib/inrAssistantUiCommands.ts";
@@ -52,7 +52,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
     "@/lib/supabaseAdmin": { supabaseAdmin: { from: untouched, storage: { from: untouched } } },
     "./supabaseAdmin": { supabaseAdmin: { from: untouched, storage: { from: untouched } } },
     "./executionIdempotency": { acquireExecutionIdempotencyLock: untouched, completeExecutionIdempotencyLockOrThrow: untouched },
-    "./aiMemory.ts": { normalizeAiMemory }, "./aiPromptBudget.ts": { fitPromptPayloadToJsonBudget },
+    "./aiMemory.ts": aiMemoryModule, "./aiMemory": aiMemoryModule, "./aiPromptBudget.ts": { fitPromptPayloadToJsonBudget },
     "./aiMediaGenerationContracts.ts": { normalizeAiMediaGenerationRequest: untouched },
     "./aiMediaModelCatalog.ts": { getAiMediaImageModel: untouched, getAiMediaVideoModel: untouched, isAiMediaVideoEngineAvailable: untouched },
     "./standardAgentPolicy.ts": { isStandardAgentActionDescriptor: untouched },
@@ -70,6 +70,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
     "@/lib/dashboardEditionServer": { getDashboardEditionForAccountId: untouched },
     "./dashboardEditionServer": { getDashboardEditionForAuthUser: untouched },
     "./accountSubscriptionAccess": { getActiveSubscriptionAccountIds: untouched },
+    "../app/dashboard/dashboard.types": { ACTUS_DESIGN_OPTIONS:[], ACTUS_THEME_OPTIONS:[], normalizeActusAccent:untouched, normalizeActusDesign:untouched, normalizeActusLayout:untouched, normalizeActusTheme:untouched },
     "./adsValidation.ts": { parseAdsCampaignInput: untouched },
     "./adsCampaignMetrics.ts": { isAdsCampaignMetrics: untouched },
     "./adsCampaignLifecycle.ts": { parseAdsCampaignLifecycleRequest: untouched },
@@ -152,7 +153,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
         if (/^\.\.\/messages\/fr-FR\/[a-zA-Z-]+\.json$/.test(id)) return { default: JSON.parse(readFileSync(resolve(dirname(path), id), "utf8")) };
         const target = resolve(dirname(path), id.endsWith(".ts") ? id : `${id}.ts`);
         const name = basename(target);
-        assert.ok(/^inrAssistant[A-Za-z.]+\.ts$/.test(name) || ["commercialDocumentTemplate.ts", "mediaLibraryAudio.ts", "commercialDocumentDraft.ts", "commercialDocumentValidation.ts", "commercialDocumentUpdate.ts", "inrAgentSettings.ts", "inrAgentMonthSchedule.ts", "siteWebChannel.ts", "subscriptionOffers.ts", "boosterPublicationPolicy.ts", "boosterChannelRules.ts", "boosterPublicationOutcome.ts", "aiContentLength.ts", "aiInstructionSections.ts", "dashboard.channel-setup.ts", "aiChannelCtaPreferences.ts", "boosterCtaActions.ts", "boosterWhatsappCta.ts", "generalPreferences.ts", "googleBusinessProfile.ts", "channelPublicUrl.ts", "instagramCapabilities.ts"].includes(name), `Unexpected dependency ${id}`);
+        assert.ok(/^inrAssistant[A-Za-z.]+\.ts$/.test(name) || ["generatorSettings.ts", "facebookPublicationPreferences.ts", "instagramPublicationPreferences.ts", "threadsPublicationPreferences.ts", "referralRequest.ts", "cookieConsentPreferences.ts", "activityCatalog.ts", "activitySectors.ts", "activityJobs.ts", "activityJobSynonyms.ts", "inrSearchDisplaySettings.ts", "inrBadgeTheme.ts", "imageOverlay.ts", "imageOverlayLinkUrl.ts", "businessIdentity.ts", "activityJobSearch.ts", "activityJobCatalog.ts", "googleReviewStateFingerprint.ts", "statsCalendarMonths.ts", "monthlyMeasuredStats.ts", "manualBoosterPublicationSchedule.ts", "productNavigation.ts", "commercialDocumentTemplate.ts", "mediaLibraryAudio.ts", "commercialDocumentDraft.ts", "commercialDocumentValidation.ts", "commercialDocumentUpdate.ts", "inrAgentSettings.ts", "inrAgentMonthSchedule.ts", "siteWebChannel.ts", "subscriptionOffers.ts", "boosterPublicationPolicy.ts", "boosterChannelRules.ts", "boosterPublicationOutcome.ts", "aiContentLength.ts", "aiInstructionSections.ts", "dashboard.channel-setup.ts", "aiChannelCtaPreferences.ts", "boosterCtaActions.ts", "boosterWhatsappCta.ts", "generalPreferences.ts", "googleBusinessProfile.ts", "channelPublicUrl.ts", "instagramCapabilities.ts"].includes(name), `Unexpected dependency ${id}`);
         return load(target);
       }
       assert.fail(`Unexpected schema dependency ${id}`);
@@ -299,6 +300,7 @@ for (const scenario of scenarios) test(`real schema budget matrix: ${scenario.na
   let failure: unknown;
   let reply: Awaited<ReturnType<typeof h.runtime.generateInrAssistantReply>> | undefined;
   try { reply = await h.runtime.generateInrAssistantReply(input); } catch (error) { failure = error; }
+  if (failure) t.diagnostic(JSON.stringify({scenario:scenario.name,schemas:h.schemas.map(({name,description,schema})=>({name,bytes:bytes({name,description,inputSchema:schema})}))}));
   assert.equal(failure, undefined, `Actual Gateway rejects a normal ${scenario.name} request before any external operation: ${String(failure)}`);
   if (scenario.name === "navigate-crm") {
     assert.equal(h.navigationPreparations, 1, "Pure navigation prepares the native command exactly once");
@@ -366,7 +368,7 @@ test("Standard publication continues after real Booster and Publications guide r
   if(h.providerCalls.length!==5) t.diagnostic(JSON.stringify({reply,actions:h.publicationActions,tools:h.providerCalls.map(call=>call.tools?.map(tool=>tool.type==='function'?tool.name:'other')),sizes:h.providerCalls.map(params=>bytes({prompt:params.prompt,tools:params.tools})+1024)}));
   assert.equal(h.providerCalls.length, 5, "Continue through guides, image, draft, dispatch and final reply");
   assert.deepEqual(h.publicationActions.map(action => action.name), ["generateMedia", "preparePublication", "executePublication"]);
-  assert.deepEqual(JSON.parse(JSON.stringify(h.publicationActions[1].input)), { posts: ["facebook", "instagram", "threads"].map(channel => ({ channel, title: "Threads arrive", content: "Threads est disponible dans iNrCy. Connectez votre compte pour communiquer avec votre communauté.", cta: "", hashtags: [] })), mediaIds: [MEDIA], operationKey: null });
+  assert.deepEqual(JSON.parse(JSON.stringify(h.publicationActions[1].input)), { posts: ["facebook", "instagram", "threads"].map(channel => ({ channel, title: "Threads arrive", content: "Threads est disponible dans iNrCy. Connectez votre compte pour communiquer avec votre communauté.", hashtags: [] })), mediaIds: [MEDIA], operationKey: null, channelChanges: null });
   assert.equal(reply.outcome, "processing", "A queued publication must not claim delivery before the worker confirms it");
   assert.ok(reply.taskState?.receipts.some(receipt => receipt.tool === "executePublication"));
   const second = JSON.stringify(h.providerCalls[1].prompt);

@@ -1,11 +1,15 @@
 import { isInrAssistantMediaUiCommandAvailable, type InrAssistantMediaUiCommandName } from "./inrAssistantMediaUiCommands.ts";
+import { inrAssistantStudioUiCommandAvailable, type InrAssistantStudioUiCommandName } from "./inrAssistantStudioUiCommands.ts";
+import { isInrAssistantStatsUiCommandAvailable, type InrAssistantStatsUiCommandName } from "./inrAssistantStatsUiCommands.ts";
+import { inrAssistantBadgeUiCommandAvailable } from "./inrAssistantBadgeUiCommands.ts";
+import { inrAssistantWebsiteUiCommandAvailable, type InrAssistantWebsiteUiCommand } from "./inrAssistantWebsiteUiCommands.ts";
 import { getAssistantInternalDestination } from "./inrAssistantNavigation.ts";
 import { parseInrAssistantDocumentPrefill, type InrAssistantDocumentPrefill } from "./inrAssistantDocumentUiCommands.ts";
 
 export type InrAssistantClientError = { code?: string; requestId?: string; occurredAt: string };
 export type InrAssistantClientScreen = {
   pathname: string; tool: string; action?: string; panel?: string; channel?: string; step?: string;
-  selection?: { kind: "contact" | "publication" | "campaign" | "event" | "quote" | "invoice" | "media" | "mail"; id: string };
+  selection?: { kind: "contact" | "publication" | "campaign" | "event" | "quote" | "invoice" | "media" | "mail" | "stats" | "channel"; id: string };
   pendingChanges?: boolean;
   revision?: string;
   documentVersion?: string;
@@ -13,10 +17,11 @@ export type InrAssistantClientScreen = {
   /** Only explicitly checked library items, never arbitrary DOM or ownership claims. */
   selectedMediaIds?: string[];
   selectionOverflow?: boolean;
-  availableCommands?: ("export_document_pdf" | "configure_ads_draft" | "save_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | "save_mail_draft" | "send_mail_draft" | "open_mail_schedule" | "prepare_document_mail" | "create_document_template" | InrAssistantMediaUiCommandName)[];
+  availableCommands?: ("export_document_pdf" | "configure_ads_draft" | "save_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | "save_mail_draft" | "send_mail_draft" | "open_mail_schedule" | "prepare_document_mail" | "create_document_template" | InrAssistantMediaUiCommandName | InrAssistantStudioUiCommandName | InrAssistantStatsUiCommandName | "download_badge_qr" | InrAssistantWebsiteUiCommand["command"])[];
 };
 /** Browser hints only: never an authenticated scope, entitlement or confirmed diagnosis. */
 export type InrAssistantClientContext = {
+  mediaPreview?: {requestId:string;mediaId:string};
   source: "untrusted_client"; screen?: InrAssistantClientScreen; visibleError?: InrAssistantClientError;
 };
 
@@ -46,11 +51,15 @@ export function parseInrAssistantClientContext(value: unknown, now = Date.now())
     if (panel) params.set("panel", panel);
     const destination = getAssistantInternalDestination(`${rawScreen.pathname}${params.size ? `?${params}` : ""}`);
     const rawSelection = record(rawScreen.selection);
-    const kinds = ["contact", "publication", "campaign", "event", "quote", "invoice", "media", "mail"];
+    const kinds = ["contact", "publication", "campaign", "event", "quote", "invoice", "media", "mail", "stats", "channel"];
     const selection = typeof rawSelection.kind === "string" && kinds.includes(rawSelection.kind) && typeof rawSelection.id === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(rawSelection.id)
       ? { kind: rawSelection.kind as NonNullable<InrAssistantClientScreen["selection"]>["kind"], id: rawSelection.id } : undefined;
     const availableCommands = Array.isArray(rawScreen.availableCommands) && selection ? rawScreen.availableCommands.filter((command): command is NonNullable<InrAssistantClientScreen["availableCommands"]>[number] =>
       isInrAssistantMediaUiCommandAvailable(command, rawScreen.pathname, selection.kind)
+      || inrAssistantWebsiteUiCommandAvailable(command, rawScreen.pathname, selection.kind, panel)
+      || inrAssistantBadgeUiCommandAvailable(command, rawScreen.pathname, selection.kind, panel)
+      || inrAssistantStudioUiCommandAvailable(command, rawScreen.pathname, selection.kind)
+      || isInrAssistantStatsUiCommandAvailable(command, rawScreen.pathname, selection.kind)
       || command === "export_document_pdf" && ["quote", "invoice"].includes(selection.kind)
       || command === "create_document_template" && ["quote", "invoice"].includes(selection.kind) && rawScreen.pathname === `/dashboard/${selection.kind === "quote" ? "devis" : "factures"}/new`
       || command === "prepare_document_mail" && ["quote", "invoice"].includes(selection.kind) && rawScreen.pathname === `/dashboard/${selection.kind === "quote" ? "devis" : "factures"}/new` && rawScreen.pendingChanges === false
@@ -72,8 +81,10 @@ export function parseInrAssistantClientContext(value: unknown, now = Date.now())
   const timestamp = typeof rawError.occurredAt === "string" && rawError.occurredAt.length <= 30 ? Date.parse(rawError.occurredAt) : NaN;
   const visibleError = (code || requestId) && Number.isFinite(timestamp) && timestamp <= now + 5_000 && now - timestamp <= 300_000
     ? { ...(code ? { code } : {}), ...(requestId ? { requestId } : {}), occurredAt: new Date(timestamp).toISOString() } : undefined;
-  const context: InrAssistantClientContext = { source: "untrusted_client", ...(screen ? { screen } : {}), ...(visibleError ? { visibleError } : {}) };
-  return (screen || visibleError) && JSON.stringify(context).length <= 2_400 ? context : null;
+  const rawPreview=record(input.mediaPreview);
+  const mediaPreview=typeof rawPreview.requestId === "string" && /^[a-z0-9_-]{8,180}$/i.test(rawPreview.requestId) && typeof rawPreview.mediaId === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(rawPreview.mediaId) ? {requestId:rawPreview.requestId,mediaId:rawPreview.mediaId} : undefined;
+  const context: InrAssistantClientContext = { source: "untrusted_client", ...(mediaPreview ? {mediaPreview} : {}), ...(screen ? { screen } : {}), ...(visibleError ? { visibleError } : {}) };
+  return (screen || visibleError || mediaPreview) && JSON.stringify(context).length <= 2_400 ? context : null;
 }
 
 /** Read only known query values; OAuth, drafts, names and free text never leave the browser here. */

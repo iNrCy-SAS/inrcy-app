@@ -38,6 +38,8 @@ export type InrStudioReturnedMedia = {
 };
 
 type CreateInrStudioHandoffInput = {
+  /** Embedded editors keep their origin mounted; no browser storage is needed. */
+  transport?: "embedded" | "navigation";
   tab: InrStudioTab;
   origin: string;
   returnHref?: string | null;
@@ -57,6 +59,18 @@ const HANDOFF_PREFIX = "inrcy:studio:handoff:v1:";
 const RETURN_PREFIX = "inrcy:studio:return:v1:";
 const CACHE_NAME = "inrcy-studio-handoff-v1";
 const MAX_HANDOFF_AGE_MS = 6 * 60 * 60 * 1000;
+const embeddedHandoffs = new Map<string, { handoff: InrStudioHandoff; sourceFile: File | null }>();
+
+export class InrStudioTransferError extends Error {
+  readonly code: "studio_open_unavailable" | "studio_return_unavailable";
+  constructor(code: InrStudioTransferError["code"]) {
+    super(code === "studio_open_unavailable"
+      ? "iNrStudio ne peut pas s’ouvrir pour le moment. Votre contenu reste dans l’outil d’origine. Réessayez."
+      : "Le retour depuis iNrStudio n’a pas pu être terminé. Gardez iNrStudio ouvert et réessayez.");
+    this.name = "InrStudioTransferError";
+    this.code = code;
+  }
+}
 
 function randomKey(prefix: string) {
   const suffix =
@@ -141,6 +155,41 @@ function isFresh(createdAt: number) {
   );
 }
 
+async function releaseHandoffSource(handoff: InrStudioHandoff | null) {
+  if (handoff?.source?.ownsObjectUrl && handoff.source.url?.startsWith("blob:")) {
+    try { URL.revokeObjectURL(handoff.source.url); } catch { /* Cleanup must not block returning to the origin. */ }
+  }
+  if (handoff?.source?.cacheKey && typeof window !== "undefined" && "caches" in window) {
+    try {
+      const cache = await window.caches.open(CACHE_NAME);
+      await cache.delete(cacheRequest(handoff.source.cacheKey));
+    } catch { /* The source can expire naturally if browser storage is unavailable. */ }
+  }
+}
+
+/** Expired Studio transfers are disposable; drafts and other app data are not. */
+function pruneExpiredStudioTransfers() {
+  for (const [key, value] of embeddedHandoffs) if (!isFresh(value.handoff.createdAt)) {
+    embeddedHandoffs.delete(key);
+    void releaseHandoffSource(value.handoff);
+  }
+  try {
+    const storage = window.sessionStorage;
+    for (let index = storage.length - 1; index >= 0; index--) {
+      const key = storage.key(index);
+      if (!key || !key.startsWith(HANDOFF_PREFIX) && !key.startsWith(RETURN_PREFIX)) continue;
+      let value: InrStudioHandoff | InrStudioReturnedMedia;
+      try { value = JSON.parse(storage.getItem(key) || "null"); } catch { continue; }
+      if (value?.version !== 1 || !Number.isFinite(value.createdAt) || value.createdAt <= 0 || isFresh(value.createdAt)) continue;
+      const isHandoff = key.startsWith(HANDOFF_PREFIX) && "key" in value && key === `${HANDOFF_PREFIX}${value.key}`;
+      const isReturn = key.startsWith(RETURN_PREFIX) && key === `${RETURN_PREFIX}${value.returnKey}`;
+      if (!isHandoff && !isReturn) continue;
+      storage.removeItem(key);
+      if (isHandoff) void releaseHandoffSource(value as InrStudioHandoff);
+    }
+  } catch { /* Embedded transfer remains available even when Storage is blocked. */ }
+}
+
 export async function createInrStudioHandoff(
   input: CreateInrStudioHandoffInput
 ) {
@@ -148,11 +197,13 @@ export async function createInrStudioHandoff(
     throw new Error("iNrStudio doit être ouvert depuis le navigateur.");
   }
 
+  pruneExpiredStudioTransfers();
+
   const key = randomKey("handoff");
   const returnKey = randomKey("return");
   const sourceFile = input.source?.file || null;
   const cacheKey = sourceFile ? key : null;
-  const cached = sourceFile
+  const cached = sourceFile && input.transport !== "embedded"
     ? await persistSourceFile(cacheKey as string, sourceFile)
     : false;
   const fallbackUrl = String(input.source?.url || "").trim() || null;
@@ -203,20 +254,16 @@ export async function createInrStudioHandoff(
     payload: input.payload || null,
   };
 
-  try {
+  if (input.transport === "embedded") {
+    embeddedHandoffs.set(key, { handoff, sourceFile });
+  } else try {
     window.sessionStorage.setItem(
       `${HANDOFF_PREFIX}${key}`,
       JSON.stringify(handoff)
     );
-  } catch (error) {
-    if (source?.ownsObjectUrl && source.url) URL.revokeObjectURL(source.url);
-    if (cached && cacheKey) {
-      try {
-        const cache = await window.caches.open(CACHE_NAME);
-        await cache.delete(cacheRequest(cacheKey));
-      } catch {}
-    }
-    throw error;
+  } catch {
+    await releaseHandoffSource(handoff);
+    throw new InrStudioTransferError("studio_open_unavailable");
   }
 
   const query = new URLSearchParams({
@@ -233,6 +280,13 @@ export function readInrStudioHandoff(
   key: string | null | undefined
 ): InrStudioHandoff | null {
   if (!key || typeof window === "undefined") return null;
+  const embedded = embeddedHandoffs.get(key);
+  if (embedded) {
+    if (isFresh(embedded.handoff.createdAt)) return embedded.handoff;
+    embeddedHandoffs.delete(key);
+    void releaseHandoffSource(embedded.handoff);
+    return null;
+  }
   try {
     const raw = window.sessionStorage.getItem(`${HANDOFF_PREFIX}${key}`);
     if (!raw) return null;
@@ -258,6 +312,8 @@ export async function loadInrStudioHandoffSourceFile(
 ) {
   const source = handoff.source;
   if (!source) return null;
+  const embedded = embeddedHandoffs.get(handoff.key);
+  if (embedded?.handoff === handoff && embedded.sourceFile) return embedded.sourceFile;
   const persisted = await readPersistedSourceFile(source);
   if (persisted) return persisted;
   if (!source.url) return null;
@@ -288,24 +344,20 @@ export async function loadInrStudioHandoffSourceFile(
 export async function clearInrStudioHandoff(key: string | null | undefined) {
   if (!key || typeof window === "undefined") return;
   const handoff = readInrStudioHandoff(key);
-  window.sessionStorage.removeItem(`${HANDOFF_PREFIX}${key}`);
-  if (handoff?.source?.ownsObjectUrl && handoff.source.url?.startsWith("blob:")) {
-    URL.revokeObjectURL(handoff.source.url);
-  }
-  if (handoff?.source?.cacheKey && "caches" in window) {
-    try {
-      const cache = await window.caches.open(CACHE_NAME);
-      await cache.delete(cacheRequest(handoff.source.cacheKey));
-    } catch {}
-  }
+  const embedded = embeddedHandoffs.delete(key);
+  if (!embedded) try { window.sessionStorage.removeItem(`${HANDOFF_PREFIX}${key}`); } catch { /* A failed cleanup must never undo a successful return. */ }
+  await releaseHandoffSource(handoff);
 }
 
 export function saveInrStudioReturn(result: InrStudioReturnedMedia) {
   if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(
-    `${RETURN_PREFIX}${result.returnKey}`,
-    JSON.stringify(result)
-  );
+  pruneExpiredStudioTransfers();
+  try {
+    window.sessionStorage.setItem(
+      `${RETURN_PREFIX}${result.returnKey}`,
+      JSON.stringify(result)
+    );
+  } catch { throw new InrStudioTransferError("studio_return_unavailable"); }
 }
 
 export function consumeInrStudioReturn(

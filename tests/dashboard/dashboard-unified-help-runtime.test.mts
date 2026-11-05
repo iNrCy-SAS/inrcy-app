@@ -254,7 +254,7 @@ test("all main tool buttons reach the right tool or the Standard subscription ga
     ["publish", [["Booster", "/dashboard?action=publish"]]],
     ["media", [["iNr’Studio", "/dashboard/generer-media"], ["Médiathèque", "/dashboard/mediatheque"]]],
     ["grow", [["iNr’ADS", "/dashboard?panel=abonnement"], ["Propulser", "/dashboard?panel=abonnement"], ["Fidéliser", "/dashboard?panel=abonnement"]]],
-    ["reviews", [["Réputation", "/dashboard/e-reputation"]]],
+    ["reviews", [["Avis Google", "/dashboard?panel=gmb&googleReviews=1"]]],
     ["contacts", [["iNr’Send", "/dashboard/mails?folder=publications&boxView=sent"], ["iNr’CRM", "/dashboard?panel=abonnement"], ["iNr’Calendar", "/dashboard?panel=abonnement"]]],
     ["stats", [["iNr’Stats", "/dashboard/stats"]]],
   ] as const;

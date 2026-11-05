@@ -51,6 +51,7 @@ import { type DashboardEdition } from "@/lib/dashboardEdition";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { useInrAssistantRefresh } from "../../_hooks/useInrAssistantRefresh";
 import { reconcileSavedDraft } from "@/lib/reconcileSavedDraft";
 import MediaSubjectVoiceButton from "../../_components/MediaSubjectVoiceButton";
 import BusinessDnaRichTextEditor from "./BusinessDnaRichTextEditor";
@@ -312,6 +313,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const workspaceOwnerRef = useRef({ accountId: "", browserScope: "" });
   const workspaceMountedRef = useRef(true);
   const memorySaveRunningRef = useRef(false);
+  const assistantBusyRef = useRef(false);
 
   useEffect(() => {
     workspaceMountedRef.current = true;
@@ -370,6 +372,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     [activityDirty, activityDraftSignature, locationDirty, locationDraftSignature, profileDirty, profileDraftSignature, signature],
   );
   const voiceBusy = voiceTarget !== null;
+  assistantBusyRef.current = loading || !loaded || saving || workspaceSaving || analyzing || voiceBusy || documentUploadState !== "idle" || analysisScheduleOpen || autoSaveState === "scheduled" || autoSaveState === "saving";
   const voiceOperationsLocked = saving || analyzing || loading || !loaded;
   const voiceDisabledFor = (target: VoiceTarget) =>
     voiceOperationsLocked || (voiceTarget !== null && voiceTarget !== target);
@@ -416,6 +419,46 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     },
     [markWorkspaceDraftUpdated],
   );
+
+  useInrAssistantRefresh({ topics: ["business"], scopeKey: analysisAccountIdRef.current, blocked: assistantBusyRef.current || hasWorkspaceChanges, refresh: async ({ accountId, canApply }) => {
+    const canRefresh = () => canApply() && workspaceMountedRef.current && !assistantBusyRef.current && !memorySaveRunningRef.current && !workspaceSavePromiseRef.current && !voiceTargetRef.current && autoSaveTimerRef.current === null
+      && !profileDraftRef.current.dirty && !activityDraftRef.current.dirty && !locationDraftRef.current.dirty
+      && workspaceSignature(memoryRef.current, businessKnowledgeRef.current) === savedSignatureRef.current
+      && analysisAccountIdRef.current === accountId && workspaceOwnerRef.current.accountId === accountId
+      && (getActiveBrowserUserId() || "") === accountId && workspaceOwnerRef.current.browserScope === accountId;
+    if (!canRefresh()) return false;
+    const [response, quotaResponse] = await Promise.all([
+      fetch("/api/ai-memory", { cache: "no-store", credentials: "include" }),
+      fetch("/api/ai-memory/analyze-channels", { cache: "no-store", credentials: "include" }),
+    ]);
+    const [payload, quotaPayload] = await Promise.all([response.json(), quotaResponse.json()]);
+    if (!response.ok || !quotaResponse.ok || payload.ok !== true || quotaPayload.ok !== true || payload.accountId !== accountId || quotaPayload.accountId !== accountId || !canRefresh()) return false;
+    const nextStrategyEnabled = payload.strategyEnabled !== false, rawFoundation = payload.profileFoundation || {}, rawKnowledge = payload.businessKnowledge || {};
+    const nextMemory = normalizeAiMemory(payload.memory, { includePremium: nextStrategyEnabled });
+    const nextKnowledge = normalizeAiBusinessKnowledge({ ...rawKnowledge, description: rawKnowledge.description ?? nextMemory.detailedDescription, services: rawKnowledge.services ?? rawFoundation.services ?? [], strengths: rawKnowledge.strengths ?? nextMemory.differentiators });
+    const synchronizedMemory = normalizeAiMemory({ ...nextMemory, detailedDescription: nextKnowledge.description, differentiators: nextKnowledge.strengths }, { includePremium: nextStrategyEnabled });
+    if (!canRefresh()) return false;
+    // Advance the baseline before the React setters: reflecting a server save
+    // is a read, and must never schedule the workspace's autosave back to it.
+    savedSignatureRef.current = workspaceSignature(synchronizedMemory, nextKnowledge);
+    failedAutoSaveSignatureRef.current = null;
+    updateMemory(synchronizedMemory);
+    updateBusinessKnowledge(nextKnowledge);
+    setAnalysisQuota(parseAnalysisQuota(quotaPayload.quota));
+    setAnalysisChannels(parseAnalysisChannels(quotaPayload.channels));
+    const job = parseBusinessDnaManualAnalysisJob(quotaPayload.job);
+    setAnalysisJob(job);
+    setAnalyzing(isBusinessDnaManualAnalysisPending(job));
+    setAnalysisError(job?.status === "failed" ? job.error || t("analysisError") : "");
+    setAnalysisSummary(job && (job.status === "succeeded" || job.status === "failed") ? summaryFromAnalysisJob(job) : null);
+    setError("");
+    setWorkspaceError("");
+    setAutoSaveState("idle");
+    setProfileContentRevision(current => current + 1);
+    setActivityContentRevision(current => current + 1);
+    setLocationContentRevision(current => current + 1);
+    return true;
+  } });
 
   const changeTab = useCallback((tab: AiMemoryWorkspaceTab) => {
     if (tab === "profile" || tab === "activity" || tab === "local") {

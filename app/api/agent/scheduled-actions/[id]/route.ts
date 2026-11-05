@@ -137,7 +137,9 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       || Date.parse(String(current.scheduled_at)) <= Date.now()) {
       return NextResponse.json({ error: "La programmation a changé ou son exécution a commencé. Préparez un nouvel aperçu." }, { status: 409 });
     }
-    if (Object.keys(record).some(key => !["expectedState", "status", "scheduledAt", "timezone"].includes(key))
+    const manualContentEdit = record.editType === "assistant_manual_publication_edit" && isManualBoosterPublicationSchedule(current);
+    if (manualContentEdit ? Object.keys(record).some(key => !["expectedState", "editType", "payload"].includes(key)) || !asRecord(record.payload)
+      : Object.keys(record).some(key => !["expectedState", "status", "scheduledAt", "timezone"].includes(key))
       || !(record.status === "cancelled" || typeof record.scheduledAt === "string")
       || record.status === "cancelled" && "scheduledAt" in record
       || "scheduledAt" in record && (!Number.isFinite(Date.parse(String(record.scheduledAt))) || Date.parse(String(record.scheduledAt)) <= Date.now() + 30_000)) {

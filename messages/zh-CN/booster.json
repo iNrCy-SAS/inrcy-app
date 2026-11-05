@@ -1,4 +1,5 @@
 {
+  "studio_open_unavailable": "暂时无法打开 iNrStudio。您的更改仍保留在 Booster 中，请重试。",
   "adjust_title": "调整生成内容",
   "adjust_channels_title": "要重新生成的渠道",
   "adjust_step": "第 {step} 步，共 2 步",

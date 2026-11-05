@@ -4,7 +4,7 @@ type Target = { selection: { kind: "media"; id: string }; revision: string };
 export type InrAssistantMediaUiCommand = Target & (
   { command: "select_video_source"; mediaId: string }
   | { command: "save_video_retouch" }
-  | { command: "optimize_media"; targetBytes?: number }
+  | { command: "optimize_media"; targetBytes?: number; mediaId?: string }
 );
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const id = /^[a-zA-Z0-9_-]{1,100}$/;
@@ -19,8 +19,9 @@ export function parseInrAssistantMediaUiCommand(value: unknown): InrAssistantMed
   const target = { selection: { kind: "media" as const, id: selection.id }, revision: row.revision };
   if (row.command === "select_video_source") return typeof row.mediaId === "string" && uuid.test(row.mediaId) ? { ...target, command: row.command, mediaId: row.mediaId } : null;
   if (row.command === "save_video_retouch") return { ...target, command: row.command };
-  if (!uuid.test(selection.id) || row.targetBytes !== undefined && (typeof row.targetBytes !== "number" || !Number.isSafeInteger(row.targetBytes) || row.targetBytes < 5_000_000 || row.targetBytes > 75_000_000)) return null;
-  return { ...target, command: row.command, ...(row.targetBytes !== undefined ? { targetBytes: row.targetBytes as number } : {}) };
+  if (row.mediaId === undefined ? !uuid.test(selection.id) : typeof row.mediaId !== "string" || !uuid.test(row.mediaId)) return null;
+  if (row.targetBytes !== undefined && (typeof row.targetBytes !== "number" || !Number.isSafeInteger(row.targetBytes) || row.targetBytes < 5_000_000 || row.targetBytes > 75_000_000)) return null;
+  return { ...target, command: row.command, ...(row.targetBytes !== undefined ? { targetBytes: row.targetBytes as number } : {}), ...(row.mediaId !== undefined ? { mediaId: row.mediaId as string } : {}) };
 }
 
 /** Receives the existing quote/fence-stripped normalized request text. */

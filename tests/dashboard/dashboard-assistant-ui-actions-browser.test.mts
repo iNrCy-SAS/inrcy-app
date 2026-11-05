@@ -8,6 +8,8 @@ import ts from "typescript";
 import { getInrAssistantNavigation } from "../../lib/inrAssistantUiCommands.ts";
 import { getInrAssistantDocumentPrefillNavigation, type InrAssistantDocumentPrefill } from "../../lib/inrAssistantDocumentUiCommands.ts";
 import { inrAssistantUiActionsFromToolResult, type InrAssistantUiAction, type InrAssistantUiResult } from "../../lib/inrAssistantUiActions.ts";
+import { inrAssistantUiSteps, inrAssistantUiStepResult, rebindInrAssistantUiStep } from "../../lib/inrAssistantUiTask.ts";
+import type { InrAssistantClientScreen } from "../../lib/inrAssistantClientContext.ts";
 
 type UiFixture = Window & {
   documentPrefill?: InrAssistantDocumentPrefill;
@@ -37,7 +39,7 @@ function nativeBridgeSource(file: string) {
   const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
   const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
   const calls: ts.CallExpression[] = []; let update = "";
-  const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && ["useInrAssistantNativeDraft", "useInrAssistantVideoCommands", "useInrAssistantMailCommands", "useInrAssistantAdsCommands"].includes(node.expression.getText(parsed))) calls.push(node); if (ts.isFunctionDeclaration(node) && node.name?.text === "updateDraft") update = node.getText(parsed); ts.forEachChild(node, visit); }; visit(parsed);
+  const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && ["useInrAssistantNativeDraft", "useInrAssistantVideoCommands", "useInrAssistantImageCommands", "useInrAssistantMediaLibraryCommands", "useInrAssistantMailCommands", "useInrAssistantAdsCommands"].includes(node.expression.getText(parsed))) calls.push(node); if (ts.isFunctionDeclaration(node) && node.name?.text === "updateDraft") update = node.getText(parsed); ts.forEachChild(node, visit); }; visit(parsed);
   assert.equal(calls.length, 1, `one active native bridge in ${file}`);
   return { call: ts.transpileModule(calls[0].getText(parsed), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
     update: ts.transpileModule(update, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText };
@@ -52,6 +54,14 @@ const adsSave = nativeFunctionSource("app/dashboard/ads/AdsClient.tsx", "saveDra
 const adsMedia = nativeFunctionSource("app/dashboard/ads/AdsClient.tsx", "applyCampaignMedia");
 const adsBridge = nativeBridgeSource("app/dashboard/ads/AdsClient.tsx");
 const videoBridge = nativeBridgeSource("app/dashboard/_components/MediaVideoRetoucher.tsx");
+const imageBridge = nativeBridgeSource("app/dashboard/_components/MediaRetoucher.tsx");
+const libraryBridge = nativeBridgeSource("app/dashboard/mediatheque/MediaLibraryClient.tsx");
+function nativeVariableSource(file: string, name: string) {
+  const raw = readFileSync(file, "utf8"), ast = ts.createSourceFile(file, raw, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); let found: ts.VariableDeclaration | undefined;
+  const visit = (node: ts.Node) => { if (ts.isVariableDeclaration(node) && node.name.getText(ast) === name) found = node; ts.forEachChild(node, visit); }; visit(ast); assert.ok(found, name);
+  return ts.transpileModule(`const ${found.getText(ast)};`, { fileName: file, compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+}
+const imageSave = nativeVariableSource("app/dashboard/_components/MediaRetoucher.tsx", "saveEditor");
 const mailBridge = nativeBridgeSource("app/dashboard/mails/MailboxClient.tsx");
 function clientLibSources(entry: string, output: Record<string, string> = {}) {
   const key = '@/lib/' + entry;
@@ -80,6 +90,9 @@ const sources = {
   ...clientLibSources("inrAssistantAdsUiCommands"),
   "library-optimization": compile("app/dashboard/_hooks/useInrAssistantLibraryOptimization.ts"),
   "video-native": compile("app/dashboard/_hooks/useInrAssistantVideoCommands.ts"),
+  "image-native": compile("app/dashboard/_hooks/useInrAssistantImageCommands.ts"),
+  "library-native": compile("app/dashboard/_hooks/useInrAssistantMediaLibraryCommands.ts"),
+  ...clientLibSources("inrAssistantUiCommands"), ...clientLibSources("inrAssistantClientContext"), ...clientLibSources("inrAssistantUiPostScreen"), ...clientLibSources("inrAssistantScreenCommandPolicy"),
   "preview": compile("app/dashboard/_hooks/useInrAssistantDocumentPreview.ts"),
   "document-mail": compile("app/dashboard/_hooks/useInrAssistantDocumentMail.ts"),
   "document-mail-preparation": compile("app/dashboard/_documents/documentMailPreparation.ts"),
@@ -150,11 +163,27 @@ function Document(){
  }});
  return React.createElement('output',{id:'mounted-document'},id);
 }
-function Library(){
+function LegacyLibrary(){
  screen.useInrAssistantScreen({selectedMediaIds:window.fixtureScope.selectedMediaIds});
  const target={id:window.fixtureScope.documentId,media_type:'video',size_bytes:40000000,mime_type:'video/mp4',title:'Source',is_active:true};
  const status=require('library-optimization').useInrAssistantLibraryOptimization({target,selectedIds:window.fixtureScope.selectedMediaIds,blocked:Boolean(window.fixtureScope.blocked),refresh:async current=>{if(current())window.optimizationRefreshes=(window.optimizationRefreshes||0)+1}});
  return React.createElement('output',{id:'optimization-state'},JSON.stringify(status));
+}
+function Library(){return React.createElement(window.nativeLibraryWorkspace?NativeLibrary:LegacyLibrary)}
+function NativeLibrary(){
+ const [search,setSearch]=React.useState(''),[typeFilter,setTypeFilter]=React.useState('all'),[activeFilter,setActiveFilter]=React.useState('active'),[selectedItemIds,setSelectedItemIds]=React.useState(new Set()),[previewItem,setPreviewItem]=React.useState(null),[loading,setLoading]=React.useState(false),[loadedFilterKey,setLoadedFilterKey]=React.useState('');
+ const sourceItem={id:'${A}',media_type:'video',size_bytes:40000000,mime_type:'video/mp4',title:'Source',is_active:true};
+ const [items,setItems]=React.useState([sourceItem]),selectedItems=items.filter(item=>selectedItemIds.has(item.id));
+ React.useEffect(()=>{let current=true;setLoading(true);Promise.resolve().then(async()=>{if(window.deferLibraryLoad)await new Promise(resolve=>window.releaseLibraryLoad=resolve);if(!current)return;setItems([sourceItem]);setLoadedFilterKey(JSON.stringify({search,typeFilter,activeFilter}));setLoading(false)});return()=>{current=false}},[search,typeFilter,activeFilter]);
+ const instance=React.useId().replace(/[^a-zA-Z0-9_-]/g,'_'),assistantLibrarySnapshot={search,typeFilter,activeFilter,ids:items.map(item=>item.id),selected:[...selectedItemIds],preview:previewItem?.id||null},signature=JSON.stringify(assistantLibrarySnapshot);
+ const [version,setVersion]=React.useState({signature,value:0});if(version.signature!==signature)setVersion({signature,value:version.value+1});
+ const assistantLibraryWorkspace={id:'library_'+instance,revision:'library_'+instance+'_'+version.value};
+ const assistantOptimization=require('library-optimization').useInrAssistantLibraryOptimization({target:previewItem||(selectedItems.length===1?selectedItems[0]:null),selectedIds:[...selectedItemIds],blocked:false,workspace:assistantLibraryWorkspace,refresh:async current=>{if(current())setItems(old=>old.concat({id:'${B}',media_type:'video',size_bytes:19000000}));return true}});
+ const uploading=false,importOpen=false,savingId=null,metadataEditingKeys=new Set(),metadataSavingKeys=new Set(),optimizerItem=null;
+ const useInrAssistantMediaLibraryCommands=require('library-native').useInrAssistantMediaLibraryCommands;
+ ${libraryBridge.call}
+ window.nativeLibraryState={search,typeFilter,activeFilter,selected:[...selectedItemIds],ids:items.map(item=>item.id)};
+ return React.createElement('output',{id:'optimization-state'},JSON.stringify(assistantOptimization));
 }
 function AdsDraft(){
  const[draft,setDraft]=React.useState(()=>require('@/lib/adsValidation').parseAdsCampaignInput({provider:'meta',accountCurrency:'EUR',dailyBudgetEuros:20,endDate:'2026-12-30',name:'Original campaign',primaryText:'Original text'},{purpose:'draft'}).draft),[dirty,setDirty]=React.useState(false),[confirmedSpend,setConfirmedSpend]=React.useState(true),[step,setStep]=React.useState(0);
@@ -203,6 +232,19 @@ function VideoDraft(){
  window.editNative=value=>setFormat(value); window.replaceNativeSource=id=>setSource({libraryItem:{id},url:'user-replacement'});window.nativeState={format,adaptationMode,saved,sourceId:source.libraryItem.id};
  return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
 }
+function ImageDraft(){
+ const [source,setSource]=React.useState(null),[transform,setTransform]=React.useState({fit:'contain',zoom:1,offsetX:0,offsetY:0,backgroundMode:'white',backgroundColor:'#ffffff'}),[saved,setSaved]=React.useState(false),[saving,setSaving]=React.useState(false);
+ const savedCopy=React.useRef(null),baselineRef=React.useRef(null),initialSourceLoading=false,loadingSource=false,acceptMode='library',cloneTransform=value=>JSON.parse(JSON.stringify(value)),setError=()=>{};
+ const loadInrAssistantLibraryImage=async(id,stillCurrent)=>{window.imageLoads=(window.imageLoads||[]).concat(id);if(window.deferImageLoad)await new Promise(resolve=>window.releaseImageLoad=resolve);return stillCurrent()?{id}:null};
+ const importLibraryImage=async(item,stillCurrent)=>{if(!stillCurrent())return false;setSource({file:new File(['image'],'source.png',{type:'image/png'}),renderFile:new File(['image'],'source.png',{type:'image/png'}),width:800,height:600,metadata:{mediaLibraryId:item.id},preserveAlpha:false});setSaved(false);return true};
+ const resetTransform=()=>{setTransform({fit:'contain',zoom:1,offsetX:0,offsetY:0,backgroundMode:'white',backgroundColor:'#ffffff'});setSaved(false)};
+ const onSaved=async(value,options)=>{window.imageSaves=(window.imageSaves||0)+1;window.imageSavedTransform=value.transform;if(window.deferImageSave)await new Promise(resolve=>window.releaseImageSave=resolve);if(!options.isCurrent())return;return {savedMediaId:'33333333-3333-4333-8333-333333333333'}};
+ ${imageSave}
+ const useInrAssistantImageCommands=require('image-native').useInrAssistantImageCommands;
+ ${imageBridge.call}
+ window.editNative=value=>setTransform(current=>({...current,zoom:Number(value)}));window.nativeState={...transform,saved,sourceId:source?.metadata?.mediaLibraryId||null};
+ return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
+}
 function MailDraft(){
  const [to,setTo]=React.useState('original@example.invalid'),[subject,setSubject]=React.useState('Original'),[text,setText]=React.useState('Original text'),[html,setHtml]=React.useState('<p>Original text</p>');
  const [composeAttachments,setComposeAttachments]=React.useState([{bucket:'inrbox_attachments',path:'existing.pdf',size:400,name:'Facture.pdf',type:'application/pdf'}]);
@@ -218,7 +260,7 @@ function MailDraft(){
  window.editNative=value=>setSubject(value);window.nativeState={to,subject,text,html};window.mailAttachments=composeAttachments;window.mailScheduleOpen=assistantScheduleOpen;
  return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
 }
-function Fixture(){const[,render]=React.useState(0);window.renderFixture=()=>render(n=>n+1);return React.createElement(require('provider').default,null,window.fixtureScope.pathname==='/dashboard/mails'&&window.allowMailMount===false?null:React.createElement(window.fixtureScope.pathname==='/dashboard/mails'?MailDraft:window.fixtureScope.pathname==='/dashboard/ads'?AdsDraft:window.fixtureScope.pathname==='/dashboard/generer-media'?VideoDraft:window.fixtureScope.pathname==='/dashboard/mediatheque'?Library:Document))}
+function Fixture(){const[,render]=React.useState(0);window.renderFixture=()=>render(n=>n+1);return React.createElement(require('provider').default,null,window.fixtureScope.pathname==='/dashboard/mails'&&window.allowMailMount===false?null:React.createElement(window.fixtureScope.pathname==='/dashboard/mails'?MailDraft:window.fixtureScope.pathname==='/dashboard/ads'?AdsDraft:window.fixtureScope.pathname==='/dashboard/generer-media'?(window.fixtureScope.query.includes('studio_media_type=image')?ImageDraft:VideoDraft):window.fixtureScope.pathname==='/dashboard/mediatheque'?Library:Document))}
 window.mountTarget=()=>{const url=new URL(window.requestedHref,location.origin);window.fixtureScope={...window.fixtureScope,pathname:url.pathname,query:url.search.slice(1),documentId:url.searchParams.get('saveId')};window.renderFixture()};
 window.startActions=actions=>{window.result=null;window.assistantProps.onUiActions(actions,undefined,window.deferClaim?()=>new Promise(resolve=>window.releaseClaim=()=>resolve(true)):undefined).then(value=>window.result=value)};
 require('react-dom/client').createRoot(document.getElementById('root')).render(React.createElement(Fixture));
@@ -706,6 +748,58 @@ test("a concurrent native batch cannot overtake the pending claim or apply twice
     await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
     assert.equal(await page.evaluate(() => (window as unknown as UiFixture).nativeState.name), "First edit");
+  } finally { await browser.close(); }
+});
+
+test("native library workspace keeps filters, selected media and optimization under the same Provider target and commits refreshed list before ACK", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page); await page.evaluate("window.nativeLibraryWorkspace=true");
+    const navigation = getInrAssistantNavigation("media"); assert.ok(navigation);
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), inrAssistantUiActionsFromToolResult("library-nav", { ok: true, navigation }));
+    await page.waitForFunction(() => Boolean((window as unknown as UiFixture).requestedHref)); await page.evaluate(() => (window as unknown as UiFixture).mountTarget()); await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
+    let screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+    const originalTarget = screen.selection.id; assert.match(originalTarget, /^library_/);
+    await page.evaluate(actions => { (window as unknown as { deferLibraryLoad: boolean }).deferLibraryLoad = true; (window as unknown as UiFixture).startActions(actions); }, inrAssistantUiActionsFromToolResult("library-filter", { ok: true, uiCommand: { command: "configure_media_library", selection: screen.selection, revision: screen.revision, patch: { typeFilter: "video", search: "Source" } } }));
+    await page.waitForFunction("Boolean(window.releaseLibraryLoad)"); assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result), null); await page.evaluate("window.releaseLibraryLoad()"); await page.waitForFunction(() => (window as unknown as UiFixture).result !== null); assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
+    screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen);
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), inrAssistantUiActionsFromToolResult("library-select", { ok: true, uiCommand: { command: "configure_media_library", selection: screen.selection, revision: screen.revision, patch: { selectedMediaIds: [A] } } })); await page.waitForFunction(() => (window as unknown as UiFixture).result !== null); assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied");
+    await page.waitForFunction(() => (window as unknown as UiFixture).assistantProps.screen.availableCommands.includes("optimize_media")); screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen); assert.equal(screen.selection.id, originalTarget); assert.ok(screen.availableCommands.includes("configure_media_library"));
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), inrAssistantUiActionsFromToolResult("library-optimize", { ok: true, uiCommand: { command: "optimize_media", selection: screen.selection, revision: screen.revision, mediaId: A, targetBytes: 20_000_000 } })); await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    const result = await page.evaluate(() => (window as unknown as UiFixture).result); assert.equal(result[0].status, "applied"); const committed = result[0].postScreen;
+    assert.equal(committed?.selection.id, originalTarget); assert.notEqual(committed?.revision, screen.revision); await page.waitForFunction(revision => (window as unknown as UiFixture).assistantProps.screen.revision === revision, committed?.revision);
+    assert.deepEqual(await page.evaluate("window.nativeLibraryState.ids"), [A, B]); assert.equal((await page.evaluate(() => (window as unknown as UiFixture).requests)).filter(request => request.url === "/api/media-library/optimization").length, 1);
+  } finally { await browser.close(); }
+});
+
+for (const kind of ["image", "video"] as const) test(`retouch ${kind}: real Provider navigation, native selection/configure/save and UiTask continuation keep exact committed revisions`, async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page); const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+    const select = kind === "image" ? "select_image_source" : "select_video_source", configure = kind === "image" ? "configure_image_retouch" : "configure_video_retouch", save = kind === "image" ? "save_image_retouch" : "save_video_retouch";
+    const instruction = kind === "image" ? "Ouvre le retoucheur image puis choisis cette image comme source puis modifie le zoom de cette image puis enregistre cette retouche image" : "Ouvre le retoucheur vidéo puis choisis cette vidéo comme source puis modifie le format vidéo puis enregistre cette retouche vidéo";
+    let steps = inrAssistantUiSteps(instruction); assert.deepEqual(steps.map(step => step.command), ["navigateApplication", select, configure, save]);
+    const results: Array<ReturnType<typeof inrAssistantUiStepResult>> = [], source = { turnId: A, createdAt: "2026-11-05T12:00:00.000Z" };
+    const record = (index: number, actions: InrAssistantUiAction[], browserResults: InrAssistantUiResult[]) => { steps = steps.map((step, position) => position === index ? { ...step, actions, source } : step); results.push(inrAssistantUiStepResult(steps[index], browserResults)); assert.equal(results.at(-1)!.status, "applied"); };
+    const navigation = getInrAssistantNavigation(kind === "image" ? "studio_image_retouch" : "studio_video_retouch"); assert.ok(navigation);
+    const navigationActions = inrAssistantUiActionsFromToolResult(`${kind}-nav`, { ok: true, navigation });
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), navigationActions);
+    await page.waitForFunction(() => Boolean((window as unknown as UiFixture).requestedHref)); assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result), null);
+    await page.evaluate(() => (window as unknown as UiFixture).mountTarget()); await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    const navigationResult = await page.evaluate(() => (window as unknown as UiFixture).result); record(0, navigationActions, navigationResult); assert.equal(navigationResult[0].postScreen?.pathname, "/dashboard/generer-media");
+    for (const [index, command, patch] of [[1, select, null], [2, configure, kind === "image" ? { zoom: 1.5, backgroundMode: "black" } : { format: "9_16", adaptationMode: "cover_crop" }], [3, save, null]] as const) {
+      const screen = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen) as unknown as InrAssistantClientScreen;
+      steps = rebindInrAssistantUiStep(steps, results, { source: "untrusted_client", screen }); assert.equal(steps[index].screen?.revision, screen.revision);
+      const request = inrAssistantUiActionsFromToolResult(`${kind}-${command}`, { ok: true, uiCommand: { command, selection: screen.selection, revision: screen.revision, ...(index === 1 ? { mediaId: B } : patch ? { patch } : {}) } }); assert.equal(request.length, 1);
+      await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), request); await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+      const browserResults = await page.evaluate(() => (window as unknown as UiFixture).result); record(index, request, browserResults); const committed = browserResults[0].postScreen; assert.equal(committed?.selection.id, screen.selection?.id);
+      const after = await page.evaluate(() => (window as unknown as UiFixture).assistantProps.screen); assert.equal(committed?.revision, after.revision);
+    }
+    const state = await page.evaluate(() => (window as unknown as UiFixture).nativeState); assert.equal(state.saved, true); assert.equal(state.sourceId, B);
+    if (kind === "video") { assert.equal(state.format, "9_16"); assert.equal(state.adaptationMode, "cover_crop"); assert.equal(await page.evaluate(() => (window as unknown as UiFixture).videoSaves), 1); }
+    else { assert.equal((state as unknown as { zoom: number }).zoom, 1.5); assert.equal(await page.evaluate("window.imageSaves"), 1); }
+    assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
 

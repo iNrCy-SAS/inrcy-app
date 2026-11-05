@@ -122,6 +122,8 @@ test("viewport snapshots are immutable and tolerate a non-HTML active element", 
 
 class MemoryStorage {
   values = new Map<string, string>();
+  get length() { return this.values.size; }
+  key(index: number) { return [...this.values.keys()][index] ?? null; }
   getItem(key: string) { return this.values.get(key) ?? null; }
   setItem(key: string, value: string) { this.values.set(key, value); }
   removeItem(key: string) { this.values.delete(key); }
@@ -209,7 +211,7 @@ test("failed session persistence releases the newly allocated blob and cache", a
   t.mock.method(storage, "setItem", () => { throw new Error("storage_quota_exceeded"); });
   await assert.rejects(createInrStudioHandoff({
     tab: "retouch", origin: "booster", source: { file: sourceFile() },
-  }), /storage_quota_exceeded/);
+  }), error => error instanceof Error && error.name === "InrStudioTransferError" && /iNrStudio ne peut pas/.test(error.message) && !/storage_quota|Storage|setItem/.test(error.message));
   assert.equal(created.length, 1);
   assert.deepEqual(revoked, created);
   assert.equal(cache.values.size, 0);
@@ -221,10 +223,46 @@ test("failed session persistence still preserves a borrowed editor blob", async 
   t.mock.method(storage, "setItem", () => { throw new Error("storage_unavailable"); });
   await assert.rejects(createInrStudioHandoff({
     tab: "retouch", origin: "inrsend", source: { file: sourceFile(), url: "blob:editor-still-visible" },
-  }), /storage_unavailable/);
+  }), error => error instanceof Error && error.name === "InrStudioTransferError" && /iNrStudio ne peut pas/.test(error.message) && !/storage_unavailable|Storage|setItem/.test(error.message));
   assert.deepEqual(created, []);
   assert.deepEqual(revoked, []);
   assert.equal(cache.values.size, 0);
+});
+
+test("Studio removes only its expired transfers and their owned sources, retaining current sessions and unrelated drafts", async t => {
+  const { storage, cache, revoked } = navigation(t);
+  const expired = await createInrStudioHandoff({ tab: "retouch", origin: "booster", source: { file: sourceFile() } });
+  const current = await createInrStudioHandoff({ tab: "retouch", origin: "inrsend", source: { file: sourceFile() } });
+  const old = { ...expired.handoff, createdAt: Date.now() - 7 * 60 * 60 * 1000 };
+  storage.setItem(`inrcy:studio:handoff:v1:${old.key}`, JSON.stringify(old));
+  storage.setItem("unrelated:draft", "Keep the professional’s unsaved content");
+  storage.setItem("inrcy:studio:return:v1:old-return", JSON.stringify({ version: 1, returnKey: "old-return", createdAt: old.createdAt }));
+  const embedded = await createInrStudioHandoff({ tab: "generate", origin: "booster", transport: "embedded" });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(readInrStudioHandoff(old.key), null); assert.equal(storage.getItem("inrcy:studio:return:v1:old-return"), null);
+  assert.equal(readInrStudioHandoff(current.handoff.key)?.key, current.handoff.key); assert.equal(storage.getItem("unrelated:draft"), "Keep the professional’s unsaved content");
+  assert.deepEqual(revoked, [old.source!.url]); assert.equal(cache.values.size, 1);
+  await clearInrStudioHandoff(current.handoff.key); await clearInrStudioHandoff(embedded.handoff.key);
+});
+
+test("a failed navigation return exposes a public error and leaves the accepted media and original handoff intact", async t => {
+  const { storage } = navigation(t);
+  const { handoff } = await createInrStudioHandoff({ tab: "generate", origin: "inrsend" });
+  const item = { id: "accepted-media", media_type: "image" };
+  t.mock.method(storage, "setItem", () => { throw new DOMException("Failed to execute setItem on Storage: private-return-key exceeded the quota", "QuotaExceededError"); });
+  assert.throws(() => saveInrStudioReturn({ version: 1, returnKey: handoff.returnKey, handoffKey: handoff.key, action: "generate", createdAt: Date.now(), context: handoff.context, item }), error => {
+    assert.ok(error instanceof Error); assert.equal(error.name, "InrStudioTransferError"); assert.match(error.message, /retour depuis iNrStudio/); assert.doesNotMatch(error.message, /Storage|setItem|private-return-key|quota/); return true;
+  });
+  assert.deepEqual(item, { id: "accepted-media", media_type: "image" }); assert.equal(readInrStudioHandoff(handoff.key)?.key, handoff.key);
+  await clearInrStudioHandoff(handoff.key);
+});
+
+test("a Storage cleanup failure never turns a completed embedded return or close into an insertion error", async t => {
+  const { storage, cache, created, revoked } = navigation(t);
+  const { handoff } = await createInrStudioHandoff({ tab: "retouch", origin: "inrsend", source: { file: sourceFile() } });
+  t.mock.method(storage, "removeItem", () => { throw new DOMException("Storage unavailable", "SecurityError"); });
+  await assert.doesNotReject(clearInrStudioHandoff(handoff.key));
+  assert.deepEqual(revoked, created); assert.equal(cache.values.size, 0);
 });
 
 test("navigation returns exactly once with origin context, query and anchor intact", async (t) => {

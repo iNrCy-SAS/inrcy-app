@@ -21,6 +21,16 @@ const readers: Array<{
     matches: RegExp;
 }> = [
     diagnosticReader,
+    {tool:"readAccountServices",family:"management",label:"consulter les informations du compte demandées",matches:/notifications?|abonnement|credits?|recharges?|rgpd|donnees personnelles|cookies?|parrainage/},
+    {tool:"readGeneratorBusinessSettings",family:"business",label:"consulter les hypothèses des estimations",matches:/panier moyen|taux de (?:conversion|transformation)|hypotheses? (?:du generateur|des estimations)/},
+    {tool:"readSocialPublicationPreferences",family:"business",label:"consulter les préférences globales de formats",matches:/(?:facebook|instagram|threads).{0,60}(?:preferences?|reglages?|formats? par defaut)|(?:preferences?|reglages?|formats? par defaut).{0,60}(?:facebook|instagram|threads)/},
+    {tool:"readBusinessDnaSchedule",family:"business",label:"consulter la programmation mensuelle ADN",matches:/(?:adn|dna).{0,50}(?:programm|mensuel|planifi)|(?:programm|mensuel|planifi).{0,50}(?:adn|dna)/},
+    {tool:"readBusinessDnaSources",family:"business",label:"consulter les sources et documents ADN",matches:/(?:adn|dna).{0,50}(?:sources?|documents?|fichiers?)|(?:sources?|documents?|fichiers?).{0,50}(?:adn|dna)/},
+    {tool:"readWebsiteConfiguration",family:"business",label:"consulter la configuration du Site Web",matches:/ga4|search console|\bgsc\b|widget|google analytics/},
+    {tool:"readNativeChannelPresentation",family:"business",label:"consulter la présentation du canal",matches:/(?:badge|search).{0,50}(?:theme|presentation|couleur|section|visibilite)|(?:theme|presentation|couleur|section|visibilite).{0,50}(?:badge|search)/},
+    {tool:"readBusinessIdentity",family:"business",label:"consulter l’identité de l’entreprise",matches:/identite|coordonnees de (?:mon|notre)|profil entreprise|profession|metier|raison sociale/},
+    {tool:"readChannelResources",family:"business",label:"lister les ressources de connexion accessibles",matches:/(?:pages?|fiches?|etablissements?|organisations?|tableaux).{0,50}(?:google|facebook|instagram|linkedin|pinterest)|(?:google|facebook|instagram|linkedin|pinterest).{0,50}(?:ressources?|pages disponibles|fiches disponibles|etablissements disponibles|tableaux disponibles)/},
+    {tool:"readStatsEvolution",family:"workspace",label:"consulter l’évolution mensuelle réelle",matches:/(?:stats|statistiq|evolution|visibilite|clics).{0,60}(?:mois|mensuel)|(?:mois|mensuel).{0,60}(?:stats|statistiq|evolution|visibilite|clics)/},
     { tool: "readToolSettings", family: "settings", label: "lire les réglages demandés", matches: /reglage|parametre|configuration|preference|notification/ },
     { tool: "readAdvertisingCampaigns", family: "advertising", label: "consulter la campagne publicitaire", matches: /publicit|\bads\b|sponsoris/ },
     { tool: "readScheduledPublications", family: "publication", label: "consulter les publications programmées", matches: /(?:publication|post).{0,50}(?:programm|planifi)|(?:programm|planifi).{0,50}(?:publication|post)/ },
@@ -36,6 +46,7 @@ const readers: Array<{
     { tool: "searchMedia", family: "media", label: "rechercher les médias demandés", matches: /mediatheque|medias?|images?|photos?|videos?|audios?|\bsons?\b|visuels?|flyers?|logos?/ },
     { tool: "readStatsReports", family: "workspace", label: "consulter les rapports de statistiques", matches: /(?:rapports?|bilans?).{0,60}(?:stats|statistiq)|(?:stats|statistiq).{0,60}(?:rapports?|bilans?)/ },
     { tool: "readStatsSnapshots", family: "workspace", label: "consulter les statistiques", matches: /stats|statistiq|resultats?|performances?|impressions?/ },
+    {tool:"listGoogleReviews",family:"workspace",label:"lister les avis Google avec filtres",matches:/(?:tous|toutes|chaque|sans reponse|non repondus|repondu|etoiles?|notes?|recents?|negatifs?|positifs?).{0,60}(?:avis|reviews?)|(?:avis|reviews?).{0,60}(?:tous|toutes|chaque|sans reponse|non repondus|repondu|etoiles?|notes?|recents?|negatifs?|positifs?)/},
     { tool: "readGoogleReviews", family: "workspace", label: "consulter les avis", matches: /\bavis\b|reputation|reviews?/ },
     { tool: "readChannelStatus", family: "business", label: "vérifier les connexions des canaux", matches: /canaux|canal|connexion|connecte|cockpit/ },
 ];
@@ -66,7 +77,7 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
             && /\b(?:ce qui se passe|ce probleme|cet incident|la cause|le blocage)\b/.test(clause)
             && diagnosticReader.matches.test(previous) && !inrAssistantClauseIsAdvice(previous)
             && !/^(?:ne\b|n['’]|not\b|never\b|si\b|imagine\b|suppose\b)/.test(previous);
-        const reader = diagnosticFollowup ? diagnosticReader : readers.find(reader => reader.matches.test(clause));
+        const reader = diagnosticFollowup ? diagnosticReader : readers.find(reader => reader.matches.test(clause) && !(reader.tool === "readAccountServices" && /notifications?/.test(clause) && /reglages?|parametres?|preferences?/.test(clause)));
         if (reader?.tool === "getAccountDiagnostics" && /^(?:si|quand|lorsque|if|when|unless)\b|\b(?:si|quand|lorsque|if|when|unless)\s+(?:je|j'|tu|vous|nous|on|il|elle|le|la|les|un|une|the|i|you|we|they)\b/.test(clauses.join(" ")))
             continue;
         if (reader)
@@ -88,6 +99,7 @@ export function inrAssistantReadMatchesObjective(objective: InrAssistantObjectiv
     if (objective.kind !== "read") return false;
     const value = input && typeof input === "object" ? input as Record<string, unknown> : {};
     if (objective.tool === tool) {
+        if (tool === "readAccountServices") { const text=objective.instruction; const expected=/factures?|recu/.test(text) && /abonnement|inrcy/.test(text) ? "invoices" : /historique|commandes?/.test(text) && /credits?|recharges?/.test(text) ? "credit_orders" : /notifications?/.test(text) ? "notifications" : /credits?|recharges?/.test(text) ? "credits" : /abonnement|subscription/.test(text) ? "subscription" : /rgpd|donnees personnelles|cookies?/.test(text) ? "privacy" : /parrainage/.test(text) ? "referral_program" : undefined; return !expected || value.view === expected; }
         if (tool !== "readPublicationWorkspace") return true;
         const expectedView = /brouillon/.test(objective.instruction) ? "drafts" : /proposition|prepare/.test(objective.instruction) ? "prepared" : /historique/.test(objective.instruction) ? "history" : null;
         return expectedView === null || value.view === expectedView;
@@ -119,6 +131,10 @@ export function inrAssistantPlanAllowsAction(plan: InrAssistantObjective[], tool
 }
 
 const prerequisiteReaders: Record<string, string[]> = {
+    updateGeneratorBusinessSettings:["readGeneratorBusinessSettings"], updateSocialPublicationPreferences:["readSocialPublicationPreferences"], updateBusinessDnaSchedule:["readBusinessDnaSchedule"], updateNativeChannelPresentation:["readNativeChannelPresentation"], updateWebsiteConfiguration:["readWebsiteConfiguration"],
+    updateBusinessIdentity: ["readBusinessIdentity", "searchBusinessProfessions", "searchMedia"],
+    applyChannelConfiguration: ["readChannelResources", "readChannelStatus"],
+    applyGoogleReviewReplyAction: ["listGoogleReviews", "readGoogleReviews"],
     manageCrmContact: ["searchCrmContacts", "readCrmContact"],
     prepareCommercialDocument: ["searchCrmContacts", "readCrmContact", "readCommercialDocuments"],
     prepareCommercialDocumentForm: ["readCommercialTemplates", "readCommercialDocuments"],
@@ -158,8 +174,8 @@ export function inrAssistantPlanAllowsRead(plan: InrAssistantObjective[], tool: 
 }
 type ReadAttempt = {
     input: Record<string, unknown>;
-    cursorKey: "offset" | "page";
-    nextOffset?: number | null;
+    cursorKey: "offset" | "page" | "cursor";
+    nextOffset?: number | string | null;
     exhaustiveObjective?: string;
     done: boolean;
 };
@@ -168,34 +184,41 @@ type ReadAttempt = {
 export function createInrAssistantReadBudget() {
     const attempts = new Map<string, ReadAttempt[]>();
     const row = (value: unknown): Record<string, unknown> => value && typeof value === "object" ? value as Record<string, unknown> : {};
-    const paginated = new Set(["searchMedia", "listIndividualMailboxes", "readIndividualMailHistory", "discoverCapabilities", "readStatsReports", "readScheduledPublications", "readPublicationWorkspace", "readAdvertisingCampaigns", "readAttachedDocument", "readCommercialTemplates"]);
-    const sameSearch = (left: Record<string, unknown>, right: Record<string, unknown>) => [...new Set([...Object.keys(left), ...Object.keys(right)])].filter(key => key !== "offset" && key !== "page").every(key => JSON.stringify(left[key] ?? null) === JSON.stringify(right[key] ?? null));
+    const paginated = new Set(["readAccountServices", "listGoogleReviews", "searchMedia", "listIndividualMailboxes", "readIndividualMailHistory", "discoverCapabilities", "readStatsReports", "readScheduledPublications", "readPublicationWorkspace", "readAdvertisingCampaigns", "readAttachedDocument", "readCommercialTemplates"]);
+    const sameSearch = (left: Record<string, unknown>, right: Record<string, unknown>) => [...new Set([...Object.keys(left), ...Object.keys(right)])].filter(key => key !== "offset" && key !== "page" && key !== "cursor").every(key => JSON.stringify(left[key] ?? null) === JSON.stringify(right[key] ?? null));
     return {
         available(name: string) {
+            if (name === "readAccountServices") return true;
             const history = attempts.get(name) ?? [];
             const last = history.at(-1);
-            return history.length < 2 || paginated.has(name) && last?.done === true && typeof last.nextOffset === "number";
+            return history.length < 2 || paginated.has(name) && last?.done === true && (typeof last.nextOffset === "number" || typeof last.nextOffset === "string");
         },
         start(name: string, input: unknown, exhaustiveObjective?: string): ReadAttempt | null {
-            const history = attempts.get(name) ?? [];
-            const last = history.at(-1);
             const current = row(input);
-            const cursorKey = name === "readIndividualMailHistory" ? "page" : "offset";
+            const key = name === "readAccountServices" ? `${name}:${String(current.view)}` : name;
+            const history = attempts.get(key) ?? [];
+            const last = history.at(-1);
+            const cursorKey = name === "listGoogleReviews" ? "cursor" : name === "readIndividualMailHistory" ? "page" : "offset";
             if (exhaustiveObjective && paginated.has(name)) {
                 const previous = history.filter(attempt => attempt.exhaustiveObjective === exhaustiveObjective).at(-1);
                 if (previous) {
-                    if (!previous.done || typeof previous.nextOffset !== "number" || current[cursorKey] !== previous.nextOffset || !sameSearch(previous.input, current)) return null;
-                } else if (Number(current[cursorKey] ?? (cursorKey === "page" ? 1 : 0)) !== (cursorKey === "page" ? 1 : 0)) return null;
+                    if (!previous.done || (typeof previous.nextOffset !== "number" && typeof previous.nextOffset !== "string") || current[cursorKey] !== previous.nextOffset || !sameSearch(previous.input, current)) return null;
+                } else if (cursorKey === "cursor" ? current.cursor != null : Number(current[cursorKey] ?? (cursorKey === "page" ? 1 : 0)) !== (cursorKey === "page" ? 1 : 0)) return null;
             }
-            if (history.length >= 2 && !(paginated.has(name) && last?.done && typeof last.nextOffset === "number" && current[last.cursorKey] === last.nextOffset && sameSearch(last.input, current)))
+            if (history.length >= 2 && !(paginated.has(name) && last?.done && (typeof last.nextOffset === "number" || typeof last.nextOffset === "string") && current[last.cursorKey] === last.nextOffset && sameSearch(last.input, current)))
                 return null;
             const attempt: ReadAttempt = { input: current, cursorKey, exhaustiveObjective, done: false };
             history.push(attempt);
-            attempts.set(name, history);
+            attempts.set(key, history);
             return attempt;
         },
         finish(attempt: ReadAttempt, output: unknown) {
             const result = row(output);
+            if (attempt.cursorKey === "cursor") {
+                const next = result.nextCursor; attempt.done = true;
+                attempt.nextOffset = result.ok !== false && result.available !== false && result.status !== "unknown" && typeof next === "string" && next.length > 0 && next.length <= 24000 && next !== attempt.input.cursor ? next : null;
+                return;
+            }
             const offset = Number(attempt.input[attempt.cursorKey] ?? (attempt.cursorKey === "page" ? 1 : 0));
             const next = result[attempt.cursorKey === "page" ? "nextPage" : "nextOffset"];
             attempt.done = true;

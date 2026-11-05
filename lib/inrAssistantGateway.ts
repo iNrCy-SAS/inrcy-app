@@ -30,7 +30,7 @@ import { buildInrAssistantSystemPrompt, InrAssistantInputError } from "./inrAssi
 import { getInrAssistantAppKnowledge, createInrAssistantAppGuideTool, getVerifiedInrAssistantNavigation } from "./inrAssistantAppGuides.ts";
 import { selectInrAssistantToolFamilies, inrAssistantSelectionToolHints, inrAssistantRoutingText, inrAssistantRequiredTools, inrAssistantTaskOutcome, verifiedInrAssistantCapabilityLimit } from "./inrAssistantToolRouting.ts";
 import type { InrAssistantTaskState, InrAssistantTaskOutcome, InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
-import { inrAssistantRequiredCalls, inrAssistantGoalCompleted, inrAssistantTaskTrackingLimit, compactInrAssistantTaskReceipts, inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantTaskPolicy.ts";
+import { INR_ASSISTANT_APPROVAL_KINDS, inrAssistantRequiredCalls, inrAssistantGoalCompleted, inrAssistantTaskTrackingLimit, compactInrAssistantTaskReceipts, inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantTaskPolicy.ts";
 import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsAction, inrAssistantPlanAllowsRead, inrAssistantReadMatchesObjective, inrAssistantObjectiveFamily, inrAssistantObjectiveLabel, createInrAssistantReadBudget } from "./inrAssistantObjectives.ts";
 import { inrAssistantUiActionsFromToolResult, INR_ASSISTANT_MAX_UI_ACTIONS, type InrAssistantUiAction } from "./inrAssistantUiActions.ts";
 import { inrAssistantUiSteps, rebindInrAssistantUiStep, inrAssistantUiStepAcceptsAction, inrAssistantUiStepTool, isInrAssistantUiTaskTool, INR_ASSISTANT_UI_TASK_TOOLS, type InrAssistantUiStep } from "./inrAssistantUiTask.ts";
@@ -45,7 +45,8 @@ import { assistantMessagesWithFiles } from "./inrAssistantAttachmentPrompt.ts";
 import { compactInrAssistantGuideContext } from "./inrAssistantPromptContext.ts";
 import { INR_ASSISTANT_COMMANDS, INR_ASSISTANT_PENDING_STATUSES, INR_ASSISTANT_UNCERTAIN_STATUSES } from "./inrAssistantCommandRegistry.ts";
 import { createInrAssistantUiTools } from "./inrAssistantUiTools.ts";
-import { getDirectInrAssistantNavigationRequest, getPureInrAssistantNavigationRequest, parseInrAssistantNavigation, isInrAssistantNavigationRequest, parseInrAssistantUiCommand, type InrAssistantNavigation, type InrAssistantUiCommand } from "./inrAssistantUiCommands.ts";
+import { getPureInrAssistantStatsViewRequest, getPureInrAssistantStatsViewSequence } from "./inrAssistantPureStatsViewRequest.ts";
+import { getDirectInrAssistantNavigationRequest, getPureInrAssistantNavigationRequest, parseInrAssistantNavigation, isInrAssistantNavigationRequest, isInrAssistantScreenCommandRequest, parseInrAssistantUiCommand, type InrAssistantNavigation, type InrAssistantUiCommand } from "./inrAssistantUiCommands.ts";
 
 const supportTool = tool({
   description: "Préparer une proposition d’aide par un humain quand le pro la demande, qu’un accès administrateur est nécessaire ou qu’un blocage ne peut pas être résolu de façon fiable. Rien n’est envoyé : le pro doit vérifier le résumé et choisir de contacter l’équipe.",
@@ -147,7 +148,9 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     : savedUiSteps ?? inrAssistantUiSteps(latestRequest, args.clientContext)).map(step => ({ ...step }));
   const appliedUi = new Set((uiResumeRequested || args.taskIntent === "check_status" ? args.browserStepResults ?? [] : []).filter(result => result.status === "applied" && uiSteps.some(step => step.id === result.stepId && step.source)).map(result => result.stepId));
   const statusOnly = Boolean(args.taskContext && args.actionInstruction && (args.taskIntent === "check_status" || args.taskContext.outcome === "processing" && !uiSteps.length));
-  const navigationRequested = isInrAssistantNavigationRequest(args.taskContext ? spokenRequest : latestRequest);
+  // A mounted screen intent such as “affiche la vue Évolution” can also
+  // lexically resemble navigation. Its concrete server plan is authoritative.
+  const navigationRequested = uiSteps.length ? uiSteps.some(step => step.command === "navigateApplication" && !step.actions?.length && !appliedUi.has(step.id)) : isInrAssistantNavigationRequest(args.taskContext ? spokenRequest : latestRequest);
   const screenCommandRequested = uiSteps.some(step => inrAssistantUiStepTool(step) === "runScreenCommand" && !step.actions?.length && !appliedUi.has(step.id));
   const draftOnly = isInrAssistantStudioDraftRequest(latestRequest);
   const insertRequest = requestsStudioInsertion(spokenRequest);
@@ -157,6 +160,82 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   }
   const capabilityLimit = draftOnly ? null : verifiedInrAssistantCapabilityLimit(latestRequest,args.edition);
   if (capabilityLimit) return {message:capabilityLimit,outcome:"blocked"};
+  // Known view buttons retain the same durable, ordered browser handoff as
+  // model-driven tasks. Only a verified ACK can advance this finite sequence.
+  const statsWorkflowInstruction = args.taskContext?.instruction ?? latestRequest;
+  const statsSequence = args.edition === "basic" && statsWorkflowInstruction.trim().length <= 1200 && !args.fileContexts?.length && !draftOnly
+    && ((!args.taskContext && !args.actionInstruction) || uiResumeRequested || args.taskIntent === "check_status")
+    && !args.taskContext?.requiredTools.length && !args.taskContext?.receipts.length && !inrAssistantRequiredTools(statsWorkflowInstruction).length
+    ? getPureInrAssistantStatsViewSequence(statsWorkflowInstruction, args.clientContext)
+      ?? (args.taskContext && savedUiSteps?.[0]?.screen ? getPureInrAssistantStatsViewSequence(statsWorkflowInstruction, { source: "untrusted_client", screen: savedUiSteps[0].screen }) : null) : null;
+  if (statsSequence && statsSequence.length === uiSteps.length && uiSteps.every((step, index) => step.command === statsSequence[index].command
+    && step.instruction === inrAssistantRequestClauses(statsWorkflowInstruction)[index])) {
+    const viewLabel = (index: number) => `Vue ${statsSequence[index].patch.panel === "all" ? "globale" : "Évolution"}`;
+    const progress = (outcome: InrAssistantTaskOutcome) => ({ outcome,
+      completed: uiSteps.flatMap((step, index) => appliedUi.has(step.id) ? [viewLabel(index)] : []),
+      remaining: uiSteps.flatMap((step, index) => appliedUi.has(step.id) ? [] : [viewLabel(index)]) });
+    const state = (outcome: InrAssistantTaskOutcome, question: string): InrAssistantTaskState => ({ version: 1,
+      instruction: args.taskContext?.instruction ?? latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
+      startedAt: args.taskContext?.startedAt ?? args.actionStartedAt ?? new Date().toISOString(),
+      expiresAt: args.taskContext?.expiresAt ?? new Date(Date.now() + 30 * 60_000).toISOString(),
+      outcome, requiredTools: [], receipts: [], uiSteps: uiSteps.map(step => ({ ...step })), question });
+    const failure = (message: string): InrAssistantReply => ({ message, outcome: "blocked", taskState: state("blocked", message), taskProgress: progress("blocked") });
+    if (args.signal?.aborted) { noteFailure("request_aborted", { callCount: 0 }); args.signal.throwIfAborted(); }
+    if (args.browserStepResults?.some(result => uiSteps.some(step => step.id === result.stepId) && ["failed", "cancelled"].includes(result.status))) {
+      return failure("Un changement de vue n’a pas été confirmé. Vérifiez l’écran puis renouvelez la demande ; aucune étape n’a été rejouée.");
+    }
+    if (args.browserStepResults?.some(result => result.status === "applied" && uiSteps.some(step => step.id === result.stepId && (!step.source || !step.actions?.length)))) {
+      return failure("La confirmation de cette étape ne peut pas être vérifiée. Aucune étape supplémentaire n’a été lancée.");
+    }
+    if (uiSteps.some(step => appliedUi.has(step.id) && !args.browserStepResults?.some(result => result.stepId === step.id && result.status === "applied"
+      && result.postScreen?.pathname === "/dashboard/stats" && result.postScreen.selection.kind === "stats" && result.postScreen.selection.id === "stats" && Boolean(result.postScreen.revision)))) {
+      return failure("La confirmation reçue ne correspond pas à la vue iNr’Stats demandée. Aucune étape supplémentaire n’a été lancée.");
+    }
+    const index = uiSteps.findIndex(step => !appliedUi.has(step.id));
+    if (index < 0) return { message: "Les changements de vue demandés sont confirmés dans iNr’Stats.", outcome: "completed", taskState: state("completed", ""), taskProgress: progress("completed") };
+    if (args.taskIntent === "check_status") return { message: `${appliedUi.size} changement(s) de vue confirmé(s). La suite attend le résultat du navigateur ou une demande de reprise. Aucune action n’a été relancée.`, outcome: "partial", taskState: state("partial", "La suite attend le résultat du navigateur ou une demande de reprise."), taskProgress: progress("partial") };
+    const step = uiSteps[index], screen = args.clientContext?.screen;
+    if (step.actions?.length) return { message: "La suite attend le résultat vérifié du navigateur. L’étape déjà transmise n’a pas été rejouée.", outcome: "partial", taskState: state("partial", "La suite attend le résultat vérifié du navigateur."), taskProgress: progress("partial") };
+    if (!screen || !step.screen || step.screen.pathname !== screen.pathname || step.screen.revision !== screen.revision
+      || JSON.stringify(step.screen.selection) !== JSON.stringify(screen.selection) || !screen.availableCommands?.includes("configure_stats_view")) {
+      return failure("La vue ou l’établissement a changé depuis l’étape précédente. Renouvelez la demande sur l’écran actuel ; aucune étape supplémentaire n’a été lancée.");
+    }
+    if (index > 0 && !args.browserStepResults?.some(result => result.stepId === uiSteps[index - 1].id && result.status === "applied"
+      && result.postScreen?.pathname === screen.pathname && result.postScreen.revision === screen.revision
+      && JSON.stringify(result.postScreen.selection) === JSON.stringify(screen.selection))) {
+      return failure("L’écran ne correspond plus à la dernière étape confirmée. Aucune étape supplémentaire n’a été lancée.");
+    }
+    const request = statsSequence[index];
+    const nativeScreen = createInrAssistantUiTools({ accountId: args.accountId, edition: args.edition, currentUserMessage: statsWorkflowInstruction, clientContext: args.clientContext, supabase: args.supabase, canStartWork: () => !args.signal?.aborted }).runScreenCommand;
+    if (!nativeScreen?.execute) return failure("Le changement de vue natif n’est pas disponible. Aucune commande n’a été transmise.");
+    const result: unknown = await nativeScreen.execute({ ...request, documentId: null, documentKind: null, recipient: null }, { toolCallId: `direct-stats-${step.id}`, messages: args.messages });
+    const output = result && typeof result === "object" ? result as Record<string, unknown> : {};
+    const command = output.ok === true ? parseInrAssistantUiCommand(output.uiCommand) : null;
+    if (command?.command !== "configure_stats_view" || command.revision !== screen.revision || command.selection.id !== "stats"
+      || JSON.stringify(command.patch) !== JSON.stringify(request.patch)) return failure(output.ok === false && typeof output.message === "string" ? output.message : "Le changement de vue demandé n’a pas pu être vérifié. Aucune commande n’a été transmise.");
+    const actions = inrAssistantUiActionsFromToolResult(`direct-stats-${step.id}`, { ok: true, uiCommand: command });
+    step.actions = actions;
+    return { message: `Affichage de la ${viewLabel(index).toLowerCase()} demandé. La suite attend la confirmation de l’écran.`, uiCommand: command, uiActions: actions,
+      outcome: "partial", taskState: state("partial", "La suite attend la confirmation de l’écran."), taskProgress: progress("partial") };
+  }
+  // Two named native view buttons need no model inference. Keep the normal
+  // authenticated screen executor and signed browser acknowledgement path.
+  const pureStatsView = !args.taskContext && !args.actionInstruction && !args.fileContexts?.length && !draftOnly && !inrAssistantRequiredTools(latestRequest).length
+    ? getPureInrAssistantStatsViewRequest(spokenRequest, args.clientContext) : null;
+  if (pureStatsView) {
+    if (args.signal?.aborted) { noteFailure("request_aborted", { callCount: 0 }); args.signal.throwIfAborted(); }
+    const nativeScreen = createInrAssistantUiTools({ accountId: args.accountId, edition: args.edition, currentUserMessage: spokenRequest, clientContext: args.clientContext, supabase: args.supabase, canStartWork: () => !args.signal?.aborted }).runScreenCommand;
+    if (nativeScreen?.execute) {
+      const result: unknown = await nativeScreen.execute({ ...pureStatsView, documentId: null, documentKind: null, recipient: null }, { toolCallId: "direct-stats-view", messages: args.messages });
+      const output = result && typeof result === "object" ? result as Record<string, unknown> : {};
+      const command = output.ok === true ? parseInrAssistantUiCommand(output.uiCommand) : null;
+      if (command?.command === "configure_stats_view" && command.revision === args.clientContext?.screen?.revision
+        && command.selection.id === "stats" && JSON.stringify(command.patch) === JSON.stringify(pureStatsView.patch)) {
+        return { message: `Affichage de la vue ${pureStatsView.patch.panel === "evolution" ? "Évolution" : "globale"} demandé.`, uiCommand: command, outcome: "processing" };
+      }
+      return { message: output.ok === false && typeof output.message === "string" ? output.message : "Le changement de vue n’a pas pu être vérifié. Aucune commande n’a été transmise.", outcome: "blocked" };
+    }
+  }
   // Opening one named module needs only the native authenticated command. Keep
   // this independent of AI credentials, Redis and paid-provider availability.
   // Existing tasks, attached content and additional actions retain the full pipeline.
@@ -167,7 +246,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
       noteFailure("request_aborted", { callCount: 0 });
       args.signal.throwIfAborted();
     }
-    const nativeNavigation = createInrAssistantUiTools({ accountId: args.accountId, currentUserMessage: spokenRequest, clientContext: args.clientContext, supabase: args.supabase, canStartWork: () => !args.signal?.aborted }).navigateApplication;
+    const nativeNavigation = createInrAssistantUiTools({ accountId: args.accountId, edition: args.edition, currentUserMessage: spokenRequest, clientContext: args.clientContext, supabase: args.supabase, canStartWork: () => !args.signal?.aborted }).navigateApplication;
     if (nativeNavigation?.execute) {
       const result: unknown = await nativeNavigation.execute({ ...pureNavigation, documentId: null }, { toolCallId: "direct-navigation", messages: args.messages });
       const output = result && typeof result === "object" ? result as Record<string, unknown> : {};
@@ -181,6 +260,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   for (const objective of objectives) { const family=inrAssistantObjectiveFamily(objective.tool);if(family) families.add(family); }
   const adviceOnly = inrAssistantRequestClauses(latestRequest).some(inrAssistantClauseIsAdvice) && !inrAssistantRequiredTools(latestRequest).length && !uiSteps.length;
   const canExecute = !draftOnly && !adviceOnly;
+  const canSaveExistingGeneration = args.taskIntent === "continue" && Boolean(args.taskContext?.receipts.some(receipt => ["generateMedia","modifyMedia"].includes(receipt.tool) && receipt.resultMode === "save" && receipt.requestId));
   const humanSupportRequested = requestedHumanSupport(spokenRequest);
   const studioDraftState: {value?: InrAssistantStudioDraft} = {};
   const prepareStudioPrompt = tool({
@@ -263,7 +343,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const readCounts = new Map<string,number>();
   const readBudget = createInrAssistantReadBudget();
   const readObjectiveAtStart = new Map<string, string>();
-  const previewActionNames = new Set(["previewCalendarAction","previewScheduledPublicationAction","previewGoogleBusinessProfileUpdate","previewMediaDeletion","previewPublicationLifecycleAction","previewIndividualMail","previewCommercialDocumentAction","previewCommercialTemplateAction"]);
+  const previewActionNames = new Set(["previewCalendarAction","previewScheduledPublicationAction","previewScheduledPublicationEdit","previewGoogleBusinessProfileUpdate","previewMediaDeletion","previewPublicationLifecycleAction","previewIndividualMail","previewCommercialDocumentAction","previewCommercialTemplateAction","previewChannelResourceSelection","previewChannelDisconnection","previewGoogleReviewReplyAction","previewBusinessDnaDocumentRemoval","previewWebsiteAnalyticsDisconnection","previewPinterestBoardMutation","previewWebsiteReset","previewReferralSubmission"]);
   const observedActionNames = new Set([...Object.keys(INR_ASSISTANT_COMMANDS),...INR_ASSISTANT_UI_TASK_TOOLS,"previewCampaignAudience",...previewActionNames,"applyCalendarAction","applyScheduledPublicationAction"]);
   const privateApprovals=new Map(receipts.flatMap(receipt=>receipt.approvalReference && receipt.approvalToken && receipt.approvalKind?[[receipt.approvalReference,{token:receipt.approvalToken,kind:receipt.approvalKind}] as const]:[]));
   const resolvePreview=(reference:string)=>privateApprovals.get(reference)?.token??null;
@@ -296,16 +376,17 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const operationGuidance = [
     requiredTools.includes("getAccountDiagnostics") ? "Diagnostic demandé : consulte getAccountDiagnostics pour les signaux enregistrés du problème, même si une publication récente paraît publiée. Un simple statut ne remplace pas ce diagnostic ; source indisponible = inconnue, aucun signal ne prouve pas l’absence de problème. Aucune relance ou nouvelle création n’est autorisée par cette lecture." : "",
     Object.keys(additionalTools).length ? "Actions des outils inclus : lire les références réelles avant mutation. Toute suppression ou modification de fiche Google passe par un aperçu signé puis sa référence IA exacte confirmée actuellement. Les aperçus ne sont jamais des actions achevées. Pour les médias, importer uniquement les pièces jointes du tour courant ; téléchargement demandé au navigateur, jamais annoncé terminé sans retour. Les réglages/activations Basic sont permis ; les agents restent Standard. L’envoi d’un bilan exige un ordre explicite d’envoi, un PDF consulté ne l’autorise pas." : "",
-    uiSteps.length ? "Parcours ordonné : les commandes d’écran sont seulement transmises au navigateur, jamais appliquées pendant ce tour serveur. Après une commande UI, les mutations suivantes attendent le retour navigateur puis Continuer. Ne présente pas l’écran comme modifié sans résultat navigateur vérifié. Ne répète pas une commande déjà transmise." : "",
+    uiSteps.length ? `Parcours UI prévu, dans l’ordre : ${uiSteps.map(step => step.command).join(" → ")}. instructionQuote = extrait exact de la demande originale avec verbe et objet. Les commandes sont seulement transmises au navigateur ; toute suite attend son retour vérifié. Ne présente pas l’écran comme modifié sans reçu et ne répète pas une commande déjà transmise.` : "",
     Object.keys(commercialTools).length ? "CRM : retrouve les IDs avec searchCrmContacts ; manageCrmContact ne change que la fiche demandée. prepareCommercialDocument enregistre seulement un brouillon : quantité, prix HT et TVA explicites, renseignements manquants signalés, jamais de numéro officiel, finalisation ou envoi. Documents commerciaux distincts des factures d’abonnement." : "",
     Object.keys(communicationTools).length ? "readCommunicationRecords retrouve les éléments actuels ; updateCampaignDraft corrige le brouillon. dispatchCampaignDraft exige les destinataires littéraux du dernier ordre ; programmation = date/heure/fuseau explicites. queued ne prouve pas livraison. Pour confirmer, déplacer ou annuler un rendez-vous, utilise previewCalendarAction puis présente son aperçu et sa référence IA. applyCalendarAction exige la confirmation actuelle exacte, jamais un simple oui. Préparer n’autorise pas envoyer." : "",
     Object.keys(documentTools).length ? "Documents : readCommercialDocuments lit les vrais documents du compte avant toute action. finalizeCommercialDocument valide uniquement le document/version explicitement demandé, sans envoi ni paiement." : "",
     Object.keys(scheduledTools).length ? "Planning : readScheduledPublications lit les éléments réels. Toute modification passe par previewScheduledPublicationAction et la confirmation exacte IA avant applyScheduledPublicationAction. Ne recrée jamais une publication pour reprendre son statut." : "",
     Object.keys(advertisingTools).length ? "ADS : vérifie les campagnes/prérequis avec readAdvertisingCampaigns. prepareAdvertisingCampaign prépare un brouillon avec budget/date explicitement demandés. manageAdvertisingCampaign respecte les actions disponibles et validations natives ; un brouillon ou un lien ne lance jamais une campagne facturée." : "",
+    args.edition === "basic" ? "Basique : réalise les outils manuels inclus et vérifie chaque résultat. Identité : readBusinessIdentity puis updateBusinessIdentity avec sa version et les seules valeurs fournies. Canaux : ressources réellement accessibles, aperçu signé avant changement de cible ou déconnexion ; OAuth reste personnel. Avis : listGoogleReviews pour filtrer/paginer ; modification ou suppression de réponse par aperçu confirmé. Studio : quoteMediaGeneration donne le coût natif sans lancer ; paramètres et références vérifiés, consentements jamais inventés. Retouche gratuite : select_image_source/configure_image_retouch/reset_image_retouch/save_image_retouch, réglages par changes[{field,valueJson}] ; stats configure_stats_view sélectionne la vue native. Téléchargement QR : download_badge_qr au format PNG ou PDF. Une action d’écran attend son reçu avant toute suite. Ne réduis jamais une liste partielle à tous les éléments." : "",
     Object.keys(settingsTools).length ? "Réglages : readToolSettings puis updateToolSettings changent seulement les valeurs demandées et relisent le résultat. Présente les résultats partiels/inconnus comme tels ; ne devine aucune déclaration légale ni identité." : "",
     Object.keys(channelTools).length ? "Cockpit et canaux : readChannelStatus utilise les mêmes règles de comptage que le cockpit. Appelle-le pour l’état, les manquants, le total et les blocages ; le contexte initial partiel ne prouve pas le total. Un état enregistré n’est pas une vérification réseau en direct." : "",
     Object.keys(campaignTools).length ? "Campagne vers un segment CRM : listCampaignMailboxes retrouve les expéditeurs ; selectCampaignMailbox enregistre celui choisi, jamais deviné. previewCampaignAudience fige l’audience et fournit une référence AP à montrer avec nombre de destinataires, objet, expéditeur et exclusions. dispatchCampaignAudience exige l’ordre actuel et cette référence exacte ; une référence ancienne ou un simple oui ne vaut pas confirmation." : "",
-    statusOnly ? `${args.taskIntent === "continue" ? "Poursuite du même travail : getMediaGeneration peut accepter uniquement son média déjà terminé ; aucun nouveau job." : "Suivi en lecture seule : aucune écriture."} Utilise les lecteurs de statut avec les références enregistrées ${JSON.stringify(publicTaskReceipts(args.taskContext?.receipts)).slice(0,4000)}. Aucun nouveau lancement. Un résultat en attente reste en attente.` : "",
+    statusOnly ? `${args.taskIntent === "continue" ? "Poursuite du même travail : getMediaGeneration reste en lecture seule ; acceptMediaGeneration peut conserver uniquement une génération initialement demandée avec enregistrement et déjà vérifiée, si le serveur la reconnaît. Aucun nouveau job." : "Suivi en lecture seule : aucune écriture."} Utilise les lecteurs de statut avec les références enregistrées ${JSON.stringify(publicTaskReceipts(args.taskContext?.receipts)).slice(0,4000)}. Aucun nouveau lancement. Un résultat en attente reste en attente.` : "",
   ].filter(Boolean).join("\n");
   system += operationGuidance ? `\n${operationGuidance}` : "";
   // Native settings endpoints merge the active account's existing configuration.
@@ -338,8 +419,8 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
                 if(index>=0) {
                   const objective=objectives[index];
                   const verified=(output.ok===true || output.available===true || output.found===true) && output.ok!==false && output.available!==false
-                    && !(result.toolName === "getAccountDiagnostics" && output.complete === false);
-                  const more=typeof output.nextOffset==="number" || typeof output.nextPage==="number" || output.truncated===true;
+                    && !(result.toolName === "getAccountDiagnostics" && output.complete === false) && !(result.toolName === "readAccountServices" && (result.input as {view?:string} | undefined)?.view === "credits" && output.quotaKnown === false);
+                  const more=typeof output.nextOffset==="number" || typeof output.nextPage==="number" || typeof output.nextCursor==="string" || output.truncated===true || output.complete===false;
                   receipts.push({tool:objective.tool,recordId:objective.id,ok:verified,status:verified && !(objective.exhaustive && more)?"read":"partial",message:verified?`${inrAssistantObjectiveLabel(objective.tool)}${objective.exhaustive && more?" : recherche encore partielle.":" : lecture effectuée."}`:"La lecture demandée n’a pas pu être vérifiée."});
                   receiptsChanged=true;
                 }
@@ -359,7 +440,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
                 }
                 return;
               }
-              if(["runScreenCommand","prepareMediaDownload","prepareStatsReportDownload"].includes(result.toolName) && output.ok === true) uiCommand=parseInrAssistantUiCommand(output.uiCommand)??undefined;
+              if(["runScreenCommand","prepareMediaDownload","prepareStatsReportDownload","prepareAccountDocumentDownload","configureCookieConsent"].includes(result.toolName) && output.ok === true) uiCommand=parseInrAssistantUiCommand(output.uiCommand)??undefined;
               const queuedActions=inrAssistantUiActionsFromToolResult(result.toolCallId,output);
               if(uiActions.length+queuedActions.length>INR_ASSISTANT_MAX_UI_ACTIONS) throw new InrAssistantInputError("La limite d’actions à transmettre au navigateur est atteinte. Les actions restantes n’ont pas été transmises.");
               const uiStep = uiStepCalls.get(result.toolCallId);
@@ -387,7 +468,13 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
                 message = `${output.status === "partial" ? "Réglages appliqués en partie." : message}\n\n${details.join("\n")}`.slice(0, 7_000);
               }
               if (!["generateMedia","modifyMedia"].includes(result.toolName)) actionFacts.set(result.toolCallId, { message, ...(href ? { href, label: typeof next.label === "string" ? next.label.slice(0, 100) : undefined } : {}) });
+              if (result.toolName === "acceptMediaGeneration" && output.ok === true && output.status === "completed" && typeof output.requestId === "string") {
+                for (let index=0;index<receipts.length;index++) { const previous=receipts[index]; if (["generateMedia","modifyMedia"].includes(previous.tool) && previous.requestId === output.requestId) receipts[index]={...previous,ok:true,status:"completed",draft:false,message}; }
+              }
               const receipt: InrAssistantActionReceipt = {tool:resultToolName(result.toolName,output),ok:output.ok === true,status:typeof output.status === "string"?output.status:"unknown",message};
+              if (output.resultMode === "save" || output.resultMode === "preview") receipt.resultMode=output.resultMode;
+              if (typeof output.draft === "boolean") receipt.draft=output.draft;
+              if (receipt.ok && receipt.status === "ready_to_save" && receipt.resultMode === "preview" && receipt.draft === true) receipt.status="preview_generated";
               for (const key of ["id","draftId","requestId","scheduledActionId","eventId","recordId","publicationId"] as const) if (typeof output[key] === "string" && /^[a-z0-9_-]{8,180}$/i.test(output[key])) receipt[key] = output[key];
               if(typeof output.campaignId === "string" && /^[a-f0-9-]{36}$/i.test(output.campaignId)) receipt.recordId=output.campaignId;
               if(["updateMediaMetadata","importMediaAttachment"].includes(result.toolName) && typeof output.mediaId === "string" && /^[a-z0-9_-]{8,180}$/i.test(output.mediaId)) receipt.recordId=output.mediaId;
@@ -414,19 +501,36 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
       const next = mutationTail.then(async () => {
         if(checkpointFailed) throw new InrAssistantInputError("La tâche doit être vérifiée avant de poursuivre.");
         if(!inrAssistantPlanAllowsAction(objectives,name,receipts,appliedUi)) return {ok:false,status:"blocked",message:"Une étape explicitement demandée doit être terminée avant cette action."};
-        if((isInrAssistantUiTaskTool(name) || ["prepareMediaDownload","prepareStatsReportDownload"].includes(name)) && uiActions.length>INR_ASSISTANT_MAX_UI_ACTIONS-2) return {ok:false,status:"blocked",message:"La limite d’actions du navigateur est atteinte. Cette action n’a pas été transmise."};
+        if((isInrAssistantUiTaskTool(name) || ["prepareMediaDownload","prepareStatsReportDownload","prepareAccountDocumentDownload","configureCookieConsent"].includes(name)) && uiActions.length>INR_ASSISTANT_MAX_UI_ACTIONS-2) return {ok:false,status:"blocked",message:"La limite d’actions du navigateur est atteinte. Cette action n’a pas été transmise."};
         const options=input[1] && typeof input[1] === "object"?input[1] as {toolCallId?:string}:{};
         const toolCallId=options.toolCallId??name+'-'+receipts.length;
         if (isInrAssistantUiTaskTool(name) && uiSteps.length) {
           const data = input[0] && typeof input[0] === "object" ? input[0] as Record<string, unknown> : {};
           const clauseKey = (value: string) => value.replace(/[,.!?;:]+$/g, "").trim();
           const quotedClauses = typeof data.instructionQuote === "string" ? inrAssistantRequestClauses(data.instructionQuote).map(clauseKey) : [];
-          const command = name === "runScreenCommand" ? data.command : name === "prepareCurrentDocumentTemplate" ? "create_document_template" : name;
-          const step = uiSteps.find(candidate => candidate.command === command && !candidate.actions?.length && !appliedUi.has(candidate.id) && quotedClauses.includes(clauseKey(candidate.instruction)));
-          if (!step || !uiReady(step)) return { ok: false, status: "deferred", message: "Cette étape d’écran est déjà transmise ou attend une étape précédente. Aucune nouvelle commande n’a été envoyée." };
-          if (step.afterStepId && !step.screen) return { ok: false, status: "deferred", message: "Le formulaire de cette étape attend le retour vérifié de la transition précédente." };
+          const command = name === "runScreenCommand" ? data.command : name === "prepareCurrentDocumentTemplate" ? "create_document_template" : name === "prepareAccountDocumentDownload" ? data.kind === "account_export" ? "download_account_export" : "download_subscription_invoice" : name === "configureCookieConsent" ? "configure_cookie_consent" : name;
+          // Preserve ordered full-clause matching, including explicit repeated
+          // instructions. A shorter native verb/object quote needs one unique
+          // match across ALL same-command steps, including completed steps.
+          const sameCommand = uiSteps.filter(candidate => candidate.command === command);
+          const exact = sameCommand.find(candidate => !candidate.actions?.length && !appliedUi.has(candidate.id) && quotedClauses.includes(clauseKey(candidate.instruction)));
+          const matching = exact ? [] : name === "runScreenCommand" && quotedClauses.length === 1 && typeof data.instructionQuote === "string"
+            ? sameCommand.filter(candidate => candidate.command !== "navigateApplication" && candidate.command !== "prepareCommercialDocumentForm"
+              && clauseKey(candidate.instruction).includes(quotedClauses[0]) && isInrAssistantScreenCommandRequest(data.instructionQuote as string, candidate.command)) : [];
+          const step = exact ?? (matching.length === 1 ? matching[0] : undefined);
+          const expectedCommands = [...new Set(uiSteps.filter(candidate => !candidate.actions?.length && !appliedUi.has(candidate.id)).map(candidate => candidate.command))];
+          const deferUi = (reason: string, message: string) => ({ ok: false, status: "deferred", reason, expectedCommands, message });
+          if (!sameCommand.length) return deferUi("ui_command_mismatch", "Cette commande ne correspond à aucune étape d’écran prévue. Aucune commande n’a été transmise.");
+          if (!step) {
+            if (sameCommand.some(candidate => quotedClauses.includes(clauseKey(candidate.instruction)) && (candidate.actions?.length || appliedUi.has(candidate.id)))) return deferUi("ui_step_already_queued", "Cette étape d’écran a déjà été transmise ou appliquée. Aucune nouvelle commande n’a été envoyée.");
+            if (matching.length > 1) return deferUi("ui_quote_ambiguous", "Cet extrait correspond à plusieurs étapes d’écran. Citez l’étape complète avec son verbe et son objet.");
+            return deferUi("ui_quote_unmatched", "Cet extrait ne correspond pas à une étape d’écran prévue. Citez un extrait exact de la demande avec son verbe et son objet.");
+          }
+          if (step.actions?.length || appliedUi.has(step.id)) return deferUi("ui_step_already_queued", "Cette étape d’écran a déjà été transmise ou appliquée. Aucune nouvelle commande n’a été envoyée.");
+          if (!uiReady(step)) return deferUi("ui_waiting_prior_step", "Une étape précédente attend son résultat vérifié. Cette commande d’écran n’a pas été transmise.");
+          if (step.afterStepId && !step.screen) return deferUi("ui_waiting_prior_transition", "Le formulaire de cette étape attend le retour vérifié de la transition précédente.");
           if (step.screen && (step.screen.pathname !== args.clientContext?.screen?.pathname || step.screen.revision !== args.clientContext.screen.revision || JSON.stringify(step.screen.selection) !== JSON.stringify(args.clientContext.screen.selection)
-            || !args.clientContext.screen.availableCommands?.some(command => command === step.command))) return { ok: false, status: "blocked", message: "Le formulaire a changé depuis la demande initiale. Renouvelez votre demande sur le formulaire actuel." };
+            || !args.clientContext.screen.availableCommands?.some(command => command === step.command))) return { ok: false, status: "blocked", reason: "ui_screen_changed", expectedCommands, message: "Le formulaire a changé depuis la demande initiale. Renouvelez votre demande sur le formulaire actuel." };
           uiStepCalls.set(toolCallId, step);
         }
         // Persist before business side effects, then after the verified result.
@@ -443,7 +547,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
         if(output && typeof output === "object") {
           const raw=output as Record<string,unknown>;
           if(previewActionNames.has(name) && typeof raw.token === "string") {
-            if(raw.token.length<=24000 && typeof raw.reference === "string" && /^IA-[A-F0-9]{12}$/.test(raw.reference) && ["calendar","scheduled_publication","google_business_profile","media_delete","publication_lifecycle","individual_mail","commercial_document"].includes(String(raw.approvalKind))) privateApprovals.set(raw.reference,{token:raw.token,kind:raw.approvalKind as NonNullable<InrAssistantActionReceipt["approvalKind"]>});
+            if(raw.token.length<=24000 && typeof raw.reference === "string" && /^IA-[A-F0-9]{12}$/.test(raw.reference) && INR_ASSISTANT_APPROVAL_KINDS.some(kind => kind === raw.approvalKind)) privateApprovals.set(raw.reference,{token:raw.token,kind:raw.approvalKind as NonNullable<InrAssistantActionReceipt["approvalKind"]>});
             const {token:_privateToken,...safe}=raw; output=safe;
           }
         }
@@ -492,8 +596,8 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     ...commercialTools, ...communicationTools, ...advertisingTools, ...settingsTools, ...campaignTools, ...mailboxTools, ...channelTools, ...documentTools, ...calendarTools, ...scheduledTools, ...additionalTools }, draftOnly ? "basic" : args.edition);
   // No executor is exposed during a status-only continuation. In particular a
   // queued publication can never be re-dispatched merely to obtain its status.
-  const allowedDefinition = (name: string, definition: unknown) => Boolean(definition) && !((statusOnly || draftOnly || adviceOnly) && observedActionNames.has(name)) &&
-      !(["generateMedia", "modifyMedia", "cancelMediaGeneration"].includes(name) && !requiredTools.includes(name)) &&
+  const allowedDefinition = (name: string, definition: unknown) => Boolean(definition) && !((statusOnly || draftOnly || adviceOnly) && observedActionNames.has(name) && !(statusOnly && !draftOnly && !adviceOnly && name === "acceptMediaGeneration" && canSaveExistingGeneration)) &&
+      !(["generateMedia", "modifyMedia", "cancelMediaGeneration", "acceptMediaGeneration", "discardMediaGeneration"].includes(name) && !requiredTools.includes(name) && !(name === "acceptMediaGeneration" && canSaveExistingGeneration)) &&
       !(requiredTools.includes("updateToolSettings") && !requiredTools.some(tool => ["generateMedia", "modifyMedia"].includes(tool)) && ["generateMedia", "modifyMedia"].includes(name));
   const selectedTools = Object.fromEntries(Object.entries(assistantToolsForEdition({...allTools,...uiTools},args.edition)).filter(([name,definition])=>allowedDefinition(name,definition))) as typeof allTools & typeof uiTools;
   const boundReads = <T extends Record<string, unknown>>(available: T): T => Object.fromEntries(Object.entries(available).map(([name, definition]) => {
@@ -530,12 +634,12 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     system = buildInrAssistantSystemPrompt(args.displayName, args.accountContext, getInrAssistantAppKnowledge(latestRequest, 1_200), args.edition, args.clientContext, Boolean(args.fileContexts?.length)) + (operationGuidance ? `\n${operationGuidance}` : "");
   }
   if (bytes({ system, messages }) + schemaBytes > 31_000) {
-    // Compound requests can need many real action schemas. The guide remains
-    // available as a tool; remove only its duplicated eager prose, not rights.
-    system = buildInrAssistantSystemPrompt(args.displayName, args.accountContext, undefined, args.edition, args.clientContext, Boolean(args.fileContexts?.length)) + (operationGuidance ? `\n${operationGuidance}` : "");
+    // Keep a short reviewed path/condition even when rich action schemas need
+    // most of the budget. Full procedures remain available through readAppGuide.
+    system = buildInrAssistantSystemPrompt(args.displayName, args.accountContext, getInrAssistantAppKnowledge(latestRequest, 650), args.edition, args.clientContext, Boolean(args.fileContexts?.length)) + (operationGuidance ? `\n${operationGuidance}` : "");
   }
   while (messages.length > 1 && bytes({ system, messages }) + schemaBytes > 31_000) messages.shift();
-  if (bytes({system,messages}) + schemaBytes > 30_500) system = buildInrAssistantSystemPrompt(args.displayName,undefined,undefined,args.edition,args.clientContext,Boolean(args.fileContexts?.length),true) + continuityContext + (operationGuidance ? `\n${operationGuidance}` : "");
+  if (bytes({system,messages}) + schemaBytes > 30_500) system = buildInrAssistantSystemPrompt(args.displayName,undefined,getInrAssistantAppKnowledge(latestRequest,350),args.edition,args.clientContext,Boolean(args.fileContexts?.length),true) + continuityContext + (operationGuidance ? `\n${operationGuidance}` : "");
   if (bytes({ system, messages }) + schemaBytes > 31_000) {
     noteFailure("input_limit", { inputBytes: bytes({ system, messages }) + schemaBytes, historyTurns: messages.length });
     throw new InrAssistantUnavailableError(lastFailure);
@@ -559,7 +663,10 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
       const name = result.action === "prepare" ? "preparePublication" : result.action === "edit" ? "editPublication" : result.action === "status" ? "getPublicationStatus" : "executePublication";
       if (!receipts.some(r=>r.tool === name && r.status === result.status)) receipts.push({tool:name,ok:result.ok,status:result.status,message:result.message,...(result.draftId?{draftId:result.draftId}:{}),toolUrl:result.toolUrl});
     }
-    if (mediaState.result && !receipts.some(r=>r.tool === "generateMedia" || r.tool === "modifyMedia")) receipts.push({tool:requiredTools.includes("modifyMedia")?"modifyMedia":"generateMedia",ok:mediaState.result.ok,status:mediaState.result.status,message:mediaState.result.message,requestId:mediaState.result.requestId,...(mediaState.result.media?.id?{id:mediaState.result.media.id}:{})});
+    if (mediaState.result && requiredTools.some(name=>["generateMedia","modifyMedia"].includes(name)) && !receipts.some(r=>r.tool === "generateMedia" || r.tool === "modifyMedia")) {
+      const result=mediaState.result;
+      receipts.push({tool:requiredTools.includes("modifyMedia")?"modifyMedia":"generateMedia",ok:result.ok,status:result.ok && result.status === "ready_to_save" && result.resultMode === "preview" && result.draft === true ? "preview_generated" : result.status,message:result.message,requestId:result.requestId,...(result.resultMode?{resultMode:result.resultMode}:{}),...(typeof result.draft === "boolean"?{draft:result.draft}:{}),...(result.media?.id?{id:result.media.id}:{})});
+    }
     const businessRequired=requiredTools.filter(name=>!isInrAssistantUiTaskTool(name));
     if(!uiSteps.length && !businessRequired.length && (navigationRequested || screenCommandRequested)) return {...reply,...(navigation?{navigation}:{}),...(uiCommand?{uiCommand}:{}),...(uiActions.length?{uiActions}:{}),outcome:navigation || uiCommand?"processing":"needs_input"};
     let outcome = inrAssistantTaskOutcome(businessRequired,receipts.filter(receipt=>!isInrAssistantUiTaskTool(receipt.tool)),reply.message,requiredCalls);
@@ -575,7 +682,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     let message = outcome === "partial" ? `${factual || savedActionReply() || reply.message}\n\nIl reste à ${remaining.map(label).join(", ")}. Vous pouvez me demander de continuer ; les étapes déjà réalisées seront conservées.` : reply.message;
     if (pendingUi.length) {
       const browserMessage = outcome === "blocked" ? "Une étape d’écran a été refusée ou a échoué. Les actions suivantes n’ont pas été lancées. Vérifiez l’écran avant une nouvelle demande."
-        : pendingUi.some(step => step.actions?.length) ? "L’étape d’écran attend la confirmation du navigateur. Les actions suivantes n’ont pas été lancées. Une fois l’écran prêt, demandez de continuer ; l’étape déjà transmise ne sera pas rejouée."
+        : pendingUi.some(step => step.actions?.length) ? "L’étape d’écran attend la confirmation du navigateur. Les actions suivantes n’ont pas été lancées. La suite attend le retour du navigateur ; l’étape déjà transmise ne sera pas rejouée."
         : "L’étape d’écran n’a pas été transmise. Vérifiez le formulaire et les étapes précédentes avant de demander de continuer. Les actions suivantes n’ont pas été lancées.";
       message = [factual || savedActionReply(), browserMessage].filter(Boolean).join("\n\n");
     }

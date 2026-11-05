@@ -14,7 +14,7 @@ export type InrAssistantUiResult = {
 };
 export const INR_ASSISTANT_MAX_UI_ACTIONS = 24;
 export function inrAssistantUiSuccessStatus(action: InrAssistantUiAction): "applied" | "handed_to_browser" {
-  return action.type === "command" && ["export_document_pdf", "download_media", "download_stats_report"].includes(action.command.command) ? "handed_to_browser" : "applied";
+  return action.type === "command" && ["export_document_pdf", "download_media", "download_stats_report", "download_badge_qr", "download_account_export", "download_subscription_invoice"].includes(action.command.command) ? "handed_to_browser" : "applied";
 }
 const ID = /^[a-zA-Z0-9_-]{1,100}$/;
 

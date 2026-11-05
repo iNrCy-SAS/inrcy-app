@@ -7,6 +7,7 @@ import { asSchema, jsonSchema, tool } from "ai";
 import { currentSubscriptionOffer } from "../../lib/subscriptionOffers.ts";
 import * as editionPolicy from "../../lib/dashboardEdition.ts";
 import { VISIBILITY_INDEX_MODEL } from "../../lib/inrstats/visibilityIndexModel.ts";
+import * as productNavigation from "../../lib/productNavigation.ts";
 import type * as Workspace from "../../lib/inrAssistantWorkspaceTools.ts";
 
 type Row = Record<string, unknown>;
@@ -60,7 +61,7 @@ function harness(options: { edition?: "basic" | "standard" | "premium" | "founde
     };
     return builder;
   } };
-  const dependencies: Record<string, unknown> = { "server-only": {}, ai: { jsonSchema, tool }, "./dashboardEdition.ts": editionPolicy, "./subscriptionOffers.ts": { currentSubscriptionOffer }, "./inrstats/visibilityIndexModel.ts": { VISIBILITY_INDEX_MODEL } };
+  const dependencies: Record<string, unknown> = { "server-only": {}, ai: { jsonSchema, tool }, "./dashboardEdition.ts": editionPolicy, "./subscriptionOffers.ts": { currentSubscriptionOffer }, "./inrstats/visibilityIndexModel.ts": { VISIBILITY_INDEX_MODEL }, "./productNavigation.ts": productNavigation };
   const compiled = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantWorkspaceTools.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const mod = { exports: {} };
   vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, { Date, setTimeout: options.clock?.schedule ?? setTimeout, clearTimeout: options.clock?.cancel ?? clearTimeout,

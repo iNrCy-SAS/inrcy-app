@@ -13,6 +13,7 @@ import { execFileSync } from 'node:child_process';
 import vm from 'node:vm';
 import ts from 'typescript';
 import * as sdk from 'ai';
+import { INR_ASSISTANT_INFORMATION_QA_CASES, evaluateInrAssistantInformationAnswer } from './inr-assistant-information-qa.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const sourceHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim();
@@ -29,6 +30,7 @@ const ACTOR = '20000000-0000-4000-8000-000000000001';
 const MEDIA = '30000000-0000-4000-8000-000000000001';
 const DRAFT = '40000000-0000-4000-8000-000000000001';
 const cases = [
+  ...INR_ASSISTANT_INFORMATION_QA_CASES,
   { id: 'crm-direct', prompt: 'Crée un contact CRM nommé Alice Martin, alice@example.invalid.', calls: { manageCrmContact: 1 } },
   { id: 'crm-address-book', prompt: 'Enregistre Alice Martin, alice@example.invalid, dans mon carnet d’adresses.', calls: { manageCrmContact: 1 } },
   { id: 'crm-question-action', prompt: 'Explique-moi brièvement le CRM, puis crée un contact CRM nommé Alice Martin, alice@example.invalid.', calls: { manageCrmContact: 1 } },
@@ -207,15 +209,17 @@ for (const testCase of selectedCases) {
   const uiMismatch = Boolean(testCase.expectedCommand && (reply?.uiActions?.length !== 1 || reply.uiActions[0].type !== 'command'
     || reply.uiActions[0].command.command !== testCase.expectedCommand || reply.outcome !== 'partial'
     || reply.taskState?.receipts?.length || activeCase.calls.filter(call => call.tool === 'runScreenCommand').length !== 1));
-  const passed = !failure && (!live || !missing.length && !forbidden.length && !excessiveMutations.length && !oneOfMissing && !orderViolation && !missingContacts.length && !inventedRecipients.length && !uiMismatch);
-  results.push({ id: testCase.id, prompt: testCase.prompt, passed, counts, missing, forbidden, excessiveMutations, missingContacts, inventedRecipients, orderViolation, uiMismatch, oneOfMissing: Boolean(oneOfMissing), calls: activeCase.calls, reply, failure });
+  const answerCheck = testCase.answerContract ? live ? evaluateInrAssistantInformationAnswer(testCase.answerContract, reply?.message)
+    : { evaluated: false, reason: 'Real-model answer assertions require --live; offline schema text is a fixture.' } : null;
+  const passed = !failure && (!live || !missing.length && !forbidden.length && !excessiveMutations.length && !oneOfMissing && !orderViolation && !missingContacts.length && !inventedRecipients.length && !uiMismatch && answerCheck?.passed !== false);
+  results.push({ id: testCase.id, prompt: testCase.prompt, passed, counts, missing, forbidden, excessiveMutations, missingContacts, inventedRecipients, orderViolation, uiMismatch, answerCheck, oneOfMissing: Boolean(oneOfMissing), calls: activeCase.calls, reply, failure });
   const report = { mode: live ? 'real_models_synthetic_effects' : 'offline_schema_validation', source: 'current working tree', sourceHead, startedAt, observedAt: new Date().toISOString(), tests: results.length, passed: results.filter(item => item.passed).length,
     realCustomerOperations: 0, realDatabaseCalls: 0, apiCalls, estimatedUsd: costEstimate, limits: { maxCalls, maxUsd },
     modelOverride: modelOverride || null,
-    limitations: ['Real model choice and Gateway orchestration with real tool schemas; business executors are replaced by fixtures.', 'This is not delivery, OAuth, native-executor authorization, or customer-browser end-to-end certification.', 'Cost is an estimate from reported usage and configured rates, not an invoice; failures reserve their upper bound.'], providerUsage, providerErrors, providerTrace, cases: results };
+    limitations: ['Real model choice and Gateway orchestration with real tool schemas; business executors are replaced by fixtures.', 'Navigation and offer answer contracts are scored only in --live mode; offline mode validates schemas, not factual replies.', 'This is not delivery, OAuth, native-executor authorization, or customer-browser end-to-end certification.', 'Cost is an estimate from reported usage and configured rates, not an invoice; failures reserve their upper bound.'], providerUsage, providerErrors, providerTrace, cases: results };
   mkdirSync(dirname(reportPath), { recursive: true });
   writeFileSync(reportPath, JSON.stringify(report, null, 2));
-  console.log(JSON.stringify({ case: testCase.id, passed, counts, missing, forbidden, failure, apiCalls, estimatedUsd: costEstimate }));
+  console.log(JSON.stringify({ case: testCase.id, passed, counts, missing, forbidden, answerCheck, failure, apiCalls, estimatedUsd: costEstimate }));
   if (apiCalls >= maxCalls || costEstimate >= maxUsd) break;
 }
 if (results.some(result => !result.passed) || results.length !== selectedCases.length) process.exitCode = 1;

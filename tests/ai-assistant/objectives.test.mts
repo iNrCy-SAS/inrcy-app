@@ -6,6 +6,13 @@ import { matchesInrAssistantActionClause } from "../../lib/inrAssistantActionCla
 import { inrAssistantSelectionToolHints } from "../../lib/inrAssistantToolRouting.ts";
 import { inrAssistantMaskQuotedText } from "../../lib/inrAssistantRequestClauses.ts";
 
+test("credits belonging to a subscription require the credit view rather than a subscription summary", () => {
+  const [objective] = inrAssistantObjectives("Montre les crédits restants de mon abonnement.");
+  assert.equal(objective.tool, "readAccountServices");
+  assert.equal(inrAssistantReadMatchesObjective(objective, "readAccountServices", { view: "subscription" }), false);
+  assert.equal(inrAssistantReadMatchesObjective(objective, "readAccountServices", { view: "credits" }), true);
+});
+
 test("quote masking preserves apostrophes in words and the original offsets", () => {
   for (const value of ["l'adresse d'Alice", "l’adresse d’Alice", "don't create"]) assert.equal(inrAssistantMaskQuotedText(value), value);
   for (const quotation of ["'Crée le contact d’Alice'", "‘Crée le contact Alice’", "'Crée l'adresse d'Alice'"]) {

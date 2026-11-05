@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
+import { PRODUCT_GOOGLE_REVIEWS_HREF } from "../../../lib/productNavigation.ts";
 
 export default function GoogleReviewsRedirect() {
-  redirect("/dashboard?panel=gmb&googleReviews=1");
+  redirect(PRODUCT_GOOGLE_REVIEWS_HREF);
 }

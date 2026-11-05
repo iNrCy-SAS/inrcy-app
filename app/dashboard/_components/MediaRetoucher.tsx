@@ -20,6 +20,8 @@ import MediaLibraryPickerModal, {
 import { prepareMediaImageEditMaster } from "@/lib/mediaImageEditMasterClient";
 import type { BackgroundMode } from "./channel-image-adapter/types";
 import type { ImageOverlay } from "@/lib/imageOverlay";
+import { useInrAssistantImageCommands } from "../_hooks/useInrAssistantImageCommands";
+import { loadInrAssistantLibraryImage } from "@/lib/inrAssistantMediaUiClient";
 import { resolveRetoucherGeometry } from "@/lib/mediaRetoucherGeometry";
 import {
   INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS,
@@ -62,6 +64,8 @@ export type MediaRetoucherSavedValue = MediaRetoucherSourceValue & {
   renderSourceFile: File;
   transform: MediaRetoucherTransform;
 };
+export type MediaRetoucherSaveOptions = { keepOpen?: boolean; isCurrent?: () => boolean };
+export type MediaRetoucherSaveReceipt = { savedMediaId: string };
 
 export type MediaStudioInitialPreview = {
   url: string;
@@ -81,7 +85,8 @@ export type MediaRetoucherProps = {
   onSourceChange?: (source: MediaRetoucherSourceValue | null) => void;
   onSaved?: (
     value: MediaRetoucherSavedValue,
-  ) => void | Promise<void>;
+    options?: MediaRetoucherSaveOptions,
+  ) => void | MediaRetoucherSaveReceipt | Promise<void | MediaRetoucherSaveReceipt>;
   acceptMode?: "library" | "insert";
 };
 
@@ -368,7 +373,7 @@ export default function MediaRetoucher({
     })();
   }, []);
 
-  const importLibraryImage = async (item: MediaLibraryPickerItem) => {
+  const importLibraryImage = async (item: MediaLibraryPickerItem, stillCurrent: () => boolean = () => true) => {
     if (!item.signed_url) {
       throw new Error("Cette image n’est pas disponible dans la médiathèque.");
     }
@@ -381,6 +386,7 @@ export default function MediaRetoucher({
         throw new Error("Impossible de charger cette image de la médiathèque.");
       }
       const blob = await response.blob();
+      if (!stillCurrent()) return false;
       const file = new File([blob], libraryItemName(item), {
         type: blob.type || item.mime_type || "image/jpeg",
         lastModified: Date.now(),
@@ -389,6 +395,7 @@ export default function MediaRetoucher({
         mediaLibraryId: item.id,
         storagePath: item.storage_path,
       });
+      return true;
     } catch (libraryError) {
       setLoadingSource(false);
       const message =
@@ -498,27 +505,33 @@ export default function MediaRetoucher({
     setError("");
   };
 
-  const saveEditor = async () => {
-    if (!source || saving) return;
+  const savedCopy = useRef<string | null>(null);
+  const saveEditor = async (options?: MediaRetoucherSaveOptions) => {
+    if (!source || saving || options?.isCurrent?.() === false) return false;
     setSaving(true);
     setError("");
     try {
-      await onSaved?.({
+      const receipt = await onSaved?.({
         sourceFile: source.file,
         renderSourceFile: source.renderFile,
         width: source.width,
         height: source.height,
         sourceMetadata: source.metadata,
         transform: cloneTransform(transform),
-      });
+      }, options);
+      if (options?.isCurrent?.() === false) return false;
+      if (options?.keepOpen && (!receipt || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(receipt.savedMediaId))) return false;
+      savedCopy.current = receipt?.savedMediaId ?? null;
       baselineRef.current = cloneTransform(transform);
       setSaved(true);
+      return true;
     } catch (saveError) {
       setError(
         saveError instanceof Error
           ? saveError.message
           : "Impossible d’enregistrer cette retouche.",
       );
+      return false;
     } finally {
       setSaving(false);
     }
@@ -536,6 +549,24 @@ export default function MediaRetoucher({
     setSaved(false);
     setTransform({ ...cloneTransform(DEFAULT_TRANSFORM), ...(source?.preserveAlpha ? { backgroundMode: "transparent" as const } : {}) });
   };
+
+  useInrAssistantImageCommands({
+    snapshot: { source: source?.metadata?.mediaLibraryId ?? source?.previewUrl ?? null, transform },
+    enabled: !saving && !loadingSource && !initialSourceLoading, hasSource: Boolean(source), canSave: Boolean(source && onSaved && !saved && acceptMode === "library"), channel: "image", pendingChanges: Boolean(source && !saved),
+    apply: async (command, stillCurrent, scopeCurrent) => {
+      if (command.command === "select_image_source") { const item = await loadInrAssistantLibraryImage(command.mediaId, stillCurrent); return Boolean(item && stillCurrent() && await importLibraryImage(item, stillCurrent)); }
+      if (!source || !stillCurrent()) return false;
+      savedCopy.current = null;
+      if (command.command === "save_image_retouch") return saveEditor({ keepOpen: true, isCurrent: scopeCurrent });
+      if (command.command === "reset_image_retouch") { resetTransform(); return true; }
+      const patch = command.patch;
+      setSaved(false); setTransform(current => ({ ...current, ...patch, ...(patch.overlay === null ? { overlay: undefined } : {}) } as MediaRetoucherTransform)); return true;
+    },
+    isApplied: command => command.command === "select_image_source" ? source?.metadata?.mediaLibraryId === command.mediaId && !loadingSource
+      : command.command === "save_image_retouch" ? Boolean(saved && savedCopy.current)
+        : command.command === "reset_image_retouch" ? JSON.stringify(transform) === JSON.stringify({ ...cloneTransform(DEFAULT_TRANSFORM), ...(source?.preserveAlpha ? { backgroundMode: "transparent" } : {}) })
+          : Object.entries(command.patch).every(([key, value]) => JSON.stringify(transform[key as keyof MediaRetoucherTransform]) === JSON.stringify(value === null ? undefined : value)),
+  });
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (!previewRef.current) return;

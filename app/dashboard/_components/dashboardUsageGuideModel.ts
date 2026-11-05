@@ -5,6 +5,7 @@ import {
   type DashboardEdition,
 } from "../../../lib/dashboardEdition.ts";
 import { INR_AGENT_WORKSPACES, type InrAgentWorkspace } from "../../../lib/inrAgentWorkspaces.ts";
+import { PRODUCT_GOOGLE_REVIEWS_HREF } from "../../../lib/productNavigation.ts";
 import { getGpsSectionsForEdition } from "../gps/gpsEditionPolicy.ts";
 import type { GpsArticleSource } from "../gps/noticeContent.ts";
 
@@ -91,7 +92,7 @@ export function getHelpGoalTools(goal: HelpGoal, edition: DashboardEdition, inrA
       tool("Fidéliser", "/dashboard/fideliser"),
       ...(inrAgentEnabled && hasPremiumDashboardAccess(edition) ? [agent("campaigns", "iNr’Agent Campagnes mails")] : []),
     ];
-    case "reviews": return [tool("Réputation", "/dashboard/e-reputation")];
+    case "reviews": return [tool("Avis Google", PRODUCT_GOOGLE_REVIEWS_HREF)];
     case "contacts": return [
       tool("iNr’Send", isStandardDashboardEdition(edition) ? "/dashboard/mails?folder=publications&boxView=sent" : "/dashboard/mails"),
       tool("iNr’CRM", "/dashboard/crm"),
@@ -110,6 +111,7 @@ export function normalizeHelpSearch(value: string): string {
 
 /** Adapt old guide links without changing explicit panel, tool or external links. */
 export function getHelpArticleDestination(href: string): string {
+  if (/^\/dashboard\/e-reputation(?:\/?(?:[?#]|$))/.test(href)) return PRODUCT_GOOGLE_REVIEWS_HREF;
   if (href === "/dashboard" || href === "/dashboard/") return "/dashboard?helpAction=channels";
   if (/^\/dashboard\/(?:profil-entreprise|mon-profil|settings\/profil|settings\/activite)(?:\/?(?:[?#]|$))/.test(href)) {
     return "/dashboard/personnalisation?section=company";

@@ -373,7 +373,7 @@
     "cashTitle": "Encaisser",
     "cashSub": "Devis et factures",
     "cashCta": "Encaisser",
-    "reputationTitle": "E-réputation",
+    "reputationTitle": "Avis Google",
     "reputationSub": "Pilotez vos avis Google",
     "reputationCta": "Gérer",
     "cashModalTitle": "Encaisser",
@@ -876,7 +876,7 @@
     "statsCta": "Voir les statistiques",
     "sendDescription": "Historique de votre activité.",
     "sendCta": "Voir l’historique",
-    "reputationName": "Réputation",
+    "reputationName": "Avis Google",
     "reputationDescription": "Pilotez vos avis Google.",
     "reputationCta": "Gérer mes avis",
     "loading": "Chargement…",
@@ -1069,11 +1069,11 @@
       },
       "reviews": {
         "title": "Gérer mes avis",
-        "subtitle": "Réputation · Google Business",
+        "subtitle": "Google Business",
         "intro": "Retrouvez vos avis Google et préparez des réponses adaptées.",
         "steps": {
-          "step1": "Vérifiez que votre fiche Google Business est connectée.",
-          "step2": "Ouvrez Réputation et choisissez un avis.",
+          "step1": "Vérifiez que votre fiche Google Business est connectée et sélectionnée.",
+          "step2": "Dans Mes canaux, ouvrez la bulle Google Business, puis Avis et choisissez un avis.",
           "step3": "Relisez la réponse proposée et validez-la avant publication."
         }
       },
@@ -1133,7 +1133,7 @@
     "media": "Médiathèque",
     "ads": "iNr’ADS",
     "campaigns": "Campagnes mails",
-    "reputation": "Réputation",
+    "reputation": "Avis Google",
     "stats": "iNr’Stats",
     "send": "iNr’Send",
     "calendar": "iNr’Calendar",

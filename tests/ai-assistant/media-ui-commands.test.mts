@@ -14,6 +14,7 @@ const cases = [
   { name: "select_video_source", request: "Choisis cette vidéo comme source", id: "editor_local", path: "/dashboard/generer-media", patch: { mediaId: ID } },
   { name: "save_video_retouch", request: "Enregistre cette retouche vidéo", id: "editor_local", path: "/dashboard/generer-media", patch: {} },
   { name: "optimize_media", request: "Compresse cette vidéo", id: ID, path: "/dashboard/mediatheque", patch: { targetBytes: 20_000_000 } },
+  { name: "optimize_media", request: "Compresse cette vidéo", id: "library_editor", path: "/dashboard/mediatheque", patch: { targetBytes: 20_000_000, mediaId: ID } },
 ] as const;
 function harness(owner = "active", active = "active", type = "video") {
   const dependencies: Record<string, unknown> = { "server-only": {}, "./requireUser": { requireUser: async () => ({ activeUserId: active }) }, "./inrAssistantMediaUiCommands.ts": media };

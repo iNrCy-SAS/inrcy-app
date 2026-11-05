@@ -11,22 +11,35 @@ import { resolveInrAssistantMailAttachments } from "./inrAssistantMailAttachment
 import { INR_ASSISTANT_MAIL_LIFECYCLE, type InrAssistantMailLifecycleName } from "./inrAssistantMailLifecycle.ts";
 import { parseInrAssistantUiCommand, isInrAssistantScreenCommandRequest, INR_ASSISTANT_ADS_STEPS, inrAssistantMailPatchRequested } from "./inrAssistantUiCommands.ts";
 import { getInrAssistantNavigation, INR_ASSISTANT_NAVIGATION_DESTINATIONS, isInrAssistantNavigationRequest } from "./inrAssistantUiCommands.ts";
+import { isDashboardDestinationAllowedForEdition, type DashboardEdition } from "./dashboardEdition.ts";
+import { isInrAssistantScreenCommandAllowed } from "./inrAssistantScreenCommandPolicy.ts";
 
-export function createInrAssistantUiTools(options: { accountId: string; currentUserMessage: string; supabase?: Pick<SupabaseClient, "from">; clientContext?: InrAssistantClientContext | null; canStartWork?: () => boolean }) {
+import { prepareInrAssistantStudioUiAction } from "./inrAssistantStudioUiTools.ts";
+import { INR_ASSISTANT_STUDIO_UI_COMMANDS, type InrAssistantStudioUiCommandName } from "./inrAssistantStudioUiCommands.ts";
+import { prepareInrAssistantStatsUiAction } from "./inrAssistantStatsUiTools.ts";
+import { INR_ASSISTANT_STATS_UI_COMMANDS, INR_ASSISTANT_STATS_CHANNELS, type InrAssistantStatsUiCommandName } from "./inrAssistantStatsUiCommands.ts";
+
+import { prepareInrAssistantBadgeUiAction } from "./inrAssistantBadgeUiTools.ts";
+
+import { prepareInrAssistantWebsiteUiAction } from "./inrAssistantWebsiteUiTools.ts";
+import { INR_ASSISTANT_WEBSITE_UI_COMMANDS, type InrAssistantWebsiteUiCommand } from "./inrAssistantWebsiteUiCommands.ts";
+
+export function createInrAssistantUiTools(options: { accountId: string; edition: DashboardEdition; currentUserMessage: string; supabase?: Pick<SupabaseClient, "from">; clientContext?: InrAssistantClientContext | null; canStartWork?: () => boolean }) {
   // Request-local only. A requested document never changes the browser snapshot.
   let requestedDocument: { kind: "quote" | "invoice"; id: string } | undefined;
+  const statsViewOnly = options.clientContext?.screen?.availableCommands?.length === 1 && options.clientContext.screen.availableCommands[0] === "configure_stats_view";
   return {
     navigateApplication: tool({
       strict: true,
       description: "Ouvrir l’écran iNrCy demandé sans clic sur un lien. Choisir une destination du catalogue. documentId null pour un module ; pour ouvrir un devis/facture précis, choisir quotes/invoices et son ID obtenu par readCommercialDocuments, vérifié dans le compte actif. Aucun envoi, réglage, paiement ou OAuth. Le navigateur protège les modifications non enregistrées. Ne pas annoncer l’écran ouvert avant son ouverture.",
       inputSchema: jsonSchema<{ destination: string; documentId?: string | null; instructionQuote: string }>({ type: "object", properties: {
-        destination: { type: "string", enum: INR_ASSISTANT_NAVIGATION_DESTINATIONS },
+        destination: { type: "string", enum: INR_ASSISTANT_NAVIGATION_DESTINATIONS.filter(destination => { const target = getInrAssistantNavigation(destination); return target && isDashboardDestinationAllowedForEdition(target.href, options.edition); }) },
         documentId: { type: ["string", "null"], format: "uuid" },
         instructionQuote: { type: "string", minLength: 1, maxLength: 1200 },
       }, required: ["destination", "documentId", "instructionQuote"], additionalProperties: false }),
       execute: async input => {
         const target = getInrAssistantNavigation(input.destination, input.documentId);
-        if (!target || typeof input.instructionQuote !== "string" || !input.instructionQuote.trim() ||
+        if (!target || !isDashboardDestinationAllowedForEdition(target.href, options.edition) || typeof input.instructionQuote !== "string" || !input.instructionQuote.trim() ||
           !options.currentUserMessage.includes(input.instructionQuote) || !isInrAssistantNavigationRequest(input.instructionQuote) ||
           !isInrAssistantNavigationRequest(options.currentUserMessage) || options.canStartWork?.() === false) {
           return { ok: false, status: "needs_instruction", message: "Indiquez l’écran que vous souhaitez ouvrir. Aucune navigation n’a été lancée." };
@@ -45,24 +58,37 @@ export function createInrAssistantUiTools(options: { accountId: string; currentU
     }),
     runScreenCommand: tool({
       strict: true,
-      description: "Exécuter une capacité déclarée du formulaire courant. configure_ads_draft : nom/texte/étape, adsChanges[{field,valueJson}] pour budget/dates/ciblage/textes/réglages du canal ; channel seul demande confirmation avant perte de saisie, mediaId seul (+metaSlot pour Meta) choisit un média possédé. Aucun ID fournisseur ni consentement. save_ads_draft sauvegarde et relit le brouillon sans diffusion ; configure_video_retouch : format/cadrage ; configure_mail_draft : recipient explicite, subject, bodyText, attachmentIds de searchMedia (5 médias du compte, total 10 Mo, PJ existantes conservées). configure_* ne sauvegarde, ne publie et n’envoie rien. save_mail_draft : sauvegarde exacte du composeur avec relecture ; send_mail_draft : confirmation native de son contenu/PJ puis acceptation fournisseur ou file, jamais livraison ; open_mail_schedule : ouvre le sélecteur, date à confirmer par le professionnel, aucun envoi programmé à ce stade. select_video_source : patch.mediaId réel ; save_video_retouch : sauvegarde une copie ; optimize_media : copie optimisée avec patch.targetBytes optionnel (5–75 Mo). Originaux conservés. prepare_document_mail : document courant finalisé, enregistré, propre, recipient explicite ; PDF joint au composeur, aucun envoi. patch/documentId/documentKind/recipient null hors usage. export_document_pdf : aperçu courant avec IDs null, ou document lu via readCommercialDocuments et IDs explicites ; ouvrir puis exporter sans sauvegarde/finalisation/envoi. Attendre l’acquittement de l’interface ; compte et révision revérifiés. Téléchargement transmis ne prouve pas fichier reçu.",
-      inputSchema: jsonSchema<{ command: "export_document_pdf" | "configure_ads_draft" | "save_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | "prepare_document_mail" | InrAssistantMediaUiCommandName | InrAssistantMailLifecycleName; instructionQuote: string; documentId?: string | null; documentKind?: "quote" | "invoice" | null; recipient?: string | null; patch?: Record<string, unknown> | null }>({ type: "object", properties: {
-        command: { type: "string", enum: ["export_document_pdf", "configure_ads_draft", "save_ads_draft", "configure_video_retouch", "configure_mail_draft", "prepare_document_mail", ...INR_ASSISTANT_MEDIA_UI_COMMANDS, ...INR_ASSISTANT_MAIL_LIFECYCLE] }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 },
-        recipient: { type: ["string", "null"], maxLength: 254 },
-        documentId: { type: ["string", "null"], format: "uuid" }, documentKind: { type: ["string", "null"], enum: ["quote", "invoice", null] },
-        patch: { type: ["object", "null"], properties: {
+      description: "Exécuter une capacité déclarée du formulaire courant. configure_stats_view : patch.panel=\"evolution\" pour la vue Évolution, \"all\" pour l’ensemble ou un canal natif ; evolutionView=\"measured\" (mesures) ou \"index\" (indice), metric=\"visibility\" ou \"clicks\", channel=\"all\" ou un canal Stats. Mettre les réglages non demandés à null ; aucun changes ni paramètre de publication. configure_ads_draft : nom/texte/étape, adsChanges[{field,valueJson}] pour budget/dates/ciblage/textes/réglages du canal ; channel seul demande confirmation avant perte de saisie, mediaId seul (+metaSlot pour Meta) choisit un média possédé. Aucun ID fournisseur ni consentement. save_ads_draft sauvegarde et relit le brouillon sans diffusion ; configure_video_retouch : format/cadrage ; configure_mail_draft : recipient explicite, subject, bodyText, attachmentIds de searchMedia (5 médias du compte, total 10 Mo, PJ existantes conservées). configure_* ne sauvegarde, ne publie et n’envoie rien. save_mail_draft : sauvegarde exacte du composeur avec relecture ; send_mail_draft : confirmation native de son contenu/PJ puis acceptation fournisseur ou file, jamais livraison ; open_mail_schedule : ouvre le sélecteur, date à confirmer par le professionnel, aucun envoi programmé à ce stade. select_video_source : patch.mediaId réel ; save_video_retouch : sauvegarde une copie ; optimize_media : copie optimisée avec patch.targetBytes optionnel (5–75 Mo). Originaux conservés. prepare_document_mail : document courant finalisé, enregistré, propre, recipient explicite ; PDF joint au composeur, aucun envoi. patch/documentId/documentKind/recipient null hors usage. export_document_pdf : aperçu courant avec IDs null, ou document lu via readCommercialDocuments et IDs explicites ; ouvrir puis exporter sans sauvegarde/finalisation/envoi. Attendre l’acquittement de l’interface ; compte et révision revérifiés. Téléchargement transmis ne prouve pas fichier reçu.",
+      inputSchema: jsonSchema<{ command: "export_document_pdf" | "configure_ads_draft" | "save_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | "prepare_document_mail" | InrAssistantMediaUiCommandName | InrAssistantMailLifecycleName | InrAssistantStudioUiCommandName | InrAssistantStatsUiCommandName | "download_badge_qr" | InrAssistantWebsiteUiCommand["command"]; instructionQuote: string; documentId?: string | null; documentKind?: "quote" | "invoice" | null; recipient?: string | null; patch?: Record<string, unknown> | null }>({ type: "object", properties: {
+        command: { type: "string", enum: statsViewOnly ? ["configure_stats_view"] : ["export_document_pdf", "configure_ads_draft", "save_ads_draft", "configure_video_retouch", "configure_mail_draft", "prepare_document_mail", ...INR_ASSISTANT_MEDIA_UI_COMMANDS, ...INR_ASSISTANT_MAIL_LIFECYCLE, ...INR_ASSISTANT_STUDIO_UI_COMMANDS, ...INR_ASSISTANT_STATS_UI_COMMANDS, "download_badge_qr", ...INR_ASSISTANT_WEBSITE_UI_COMMANDS].filter(command => isInrAssistantScreenCommandAllowed(options.edition, command)) }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 },
+        recipient: statsViewOnly ? { type: "null" } : { type: ["string", "null"], maxLength: 254 },
+        documentId: statsViewOnly ? { type: "null" } : { type: ["string", "null"], format: "uuid" }, documentKind: statsViewOnly ? { type: "null" } : { type: ["string", "null"], enum: ["quote", "invoice", null] },
+        patch: statsViewOnly ? { type: ["object", "null"], properties: {
+          panel: { type: ["string", "null"], enum: ["all", "evolution", ...INR_ASSISTANT_STATS_CHANNELS, null], description: "Vue demandée : evolution pour Évolution, all pour l’ensemble ou le canal natif. null conserve la vue." },
+          evolutionView: { type: ["string", "null"], enum: ["measured", "index", null], description: "Mesures réelles ou indice de l’évolution ; null conserve le réglage." },
+          metric: { type: ["string", "null"], enum: ["visibility", "clicks", null], description: "Visibilité ou clics ; null conserve le réglage." },
+          channel: { type: ["string", "null"], enum: ["all", ...INR_ASSISTANT_STATS_CHANNELS, null], description: "Canal de l’évolution ; gmb correspond à Google Business. null conserve le filtre." },
+        }, required: ["panel", "evolutionView", "metric", "channel"], additionalProperties: false } : { type: ["object", "null"], properties: {
           mediaId: { type: ["string", "null"], format: "uuid" }, targetBytes: { type: ["integer", "null"], minimum: 5000000, maximum: 75000000 },
-          channel: { type: ["string", "null"], enum: ["meta", "google", "linkedin", "pinterest", "tiktok", "x", "openai", null] }, metaSlot: { type: ["string", "null"], enum: ["feed", "story_reel", null] },
+          channel: { type: ["string", "null"], enum: ["meta", "google", "linkedin", "pinterest", "tiktok", "x", "openai", "all", ...INR_ASSISTANT_STATS_CHANNELS.filter(channel => !["linkedin", "pinterest", "tiktok", "x"].includes(channel)), null] }, metaSlot: { type: ["string", "null"], enum: ["feed", "story_reel", null] },
           adsChanges: options.clientContext?.screen?.availableCommands?.includes("configure_ads_draft") ? { type: ["array", "null"], minItems: 1, maxItems: 40, items: { type: "object", properties: { field: { type: "string", enum: [...INR_ASSISTANT_ADS_FIELDS] }, valueJson: { type: "string", maxLength: 4000, description: "Valeur JSON du seul champ demandé (nombre, booléen, chaîne entre guillemets, null ou liste de chaînes). Jamais les autres champs, les IDs fournisseur ou les consentements." } }, required: ["field", "valueJson"], additionalProperties: false } } : { type: "null" },
+          changes: { type: ["array", "null"], minItems: 1, maxItems: 8, items: { type: "object", properties: { field: { type: "string", enum: ["fit", "zoom", "offsetX", "offsetY", "backgroundMode", "backgroundColor", "overlay", "search", "typeFilter", "activeFilter", "selectedMediaIds", "previewMediaId"] }, valueJson: { type: "string", maxLength: 18000 } }, required: ["field", "valueJson"], additionalProperties: false } },
+          panel: { type: ["string", "null"], enum: ["all", "evolution", ...INR_ASSISTANT_STATS_CHANNELS, null] },
+          evolutionView: { type: ["string", "null"], enum: ["measured", "index", null] }, metric: { type: ["string", "null"], enum: ["visibility", "clicks", null] },
           name: { type: ["string", "null"], maxLength: 100 }, primaryText: { type: ["string", "null"], maxLength: 800 },
           step: { type: ["string", "null"], enum: [...INR_ASSISTANT_ADS_STEPS, null] },
-          format: { type: ["string", "null"], enum: ["original", "9_16", "1_1", "16_9", null] },
+          format: { type: ["string", "null"], enum: ["original", "9_16", "1_1", "16_9", "png", "pdf", "html", "react_next", null] },
           adaptationMode: { type: ["string", "null"], enum: ["safe_frame", "cover_crop", null] },
           recipient: { type: ["string", "null"], maxLength: 254 }, subject: { type: ["string", "null"], maxLength: 220 }, bodyText: { type: ["string", "null"], maxLength: 6000 },
           attachmentIds: { type: ["array", "null"], maxItems: 5, minItems: 1, items: { type: "string", format: "uuid" }, uniqueItems: true },
-        }, required: ["name", "primaryText", "step", "format", "adaptationMode", "recipient", "subject", "bodyText", "attachmentIds", "mediaId", "targetBytes", "channel", "metaSlot", "adsChanges"], additionalProperties: false },
+        }, required: ["name", "primaryText", "step", "format", "adaptationMode", "recipient", "subject", "bodyText", "attachmentIds", "mediaId", "targetBytes", "channel", "metaSlot", "adsChanges", "changes", "panel", "evolutionView", "metric"], additionalProperties: false },
       }, required: ["command", "instructionQuote", "documentId", "documentKind", "recipient", "patch"], additionalProperties: false }),
       execute: async input => {
+        if (!isInrAssistantScreenCommandAllowed(options.edition, input.command)) return { ok: false, status: "not_included", message: "Cette commande n’est pas incluse dans l’offre du compte. Aucun changement effectué." };
+        const websiteAction = await prepareInrAssistantWebsiteUiAction(input, options); if (websiteAction) return websiteAction;
+        const badgeAction = await prepareInrAssistantBadgeUiAction(input, options); if (badgeAction) return badgeAction;
+        const studioAction = await prepareInrAssistantStudioUiAction(input, options); if (studioAction) return studioAction;
+        const statsAction = await prepareInrAssistantStatsUiAction(input, options); if (statsAction) return statsAction;
         const adsAction = await prepareInrAssistantAdsUiAction(input, { ...options, isRequest: isInrAssistantScreenCommandRequest });
         if (adsAction) return adsAction;
         const mediaAction = await prepareInrAssistantMediaUiAction(input, { ...options, isRequest: isInrAssistantScreenCommandRequest });

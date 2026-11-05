@@ -4,17 +4,27 @@ import {
   getGmbReviewTargetFromRow,
   gmbDeleteReviewReply,
   gmbReplyToReview,
+  gmbGetReview,
   isGmbReviewNameForParent,
   normalizeGmbReviewName,
 } from "@/lib/googleBusinessReviews";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { requireUser } from "@/lib/requireUser";
 import { asRecord, asString } from "@/lib/tsSafe";
+import { googleReviewStateFingerprint } from "@/lib/googleReviewStateFingerprint";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const MAX_REPLY_LENGTH = 4096;
+
+async function validateExpectedState(body: Record<string, unknown>, accessToken: string, reviewName: string) {
+  if (body.expectedState === undefined) return null;
+  if (typeof body.expectedState !== "string" || !/^[a-f0-9]{64}$/.test(body.expectedState)) return NextResponse.json({ error: "invalid_expected_state" }, { status: 400 });
+  const current = await gmbGetReview(accessToken, reviewName);
+  if (current.name !== reviewName || googleReviewStateFingerprint(current) !== body.expectedState) return NextResponse.json({ error: "google_review_changed", user_message: "Cet avis ou sa réponse a changé. Relisez-le avant de confirmer une nouvelle modification." }, { status: 409 });
+  return null;
+}
 
 export async function POST(req: Request) {
   try {
@@ -78,6 +88,8 @@ export async function POST(req: Request) {
       );
     }
 
+    const conflict = await validateExpectedState(body, token.accessToken, reviewName);
+    if (conflict) return conflict;
     const reply = await gmbReplyToReview(token.accessToken, reviewName, comment);
 
     return NextResponse.json({
@@ -139,6 +151,8 @@ export async function DELETE(req: Request) {
       );
     }
 
+    const conflict = await validateExpectedState(body, token.accessToken, reviewName);
+    if (conflict) return conflict;
     await gmbDeleteReviewReply(token.accessToken, reviewName);
 
     return NextResponse.json({

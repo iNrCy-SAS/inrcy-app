@@ -62,6 +62,18 @@ export function createInrAssistantStatsTools(options: { request: Request; accoun
   const attempts = new Map<string, Promise<Row>>();
   const once = (key: string, action: () => Promise<Row>) => { if (!attempts.has(key)) attempts.set(key, guarded(true, action)); return attempts.get(key)!; };
   return {
+    readStatsEvolution: tool({ strict: true, description: "Lire les mesures réelles des trois mois calendaires de l’écran iNr’Stats → Évolution mensuelle : visibilité et clics par canal ou tous (channel=null), dates et écarts comparables. Utilise les mêmes fenêtres et calculs que l’écran, sans estimer les données absentes ni prétendre lire l’indice. Le mois courant exclut aujourd’hui ; avant sept jours les sources externes restent inconnues.", inputSchema: schema<{ channel: string | null }>({ channel: { type: ["string", "null"], enum: [null, ...REFRESH_SOURCES] } }, value => { const input = fields(value, ["channel"]); if (input.channel !== null && !REFRESH_SOURCES.includes(String(input.channel))) throw new Error("Canal invalide"); return { channel: input.channel as string | null }; }), execute: async raw => {
+      const input = fields(raw, ["channel"]); if (input.channel !== null && !REFRESH_SOURCES.includes(String(input.channel))) return fail("needs_details", "Choisissez un canal iNr’Stats.");
+      return guarded(false, async () => {
+        const { readInrAssistantStatsEvolution } = await import("./inrAssistantStatsEvolution.ts");
+        return { ...await readInrAssistantStatsEvolution({ channel: input.channel as import("../app/dashboard/stats/stats.shared.types.ts").CubeKey | null, stillCurrent: () => access(false), read: async path => {
+          const response = path.startsWith("/api/inrstats/evolution")
+            ? await (await import("@/app/api/inrstats/evolution/route")).GET()
+            : await (await import("@/app/api/stats/overview/route")).GET(local(request, path, null, "GET"));
+          if (!response.ok) throw new Error("source_unavailable"); return response.json();
+        } }), nextAction: LINK };
+      });
+    } }),
     refreshStatsSources: tool({ strict: true, description: "Actualiser maintenant les statistiques natives de tous les canaux (channel=null) ou d’un seul, y compris inrbadge/inr_search. Demande explicite actuelle requise. Retourne les sources réellement fraîches, indisponibles ou anciennes ; les valeurs absentes restent inconnues. Badge/Search exposent seulement une lecture native sans preuve de fraîcheur.", inputSchema: schema<Refresh>({ channel: { type: ["string", "null"], enum: [null, ...REFRESH_SOURCES] }, instructionQuote: { type: "string", maxLength: 1200 } }, parseRefresh), execute: async raw => {
       const input = parseRefresh(raw); if (!instruction(options.currentUserMessage, input.instructionQuote, "refresh")) return fail("needs_instruction", "Précisez les statistiques à actualiser maintenant.");
       return once(`refresh:${input.channel ?? "all"}`, async () => {

@@ -373,7 +373,7 @@
     "cashTitle": "Zahlungen",
     "cashSub": "Angebote und Rechnungen",
     "cashCta": "Zahlungen",
-    "reputationTitle": "E-reputation",
+    "reputationTitle": "Google-Bewertungen",
     "reputationSub": "Google-Bewertungen steuern",
     "reputationCta": "Steuern",
     "cashModalTitle": "Zahlungen",
@@ -876,7 +876,7 @@
     "statsCta": "Statistiken anzeigen",
     "sendDescription": "Verlauf Ihrer Aktivitäten.",
     "sendCta": "Verlauf ansehen",
-    "reputationName": "Reputation",
+    "reputationName": "Google-Bewertungen",
     "reputationDescription": "Bewertungen verwalten Google",
     "reputationCta": "Meine Bewertungen verwalten",
     "loading": "Wird geladen…",
@@ -1069,11 +1069,11 @@
       },
       "reviews": {
         "title": "Meine Bewertungen verwalten",
-        "subtitle": "Reputation · Google Business",
+        "subtitle": "Google Business",
         "intro": "Sehen Sie Ihre Google-Bewertungen ein und bereiten Sie passende Antworten vor.",
         "steps": {
-          "step1": "Prüfen Sie, ob Ihr Google-Business-Profil verbunden ist.",
-          "step2": "Öffnen Sie Reputation und wählen Sie eine Bewertung.",
+          "step1": "Prüfen Sie, ob Ihr Google Business-Profil verbunden und ausgewählt ist.",
+          "step2": "Öffnen Sie unter Kanäle die Google Business-Blase, dann Bewertungen und wählen Sie eine Bewertung.",
           "step3": "Prüfen Sie die vorgeschlagene Antwort und geben Sie sie vor der Veröffentlichung frei."
         }
       },
@@ -1133,7 +1133,7 @@
     "media": "Mediathek",
     "ads": "iNr’ADS",
     "campaigns": "E-Mail-Kampagnen",
-    "reputation": "Reputation",
+    "reputation": "Google-Bewertungen",
     "stats": "iNr’Stats",
     "send": "iNr’Send",
     "calendar": "iNr’Calendar",

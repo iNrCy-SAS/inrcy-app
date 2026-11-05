@@ -25,6 +25,8 @@ import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import MediaRetoucher, {
   type MediaStudioInitialPreview,
   type MediaRetoucherSavedValue,
+  type MediaRetoucherSaveOptions,
+  type MediaRetoucherSaveReceipt,
 } from "./MediaRetoucher";
 import MediaVideoRetoucher, {
   type MediaVideoRetoucherInitialContext,
@@ -62,7 +64,7 @@ type MediaGeneratorModalProps = {
   onClose: () => void;
   onAbandonHandoff?: () => void | Promise<void>;
   onAccepted: (result: MediaGenerationResult) => void | Promise<void>;
-  onRetouched?: (value: MediaRetoucherSavedValue) => void | Promise<void>;
+  onRetouched?: (value: MediaRetoucherSavedValue, options?: MediaRetoucherSaveOptions) => void | MediaRetoucherSaveReceipt | Promise<void | MediaRetoucherSaveReceipt>;
   onVideoRetouched?: (
     value: MediaVideoRetoucherSavedValue, options?: MediaVideoRetoucherSaveOptions
   ) => void | MediaVideoRetoucherSaveReceipt | Promise<void | MediaVideoRetoucherSaveReceipt>;

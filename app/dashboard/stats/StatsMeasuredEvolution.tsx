@@ -12,12 +12,13 @@ import css from "./statsPanorama.module.css";
 
 type MonthResult = MeasuredEvolutionMonth;
 type Snapshot = { scope: string; channels: string; refresh: number; months: MonthResult[] };
-type Props = { enabled: boolean; accountId: string; refreshKey: number; channels: Array<{ key: CubeKey; title: string }>; ready: boolean; tabs?: ReactNode; onHistoryLoaded?: () => void };
-export default function StatsEvolution({ enabled, accountId, refreshKey, channels, tabs, onHistoryLoaded }: Props) {
+type Props = { enabled: boolean; accountId: string; refreshKey: number; channels: Array<{ key: CubeKey; title: string }>; ready: boolean; tabs?: ReactNode; onHistoryLoaded?: () => void;
+  metric: keyof MonthlyMeasuredMetrics; onMetricChange: (metric: keyof MonthlyMeasuredMetrics) => void;
+  channel: CubeKey | "all"; onChannelChange: (channel: CubeKey | "all") => void;
+};
+export default function StatsEvolution({ enabled, accountId, refreshKey, channels, tabs, onHistoryLoaded, metric, onMetricChange: setMetric, channel, onChannelChange: setChannel }: Props) {
   const locale = useLocale();
   const t = useTranslations("stats");
-  const [metric, setMetric] = useState<keyof MonthlyMeasuredMetrics>("visibility");
-  const [channel, setChannel] = useState<CubeKey | "all">("all");
   const [requestTick, setRequestTick] = useState(0);
   const requestedKeys = channels.map(item => item.key).sort().join(",");
   const [snapshot, setSnapshot] = useState<Snapshot | null>(() => {

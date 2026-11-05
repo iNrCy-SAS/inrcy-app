@@ -109,8 +109,9 @@ test("les cases Image et Vidéo ouvrent le bon générateur sans annoncer une so
     let request: Record<string, unknown> | null = null;
     await handler<(kind: string) => Promise<void>>(publishPath, "openInrStudioGenerator", {
       idea: "Notre projet",
+      studioOpeningRef: { current: false },
       preparePublicationDraftForStudio: async () => ({ draftId: "draft", returnHref: "/dashboard?action=publish", videoDraft: null }),
-      createInrStudioHandoff: async (input: Record<string, unknown>) => { request = input; return { href: "test:studio" }; },
+      createInrStudioHandoff: async (input: Record<string, unknown>) => { request = input; return { href: "test:studio", handoff: { key: "handoff-test" } }; },
       openStudio: () => {}, setImgError: (error: string) => assert.fail(error),
     })(kind);
     assert.ok(request);
@@ -118,17 +119,18 @@ test("les cases Image et Vidéo ouvrent le bon générateur sans annoncer une so
     assert.equal(((request as Record<string, unknown>).context as Record<string, unknown>).mediaType, kind);
   }
   const studio = read("app/dashboard/generer-media/MediaGeneratorStudioClient.tsx");
-  assert.match(studio, /initialMediaType=\{scopedAssistantDraft\?\.draft\.mediaType \|\| handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : "image"\)\}/);
+  assert.match(studio, /initialMediaType=\{scopedAssistantDraft\?\.draft\.mediaType \|\| handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : standaloneMediaType\)\}/);
   const clientSource = parsed(studioClientPath);
   const mediaTypeAttribute = findNode(clientSource, (node): node is ts.JsxAttribute => ts.isJsxAttribute(node) && node.name.getText(clientSource) === "initialMediaType");
   assert.ok(mediaTypeAttribute.initializer && ts.isJsxExpression(mediaTypeAttribute.initializer) && mediaTypeAttribute.initializer.expression);
   const expression = mediaTypeAttribute.initializer.expression;
   for (const kind of ["image", "video"] as const) {
-    assert.equal(execute(expression, clientSource, { scopedAssistantDraft: null, handoff: { source: { mediaType: kind }, context: {} } }), kind, "Le média natif de retour reste prioritaire sur le type par défaut");
-    assert.equal(execute(expression, clientSource, { scopedAssistantDraft: null, handoff: { context: { mediaType: kind } } }), kind, "Une génération Booster sans source conserve le type demandé");
-    assert.equal(execute(expression, clientSource, { scopedAssistantDraft: { draft: { mediaType: kind } }, handoff: null }), kind, "Le prompt gratuit assistant ouvre le type demandé");
+    assert.equal(execute(expression, clientSource, { scopedAssistantDraft: null, handoff: { source: { mediaType: kind }, context: {} }, standaloneMediaType: "image" }), kind, "Le média natif de retour reste prioritaire sur le type par défaut");
+    assert.equal(execute(expression, clientSource, { scopedAssistantDraft: null, handoff: { context: { mediaType: kind } }, standaloneMediaType: "image" }), kind, "Une génération Booster sans source conserve le type demandé");
+    assert.equal(execute(expression, clientSource, { scopedAssistantDraft: { draft: { mediaType: kind } }, handoff: null, standaloneMediaType: "image" }), kind, "Le prompt gratuit assistant ouvre le type demandé");
   }
-  assert.equal(execute(expression, clientSource, { scopedAssistantDraft: null, handoff: null }), "image");
+  assert.equal(execute(expression, clientSource, { scopedAssistantDraft: null, handoff: null, standaloneMediaType: "image" }), "image");
+  assert.equal(execute(expression, clientSource, { scopedAssistantDraft: null, handoff: null, standaloneMediaType: "video" }), "video");
 });
 
 test("le clic Générer de Booster transmet seulement le dernier sujet saisi", async () => {
@@ -137,11 +139,12 @@ test("le clic Générer de Booster transmet seulement le dernier sujet saisi", a
   for (const idea of ["  Notre menu du dimanche  ", "Notre nouvelle prestation", " \n\t "]) {
     await handler<() => Promise<void>>(publishPath, "openInrStudioGenerator", {
       idea,
+      studioOpeningRef: { current: false },
       mediaGenerationBrief: "Ancien titre et contenu commercial à ne pas importer",
       preparePublicationDraftForStudio: async () => ({ draftId: "current-draft", returnHref: "/dashboard?action=publish", videoDraft: null }),
       createInrStudioHandoff: async (input: Record<string, unknown>) => {
         requests.push(input);
-        return { href: "test:studio-handoff" };
+        return { href: "test:studio-handoff", handoff: { key: "handoff-test" } };
       },
       openStudio: (href: string) => { opened.push(href); },
       setImgError: () => { assert.fail("Un sujet valide ou vide doit ouvrir le Studio sans erreur"); },

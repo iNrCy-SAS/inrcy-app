@@ -1,7 +1,7 @@
 "use client";
 import { persistStudioVideoRetouch } from "@/lib/studioVideoRetouchPersistence";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import MediaGeneratorModal from "@/app/dashboard/_components/MediaGeneratorModal";
@@ -157,6 +157,9 @@ export default function MediaGeneratorStudioClient({
   const [ready, setReady] = useState(false);
   const [handoff, setHandoff] = useState<InrStudioHandoff | null>(null);
   const [initialTab, setInitialTab] = useState<InrStudioTab>("generate");
+  const [standaloneMediaType, setStandaloneMediaType] = useState<"image" | "video">("image");
+  const studioSearchParams = useSearchParams();
+  const studioQuery = studioSearchParams.toString();
   const [initialSource, setInitialSource] = useState<File | null>(null);
   const [initialPreview, setInitialPreview] =
     useState<MediaStudioInitialPreview | null>(null);
@@ -190,7 +193,7 @@ export default function MediaGeneratorStudioClient({
 
   useEffect(() => {
     let active = true;
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(studioQuery);
     const requestedTab = params.get("studio_tab");
     const fallbackTab: InrStudioTab =
       requestedTab === "modify" || requestedTab === "retouch"
@@ -198,6 +201,7 @@ export default function MediaGeneratorStudioClient({
         : "generate";
     const nextHandoff = embeddedHandoff || readInrStudioHandoff(params.get("studio_handoff"));
     setInitialTab(nextHandoff?.tab || fallbackTab);
+    setStandaloneMediaType(params.get("studio_media_type") === "video" ? "video" : "image");
     setHandoff(nextHandoff);
     setInitialPreview(getImmediateSourcePreview(nextHandoff));
     setInitialSourceLoading(Boolean(nextHandoff?.source));
@@ -228,7 +232,7 @@ export default function MediaGeneratorStudioClient({
     return () => {
       active = false;
     };
-  }, [embeddedHandoff]);
+  }, [embeddedHandoff, studioQuery]);
 
   const applyAssistantDraft = useCallback(async (id: string): Promise<boolean> => {
     const scope = { actorUserId, accountId: activeAccountId };
@@ -335,7 +339,11 @@ export default function MediaGeneratorStudioClient({
   );
 
   const saveRetouchedMedia = useCallback(
-    async (value: MediaRetoucherSavedValue) => {
+    async (value: MediaRetoucherSavedValue, options?: { keepOpen?: boolean; isCurrent?: () => boolean }) => {
+      const scope = scopeRef.current;
+      const isCurrent = () => scopeRef.current === scope && scope.mounted && options?.isCurrent?.() !== false;
+      const assertCurrent = () => { if (!isCurrent()) throw new Error("L’image ou le compte a changé. Enregistrement interrompu."); };
+      assertCurrent();
       const rendered = await renderMediaRetoucherFile({
         sourceFile: value.renderSourceFile,
         width: value.width,
@@ -345,6 +353,7 @@ export default function MediaGeneratorStudioClient({
       const overlay = normalizeImageOverlay(value.transform.overlay);
       const overlayLinkUrl = getImageOverlayLinkUrl(overlay);
       const imageInteractions = imageInteractionsFromOverlay(overlay);
+      assertCurrent();
       const item = await uploadFileToMediaLibrary(rendered.file, {
         title: rendered.file.name.replace(/\.[^.]+$/, ""),
         source: "studio_retouch",
@@ -360,6 +369,8 @@ export default function MediaGeneratorStudioClient({
           ...(imageInteractions ? { image_interactions: imageInteractions } : {}),
         },
       });
+      assertCurrent();
+      if (typeof item.id !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(item.id)) throw new Error("L’enregistrement de l’image n’a pas été confirmé.");
       const returnedItem: Record<string, unknown> = {
         ...item,
         ...(imageInteractions ? { image_interactions: imageInteractions } : {}),
@@ -372,7 +383,8 @@ export default function MediaGeneratorStudioClient({
         created_at: item.created_at || new Date().toISOString(),
       };
 
-      await deliverReturnedMedia(returnedItem, "retouch");
+      if (!options?.keepOpen) await deliverReturnedMedia(returnedItem, "retouch");
+      return { savedMediaId: item.id };
     },
     [deliverReturnedMedia]
   );
@@ -508,7 +520,7 @@ export default function MediaGeneratorStudioClient({
       {!embeddedHandoff ? <main className={styles.page} aria-hidden="true" /> : null}
       {ready ? (
         <MediaGeneratorModal
-          key={`${actorUserId}:${activeAccountId}:${scopedAssistantDraft?.id || handoff?.key || "standalone-studio"}`}
+          key={`${actorUserId}:${activeAccountId}:${scopedAssistantDraft?.id || handoff?.key || `standalone-studio:${initialTab}:${standaloneMediaType}`}`}
           open
           embedded={Boolean(embeddedHandoff)}
           source="studio"
@@ -531,7 +543,7 @@ export default function MediaGeneratorStudioClient({
           initialPreview={initialPreview}
           initialSourceLoading={initialSourceLoading}
           initialSourceAvailable={Boolean(handoff?.source)}
-          initialMediaType={scopedAssistantDraft?.draft.mediaType || handoff?.source?.mediaType || (handoff?.context.mediaType === "video" ? "video" : "image")}
+          initialMediaType={scopedAssistantDraft?.draft.mediaType || handoff?.source?.mediaType || (handoff?.context.mediaType === "video" ? "video" : standaloneMediaType)}
           initialVideoContext={getInitialVideoContext(handoff)}
           publicationBrief={handoff?.publicationBrief || ""}
           acceptMode={handoff ? "insert" : "library"}

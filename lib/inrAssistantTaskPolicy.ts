@@ -1,4 +1,6 @@
 import { hasInrAssistantMediaSubject, permitsInrAssistantMediaAction } from "./inrAssistantMediaIntent.ts";
+import { isInrAssistantDnaScheduleRequest, isInrAssistantPinterestBoardRequest, isInrAssistantSocialPreferencesRequest, isInrAssistantWebsiteLifecycleRequest, isInrAssistantNativePresentationRequest, isInrAssistantWebsiteConfigurationRequest } from "./inrAssistantBasicTargetIntents.ts";
+import { isInrAssistantMediaPreviewButtonRequest } from "./inrAssistantMediaPreview.ts";
 import { isInrAssistantStudioDraftRequest } from "./inrAssistantStudioDraft.ts";
 import { inrAssistantStandardCommands } from "./inrAssistantStandardRouting.ts";
 import { INR_ASSISTANT_COMMANDS, INR_ASSISTANT_PENDING_STATUSES, INR_ASSISTANT_UNCERTAIN_STATUSES, isInrAssistantAcceptedReceipt, inrAssistantSettingTargets, requestsInrAssistantSettingsChange } from "./inrAssistantCommandRegistry.ts";
@@ -7,8 +9,9 @@ import type { InrAssistantUiStep } from "./inrAssistantUiTask.ts";
 import { isInrAssistantDocumentTemplateInstruction } from "./inrAssistantDocumentUiCommands.ts";
 export { inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantRequestClauses.ts";
 
+export const INR_ASSISTANT_APPROVAL_KINDS = ["calendar","scheduled_publication","google_business_profile","media_delete","publication_lifecycle","individual_mail","commercial_document","google_review_reply","channel_resource_selection","channel_disconnection","business_dna_document_removal","website_analytics_disconnection","pinterest_board_mutation","website_reset","referral_submission"] as const;
 export type InrAssistantTaskOutcome = "completed" | "partial" | "needs_input" | "processing" | "blocked" | "failed";
-export type InrAssistantActionReceipt = { tool: string; ok: boolean; status: string; message: string; id?: string; draftId?: string; requestId?: string; scheduledActionId?: string; eventId?: string; recordId?: string; publicationId?: string; toolUrl?: string; /** Private capability, never sent to the model or client. */ approvalToken?: string; approvalReference?: string; approvalKind?: "calendar" | "scheduled_publication" | "google_business_profile" | "media_delete" | "publication_lifecycle" | "individual_mail" | "commercial_document" };
+export type InrAssistantActionReceipt = { tool: string; ok: boolean; status: string; message: string; id?: string; draftId?: string; requestId?: string; scheduledActionId?: string; eventId?: string; recordId?: string; publicationId?: string; toolUrl?: string; /** Private capability, never sent to the model or client. */ approvalToken?: string; approvalReference?: string; approvalKind?: typeof INR_ASSISTANT_APPROVAL_KINDS[number]; resultMode?: "save" | "preview"; draft?: boolean };
 export type InrAssistantTaskState = {
   version: 1; instruction: string; actionRequestId: string; startedAt: string; expiresAt: string;
   outcome: InrAssistantTaskOutcome; requiredTools: string[]; requiredCalls?: Record<string, number>; receipts: InrAssistantActionReceipt[]; question: string;
@@ -38,6 +41,7 @@ export function inrAssistantRequiredTools(message: string): string[] {
 }
 export type InrAssistantActionObjective = { kind: "action"; tool: string; instruction: string };
 export function inrAssistantActionObjectives(message: string): InrAssistantActionObjective[] {
+  for (const operation of ["accept", "discard"] as const) if (isInrAssistantMediaPreviewButtonRequest(message, operation)) return [{kind:"action",tool:operation === "accept" ? "acceptMediaGeneration" : "discardMediaGeneration",instruction:inrAssistantRoutingText(message)}];
   if (isInrAssistantStudioDraftRequest(message)) return [];
   const clauses = inrAssistantRequestClauses(message).map(inrAssistantRoutingText);
   const mediaContext = hasInrAssistantMediaSubject(message, "image") || hasInrAssistantMediaSubject(message, "video");
@@ -60,10 +64,30 @@ function requiredToolsForClause(message: string, mediaContext: boolean): string[
   if (inrAssistantClauseIsAdvice(t)) return result;
   if (/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|cherche\w*|recherch\w*|retrouv\w*|liste\w*|regarde\w*|montre\w*|affiche\w*|ouvre\w*|indique\w*|quels?|quelles?|combien)\b/.test(t)) return result;
   if (/^(?:ne\b|n['’]|not\b|never\b|don't\b|do not\b)/.test(t.trim()) || /\b(?:ne|sans|not|never)\b.{0,20}\b(?:modifi|cre|gener|publ|envoi)/.test(t)) return result;
+  if (/notifications?/.test(t) && /\b(?:marque\w*|classe\w*)\b/.test(t) && /\blues?\b/.test(t)) return ["markNotificationsRead"];
+  if (/cookies?/.test(t) && /\b(?:active|desactive|accepte|refuse|modifie|change|enregistre)\b/.test(t)) return ["configureCookieConsent"];
+  if (/\b(?:telecharge\w*|exporte\w*|download)\b/.test(t) && /rgpd|donnees personnelles|factures? d.abonnement|factures? inrcy/.test(t)) return ["prepareAccountDocumentDownload"];
+  if (/\b(?:adn|dna)\b/.test(t) && /document|fichier/.test(t) && /supprime|retire|efface/.test(t)) return ["applyBusinessDnaDocumentRemoval"];
+  if (/ga4|gsc|search console|google analytics/.test(t) && /deconnect|dissoci/.test(t)) return ["applyWebsiteAnalyticsDisconnection"];
+  if ((["analytics", "widget"] as const).some(section => isInrAssistantWebsiteConfigurationRequest(message, section))) return ["updateWebsiteConfiguration"];
+  if (/\b(?:apercu|brouillon|resultat)\b/.test(t) && !/publication|campagne|mail|facture|devis/.test(t) && /\b(?:enregistre\w*|conserve\w*|sauvegarde\w*|accepte\w*|save|accept)\b/.test(t)) return ["acceptMediaGeneration"];
+  if (/\b(?:apercu|brouillon|resultat)\b/.test(t) && !/publication|campagne|mail|facture|devis/.test(t) && /\b(?:ecarte\w*|rejette\w*|abandonne\w*|discard)\b/.test(t)) return ["discardMediaGeneration"];
+  if (/panier moyen|taux de (?:conversion|transformation)|hypotheses? (?:du generateur|des estimations)/.test(t) && /modifie|change|mets|definis|enregistre/.test(t)) return ["updateGeneratorBusinessSettings"];
+  const identity = /\b(?:identite|profil entreprise|nom|prenom|societe|raison sociale|adresse|code postal|ville|profession|metier|telephone|email professionnel)\b/.test(t) && /\b(?:modifi\w*|chang\w*|mets|remplac\w*|enregistr\w*|complet\w*|defini\w*)\b/.test(t);
+  if (isInrAssistantDnaScheduleRequest(message)) return ["updateBusinessDnaSchedule"];
+  if (/parrain|recommandation|referral/.test(t) && /prepare|cree|remplis|envoie|parraine|soumet/.test(t)) return ["applyReferralSubmission"];
+  if ((["create","rename","delete"] as const).some(action=>isInrAssistantPinterestBoardRequest(message,action))) return ["applyPinterestBoardMutation"];
+  if ((["remove_url","reset"] as const).some(mode=>isInrAssistantWebsiteLifecycleRequest(message,mode))) return ["applyWebsiteReset"];
+  if ((["facebook","instagram","threads"] as const).some(channel=>isInrAssistantSocialPreferencesRequest(message,channel))) return ["updateSocialPublicationPreferences"];
+  if (identity && !/\b(?:crm|contact|client|prospect|publication|post|image|video|media|cta|bouton|fiche google)\b/.test(t)) return ["updateBusinessIdentity"];
+  if (/\b(?:deconnect\w*|dissoci\w*|selectionne\w*|choisis|utilise|remplace\w*)\b/.test(t) && /\b(?:connexion|ressource|page facebook|fiche google|etablissement google|profil instagram|organisation linkedin|tableau pinterest)\b/.test(t)) return ["applyChannelConfiguration"];
+  if (/linkedin/.test(t) && /partage|personnel/.test(t) && /active|desactive|modifie|change/.test(t)) return ["updateLinkedInPersonalSharing"];
+  if (/\b(?:avis|review)\b/.test(t) && /\b(?:supprim\w*|effac\w*|modifi\w*|corrig\w*|remplac\w*)\b/.test(t) && /reponse/.test(t)) return ["applyGoogleReviewReplyAction"];
   // Settings are a distinct object, even if their defaults mention images,
   // emails or appointments. Do not borrow those nouns for a creation goal.
   const standardCommands = inrAssistantStandardCommands(t);
   if (standardCommands) return standardCommands;
+  if ((["inrbadge", "inr_search"] as const).some(channel => isInrAssistantNativePresentationRequest(message, channel))) return ["updateNativeChannelPresentation"];
   if (requestsInrAssistantSettingsChange(message)) return ["updateToolSettings"];
   if (isInrAssistantDocumentTemplateInstruction(message, "create") || isInrAssistantDocumentTemplateInstruction(message, "delete")) return ["applyCommercialTemplateAction"];
   if (/\bfacture\b/.test(t) && /\b(?:marque|marquer|passe|passer|declare)\b/.test(t) && /\bpayee?\b/.test(t)) return ["applyCommercialDocumentAction"];

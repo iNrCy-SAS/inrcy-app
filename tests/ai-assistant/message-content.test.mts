@@ -62,6 +62,8 @@ test("public tool names cover action, panel and same-app development URLs withou
   assert.deepEqual(navigation.getAssistantInternalDestination("http://localhost:3000/dashboard?panel=abonnement"), { href: "/dashboard?panel=abonnement", label: "Mon abonnement" });
   assert.deepEqual(navigation.getAssistantInternalDestination("https://app.inrcy.com/dashboard?action=channels#facebook"), { href: "/dashboard?action=channels#facebook", label: "Mes canaux" });
   assert.deepEqual(navigation.getAssistantInternalDestination("?panel=boutique"), { href: "/dashboard?panel=boutique", label: "Boutique" });
+  assert.deepEqual(navigation.getAssistantInternalDestination("/dashboard?panel=gmb&googleReviews=1"), { href: "/dashboard?panel=gmb&googleReviews=1", label: "Avis Google" });
+  assert.deepEqual(navigation.getAssistantInternalDestination("/dashboard?panel=gmb"), { href: "/dashboard?panel=gmb", label: "Google Business" });
   assert.deepEqual(navigation.getAssistantInternalDestination("/dashboard?helpAction=channels"), { href: "/dashboard?action=channels", label: "Mes canaux" });
   assert.equal(navigation.getAssistantInternalDestination("/dashboard?action=delete-account"), undefined);
   assert.equal(navigation.getAssistantInternalDestination("/dashboard?panel=unknown"), undefined);

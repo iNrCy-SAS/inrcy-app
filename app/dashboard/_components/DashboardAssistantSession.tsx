@@ -15,6 +15,8 @@ import type { InrAssistantActivity } from "@/lib/inrAssistantActivity";
 import { ASSISTANT_ATTACHMENT_ACCEPT, ASSISTANT_ATTACHMENT_MAX_COUNT, ASSISTANT_ATTACHMENT_MAX_BYTES, ASSISTANT_ATTACHMENT_VIDEO_MAX_BYTES, ASSISTANT_ATTACHMENT_AUDIO_MAX_BYTES } from "@/lib/inrAssistantAttachments";
 import type { InrAssistantUiCommand } from "@/lib/inrAssistantUiCommands";
 import { inrAssistantBusinessProgressAfterUi, inrAssistantUiActionsFromToolResult, type InrAssistantUiAction, type InrAssistantUiResult } from "@/lib/inrAssistantUiActions";
+import { inrAssistantMediaPreviewCopy } from "@/lib/inrAssistantMediaPreview";
+import { canResumeInrAssistantAfterUi } from "@/lib/inrAssistantAutoContinuation";
 import { deriveInrAssistantStudioDraft, parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "@/lib/inrAssistantStudioDraft";
 import { useAssistantAttachments } from "../_hooks/useAssistantAttachments";
 import { useAssistantDialogViewport } from "../_hooks/useAssistantDialogViewport";
@@ -74,6 +76,9 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
   const latestScopeRef = useRef({ actorUserId, activeAccountId, allowed });
   const activitySeenRef = useRef(false);
   const studioInsertionRef = useRef(false);
+  const automaticUiTurnsRef = useRef(new Set<string>());
+  const latestScreenRef = useRef(screen);
+  const draftPendingRef = useRef(false);
   const attachmentCopy = dashboardAssistantAttachmentCopy(locale);
   const files = useAssistantAttachments({ accountId: activeAccountId, actorUserId, locale, ensureConversation: () => {
     historyControllerRef.current?.abort(); localEditRevisionRef.current++; autoHistoryAttemptedRef.current = true;
@@ -81,7 +86,11 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
   } });
   const setDraftAttachments = files.setAttachments;
   const portalTarget = open && typeof document !== "undefined" ? portalHost?.isConnected ? portalHost : document.body : null;
-  useEffect(() => { latestScopeRef.current = { actorUserId, activeAccountId, allowed }; }, [actorUserId, activeAccountId, allowed]);
+  useEffect(() => {
+    latestScopeRef.current = { actorUserId, activeAccountId, allowed };
+    latestScreenRef.current = screen;
+    draftPendingRef.current = Boolean(draft.trim() || files.busy || files.attachments.length);
+  }, [actorUserId, activeAccountId, allowed, screen, draft, files.busy, files.attachments.length]);
 
   useEffect(() => () => { controllerRef.current?.abort(); historyControllerRef.current?.abort(); }, []);
 
@@ -223,13 +232,15 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
     } finally { studioInsertionRef.current = false; }
   };
 
-  const send = async (conversation: ChatMessage[], taskIntent?: "continue" | "check_status") => {
+  const send = async (conversation: ChatMessage[], taskIntent?: "continue" | "check_status", automatic: {hops:number;startedAt:number;mediaPreview?:{requestId:string;mediaId:string}} = { hops: 0, startedAt: Date.now() }): Promise<void> => {
     if (controllerRef.current || !allowed) return;
     const accountAtStart = getActiveBrowserUserId() || activeAccountId;
     if (accountAtStart !== activeAccountId) return;
     const controller = new AbortController();
     historyControllerRef.current?.abort();
     localEditRevisionRef.current++;
+    const sendRevision = localEditRevisionRef.current;
+    if (!taskIntent) automaticUiTurnsRef.current.clear();
     autoHistoryAttemptedRef.current = true;
     const currentConversationId = conversationId || crypto.randomUUID();
     setConversationId(currentConversationId);
@@ -239,7 +250,7 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
     setRetryMessages(null);
     setHandoffSummary("");
     setActivities([]); activitySeenRef.current = false;
-    const clientContext = parseInrAssistantClientContext({ screen, visibleError });
+    const clientContext = parseInrAssistantClientContext({ screen: automatic.hops ? latestScreenRef.current : screen, visibleError, mediaPreview:automatic.mediaPreview });
     setVisibleError(undefined);
     // Media creation may legitimately outlast an ordinary answer. The server
     // bounds normal model calls independently and owns the generation timeout.
@@ -256,6 +267,8 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
     let uiReceiptToken: string | undefined;
     let responseMessage: ChatMessage | undefined;
     let previousUiResults: InrAssistantUiResult[] = [];
+    let automaticOffered = false;
+    let responseTurnId = "";
     try {
       const response = await fetch("/api/assistant/chat", {
         method: "POST", credentials: "include", cache: "no-store",
@@ -298,6 +311,8 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
       uiActions = payload.uiActions ?? inrAssistantUiActionsFromToolResult("legacy", { ok: true, navigation: payload.navigation, uiCommand: payload.uiCommand });
       uiReceiptToken = payload.uiReceiptToken;
       previousUiResults = payload.uiResults ?? [];
+      automaticOffered = payload.autoContinueAfterUi === true;
+      responseTurnId = typeof payload.turnId === "string" ? payload.turnId : conversation.findLast(message => message.role === "user")?.turnId ?? "";
       if (payload.refresh?.accountId === accountAtStart && stillCurrent()) dispatchInrAssistantRefresh(payload.refresh);
       onReply?.();
       setHandoffSummary(payload.needsHuman === true ? typeof payload.handoffSummary === "string" && payload.handoffSummary.trim() ? payload.handoffSummary.slice(0, 4500) : payload.message.slice(0, 4500) : "");
@@ -325,12 +340,17 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
     if (uiActions?.length && onUiActions && stillCurrent()) {
       setPending(true);
       controllerRef.current = controller;
+      let continuation: ChatMessage[] | undefined;
+      let continuationKey = "";
+      let receiptTransportFailed = false;
       try {
         const newResults = await onUiActions(uiActions.filter(action => !previousUiResults.some(result => result.actionId === action.id)), async result => {
           if (!uiReceiptToken || !stillCurrent()) return;
-          const response = await fetch("/api/assistant/ui-results", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token: uiReceiptToken, result }), signal: controller.signal });
-          if (!response.ok) throw new Error("Browser receipt unavailable");
+          try {
+            const response = await fetch("/api/assistant/ui-results", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ token: uiReceiptToken, result }), signal: controller.signal });
+            if (!response.ok) throw new Error("Browser receipt unavailable");
+          } catch (error) { receiptTransportFailed = true; throw error; }
         }, async action => {
           if (!uiReceiptToken || !stillCurrent()) return false;
           const response = await fetch("/api/assistant/ui-results", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
@@ -346,11 +366,23 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
           const content = locale.startsWith("fr")
             ? `${applied ? `${applied} ouverture(s) ou modification(s) d’écran confirmée(s). ` : ""}${handed ? `${handed} téléchargement(s) transmis au navigateur ; la réception du fichier n’est pas vérifiée. ` : ""}${failed ? `${failed} étape(s) non exécutée(s). Les actions qui en dépendaient ont été arrêtées.` : ""}`
             : `${applied ? `${applied} screen action(s) applied. ` : ""}${handed ? `${handed} download(s) handed to the browser; file receipt is not verified. ` : ""}${failed ? `${failed} step(s) did not run. Dependent actions were stopped.` : ""}`;
-          setMessages(current => [...current.map(message => message === responseMessage ? { ...message, taskProgress: inrAssistantBusinessProgressAfterUi(message.taskProgress, uiActions!, results), uiResults: results } : message), { role: "assistant", content, uiResults: results }]);
+          const updatedReply = responseMessage ? { ...responseMessage, taskProgress: inrAssistantBusinessProgressAfterUi(responseMessage.taskProgress, uiActions!, results), uiResults: results } : undefined;
+          const updated: ChatMessage[] = [...conversation, ...(updatedReply ? [updatedReply] : []), { role: "assistant", content, uiResults: results }];
+          setMessages(updated);
+          continuationKey = `${responseTurnId}:${uiActions.map(action => action.id).join(",")}`;
+          if (canResumeInrAssistantAfterUi({ offered: automaticOffered && Boolean(uiReceiptToken) && !receiptTransportFailed, actions: uiActions, results,
+            hops: automatic.hops, startedAt: automatic.startedAt, current: stillCurrent() && localEditRevisionRef.current === sendRevision,
+            draftPending: draftPendingRef.current }) && !automaticUiTurnsRef.current.has(continuationKey)) continuation = updated;
         }
       } finally {
         if (controllerRef.current === controller) controllerRef.current = null;
         if (stillCurrent()) setPending(false);
+      }
+      if (continuation && stillCurrent() && localEditRevisionRef.current === sendRevision && !draftPendingRef.current) {
+        automaticUiTurnsRef.current.add(continuationKey);
+        const next: ChatMessage[] = [...continuation, { role: "user", content: dashboardAssistantTaskCopy(locale).continueRequest, turnId: crypto.randomUUID() }];
+        setMessages(next);
+        await send(next, "continue", { hops: automatic.hops + 1, startedAt: automatic.startedAt });
       }
       return;
     }
@@ -364,7 +396,7 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
       setPending(true);
       try {
         const started = await onScreenCommand?.(screenCommand) === true;
-        if (stillCurrent()) setMessages(current => [...current, { role: "assistant", content: screenCommand.command === "export_document_pdf" ? dashboardAssistantPdfCopy(locale, started) : screenCommand.command === "configure_ads_draft" || screenCommand.command === "configure_video_retouch" ? locale.startsWith("fr") ? started ? "Les réglages ont été appliqués au formulaire, sans enregistrement ni publication." : "Les réglages n’ont pas été appliqués. Vérifiez le formulaire ouvert." : started ? "The form settings were applied without saving or publishing." : "The settings were not applied. Check the open form." : locale.startsWith("fr") ? started ? "Le téléchargement a été transmis au navigateur." : "Le téléchargement n’a pas pu être lancé. Réessayez depuis l’outil." : started ? "The download was sent to your browser." : "The download could not be started. Try again from the tool." }]);
+        if (stillCurrent()) setMessages(current => [...current, { role: "assistant", content: screenCommand.command === "export_document_pdf" ? dashboardAssistantPdfCopy(locale, started) : locale.startsWith("fr") ? started ? "L’action demandée a été confirmée par l’interface." : "L’action n’a pas été confirmée. Vérifiez l’écran ouvert." : started ? "The requested action was confirmed by the interface." : "The action was not confirmed. Check the open screen." }]);
       } finally { if (stillCurrent()) setPending(false); }
     }
     if (navigationHref && stillCurrent()) onInternalNavigate?.(navigationHref);
@@ -377,6 +409,7 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
     const conversation: ChatMessage[] = [...messages, { role: "user", content, turnId: crypto.randomUUID(), ...(files.attachments.length ? { attachments: files.attachments } : {}) }];
     setMessages(conversation);
     setDraft("");
+    draftPendingRef.current = false;
     files.setAttachments([]);
     void send(conversation);
   };
@@ -452,10 +485,16 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
             </section> : null}
             {message.attachments?.length ? <ul className={styles.sentAttachments}>{message.attachments.map(file => <li key={file.id}><span aria-hidden="true">📎</span> {file.name}</li>)}</ul> : null}
             {message.media ? <div className={styles.mediaResult} data-media-status={message.media.status}>
-              {message.media.status === "completed" && message.media.url && message.media.mediaType ? message.media.mediaType === "image"
+              {(message.media.status === "completed" || message.media.status === "ready_to_save") && message.media.url && message.media.mediaType ? message.media.mediaType === "image"
                 ? <img src={message.media.url} alt={copy.mediaReady} loading="lazy" />
                 : <video src={message.media.url} controls playsInline preload="metadata" aria-label={copy.mediaReady} /> : null}
               <p role={message.media.status === "processing" ? "status" : undefined}>{message.media.message || (message.media.status === "processing" ? copy.mediaProcessing : message.media.status === "failed" ? copy.mediaFailed : copy.mediaReady)}</p>
+              {message.media.status === "ready_to_save" ? <div><p>{inrAssistantMediaPreviewCopy(locale).label}</p>{message.media.requestId && message.media.mediaId ? (["accept","discard"] as const).map(operation => <button key={operation} type="button" disabled={pending || files.busy || Boolean(draft.trim() || files.attachments.length)} onClick={() => {
+                if (controllerRef.current || draft.trim() || files.busy || files.attachments.length || !message.media?.requestId || !message.media.mediaId) return;
+                const text=operation === "accept" ? inrAssistantMediaPreviewCopy(locale).keepRequest : inrAssistantMediaPreviewCopy(locale).discardRequest;
+                const next:ChatMessage[]=[...messages,{role:"user",content:text,turnId:crypto.randomUUID()}];setMessages(next);
+                void send(next,undefined,{hops:0,startedAt:Date.now(),mediaPreview:{requestId:message.media.requestId,mediaId:message.media.mediaId}});
+              }}>{operation === "accept" ? inrAssistantMediaPreviewCopy(locale).keep : inrAssistantMediaPreviewCopy(locale).discard}</button>) : null}</div> : null}
               {message.media.status === "completed" ? <button type="button" onClick={onOpenMediaLibrary}>{copy.mediaLibrary}<span aria-hidden="true">↗</span></button> : null}
             </div> : null}
             {studioDraft && onInsertStudioDraft ? <button type="button" className={styles.studioDraftButton} data-testid="assistant-studio-draft" disabled={pending || files.busy} onClick={() => void insertDraft(studioDraft, message)}>{studioDraft.mediaType === "video" ? copy.insertStudioVideo : copy.insertStudioImage}<span aria-hidden="true">↗</span></button> : null}

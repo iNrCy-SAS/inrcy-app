@@ -5,6 +5,10 @@ import type { JSONSchema7 } from "@ai-sdk/provider";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sanitizeInrAssistantMemoryText } from "./inrAssistantMemory.ts";
 import { requireUser } from "./requireUser";
+import { PRODUCT_GOOGLE_REVIEWS_HREF } from "./productNavigation.ts";
+import { createInrAssistantGoogleReviewTools } from "./inrAssistantGoogleReviewTools.ts";
+import { inrAssistantMaskQuotedText } from "./inrAssistantRequestClauses.ts";
+import { googleReviewStateFingerprint } from "./googleReviewStateFingerprint.ts";
 
 type Row = Record<string, unknown>;
 const row = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
@@ -71,12 +75,18 @@ async function nativeCall(operation: () => Promise<Response>): Promise<Response>
 }
 
 /** Public Google reviews and numeric saved statistics, always in the server account. */
-export function createInrAssistantInsightsTools(options: { request: Request; accountId: string; supabase: Pick<SupabaseClient, "from">; currentUserMessage: string }) {
+export function createInrAssistantInsightsTools(options: { request: Request; accountId: string; actorUserId?: string; supabase: Pick<SupabaseClient, "from">; currentUserMessage: string; currentApprovalMessage?: string; resolvePreview?: (reference: string) => string | null; canStartWork?: () => boolean }) {
   if (typeof options.accountId !== "string" || !options.accountId.trim() || options.accountId.length > 180 || typeof options.currentUserMessage !== "string") throw new Error("Périmètre de l’assistant invalide.");
-  const observedReviews = new Map<string, { resourceName: string; reply: string; truncated: boolean }>();
+  const observedReviews = new Map<string, { resourceName: string; reply: string; truncated: boolean; fingerprint?: string }>();
   let replyWork: Promise<Row> | undefined;
-  const activeScope = async () => { const auth = await requireUser(); return !options.request.signal.aborted && !auth.errorResponse && auth.activeUserId === options.accountId; };
+  const activeScope = async () => {
+    if (options.request.signal.aborted || options.canStartWork?.() === false) return false;
+    const auth = await requireUser();
+    return !options.request.signal.aborted && options.canStartWork?.() !== false && !auth.errorResponse && auth.activeUserId === options.accountId
+      && (!options.actorUserId || auth.authUserId === options.actorUserId);
+  };
   return {
+    ...createInrAssistantGoogleReviewTools({ ...options, observedReviews }),
     readStatsSnapshots: tool({
       description: "Lire les vraies statistiques numériques enregistrées des canaux de cet établissement : utilisateurs, sessions, pages vues, clics et impressions. Données datées et en cache, pas une nouvelle requête aux réseaux sociaux. Une métrique absente reste inconnue ; les fenêtres et les canaux peuvent différer et ne doivent pas être additionnés aveuglément.",
       inputSchema: schema({ type: "object", properties: { days: { type: ["integer", "null"], enum: [7, 30, 60, 90, null] } }, required: ["days"], additionalProperties: false }, statsInput),
@@ -84,6 +94,7 @@ export function createInrAssistantInsightsTools(options: { request: Request; acc
       execute: async (value) => {
         const input = statsInput(value);
         try {
+          if (!await activeScope()) throw new Error("stats_scope_unavailable");
           const result = await options.supabase.from("stats_cache")
             .select(STATS_PROJECTION)
             .eq("user_id", options.accountId).in("source", ["overview", "overview_last_good"])
@@ -107,6 +118,7 @@ export function createInrAssistantInsightsTools(options: { request: Request; acc
             return { generatedAt: iso(item.generated), expiredCache, currentVerified: false,
               currentDataKnown: !expiredCache && (Object.values(totals).some(value => value !== null) || sources.some(source => source.dataKnown)), totals, channels, sources };
           });
+          if (!await activeScope()) throw new Error("stats_scope_changed");
           return boundedStats({ ok: true, source: "saved_account_statistics", liveVerified: false, snapshots,
             message: snapshots.length ? "Instantanés enregistrés : vérifier les dates et la couverture avant comparaison. Un cache expiré ou non daté ne confirme pas la situation actuelle ; une valeur absente reste inconnue." : "Aucun instantané correspondant dans cet échantillon ; cela ne signifie pas zéro résultat.",
             nextAction: { label: "iNr’Stats", href: "/dashboard/stats" } });
@@ -125,52 +137,64 @@ export function createInrAssistantInsightsTools(options: { request: Request; acc
           const response = await nativeCall(() => GET(localRequest(options.request, "/api/e-reputation/google/reviews?pageSize=50")));
           if (!response.ok) throw new Error("reviews_unavailable");
           const data = row(await response.json());
-          if (data.connected !== true || data.configured !== true) return { ok: false, reviews: [], message: "La connexion ou l’établissement Google Business doit être sélectionné dans Réputation.", nextAction: { label: "Réputation", href: "/dashboard/e-reputation" } };
+          if (data.connected !== true || data.configured !== true) return { ok: false, reviews: [], message: "Dans Mes canaux, ouvrez la bulle Google Business, connectez-la si nécessaire puis sélectionnez la fiche. Le bouton Avis y devient disponible.", nextAction: { label: "Avis Google", href: PRODUCT_GOOGLE_REVIEWS_HREF } };
           const words = normalize(String(input.query ?? "")).split(/\s+/).filter(Boolean);
           const candidates = (Array.isArray(data.reviews) ? data.reviews : []).slice(0, 50).map(row).filter(item => typeof item.name === "string" && /^accounts\/[a-zA-Z0-9_.-]+\/locations\/[a-zA-Z0-9_.-]+\/reviews\/[a-zA-Z0-9_.-]+$/.test(item.name) && item.name.length <= 400 && typeof item.comment === "string" && words.every(word => normalize(`${String(item.reviewerName ?? "")} ${item.comment}`).includes(word)));
           const reviews = candidates.slice(0, 3).map(item => {
             const name = String(item.name), comment = String(item.comment), reply = String(row(item.reply).comment ?? "");
             const reference = [...observedReviews].find(([, review]) => review.resourceName === name)?.[0] || `avis-${observedReviews.size + 1}`;
-            observedReviews.set(reference, { resourceName: name, reply: reply.slice(0, 4001), truncated: comment.length > 1_000 });
+            observedReviews.set(reference, { resourceName: name, reply: reply.slice(0, 4001), truncated: comment.length > 1_000, fingerprint: googleReviewStateFingerprint(item) });
             const rating = number(item.starRating);
             return { reference, reviewer: prose(item.reviewerName, 60), rating: rating !== null && rating <= 5 ? rating : null, comment: prose(comment, 1_000),
               commentTruncated: comment.length > 1_000, reply: prose(reply, 300) || null, updatedAt: iso(item.updateTime) };
           });
           const averageRating = number(data.averageRating);
           const output = { ok: true, untrustedContent: true, reviews, sampled: 50, truncated: Boolean(data.nextPageToken) || candidates.length > 3,
-            totalReviews: number(data.totalReviewCount), averageRating: averageRating !== null && averageRating <= 5 ? averageRating : null, nextAction: { label: "Réputation", href: "/dashboard/e-reputation" } };
+            totalReviews: number(data.totalReviewCount), averageRating: averageRating !== null && averageRating <= 5 ? averageRating : null, nextAction: { label: "Avis Google", href: PRODUCT_GOOGLE_REVIEWS_HREF } };
           while (JSON.stringify(output).length > 6000 && reviews.length) { const omitted = reviews.pop(); if (omitted) observedReviews.delete(omitted.reference); output.truncated = true; }
           return output;
-        } catch { return { ok: false, reviews: [], message: "Les avis Google ne peuvent pas être vérifiés pour le moment.", nextAction: { label: "Réputation", href: "/dashboard/e-reputation" } }; }
+        } catch { return { ok: false, reviews: [], message: "Les avis Google ne peuvent pas être vérifiés pour le moment.", nextAction: { label: "Avis Google", href: PRODUCT_GOOGLE_REVIEWS_HREF } }; }
       },
     }),
     replyToGoogleReview: tool({
       strict: true,
-      description: "Publier une réponse à un avis Google réel déjà retrouvé avec readGoogleReviews dans cette demande. Uniquement si le dernier message du pro ordonne explicitement de répondre/publier ; une simple préparation, une ancienne demande ou une question ne l’autorise pas. Si l’avis est ambigu ou tronqué, demander une précision et utiliser Réputation.",
+      description: "Publier une réponse à un avis Google réel déjà retrouvé avec readGoogleReviews dans cette demande. Uniquement si le dernier message du pro ordonne explicitement de répondre/publier ; une simple préparation, une ancienne demande ou une question ne l’autorise pas. Si l’avis est ambigu ou tronqué, demander une précision et consulter Avis dans la bulle Google Business de Mes canaux.",
       inputSchema: schema({ type: "object", properties: {
         reference: { type: "string", maxLength: 400 }, comment: { type: "string", minLength: 2, maxLength: 4_000 }, instructionQuote: { type: "string", minLength: 1, maxLength: 800 },
       }, required: ["reference", "comment", "instructionQuote"], additionalProperties: false }, replyInput),
       execute: async (value) => {
-        const input = replyInput(value), current = normalize(options.currentUserMessage.trim().replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm, " "));
+        const input = replyInput(value), current = normalize(inrAssistantMaskQuotedText(options.currentUserMessage.trim()));
         const action = /\b(?:repond\w*|publie\w*|envoie\w*|reply|respond|post)\b/;
-        const allowed = typeof input.instructionQuote === "string" && input.instructionQuote.trim().length > 0 && input.instructionQuote.length <= 800 && options.currentUserMessage.includes(input.instructionQuote.trim()) &&
+        const allowed = typeof input.instructionQuote === "string" && input.instructionQuote.trim().length > 0 && input.instructionQuote.length <= 800 && inrAssistantMaskQuotedText(options.currentUserMessage).includes(input.instructionQuote.trim()) &&
           action.test(normalize(input.instructionQuote)) && action.test(current) && /\b(?:avis|review|google|reputation)\b/.test(current) &&
           !/^(?:comment|pourquoi|explique|prepare|propose|redige|how|why|draft|suggest)\b|\b(?:expli\w*|montr\w*|show|tell|dire|dis)\b[^.!?]{0,140}\b(?:comment|ou|how|where)\b|\b(?:comment|how|where)\b[^.!?]{0,140}\b(?:repond\w*|publie\w*|envoie\w*|reply|respond|post)\b/.test(current) &&
           !/\b(?:ne |pas|jamais|sans publier|don.t|do not|never)\b/.test(current);
         const review = observedReviews.get(input.reference);
-        if (!allowed || !review || review.truncated) return { ok: false, status: "needs_instruction", message: "Vérifiez l’avis exact et demandez explicitement la publication de sa réponse.", nextAction: { label: "Réputation", href: "/dashboard/e-reputation" } };
+        if (!allowed || !review || review.truncated) return { ok: false, status: "needs_instruction", message: "Vérifiez l’avis exact et demandez explicitement la publication de sa réponse.", nextAction: { label: "Avis Google", href: PRODUCT_GOOGLE_REVIEWS_HREF } };
         const comment = input.comment.trim(), reference = input.reference;
         if (replyWork) return replyWork;
-        if (review.reply.trim() === comment) return { ok: true, status: "unchanged", reference, message: "Cette réponse est déjà enregistrée sur l’avis Google.", nextAction: { label: "Réputation", href: "/dashboard/e-reputation" } };
         if (!replyWork) replyWork = (async () => {
           try {
             if (!await activeScope()) throw new Error("reply_scope_unavailable");
+            const { GET } = await import("@/app/api/e-reputation/google/reviews/route");
+            const exactPath = `/api/e-reputation/google/reviews?${new URLSearchParams({ reviewName: review.resourceName })}`;
+            const exact = await nativeCall(() => GET(localRequest(options.request, exactPath))), source = row(await exact.json()), currentReview = row(source.review);
+            if (!exact.ok || source.connected !== true || source.configured !== true || currentReview.name !== review.resourceName || !await activeScope()) throw new Error("review_read_unconfirmed");
+            const currentReply = String(row(currentReview.reply).comment ?? "").trim();
+            if (currentReply === comment) return { ok: true, status: "unchanged", reference, message: "Cette réponse vient d’être relue sur l’avis Google. Aucun nouvel envoi effectué.", nextAction: { label: "Avis Google", href: PRODUCT_GOOGLE_REVIEWS_HREF } };
+            if (currentReply) return { ok: false, status: "confirmation_required", message: "Une réponse existe déjà sur cet avis relu. Utilisez previewGoogleReviewReplyAction et faites confirmer son remplacement avant toute écriture.", nextAction: { label: "Avis Google", href: PRODUCT_GOOGLE_REVIEWS_HREF } };
+            const expectedState = googleReviewStateFingerprint(currentReview);
+            if (review.fingerprint && review.fingerprint !== expectedState) return { ok: false, status: "stale_review", reference, message: "L’avis a changé depuis sa lecture. Relisez-le avant de préparer sa réponse.", nextAction: { label: "Avis Google", href: PRODUCT_GOOGLE_REVIEWS_HREF } };
             const { POST } = await import("@/app/api/e-reputation/google/reply/route");
-            const response = await nativeCall(() => POST(localRequest(options.request, "/api/e-reputation/google/reply", { reviewName: review.resourceName, comment })));
+            if (!await activeScope()) throw new Error("reply_scope_changed_before_write");
+            const response = await nativeCall(() => POST(localRequest(options.request, "/api/e-reputation/google/reply", { reviewName: review.resourceName, comment, expectedState })));
             const data = row(await response.json());
+            if (response.status === 409) return { ok: false, status: "stale_review", reference, message: "L’avis ou sa réponse a changé juste avant l’envoi. Aucun remplacement autorisé ; relisez-le et préparez un aperçu si une réponse existe.", nextAction: { label: "Avis Google", href: PRODUCT_GOOGLE_REVIEWS_HREF } };
             if (!response.ok || data.ok !== true || data.replyStatus !== "answered") throw new Error("reply_unconfirmed");
-            return { ok: true, status: "published", reference, message: "La réponse a été publiée sur l’avis Google vérifié.", nextAction: { label: "Réputation", href: "/dashboard/e-reputation" } };
-          } catch { return { ok: false, status: "unknown", reference, message: "La publication de la réponse n’a pas pu être confirmée. Vérifiez l’avis dans Réputation avant de réessayer.", nextAction: { label: "Réputation", href: "/dashboard/e-reputation" } }; }
+            const after = await nativeCall(() => GET(localRequest(options.request, exactPath))), saved = row(await after.json());
+            if (!after.ok || row(saved.review).name !== review.resourceName || String(row(row(saved.review).reply).comment || "").trim() !== comment || !await activeScope()) throw new Error("reply_readback_unconfirmed");
+            return { ok: true, status: "published", reference, message: "La réponse a été publiée sur l’avis Google vérifié.", nextAction: { label: "Avis Google", href: PRODUCT_GOOGLE_REVIEWS_HREF } };
+          } catch { return { ok: false, status: "unknown", reference, message: "La publication de la réponse n’a pas pu être confirmée. Vérifiez l’avis dans Mes canaux → Google Business → Avis avant de réessayer.", nextAction: { label: "Avis Google", href: PRODUCT_GOOGLE_REVIEWS_HREF } }; }
         })();
         return replyWork;
       },

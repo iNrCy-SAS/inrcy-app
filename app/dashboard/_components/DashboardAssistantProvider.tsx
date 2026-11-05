@@ -9,6 +9,8 @@ import { createClient } from "@/lib/supabaseClient";
 import { getInrAssistantClientScreen, selectInrAssistantClientScreen, parseInrAssistantClientContext, type InrAssistantClientScreen } from "@/lib/inrAssistantClientContext";
 import type { InrAssistantNavigation, InrAssistantUiCommand } from "@/lib/inrAssistantUiCommands";
 import { runInrAssistantUiActions, type InrAssistantUiAction, type InrAssistantUiResult } from "@/lib/inrAssistantUiActions";
+import { downloadInrAssistantAccountDocument } from "@/lib/inrAssistantAccountDocuments";
+import { inrAssistantNavigationForm } from "@/lib/inrAssistantNavigationForm";
 import type { InrAssistantUiPostScreen } from "@/lib/inrAssistantUiPostScreen";
 import type { InrAssistantStudioDraft } from "@/lib/inrAssistantStudioDraft";
 import { clearInrAssistantStudioDraft, inrAssistantStudioDraftHref, requestInrAssistantStudioDraft, stageInrAssistantStudioDraft, waitForInrAssistantStudioDraft } from "@/lib/inrAssistantStudioHandoff";
@@ -133,6 +135,10 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     // Auth/account events invalidate pending native work synchronously, before
     // React commits the new scope (including a later return to the same actor).
     const executionEpoch = uiExecution.current.epoch;
+    if (command.command === "download_account_export" || command.command === "download_subscription_invoice" || command.command === "configure_cookie_consent") {
+      const stillCurrent = () => { const scope = navigationScopeRef.current; return uiExecution.current.epoch === executionEpoch && scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId && (getActiveBrowserUserId() || activeAccountId) === activeAccountId; };
+      try { return await downloadInrAssistantAccountDocument(command, stillCurrent); } catch { return false; }
+    }
     if (command.command === "download_media" || command.command === "download_stats_report") {
       const stillCurrent = () => {
         const scope = navigationScopeRef.current, current = screenRef.current;
@@ -233,6 +239,8 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     const rememberDocumentRevision = (navigation: InrAssistantNavigation) => {
       const screen = screenRef.current.screen;
       const revision = screen?.revision;
+      const form = inrAssistantNavigationForm(navigation.destination);
+      if (form && revision && screen?.selection) committedNavigations.set(navigation, {pathname:screenRef.current.pathname,selection:screen.selection,revision});
       if (navigation.documentId && revision) mountedRevisions.set(`${navigation.destination === "quotes" ? "quote" : "invoice"}:${navigation.documentId}`, revision);
       if (navigation.documentPrefill && screen?.documentPrefill && screen.selection && revision) {
         committedNavigations.set(navigation, { pathname: screenRef.current.pathname, selection: screen.selection, revision, documentPrefill: screen.documentPrefill });
@@ -261,7 +269,11 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
             && entry.handler.command === "export_document_pdf" && entry.handler.selection.kind === kind && entry.handler.selection.id === navigation.documentId).length === 1;
       }
       const params = new URLSearchParams(current.query);
-      return [...target.searchParams].every(([key, value]) => params.get(key) === value);
+      if (![...target.searchParams].every(([key, value]) => params.get(key) === value)) return false;
+      const form = inrAssistantNavigationForm(navigation.destination), screen = current.screen;
+      if (!form) return true;
+      return Boolean(screen?.selection?.kind === form.kind && screen.revision && form.commands.some(command =>
+        screen.availableCommands?.includes(command as NonNullable<InrAssistantClientScreen["availableCommands"]>[number]) && [...screenHandlers.current.values()].filter(entry => entry.actorUserId === actorUserId && entry.activeAccountId === activeAccountId && entry.handler.command === command && entry.handler.selection.id === screen.selection!.id && entry.handler.selection.kind === form.kind && "revision" in entry.handler && entry.handler.revision === screen.revision).length === 1));
     };
     const navigate = async (navigation: InrAssistantNavigation) => {
       if (!isCurrent()) return false;

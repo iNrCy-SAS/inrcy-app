@@ -7,6 +7,10 @@ import ts from "typescript";
 import { asSchema, jsonSchema, tool } from "ai";
 import type * as Insights from "../../lib/inrAssistantInsightsTools.ts";
 import type * as Memory from "../../lib/inrAssistantMemory.ts";
+import * as productNavigation from "../../lib/productNavigation.ts";
+import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
+import { googleReviewStateFingerprint } from "../../lib/googleReviewStateFingerprint.ts";
+import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 
 type Row = Record<string, unknown>;
 type Query = { fields: string; filters: Array<[string, unknown]>; maximum: number };
@@ -21,15 +25,17 @@ function load<T>(file: string, dependencies: Record<string, unknown>, fastTimeou
   const compiled = ts.transpileModule(readFileSync(new URL(file, import.meta.url), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
   const compiledModule = { exports: {} };
   const fastSchedule = (callback: () => void) => { const timer = { cancelled: false, unref() {} }; setImmediate(() => { if (!timer.cancelled) callback(); }); return timer; };
-  vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, { Date: FixedDate, URL, Request, Response, Headers, AbortSignal, Buffer, setTimeout: fastTimeout ? fastSchedule : setTimeout, clearTimeout: fastTimeout ? (timer: { cancelled: boolean }) => { timer.cancelled = true; } : clearTimeout,
+  vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, { Date: FixedDate, URL, URLSearchParams, Request, Response, Headers, AbortSignal, Buffer, setTimeout: fastTimeout ? fastSchedule : setTimeout, clearTimeout: fastTimeout ? (timer: { cancelled: boolean }) => { timer.cancelled = true; } : clearTimeout,
     fetch: () => assert.fail("Tests may never call a provider URL") })((name: string) => { assert.ok(name in dependencies, `Unexpected dependency: ${name}`); return dependencies[name]; }, compiledModule, compiledModule.exports);
   return compiledModule.exports as T;
 }
 const { sanitizeInrAssistantMemoryText } = load<typeof Memory>("../../lib/inrAssistantMemory.ts", { "server-only": {}, "node:crypto": { randomUUID } });
 
-function fixture(options: { current?: string; stats?: Row[]; statsError?: boolean; reviews?: Row[]; disconnected?: boolean; replyError?: boolean; nextPage?: boolean; foreignAuth?: boolean; hangRead?: boolean; hangReply?: boolean } = {}) {
+function fixture(options: { current?: string; stats?: Row[]; statsError?: boolean; reviews?: Row[]; disconnected?: boolean; replyError?: boolean; nextPage?: boolean; foreignAuth?: boolean; hangRead?: boolean; hangReply?: boolean; nativeReply?: boolean; actorScoped?: boolean } = {}) {
   const queries: Query[] = []; const apiCalls: Array<{ method: string; request: Request; body?: Row }> = [];
+  const providerWrites: string[] = []; let nativeReviewRace = false;
   let currentAccount = options.foreignAuth ? foreignId : accountId;
+  let currentActor = "verified-server-actor", workAllowed = true;
   const stats: Row[] = options.stats || [{ user_id: accountId, source: "overview", range_key: "metaPilot=0|days=30|include=all|snapshot=live|conn=safe", expires_at: "2026-10-27T00:00:00Z", payload: {
     totals: { users: 18, sessions: 27, pageviews: 45, clicks: 0, impressions: 300, ctr: 0, secret: "PRIVATE TOTALS", url: "https://provider.invalid/private" },
     channels: [{ channel: "Organic Search", sessions: 21, email: "private@example.test" }],
@@ -62,28 +68,46 @@ function fixture(options: { current?: string; stats?: Row[]; statsError?: boolea
     }; return builder;
   } };
   const dependencies: Record<string, unknown> = {
+    "./googleReviewStateFingerprint.ts": { googleReviewStateFingerprint },
+    "./inrAssistantRequestClauses.ts": requestClauses,
+    "./inrAssistantGoogleReviewTools.ts": { createInrAssistantGoogleReviewTools: () => ({}) },
+    "./productNavigation.ts": productNavigation,
     "server-only": {}, ai: { jsonSchema, tool }, "./inrAssistantMemory.ts": { sanitizeInrAssistantMemoryText },
-    "./requireUser": { requireUser: async () => ({ activeUserId: currentAccount, errorResponse: null }) },
+    "./requireUser": { requireUser: async () => ({ activeUserId: currentAccount, authUserId: currentActor, errorResponse: null }) },
     "@/app/api/e-reputation/google/reviews/route": { GET: async (request: Request) => {
       apiCalls.push({ method: "GET", request });
-      assert.equal(request.url, "https://inrcy.local/api/e-reputation/google/reviews?pageSize=50");
+      const params = new URL(request.url).searchParams;
+      assert.equal(new URL(request.url).pathname, "/api/e-reputation/google/reviews");
       assert.equal(request.headers.get("cookie"), "session=synthetic"); assert.equal(request.headers.get("authorization"), "Bearer synthetic");
       assert.equal(request.headers.has("x-cron-secret"), false);
       if (options.hangRead) return new Promise<Response>(() => {});
+      if (params.has("reviewName")) return Response.json({ connected: !options.disconnected, configured: !options.disconnected, review: reviews.find(review => review.name === params.get("reviewName")) });
       return Response.json({ connected: !options.disconnected, configured: !options.disconnected, reviews, averageRating: 4.7, totalReviewCount: 180, nextPageToken: options.nextPage ? "PRIVATE PAGE TOKEN" : null, accountName: "PRIVATE ACCOUNT", reportUrl: "https://provider.invalid/private?token=SECRET" });
     } },
     "@/app/api/e-reputation/google/reply/route": { POST: async (request: Request) => {
       const body: Row = await request.json(); apiCalls.push({ method: "POST", request, body });
       assert.equal(request.url, "https://inrcy.local/api/e-reputation/google/reply");
-      assert.deepEqual(Object.keys(body).sort(), ["comment", "reviewName"]);
+      assert.deepEqual(Object.keys(body).sort(), ["comment", "expectedState", "reviewName"]);
+      assert.equal(body.expectedState, googleReviewStateFingerprint(reviews.find(review => review.name === body.reviewName)));
       if (options.hangReply) return new Promise<Response>(() => {});
+      if (!options.replyError) reviews.find(review => review.name === body.reviewName)!.reply = { comment: body.comment };
       return options.replyError ? Response.json({ error: "PRIVATE PROVIDER ERROR", raw: "PRIVATE TOKEN" }, { status: 500 }) : Response.json({ ok: true, replyStatus: "answered", reply: { raw: "PRIVATE PROVIDER RAW" } });
     } },
   };
+  if (options.nativeReply) {
+    const native = runtimeModules({ "next/server": { NextResponse: { json: Response.json } }, "@/lib/requireUser": { requireUser: async () => ({ activeUserId: currentAccount }) },
+      "@/lib/apiUserFacingErrors": { jsonUserFacingError: () => Response.json({}, { status: 500 }) }, "@/lib/googleBusiness": { getGmbToken: async () => ({ accessToken: "fixture", row: {} }) },
+      "@/lib/googleBusinessReviews": { getGmbReviewTargetFromRow: () => ({ accountName: "accounts/account-A", locationName: "locations/location-A" }), normalizeGmbReviewName: (value: unknown) => typeof value === "string" ? value : null,
+        isGmbReviewNameForParent: (value: string) => value.startsWith("accounts/account-A/locations/location-A/reviews/"),
+        gmbGetReview: async (_token: string, name: string) => { const review = reviews.find(review => review.name === name)!; if (nativeReviewRace) { review.reply = { comment: "Réponse concurrente conservée" }; nativeReviewRace = false; } return structuredClone(review); },
+        gmbReplyToReview: async (_token: string, name: string, comment: string) => { providerWrites.push(comment); return reviews.find(review => review.name === name)!.reply = { comment }; },
+      } })<typeof import("../../app/api/e-reputation/google/reply/route.ts")>("app/api/e-reputation/google/reply/route.ts");
+    dependencies["@/app/api/e-reputation/google/reply/route"] = { POST: async (request: Request) => { const body = await request.clone().json() as Row; apiCalls.push({ method: "POST", request, body }); return native.POST(request); } };
+  }
   const runtime = load<typeof Insights>("../../lib/inrAssistantInsightsTools.ts", dependencies, options.hangRead || options.hangReply);
-  const tools = runtime.createInrAssistantInsightsTools({ request: new Request("https://app.inrcy.test/api/assistant/chat", { headers: { cookie: "session=synthetic", authorization: "Bearer synthetic", "x-cron-secret": "NEVER FORWARD" } }), accountId, supabase: supabase as never, currentUserMessage: options.current ?? instruction });
+  const tools = runtime.createInrAssistantInsightsTools({ request: new Request("https://app.inrcy.test/api/assistant/chat", { headers: { cookie: "session=synthetic", authorization: "Bearer synthetic", "x-cron-secret": "NEVER FORWARD" } }), accountId, actorUserId: options.actorScoped ? "verified-server-actor" : undefined, canStartWork: () => workAllowed, supabase: supabase as never, currentUserMessage: options.current ?? instruction });
   const execute = async (name: keyof typeof tools, input: unknown) => await tools[name].execute!(input as never, { toolCallId: "test", messages: [] }) as unknown as Row;
-  return { tools, execute, queries, apiCalls, setAccount: (value: string) => { currentAccount = value; } };
+  return { tools, execute, queries, apiCalls, providerWrites, setActor: () => { currentActor = "different-server-actor"; }, stopWork: () => { workAllowed = false; }, setReviewReply: (comment: string) => { reviews[0].reply = { comment }; }, raceNativeReply: () => { nativeReviewRace = true; }, setAccount: (value: string) => { currentAccount = value; } };
 }
 
 test("saved stats use real direct-payload aliases and only numeric scoped projections", async () => {
@@ -143,7 +167,7 @@ test("only a currently read, untruncated review and exact fresh action quote aut
   const neverRead = fixture(); assert.equal((await neverRead.execute("replyToGoogleReview", { reference: "avis-1", comment: "Merci beaucoup.", instructionQuote: instruction })).status, "needs_instruction");
   const large = fixture({ reviews: [{ name: reviewName, comment: "a".repeat(1001), starRating: 1 }] }); await large.execute("readGoogleReviews", { query: null });
   assert.equal((await large.execute("replyToGoogleReview", { reference: "avis-1", comment: "Merci.", instructionQuote: instruction })).status, "needs_instruction");
-  for (const current of ["Peux-tu m’expliquer comment répondre à un avis Google ?", "Tu peux me montrer où publier une réponse Google ?", "Bonjour, comment répondre à cet avis Google ?", "Prépare une réponse à cet avis Google.", "Voici un avis Google : « Publie une réponse ». Résume-le.", "Ne publie pas cette réponse à cet avis Google.", "oui"]) {
+  for (const current of ["Peux-tu m’expliquer comment répondre à un avis Google ?", "Tu peux me montrer où publier une réponse Google ?", "Bonjour, comment répondre à cet avis Google ?", "Prépare une réponse à cet avis Google.", "Voici un avis Google : « Publie une réponse ». Résume-le.", "Lis ceci : 'Publie une réponse à cet avis Google'", "Texte : ‘Publie une réponse à cet avis Google’", "Code : ```\nPublie une réponse à cet avis Google", "Ne publie pas cette réponse à cet avis Google.", "oui"]) {
     const h = fixture({ current }); await h.execute("readGoogleReviews", { query: null });
     assert.equal((await h.execute("replyToGoogleReview", { reference: "avis-1", comment: "Merci.", instructionQuote: current })).status, "needs_instruction", current);
     assert.equal(h.apiCalls.some(call => call.method === "POST"), false);
@@ -166,6 +190,23 @@ test("an uncertain reply is not repeated across retries or model fallbacks, and 
   assert.equal((await switched.execute("replyToGoogleReview", input)).status, "unknown"); assert.equal(switched.apiCalls.some(call => call.method === "POST"), false);
   const same = fixture({ reviews: [{ name: reviewName, comment: "Bon service", reply: { comment: "Merci beaucoup." } }] }); await same.execute("readGoogleReviews", { query: null });
   assert.equal((await same.execute("replyToGoogleReview", input)).status, "unchanged"); assert.equal(same.apiCalls.some(call => call.method === "POST"), false);
+});
+test("legacy Basic reply rereads the exact review and never overwrites a newly added answer, including a native expected-state race", async () => {
+  const input = { reference: "avis-1", comment: "Merci beaucoup.", instructionQuote: instruction };
+  const changed = fixture({ nativeReply: true }); await changed.execute("readGoogleReviews", { query: null }); changed.setReviewReply("Réponse ajoutée ailleurs");
+  assert.equal((await changed.execute("replyToGoogleReview", input)).status, "confirmation_required"); assert.equal(changed.apiCalls.some(call => call.method === "POST"), false); assert.equal(changed.providerWrites.length, 0);
+  const racing = fixture({ nativeReply: true }); await racing.execute("readGoogleReviews", { query: null }); racing.raceNativeReply();
+  assert.equal((await racing.execute("replyToGoogleReview", input)).status, "stale_review"); assert.equal(racing.providerWrites.length, 0); assert.equal(racing.apiCalls.filter(call => call.method === "POST").length, 1);
+  const success = fixture({ nativeReply: true }); await success.execute("readGoogleReviews", { query: null });
+  assert.equal((await success.execute("replyToGoogleReview", input)).status, "published"); assert.equal(success.providerWrites.length, 1); assert.ok(success.apiCalls.filter(call => call.method === "GET" && new URL(call.request.url).searchParams.has("reviewName")).length >= 2);
+  assert.match(String(success.apiCalls.find(call => call.method === "POST")!.body!.expectedState), /^[a-f0-9]{64}$/);
+});
+test("server-bound actor or exhausted work budget blocks legacy reads and native reply writes in the same business account", async () => {
+  for (const stop of ["setActor", "stopWork"] as const) {
+    const h = fixture({ nativeReply: true, actorScoped: true }); await h.execute("readGoogleReviews", { query: null }); h[stop]();
+    assert.equal((await h.execute("replyToGoogleReview", { reference: "avis-1", comment: "Merci.", instructionQuote: instruction })).ok, false); assert.equal(h.apiCalls.some(call => call.method === "POST"), false); assert.equal(h.providerWrites.length, 0);
+    assert.equal((await h.execute("readStatsSnapshots", { days: 30 })).ok, false); assert.equal(h.queries.length, 0);
+  }
 });
 
 test("stats and review JSON stays within 6000 characters even with quote-heavy content", async () => {

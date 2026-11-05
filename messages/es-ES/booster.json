@@ -1,4 +1,5 @@
 {
+  "studio_open_unavailable": "No se puede abrir iNrStudio en este momento. Tus cambios se conservan en Booster. Inténtalo de nuevo.",
   "adjust_title": "Ajustar la generación",
   "adjust_channels_title": "Canales que regenerar",
   "adjust_step": "Paso {step} de 2",

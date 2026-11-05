@@ -1,6 +1,18 @@
 import "server-only";
 
 import { createInrAssistantUiTools } from "./inrAssistantUiTools.ts";
+import { createInrAssistantBusinessIdentityTools } from "./inrAssistantBusinessIdentityTools.ts";
+import { createInrAssistantSocialPublicationPreferencesTools } from "./inrAssistantSocialPublicationPreferencesTools.ts";
+import { createInrAssistantPinterestBoardTools } from "./inrAssistantPinterestBoardTools.ts";
+import { createInrAssistantWebsiteLifecycleTools } from "./inrAssistantWebsiteLifecycleTools.ts";
+import { createInrAssistantDnaScheduleTools } from "./inrAssistantDnaScheduleTools.ts";
+import { createInrAssistantReferralTools } from "./inrAssistantReferralTools.ts";
+import { createInrAssistantGeneratorSettingsTools } from "./inrAssistantGeneratorSettingsTools.ts";
+import { createInrAssistantWebsiteTools } from "./inrAssistantWebsiteTools.ts";
+import { createInrAssistantBusinessDnaSourceTools } from "./inrAssistantBusinessDnaSourceTools.ts";
+import { createInrAssistantAccountServiceTools } from "./inrAssistantAccountServiceTools.ts";
+import { createInrAssistantNativePresentationTools } from "./inrAssistantNativePresentationTools.ts";
+import { createInrAssistantChannelConfigurationTools } from "./inrAssistantChannelConfigurationTools.ts";
 import { createInrAssistantMediaTools } from "./inrAssistantMediaTools.ts";
 import { createInrAssistantAccountTools } from "./inrAssistantAccountTools.ts";
 import { createInrAssistantDiagnosticsTools } from "./inrAssistantDiagnosticsTools.ts";
@@ -64,22 +76,31 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
   const { args, latestRequest, spokenRequest, families, requiredTools, canExecute,
     draftOnly, statusOnly, navigationRequested, screenCommandRequested,
     remainingTimeMs, onMediaStarted, onMediaResult, onPublicationResult, resolvePreview } = context;
-  const uiTools = navigationRequested || screenCommandRequested ? createInrAssistantUiTools({accountId:args.accountId,currentUserMessage:latestRequest,clientContext:args.clientContext,supabase:args.supabase,canStartWork:()=>remainingTimeMs()>1000}) : {};
-  const mediaTools = families.has("media") ? createInrAssistantMediaTools({
+  const uiTools = (() => {
+    if (!navigationRequested && !screenCommandRequested) return {};
+    const available = createInrAssistantUiTools({accountId:args.accountId,edition:args.edition,currentUserMessage:latestRequest,clientContext:args.clientContext,supabase:args.supabase,canStartWork:()=>remainingTimeMs()>1000});
+    return {
+      ...(navigationRequested && available.navigateApplication ? { navigateApplication: available.navigateApplication } : {}),
+      ...(screenCommandRequested && available.runScreenCommand ? { runScreenCommand: available.runScreenCommand } : {}),
+    };
+  })();
+  const mediaTools = families.has("media") ? (() => {const available = createInrAssistantMediaTools({
     request: args.request, requestId: args.actionRequestId ?? args.requestId,
     currentUserMessage: latestRequest,
     statusReadOnly: statusOnly && args.taskIntent !== "continue",
+    previewTarget: args.clientContext?.mediaPreview,
+    saveAuthorizedRequestIds: args.taskContext?.receipts.filter(receipt=>["generateMedia","modifyMedia"].includes(receipt.tool) && receipt.resultMode === "save" && typeof receipt.requestId === "string").map(receipt=>receipt.requestId!),
     canStartWork: () => remainingTimeMs() > 20_000,
     onWorkStarted: onMediaStarted,
     onResult: onMediaResult,
-  }) : {};
+  }); if (!/cout|co[uû]te|credits?|tarif|prix|devis|quote|cost/i.test(`${latestRequest} ${(context.discoveryTopics??[]).join(" ")}`) && !requiredTools.includes("quoteMediaGeneration")) { const {quoteMediaGeneration:_quote,...selected}=available; return selected; } return available;})() : {};
   const accountTools = (() => {
     if (!args.supabase) return {};
     const available = createInrAssistantAccountTools({ supabase: args.supabase, accountId: args.accountId });
     return {
       ...(args.edition === "basic" || families.has("business") || families.has("media") || families.has("publication") ? { getBusinessDna: available.getBusinessDna } : {}),
       ...(families.has("media") || families.has("publication") ? { searchMedia: available.searchMedia } : {}),
-      ...(families.has("publication") ? { getRecentPublications: available.getRecentPublications } : {}),
+      ...(families.has("publication") && (requiredTools.includes("getRecentPublications") || /historique|dernier|recent|deja|similaire|bloqu|diagnosti|echec|probleme/i.test(latestRequest)) ? { getRecentPublications: available.getRecentPublications } : {}),
     };
   })();
   const diagnosticTools = args.supabase && (requiredTools.includes("getAccountDiagnostics") || /(?:erreur|error|bloqu|impossible|echec|failed|bug|ne fonctionne|probleme|diagnosti|日志|错误)/i.test(latestRequest)) ? createInrAssistantDiagnosticsTools({ supabase: args.supabase, accountId: args.accountId, edition: args.edition }) : {};
@@ -124,6 +145,7 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
       statusReadOnly:statusOnly,
       canStartWork: () => remainingTimeMs() > 15_000, onResult: onPublicationResult });
     return {
+      ...(/musique|soundtrack|pinterest|tableau|placement|reel|story|ephemere|ghost/.test(topic) || requiredTools.includes("readPublicationOptions") ? {readPublicationOptions: available.readPublicationOptions} : {}),
       ...(canExecute && requiredTools.some(name=>["preparePublication","executePublication"].includes(name)) ? {preparePublication: available.preparePublication} : {}),
       ...(canExecute && requiredTools.includes("executePublication") ? { executePublication: available.executePublication } : {}),
       ...(canExecute && requiredTools.includes("editPublication") ? { editPublication: available.editPublication } : {}),
@@ -138,15 +160,15 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
       ...(canExecute && requiredTools.includes("updateMediaMetadata") ? { updateMediaMetadata: available.updateMediaMetadata } : {}),
       ...(canExecute && requiredTools.includes("prepareCampaignEmail") ? { prepareCampaignEmail: available.prepareCampaignEmail } : {}),
       ...(canExecute && requiredTools.includes("prepareCalendarAppointment") ? { prepareCalendarAppointment: available.prepareCalendarAppointment } : {}),
-      ...(/(?:\bcrm\b|client|prospect|contact)/.test(topic) ? { searchCrmContacts: available.searchCrmContacts, readCrmContact: available.readCrmContact } : {}),
+      ...(/(?:\bcrm\b|client|prospect|contact)/.test(topic) ? { searchCrmContacts: available.searchCrmContacts, ...(families.has("commercial") && requiredTools.some(name => ["manageCrmContact","prepareCommercialDocument","readCrmContact"].includes(name)) || /fiche|detail/.test(topic) ? {readCrmContact: available.readCrmContact} : {}) } : {}),
     };
   })();
   const insightsTools = (() => {
     if (!args.supabase) return {};
-    const available = createInrAssistantInsightsTools({ request: args.request, accountId: args.accountId, supabase: args.supabase, currentUserMessage: latestRequest });
+    const available = createInrAssistantInsightsTools({ request: args.request, accountId: args.accountId, supabase: args.supabase, actorUserId: args.actorUserId, currentUserMessage: latestRequest, currentApprovalMessage: spokenRequest, resolvePreview, canStartWork: () => remainingTimeMs() > 15000 });
     return {
       ...(/(?:stats|statisti|resultat|impression|performan)/.test(topic) ? { readStatsSnapshots: available.readStatsSnapshots } : {}),
-      ...(/(?:reputation|\bavis\b|review)/.test(topic) ? { readGoogleReviews: available.readGoogleReviews, replyToGoogleReview: available.replyToGoogleReview } : {}),
+      ...(/(?:reputation|\bavis\b|review)/.test(topic) ? { readGoogleReviews: available.readGoogleReviews, listGoogleReviews: available.listGoogleReviews, ...(canExecute ? {replyToGoogleReview: available.replyToGoogleReview, previewGoogleReviewReplyAction: available.previewGoogleReviewReplyAction, ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?{applyGoogleReviewReplyAction:available.applyGoogleReviewReplyAction}:{})} : {}) } : {}),
     };
   })();
   const commercialTools = (() => {
@@ -169,7 +191,7 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
   const scheduledLifecycle=requiredTools.some(name=>["updateScheduledPublication","cancelScheduledPublication","retryScheduledPublication"].includes(name));
   const scheduledTools=args.supabase && args.actorUserId && families.has("publication") && (scheduledLifecycle || /programm|planifi|echec|echou/.test(topic))
     ? (()=>{const available=createInrAssistantScheduledPublicationTools({request:args.request,accountId:args.accountId,actorUserId:args.actorUserId!,supabase:args.supabase!,edition:args.edition,currentUserMessage:latestRequest,currentApprovalMessage:spokenRequest,canStartWork:()=>remainingTimeMs()>15000,resolvePreview});
-      return {readScheduledPublications:available.readScheduledPublications,...(canExecute && scheduledLifecycle?{previewScheduledPublicationAction:available.previewScheduledPublicationAction}:{}),...(canExecute && scheduledLifecycle && /\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?{applyScheduledPublicationAction:available.applyScheduledPublicationAction}:{})};})() : {};
+      return {readScheduledPublications:available.readScheduledPublications,...(canExecute && scheduledLifecycle?{previewScheduledPublicationAction:available.previewScheduledPublicationAction,previewScheduledPublicationEdit:available.previewScheduledPublicationEdit}:{}),...(canExecute && scheduledLifecycle && /\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?{applyScheduledPublicationAction:available.applyScheduledPublicationAction}:{})};})() : {};
   const communicationTools = (() => {
     if (args.edition === "basic" || !args.supabase || !families.has("workspace")) return {};
     const available = createInrAssistantCommunicationTools({ request: args.request, accountId: args.accountId, actorUserId: args.actorUserId,
@@ -214,6 +236,36 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
       currentUserMessage: latestRequest, currentApprovalMessage: spokenRequest, resolvePreview, canStartWork: () => remainingTimeMs() > 15_000 };
     const selected: Record<string, unknown> = {};
     const pick = (available: Record<string, unknown>, names: string[]) => { for (const name of names) if (available[name]) selected[name] = available[name]; };
+    if (families.has("business") && (requiredTools.some(name => ["readBusinessIdentity","searchBusinessProfessions","updateBusinessIdentity"].includes(name)) || /identite|coordonne|raison sociale|profession|metier|postal|ville|profil entreprise|(?:nom|prenom|logo|telephone|adresse).{0,35}(?:entreprise|societe|profil)/.test(topic))) {
+      const available = createInrAssistantBusinessIdentityTools(scope);
+      pick(available, ["readBusinessIdentity", ...(/profession|metier|activite/.test(topic) ? ["searchBusinessProfessions"] : []), ...(canExecute ? ["updateBusinessIdentity"] : [])]);
+    }
+    if (families.has("business") && (requiredTools.some(name => ["readChannelResources","previewChannelResourceSelection","previewChannelDisconnection","applyChannelConfiguration","updateLinkedInPersonalSharing"].includes(name)) || /ressource|page facebook|fiche google|etablissement google|organisation linkedin|tableau pinterest|partage personnel|deconnect|dissoci/.test(topic))) {
+      const available = createInrAssistantChannelConfigurationTools(scope);
+      pick(available, ["readChannelResources", ...(canExecute ? ["previewChannelResourceSelection", "previewChannelDisconnection", "updateLinkedInPersonalSharing", ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest) ? ["applyChannelConfiguration"] : [])] : [])]);
+    }
+    if (/sources? (?:adn|dna)|documents? (?:adn|dna|de reference)|fichiers? (?:adn|dna)|(?:adn|dna).{0,35}(?:sources?|documents?|fichiers?)/.test(topic) || requiredTools.some(name => ["readBusinessDnaSources","applyBusinessDnaDocumentRemoval"].includes(name))) {
+      const available = createInrAssistantBusinessDnaSourceTools(scope);
+      pick(available, ["readBusinessDnaSources", ...(canExecute ? ["previewBusinessDnaDocumentRemoval", ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?["applyBusinessDnaDocumentRemoval"]:[])] : [])]);
+    }
+    if (/ga4|analytics|search console|gsc|widget|actualites|actus/.test(topic) || requiredTools.some(name => ["readWebsiteConfiguration", "updateWebsiteConfiguration", "applyWebsiteAnalyticsDisconnection"].includes(name))) {
+      const available = createInrAssistantWebsiteTools(scope);
+      pick(available, ["readWebsiteConfiguration", ...(canExecute ? ["updateWebsiteConfiguration", "previewWebsiteAnalyticsDisconnection", ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?["applyWebsiteAnalyticsDisconnection"]:[])] : [])]);
+    }
+    if (/notification|abonnement|credits?|recharges?|commandes?|factures? d.abonnement|rgpd|donnees personnelles|cookies?|parrainage/.test(topic) || requiredTools.some(name => ["readAccountServices","markNotificationsRead","prepareAccountDocumentDownload","configureCookieConsent"].includes(name))) {
+      const available = createInrAssistantAccountServiceTools(scope);
+      pick(available, ["readAccountServices", ...(canExecute && /notifications?/.test(topic) ? ["markNotificationsRead"] : []), ...(canExecute && (requiredTools.includes("prepareAccountDocumentDownload") || /telecharg|export/.test(topic)) ? ["prepareAccountDocumentDownload"] : []), ...(canExecute && /cookies?/.test(topic) ? ["configureCookieConsent"] : [])]);
+    }
+    if (/parrain|recommandation|referral/.test(topic) || requiredTools.includes("applyReferralSubmission")) { const available=createInrAssistantReferralTools(scope); pick(available, [...(canExecute ? ["previewReferralSubmission", ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?["applyReferralSubmission"]:[])] : [])]); }
+    if (requiredTools.some(name => ["readSocialPublicationPreferences","updateSocialPublicationPreferences"].includes(name)) || /(?:facebook|instagram|threads).{0,65}(?:preference|reglage|defaut|activer|desactiver)|(?:preference|reglage|defaut).{0,65}(?:facebook|instagram|threads)/.test(topic)) { const available=createInrAssistantSocialPublicationPreferencesTools(scope); pick(available,["readSocialPublicationPreferences",...(canExecute?["updateSocialPublicationPreferences"]:[])]); }
+    if (requiredTools.includes("applyPinterestBoardMutation")) { const available=createInrAssistantPinterestBoardTools(scope); pick(available,[...(canExecute?["previewPinterestBoardMutation",...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?["applyPinterestBoardMutation"]:[])]:[])]); }
+    if (requiredTools.includes("applyWebsiteReset")) { const available=createInrAssistantWebsiteLifecycleTools(scope); pick(available,[...(canExecute?["previewWebsiteReset",...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?["applyWebsiteReset"]:[])]:[])]); }
+    if (requiredTools.some(name=>["readBusinessDnaSchedule","updateBusinessDnaSchedule"].includes(name)) || /(?:programmation|planification|analyse mensuelle).{0,70}(?:adn|dna)|(?:adn|dna).{0,70}(?:mensuel|programmation|planification)/.test(topic)) { const available=createInrAssistantDnaScheduleTools(scope); pick(available,["readBusinessDnaSchedule",...(canExecute?["updateBusinessDnaSchedule"]:[])]); }
+    if (/panier moyen|conversion|estimations?|reglages? du generateur|opportunites/.test(topic) || requiredTools.some(name=>["readGeneratorBusinessSettings","updateGeneratorBusinessSettings"].includes(name))) { const available=createInrAssistantGeneratorSettingsTools(scope); pick(available,["readGeneratorBusinessSettings",...(canExecute?["updateGeneratorBusinessSettings"]:[])]); }
+    if (/badge|search/.test(topic)) {
+      const available = createInrAssistantNativePresentationTools(scope);
+      pick(available, ["readNativeChannelPresentation", ...(canExecute ? ["updateNativeChannelPresentation"] : [])]);
+    }
     if (args.edition === "founder" && (families.has("commercial") || requiredTools.some(name => ["applyCommercialDocumentAction", "applyCommercialTemplateAction", "prepareCurrentDocumentTemplate"].includes(name)))) {
       const available = createInrAssistantDocumentNativeTools({ ...scope, clientContext: args.clientContext });
       pick(available, ["readCommercialTemplates",
@@ -235,9 +287,9 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
       const available = createInrAssistantPublicationLifecycleTools(scope);
       pick(available, ["readPublicationWorkspace", ...(requiredTools.includes("editPreparedPublication") ? ["editPreparedPublication"] : []), ...(requiredTools.includes("applyPublicationLifecycleAction") ? ["previewPublicationLifecycleAction","applyPublicationLifecycleAction"] : [])]);
     }
-    if (/stats|statistiq|bilan|rapport/.test(topic)) {
+    if (/stats|statistiq|bilan|rapport/.test(topic) || requiredTools.some(name => ["readStatsEvolution","readStatsReports","refreshStatsSources","sendStatsReport","prepareStatsReportDownload"].includes(name))) {
       const available = createInrAssistantStatsTools(scope);
-      pick(available, ["readStatsReports", ...requiredTools.filter(name => ["refreshStatsSources","sendStatsReport","prepareStatsReportDownload"].includes(name))]);
+      pick(available, [...(/rapport|bilan/.test(topic) || requiredTools.some(name => ["readStatsReports","sendStatsReport","prepareStatsReportDownload"].includes(name)) ? ["readStatsReports"] : []), ...(/mensuel|mois|evolution/.test(topic) || requiredTools.includes("readStatsEvolution") ? ["readStatsEvolution"] : []), ...requiredTools.filter(name => ["refreshStatsSources","sendStatsReport","prepareStatsReportDownload"].includes(name))]);
     }
     return selected;
   })();
